@@ -11,14 +11,6 @@ import { Maintenance } from "./maintenance";
 import { GameSocket } from "./sockets";
 import { World } from "./world";
 
-/**
- * Maintenance mode: a row in the database, and the world closing players out.
- *
- * Against a real database file, on the terms `./accounts.test.ts` gives. The
- * point of the switch is that it survives a restart, and a stubbed store would
- * say nothing about that.
- */
-
 let directory: string;
 
 beforeEach(async () => {
@@ -44,10 +36,6 @@ describe("the maintenance row", () => {
     expect((await Maintenance.load(db)).state).toBeNull();
   });
 
-  /**
-   * The reason it is a row and not an environment variable: a world closed for
-   * maintenance has to stay closed through the deploys made while it is.
-   */
   it("is read back by the next process", async () => {
     await (await Maintenance.load(db)).begin("Back at six.", 1_000);
     await db.close?.();
@@ -81,10 +69,6 @@ describe("the maintenance row", () => {
 describe("closing the world", () => {
   let world: World;
 
-  /**
-   * A world of one cell to stand on, built here rather than read from
-   * `data/map.json` — see `CLAUDE.md`. The tile catalogue is the real one.
-   */
   beforeEach(async () => {
     const seed = join(directory, "seed");
     await mkdir(seed, { recursive: true });
@@ -105,7 +89,6 @@ describe("closing the world", () => {
     await world.drain();
   });
 
-  /** A server-side socket that records how it was closed. */
   function socket(): { socket: GameSocket; closedWith: () => number | null } {
     let code: number | null = null;
     const made = new GameSocket({

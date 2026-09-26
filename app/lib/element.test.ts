@@ -8,14 +8,6 @@ import {
   NEUTRAL,
 } from "./element";
 
-/**
- * The wheel, on its own.
- *
- * Nothing here needs a body, a stone or a world — which is the point of the
- * module being this small. What a spell is worth against what it lands on is
- * arithmetic over two lists of words.
- */
-
 describe("the wheel", () => {
   it("has every element beating exactly one and losing to exactly one", () => {
     for (const element of ELEMENTS) {
@@ -62,11 +54,6 @@ describe("effectiveness", () => {
     expect(effectiveness(["water"], ["nature"])).toBeCloseTo(RESISTED, 6);
   });
 
-  /**
-   * The property the reciprocal exists for, and the reason a body attuned to
-   * everything is a body attuned to nothing: every spell gains one edge and
-   * loses one, and the two cancel exactly rather than nearly.
-   */
   it("comes to exactly one against a body attuned to all three", () => {
     for (const element of ELEMENTS) {
       expect(effectiveness([element], ELEMENTS)).toBe(NEUTRAL);
@@ -74,22 +61,12 @@ describe("effectiveness", () => {
   });
 
   it("multiplies per element being defended", () => {
-    // Fire beats the nature half and loses to the water half, so the two cancel.
     expect(effectiveness(["fire"], ["nature", "water"])).toBeCloseTo(NEUTRAL, 6);
-    // Nothing on the wheel answers either half, so neither moves.
     expect(effectiveness(["fire"], ["fire", "fire"])).toBe(NEUTRAL);
   });
 
-  /**
-   * A spell made of two things picks whichever half wins, which is what stops
-   * breadth from being a liability — see the module note on why the second test
-   * is an `else`.
-   */
   it("lets an advantage anywhere beat a disadvantage everywhere", () => {
-    // Water beats the target's fire; the target's fire would beat nothing here.
     expect(effectiveness(["fire", "water"], ["fire"])).toBeCloseTo(EFFECTIVENESS_EDGE, 6);
-    // Nature beats the target's water, even though the target's water beats the
-    // fire the caster is also throwing.
     expect(effectiveness(["fire", "nature"], ["water"])).toBeCloseTo(EFFECTIVENESS_EDGE, 6);
   });
 

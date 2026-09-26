@@ -23,8 +23,6 @@ import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../../lib/types";
 import { Button, Input, Toggle, Tooltip, useToast } from "../../ui";
 
 export async function clientLoader() {
-  // First and alone, because `/api/map` is behind the same role and would 404
-  // for anybody this is about to turn away. @see ../../lib/auth's requireAdmin
   await requireAdmin();
   const [mapText, tiles, tilesets] = await Promise.all([
     fetchMapText(),
@@ -34,15 +32,6 @@ export async function clientLoader() {
   return { map: parseMap(mapText), tiles, tilesets };
 }
 
-/**
- * Save the map.
- *
- * The write goes through the game server rather than straight to storage, which
- * makes it the single writer: it persists the map, throws the running world
- * away and starts a fresh game on the new one, so nobody is left playing a map
- * that no longer exists. It also means saves and the tick loop cannot interleave
- * into a world that half-changed.
- */
 export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const raw = String(form.get("map") ?? "");
@@ -51,10 +40,6 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
     if (map.version !== MAP_FILE_VERSION) {
       return { ok: false, error: "Unsupported map version" };
     }
-    // Sent as text, because `serializeMap` round-trips byte for byte: saving an
-    // unmodified map leaves `git status` clean in development rather than
-    // reformatting the file. The server writes it and restarts the world onto
-    // it in one call.
     await saveMapText(serializeMap(map));
     return { ok: true };
   } catch (err) {
@@ -123,7 +108,6 @@ export default function MapPage() {
         return;
       }
 
-      // Leave native text undo/redo alone in inputs.
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -180,8 +164,6 @@ export default function MapPage() {
                 <IconArrowDown size={16} aria-hidden="true" />
               </Button>
             </Tooltip>
-            {/* The arrows either side say what the number is, so the word is
-                left to the things that cannot see them. */}
             <Input
               aria-label="Level"
               className="w-14 bg-paper text-ink shadow-none"
@@ -209,17 +191,7 @@ export default function MapPage() {
               </Button>
             </Tooltip>
           </div>
-          {/* Every switch in one place, with the lighting one at the end of the
-              run because the clock beside it is the other half of that control.
-              It rides here rather than in the header's menu — where the game
-              and /admin/play keep theirs — so it can sit next to the hour it
-              works with; the cost is that on a narrow window it wraps with the rest
-              of the map's controls instead of folding away with the nav. */}
           <div className="flex items-center gap-1">
-            {/* The switch is worded for what turning it on does, so it is the
-                inverse of the flag the store and the renderer keep: other
-                levels are drawn by default, and isolating is the thing you ask
-                for. */}
             <Tooltip content="Isolate to current level (I) — drop the floors above, which are otherwise ghosted into one fade. Underground that fade stops at -1">
               <Toggle
                 pressed={!showOtherLevels}
@@ -244,10 +216,6 @@ export default function MapPage() {
               shortcut="L"
             />
           </div>
-          {/* Nothing reads the hour once lighting is off — the authoring
-              background is a fixed paper colour, and preview only borrows play's
-              sky while there is light to go with it — so the slider goes with it
-              rather than sitting there doing nothing. */}
           <div
             className={["flex items-center gap-2", lightingEnabled ? "" : "opacity-50"].join(" ")}
           >

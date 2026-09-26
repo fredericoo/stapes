@@ -29,7 +29,6 @@ function spriteAt(x: number): TileSprite {
   };
 }
 
-/** How many of each face a patch of ground gets, for a tile of `count` faces. */
 function tally(tile: TileDef, count: number, span: number): number[] {
   const hits = new Array<number>(count).fill(0);
   for (let y = 0; y < span; y++) {
@@ -65,9 +64,6 @@ describe("resolveScatterIndex", () => {
   });
 
   it("spreads faces evenly enough that none is rare", () => {
-    // A 40x40 patch, four faces: 400 each if it were perfect. The bound is
-    // loose on purpose — this is a hash, not a shuffle, and the test is here to
-    // catch a mix that has collapsed, not to pin its exact distribution.
     const hits = tally(tile, 4, 40);
     for (const n of hits) {
       expect(n).toBeGreaterThan(300);
@@ -76,8 +72,6 @@ describe("resolveScatterIndex", () => {
   });
 
   it("does not repeat along a row, a column or a diagonal", () => {
-    // The failure a bad mix produces is stripes, and stripes are what somebody
-    // laying a brick road would notice first.
     const row = Array.from({ length: 16 }, (_, x) => resolveScatterIndex(x, 0, 0, tile, 4));
     const col = Array.from({ length: 16 }, (_, y) => resolveScatterIndex(0, y, 0, tile, 4));
     const diag = Array.from({ length: 16 }, (_, i) => resolveScatterIndex(i, i, 0, tile, 4));
@@ -95,9 +89,7 @@ describe("resolveScatterIndex", () => {
       const y = Math.floor(i / 8);
       return resolveScatterIndex(x, y, 0, tile, 4) !== resolveScatterIndex(x, y, 0, reseeded, 4);
     }).filter(Boolean).length;
-    // Roughly three cells in four should land somewhere else with four faces.
     expect(moved).toBeGreaterThan(32);
-    // And it is a re-roll, not a thinning: every face still turns up.
     expect(after.filter((n) => n > 0)).toHaveLength(before.length);
   });
 
@@ -163,8 +155,6 @@ describe("resolving a scatter tile's sprite", () => {
       states: { moving: { scatter: [spriteAt(10), spriteAt(11)] } },
     });
     expect(getFrames(walking, { state: "moving", scatterIndex: 1 })?.[0]?.sprite.rect.x).toBe(11);
-    // Face 2 is unauthored on the state, so it falls back to idle's face 2
-    // rather than to one of the state's own.
     expect(getFrames(walking, { state: "moving", scatterIndex: 2 })?.[0]?.sprite.rect.x).toBe(2);
   });
 

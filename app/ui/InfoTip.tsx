@@ -1,25 +1,6 @@
 import type { ReactNode } from "react";
 import { Tooltip, TooltipProvider } from "./Tooltip";
 
-/**
- * A small `i` that opens the engine's side of the story.
- *
- * The label beside it says what a field *is*; this says how the simulation
- * reads it — the unit, the clamp, the thing it interacts with two tabs away.
- * That used to be a paragraph under every control, and a panel of forty
- * paragraphs is a panel nobody reads. Held here it costs one glyph, and it is
- * there for the author who wants it.
- *
- * A real button rather than a span, so it can be reached and opened from the
- * keyboard. It is not a `title`: those take a second to appear and vanish on
- * the first twitch of the pointer.
- *
- * It opens with no delay, which is the opposite of the rule everywhere else.
- * The delay exists for tooltips nobody asked for — a pointer crossing a toolbar
- * on its way somewhere. Nobody's pointer ends up on a four-pixel `i` by
- * accident: reaching one *is* the request, and a wait after it reads as the
- * control being broken rather than as restraint.
- */
 export function InfoTip({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider delay={0}>

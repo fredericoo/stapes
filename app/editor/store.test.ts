@@ -105,8 +105,6 @@ describe("editor store history", () => {
 
   it("setStackFoot lifts a placement, refuses what will not fit, and undoes", () => {
     const store = useEditorStore.getState();
-    // `rock` is two units on bare grass, so half a level up is the one lift
-    // that leaves it inside the level.
     expect(store.setStackFoot(1, 2)).toEqual({ ok: true });
     expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
       { tileId: "grass" },
@@ -117,7 +115,6 @@ describe("editor store history", () => {
     expect(tooHigh.ok).toBe(false);
     expect(getStack(useEditorStore.getState().map, 1, 2, 0)[1]!.foot).toBe(2);
 
-    // Setting it back down leaves no field behind, the way a blank channel does.
     useEditorStore.getState().setStackFoot(1, null);
     expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
       { tileId: "grass" },
@@ -136,8 +133,6 @@ describe("editor store history", () => {
       { tileId: "rock", channel: "gate-a" },
     ]);
 
-    // Blank clears the field rather than storing "" — an unwired placement
-    // must read the same however it got there.
     useEditorStore.getState().setStackChannel(1, "   ");
     expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
       { tileId: "grass" },
@@ -159,7 +154,6 @@ describe("editor store history", () => {
     expect(useEditorStore.getState().strokeBase).not.toBeNull();
     expect(useEditorStore.getState().past).toHaveLength(0);
 
-    // Backspace / stack-panel edits must not be swallowed by strokeBase.
     store.removeFromStack(1);
 
     const after = useEditorStore.getState();
@@ -232,8 +226,6 @@ describe("editor store paint", () => {
 
 describe("the armed face is a brush setting", () => {
   beforeEach(() => {
-    // The store is a module singleton and `hydrate` does not touch the brush,
-    // so the arm is cleared here or one test's face is the next one's default.
     useEditorStore.getState().setArmedTileId(null);
     useEditorStore.getState().hydrate(structuredClone(seedMap), [...tiles, hole]);
   });
@@ -254,9 +246,6 @@ describe("the armed face is a brush setting", () => {
     }
   });
 
-  // A face name belongs to one tile's catalogue. Carrying "planks" across to
-  // another variant tile would place its first face while the picker still
-  // showed a face it does not have.
   it("drops the face when a different tile is armed", () => {
     const store = useEditorStore.getState();
     store.setArmedTileId("hole");
@@ -273,9 +262,6 @@ describe("the armed face is a brush setting", () => {
     expect(useEditorStore.getState().armedVariant).toBe("planks");
   });
 
-  // Nothing armed means nothing written: the resolver's "first authored"
-  // fallback is the same answer, and a name in the file is a promise the
-  // catalogue has to keep across a rename.
   it("writes no face when none is armed", () => {
     const store = useEditorStore.getState();
     store.setArmedTileId("hole");

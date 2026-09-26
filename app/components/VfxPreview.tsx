@@ -6,33 +6,6 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { VfxPreview as PreviewRenderer } from "../render/VfxPreview";
 import { Select, Switch } from "../ui";
 
-/**
- * The rendering simulation, and the picker that says what it is drawn on.
- *
- * The canvas is the point of the whole effects section: a tint is three numbers
- * and a plume is fifteen, and not one of them means anything written down. What
- * an author is actually deciding is whether a fire looks like a fire, and the
- * only way to answer that is to show them one — through the same particle
- * simulation, the same tint shader and the same palette quantise the world uses,
- * so what they approve here is what ships. See `../render/VfxPreview`.
- *
- * ## Why it draws on a *tile* and not on a battler
- *
- * Statuses land on bodies today, but they are not going to stay there — a bush
- * catching fire is the same effect on a different subject, and an author needs to
- * see it on the thing it will be on. So the subject is anything in the catalogue,
- * and switching it is one control.
- *
- * ## Two callers, and one of them already knows its subject
- *
- * The status editor picks a subject, because a status has none of its own. The
- * tile editor **is** the subject, so it passes one and the picker goes away with
- * it — along with the wind-down scrubber, which is a fact about a status and
- * nothing a tile has. A control that can never do anything is worse than no
- * control: it implies the tile has a taper somewhere.
- */
-
-/** How the picker is ordered: the player first, then everything alphabetically. */
 function subjectOptions(tiles: readonly TileDef[]) {
   const rest = tiles
     .filter((t) => t.id !== PLAYER_TILE_ID)
@@ -46,23 +19,10 @@ function subjectOptions(tiles: readonly TileDef[]) {
   ];
 }
 
-/**
- * The picker's value for "draw the plume over empty floor".
- *
- * A sentinel rather than an empty string, because the `Select` reads an empty
- * value as "nothing chosen" and would sit blank instead of saying what it is
- * showing.
- */
 const NO_SUBJECT = "~none";
 
-/** Shared empty, so a caller with a fixed subject allocates nothing to say so. */
 const NO_TILES: TileDef[] = [];
 
-/**
- * A transition to play on the subject, replayed each time a new one is handed
- * in. `token` is what makes pressing Play twice play twice: the transition and
- * side can be the same, and the object never is.
- */
 export type TransitionPlay = {
   transition: Transition;
   side: TransitionSide;
@@ -78,54 +38,16 @@ export function VfxPreview({
   transitionPlay = null,
 }: {
   vfx: StatusVfx;
-  /**
-   * The catalogue the subject is picked from.
-   *
-   * Unread when {@link fixedSubject} says what to draw on, and optional for
-   * exactly that caller — handing a whole catalogue to a picker that is not
-   * going to be rendered says the wrong thing about what this needs.
-   */
   tiles?: TileDef[];
   tilesets: TilesetDef[];
-  /**
-   * The tile to draw on, for a caller that already has one.
-   *
-   * Present is what turns the picker and the scrubber off — see the note above.
-   * Null draws the plume over bare ground, which is the honest answer for a tile
-   * that has no sprite authored yet.
-   */
   subject?: TileDef | null;
-  /**
-   * Whether what is being previewed can wind down, which turns the scrubber on.
-   *
-   * A status does and nothing else does, so this is the status editor's alone.
-   * It used to ride on {@link fixedSubject} being absent, which held only
-   * because the two callers happened to differ in both ways at once — and
-   * stopped holding the moment a third wanted the picker without the scrubber.
-   * See `./ProjectileTab`, whose hit effect lands on somebody else and has no
-   * wind-down at all.
-   */
   winds?: boolean;
-  /** Play one side of a transition on the subject. @see TransitionPlay */
   transitionPlay?: TransitionPlay | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<PreviewRenderer | null>(null);
-  /**
-   * The player, because it is the sprite an author has in their head when they
-   * write a status — everything that can be poisoned today is a body, and the
-   * player is the body they will be looking at when it happens.
-   */
   const [subjectId, setSubjectId] = useState<string>(PLAYER_TILE_ID);
-  /**
-   * Daylight by default, because that is what a colour is judged against — a
-   * ramp tuned in the dark is a ramp tuned against one particular ambient.
-   */
   const [night, setNight] = useState(false);
-  /**
-   * Untouched by default. The scrubber is for looking at the wind-down; the
-   * thing an author is usually judging is the effect at full strength.
-   */
   const [taper, setTaper] = useState(1);
 
   const options = useMemo(() => subjectOptions(tiles), [tiles]);
@@ -144,9 +66,6 @@ export function VfxPreview({
     };
   }, []);
 
-  // Split from the effect above rather than folded into it, because a subject
-  // change must not tear the canvas down: rebuilding the renderer would throw
-  // away every particle in the air and restart the plume the author is judging.
   useEffect(() => {
     previewRef.current?.setSubject(subject, tilesets);
   }, [subject, tilesets]);
@@ -174,14 +93,9 @@ export function VfxPreview({
       <canvas
         ref={canvasRef}
         className="aspect-square w-full max-w-[288px] border-2 border-border [image-rendering:pixelated]"
-        // The canvas is the whole readout, so it needs a name — there is nothing
-        // else on this panel that says what it is showing.
         aria-label={`Preview of the effect on ${subject?.name ?? "bare ground"}`}
         role="img"
       />
-      {/* The picker is for a caller that does not know what it is drawn on: a
-          status, and a projectile's hit effect, which lands on whatever was
-          struck. A caller that brought its own subject gets none. */}
       {fixedSubject === undefined ? (
         <label className="flex flex-col gap-0.5">
           <span className="text-[11px] font-bold uppercase text-muted">Drawn on</span>
@@ -192,18 +106,12 @@ export function VfxPreview({
           />
         </label>
       ) : null}
-      {/* The scrubber is for a thing that winds down, which is a status and
-          nothing else. @see winds */}
       {winds ? (
         <>
           <label className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">
               {vfx.taperMs > 0 ? `Left to run · ${taper.toFixed(2)}` : "Left to run · not set"}
             </span>
-            {/* Scrubbed rather than waited out: a fade an author had to sit
-                through thirty seconds of is a fade nobody would tune. Disabled
-                when nothing winds down, so the control cannot imply an effect
-                that is not there. */}
             <input
               type="range"
               className="w-full max-w-[288px] accent-accent disabled:opacity-40"

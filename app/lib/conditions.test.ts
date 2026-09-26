@@ -13,14 +13,6 @@ import {
   type ConditionNode,
 } from "./conditions";
 
-/**
- * Composing questions, with a leaf vocabulary invented for the test.
- *
- * Deliberately not the brain's: this module's whole claim is that it knows
- * nothing about what a leaf means, and a test written against `in_range` would
- * quietly stop checking that. Here a leaf is a letter and whether it holds is a
- * lookup, which is the least this module could possibly be told.
- */
 type Leaf = { name: string };
 
 const leafSchema = v.object({ name: v.string() });
@@ -29,7 +21,6 @@ function leaf(name: string): Leaf {
   return { name };
 }
 
-/** A test that answers from a set, and records the order it was asked in. */
 function asking(holding: string[], asked: string[] = []) {
   return (node: Leaf) => {
     asked.push(node.name);
@@ -43,11 +34,6 @@ describe("telling a group from a leaf", () => {
     expect(isConditionGroup(leaf("a"))).toBe(false);
   });
 
-  /**
-   * `rules` is the one key a leaf vocabulary is asked to leave alone, so a
-   * malformed group keeps reading as a group — and fails to parse as one —
-   * rather than passing itself off as a leaf of some vocabulary.
-   */
   it("still reads a group that lost its combinator as a group", () => {
     const broken = { rules: [leaf("a")] } as unknown as ConditionNode<Leaf>;
     expect(isConditionGroup(broken)).toBe(true);
@@ -78,18 +64,11 @@ describe("evaluating", () => {
   });
 
   it("nests", () => {
-    // a and (b or c)
     const nested = group("and", [leaf("a"), group("or", [leaf("b"), leaf("c")])]);
     expect(evaluateCondition(nested, asking(["a", "c"]))).toBe(true);
     expect(evaluateCondition(nested, asking(["b", "c"]))).toBe(false);
   });
 
-  /**
-   * The reason short-circuiting is a documented promise rather than an
-   * incidental use of `every`. A leaf may record who set it off as it answers —
-   * the brain's `heard` does — so a rule whose siblings have already settled the
-   * group must not be asked and leave a fingerprint behind.
-   */
   it("stops asking as soon as the answer is settled", () => {
     const asked: string[] = [];
     evaluateCondition(group("and", [leaf("a"), leaf("b")]), asking([], asked));
@@ -100,11 +79,6 @@ describe("evaluating", () => {
     expect(alsoAsked).toEqual(["a"]);
   });
 
-  /**
-   * The parity a side-effecting leaf needs to know about. One `not` above it
-   * means the branch is asking whether something did *not* happen; two cancel
-   * out, because a question asked twice backwards is asked forwards.
-   */
   it("tells a leaf how many nots it is under, by parity", () => {
     const seen: Array<[string, boolean]> = [];
     const record = (node: Leaf, negated: boolean) => {
@@ -141,7 +115,6 @@ describe("reading the tree", () => {
     expect(nodeAt(tree, [0])).toEqual(leaf("a"));
     expect(nodeAt(tree, [1, 1])).toEqual(leaf("c"));
     expect(nodeAt(tree, [9])).toBeNull();
-    // A leaf has no insides to walk into.
     expect(nodeAt(tree, [0, 0])).toBeNull();
   });
 });
@@ -152,7 +125,6 @@ describe("editing the tree", () => {
   it("swaps a nested node without touching its siblings", () => {
     const next = replaceAt(tree, [1, 0], leaf("z"));
     expect(conditionLeaves(next)).toEqual([leaf("a"), leaf("z"), leaf("c")]);
-    // And the original is untouched, which is what React is relying on.
     expect(conditionLeaves(tree)).toEqual([leaf("a"), leaf("b"), leaf("c")]);
   });
 
@@ -174,10 +146,6 @@ describe("editing the tree", () => {
     expect(conditionLeaves(next!)).toEqual([leaf("a"), leaf("c")]);
   });
 
-  /**
-   * A group with nothing in it is refused at parse time, so leaving one behind
-   * would make deleting a row a way to break the thing being edited.
-   */
   it("takes an emptied group with it, all the way up", () => {
     const deep = group("and", [group("or", [group("and", [leaf("only")])])]);
     expect(removeAt(deep, [0, 0, 0])).toBeNull();
@@ -195,10 +163,6 @@ describe("editing the tree", () => {
 describe("parsing", () => {
   const schema = conditionSchema(leafSchema);
 
-  /**
-   * The compatibility hinge. Every condition ever authored is a bare leaf, and
-   * they all have to keep parsing without a migration.
-   */
   it("takes a bare leaf as a whole condition", () => {
     expect(v.parse(schema, { name: "a" })).toEqual(leaf("a"));
   });
@@ -209,15 +173,9 @@ describe("parsing", () => {
       group("or", [leaf("b"), group("and", [leaf("c")], true)]),
     ]);
     expect(v.parse(schema, tree)).toEqual(tree);
-    // And through the actual disk trip.
     expect(v.parse(schema, JSON.parse(JSON.stringify(tree)))).toEqual(tree);
   });
 
-  /**
-   * An empty `and` is vacuously true and an empty `or` vacuously false, so the
-   * combinator would decide whether an unfinished condition fires constantly or
-   * never. Refusing is the only answer that does not silently pick one.
-   */
   it("refuses a group with nothing in it", () => {
     expect(v.safeParse(schema, { combinator: "and", rules: [] }).success).toBe(false);
   });

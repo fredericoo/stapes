@@ -1,7 +1,3 @@
-/**
- * Map editor renderer (grid, tools, overlays, store sync).
- * Play mode uses the shared world draw in `app/render/WorldRenderer.ts`.
- */
 import * as THREE from "three";
 import { tilesetUrl } from "../lib/api";
 import {
@@ -85,83 +81,29 @@ type AnimatedInstance = {
   frames: Frame[];
   tileset: TilesetDef;
   animKey: string;
-  /** Index into {@link frames} the mesh's UVs currently show. @see WorldRenderer */
   frameIdx: number;
 };
 
-/** A textured rectangle in world pixels, ready to be turned into a mesh. */
 const BACKGROUND_COLOR = 0xb8b09e;
 
 const GHOST_OPACITY = 0.55;
-/** Big shapes fall back to outlines only — one mesh per sprite gets costly. */
 const MAX_GHOST_CELLS = 256;
-/**
- * The same cliff for a generator, further out.
- *
- * A house is several storeys and a stepped roof over one footprint, so its
- * plan runs to two or three cells written per cell dragged — and the ghost is
- * the whole point of the tool, so it is worth more meshes than a rectangle of
- * one tile is. A cave writes one cell per cell but nearly all of them are
- * rock, and a cave is the thing you most want to see before you commit it,
- * which is why this is well past what a house needs. Beyond it a drag shows
- * its footprint and nothing else.
- */
 const MAX_GENERATOR_GHOST_CELLS = 1200;
 
-/** Debounce lighting recompute while painting. */
 const LIGHTING_DEBOUNCE_MS = 50;
-/**
- * Shift the sampled light map half a cell up-left so glow sits nearer the
- * visual middle of a tile (cabinet projection), not the base corner.
- */
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
-/**
- * Zoom steps one notch of a trackpad pinch is worth.
- *
- * A pinch fires a stream of small `ctrlKey` wheel events, so one notch cannot
- * be a whole step of a four-step scale — the map would snap from ×1 to ×8
- * before the fingers had moved a centimetre. A quarter means about four
- * notches per step, which measures like a slow, deliberate zoom.
- */
 const WHEEL_PINCH_STEP = 0.25;
 
-/** Fade of the fused "other levels" image over the floor being edited. */
 const OTHER_LEVELS_OPACITY = 0.35;
 
-/**
- * A two-finger drag in progress.
- *
- * `spreadAtZoom` is the distance between the fingers when the zoom last
- * changed, not when the gesture began: zoom is four discrete steps, so a pinch
- * has to bank travel until it has earned the next one and then start counting
- * again from there. Measuring against the start instead would make the second
- * step need only as much spread as the fraction left over from the first.
- */
 type PinchGesture = {
-  /** Client-space midpoint at the last move — the pan is its travel. */
   mid: { x: number; y: number };
   spreadAtZoom: number;
 };
 
 type LevelVisibility = "hidden" | "solid" | "ghost";
 
-/**
- * How a level is drawn relative to the one being edited.
- *
- * Underground the surface is a lid, and it is a lid in both modes: from -1 down,
- * nothing at 0 or above is drawn at all. The world over a cave is a whole town,
- * and neither previewing a tunnel nor painting one is helped by having it
- * overhead — which is also why the roof-cut exists in play.
- *
- * Under that lid, preview is the game: every remaining floor, solid, because it
- * is there to be looked at rather than painted into.
- *
- * Authoring keeps the same shape and only decides what to do with the floors
- * you are standing *over*. Everything at or below the current level is solid,
- * always, so a floor is edited in the context it will be played in. Everything
- * above is either gone or one fused ghost.
- */
 function levelVisibility(
   z: number,
   current: number,
@@ -176,23 +118,12 @@ function levelVisibility(
   return "ghost";
 }
 
-/**
- * Safari's own pinch, which is not covered by `touch-action: none`.
- *
- * The page allows pinch-zoom on purpose — `app/root.tsx` sets no maximum scale,
- * so anybody who needs to magnify the interface can (see the notes on the 16px
- * field). On the map canvas that is the wrong answer: a two-finger drag there
- * is meant to move the map, and Safari zooming the whole page instead leaves an
- * editor cropped off the screen with no way back to the canvas. Cancelled only
- * on the canvas, so the rest of the editor still magnifies.
- */
 const SAFARI_GESTURE_EVENTS = ["gesturestart", "gesturechange", "gestureend"] as const;
 
 function preventDefault(e: Event) {
   e.preventDefault();
 }
 
-/** Midpoint between two touch points, in whatever space they were given in. */
 function midpointOf(
   a: { x: number; y: number },
   b: { x: number; y: number },
@@ -208,7 +139,6 @@ function disposeObject3D(obj: THREE.Object3D) {
   obj.traverse((child) => {
     const mesh = child as THREE.Mesh;
     mesh.geometry?.dispose();
-    // Shared materials are owned by the renderer — never dispose them here.
   });
 }
 
@@ -225,16 +155,9 @@ export class EditorRenderer {
   private camera: THREE.OrthographicCamera;
   private grid: THREE.Group;
   private overlays: THREE.Group;
-  /**
-   * The outline materials, kept across rebuilds — see
-   * {@link OutlineMaterials}.
-   * The editor is the harder case of the two: the hover cell is in the overlay
-   * signature, so the chrome is rebuilt on every mouse move across the grid.
-   */
   private outlineMaterials = new OutlineMaterials();
   private world: THREE.Group;
   private textures = new Map<string, THREE.Texture>();
-  /** Shared cutout materials keyed by `${texture.uuid}:${z}`. */
   private materials = new Map<string, THREE.MeshBasicMaterial>();
   private tilesets: TilesetDef[] = [];
   private tilesetById = new Map<string, TilesetDef>();
@@ -246,16 +169,11 @@ export class EditorRenderer {
   private compositeMaterial: THREE.ShaderMaterial;
   private palettePass: PalettePass;
   private drawBufferSize = new THREE.Vector2();
-  /** Animated instances keyed by level. */
   private animatedByLevel = new Map<number, AnimatedInstance[]>();
-  /** Flat list rebuilt whenever level animation lists change. */
   private animated: AnimatedInstance[] = [];
-  /** Precomputed grouping of animated instances by anim key. */
   private animatedByKey = new Map<string, AnimatedInstance[]>();
   private animClock = 0;
-  /** Per level, the uniforms its materials read the animation table through. */
   private animUniformsByZ = new Map<number, LevelAnimUniforms>();
-  /** Held only so a rebuilt level can free the texture it replaces. */
   private animTablesByZ = new Map<number, AnimationTable>();
   private lastAnimTime = 0;
   private frameIndices = new Map<string, number>();
@@ -267,10 +185,8 @@ export class EditorRenderer {
   private painting = false;
   private shapeAnchor: { x: number; y: number } | null = null;
   private lastPaintKey = "";
-  /** Live touch points, by pointer id — a pinch needs two at once. */
   private touches = new Map<number, { x: number; y: number }>();
   private pinch: PinchGesture | null = null;
-  /** Sub-step zoom banked from a trackpad pinch, which arrives in small deltas. */
   private zoomDebt = 0;
   private disposed = false;
   private magentaTex: THREE.DataTexture;
@@ -280,11 +196,9 @@ export class EditorRenderer {
   private lightGrid: LightGrid | null = null;
   private lightingKey = "";
   private lightingTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Last `lighting.enabled` pushed to the uniforms; drives the transition. */
   private lightingEnabled = true;
   private rebuildKey = "";
   private gridLevel = Number.NaN;
-  /** Previous map for reference-diff dirty-chunk detection. */
   private prevMap: MapFile | null = null;
   private needsRender = true;
   private canvasW = 0;
@@ -307,16 +221,11 @@ export class EditorRenderer {
     });
     this.renderer.setClearColor(BACKGROUND_COLOR, 1);
     this.renderer.setPixelRatio(1);
-    // Levels are drawn one pass at a time, so clearing is done by hand.
     this.renderer.autoClear = false;
-    // Accumulate draw calls across the multi-pass frame; we reset in renderFrame.
     this.renderer.info.autoReset = false;
 
     this.scene = new THREE.Scene();
-    // World meshes never move after build — update matrices only on rebuild.
     this.scene.matrixWorldAutoUpdate = false;
-    // Tile quads all sit at z = 0 and write their own fragment depth, so the
-    // frustum only has to contain that plane; chrome overlays skip depth test.
     this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -10, 50);
     this.camera.position.z = 25;
 
@@ -370,7 +279,6 @@ export class EditorRenderer {
     void this.preloadTextures()
       .then(() => {
         if (this.disposed) return;
-        // Always rebuild from the live store so we don't race hydrate.
         this.tilesById = useEditorStore.getState().tilesById;
         this.rebuildKey = "";
         this.prevMap = null;
@@ -383,7 +291,6 @@ export class EditorRenderer {
       });
   }
 
-  /** True once tileset textures are in and the world has been built at least once. */
   isReady(): boolean {
     return !this.disposed && this.assetsReady && this.prevMap !== null;
   }
@@ -405,10 +312,6 @@ export class EditorRenderer {
     };
   }
 
-  /**
-   * Force `samples` synchronous frames and return timing percentiles.
-   * Used by Playwright perf budgets — not on the hot path.
-   */
   measureRenders(samples = 60): EditorPerfMeasure {
     const times: number[] = [];
     const warmup = Math.min(10, samples);
@@ -458,7 +361,6 @@ export class EditorRenderer {
 
   dispose() {
     this.disposed = true;
-    // Finalize any open paint stroke so history isn't left stuck (e.g. HMR).
     useEditorStore.getState().endStroke();
     cancelAnimationFrame(this.raf);
     this.unsub?.();
@@ -502,7 +404,6 @@ export class EditorRenderer {
     this.updateCanvasSize();
   }
 
-  /** Canvas size in CSS pixels — the space `zoom` and the camera are measured in. */
   getViewportSize(): { width: number; height: number } {
     this.updateCanvasSize();
     return { width: this.canvasW, height: this.canvasH };
@@ -527,7 +428,6 @@ export class EditorRenderer {
       this.statsEl = el;
       return;
     }
-    // Fallback when the React chrome slot isn't mounted yet.
     el.style.cssText =
       "position:absolute;top:4px;right:4px;z-index:50;font:11px/1.3 ui-monospace,monospace;" +
       "background:rgba(244,240,230,0.9);color:#2d6a4f;padding:4px 6px;pointer-events:none;" +
@@ -569,8 +469,6 @@ export class EditorRenderer {
         uLightMap: { value: this.whiteTex },
         uLightOrigin: { value: new THREE.Vector2(0, 0) },
         uLightSize: { value: new THREE.Vector2(1, 1) },
-        // A level whose materials appear while the toggle is off must arrive
-        // unlit too, or it would be the one floor still shaded.
         uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
         uAmbient: { value: new THREE.Vector3(0, 0, 0) },
       };
@@ -579,14 +477,6 @@ export class EditorRenderer {
     return u;
   }
 
-  /**
-   * This level's animation uniforms, created inert and filled in when the level
-   * is built.
-   *
-   * Held by reference the way {@link ensureLightUniforms}’ are: a material binds
-   * the object once at compile time, so a rebuild replaces the texture *inside*
-   * it rather than handing out a new one nothing is looking at.
-   */
   private ensureAnimUniforms(z: number): LevelAnimUniforms {
     let u = this.animUniformsByZ.get(z);
     if (!u) {
@@ -603,20 +493,13 @@ export class EditorRenderer {
       const lightUniforms = this.ensureLightUniforms(z);
       mat = new THREE.MeshBasicMaterial({
         map: texture,
-        // Ortho camera uses top < bottom for Y-down, which reverses winding.
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
-        // No tint in the map editor: a status is a thing that happens in a
-        // running world, and there is no running world here. The inert uniforms
-        // keep one shader program shared with play rather than compiling a
-        // second one that differs only by a branch nothing takes.
         injectWorldShader(
           shader,
           lightUniforms,
           noTintUniforms(),
-          // No roof cut either: authoring hides levels with a slider, whole
-          // storeys at a time, and has no viewer standing in a house.
           noCutUniforms(this.whiteTex),
           this.ensureAnimUniforms(z),
         );
@@ -625,9 +508,6 @@ export class EditorRenderer {
       mat.userData.lightUniforms = lightUniforms;
       this.materials.set(key, mat);
     }
-    // Cutout with depth: alphaTest discards holes; depth buffer sorts overlaps
-    // so we can merge quads. transparent:true keeps texture alpha in the level
-    // RT so the composite pass can fade a whole level as one flat image.
     mat.alphaTest = 0.5;
     mat.transparent = true;
     mat.opacity = 1;
@@ -645,13 +525,9 @@ export class EditorRenderer {
     }, LIGHTING_DEBOUNCE_MS);
   }
 
-  /**
-   * Recompute the light grid and upload DataTextures.
-   */
   private updateLighting(force = false) {
     if (this.disposed) return;
     const s = useEditorStore.getState();
-    // The last word on whether a bake happens, wherever the call came from.
     if (!s.lighting.enabled) return;
     const key = this.lightingFingerprint(s);
     if (!force && key === this.lightingKey) return;
@@ -670,7 +546,6 @@ export class EditorRenderer {
       seen.add(z);
       this.uploadLevelLight(z, level);
     }
-    // Levels with no contribution stay black (sky/torch fill comes from computeLighting).
     for (const z of this.lightUniformsByZ.keys()) {
       if (seen.has(z)) continue;
       const u = this.ensureLightUniforms(z);
@@ -704,8 +579,6 @@ export class EditorRenderer {
       rgba[p] = level.rgb[i]!;
       rgba[p + 1] = level.rgb[i + 1]!;
       rgba[p + 2] = level.rgb[i + 2]!;
-      // Alpha 0: this grid is already tinted, so the shader must not add a
-      // second helping of ambient on top.
       rgba[p + 3] = 0;
     }
 
@@ -736,12 +609,10 @@ export class EditorRenderer {
       this.gridLevel = s.currentLevel;
     }
     this.drawOverlays(s);
-    // Level visibility and opacity are decided per frame, so they don't force a rebuild.
     const key = `${s.mapVersion}|${Object.keys(s.tilesById).length}`;
     if (forceRebuild || key !== this.rebuildKey) {
       const prevKey = this.rebuildKey;
       this.rebuildKey = key;
-      // Full rebuild when tilesById count changed (defs loaded/replaced) or forced.
       const tilesChanged = forceRebuild || !prevKey || prevKey.split("|")[1] !== key.split("|")[1];
       if (tilesChanged || this.prevMap === null) {
         this.rebuildAll();
@@ -754,18 +625,6 @@ export class EditorRenderer {
     this.requestRender();
   }
 
-  /**
-   * Draw the map unlit, and stop computing light at all.
-   *
-   * The bake here is unchunked — a whole-map flood every time the fingerprint
-   * moves — so turning it off has to mean *skipped*, not "computed and then
-   * ignored by the shader". Any pending recompute is dropped with it: a stroke
-   * that armed the debounce a moment ago would otherwise still land.
-   *
-   * Coming back on, the held fingerprint is cleared rather than compared: the
-   * map may have been painted all over while nothing was being recomputed, so
-   * an unchanged key would leave the stale grid on screen.
-   */
   private applyLightingEnabled(enabled: boolean) {
     if (enabled === this.lightingEnabled) return;
     this.lightingEnabled = enabled;
@@ -809,8 +668,6 @@ export class EditorRenderer {
     const viewH = this.canvasH / zoom;
     this.camera.left = camX;
     this.camera.right = camX + viewW;
-    // Y grows down in our world. top < bottom flips Y to match screen space.
-    // That also reverses face winding — tile materials use DoubleSide to compensate.
     this.camera.top = camY;
     this.camera.bottom = camY + viewH;
     this.camera.scale.set(1, 1, 1);
@@ -860,7 +717,6 @@ export class EditorRenderer {
     lines.updateMatrix();
     this.grid.add(lines);
 
-    // Origin axes
     const axisGeo = new THREE.BufferGeometry();
     axisGeo.setAttribute(
       "position",
@@ -903,7 +759,6 @@ export class EditorRenderer {
     const h = s.hover;
     const sel = s.selected;
     const sp = s.shapePreview;
-    // Include frame indices so animated overlay sprites stay in sync.
     let frames = "";
     for (const [k, v] of this.frameIndices) frames += `${k}=${v};`;
     return [
@@ -948,7 +803,6 @@ export class EditorRenderer {
     };
 
     const z = s.currentLevel;
-    // Selected cell → stamp that stack; otherwise ghost the armed tile (append).
     const appendMode = !s.selected;
     let brush: PlacedTile[] = [];
     if (s.selected) {
@@ -985,7 +839,6 @@ export class EditorRenderer {
           return;
         }
 
-        // Unlit redraw covers the lit map tile, then a tiny additive lift.
         addSprite(quad, {
           color: 0xffffff,
           opacity: 1,
@@ -1008,9 +861,6 @@ export class EditorRenderer {
       });
     }
 
-    // A generator's preview is its own plan, drawn where it would land: the
-    // same `planProcedural` the commit runs, so what the drag shows and what
-    // the click writes cannot describe different things.
     if (s.shapePreview?.kind === "procedural") {
       const { x0, y0, x1, y1 } = s.shapePreview;
       const plan = planProcedural(
@@ -1033,9 +883,6 @@ export class EditorRenderer {
       );
 
       if (plan.ok && plan.edits.length <= MAX_GENERATOR_GHOST_CELLS) {
-        // Resolved against the map the plan *makes*: an autotiled wall drawn
-        // against the map as it stands is an isolated post, and the preview
-        // would show a picket fence rather than the house being built.
         const built = setStacks(s.map, plan.edits);
         for (const edit of plan.edits) {
           const already = getStack(s.map, edit.x, edit.y, edit.z).length;
@@ -1044,8 +891,6 @@ export class EditorRenderer {
             elev = footElevation(elev, placed);
             const def = s.tilesById[placed.tileId];
             if (!def) return;
-            // The ground floor keeps the site under it, and the site is already
-            // on screen — ghosting it again only dims what is there.
             if (stackIndex >= already) {
               const quad = this.spriteQuad(placed, def, edit.x, edit.y, edit.z, elev, built);
               if (quad) {
@@ -1075,7 +920,6 @@ export class EditorRenderer {
         const origin = baseCellWorldOrigin(c.x, c.y, z, 0);
         addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0x2d6a4f);
       }
-      // The source cell already shows the real thing.
       if (s.selected && c.x === s.selected.x && c.y === s.selected.y) continue;
       if (!showGhosts) continue;
 
@@ -1133,13 +977,11 @@ export class EditorRenderer {
     this.overlays.updateMatrixWorld(true);
   }
 
-  /** Cells the current tool would paint if the pointer acted right now. */
   private brushTargets(
     s: ReturnType<typeof useEditorStore.getState>,
   ): Array<{ x: number; y: number }> {
     if (s.shapePreview) {
       const { kind, x0, y0, x1, y1 } = s.shapePreview;
-      // A generator draws its own ghost from its plan; it has no brush.
       if (kind === "procedural") return [];
       return kind === "rect" ? this.rectList(x0, y0, x1, y1) : this.circleList(x0, y0, x1, y1);
     }
@@ -1149,7 +991,6 @@ export class EditorRenderer {
     return [];
   }
 
-  /** Asset handles the shared sprite-quad builder needs. */
   private quadAssets(): SpriteQuadAssets {
     return {
       tilesetById: this.tilesetById,
@@ -1244,16 +1085,9 @@ export class EditorRenderer {
     this.rebuildAnimatedIndex();
     this.prevMap = s.map;
     this.world.updateMatrixWorld(true);
-    // Force overlay refresh (map content changed under selection).
     this.overlaySig = "";
   }
 
-  /**
-   * Diff `next` against `prevMap` by stack reference identity and rebuild
-   * every level that has any changed cell. Quads are merged per tileset on
-   * the level, so a single cell edit must refresh the whole level's meshes —
-   * still cheap (one buffer per tileset).
-   */
   private rebuildDirtyChunks(next: MapFile) {
     const prev = this.prevMap;
     if (!prev) {
@@ -1316,19 +1150,12 @@ export class EditorRenderer {
     };
 
     const items: Item[] = [];
-    // Filled as the cells are walked and baked once they all are. An animation
-    // that lands in here is drawn by the shader from the merged batch; one that
-    // this refuses still gets a mesh of its own, so the refusal costs draw calls
-    // rather than correctness.
     const animTable = new AnimationTable();
 
     for (const cell of coords) {
       let elev = 0;
-      // The editor draws the same stacks the world does, so it sorts them the
-      // same way — see `../render/depthClump`.
       const extents = clumpExtents(cell.stack, this.tilesById);
       cell.stack.forEach((placed, stackIndex) => {
-        // Lifted before anything is drawn from it — see `PlacedTile.foot`.
         elev = footElevation(elev, placed);
         const def = this.tilesById[placed.tileId];
         const foot = absoluteElevation(z, elev);
@@ -1365,21 +1192,12 @@ export class EditorRenderer {
           z,
         });
         const frames = sprite?.frames;
-        // The frame the shared clock is on, not frame 0 — a rebuilt mesh that
-        // started at 0 would sit there until the clock crossed into the next
-        // index. @see WorldRenderer.updateAnimations
         const frameIdx = frames ? frameIndexAtTime(frames, this.animClock) : 0;
         if (!frames?.length) return;
 
         const tileset = this.tilesetById.get(def.anchor.tilesetId);
         if (!tileset) return;
 
-        // A quad the table accepts is built at **frame 0** and moved by the
-        // shader; one it refuses is built at the live frame and moved by
-        // `updateAnimations`. The two must not be mixed: the table's offsets are
-        // measured from frame 0, so a quad built anywhere else would be shifted
-        // by however far the clock happened to have run when the level was last
-        // rebuilt.
         const animRow = animTable.add(frames, tileset);
         const merged = animRow !== NO_ANIMATION;
         const first = merged ? frames[0]! : frames[frameIdx]!;
@@ -1482,7 +1300,6 @@ export class EditorRenderer {
       const geo = buildMergedQuadGeometry(quads);
       geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, this.materialFor(tex, z));
-      // Editor views are small; avoid any first-frame bounds miss on the level RT.
       mesh.frustumCulled = false;
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
@@ -1512,7 +1329,6 @@ export class EditorRenderer {
     texture: THREE.Texture,
     z: number,
   ): THREE.Mesh {
-    // Cutout material — the shader writes per-fragment depth for painter order.
     const geo = buildSingleQuadGeometry(quad);
     const mesh = new THREE.Mesh(geo, this.materialFor(texture, z));
     mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
@@ -1522,21 +1338,12 @@ export class EditorRenderer {
     return mesh;
   }
 
-  /**
-   * Advance animation clocks. Returns true if any frame index changed
-   * (so UVs were rewritten and a re-render is needed).
-   */
   private updateAnimations(dt: number): boolean {
     if (this.animatedByKey.size === 0) return false;
 
     this.animClock += dt;
     let changed = false;
 
-    // The merged batch's animations are a function of this one number, so the
-    // whole pond costs a uniform write per level rather than a UV rewrite per
-    // cell. Whether it *looks* different is a separate question from whether
-    // the clock moved: `crossedFrame` answers it so a still world still stops
-    // rendering.
     for (const [z, u] of this.animUniformsByZ) {
       if (u.uAnimEnabled.value === 0) continue;
       const table = this.animTablesByZ.get(z);
@@ -1558,8 +1365,6 @@ export class EditorRenderer {
       const u1 = ((rect.x + rect.w) * CELL_SIZE) / sample.tileset.width;
       const v1 = 1 - (rect.y * CELL_SIZE) / sample.tileset.height;
       const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / sample.tileset.height;
-      // Per instance, not per key: a mesh rebuilt by an edit can be showing a
-      // different frame from the one the shared index last ticked to.
       for (const inst of instances) {
         if (inst.frameIdx === idx) continue;
         inst.frameIdx = idx;
@@ -1584,8 +1389,6 @@ export class EditorRenderer {
     const dt = Math.min(100, now - this.lastAnimTime);
     this.lastAnimTime = now;
 
-    // Always tick animations so frame-index changes are detected even while
-    // the canvas is otherwise idle. Only dirty the frame when an index flips.
     if (this.updateAnimations(dt)) {
       this.overlaySig = "";
       this.drawOverlays(useEditorStore.getState());
@@ -1629,8 +1432,6 @@ export class EditorRenderer {
       this.levelTarget = null;
     }
     if (!this.levelTarget) {
-      // Unsigned byte + depth: predictable alpha coverage for the composite pass.
-      // (Half-float is nicer for colour but some paths leave A unusable for fading.)
       this.levelTarget = new THREE.WebGLRenderTarget(w, h, {
         depthBuffer: true,
         stencilBuffer: false,
@@ -1647,31 +1448,11 @@ export class EditorRenderer {
     return this.levelTarget;
   }
 
-  /**
-   * The clear colour behind the world.
-   *
-   * Preview is meant to be play, so it clears to the same void black play does.
-   * Authoring keeps the flat paper colour — as does preview with lighting off,
-   * where black behind fully lit tiles would only read as a hole in the map.
-   */
   private backgroundFor(s: ReturnType<typeof useEditorStore.getState>): number {
     if (!s.previewMode || !s.lighting.enabled) return BACKGROUND_COLOR;
     return VOID_BACKGROUND;
   }
 
-  /**
-   * Solid levels go down in one pass, exactly as play draws them: every quad
-   * writes its own depth, so a single render interleaves the floors correctly
-   * and nothing here has to sort them. The levels above — the ghosts — are
-   * drawn into an offscreen target together and faded in as one image.
-   *
-   * The fade lands *after* the palette quantise, and that ordering is the whole
-   * point of it: a ghost blended into the scene target would be quantised too,
-   * and quantising a translucent pixel does not give you a translucent pixel —
-   * it gives you whichever solid palette entry happens to sit nearest the
-   * blend. Composited onto the finished frame instead, a ghost is actually
-   * see-through, and is the one thing on screen deliberately off-palette.
-   */
   private renderFrame(s: ReturnType<typeof useEditorStore.getState>) {
     const r = this.renderer;
     r.info.reset();
@@ -1716,8 +1497,6 @@ export class EditorRenderer {
     const ghostImage = ghosts.length > 0 ? this.renderGhostImage(ghosts) : null;
     this.world.visible = false;
 
-    // Quantise before the ghosts and the chrome: outlines keep their exact
-    // colour, and a faded floor keeps its fade.
     this.palettePass.blitToCanvas(r);
 
     if (ghostImage) this.fadeOntoCanvas(ghostImage);
@@ -1725,15 +1504,6 @@ export class EditorRenderer {
     renderChrome(this.overlays);
   }
 
-  /**
-   * Draw every level above the current one into one offscreen image.
-   *
-   * Fusing them is the point. Composited a floor at a time, each ghost blends
-   * over the one below it, so a stack of rooms reads as every interior wall in
-   * the building at once and the fade compounds with depth. Drawn together into
-   * one depth-sorted target, only the surfaces you would actually see looking
-   * down survive into the picture that gets faded.
-   */
   private renderGhostImage(groups: THREE.Group[]): THREE.Texture {
     const r = this.renderer;
     const target = this.levelRenderTarget();
@@ -1748,7 +1518,6 @@ export class EditorRenderer {
     return target.texture;
   }
 
-  /** Blend the ghost image over the finished frame, at real alpha. */
   private fadeOntoCanvas(image: THREE.Texture) {
     const r = this.renderer;
     r.setRenderTarget(null);
@@ -1839,14 +1608,9 @@ export class EditorRenderer {
     if (e.code === "KeyL") {
       store.toggleLightingEnabled();
     }
-    // Live while previewing, where it simply has nothing to do: preview draws
-    // every level regardless. A key that refuses is worse than one that lands
-    // silently — you set the state you want and see it the moment you leave.
     if (e.code === "KeyI") {
       store.toggleShowOtherLevels();
     }
-    // `[` / `]` are what the buttons say; `,` / `.` were the binding before
-    // them and still work, for the hands that already know it.
     if (e.key === "[" || e.key === ",") {
       store.setLevel(Math.max(MIN_LEVEL, store.currentLevel - 1));
     }
@@ -1862,11 +1626,6 @@ export class EditorRenderer {
     }
   };
 
-  /**
-   * A trackpad pinch arrives as a wheel event with `ctrlKey` set — the browser
-   * synthesises it, and no real Ctrl key is held. Panning it, which is what
-   * every wheel event used to do, made a pinch shove the map sideways.
-   */
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
     if (e.ctrlKey) {
@@ -1879,7 +1638,6 @@ export class EditorRenderer {
     panCameraByWheel(e, { width: this.canvasW, height: this.canvasH });
   };
 
-  /** Canvas-relative position of a client-space point. */
   private toLocal(point: { x: number; y: number }): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
     return { x: point.x - rect.left, y: point.y - rect.top };
@@ -1888,26 +1646,15 @@ export class EditorRenderer {
   private capturePointer(pointerId: number) {
     try {
       this.canvas.setPointerCapture(pointerId);
-    } catch {
-      /* the pointer has already gone up — the gesture ends either way */
-    }
+    } catch {}
   }
 
   private releasePointer(pointerId: number) {
     try {
       this.canvas.releasePointerCapture(pointerId);
-    } catch {
-      /* not captured — nothing to release */
-    }
+    } catch {}
   }
 
-  /**
-   * Zoom by whole steps, leaving whatever is under `anchor` under it.
-   *
-   * Fractional steps accumulate rather than rounding to nothing, so a trackpad
-   * that reports a pinch in small deltas still gets there. Returns the zoom it
-   * settled on.
-   */
   private zoomBy(steps: number, anchor: { x: number; y: number }): ZoomLevel {
     const store = useEditorStore.getState();
     this.zoomDebt += steps;
@@ -1922,14 +1669,6 @@ export class EditorRenderer {
     return zoom;
   }
 
-  /**
-   * Take the gesture off the tool and give it to the camera.
-   *
-   * A stroke already painted is committed rather than rolled back — the cells
-   * under the first finger were asked for, and one undo takes them all back
-   * together. A shape in progress is dropped, because its second corner is
-   * wherever the finger happened to be when the other one landed.
-   */
   private beginPinch() {
     const store = useEditorStore.getState();
     if (this.painting) {
@@ -1944,21 +1683,11 @@ export class EditorRenderer {
     this.updateCursor();
     store.setHover(null);
 
-    // Both fingers, not just the one that arrived: either straying over the
-    // toolbar or off the canvas would otherwise stop reporting mid-gesture.
     for (const id of this.touches.keys()) this.capturePointer(id);
     this.zoomDebt = 0;
     this.rebasePinch();
   }
 
-  /**
-   * Measure the gesture afresh from the fingers that are down now.
-   *
-   * Called when it starts and whenever the pair changes under it — a third
-   * finger landing, or one of three lifting. The midpoint and the spread are
-   * both differences from the last sample, so a pair swapped underneath them
-   * would read as one enormous move.
-   */
   private rebasePinch() {
     const [a, b] = [...this.touches.values()];
     if (!a || !b) {
@@ -1968,7 +1697,6 @@ export class EditorRenderer {
     this.pinch = { mid: midpointOf(a, b), spreadAtZoom: spreadOf(a, b) };
   }
 
-  /** Pan by the midpoint's travel, then spend whatever spread has been earned. */
   private applyPinch() {
     const pinch = this.pinch;
     const [a, b] = [...this.touches.values()];
@@ -1985,8 +1713,6 @@ export class EditorRenderer {
     const spread = spreadOf(a, b);
     const steps = pinchZoomSteps(spread / pinch.spreadAtZoom);
     if (steps === 0) return;
-    // Rebased even when the zoom was already at its limit, so pinching back
-    // the other way starts from the fingers where they are now.
     pinch.spreadAtZoom = spread;
     this.zoomBy(steps, mid);
   }
@@ -1995,8 +1721,6 @@ export class EditorRenderer {
     const store = useEditorStore.getState();
     if (e.pointerType === "touch") {
       this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      // One finger draws, two move the map — so the second one arriving takes
-      // the gesture off whatever tool the first started.
       if (this.touches.size >= 2) {
         this.beginPinch();
         return;
@@ -2085,8 +1809,6 @@ export class EditorRenderer {
       }
       const coords = floodCoords(store.map, coord.x, coord.y, store.currentLevel);
       if (coords.length === 0) {
-        // Blank cells only flood inside an enclosure; the open world has no
-        // edge to stop at, so say why nothing happened rather than looking dead.
         if (target.length === 0) {
           useEditorStore.setState({
             lastToast: "Open space — enclose it before filling",
@@ -2120,7 +1842,6 @@ export class EditorRenderer {
       const dx = (e.clientX - this.panLast.x) / store.zoom;
       const dy = (e.clientY - this.panLast.y) / store.zoom;
       this.panLast = { x: e.clientX, y: e.clientY };
-      // Dragging right moves camera left (content follows pointer)
       store.setCamera({
         x: store.camera.x - dx,
         y: store.camera.y - dy,
@@ -2159,8 +1880,6 @@ export class EditorRenderer {
     if (e.pointerType === "touch") {
       this.touches.delete(e.pointerId);
       this.releasePointer(e.pointerId);
-      // The finger still down is not the start of a new stroke: a pinch that
-      // ends one finger at a time would otherwise paint on the way out.
       if (this.pinch) {
         this.rebasePinch();
         return;
@@ -2171,9 +1890,7 @@ export class EditorRenderer {
       this.updateCursor();
       try {
         this.canvas.releasePointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       return;
     }
 
@@ -2205,9 +1922,7 @@ export class EditorRenderer {
       this.shapeAnchor = null;
       try {
         this.canvas.releasePointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     }
   };
 }

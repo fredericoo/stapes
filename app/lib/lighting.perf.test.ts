@@ -16,33 +16,10 @@ const OVERLAY_MS =
     ? PERF_BUDGETS.lightingOverlayMsP95Ci
     : PERF_BUDGETS.lightingOverlayMsP95;
 
-/** Bakes thrown away before timing, so the JIT is warm and the caches are hot. */
 const WARMUP_RUNS = 3;
 
-/**
- * How many bakes a percentile is taken over.
- *
- * Large enough that p95 is a percentile rather than a near-maximum. At twenty
- * samples the 95th is the second-worst of the run, so a single GC pause — about
- * one bake in fifty, and three times the median when it lands — was reported as
- * the p95 and failed a run the baker had nothing to do with. At a hundred it is
- * the sixth-worst, which those pauses no longer reach.
- *
- * The alternative was a budget wide enough to contain them, which is a budget
- * wide enough to contain a real regression. Sampling is the cheaper half.
- */
 const SAMPLES = 100;
 
-/**
- * How long a run may take before vitest calls it hung, from the budget it is
- * allowed to spend per sample.
- *
- * Derived rather than left at the default five seconds, which a hundred samples
- * can now outlast on a machine that is merely slow rather than broken — the CI
- * budget permits it, so a fixed timeout would fail runs the assertion below
- * would have passed, and the message would say "timed out" rather than name the
- * number. Doubled so the slack is the machine's, not the budget's.
- */
 const TIMEOUT_SLACK = 2;
 
 function timeoutFor(budgetMs: number): number {

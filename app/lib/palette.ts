@@ -1,14 +1,3 @@
-/**
- * Fixed Stapes Aseprite palette (opaque entries only) + OKLab matching.
- */
-
-/**
- * Opaque entries from stapes.pal (first two non-opaque dropouts removed),
- * followed by four blues added since. Append only — never reorder or remove:
- * the quantiser picks whichever entry is nearest, so a new colour only ever
- * claims pixels that were already landing on its neighbours, whereas moving
- * one changes what index 0 is, and the status preview's backdrop reads it.
- */
 export const STAPES_PALETTE: readonly string[] = [
   "#2e222f",
   "#313638",
@@ -56,7 +45,6 @@ function parseHex(hex: string): [number, number, number] {
   return [((n >> 16) & 0xff) / 255, ((n >> 8) & 0xff) / 255, (n & 0xff) / 255];
 }
 
-/** Flat `vec3` array (length = hex.length * 3) for a GLSL uniform. */
 export function paletteRgb01(hex: readonly string[]): Float32Array {
   const out = new Float32Array(hex.length * 3);
   for (let i = 0; i < hex.length; i++) {
@@ -76,14 +64,6 @@ function linearChannelToSrgb(c: number): number {
   return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
 }
 
-/** Björn Ottosson sRGB → OKLab. Inputs are sRGB 0..1. */
-/**
- * A colour channel dragged back into range.
- *
- * Here rather than private to each caller because every use of it in this
- * codebase is the same use: a round trip through OKLab can land a saturated
- * colour outside sRGB, and a negative channel is not a colour.
- */
 export function clamp01(n: number): number {
   return n < 0 ? 0 : n > 1 ? 1 : n;
 }
@@ -108,7 +88,6 @@ export function srgbToOklab(r: number, g: number, b: number): Oklab {
   ];
 }
 
-/** Inverse of {@link srgbToOklab}. */
 export function oklabToSrgb(L: number, a: number, b: number): [number, number, number] {
   const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
   const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
@@ -125,7 +104,6 @@ export function oklabToSrgb(L: number, a: number, b: number): [number, number, n
   return [linearChannelToSrgb(lr), linearChannelToSrgb(lg), linearChannelToSrgb(lb)];
 }
 
-/** Flat OKLab triples for the uniform (source fragment converts once per pixel). */
 export function paletteOklab(hex: readonly string[]): Float32Array {
   const out = new Float32Array(hex.length * 3);
   for (let i = 0; i < hex.length; i++) {
@@ -138,10 +116,6 @@ export function paletteOklab(hex: readonly string[]): Float32Array {
   return out;
 }
 
-/**
- * CPU mirror of the GLSL nearest-match. `lab` is a single OKLab triple;
- * `palette` is the flat OKLab array. Distance weights a/b by `chromaWeight`.
- */
 export function nearestPaletteIndex(lab: Oklab, palette: Float32Array, chromaWeight = 1): number {
   const n = palette.length / 3;
   let best = 0;

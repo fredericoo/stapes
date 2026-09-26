@@ -3,26 +3,6 @@ import { redirect, useNavigate } from "react-router";
 import { Door, DoorButton, DoorError, DoorField, DoorNote, DoorTitle } from "../components/door";
 import { changePassword, fetchMe } from "../lib/auth";
 
-/**
- * Change the password.
- *
- * **Its own screen, off the character chooser**, because a password belongs to
- * an *account* and the game is where a *character* is. A control that crossed
- * that line would be the one thing teaching people the two vocabularies are
- * interchangeable.
- *
- * **It is also how the first administrator arrives.** A fresh deployment seeds
- * `admin` with a password written down in this repository, and the first thing
- * its operator has to be able to do is change it without opening a database:
- * they sign in at the front door, and this is two presses away. The seed never
- * writes again, so that change is permanent. @see `server/auth.ts`
- *
- * Both passwords are asked for, and the current one is not a formality: it is
- * what stops a tab left open in a library from becoming a permanent loss of the
- * account. There is no reset in this game, so that is the whole of the
- * protection — and the same reason `revokeOtherSessions` is set, since one
- * reason to change a password is thinking it got out.
- */
 export async function clientLoader() {
   const me = await fetchMe();
   if (!me.user) throw redirect("/sign-in");
@@ -46,8 +26,6 @@ export default function PasswordPage() {
       setError(attempt.error);
       return;
     }
-    // Cleared the moment it has been sent, rather than left in a form's state
-    // for the rest of the session.
     setCurrent("");
     setNext("");
     setDone(true);

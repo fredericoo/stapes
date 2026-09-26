@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readDestination } from "./PlacementSettingsDialog";
 
-/**
- * What the three destination fields commit to the map.
- *
- * The interesting cases are all about blankness, because the fields start blank
- * on any placement nobody has authored yet and show `0` as their placeholder.
- * Typing into one of the three and leaving the others alone is the ordinary way
- * to author a ladder, and it used to commit nothing at all.
- */
 describe("readDestination", () => {
   it("reads three filled fields as the cell", () => {
     expect(readDestination({ x: "10", y: "-7", z: "1" })).toEqual({
@@ -19,8 +11,6 @@ describe("readDestination", () => {
   });
 
   it("takes a blank axis as the zero its placeholder promises", () => {
-    // The ladder case: only the climb is typed, and the two untouched fields
-    // must not throw the edit away.
     expect(readDestination({ x: "", y: "", z: "1" })).toEqual({
       x: 0,
       y: 0,

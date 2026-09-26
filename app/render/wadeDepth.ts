@@ -9,17 +9,6 @@ type WadingActor = Pick<
   "x" | "y" | "z" | "stackIndex" | "walk" | "walkProgress" | "fall"
 >;
 
-/**
- * How deep this body is standing in a `wade` tile right now: 0 is dry, 1 is
- * all the way in. @see TileDef.wade
- *
- * A step between dry ground and water goes from one to the other over the
- * step, so a body wading out rises as it walks rather than on the frame it
- * arrives. The far end is read off the surface of the cell it is walking into,
- * which is where the renderer draws it landing.
- *
- * A falling body is dry until it lands. Whatever it lands in decides the rest.
- */
 export function wadeDepth(
   map: MapFile,
   actor: WadingActor,
@@ -34,11 +23,6 @@ export function wadeDepth(
   return here + (there - here) * actor.walkProgress;
 }
 
-/**
- * Every body that is at least partly in the water, keyed the way the renderer
- * keys placements, or undefined on the usual frame where nobody is.
- * @see WorldView.wading
- */
 export function wadingFor(
   map: MapFile,
   actors: readonly WadingActor[],

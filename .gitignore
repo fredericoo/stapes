@@ -2,22 +2,14 @@
 .env
 /node_modules/
 
-# React Router
 /.react-router/
 /build/
 
-# Tests
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
 
-# The world, per worktree. Several run at once and each keeps its own; deleting
-# this directory resets that branch's world. The `-wal` and `-shm` sidecars live
-# beside the database and belong with it.
 /.dev/
 
-# Working notes. Plans are how a change gets thought through, not what the
-# repository is for — they go stale the moment the code lands, and a reader
-# finding one has no way to tell which parts still describe the game.
 /plans/

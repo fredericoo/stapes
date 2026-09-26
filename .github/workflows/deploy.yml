@@ -1,17 +1,8 @@
-# Push to main, and both halves go out.
-#
-# There are no players yet, so a couple of seconds of downtime per merge costs
-# nothing and buys a pipeline nobody has to think about. When that stops being
-# true, the thing to reach for is the client/server split below — it is already
-# separated, and only the trigger would need to change.
 name: Deploy
 
 on:
   push:
     branches: [main]
-  # Also by hand: GitHub's mobile app puts a Run workflow button on this, and an
-  # agent can run `gh workflow run deploy.yml`. Useful for redeploying without
-  # an empty commit.
   workflow_dispatch:
 
 concurrency:
@@ -30,20 +21,6 @@ jobs:
 
       - run: bun install --frozen-lockfile
       - run: bun run build
-
-      # ---------------------------------------------------------------------
-      # The order below is the only subtle thing in this file.
-      #
-      # Upload, then restart the server, then activate. Uploading is inert —
-      # the files land on the volume and nothing serves them — so it can happen
-      # against the *old* server safely, and they survive its restart because
-      # the volume is not part of the image.
-      #
-      # Activating last is what keeps a `PROTOCOL_VERSION` bump survivable. The
-      # alternative order puts a new client in front of an old server, every tab
-      # is told it is outdated, reloads, and gets the same new client again —
-      # a reload loop that lasts until the server catches up.
-      # ---------------------------------------------------------------------
 
       - name: Snapshot the world
         run: |
@@ -66,8 +43,6 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"uuid":"${{ vars.COOLIFY_APP_UUID }}","force":false}')
           echo "$RESPONSE"
-          # Named, because the wait below has to watch *this* deploy. Coolify
-          # answers with one entry per resource it queued; there is one.
           ID=$(printf '%s' "$RESPONSE" | jq -r '.deployments[0].deployment_uuid // empty')
           if [ -z "$ID" ]; then
             echo "::error::Coolify queued no deployment — check the app uuid"
@@ -75,24 +50,6 @@ jobs:
           fi
           echo "id=$ID" >> "$GITHUB_OUTPUT"
 
-      # ---------------------------------------------------------------------
-      # **Watch the deploy, not the origin.** Coolify returns as soon as the
-      # deploy is *queued*, and the container it is replacing goes on serving
-      # perfectly until the moment it is swapped — so asking `/api/health`
-      # whether the server is back gets `ok` on the first attempt, from the
-      # process this deploy exists to replace. It is not a slow check, it is a
-      # check that cannot fail: measured at 0 seconds against a container that
-      # was not built for another 26.
-      #
-      # That silently undid the ordering the top of this file is about. The
-      # activation below ran against the *old* server while the new one was
-      # still building, which is the new-client-in-front-of-old-server case a
-      # `PROTOCOL_VERSION` bump turns into a reload loop.
-      #
-      # So the deployment record is what is waited on, and the origin is only
-      # asked afterwards — by then a healthy answer can only come from the
-      # container this deploy built.
-      # ---------------------------------------------------------------------
       - name: Wait for the new container
         run: |
           for i in $(seq 1 120); do
@@ -135,13 +92,6 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"buildId":"${{ github.sha }}"}'
 
-      # The boot-time seed only fills an empty store, so without this the live
-      # tiles and map stop tracking the repo after the first deploy ever. This
-      # makes every merge to main also a content deploy: the server copies its
-      # image's data/ over the store and restarts the world on it. Players keep
-      # their positions, kit, tags and masteries; the map around them resets.
-      # After the container wait on purpose — the new server is the one whose
-      # image holds this commit's data/.
       - name: Sync the world's content to this commit
         run: |
           curl --fail-with-body -sS -X POST "${{ vars.PUBLIC_ORIGIN }}/api/seed" \
@@ -151,11 +101,6 @@ jobs:
         run: |
           curl -sS "${{ vars.PUBLIC_ORIGIN }}/api/health"
 
-      # Cloudflare hides a renewal failure completely: it goes on serving its
-      # own edge certificate to visitors, so the first symptom of a broken
-      # renewal is the day the origin certificate lapses and Full (strict)
-      # starts refusing to talk to us. Checked here because a deploy is the
-      # cheapest place to notice, and a warning is enough — this fails soft.
       - name: Warn if the origin certificate is running out
         continue-on-error: true
         run: |

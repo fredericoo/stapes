@@ -33,93 +33,25 @@ import {
   WORLD_SHADER_CACHE_KEY,
 } from "./worldQuads";
 
-/**
- * The status editor's rendering simulation: one sprite, one plume, one palette.
- *
- * ## Why this is not a `WorldRenderer`
- *
- * The obvious move is to build a one-tile map and hand it to the real renderer,
- * and it is the wrong one: that renderer is a light baker, a chunk cache, an
- * incremental level rebuilder and a roof cut, none of which have anything to say
- * about what a plume looks like. What the author is asking is a narrow question —
- * *this colour on this sprite, these particles over it, through the palette* —
- * and the honest way to answer it is to share the parts that decide the answer
- * and skip the parts that do not.
- *
- * So what is shared is everything that could make the preview lie:
- *
- * - the **particle simulation and layer** (`./particles`, `./particleLayer`),
- *   the same objects play uses, driven by the same clock;
- * - the **tint material** (`./spriteTint` through `injectWorldShader`), so the
- *   OKLab mix is not reimplemented here and cannot drift;
- * - the **palette pass** (`./palettePass`), which is what makes an off-ramp hex
- *   land where it will land in the world rather than where it was typed.
- *
- * What is not shared is lighting. The preview is lit flat and deliberately: an
- * author tuning a fire wants to see the fire, not the fire at nine in the
- * evening in a room with a lantern in it. The world's own light will darken it
- * exactly as it darkens every other sprite.
- *
- * ## What it can draw on
- *
- * Any tile in the catalogue — that is the whole point of taking a `TileDef`
- * rather than a `SpriteRef`. A bush cannot yet *carry* a status in play (see
- * `./spriteTint` for why a merged tile has no material of its own), but it can
- * be designed here, which is the order these two things were always going to
- * arrive in.
- */
-
-/** How many cells of world fit across the preview. */
 const PREVIEW_CELLS_ACROSS = 9;
 
-/** Where the subject stands: the middle of the ground, so the view is centred. */
 const SUBJECT_CELL = { x: 4, y: 4 };
 
-/**
- * Ground cells drawn past the visible span, on every side.
- *
- * The camera is centred on the subject and fitted to the shorter side of the
- * canvas, so a panel that is not square sees further along one axis than the
- * other. A grid sized exactly to the span therefore ran out along the long axis
- * and left a bar of clear colour at the edge. Cheap insurance: this is a few
- * dozen quads drawn once.
- */
 const FLOOR_MARGIN_CELLS = 4;
 
-/** Ground squares, so the sprite has a floor and the author has a sense of scale. */
 const FLOOR_LIGHT = "#4d65b4";
 const FLOOR_DARK = "#484a77";
 
-/** Behind everything, and never depth-tested — it is a backdrop, not a floor. */
 const FLOOR_RENDER_ORDER = -1;
 
-/** The note a previewed transition is played under. Never on any wire. */
 const PREVIEW_TRANSITION_ID = "preview";
 
-/**
- * How long a played transition's end is held before the subject is whole again.
- *
- * Long enough to see where it landed, and no longer: a disappear that let go
- * at once would leave the author unsure it had played at all, and one that
- * never let go would leave them looking at an empty floor.
- */
 const TRANSITION_HOLD_MS = 600;
 
-/** A previewed transition's burst, beside the plume and never mistaken for it. */
 const PREVIEW_BURST_ID = "preview-burst";
 
-/** The plume's own id. One subject, one status, so it never needs to vary. */
 const PREVIEW_EMITTER_ID = "preview";
 
-/**
- * Longest a frame may claim to be, in milliseconds.
- *
- * A tab left in the background stops firing animation frames, and the first one
- * after it comes back carries the whole gap. Without this the plume would
- * advance by minutes in a single step — every particle dead, every debt spent —
- * and the author would come back to an empty canvas that fills again a second
- * later. The same clamp the play loop applies, for the same reason.
- */
 const MAX_FRAME_MS = 100;
 
 export class VfxPreview {
@@ -131,44 +63,13 @@ export class VfxPreview {
   private readonly particles: ParticleLayer;
   private readonly lightUniforms: LevelLightUniforms;
   private readonly whiteTex: THREE.DataTexture;
-  /**
-   * A light map that says "no block light here", so the ambient decides
-   * everything.
-   *
-   * The white one cannot: the shader reads `texel.a * uAmbient + texel.rgb`, and
-   * white has `rgb = 1`, which saturates to full brightness whatever the ambient
-   * is. Dimming needs a texel with alpha and no colour.
-   */
   private readonly darkTex: THREE.DataTexture;
   private night = false;
-  /**
-   * Where the scrubber has the effect wound down to, 1 being untouched.
-   *
-   * Scrubbed rather than run, because the preview has no clock and no status: a
-   * fade the author had to wait thirty seconds to see the end of is a fade
-   * nobody would tune. @see setTaper
-   */
   private taper = 1;
-  /**
-   * The subject's tint, held rather than rebuilt.
-   *
-   * `injectWorldShader` binds these by reference, so retinting is three number
-   * writes — which is what lets a dragged slider recolour the sprite without
-   * throwing the material away sixty times a second.
-   */
   private readonly tintU: TintUniforms = noTintUniforms();
-  /**
-   * The subject's transition, bound into its material the way the tint is, so
-   * playing one is a handful of number writes. @see playTransition
-   */
   private readonly transitionU: TransitionUniforms = noTransitionUniforms();
   private playing: LiveTransition | null = null;
-  /** When the playing transition's held end is let go. */
   private playEndsMs = 0;
-  /**
-   * Where the subject stands: its middle for the sweep's origin, and the
-   * middle of its base cell for the scale's pivot.
-   */
   private subjectSprite: (TransitionSprite & { pivotX: number; pivotY: number }) | null = null;
 
   private subject: THREE.Mesh | null = null;
@@ -190,7 +91,6 @@ export class VfxPreview {
   private raf = 0;
   private running = false;
   private disposed = false;
-  /** Bumped per load, so a slow texture cannot land on a subject already replaced. */
   private loadToken = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -203,9 +103,6 @@ export class VfxPreview {
     this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -10, 50);
     this.camera.position.z = 25;
 
-    // Flat white, so the shared world shader's light multiply is the identity.
-    // See the class note: the preview answers a question about colour, and a
-    // clock would be a second variable in the answer.
     const white = new Uint8Array([255, 255, 255, 255]);
     this.whiteTex = new THREE.DataTexture(white, 1, 1, THREE.RGBAFormat);
     this.whiteTex.needsUpdate = true;
@@ -221,37 +118,16 @@ export class VfxPreview {
     };
 
     this.scene.add(this.buildFloor());
-    // One set for every level, because the preview is one tile on one floor —
-    // there is no second storey here for a plume to be lit by the wrong room.
     this.particles = new ParticleLayer(() => this.lightUniforms);
     this.scene.add(this.particles.mesh);
     this.particles.mesh.updateMatrixWorld(true);
   }
 
-  /**
-   * Draw the effect on this tile.
-   *
-   * Null clears the subject and leaves the plume over bare ground, which is a
-   * useful thing to look at on its own — an emitter is easier to judge without a
-   * sprite in front of half of it.
-   *
-   * **Compared by object, not by id**, because one caller's subject is a tile
-   * being edited: the tile dialog hands over its own draft, whose art changes
-   * under it while the dialog is open, and an id comparison would leave the
-   * preview showing the sprite the tile had when it was opened. The status
-   * editor picks from the catalogue, where the defs are stable objects, so it
-   * still costs it nothing.
-   *
-   * The sheet is only re-fetched when the *tileset* changes. Without that, a
-   * dragged slider on a draft would re-download a tilesheet a frame.
-   */
   setSubject(def: TileDef | null, tilesets: readonly TilesetDef[]) {
     if (def === this.def) return;
     const heldTilesetId = this.tileset?.id;
     const held = this.texture;
     this.def = def;
-    // The texture is handed back if the next subject can use it, so `clearSubject`
-    // does not dispose the thing that is about to be re-bound.
     this.texture = null;
     this.clearSubject();
     if (!def) {
@@ -286,9 +162,6 @@ export class VfxPreview {
     void loader
       .loadAsync(tilesetUrl(tileset.file))
       .then((tex) => {
-        // The author can change subject faster than a sheet loads, and a texture
-        // arriving for a tile nobody is looking at any more must not replace the
-        // one they are.
         if (this.disposed || token !== this.loadToken) {
           tex.dispose();
           return;
@@ -307,7 +180,6 @@ export class VfxPreview {
       });
   }
 
-  /** Change what is being previewed. Cheap enough to call on every keystroke. */
   setVfx(vfx: StatusVfx) {
     this.vfx = vfx;
     this.applyTint();
@@ -315,27 +187,11 @@ export class VfxPreview {
     this.particles.setEmitters(this.emitterSpecs());
   }
 
-  /**
-   * Put the subject in an unlit room, or back in daylight.
-   *
-   * The only way the editor can show what `lit` means. In daylight the shader's
-   * light step is skipped outright and everything is drawn at its authored
-   * colour, which is the right thing to tune a ramp against; at night the room
-   * goes dark and the difference between a spark that lights itself and a bubble
-   * the room lights is the whole picture.
-   */
   setNight(night: boolean) {
     this.night = night;
     this.applyLighting();
   }
 
-  /**
-   * Show the effect as it looks with this much of it left.
-   *
-   * The same scalar the world computes from a status's remaining time, handed in
-   * directly — so what the scrubber shows at 0.25 is what a bearer looks like a
-   * quarter of the way through their wind-down, not an impression of one.
-   */
   setTaper(taper: number) {
     this.taper = taper;
     this.applyTint();
@@ -343,16 +199,6 @@ export class VfxPreview {
     this.particles.setEmitters(this.emitterSpecs());
   }
 
-  /**
-   * Point the light uniforms at whatever the preview is currently claiming.
-   *
-   * **The glow is an approximation and is labelled as one.** A real cast is the
-   * flood fill in `../lib/lightingFlood` over a map, and there is no map here —
-   * so what this does instead is raise the ambient by the light's own colour,
-   * which is very nearly what a body standing inside its own light sees. It
-   * answers "is this bright enough, and is it the right colour"; it cannot
-   * answer "how far does it reach".
-   */
   private applyLighting() {
     const u = this.lightUniforms;
     if (!this.night) {
@@ -419,19 +265,10 @@ export class VfxPreview {
     this.renderer.dispose();
   }
 
-  /**
-   * The plume this frame, and a playing transition's burst.
-   *
-   * The plume thins with a playing transition the way a tile's own plume does in
-   * the world, and the burst comes after it — the same order play serves them in.
-   */
   private emitterSpecs(): ParticleEmitterSpec[] {
     const specs: ParticleEmitterSpec[] = [];
     const playing = this.playing;
     const shown = playing ? liveShown(playing, this.clockMs) : 1;
-    // The same rule play applies: a two-high tile standing on top of the
-    // subject's stack. Derived from the subject's own height, so a wall's plume
-    // starts where a wall ends and a bush's where a bush does.
     const height = this.def?.height ?? HEIGHT_PER_LEVEL;
     const box = depthBox(SUBJECT_CELL.x, SUBJECT_CELL.y, height, height + HEIGHT_PER_LEVEL);
     const particles = this.vfx.particles;
@@ -458,8 +295,6 @@ export class VfxPreview {
         cy: SUBJECT_CELL.y + 0.5,
         footElev: 0,
         z: 0,
-        // The tile's own box, as play gives a burst — not the plume's, which
-        // stands on top of the tile.
         box: depthBox(SUBJECT_CELL.x, SUBJECT_CELL.y, 0, this.def?.height ?? 0),
         stackBias: depthStackBias(0, 0),
         taper: 1,
@@ -497,8 +332,6 @@ export class VfxPreview {
       lightY0: SUBJECT_CELL.y,
       lightX1: SUBJECT_CELL.x + 1,
       lightY1: SUBJECT_CELL.y + 1,
-      // Lit, so night mode reaches the body as well as the plume. In daylight
-      // the light step is skipped anyway, so this costs the common case nothing.
       unlit: false,
     };
 
@@ -514,8 +347,6 @@ export class VfxPreview {
         this.lightUniforms,
         this.tintU,
         noCutUniforms(this.whiteTex),
-        // The preview draws one sprite and rewrites its own UVs; there is no
-        // level and no table for it to read.
         noAnimUniforms(this.whiteTex),
         this.transitionU,
       );
@@ -540,21 +371,12 @@ export class VfxPreview {
       w,
       h,
     };
-    // The art can change while a transition plays, and the sweep and the noise
-    // are laid out against the sprite: re-point them at the one just built.
     if (this.playing) {
       writeTransitionUniforms(this.transitionU, this.playing, this.subjectSprite);
     }
     this.advanceTransition();
   }
 
-  /**
-   * Play one side of a transition on the subject, from the top.
-   *
-   * Through the world's own shader and uniforms, so what an author watches
-   * here is what a conjure or a decay will look like. The end is held for a
-   * beat, then the subject is whole again. See {@link TRANSITION_HOLD_MS}.
-   */
   playTransition(transition: Transition, side: TransitionSide) {
     this.playing = {
       note: {
@@ -574,7 +396,6 @@ export class VfxPreview {
     this.advanceTransition();
   }
 
-  /** Wind the playing transition on, and let it go once its end has been held. */
   private advanceTransition() {
     const live = this.playing;
     if (!live) return;
@@ -588,21 +409,13 @@ export class VfxPreview {
     const shown = liveShown(live, this.clockMs);
     this.transitionU.uFxShown.value = shown;
     this.poseSubject(transitionPose(live.transition, shown));
-    // Every frame while one plays: the plume thins with the tile and the
-    // burst runs for as long as the transition does.
     this.particles.setEmitters(this.emitterSpecs());
   }
 
-  /**
-   * Stand the subject as the transition says: shrunk towards the middle of the
-   * cell it stands on, and lifted by whole storeys for a drop. The preview has one tile and
-   * nothing to sort it against, so only the picture moves, not its depth.
-   */
   private poseSubject(pose: TransitionPose) {
     const mesh = this.subject;
     const sprite = this.subjectSprite;
     if (!mesh || !sprite) return;
-    // On the world-pixel grid, as play does. @see pixelSnappedQuad
     const at = pixelSnappedQuad(sprite, pose);
     mesh.scale.set(at.scaleX, at.scaleY, 1);
     mesh.position.set(at.x, at.y, 0);
@@ -610,7 +423,6 @@ export class VfxPreview {
     mesh.updateMatrixWorld(true);
   }
 
-  /** Point the subject at whatever frame the shared clock says is live. */
   private updateSubjectFrame() {
     if (!this.subject || this.frames.length < 2) return;
     const idx = frameIndexAtTime(this.frames, this.clockMs);
@@ -644,8 +456,6 @@ export class VfxPreview {
       this.renderer.setSize(w, h, false);
     }
 
-    // Fitted to the shorter side so the whole span is visible whatever shape the
-    // panel is, and centred on the subject's cell.
     const zoom = Math.min(w, h) / (PREVIEW_CELLS_ACROSS * CELL_SIZE);
     const viewW = w / zoom;
     const viewH = h / zoom;
@@ -658,10 +468,6 @@ export class VfxPreview {
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld(true);
 
-    // Into the offscreen target and then through the quantise, exactly as play
-    // does. This is the step that makes an authored hex honest: what comes out
-    // is a palette entry, and an author who picked a colour the ramp cannot hold
-    // sees the one it lands on instead.
     const target = this.palettePass.sceneTarget(this.renderer);
     this.renderer.setRenderTarget(target);
     this.renderer.setClearColor(BACKDROP, 1);
@@ -670,15 +476,10 @@ export class VfxPreview {
     this.palettePass.blitToCanvas(this.renderer);
   }
 
-  /** A flat chequer of ground cells, drawn once, behind everything. */
   private buildFloor(): THREE.Mesh {
     const positions: number[] = [];
     const colors: number[] = [];
     const indices: number[] = [];
-    // Through THREE.Color rather than `hexToRgb01`, because a vertex colour is
-    // multiplied into `diffuseColor` in **linear** space and an sRGB triple put
-    // there directly comes out visibly too bright — which quantised the two
-    // chequer greys onto the same palette entry and made the ground look flat.
     const light = linearRgb(FLOOR_LIGHT);
     const dark = linearRgb(FLOOR_DARK);
 
@@ -708,9 +509,6 @@ export class VfxPreview {
       new THREE.MeshBasicMaterial({
         vertexColors: true,
         side: THREE.DoubleSide,
-        // A backdrop rather than a floor: it takes no part in sorting, so a
-        // particle that drifts off the subject is never hidden by the ground it
-        // is drifting over.
         depthTest: false,
         depthWrite: false,
       }),
@@ -741,23 +539,13 @@ export class VfxPreview {
   }
 }
 
-/** A hex as the linear triple a vertex colour has to be. */
 function linearRgb(hex: string): [number, number, number] {
   const c = new THREE.Color().setStyle(hex, THREE.SRGBColorSpace);
   return [c.r, c.g, c.b];
 }
 
-/**
- * How much of a colour survives in an unlit room.
- *
- * Dark enough that a lit thing plainly loses to an unlit one, light enough that
- * an author can still see the shape of what they are tuning. Not read off the
- * clock: this is a demonstration of a contrast, not a time of day.
- */
 const NIGHT_AMBIENT = 0.16;
 
-/** The same cutout every world sprite is drawn with. */
 const SPRITE_ALPHA_TEST = 0.5;
 
-/** Darkest palette entry — a backdrop that cannot be mistaken for a colour. */
 const BACKDROP = new THREE.Color(STAPES_PALETTE[0] ?? "#2e222f");

@@ -22,9 +22,6 @@ export function MapCanvas({ tilesets, tiles }: { tilesets: TilesetDef[]; tiles: 
     };
     window.__editorPerf = probe;
 
-    // See `./mapApi`: driving the view from the console, so a script can say
-    // where to look. Installed with the renderer because it needs the canvas
-    // size to work out what "centred" means.
     const map = createMapApi(() => renderer.getViewportSize());
     window.map = map;
 
@@ -37,7 +34,6 @@ export function MapCanvas({ tilesets, tiles }: { tilesets: TilesetDef[]; tiles: 
   }, []);
 
   useEffect(() => {
-    // Wait a tick so hydrate (useLayoutEffect in the page) has populated the store.
     const tilesById = useEditorStore.getState().tilesById;
     rendererRef.current?.setAssets(tilesets, tilesById);
   }, [tilesets, tiles]);

@@ -1,13 +1,3 @@
-/**
- * A shoved column has to be *drawn* as one thing.
- *
- * The push is committed the instant it happens, so every tile in the column is
- * already at its destination and the sprites are dragged back towards where
- * they came from. What can go wrong is the rider: measured as "the cell minus
- * me" it comes out a crate too high, and pinned to its own home rather than the
- * group's it arrives before the crate it is sitting on. Both look like a single
- * broken frame and neither shows up in the map.
- */
 import { describe, expect, it } from "vitest";
 import type { SlideSnapshot } from "../game/GameSession";
 import { emptyMap, replaceStack } from "../lib/mapData";
@@ -22,7 +12,6 @@ const tilesById = tilesByIdFromList([
   tile({ id: "crate", height: 2 }),
 ]);
 
-/** Two crates shoved from (0,0) and now sitting on the stack at (1,0). */
 function shoved(landingStack: string[] = ["grass"]): {
   map: MapFile;
   slide: SlideSnapshot;
@@ -60,11 +49,6 @@ describe("slideTileMotions", () => {
     }
   });
 
-  /**
-   * The rider is one crate up from the bottom of the group for the whole trip,
-   * which is what makes the pair read as a pile rather than as two things that
-   * happen to be going the same way.
-   */
   it("keeps the rider exactly one crate above the crate under it", () => {
     const { map, slide } = shoved();
     for (const t of [0, 0.25, 0.5, 1]) {
@@ -75,7 +59,6 @@ describe("slideTileMotions", () => {
     }
   });
 
-  /** Nothing to catch up to on level ground: the feet are already home. */
   it("leaves the feet where they land when the shove is flat", () => {
     const { map, slide } = shoved();
     const [base] = slideTileMotions(map, tilesById, slide, 0);
@@ -83,10 +66,6 @@ describe("slideTileMotions", () => {
     expect(base!.box.foot).toBe(0);
   });
 
-  /**
-   * Shoved up onto a slab, the column starts the frame a slab low and arrives
-   * over the run of the slide — both halves of it, together.
-   */
   it("starts a step up from the surface it left", () => {
     const { map, slide } = shoved(["grass", "slab"]);
 
@@ -97,7 +76,6 @@ describe("slideTileMotions", () => {
     expect(atEnd.map((m) => m.box.foot)).toEqual([2, 4]);
   });
 
-  /** The offset decays to nothing, so the last frame is the committed one. */
   it("has caught up by the time it is over", () => {
     const { map, slide } = shoved();
     const motions = slideTileMotions(map, tilesById, slide, 1);
@@ -129,10 +107,6 @@ describe("slideTileMotions", () => {
     expect(motions[0]!.box.top).toBe(2);
   });
 
-  /**
-   * Shoved up a floor, the sprite is still over the level it left for most of
-   * the trip, so that level goes on drawing it — and its feet start there.
-   */
   it("goes on drawing at the level it left when the shove climbs", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },

@@ -10,124 +10,44 @@ import { cellKey } from "./pressurePlates";
 import type { Rng } from "./rng";
 import { advanceStatuses, applyStatus, type StatusInstance } from "./statuses";
 
-/**
- * What a status does to the ground it is running on.
- *
- * The other half of `../lib/interactions`' `EndureInteraction`: that says a
- * tile can be worn down and what is left when it has been, and this spends the
- * pool, decides what the placement becomes and hands the remainder on.
- *
- * **`./decay` of this feature, on `./statuses`' terms.** Everything here is
- * arithmetic over a side index and a map, and the index holds no world: a
- * spread, a consumption and a whole forest burning down are all assertable
- * without a `GameSession`, which is why they are tested that way.
- */
-
-/**
- * Which placement a pool belongs to, as a string.
- *
- * Cell plus tile id, and deliberately not the stack index, for exactly the
- * reason `./decay`'s `entryKey` is not: an index shifts the moment anything is
- * placed under it, so a burning tree in a doorway would forget its damage every
- * time somebody walked across the cell. The trade is the same one — two
- * placements of the same tile in one cell share a pool and go together.
- */
 function poolKey(cell: Coord, tileId: string): string {
   return `${cellKey(cell)}|${tileId}`;
 }
 
-/** Float slack for {@link EndureIndex.hold}'s period, as `GameSession`'s `COOLDOWN_EPSILON_MS`. */
 const HELD_EPSILON_MS = 1e-6;
 
-/** One placement being worn down, and what is doing it. */
 export type Endurance = {
   cell: Coord;
   tileId: string;
-  /**
-   * What is left of `EndureInteraction.durability`.
-   *
-   * Spent only downward. A status that heals is honoured up to the authored
-   * durability and no further, because the def is the authority on what a tile
-   * is worth — the same clamp `mapData`'s `extractsLeft` puts on a vein.
-   */
   hp: number;
-  /**
-   * What it was authored to take when the pool was opened.
-   *
-   * Held rather than re-read off the catalogue on every tick, because a pool
-   * outlives an edit: a tile whose `suffers` was rewritten mid-fire would
-   * otherwise finish under a rule it never caught fire under, and its
-   * `durability` is the denominator every formula on it has been reading. What
-   * it *becomes* is read from here too, so the whole arithmetic of one burn is
-   * fixed at the moment it starts.
-   */
   endure: EndureInteraction;
   statuses: readonly StatusInstance[];
-  /**
-   * How long a source standing in this cell has been holding each status on it,
-   * towards its next helping. Keyed by status id, because a cell can hold a
-   * flame and something else at once and each keeps its own period.
-   *
-   * `ActorRuntime.standingStatusMs` for a placement. @see EndureIndex.hold
-   */
   heldMs: Readonly<Record<string, number>>;
 };
 
-/**
- * A placement that has been worn through, and everything the swap needs.
- *
- * The remainder travels on the result rather than being looked up afterwards,
- * because by then there is nothing to look it up on: the entry has been dropped
- * and the status went with it.
- */
 export type Consumed = {
   cell: Coord;
   tileId: string;
-  /** The status that finished it. */
   statusId: string;
-  /** What the placement becomes. Blank removes it — see {@link Affliction.tileId}. */
   becomes: string;
-  /** What was left of the status at the instant it finished, to be divided. */
   remainingMs: number;
-  /** Who is answerable, carried so the spread stays somebody's doing. */
   causedBy?: string;
-  /** What the spell behind it was made of, carried for the same reason. */
   elements?: readonly Element[];
 };
 
-/**
- * One placement with something running on it, for whoever draws it.
- *
- * **Ids only, and no countdown**, on exactly `StatusIdsPatch`'s terms: a
- * remaining time is a per-second message per cell that only a wind-down would
- * read, and a burning tile is drawn at full strength right up until it goes.
- * That is also why this is the same shape on the wire and off it — the local
- * session has no reason to offer more than the online one can.
- */
 export type AfflictedPlacement = {
   x: number;
   y: number;
   z: number;
-  /** Which placement in the cell, named as {@link poolKey} names it. */
   tileId: string;
-  /** What is running on it, in the order the pool holds it. */
   defIds: string[];
 };
 
-/** This tile's endurance, or null when nothing can wear it down. */
 function endureOf(tileId: string, tilesById: Record<string, TileDef>): EndureInteraction | null {
   const def = tilesById[tileId];
   return def ? resolveEndure(def) : null;
 }
 
-/**
- * Does anything in this cell's stack suffer `statusId`?
- *
- * Asked of a neighbour before the remainder is divided, so a share is never
- * handed to a cell that cannot use it — which is what keeps the arithmetic
- * honest: dividing by the neighbours that *exist* rather than by the ones that
- * burn would quietly destroy fuel at the edge of a forest.
- */
 export function cellSuffers(
   map: MapFile,
   cell: Coord,
@@ -140,20 +60,6 @@ export function cellSuffers(
   });
 }
 
-/**
- * The cells a remainder may pass into: the four orthogonal neighbours.
- *
- * **Orthogonal and same-level.** Diagonals would let a fire cross a one-cell
- * firebreak, which is the one thing a player building one is entitled to rely
- * on; levels would let a fire climb a storey, which is a second question about
- * volume that nothing here is equipped to answer. Both are knobs rather than
- * omissions, and both make a fire faster rather than differently shaped.
- *
- * The consumed cell itself is not among them. A stack is afflicted together —
- * the grass and the bush standing in it are both already under the status — so
- * handing the remainder back into the cell that produced it would be paying the
- * same fuel twice.
- */
 export function neighboursOf(cell: Coord): Coord[] {
   return [
     { x: cell.x + 1, y: cell.y, z: cell.z },
@@ -163,21 +69,6 @@ export function neighboursOf(cell: Coord): Coord[] {
   ];
 }
 
-/**
- * How long each neighbour catches for, when a placement is consumed.
- *
- * **Fuel is conserved and never created**, and this one line is the whole of
- * why a fire is bounded: eight seconds of burning divided four ways is four
- * two-second burns, so a fire crossing a forest is spending a budget rather
- * than compounding one. A rule that gave each neighbour the *full* remainder
- * would double the fuel at every branch, and one flame in a wood would burn
- * until the wood ran out — which is a different game, and not one anybody could
- * put a hearth in.
- *
- * Floored, so nothing is created by rounding, and a share that floors to zero
- * simply does not catch: the last embers of a fire go out at its edge rather
- * than laying an infinitely thin burn across the rest of the map.
- */
 export function spreadShares(
   map: MapFile,
   consumed: Consumed,
@@ -192,13 +83,6 @@ export function spreadShares(
   return catching.map((cell) => ({ cell, shareMs }));
 }
 
-/**
- * Does this cell hold a placement that inflicts a status on its own stack?
- *
- * The membership question behind `GameSession.afflictCells`, asked on exactly
- * the terms `cellHasPlate` and `cellIsWired` are: cheap, per cell, and the only
- * thing standing between a per-tick sweep and a whole-map scan.
- */
 export function cellAfflicts(
   map: MapFile,
   cell: Coord,
@@ -210,14 +94,6 @@ export function cellAfflicts(
   });
 }
 
-/**
- * Every cell holding a source of an affliction.
- *
- * Whole-map scan, for indexing once at load rather than per tick — the same
- * discipline plates, wires and decay are indexed under. Note there is no
- * companion scan for the tiles that *suffer*: a pool opens the first time
- * something is actually inflicted on it, so an untouched forest costs nothing.
- */
 export function findAfflictCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
@@ -229,18 +105,6 @@ export function findAfflictCells(map: MapFile, tilesById: Record<string, TileDef
   return out;
 }
 
-/**
- * Every status a placement in this cell hands to the stack it is standing in.
- *
- * A cell may hold two sources — a flame conjured onto a brazier — and each is
- * asked separately, so what the stack catches is the union rather than
- * whichever placement happened to be read first.
- *
- * The caster's name and elements ride along, because that is what makes a
- * conjured fire somebody's doing all the way down: the arcanist who lit the
- * first tree is paid for the whole forest, through the same `causedBy` a body
- * burned by that flame already carries. @see `GameSession.awardCausedDamage`
- */
 export function afflictionsFrom(
   map: MapFile,
   cell: Coord,
@@ -268,69 +132,26 @@ export function afflictionsFrom(
   return out;
 }
 
-/**
- * Every placement being worn down, and the clock that wears them.
- *
- * **Beside the map, never on it**, on exactly `DecayIndex`'s terms and for the
- * same reason: an `hp` written onto the placement would ride the cell patches
- * and the checkpoint for free, and it would also land in `data/map.json` the
- * first time somebody saved from the editor — a file that is hand-edited and
- * version-controlled, where `flattenMap` goes out of its way to keep a one-cell
- * edit a one-line diff. Held out here, a half-burnt tree costs the map format
- * nothing, the protocol nothing and the checkpoint nothing.
- *
- * What that gives up is continuity across an eviction: a resumed world finds
- * every tree whole again, however far a fire had got. Same bargain hit points,
- * brain memory and decay deadlines already take, and bounded by one burn.
- *
- * **The clock is simulated, not wall time**, again as decay's is: the index is
- * advanced by the ticks the session actually ran, so a fire is reproducible
- * from a seed and a tick count exactly as a fight is.
- *
- * Cost per tick is one `size` check. A world with nothing burning in it — which
- * is every world almost all of the time — pays that and nothing else.
- */
 export class EndureIndex {
   private readonly pools = new Map<string, Endurance>();
   private readonly rng: Rng;
 
-  /**
-   * @param rng the world's dice, shared with the brains rather than owned here,
-   *   on `DecayIndex`'s terms: a duration drawn from a private generator would
-   *   be reproducible alone and unreproducible in company.
-   */
   constructor(rng: Rng) {
     this.rng = rng;
   }
 
-  /** Is anything being worn down? See `GameSession.isAtRest`. */
   pending(): boolean {
     return this.pools.size > 0;
   }
 
-  /** What is running on this placement, for the wire and for the tests. */
   statusesAt(cell: Coord, tileId: string): readonly StatusInstance[] {
     return this.pools.get(poolKey(cell, tileId))?.statuses ?? [];
   }
 
-  /** Every placement currently under something, for the wire. */
   afflicted(): Iterable<Endurance> {
     return this.pools.values();
   }
 
-  /**
-   * Every placement with something actually running on it, as the wire and the
-   * renderer want it.
-   *
-   * **Pools with nothing running are left out**, and that is the whole reason
-   * this is not just {@link afflicted}: a pool outlives its statuses so a
-   * scorched tree stays scorched, and a tree that is merely damaged is not on
-   * fire and must not draw a plume.
-   *
-   * The tile id rather than a stack index, on {@link poolKey}'s terms — an index
-   * shifts the moment anything is placed under it, and whoever draws this has
-   * the stack to find it in.
-   */
   afflictedPlacements(): AfflictedPlacement[] {
     const out: AfflictedPlacement[] = [];
     for (const pool of this.pools.values()) {
@@ -346,21 +167,6 @@ export class EndureIndex {
     return out;
   }
 
-  /**
-   * Put a status on one placement, opening its pool if this is the first.
-   *
-   * Refused when the tile cannot be worn down by this status at all, which is
-   * what makes "flammable" a question with one answer: the affliction, the
-   * spread and the wire all ask `afflictionFor` and none of them can come to a
-   * different view of what burns.
-   *
-   * **A placement already under the status takes it again**, through
-   * `applyStatus`, so it stacks where the status stacks and refreshes where it
-   * does not. That is what lets a share of a spreading fire land on a tree that
-   * is already burning and add to it: two burning neighbours feed a third more
-   * than one does. Every call is one roll of the world's dice, so a caller that
-   * runs every tick goes through {@link hold} instead.
-   */
   afflict(
     cell: Coord,
     tileId: string,
@@ -379,23 +185,6 @@ export class EndureIndex {
     return true;
   }
 
-  /**
-   * Afflict a placement from a source standing in its cell: once on contact,
-   * then once every `everyMs` for as long as the source stays.
-   *
-   * **The ground's half of "a fire keeps burning you while you stand in it"**,
-   * on the terms `GameSession.tickStandingStatuses` gives a body and at its
-   * cadence, which the caller passes in so there is one figure for both. A
-   * flame stacks `burned` onto the grass under it every second, up to the
-   * status's `maxMs`, so a tile that stands in a fire for a while has a long
-   * burn to hand on when it goes — that remainder is what the spread divides.
-   *
-   * The caller is a per-tick sweep, and this is what keeps it to one roll of
-   * the world's dice per helping rather than thirty a second per burning tile.
-   * Contact is "the status is not running on this placement", so a burn that
-   * ran out on a tile that survived it is renewed on the next tick, and the
-   * period starts again from there.
-   */
   hold(
     cell: Coord,
     tileId: string,
@@ -414,29 +203,21 @@ export class EndureIndex {
     let heldMs = 0;
     if (running) {
       heldMs = (pool.heldMs[def.id] ?? 0) + tickMs;
-      // Against the epsilon rather than the figure itself, on
-      // `tickStandingStatuses`' terms: thirty ticks come to a hair over a
-      // second, and an exact comparison would be a tick late half the time.
       if (heldMs + HELD_EPSILON_MS < everyMs) {
         this.pools.set(key, { ...pool, heldMs: { ...pool.heldMs, [def.id]: heldMs } });
         return false;
       }
-      // Drained rather than zeroed, so the period stays a period.
       heldMs -= everyMs;
     }
 
     this.pools.set(key, {
       ...pool,
-      // The status's own range, unlike a spread's share: what standing in a
-      // fire does to the ground is a fact about fire, the reading
-      // `AddStatusInteraction` takes for a body.
       statuses: applyStatus(pool.statuses, def, this.rng, undefined, causedBy, elements),
       heldMs: { ...pool.heldMs, [def.id]: heldMs },
     });
     return true;
   }
 
-  /** This placement's pool, or a fresh one at full durability. */
   private poolFor(cell: Coord, tileId: string, endure: EndureInteraction): Endurance {
     return (
       this.pools.get(poolKey(cell, tileId)) ?? {
@@ -450,20 +231,6 @@ export class EndureIndex {
     );
   }
 
-  /**
-   * Advance every pool by one tick, and hand back what has been worn through.
-   *
-   * The order matches `advanceStatuses`' own, because it is the same order: the
-   * clocks wind down, whatever is due pays out, and what has run out is dropped.
-   * A pool whose statuses have all ended keeps its damage and stays in the index
-   * — that is what lets a permanent flame set the same tile alight again next
-   * tick without the tile having quietly healed in between, and what makes a
-   * scorched half-burnt tree stay scorched.
-   *
-   * **A pool at full health with nothing running on it is forgotten**, which is
-   * the only thing keeping the index from growing to the size of the map: a
-   * status that ended without spending anything leaves no trace to keep.
-   */
   advance(tickMs: number, statusDefs: Record<string, StatusDef>): Consumed[] {
     if (this.pools.size === 0) return [];
 
@@ -491,12 +258,6 @@ export class EndureIndex {
         continue;
       }
 
-      // Worn through. Which status finished it decides what it becomes, and the
-      // one asked is the first the tile suffers that is actually running on it —
-      // a tile authored to burn to dirt and freeze to ice does whichever of the
-      // two it was under. Read off the list *before* the tick dropped anything,
-      // because a status that expired on the very tick it finished the tile is
-      // still what finished it.
       this.pools.delete(key);
       const finisher = this.finisherOf(pool, tick.statuses, statusDefs);
       if (finisher) consumed.push(finisher);
@@ -504,15 +265,6 @@ export class EndureIndex {
     return consumed;
   }
 
-  /**
-   * Which running status wore this placement through, as a {@link Consumed}.
-   *
-   * `after` is preferred over `before` for the remainder, because that is what
-   * is actually left: a status one tick from expiry has one tick of fuel to pass
-   * on, not a full period. A status that ended on this tick has no remainder and
-   * spreads nothing, which is right — a fire that goes out as the tree falls
-   * does not jump.
-   */
   private finisherOf(
     pool: Endurance,
     after: readonly StatusInstance[],
@@ -538,20 +290,9 @@ export class EndureIndex {
 
 export type EndureResult = {
   map: MapFile;
-  /** Cells whose stack changed — every index over them is now suspect. */
   changed: Coord[];
 };
 
-/**
- * `stack` with every anonymous placement of `tileId` turned, or null when
- * nothing in it turns.
- *
- * The same three refusals `./decay`'s `decayedStack` makes, and for the same
- * reasons: a placement somebody is driving is left alone rather than stranding
- * an actor, one carrying an item id is left alone rather than turning every copy
- * in the cell, and a target that has left the catalogue reads as a swap that
- * never happened rather than as content quietly deleting itself.
- */
 function consumedStack(
   map: MapFile,
   consumed: Consumed,
@@ -573,20 +314,9 @@ function consumedStack(
   }
   if (!turned) return null;
 
-  // Refused rather than forced, exactly as a decay's swap and a plate's are:
-  // whatever this becomes has to fit under what has been stacked on it since.
   return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok ? next : null;
 }
 
-/**
- * Turn every placement that has been worn through, in one pass.
- *
- * A turn that cannot happen — the placement is gone, somebody is driving it,
- * what it becomes will not fit — is abandoned rather than retried, on
- * `applyDecay`'s terms: retrying would hold the world awake spinning on a swap
- * that is never going to fit, and the cell is armed again for free the next time
- * anything disturbs it.
- */
 export function applyConsumed(
   map: MapFile,
   consumed: Iterable<Consumed>,
@@ -603,7 +333,6 @@ export function applyConsumed(
   return { map: next, changed };
 }
 
-/** The placements in this cell that suffer `statusId`, with what wears them. */
 export function sufferersIn(
   map: MapFile,
   cell: Coord,
@@ -617,8 +346,6 @@ export function sufferersIn(
   }[] = [];
   const seen = new Set<string>();
   for (const placed of getStack(map, cell.x, cell.y, cell.z)) {
-    // Two placements of one tile in a cell share a pool — see {@link poolKey} —
-    // so offering the same tile id twice would be two afflictions of one thing.
     if (seen.has(placed.tileId)) continue;
     if (placed.owner || placed.itemId) continue;
     const endure = endureOf(placed.tileId, tilesById);

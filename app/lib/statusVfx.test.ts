@@ -15,15 +15,6 @@ import { hexToRgb01, srgbToOklab } from "./palette";
 import * as v from "valibot";
 import { resolveStatus } from "./status";
 
-/**
- * What an authored effect comes to.
- *
- * A tint is a colour, and pinning its channels would be a test of the OKLab
- * constants rather than of this feature — so it is asserted on the properties
- * that make it a palette swap rather than a wash, which are the ones that would
- * actually break. The plume next door is pinned exactly, in `./particleVfx.test`.
- */
-
 const near = (a: number, b: number, tolerance = 0.02) => Math.abs(a - b) <= tolerance;
 
 describe("a tint", () => {
@@ -35,9 +26,6 @@ describe("a tint", () => {
   });
 
   it("keeps every shading step when the lightness is kept", () => {
-    // The palette-swap case, and the property that says it worked: two pixels
-    // of the same sprite that differed in lightness still differ by the same
-    // amount afterwards. A wash that flattened them would fail here.
     const lightBefore = (rgb: readonly [number, number, number]) =>
       srgbToOklab(rgb[0], rgb[1], rgb[2])[0];
     const dark = [0.2, 0.3, 0.2] as const;
@@ -51,8 +39,6 @@ describe("a tint", () => {
   });
 
   it("moves the hue towards the tint", () => {
-    // Chroma, not lightness, is what a swap moves — so the green sprite ends up
-    // measurably nearer the tint's a/b than it started.
     const sprite = [0.2, 0.8, 0.3] as const;
     const before = srgbToOklab(sprite[0], sprite[1], sprite[2]);
     const after0 = applyTint(sprite, purple);
@@ -69,8 +55,6 @@ describe("a tint", () => {
     const dark = [0.1, 0.1, 0.1] as const;
     const light = [0.9, 0.9, 0.9] as const;
     const flat = { ...purple, strength: 1, keepLuma: 0 };
-    // At full strength with nothing kept, every pixel is the tint — which is
-    // what "lose the sprite" means, and is a legal thing to ask for.
     expect(applyTint(dark, flat)).toEqual(applyTint(light, flat));
   });
 
@@ -96,9 +80,6 @@ describe("winding down", () => {
   });
 
   it("measures what is left, not what there was", () => {
-    // The whole argument for milliseconds over a fraction: a poison stacked to
-    // ten minutes and one that rolled ten seconds fade over the same final
-    // stretch. A fraction would give the stacked one a two-minute sunset.
     const window = 4_000;
     expect(taperAt(2_000, window)).toBe(taperAt(2_000, window));
     expect(taperAt(600_000, window)).toBe(1);
@@ -110,9 +91,6 @@ describe("winding down", () => {
   });
 
   it("lands on a bounded set of steps, so the caches stay bounded", () => {
-    // A tint is baked into a material keyed by its strength and a cast light
-    // rides a cache key with its intensity in it, so a continuously varying
-    // taper would compile a material a frame. See TAPER_STEPS.
     const seen = new Set<number>();
     for (let ms = 0; ms <= 4_000; ms += 1) seen.add(taperAt(ms, 4_000));
     expect(seen.size).toBeLessThanOrEqual(TAPER_STEPS + 1);
@@ -124,8 +102,6 @@ describe("winding down", () => {
     expect(half.strength).toBeCloseTo(0.4);
     expect(half.color).toBe(tint.color);
     expect(half.keepLuma).toBe(tint.keepLuma);
-    // Untouched at full, and the same object, so nothing downstream re-keys a
-    // material for a status that is not winding down.
     expect(taperedTint(tint, 1)).toBe(tint);
   });
 
@@ -133,8 +109,6 @@ describe("winding down", () => {
     const light = { radius: 6, intensity: 0.8, color: "#fb6b1d" };
     const half = taperedGlow(light, 0.5);
     expect(half.intensity).toBeCloseTo(0.4);
-    // The radius is what the flood fill walks; shrinking it as well would make a
-    // fading light re-bake a different-sized window every step.
     expect(half.radius).toBe(light.radius);
     expect(taperedGlow(light, 1)).toBe(light);
   });
@@ -147,9 +121,6 @@ describe("what validates", () => {
   });
 
   it("keeps loading a status authored before effects existed", () => {
-    // The compatibility case, asserted through the real front door: every entry
-    // in `data/statuses.json` looks like this, and a schema that dropped them
-    // would empty the catalogue.
     const legacy = {
       id: "fed",
       name: "Fed",
@@ -177,9 +148,6 @@ describe("what validates", () => {
       light: { radius: 4, intensity: 0.6, color: "#fb6b1d" },
     });
     expect(ok.success).toBe(true);
-    // The same ceiling every tile light is held to: past this the flood fill has
-    // nothing left to give, and a radius beyond it is a number that reads as
-    // reach and buys none.
     expect(
       v.safeParse(statusVfxSchema, {
         light: { radius: MAX_LIGHT_LEVEL + 1, intensity: 1, color: "#ffffff" },
@@ -188,8 +156,6 @@ describe("what validates", () => {
   });
 
   it("defaults a tint to keeping the sprite's own lightness", () => {
-    // An author who writes a tint by hand and says nothing about shading is
-    // asking for a palette swap, which is the answer that keeps the drawing.
     const parsed = v.parse(statusVfxSchema, {
       tint: { color: "#a884f3", strength: 0.4 },
     });

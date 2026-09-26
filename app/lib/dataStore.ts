@@ -2,35 +2,17 @@ import type { MapFile, TileDef, TilesetDef } from "./types";
 import { normalizeTiles } from "./types";
 import { emptyMap, parseMap, serializeMap } from "./mapData";
 
-/**
- * Authored content: the map, tile definitions, tilesets and their PNGs.
- *
- * Keys mirror the paths under the repo's `data/` directory, so a bucket listing
- * reads like the checked-in tree and `bun run seed` is a straight upload.
- */
 const MAP_KEY = "map.json";
 const TILES_KEY = "tiles.json";
 const TILESETS_KEY = "tilesets.json";
-/**
- * The status catalogue. A fourth blob rather than a kind of tile: a status is
- * never placed, never stacked and never walked into, so giving it a `TileDef`
- * would put entries in `tilesById` that can never appear on a board. See
- * `./status`.
- */
 const STATUSES_KEY = "statuses.json";
 const TILESET_PREFIX = "tilesets/";
 
 const JSON_TYPE = "application/json";
 const PNG_TYPE = "image/png";
 
-/** Tileset uploads name their own key, so the name is the whole attack surface. */
 const SAFE_TILESET_NAME = /^[a-zA-Z0-9._-]+\.png$/;
 
-/**
- * Bytes by key. Deliberately dumb — every decision about *what* the bytes mean
- * lives in {@link DataStore}, so the two backends stay small enough to see
- * through and cannot drift in how they parse a map.
- */
 export interface Blobs {
   getText(key: string): Promise<string | null>;
   getBytes(key: string): Promise<Uint8Array<ArrayBuffer> | null>;
@@ -50,17 +32,6 @@ export class DataStore {
     await this.blobs.put(TILES_KEY, `${JSON.stringify(tiles, null, 2)}\n`, JSON_TYPE);
   }
 
-  /**
-   * The status catalogue, still raw.
-   *
-   * Handed over unparsed on purpose, exactly as tiles are handed over
-   * un-resolved: `statusesById` is what decides which entries are statuses, it
-   * memoises nothing and it runs on both sides of the wire. A store that parsed
-   * here would be a second place that has an opinion about what a status is.
-   *
-   * An absent file is an empty catalogue rather than a failure — a fresh
-   * environment loads blank until `bun run seed` runs, the same as the map does.
-   */
   async readStatuses(): Promise<unknown[]> {
     const raw = await this.blobs.getText(STATUSES_KEY);
     if (raw === null) return [];

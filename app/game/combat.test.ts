@@ -35,22 +35,6 @@ import { MELEE_REACH, type Reach } from "../lib/item";
 import { planDistanceSq } from "./distance";
 import { Rng } from "./rng";
 
-/**
- * The arithmetic of a blow, asserted rather than eyeballed.
- *
- * A damage curve is the kind of thing that is quietly wrong for months: it
- * produces plausible numbers whatever it does, so nothing about playing the game
- * tells you the peak drifted or that accuracy stopped mattering. These are the
- * claims the design actually makes, written down where they can fail.
- */
-
-/**
- * A stat block to swing with, from the default body and its bare hands.
- *
- * Built through `fightingStats` rather than written out, so a change to how a
- * body becomes numbers reaches these tests instead of being papered over by a
- * fixture that still holds the old shape.
- */
 const BARE_HANDED = fightingStats(DEFAULT_BATTLER, DEFAULT_BATTLER.naturalWeapon);
 
 function battler(overrides: Partial<FightingStats> = {}): FightingStats {
@@ -69,17 +53,10 @@ describe("attack speed", () => {
     }
   });
 
-  /**
-   * The whole reason the curve is geometric. On a straight line 50 speed would
-   * be ~101 ticks — indistinguishable from 0 to anybody watching — and the stat
-   * would be worthless for its entire lower half.
-   */
   it("makes a merely decent speed genuinely decent", () => {
     const halfway = attackIntervalMs(50);
     const linear = ((MIN_ATTACK_TICKS + MAX_ATTACK_TICKS) / 2) * TICK_MS;
     expect(halfway).toBeLessThan(linear / 4);
-    // The geometric mean of the two bounds, which is what "halfway along a
-    // curve" means — and stays true whatever the bounds are scaled to.
     expect(halfway / TICK_MS).toBe(Math.round(Math.sqrt(MIN_ATTACK_TICKS * MAX_ATTACK_TICKS)));
   });
 
@@ -89,31 +66,16 @@ describe("attack speed", () => {
   });
 });
 
-/**
- * What getting into a blow costs, which is the one cost in a fight that is paid
- * before anything has happened.
- *
- * A share of the interval rather than a figure of its own, so the heaviest
- * weapon in the game no longer lands its opening blow as instantly as the
- * lightest. See {@link SWING_WINDUP_SHARE} for what the flat version cost.
- */
 describe("the approach", () => {
   it("is half of whatever this body's own interval is", () => {
     for (const spd of [0, 1, 25, 50, 75, 99, 100]) {
       const stats = battler({ spd });
       const half = swingIntervalMs(stats) * SWING_WINDUP_SHARE;
-      // Within the rounding below rather than exactly, because an interval of an
-      // odd number of ticks has no half in whole ticks.
       expect(swingWindupMs(stats)).toBeGreaterThanOrEqual(half - TICK_MS / 2);
       expect(swingWindupMs(stats)).toBeLessThanOrEqual(half + TICK_MS / 2);
     }
   });
 
-  /**
-   * Whole ticks, because the clock it is wound on counts in them: a windup of
-   * half a tick would be spent on the tick after the one it was armed on, which
-   * is a rule that rounds itself.
-   */
   it("lands on a whole tick", () => {
     for (let spd = 0; spd <= 100; spd++) {
       const ticks = swingWindupMs(battler({ spd })) / TICK_MS;
@@ -121,11 +83,6 @@ describe("the approach", () => {
     }
   });
 
-  /**
-   * The property the fight actually rests on: the approach is shorter for the
-   * faster body, so the opening blow is still the quick one's. A flat windup
-   * would have handed the opening to whoever was slowest to follow it up.
-   */
   it("never gets longer as speed goes up", () => {
     for (let spd = 1; spd <= 100; spd++) {
       expect(swingWindupMs(battler({ spd }))).toBeLessThanOrEqual(
@@ -134,11 +91,6 @@ describe("the approach", () => {
     }
   });
 
-  /**
-   * Haste is in it, which is what makes it the *body's* approach rather than
-   * the weapon's: a body short of what its weapon asks swings slowly and gets
-   * into the blow slowly too, and one Agility has quickened does both faster.
-   */
   it("follows haste, not spd alone", () => {
     const hastened = battler({ spd: 50, haste: 2 });
     const plain = battler({ spd: 50, haste: 1 });
@@ -157,11 +109,6 @@ describe("the damage band", () => {
     }
   });
 
-  /**
-   * Variance drags the *floor* down and leaves the ceiling where it is. That is
-   * what "damage is the most a blow can do" means: a wild weapon is not one that
-   * occasionally exceeds its damage, it is one that often falls short.
-   */
   it("always tops out at full damage, whatever the variance", () => {
     for (const variance of [0, 25, 50, 100]) {
       expect(damageFraction(variance, [1, 1])).toBeCloseTo(1, 10);
@@ -179,14 +126,6 @@ describe("the damage band", () => {
     expect(damageFraction(50, [0.5, 0.5])).toBeCloseTo(0.75, 10);
   });
 
-  /**
-   * The hump. Both tails have to be rarer than the middle — a flat roll would
-   * make a shattering blow exactly as likely as a glancing one, which reads as
-   * noise rather than as a fight.
-   *
-   * Bucketed over a seeded stream, so this is a claim about the distribution and
-   * not about one lucky draw.
-   */
   it("is common in the middle and rare at both ends", () => {
     const rng = new Rng(12345);
     const buckets = [0, 0, 0];
@@ -196,30 +135,12 @@ describe("the damage band", () => {
     }
     expect(buckets[1]!).toBeGreaterThan(buckets[0]! * 1.5);
     expect(buckets[1]!).toBeGreaterThan(buckets[2]! * 1.5);
-    // And symmetric, which is what makes the peak the *middle* rather than a
-    // lean somebody would have to compensate for when authoring damage.
     expect(Math.abs(buckets[0]! - buckets[2]!)).toBeLessThan(buckets[1]! * 0.1);
   });
 });
 
-/**
- * A contest on a logistic curve, floored and capped.
- *
- * **Agility against Agility, with the swinger favoured by `REFLEX_EDGE`.** Both
- * sides read the same faculty — see `./combat`'s `reflex` — so without the edge,
- * two bodies with the same Agility would dodge half of each other's blows, and
- * two bodies with the same anything is the common case rather than the corner.
- *
- * Before that it was contested against the attacker's *accuracy*, which made a
- * weapon's accuracy answer both "did the swing go where it was aimed" and "could
- * its target get out of the way" — and charged an inaccurate weapon for the same
- * failing twice. Before *that* it was `flee - accuracy / 2`, which was linear
- * and hit zero and stayed there.
- */
 describe("dodging", () => {
   it("favours the swinger when the two are level", () => {
-    // The initiative is worth exactly REFLEX_EDGE, whatever the two bodies are
-    // standing at: it is a shift along the curve, not a share of it.
     expect(dodgeChance(50, 50)).toBeCloseTo(dodgeChance(100, 100), 10);
     expect(dodgeChance(50, 50)).toBeLessThan(0.5);
   });
@@ -234,12 +155,6 @@ describe("dodging", () => {
     expect(dodgeChance(30 + REFLEX_EDGE, 50)).toBeLessThan(0.5);
   });
 
-  /**
-   * **A weapon has no say in it.** The whole point of moving the contest off
-   * accuracy: a body swinging something it can barely hit with is no easier to
-   * dodge than the same body swinging a masterwork blade, because getting out of
-   * the way is a race against their reflexes rather than against their sword.
-   */
   it("is unmoved by what the swinger is holding", () => {
     const quick = battler({ flee: 60 });
     const clumsyWeapon = { ...quick, accuracy: 5, hitChance: 0.05 };
@@ -251,16 +166,11 @@ describe("dodging", () => {
     );
   });
 
-  /**
-   * **Nothing is ever certain in either direction.** An outmatched defender is
-   * never simply a target, and no amount of evasion makes anybody untouchable.
-   */
   it("never reaches certainty at either end", () => {
     expect(dodgeChance(0, 1000)).toBe(MIN_CHANCE);
     expect(dodgeChance(1000, 0)).toBe(MAX_CHANCE);
   });
 
-  /** Smooth: every point of evasion is worth something, with no cliff anywhere. */
   it("rises without a step, all the way along", () => {
     let previous = dodgeChance(0, 30);
     for (let flee = 1; flee <= 200; flee++) {
@@ -271,14 +181,7 @@ describe("dodging", () => {
     }
   });
 
-  /**
-   * The stat has to pay across the whole mastery scale rather than being spent
-   * by the time somebody is a third trained — which is exactly what the old rule
-   * got wrong in the other direction.
-   */
   it("keeps paying from an untrained body to a fully trained one", () => {
-    // Against a swinger of the player's own Agility, which is the fight the
-    // stat is actually trained for.
     const swinger = fleeFrom(10);
     const untrained = dodgeChance(fleeFrom(0), swinger);
     const halfway = dodgeChance(fleeFrom(50), swinger);
@@ -288,12 +191,6 @@ describe("dodging", () => {
     expect(mastered).toBeGreaterThan(halfway * 1.5);
   });
 
-  /**
-   * And it pays on the attacking side too, which is what the stat bought by
-   * taking this contest off accuracy: training Agility is now the answer to
-   * "the bats keep getting out of the way", where before it did nothing for you
-   * unless you were the one being swung at.
-   */
   it("pays the swinger for training it as well as the defender", () => {
     const bat = fleeFrom(45);
     const novice = dodgeChance(bat, fleeFrom(10));
@@ -303,14 +200,6 @@ describe("dodging", () => {
   });
 });
 
-/**
- * The guard draw: a band with a hump in it.
- *
- * This is the half of armour that is not a number on a tile. A flat draw would
- * make a mail shirt that turned nothing aside exactly as common as one that
- * turned aside everything, so what is asserted is the *shape* — where the ends
- * are, and that the middle is where the weight sits.
- */
 describe("the guard a blow draws", () => {
   it("spans the share of its face value the rule names", () => {
     expect(guardFraction(0)).toBeCloseTo(MIN_GUARD_SHARE, 10);
@@ -326,11 +215,6 @@ describe("the guard a blow draws", () => {
     }
   });
 
-  /**
-   * The peak is where the author put it, and it is a *mode* rather than a mean:
-   * the mean of a triangle sits at the average of its three corners, which is
-   * deliberately not the same number.
-   */
   it("comes up most often around the peak", () => {
     const rng = new Rng(4242);
     const buckets = new Map<number, number>();
@@ -342,17 +226,11 @@ describe("the guard a blow draws", () => {
     const commonest = [...buckets.entries()].sort((a, b) => b[1] - a[1])[0]![0];
     expect(commonest / TENTHS).toBeCloseTo(GUARD_PEAK, 1);
 
-    // And both ends are rare, which is the whole point of there being a hump.
     const atPeak = buckets.get(Math.floor(GUARD_PEAK * TENTHS))!;
     expect(buckets.get(Math.floor(MIN_GUARD_SHARE * TENTHS))!).toBeLessThan(atPeak / 2);
     expect(buckets.get(TENTHS - 1)!).toBeLessThan(atPeak / 2);
   });
 
-  /**
-   * A triangle's mean is the average of its three corners. Worth stating,
-   * because it is the number an author is really choosing when they type a
-   * defence — what armour is worth on average, rather than at its best.
-   */
   it("is worth the average of its three corners over many draws", () => {
     const rng = new Rng(99);
     let total = 0;
@@ -361,7 +239,6 @@ describe("the guard a blow draws", () => {
     expect(total / draws).toBeCloseTo((MIN_GUARD_SHARE + GUARD_PEAK + 1) / 3, 2);
   });
 
-  /** Whole numbers, because hit points are and this is subtracted from one. */
   it("hands back whole numbers of defence inside the band", () => {
     const defender = battler({ def: 17 });
     const attacker = battler({ mastery: "sharp" });
@@ -376,11 +253,6 @@ describe("the guard a blow draws", () => {
 });
 
 describe("being outnumbered", () => {
-  /**
-   * The fight every authored number was tuned against. One attacker has to leave
-   * the block exactly as it was, or every creature in the world quietly changes
-   * the day this lands.
-   */
   it("costs a body nothing at all when only one thing is on it", () => {
     const defender = battler({ flee: 60, def: 10 });
 
@@ -389,24 +261,17 @@ describe("being outnumbered", () => {
     expect(underPressure(defender, 1)).toBe(defender);
   });
 
-  /**
-   * The reported bug, as arithmetic: eight rats were exactly one rat, eight
-   * times over.
-   */
   it("takes evasion and armour down together as the crowd grows", () => {
     const defender = battler({ flee: 60, def: 12, resist: { sharp: 8 } });
     const crowded = underPressure(defender, 8);
 
     expect(crowded.flee).toBeLessThan(defender.flee / 3);
     expect(crowded.def).toBeLessThan(defender.def / 3);
-    // The resistances go with the flat armour, or being surrounded is survivable
-    // by wearing the right coat. @see defenceAgainst
     expect(defenceAgainst(crowded, battler({ mastery: "sharp" }))).toBeLessThan(
       defenceAgainst(defender, battler({ mastery: "sharp" })) / 3,
     );
   });
 
-  /** Hit points are whole, so what is subtracted from them has to be. */
   it("leaves a whole number of armour behind", () => {
     for (let assailants = 1; assailants <= 12; assailants++) {
       const crowded = underPressure(battler({ def: 17, resist: { blunt: 5 } }), assailants);
@@ -415,11 +280,6 @@ describe("being outnumbered", () => {
     }
   });
 
-  /**
-   * The shape of the curve, which is the whole reason it is hyperbolic: the
-   * second body on you is the one that costs, and no crowd is ever large enough
-   * to leave you with nothing.
-   */
   it("costs less for every further body, and never reaches nothing", () => {
     let previous = guardShare(1);
     let lastCost = Infinity;
@@ -434,16 +294,6 @@ describe("being outnumbered", () => {
     }
   });
 
-  /**
-   * End to end through the swing: a bite that armour swallowed on its own draws
-   * blood once there are enough of them. This is the fight the player actually
-   * had.
-   *
-   * Defence far above the blow, so that even {@link MIN_GUARD_SHARE} of it is
-   * more than the whole bite — the point being made is about the crowd, and a
-   * defence the low end of the band already lets through would make it about the
-   * draw instead.
-   */
   it("lets a blow through that one attacker could never land", () => {
     const attacker = battler({ damage: 6, accuracy: 100, hitChance: 1 });
     const defender = battler({ def: 40, flee: 0 });
@@ -461,16 +311,6 @@ describe("being outnumbered", () => {
 });
 
 describe("swinging", () => {
-  /**
-   * Over many seeds rather than one, because **nothing is certain any more**:
-   * every probability is floored at {@link MIN_CHANCE}, so no stat block can
-   * promise that a given swing connects. What is asserted is the invariant — a
-   * blow that cannot get through armour is worth nothing, never a heal.
-   *
-   * Armour twenty times the blow, so that even the shallowest draw is more than
-   * the whole of it. That is what being untouchable costs now: not defence equal
-   * to a blow, but defence whose {@link MIN_GUARD_SHARE} is.
-   */
   it("takes defence off the top and never heals", () => {
     const attacker = battler({ damage: 5, accuracy: 100, hitChance: 1 });
     const defender = battler({ def: 100, flee: 0 });
@@ -480,11 +320,6 @@ describe("swinging", () => {
     }
   });
 
-  /**
-   * And the flip side, which is the whole reason the draw exists: armour worth
-   * exactly the blow no longer stops it. Under the old flat rule this was
-   * immunity, and it was reachable in the starting kit.
-   */
   it("no longer makes armour worth the blow a wall against it", () => {
     const attacker = battler({
       damage: 9,
@@ -506,13 +341,6 @@ describe("swinging", () => {
     expect(wounded).toBeGreaterThan(landed / 2);
   });
 
-  /**
-   * Every swing that actually lands, rather than every swing: with a floor under
-   * both the whiff and the dodge, some of these come to nothing however the stats
-   * are written. The claim is about the arithmetic of a blow that connects — a
-   * fixed blow against a *drawn* guard, so what is fixed is the band it lands in
-   * and both of that band's ends are reached.
-   */
   it("takes a draw against defence off a blow that connects", () => {
     const attacker = battler({
       damage: 9,
@@ -533,16 +361,10 @@ describe("swinging", () => {
       expect(outcome.damage).toBeLessThanOrEqual(9 - lowest);
       drawn.add(outcome.damage);
     }
-    // Every rung of the band, not merely a range that happens to hold: a draw
-    // that never reached one end would be a wobble that is not really there.
     expect([...drawn].sort((a, b) => a - b)).toEqual([5, 6, 7, 8]);
   });
 
   it("always dodges a defender nothing can touch", () => {
-    // Certain to connect, so what is asserted is the dodge rather than the
-    // whiff — the two are distinguished in their own describe below. The
-    // swinger is hopeless at *following* rather than at aiming, which since the
-    // contest moved off accuracy is their own `flee`.
     const attacker = battler({ flee: 0, hitChance: 1 });
     const defender = battler({ flee: 1000 });
     for (let seed = 0; seed < 20; seed++) {
@@ -550,11 +372,6 @@ describe("swinging", () => {
     }
   });
 
-  /**
-   * The dice are seeded so a world is reproducible, which only holds if a swing
-   * always costs the same number of draws. If the count varied with the stats,
-   * one creature's accuracy would change what every creature after it rolled.
-   */
   it("costs the same five draws whatever the stats", () => {
     const reference = new Rng(7);
     for (let i = 0; i < 5; i++) reference.next();
@@ -564,8 +381,6 @@ describe("swinging", () => {
       [battler({ accuracy: 100 }), battler({ flee: 0 })],
       [battler({ accuracy: 0 }), battler({ flee: 100 })],
       [battler({ accuracy: 37 }), battler({ flee: 63 })],
-      // Both ends of the new term, which is the one that made this four: an
-      // outcome decided on the first draw must still pay for the other three.
       [battler({ hitChance: 0 }), battler({ flee: 0 })],
       [battler({ hitChance: 1 }), battler({ flee: 0 })],
     ] as const) {
@@ -576,16 +391,6 @@ describe("swinging", () => {
   });
 });
 
-/**
- * Armour that cares what hit it.
- *
- * **Two numbers, added, and the kind decides whether the second one counts.**
- * The claim these make is the asymmetry: the same armour has to be worth more
- * against one weapon than against another, or the whole feature is a flat bonus
- * with extra bookkeeping. The kind is the attacker's *weapon* mastery and never
- * the wielder's best skill, which is the second claim — a novice with a sword is
- * still striking with a blade, and mail should turn it aside on the same terms.
- */
 describe("resisting a kind of blow", () => {
   const mailed = battler({ def: 2, resist: { sharp: 5 } });
 
@@ -603,10 +408,6 @@ describe("resisting a kind of blow", () => {
     expect(defenceAgainst(plain, battler({ mastery: "sharp" }))).toBe(3);
   });
 
-  /**
-   * The one that matters in play: the same shirt against two weapons that are
-   * identical apart from what they are made of.
-   */
   it("makes one blow worth less than the other through the same armour", () => {
     const sword = battler({
       damage: 9,
@@ -618,8 +419,6 @@ describe("resisting a kind of blow", () => {
     const hammer = { ...sword, mastery: "blunt" } as const;
     const defender = battler({ def: 2, resist: { sharp: 5 }, flee: 0 });
 
-    // The same seed both ways round, so the guard draw is the same draw and the
-    // only thing left between the two numbers is which band it was drawn from.
     let landed = 0;
     for (let seed = 0; seed < 50; seed++) {
       const cut = rollAttack(sword, defender, new Rng(seed));
@@ -631,7 +430,6 @@ describe("resisting a kind of blow", () => {
     expect(landed).toBeGreaterThan(0);
   });
 
-  /** A resistance deeper than the blow is worth is a blow worth nothing. */
   it("never heals, however much of it there is", () => {
     const attacker = battler({ damage: 5, accuracy: 100, hitChance: 1, mastery: "arcane" });
     const warded = battler({ def: 0, resist: { arcane: 100 }, flee: 0 });
@@ -640,10 +438,6 @@ describe("resisting a kind of blow", () => {
     }
   });
 
-  /**
-   * The dice again: resistance is read, never rolled for, so a warded defender
-   * must cost a swing exactly what a bare one does.
-   */
   it("costs the swing no extra draws", () => {
     const reference = new Rng(11);
     rollAttack(battler({ mastery: "sharp" }), battler(), reference);
@@ -655,14 +449,6 @@ describe("resisting a kind of blow", () => {
   });
 });
 
-/**
- * What a blow leaves behind after the hit points have moved.
- *
- * A percentage is the kind of number nobody can eyeball: a venom that fires
- * every time and a venom that never fires both look like "a snake bit me" from
- * inside the game, and only a count over many swings can tell them apart. These
- * are the claims the field makes, written where they can fail.
- */
 describe("statuses a weapon inflicts", () => {
   const certain = { id: "poison", chance: 100 };
   const never = { id: "poison", chance: 0 };
@@ -698,11 +484,6 @@ describe("statuses a weapon inflicts", () => {
     expect(landed).toBeGreaterThan(0);
   });
 
-  /**
-   * The one case that would otherwise be decided by the stat with least to do
-   * with it: a fang that cannot get through armour still went in far enough to
-   * be a fang.
-   */
   it("still inflicts through armour that ate the whole blow", () => {
     const attacker = battler({ ...connects, damage: 5, statuses: [certain] });
     const defender = battler({ def: 100, flee: 0 });
@@ -733,10 +514,6 @@ describe("statuses a weapon inflicts", () => {
     }
   });
 
-  /**
-   * A tenth, near enough — the snake's bite as `data/tiles.json` authors it.
-   * Counted over blows that landed, since a miss was never eligible.
-   */
   it("fires about as often as it says", () => {
     const attacker = battler({ ...connects, statuses: [{ id: "poison", chance: 10 }] });
     const defender = battler({ flee: 0 });
@@ -752,12 +529,6 @@ describe("statuses a weapon inflicts", () => {
     expect(poisoned / landed).toBeLessThan(0.12);
   });
 
-  /**
-   * The same discipline the four draws above are under, one step further: a
-   * weapon's list decides how many draws a swing costs, and nothing about how
-   * the swing turned out may. Otherwise a snake that missed and a snake that bit
-   * would leave the world's dice in different places.
-   */
   it("costs one draw per authored status, whatever the blow came to", () => {
     const reference = new Rng(7);
     for (let i = 0; i < 7; i++) reference.next();
@@ -775,10 +546,6 @@ describe("statuses a weapon inflicts", () => {
     }
   });
 
-  /**
-   * Rolled per entry rather than once for the list, so a weapon that inflicts
-   * two things is not a weapon that inflicts both or neither.
-   */
   it("decides each authored status on its own draw", () => {
     const attacker = battler({
       ...connects,
@@ -793,15 +560,6 @@ describe("statuses a weapon inflicts", () => {
   });
 });
 
-/**
- * The most damage a body can take is the health it is standing up with.
- *
- * **A rule about the world, not about bookkeeping.** Experience is counted in
- * damage dealt and the floating receipt over a body shows the same figure, so an
- * untrimmed overkill made one rat worth as much as the weapon that killed it
- * rather than as much as the rat was — and floated "60" over something that had
- * nine left.
- */
 describe("a blow trimmed to what the body had left", () => {
   const landed = {
     missed: false,
@@ -821,12 +579,6 @@ describe("a blow trimmed to what the body had left", () => {
     expect(cappedToHealth(landed, 200)).toBe(landed);
   });
 
-  /**
-   * What the blow *threatened* is a different question from what it took, and it
-   * is the one the defensive payout asks — `./experience`'s `threatRate` weighs
-   * it against the body's whole health. Trimming it would read as a blow that
-   * got gentler the closer its target came to dying.
-   */
   it("leaves what the blow threatened alone", () => {
     expect(cappedToHealth(landed, 9).potentialDamage).toBe(72);
   });
@@ -839,11 +591,6 @@ describe("a blow trimmed to what the body had left", () => {
   });
 });
 
-/**
- * Missing and dodging are the same absence of damage and must never be the same
- * event: one is the swinger out of their depth, the other is the target being
- * quick, and in the phase after this they pay experience to opposite parties.
- */
 describe("missing, as distinct from being dodged", () => {
   it("never lands a swing that cannot connect at all", () => {
     const attacker = battler({ hitChance: 0 });
@@ -854,21 +601,12 @@ describe("missing, as distinct from being dodged", () => {
         missed: true,
         dodged: false,
         damage: 0,
-        // Nothing was ever rolled: a swing that went nowhere was never worth
-        // anything, so there is no potential for the defender to be paid for.
         potentialDamage: 0,
-        // And nothing was left behind either — a blow that touched nobody
-        // cannot have poisoned them.
         inflicted: [],
       });
     }
   });
 
-  /**
-   * A blow that never went where it was aimed gave the defender nothing to get
-   * out of the way of, so the miss has to win — crediting the dodge would pay
-   * agility for standing still.
-   */
   it("reads as missed rather than dodged when both would have fired", () => {
     const attacker = battler({ hitChance: 0, flee: 0 });
     const defender = battler({ flee: 1000 });
@@ -889,11 +627,6 @@ describe("missing, as distinct from being dodged", () => {
     }
   });
 
-  /**
-   * A dodge still knows what it dodged, which is what the phase after this pays
-   * the defender's Agility out of — escaping something enormous has to be worth
-   * more than escaping a scratch.
-   */
   it("carries what the blow would have been worth through a dodge", () => {
     const attacker = battler({ hitChance: 1, damage: 6, variance: 0, accuracy: 0 });
     const defender = battler({ flee: 1000 });
@@ -909,7 +642,6 @@ describe("reach", () => {
   const here = { x: 4, y: 4, elevAbs: 0 };
   const melee = MELEE_REACH;
 
-  /** Elevation in height units; a level is two of them. */
   function at(dx: number, dy: number, dElev: number) {
     return { x: here.x + dx, y: here.y + dy, elevAbs: here.elevAbs + dElev };
   }
@@ -927,11 +659,6 @@ describe("reach", () => {
     expect(inAttackRange(here, at(1, 2, 0), melee)).toBe(false);
   });
 
-  /**
-   * Half a level either way, including on the diagonal — the shape the melee
-   * default exists to draw, and the reason it takes two numbers rather than one
-   * radius. See `./distance`.
-   */
   it("reaches half a level up and down, corners included", () => {
     for (const dElev of [1, -1]) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -943,54 +670,34 @@ describe("reach", () => {
   });
 
   it("stops short of a whole level away", () => {
-    // Straight up is the nearest a full level ever gets, and it is still out.
     expect(inAttackRange(here, at(0, 0, HEIGHT_PER_LEVEL), melee)).toBe(false);
     expect(inAttackRange(here, at(1, 0, HEIGHT_PER_LEVEL), melee)).toBe(false);
     expect(inAttackRange(here, at(0, 0, -HEIGHT_PER_LEVEL), melee)).toBe(false);
   });
 
-  /**
-   * The diagonal lands exactly on 2 and the cell two along exactly on 4, which
-   * is why the plan comparison is squared and never square-rooted: both walls
-   * are exact, and the radius sits between them with room on either side.
-   */
   it("keeps the boundary case inside", () => {
     expect(planDistanceSq(here, at(1, 1, 0))).toBe(2);
     expect(melee.cells * melee.cells).toBeGreaterThan(2);
     expect(melee.cells * melee.cells).toBeLessThan(4);
   });
 
-  /**
-   * **The whole reason reach is two numbers.** A bow reaches across the yard
-   * without also reaching three storeys straight up — a shape no single radius
-   * can draw, whatever height is weighted at. @see `./distance`
-   */
   it("widens the disc without raising the lid", () => {
     const bow: Reach = { cells: 6, height: HEIGHT_PER_LEVEL };
     expect(inAttackRange(here, at(4, 0, 0), bow)).toBe(true);
     expect(inAttackRange(here, at(6, 0, 0), bow)).toBe(true);
     expect(inAttackRange(here, at(7, 0, 0), bow)).toBe(false);
 
-    // One storey either way, and the storey above that is out — however close
-    // on the plan it is, and even directly overhead.
     expect(inAttackRange(here, at(0, 0, HEIGHT_PER_LEVEL), bow)).toBe(true);
     expect(inAttackRange(here, at(5, 0, HEIGHT_PER_LEVEL), bow)).toBe(true);
     expect(inAttackRange(here, at(0, 0, 2 * HEIGHT_PER_LEVEL), bow)).toBe(false);
   });
 
-  /** A weapon that can only reach its own floor, which the pair can now say. */
   it("draws a flat disc when the height is nothing", () => {
     const flat: Reach = { cells: 4, height: 0 };
     expect(inAttackRange(here, at(3, 0, 0), flat)).toBe(true);
     expect(inAttackRange(here, at(3, 0, 1), flat)).toBe(false);
   });
 
-  /**
-   * **The hole in the middle**, which is what stops a bow being strictly better
-   * than a sword. Without it the bow's disc contains the sword's entirely, so
-   * there is no distance at which the sword is the answer and the archer's only
-   * cost is accuracy. @see `../lib/item`'s `Reach.min`
-   */
   describe("a minimum", () => {
     const bow: Reach = { cells: 8, min: 2, height: HEIGHT_PER_LEVEL };
 
@@ -1002,12 +709,6 @@ describe("reach", () => {
       expect(inAttackRange(here, at(8, 0, 0), bow)).toBe(true);
     });
 
-    /**
-     * Squared and inclusive on both ends, like the ceiling. The diagonal
-     * neighbour is exactly 2 and the cell two along exactly 4, so a `min` of 2
-     * lands on the far wall and takes the nearer one out — the same boundary
-     * care `cells` wants, from the other side.
-     */
     it("keeps the cell it names, and drops the diagonal below it", () => {
       expect(planDistanceSq(here, at(2, 0, 0))).toBe(4);
       expect(planDistanceSq(here, at(1, 1, 0))).toBe(2);
@@ -1015,11 +716,6 @@ describe("reach", () => {
       expect(inAttackRange(here, at(1, 1, 0), bow)).toBe(false);
     });
 
-    /**
-     * **On the plan alone.** Somebody a storey below you is nought cells away,
-     * so a floor that counted height would let the bow shoot straight down at
-     * them and refuse the wolf beside them. The lid is what refuses a floor.
-     */
     it("measures the floor on the plan and never on the height", () => {
       expect(inAttackRange(here, at(0, 0, HEIGHT_PER_LEVEL), bow)).toBe(false);
       expect(inAttackRange(here, at(3, 0, HEIGHT_PER_LEVEL), bow)).toBe(true);
@@ -1043,7 +739,6 @@ describe("rangedWeaponReaches", () => {
   });
   const at = (x: number) => ({ x, y: 0, z: 0, stackIndex: 1 });
 
-  /** A row of grass from the origin east, with anything in `blocked` walled. */
   function row(length: number, blocked: number[] = []): MapFile {
     let map = emptyMap();
     for (let x = 0; x < length; x++) {

@@ -5,34 +5,9 @@
     "correctness": "error"
   },
   "rules": {
-    // `then` is what a dialog choice carries: `{ label, then: DialogCommand[] }`
-    // in `app/lib/dialog.ts`. It is authored in `data/`, it is on the wire, and
-    // it is the word an author reads in the editor. Renaming it to satisfy a
-    // rule about accidental thenables would be a schema migration.
     "unicorn/no-thenable": "off",
-
-    // Every site this fires on is `for (… of [...collection])` where the loop
-    // body removes from that collection — `disposeMotionGhost` and `dropChunk`
-    // delete the key they are handed, and `liveTransitions` deletes inline. The
-    // spread is the snapshot that makes the walk safe, on exactly the terms
-    // `server/sockets.ts` takes one in `SocketHub.all()`. The rule cannot see
-    // the mutation, so taking its advice would introduce the bug it thinks it
-    // is removing. The rest are `[...typedArray.slice(n)]` in tests, where the
-    // conversion is what makes `toEqual` against a plain array work at all.
     "unicorn/no-useless-spread": "off",
-
-    // Every site is an object literal handed to a constructor, and two of the
-    // three hold a getter. A getter written in a literal is about the literal,
-    // so `this` inside it is not the enclosing class and no arrow function can
-    // make it be — `app/local/LocalWorld.test.ts`'s `get closed()` reads the
-    // alias for exactly that reason, and breaks without it. The rule is right
-    // about arrow callbacks and cannot tell them from the getter beside them.
     "typescript/no-this-alias": "off",
-
-    // `new Array(n)` here is always a fixed-length buffer filled by index
-    // immediately after — `clumpExtents` builds three of them per stack per
-    // frame. `Array.from({ length: n })` allocates and fills with undefined
-    // first, which is the opposite of what these are for.
     "unicorn/no-new-array": "off"
   },
   "env": {

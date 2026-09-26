@@ -61,7 +61,6 @@ import {
 } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
-/** Symbols read left-to-right after the "load is" label. */
 const COMPARISON_OPTIONS: Array<{ value: PlateComparison; label: string }> = [
   { value: "eq", label: "=" },
   { value: "neq", label: "≠" },
@@ -77,11 +76,6 @@ const TRIGGER_OPTIONS: Array<{ value: ActivationTrigger; label: string }> = [
   { value: "interactOver", label: "Press on" },
 ];
 
-/**
- * The three triggers in one tooltip, because both the sections that offer
- * them read the same three lines — what changes between them is what happens
- * afterwards, not how you set it off.
- */
 const TRIGGER_INFO =
   "Step on: fires on entering the cell, with no row to press. Press beside: from an adjacent cell, the reach a switch has. Press on: while standing on it, like a ladder.";
 
@@ -95,37 +89,16 @@ const DESTINATION_OPTIONS: Array<{
 
 const DELTA_AXES = ["x", "y", "z"] as const;
 
-/** One floor up: the ladder this was built for. */
 const DEFAULT_TELEPORT_DELTA = { x: 0, y: 0, z: 1 };
 
-/** Deepest a plate can be buried: a stack may overflow one level into the next. */
 const MAX_PLATE_HEIGHT = HEIGHT_PER_LEVEL * 2;
 
 const MS_PER_SECOND = 1000;
 
-/**
- * Authored in seconds and stored in milliseconds. A lifetime keeps a world
- * ticking for its whole length (see `GameSession.isAtRest`), so the unit the
- * author types in is the one that makes that cost obvious — "30" reads as a
- * spell of blood on the floor where "30000" reads as a number.
- */
 const MAX_DECAY_SECONDS = 3600;
 
-/**
- * Deepest a resource may be authored, in uses.
- *
- * A sanity bound rather than a balance one, on `MAX_DECAY_SECONDS`' terms: wide
- * enough for anything worth authoring, narrow enough that a typo'd extra digit
- * reads as malformed rather than as a bush nobody can ever finish.
- */
 const MAX_DURABILITY = 99;
 
-/**
- * Longest one use of a resource may take, in seconds.
- *
- * The same number the decay field takes, because it is the same kind of
- * question and an author should not have to learn two ceilings.
- */
 const MAX_EXTRACT_SECONDS = MAX_DECAY_SECONDS;
 
 const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
@@ -135,12 +108,6 @@ const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "projectile", label: "Projectile" },
 ];
 
-/**
- * What a reward may hand over — the same rule `rewardFits` enforces in play,
- * asked here so the picker cannot offer a tile that would make the whole reward
- * untakeable. A container is excluded because nothing nests, so it could only go
- * on a back that is already occupied by the bag the items need.
- */
 function isGiveable(tile: TileDef): boolean {
   return resolveItem(tile) != null && resolveContainer(tile) == null;
 }
@@ -150,16 +117,9 @@ type Props = {
   onChange: (next: TileDef) => void;
   tiles: TileDef[];
   tilesets: TilesetDef[];
-  /**
-   * The status catalogue, so the picker can offer conditions by name rather than
-   * asking an author to type an id. Passed in for the reason the tile list is:
-   * this tab knows what a tile may reference and nothing about where either
-   * catalogue is loaded from.
-   */
   statusDefs: Record<string, StatusDef>;
 };
 
-/** A section's on/off row: the switch, then the title with its tooltip. */
 function SectionSwitch({
   on,
   onToggle,
@@ -176,7 +136,6 @@ function SectionSwitch({
   );
 }
 
-/** The verb a row shows for this interaction, with what blank falls back to. */
 function ActionLabelField({
   value,
   fallback,
@@ -203,10 +162,6 @@ function ActionLabelField({
   );
 }
 
-/**
- * Ways the player can interact with this tile in play mode. One section per
- * interaction kind.
- */
 export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }: Props) {
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
@@ -226,25 +181,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
     onChange({ ...draft, interactions: next });
   };
 
-  /**
-   * Move the tile between kinds, seeding the block it is arriving at and
-   * clearing the one it is leaving.
-   *
-   * Clearing is what keeps the stored kind and the blocks from telling different
-   * stories. Both resolvers already refuse a block that does not match the kind,
-   * so a leftover would be inert — but it would also be invisible, sitting in
-   * `data/tiles.json` waiting for somebody to flip the select back and find
-   * stats they never authored.
-   *
-   * Seeding is the other half of the Battler switch going away: the tab is now
-   * shown *because* the tile is a battler, so it must never open onto nothing.
-   *
-   * A projectile is seeded for a second reason on top of that one: its tab
-   * shows the default speed without writing it, so a tile switched to
-   * `projectile` and saved without touching the Speed field carried a kind no
-   * block backed — and `resolveProjectile` refuses that, which is a tile the
-   * pickers offer and nothing ever fires.
-   */
   const setKind = (kind: TileKind) => {
     const merged: TileInteractions = { ...draft.interactions };
     delete merged.battler;
@@ -262,7 +198,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
     });
   };
 
-  /** Patch one kind without clobbering the others. `null` clears that kind. */
   const patchKind = <K extends keyof TileInteractions>(
     key: K,
     value: TileInteractions[K] | null,
@@ -313,13 +248,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
     setExtract({ ...extract, ...patch });
   };
 
-  /**
-   * Rewrite one yield slot, leaving its siblings alone.
-   *
-   * By position rather than by identity, on `patchRecipe`'s terms: a slot has
-   * none, and two rows offering the same berry are a perfectly ordinary way to
-   * author "one to three of them".
-   */
   const patchSlot = (index: number, patch: Partial<ExtractSlot>) => {
     if (!extract) return;
     patchExtract({
@@ -334,13 +262,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
     });
   };
 
-  /**
-   * Drop a slot, and the whole block with the last one.
-   *
-   * A resource with nothing to give is not a resource — the resolver reads an
-   * emptied block as "cannot be worked" — so leaving one behind would be an
-   * editor showing a switch that is on and a tile that does nothing.
-   */
   const removeSlot = (index: number) => {
     if (!extract) return;
     const slots = extract.slots.filter((_, i) => i !== index);
@@ -385,14 +306,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
     setTeleport({ ...teleport, ...patch });
   };
 
-  /**
-   * Move between the two arms, seeding the one being arrived at.
-   *
-   * The offset is seeded rather than carried across, because the arms hold
-   * different things: an absolute teleport has no delta at all, so coming back
-   * to `relative` has to land on something an author can see and edit rather
-   * than on whatever was there before it was dropped.
-   */
   const setDestinationKind = (kind: TeleportDestinationKind) => {
     if (!teleport || teleport.destination.kind === kind) return;
     patchTeleport({
@@ -419,16 +332,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
     setDecay({ ...decay, ...patch });
   };
 
-  /**
-   * Move one end of the lifetime range, carrying the other with it rather than
-   * letting it be crossed.
-   *
-   * An inverted range parses as "does not decay", so a tile whose shortest
-   * lifetime was dragged past its longest would go quietly inert with both
-   * numbers still sitting there — the one failure the author could not see. The
-   * pair is kept ordered here so nothing authored through this dialog can reach
-   * that state.
-   */
   const patchDecayBound = (end: "fromMs" | "toMs", seconds: number) => {
     if (!decay) return;
     const ms = Math.round(Math.min(MAX_DECAY_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND);
@@ -666,9 +569,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
 
               {extract.slots.map((slot, index) => (
                 <div
-                  // By position, on `KitEditor`'s terms: a slot has no identity
-                  // of its own, and keying on the tile id would make two rows
-                  // offering the same berry collide.
                   key={index}
                   className="flex flex-col gap-2 border-2 border-border bg-paper p-2"
                 >

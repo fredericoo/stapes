@@ -44,7 +44,6 @@ describe("floodCoords", () => {
     const map = mapWith([
       { x: 0, y: 0, tiles: grass },
       { x: 1, y: 0, tiles: grass },
-      // gap at (2,0)
       { x: 3, y: 0, tiles: grass },
     ]);
     const coords = floodCoords(map, 0, 0, 0);
@@ -70,7 +69,6 @@ describe("floodCoords", () => {
 
   it("fills blank cells enclosed by an outline", () => {
     const rock = [{ tileId: "rock" }];
-    // A 4x4 ring of rock around a 2x2 blank middle.
     const ring: Array<{ x: number; y: number; tiles: typeof rock }> = [];
     for (let y = 0; y <= 3; y++) {
       for (let x = 0; x <= 3; x++) {
@@ -96,7 +94,6 @@ describe("floodCoords", () => {
     const ring: Array<{ x: number; y: number; tiles: typeof rock }> = [];
     for (let y = 0; y <= 3; y++) {
       for (let x = 0; x <= 3; x++) {
-        // Same ring, with (3,1) missing so the inside reaches open world.
         if ((x === 0 || x === 3 || y === 0 || y === 3) && !(x === 3 && y === 1)) {
           ring.push({ x, y, tiles: rock });
         }

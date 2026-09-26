@@ -7,38 +7,10 @@ import { requireAdmin } from "../../lib/auth";
 import { localLink } from "../../local/link";
 
 export async function clientLoader() {
-  // The role, on the terms every page under `/admin` asks for it — see
-  // `../../lib/auth`'s `requireAdmin`. The *world* here needs no account at
-  // all; what needs one is being in the editors, and this is one of them.
   await requireAdmin();
-  // The same catalogues the game loads, for the same reason: the renderer needs
-  // them and the world reads its own copy. Nothing here signs anybody in — the
-  // world opens as this tab, which is what `../../local/link` is for.
   return await fetchBootstrap();
 }
 
-/**
- * The same game, against a world running in this tab.
- *
- * **This is the online route, connected differently, and nothing else.** The
- * page is `../../components/WorldPage`, the protocol is `app/net/protocol.ts`,
- * the simulation is `server/GameServer.ts` — all three shared with `/`, none of
- * them stubbed. What is different is that the far end of the wire is a worker
- * instead of a machine: no socket, no account, no server to be running.
- *
- * That is what it is for. `/` has a sign-in and a character chooser in front of
- * it now, and hand-testing a change to the world should not mean hand-testing
- * the way in to it first. This is the path to open when the question is "does
- * the game still work".
- *
- * It does still want an `ADMIN` account, because it is under `/admin` and every
- * page there does. That is a fact about the editors rather than about the
- * world: what it buys is that a tester who never types the path never finds a
- * second world to be confused by.
- *
- * @see ../../local/link
- * @see docs/notes.md, "`/admin/play` runs the server in the tab"
- */
 export default function PlayPage() {
   const { tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
   return (
@@ -57,19 +29,6 @@ export default function PlayPage() {
   );
 }
 
-/**
- * Throw this world away and start again on the authored map.
- *
- * `POST /api/reset` is the same act online and is behind `ADMIN_SECRET`,
- * because that world is everybody's. This one is yours, and a testing path
- * whose only way back to a known state is clearing site data is a testing path
- * people stop using.
- *
- * Asks first, and asks in place rather than in a dialog: it destroys every
- * position, kit, reward and mastery in the world, and it sits in a menu beside
- * a lighting switch that does not. The press that confirms it is the press that
- * does it, so there is nothing to undo.
- */
 function ResetWorldButton() {
   const [asking, setAsking] = useState(false);
   return (

@@ -1,25 +1,3 @@
-/**
- * The light cache must not rebake because something walked.
- *
- * This is a behavioural test against the *shipped tile catalogue* — the real
- * heights and `lightPassing` flags — on the fixture town, because both
- * regressions it guards were invisible in unit terms and only showed up once
- * real tile definitions were in play:
- *
- * - `dynamicLightTileIds` derived its set from `resolveActor`, which refuses
- *   the player by design — so the set came out empty and every player step
- *   paid a ~22ms re-flood.
- * - `cat` and `deer` carried no `lightPassing`, which defaults to *blocks*, so
- *   two grazing deer dirtied the cache every 200ms for the same ~22ms each.
- *
- * A rebake is asserted rather than a wall-clock time: the cost is real but
- * machine-dependent, and "baked a chunk at all" is the thing that has to stay
- * false while a body is merely walking.
- *
- * The map is `fixtureTown`, not `data/map.json`: the creatures this watches
- * have to be near the spawn for the whole run, and where a deer stands in the
- * shipped world is an authoring decision that changes weekly.
- */
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { fixtureTown } from "../lib/fixtureTown";
@@ -38,11 +16,9 @@ import { dynamicLightTileIds } from "./WorldRenderer";
 const tiles = tilesJson as TileDef[];
 const tilesById = Object.fromEntries(tiles.map((t) => [t.id, t])) as Record<string, TileDef>;
 
-/** Wide enough to hold the creatures the fixture puts around the square. */
 const WINDOW_HALF_W = 30;
 const WINDOW_HALF_H = 17;
 
-/** Sim seconds to watch. Long enough for a deer graze burst and a cat roam. */
 const WATCH_SECONDS = 12;
 
 function drive(session: GameSession, walk: boolean) {
@@ -65,8 +41,6 @@ function drive(session: GameSession, walk: boolean) {
     return lighting.bakedLastCall;
   };
 
-  // Warm the window and let the prefetch ring fill, so the only bakes left to
-  // count are ones an edit caused.
   for (let i = 0; i < 60; i++) frame();
 
   let rebakes = 0;
@@ -80,7 +54,6 @@ function drive(session: GameSession, walk: boolean) {
 
 describe("lighting steadiness on the shipped catalogue", () => {
   it("omits the player from the bake", () => {
-    // Named, not derived: `resolveActor` refuses the player on purpose.
     expect([...dynamicLightTileIds(tilesById)]).toContain(PLAYER_TILE_ID);
   });
 
@@ -95,23 +68,12 @@ describe("lighting steadiness on the shipped catalogue", () => {
   });
 });
 
-/**
- * The same two regressions, made unrepresentable.
- *
- * `cat` and `deer` are light-passing in the catalogue today, so the test above
- * passes and would go on passing right up until somebody unticked the box. The
- * flag is no longer a box: anything carried or driven passes light because
- * {@link lightPassingForced} says so, and what is authored is not consulted.
- */
 describe("light-passing is not an authoring choice for anything that moves", () => {
   const carriedOrDriven = tiles.filter(
     (def) => def.kind === "item" || def.kind === "battler" || resolveActor(def),
   );
 
   it("covers the whole shipped catalogue of them", () => {
-    // Sixty-eight items and battlers, plus four shopkeepers authored as props
-    // that still walk about. The count is here so that a tile added without a
-    // kind is visible rather than silently uncovered.
     expect(carriedOrDriven.length).toBeGreaterThan(60);
   });
 
@@ -130,7 +92,6 @@ describe("light-passing is not an authoring choice for anything that moves", () 
     expect(stripped.lightPassing).toBe(true);
   });
 
-  /** A wall is still allowed to cast a shadow. */
   it("leaves a prop that nothing drives free to block light", () => {
     expect(resolveLightPassing(tilesById["brick-wall"]!)).toBe(false);
     expect(lightPassingForced(tilesById["brick-wall"]!)).toBe(false);

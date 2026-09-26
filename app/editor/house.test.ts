@@ -31,7 +31,6 @@ const BASE: HouseConfig = {
   doorColumn: "centre",
 };
 
-/** A flat site of `tileId` over the given box, so a house has ground to stand on. */
 function siteMap(
   x0: number,
   y0: number,
@@ -70,7 +69,6 @@ function facing(map: MapFile, x: number, y: number, z: number): string | undefin
 
 describe("roofLevelsFor", () => {
   it("steps in one cell a side until the span runs out", () => {
-    // 5 → 5, 3, 1 (the cottage); 6 → 6, 4, 2 (the shop).
     expect(roofLevelsFor(5)).toBe(3);
     expect(roofLevelsFor(6)).toBe(3);
     expect(roofLevelsFor(4)).toBe(2);
@@ -82,9 +80,7 @@ describe("roofLevelsFor", () => {
 
 describe("resolveRoofOrientation", () => {
   it("runs the ridge along the building's longer side", () => {
-    // Wider than deep: the ridge runs east-west and the roof steps in over y.
     expect(resolveRoofOrientation("auto", 12, 6)).toBe("horizontal");
-    // Deeper than wide: the ridge runs north-south.
     expect(resolveRoofOrientation("auto", 6, 12)).toBe("vertical");
   });
 
@@ -169,11 +165,7 @@ describe("windowsAlong", () => {
   });
 
   it("puts the cell it cannot divide evenly in the middle, not at the far end", () => {
-    // Wall cells 1…9. Two windows five apart leave three over: one at each
-    // margin and one widening the gap between them.
     expect(windowsAlong(0, 10, null, 5)).toEqual([2, 8]);
-    // Three windows three apart on cells 1…8 leave one over, and it goes
-    // inside rather than leaving cell 8 blank against the corner.
     expect(windowsAlong(0, 9, null, 3)).toEqual([1, 4, 8]);
   });
 
@@ -184,9 +176,6 @@ describe("windowsAlong", () => {
         if (at.length === 0) continue;
         const before = at[0]! - 1;
         const after = wall - 2 - at[at.length - 1]!;
-        // A lone window has no middle gap to absorb an odd cell, so on a wall
-        // with an even number of usable cells it has no symmetric home and
-        // sits one short of the middle. Everything else matches exactly.
         const slop = at.length === 1 ? 1 : 0;
         expect({ wall, spacing, off: Math.abs(before - after) <= slop }).toEqual({
           wall,
@@ -316,14 +305,12 @@ describe("planHouse", () => {
       },
     );
 
-    // West eave faces the ridge, east eave faces back at it, plaster between.
     expect(ids(built, 0, 2, 1)).toEqual(["roof-4"]);
     expect(facing(built, 0, 2, 1)).toBe("e");
     expect(ids(built, 4, 2, 1)).toEqual(["roof-4"]);
     expect(facing(built, 4, 2, 1)).toBe("w");
     expect(ids(built, 2, 2, 1)).toEqual(["plaster", "plaster"]);
 
-    // One cell in on each side per level, and a cap where the span runs out.
     expect(ids(built, 1, 0, 2)).toEqual(["roof-4"]);
     expect(ids(built, 2, 0, 3)).toEqual(["roof-6"]);
     expect(facing(built, 2, 0, 3)).toBe("s");
@@ -332,8 +319,6 @@ describe("planHouse", () => {
 
   it("picks the orientation from the footprint when it is left to it", () => {
     const map = siteMap(-2, -2, 20, 20);
-    // Nine wide and five deep, so the ridge should run east-west: the north
-    // and south rows are the eaves and the roof steps in over y.
     const built = build(
       map,
       { x0: 0, y0: 0, x1: 8, y1: 4 },
@@ -343,7 +328,6 @@ describe("planHouse", () => {
     );
     expect(facing(built, 4, 0, 1)).toBe("s");
     expect(facing(built, 4, 4, 1)).toBe("n");
-    // Three roof levels for a five-deep span, and nothing above them.
     expect(ids(built, 4, 2, 3)).toEqual(["roof-3"]);
     expect(getStack(built, 4, 2, 4)).toEqual([]);
   });
@@ -403,7 +387,6 @@ describe("planHouse", () => {
     const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, { storeys: 2 });
 
     expect(ids(built, 3, 6, 0)).toContain("door-closed");
-    // The wall above it is unbroken — a window may take the cell, a door never.
     expect(ids(built, 3, 6, 1)).not.toContain("door-closed");
   });
 
@@ -417,7 +400,6 @@ describe("planHouse", () => {
       },
     );
 
-    // An east-west wall shows its south face; a north-south wall its east one.
     expect(ids(built, 3, 0, 0)).toEqual(["grass-2", "wooden-floor", "window-1"]);
     expect(facing(built, 3, 0, 0)).toBe("s");
     expect(ids(built, 0, 3, 0)).toEqual(["grass-2", "wooden-floor", "window-1"]);

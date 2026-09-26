@@ -10,59 +10,22 @@ import { SpriteSelector } from "./SpriteSelector";
 import { StoneFields } from "./StoneFields";
 import { SpritePreview } from "./TilePreview";
 
-/**
- * What this body can cast with nothing in its hands.
- *
- * A tab of its own rather than a section on Battle, and the reason is length: a
- * stone is three blocks — an effect, a cost and a gate — and the Battle tab
- * already carries masteries, a natural weapon, a kit and a readout. Two or
- * three spells under all of that is a page nobody can find the top of.
- *
- * It is shown on the same answer Battle is, because a spell needs a body to
- * belong to: casting is `../lib/battler`'s {@link BattlerDef.spells}, and a tile
- * that is not a battler has nowhere to keep one.
- *
- * ## A spell here is a stone, and the fields say so
- *
- * The whole editor is `./StoneFields` — the same component the Item tab uses for
- * a stone you can pick up — because a natural spell *is* an arcane stone. What
- * is added is the two things a carried stone gets from its tile and this has no
- * tile for: a name and a picture.
- */
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
-  /** The whole library, so a conjure can be pointed at the tile it places. */
   tiles: TileDef[];
-  /** The sheets, for the icon picker. */
   tilesets: TilesetDef[];
-  /** The status catalogue, for what a spell leaves behind. */
   statusDefs?: Record<string, StatusDef>;
-  /**
-   * Why the block, as Save would write it, would not load — worked out once in
-   * the dialog, since Save is gated on the same answer. See `./BattlerIssues`.
-   */
   battlerIssues: readonly string[];
 };
 
-/** What a freshly added spell is: the editor's default stone, named. */
 function freshSpell(existing: readonly NaturalSpell[]): NaturalSpell {
-  // Numbered off the count rather than off the last name, so adding one after
-  // renaming another cannot collide with a name already in the list.
   let name = DEFAULT_SPELL_NAME;
   const taken = new Set(existing.map((spell) => spell.name));
   for (let i = 2; taken.has(name); i++) name = `${DEFAULT_SPELL_NAME} ${i}`;
   return { ...DEFAULT_STONE, name };
 }
 
-/**
- * The picture on the button, picked off a sheet.
- *
- * The same pair of controls a status icon is picked with — a sheet select and a
- * drag-selectable rectangle — because it is the same question about the same
- * kind of thing: a sprite that belongs to no tile. The preview is at the size
- * the disc actually draws it, which is the only size worth judging it at.
- */
 function IconField({
   icon,
   tilesets,
@@ -84,9 +47,6 @@ function IconField({
           value={icon?.tilesetId || null}
           onValueChange={(id) => {
             if (!id) return;
-            // The rectangle is kept and the base recomputed, on the status
-            // icon's terms: switching sheets to find the same shape elsewhere
-            // is the common move, and starting from 1×1 would undo it.
             const rect = icon?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
             onChange({ tilesetId: id, rect, base: defaultBase(rect) });
           }}
@@ -136,8 +96,6 @@ export function SpellsTab({
     });
   };
 
-  // Absent rather than an empty array, on the terms every other optional field
-  // on this block is written: a body that casts nothing carries no key.
   const setSpells = (next: NaturalSpell[]) =>
     setBattler({ ...battler, spells: next.length ? next : undefined });
 
@@ -159,13 +117,7 @@ export function SpellsTab({
         ) : null}
 
         {spells.map((spell, index) => (
-          <div
-            // By position, unlike every list the player drags: these are not
-            // reorderable, and a name that changes on every keystroke would be
-            // a key that remounts the row mid-edit and takes the focus with it.
-            key={index}
-            className="flex flex-col gap-3 border-t-2 border-border pt-3"
-          >
+          <div key={index} className="flex flex-col gap-3 border-t-2 border-border pt-3">
             <div className="flex flex-wrap items-end gap-3">
               <label className="flex flex-col gap-1 text-xs">
                 <FieldLabel info="What it is called — on the button that casts it, on a skull it kills somebody with, and in the brain line that names it. Renaming one is renaming what a `cast` action points at, so a brain naming the old name stops firing.">

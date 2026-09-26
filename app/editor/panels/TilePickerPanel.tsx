@@ -6,17 +6,12 @@ import { useEditorStore } from "../store";
 import { useMapAssets } from "./MapAssetsContext";
 
 export function TilePickerPanel() {
-  // Assets come from loader data — not the editor store — so the library is
-  // visible on first paint / first visit to /map.
   const { tiles, tilesets } = useMapAssets();
   const { show: showToast } = useToast();
   const armedTileId = useEditorStore((s) => s.armedTileId);
   const armedVariant = useEditorStore((s) => s.armedVariant);
   const [search, setSearch] = useState("");
 
-  // Only for the armed tile: the picker is a wall of thumbnails, and a row of
-  // face buttons under every variant tile in the library would be a wall of
-  // choices for tiles nobody is holding.
   const armedTile = tiles.find((t) => t.id === armedTileId);
   const armedFaces = armedTile?.type === "variant" ? variantKeys(armedTile) : [];
 
@@ -34,7 +29,6 @@ export function TilePickerPanel() {
         onChange={(e) => setSearch(e.target.value)}
         className="mb-2 w-full"
       />
-      {/* Columns follow the panel width now that the sidebar is resizable. */}
       <div className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(64px,1fr))] content-start gap-1 overflow-auto">
         {filteredTiles.map((tile) => (
           <button
@@ -62,9 +56,6 @@ export function TilePickerPanel() {
               size={40}
               variantKey={tile.id === armedTileId ? (armedVariant ?? undefined) : undefined}
             />
-            {/* `max-w-full` is what makes `truncate` bite: the button centres
-                its children, so without it the span is free to size to its text
-                and spill into the neighbouring cell rather than ellipsing. */}
             <span className="max-w-full truncate text-[10px]">{tile.name}</span>
           </button>
         ))}
@@ -78,9 +69,6 @@ export function TilePickerPanel() {
             aria-label={`Face for ${armedTile!.name}`}
           >
             {armedFaces.map((key) => {
-              // Nothing armed reads as the first face, which is what the
-              // resolver draws — so the first button is selected before anybody
-              // has pressed one, rather than the row looking unanswered.
               const active = (armedVariant ?? armedFaces[0]) === key;
               return (
                 <button

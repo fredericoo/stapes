@@ -10,20 +10,9 @@ import { MAX_ONLINE_PLAYERS } from "./GameServer";
 import { GameSocket } from "./sockets";
 import { World } from "./world";
 
-/**
- * The limit on how many people may be in the world at once.
- *
- * Against a real `World`, on the terms `./maintenance.test.ts` gives: whether
- * somebody is an administrator reaches `GameServer.join` through it.
- */
-
 let directory: string;
 let world: World;
 
-/**
- * A world of one cell to stand on, built here rather than read from
- * `data/map.json` — see `CLAUDE.md`. The tile catalogue is the real one.
- */
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "stapes-capacity-"));
   const seed = join(directory, "seed");
@@ -46,7 +35,6 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-/** A server-side socket that records how it was closed. */
 function socket(): { socket: GameSocket; closedWith: () => number | null } {
   let code: number | null = null;
   const made = new GameSocket({
@@ -62,10 +50,6 @@ function socket(): { socket: GameSocket; closedWith: () => number | null } {
 }
 
 describe("a full world", () => {
-  /**
-   * One world filled once for all three, because filling it is 250 joins. A
-   * reload takes the seat the player already had rather than a new one.
-   */
   it("refuses the next player and lets administrators and reloads in", async () => {
     for (let i = 0; i < MAX_ONLINE_PLAYERS; i++) {
       await world.join(socket().socket, `player-${i}`, { admin: false });
@@ -106,10 +90,6 @@ describe("a full world", () => {
     expect(late.closedWith()).toBeNull();
   });
 
-  /**
-   * Joins wait their turn, so a check made before the wait would let both of
-   * these through on the same free seat.
-   */
   it("gives the last seat to only one of two joins at once", async () => {
     for (let i = 0; i < MAX_ONLINE_PLAYERS - 1; i++) {
       await world.join(socket().socket, `player-${i}`, { admin: false });

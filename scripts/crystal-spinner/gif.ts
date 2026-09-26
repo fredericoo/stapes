@@ -1,23 +1,12 @@
-/**
- * A GIF89a encoder for indexed frames: a global colour table, one transparent
- * index, and an infinite loop. It is here rather than a dependency because the
- * spinner is the only GIF the project writes, and the format is small enough to
- * keep in one file.
- */
-
 export type GifFrame = {
-  /** One palette index per pixel, row-major, `width * height` long. */
   readonly indices: Uint8Array;
-  /** Hundredths of a second, which is the unit the format stores. */
   readonly delayCs: number;
 };
 
 export type GifOptions = {
   readonly width: number;
   readonly height: number;
-  /** `[r, g, b]` in 0–255. At most 256 entries. */
   readonly palette: readonly (readonly [number, number, number])[];
-  /** Index that is drawn as transparent, or `null` for none. */
   readonly transparentIndex: number | null;
 };
 
@@ -41,7 +30,6 @@ class ByteWriter {
   }
 }
 
-/** Variable-width LZW as GIF specifies it, packed into 255-byte sub-blocks. */
 function lzw(indices: Uint8Array, minCodeSize: number): Uint8Array {
   const clear = 1 << minCodeSize;
   const end = clear + 1;
@@ -105,7 +93,6 @@ function lzw(indices: Uint8Array, minCodeSize: number): Uint8Array {
 
 export function encodeGif(opts: GifOptions, frames: readonly GifFrame[]): Uint8Array {
   const { width, height, palette, transparentIndex } = opts;
-  // The colour table's size is a power of two, at least 2.
   let tableBits = 1;
   while (1 << tableBits < palette.length) tableBits++;
   const minCodeSize = Math.max(2, tableBits);
@@ -115,8 +102,8 @@ export function encodeGif(opts: GifOptions, frames: readonly GifFrame[]): Uint8A
   w.u16(width);
   w.u16(height);
   w.byte(0x80 | ((tableBits - 1) << 4) | (tableBits - 1));
-  w.byte(0); // background colour index
-  w.byte(0); // pixel aspect ratio
+  w.byte(0);
+  w.byte(0);
   for (let i = 0; i < 1 << tableBits; i++) {
     const c = palette[i] ?? [0, 0, 0];
     w.byte(c[0]);
@@ -124,7 +111,6 @@ export function encodeGif(opts: GifOptions, frames: readonly GifFrame[]): Uint8A
     w.byte(c[2]);
   }
 
-  // NETSCAPE2.0: loop forever.
   w.byte(0x21);
   w.byte(0xff);
   w.byte(11);
@@ -135,8 +121,6 @@ export function encodeGif(opts: GifOptions, frames: readonly GifFrame[]): Uint8A
   w.byte(0);
 
   for (const frame of frames) {
-    // Graphic control extension. Disposal 2 (restore to background) so a
-    // transparent pixel in this frame does not show the previous frame.
     w.byte(0x21);
     w.byte(0xf9);
     w.byte(4);
@@ -150,7 +134,7 @@ export function encodeGif(opts: GifOptions, frames: readonly GifFrame[]): Uint8A
     w.u16(0);
     w.u16(width);
     w.u16(height);
-    w.byte(0); // no local colour table, not interlaced
+    w.byte(0);
     w.byte(minCodeSize);
     w.append(lzw(frame.indices, minCodeSize));
   }

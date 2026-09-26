@@ -17,37 +17,16 @@ type Props = {
   tilesets: TilesetDef[];
   size?: number;
   className?: string;
-  /** Force a bearing (skip cycling). */
   direction?: Octant;
-  /** Autotile slice for preview (default isolated = 0). */
   autotileSlice?: AutotileSlice;
-  /** Scatter face for preview (default first authored = 0). */
   scatterIndex?: number;
-  /** Which face a variant tile wears (default first authored). */
   variantKey?: string;
-  /** Which sprite state to draw. Default / absent → idle. */
   state?: SpriteState;
-  /**
-   * Draw the first frame once and stop.
-   *
-   * For places where the tile is an *identifier* rather than the subject — a row
-   * in a list naming what you are about to shove. A dozen of those animating in
-   * their own rAF loops is a dozen loops competing with the frame budget of the
-   * game they are drawn beside, to say nothing of what a wall of independently
-   * flickering thumbnails is like to read.
-   */
   still?: boolean;
-  /**
-   * What to paint behind the sprite, or null to leave the canvas transparent.
-   * Sprites are authored with transparency, so a row on a dark surround needs
-   * the surround showing through rather than the editor's paper square.
-   */
   background?: string | null;
-  /** Border and fill around the canvas. Off where the caller draws its own. */
   chrome?: boolean;
 };
 
-/** The editor's paper square, which is what a preview sits on unless told otherwise. */
 const DEFAULT_PREVIEW_BACKGROUND = "#d9d3c4";
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
@@ -79,8 +58,6 @@ function framesForPreview(
   state: SpriteState | undefined,
 ): Frame[] | undefined {
   if (isDirectional(tile)) {
-    // Cycles the tile's own keys, so an eight-way tile shows all eight rather
-    // than four of them and then four repeats.
     const keys = facingKeysFor(tile);
     const d = direction ?? keys[dirIndex % keys.length]!;
     return getFrames(tile, { state, direction: d });
@@ -97,27 +74,12 @@ function framesForPreview(
   return getFrames(tile, { state });
 }
 
-/** Keep nearest-neighbor after canvas buffer / transform resets. */
 function disableSmoothing(ctx: CanvasRenderingContext2D) {
   ctx.imageSmoothingEnabled = false;
 }
 
-/** The placeholder that makes a missing tileset obvious rather than invisible. */
 const MISSING = "#ff00ff";
 
-/**
- * Paint one sprite reference into a square of canvas.
- *
- * Split out of {@link TilePreview} because a sprite is not always a tile: a
- * status carries a bare {@link AnchoredSprite} and has no def to resolve frames from.
- * The *function* rather than a component, because `TilePreview` animates on its
- * own rAF loop and needs to repaint without a React render per frame — sharing
- * the component would have meant setting state five times a second per thumbnail.
- *
- * Returns nothing and swallows a failed load into the magenta placeholder, on
- * the same terms the renderer does: a missing tileset should be *visible*, not
- * an exception on a frame.
- */
 export async function drawSprite(
   ctx: CanvasRenderingContext2D,
   sprite: AnchoredSprite,
@@ -138,7 +100,6 @@ export async function drawSprite(
     const sy = rect.y * 8;
     const sw = rect.w * 8;
     const sh = rect.h * 8;
-    // Integer scale so canvas nearest-neighbor stays chunky, not interpolated.
     const scale = Math.max(1, Math.floor(Math.min(size / sw, size / sh)));
     const dw = sw * scale;
     const dh = sh * scale;
@@ -152,14 +113,6 @@ export async function drawSprite(
   }
 }
 
-/**
- * One sprite, drawn once.
- *
- * What {@link TilePreview} is for a tile, this is for anything that is *only* a
- * picture — a status icon, and whatever else stops being a tile next. There is
- * no animation loop because a sprite reference has nothing to animate: a `Frame`
- * is what carries a duration, and picking between frames is the tile's business.
- */
 export function SpritePreview({
   sprite,
   tilesets,
@@ -189,8 +142,6 @@ export function SpritePreview({
     if (!sprite) return;
     let alive = true;
     void drawSprite(ctx, sprite, tilesets, size).then(() => {
-      // The draw is async; a component unmounted in between has a canvas that
-      // is no longer in the page, and painting it is wasted rather than wrong.
       if (!alive) return;
     });
     return () => {
@@ -207,9 +158,6 @@ export function SpritePreview({
   );
 }
 
-/**
- * Shared animated tile preview. Uses a local rAF loop; fine for dozens of cards.
- */
 export function TilePreview({
   tile,
   tilesets,
@@ -242,8 +190,6 @@ export function TilePreview({
     let alive = true;
     const start = performance.now();
 
-    // A still preview is drawn from the clock's origin and never scheduled
-    // again — the image cache means even a redraw would produce the same pixels.
     const again = () => {
       if (!still) raf = requestAnimationFrame(tick);
     };

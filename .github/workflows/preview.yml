@@ -1,40 +1,3 @@
-# A world per pull request.
-#
-# One container, because the server serves its own client: there is no separate
-# static site and no per-PR proxy rule beyond the hostname. And nothing to
-# provision for state — the container comes up against an empty volume, builds
-# its own world from the `data/` in its image, and Coolify destroys the volume
-# with the PR.
-#
-# **Coolify owns the container; this workflow owns the client.** The pull-request
-# webhook is what creates and deploys a preview, and what destroys it on close —
-# the deploy API cannot do the first of those. `POST /api/v1/deploy?pr=N` only
-# looks up a preview record that a webhook already made, and answers
-# "Pull request N not found for this resource" when none exists. So there is
-# nothing here to trigger a deploy with, and nothing to tear down.
-#
-# What is left is the one thing Coolify cannot do: the client is deliberately
-# not in the image — see `Dockerfile` — so a preview that is only deployed comes
-# up healthy and serves a 404. This builds one and posts it, the same three
-# steps `deploy.yml` uses for production.
-#
-# **A pull request based on anything but the default branch gets no preview**,
-# and the failure is the quiet kind: this workflow builds the client, waits its
-# fifteen minutes on a deployment Coolify never queued, and says the deployment
-# is absent. The client build in the log above it is green, which reads as the
-# preview being broken rather than never asked for. Stacking one branch on
-# another is the ordinary way to arrive here — the base is a branch until the
-# first of the two merges, and by then the event that would have created the
-# preview has been and gone.
-#
-# Not owning the deploy does mean having to watch one. Both halves of a push
-# start from the same webhook, so this workflow can get to the hostname while
-# the previous commit's container is still serving it, and Coolify's deployment
-# record is the only thing that says which is which. See the wait below.
-#
-# It does not comment the URL either. The same webhook that deploys the preview
-# has already said so on the pull request, with links to the build and container
-# logs beside it — a second comment carrying the same link is noise.
 name: PR preview
 
 on:
@@ -48,45 +11,17 @@ concurrency:
 jobs:
   client:
     name: client for preview
-    # Forks do not get the repository's secrets, so this would fail on
-    # authentication rather than on anything the contributor did.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
-      # Deterministic rather than read back: Coolify's compose deployments have
-      # a known gap where the preview URL is not returned, and every step below
-      # needs the hostname before the deploy has finished.
       PREVIEW_ORIGIN: https://pr-${{ github.event.number }}.${{ vars.PREVIEW_DOMAIN }}
     steps:
-      # **The head commit, because that is what Coolify deploys.** Left to
-      # itself, `checkout` takes `refs/pull/N/merge` on a pull-request event —
-      # the branch already merged into main — so the client built below carried
-      # main's code while the server beside it carried the branch's. The two
-      # only ever disagree about something that matters when main has moved,
-      # and `PROTOCOL_VERSION` is the case that bites: #150 bumped it 4 → 5,
-      # and every preview on a branch cut before that served a v5 client to a
-      # v4 server, which closed the socket with 4001 and never let anybody in.
-      #
-      # Nothing else in this job reads the tree — the deploy is Coolify's, the
-      # seed is the container's own `data/`, and every remaining step talks to
-      # the origin over HTTP — so nothing here wanted the merge result. The
-      # thing being given up is real but belongs elsewhere: a preview no longer
-      # says anything about how the branch behaves once merged. `deploy.yml` is
-      # where that is found out, and required checks on the merge ref are where
-      # it should be found out sooner.
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      # Production and every preview share one machine, so the count is worth
-      # saying out loud. This is a **warning and not a gate**: the container is
-      # already coming up by the time this runs, because Coolify deploys it
-      # straight off the pull-request webhook. Failing here would leave a red
-      # mark and an oversubscribed box rather than just an oversubscribed box.
-      # The real ceiling is the memory limit on the preview application, which
-      # is what keeps a crowded box from taking production down with it.
       - name: Say if the box is crowded
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,57 +39,6 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
 
-      # **Watch the deployment record, not the origin.** Coolify redeploys this
-      # preview off the same pull-request webhook that starts this workflow, so
-      # for the first ~40s of every push there is a container answering on this
-      # hostname that belongs to the *previous* commit. It answers `/api/health`
-      # with `ok`, and the `build` it reports is the activated client bundle,
-      # which lives on the volume and survives the swap — so nothing in that
-      # answer distinguishes the container about to be destroyed from the one
-      # replacing it.
-      #
-      # Asking the origin was therefore not a slow check but a check that could
-      # not fail: it took its `ok` on the first attempt, fifteen seconds into
-      # the job, from the very container the redeploy existed to replace. That
-      # was written assuming the client build above would always take longer
-      # than the redeploy, and with a warm bun cache it is ~8s and does not —
-      # so run 33415151709 seeded the doomed container and was three seconds
-      # into uploading the client when Coolify swapped it out, and got a 502.
-      # Retrying that upload would have been worse than the red mark: the seed
-      # had already landed somewhere about to be destroyed, so the preview would
-      # have come up serving this commit's client over the previous commit's
-      # authored content, and said nothing.
-      #
-      # So the deployment Coolify queued for *this* head sha is what is waited
-      # on, the same way `deploy.yml` waits on the deployment it triggers. The
-      # only difference is how the record is found: production knows the uuid
-      # because it asked for the deploy, and here the webhook did — but the
-      # record carries the pull request number and the commit it was queued for,
-      # which picks it out. Newest first, and twenty is far more deployments
-      # than the handful of previews on this box can queue in between. A record
-      # that has not appeared yet reads the same as one still queued, and means
-      # the same thing: keep waiting. Fifteen minutes, because a first deploy
-      # builds the image from scratch and may sit behind another preview's build
-      # to do it.
-      #
-      # A record that never appears is the one case worth a word, since it is
-      # the difference between this and a check on the origin: Coolify declines
-      # to queue a preview at all when the application has watch paths that this
-      # push misses, or when the pull request title or head commit carries a
-      # skip marker — and GitHub does not always skip this workflow for the same
-      # markers. That is a red mark on a preview nobody redeployed, which is
-      # true, and the message below says where to look.
-      #
-      # **Coolify refusing the request is not Coolify being unreachable.** This
-      # used to be a `curl -f` piped into `jq`, so every failure arrived as an
-      # empty body and was waited out the same way. Run 35759038580, on #264,
-      # got a 401 on every poll because `COOLIFY_TOKEN` had been revoked. Coolify
-      # had finished the preview 35 seconds in, and the job waited the whole
-      # fifteen minutes and then pointed at watch paths and skip markers, which
-      # only explain an `absent` deployment. So the status code is read on its
-      # own: a rejected token or a missing application fails on the first poll,
-      # because no amount of waiting changes either, and only a network error or
-      # a 5xx is waited out.
       - name: Wait for Coolify to finish deploying this commit
         env:
           PR: ${{ github.event.number }}
@@ -171,10 +55,6 @@ jobs:
           }
 
           for i in $(seq 1 90); do
-            # Without `-f`, curl exits 0 on any HTTP answer, so a non-zero exit
-            # means there was no answer at all: DNS, a refused connection, the
-            # ten-second timeout. The step runs under `bash -e`, which is why
-            # the fallback is needed and not only tidy.
             CODE=$(curl -sS --max-time 10 -o "$BODY" -w '%{http_code}' \
               "${{ vars.COOLIFY_URL }}/api/v1/deployments/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}?take=20" \
               -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}") || CODE=none
@@ -211,13 +91,6 @@ jobs:
             sleep 10
           done
 
-      # Only the new container is behind the hostname by now, so this is not
-      # identifying anything — the wait above did that. It is waiting on
-      # Traefik, which has to route the container that just replaced the one it
-      # was routing and, on a preview's first deploy, get Let's Encrypt to issue
-      # a certificate for a hostname nobody has ever asked for. Both fail for a
-      # while and then work, which is why the failures are tolerated rather than
-      # fatal until the budget runs out.
       - name: Wait for the world to answer
         run: |
           for i in $(seq 1 60); do
@@ -229,22 +102,11 @@ jobs:
           echo "::error::preview did not come up healthy within five minutes"
           exit 1
 
-      # The boot-time seed only fills an empty store, and a preview's volume
-      # outlives every push to its branch — so without this, the tiles and map
-      # stay whatever the pull request's first deploy held. Same call the
-      # production deploy makes on merge. After both waits on purpose, and that
-      # ordering is the whole point of them: the container answering here is the
-      # one whose image holds this commit's `data/`, and seeding the container
-      # it replaced is the failure the wait above exists to prevent.
       - name: Sync the world's content to this commit
         run: |
           curl --fail-with-body -sS -X POST "${PREVIEW_ORIGIN}/api/seed" \
             -H "Authorization: Bearer ${{ secrets.PREVIEW_ADMIN_SECRET }}"
 
-      # Upload then activate, the same two steps as production. There is no old
-      # client in front of this server, so the ordering that matters there does
-      # not here — but the split is what keeps a half-finished upload from
-      # becoming the live page.
       - name: Upload the client
         run: |
           tar -cf client.tar -C build/client .
@@ -260,35 +122,6 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"buildId":"${{ github.event.pull_request.head.sha }}"}'
 
-      # **Every check above passes through a preview nobody can connect to.**
-      # A client and a server that disagree about the wire version produce a
-      # world that is healthy and unusable: `/api/health` answers `ok`, the page
-      # loads, and then the server sends `outdated` and closes the socket with
-      # 4001. That is what #152 shipped green, and #119 before it. Health was
-      # never the question — agreement is.
-      #
-      # So ask both halves what version they speak. The server says so on
-      # `/api/health`. The client's is minified into whichever chunk opens the
-      # socket, as the `?v=` it sets, and is reached the way a browser reaches
-      # it: the served page names the route manifest, and the manifest names the
-      # chunk. Following that chain from the origin rather than reading
-      # `build/client` is the point — it is the *live* client that is being
-      # asked, so an upload that never activated is caught here too.
-      #
-      # The chunk is named after the route module that opens the socket, so
-      # `app/routes/game.tsx` is why this greps for `game-main-`. That is also
-      # why the route file is not called `_index.tsx`: the admin index is an
-      # index route too, and two `_index-main-` chunks in one manifest leave
-      # this step picking one of them by luck.
-      #
-      # The URL itself is built in `app/net/link.ts`'s `onlineLink`, which is a
-      # shared module — and still lands in this chunk, because the game route is
-      # the only thing that imports it. `/admin/play` connects to a world in the
-      # tab and sets no `?v=` at all, so it cannot be the chunk found here.
-      #
-      # The one thing this is brittle to is the client no longer building its
-      # socket URL with `searchParams.set`. That fails loudly and says so: the
-      # fix then is to teach this step the new shape, not to drop the check.
       - name: Check the client and the server agree on the protocol version
         run: |
           fail() { echo "::error::$1"; exit 1; }

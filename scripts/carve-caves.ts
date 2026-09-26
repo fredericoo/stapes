@@ -1,46 +1,3 @@
-/**
- * Carves a multi-floor cave system into `data/map.json`.
- *
- *   bun scripts/carve-caves.ts            # carve, then check what was carved
- *   bun scripts/carve-caves.ts --verify   # only check what is already there
- *
- * Written for the animal den under the forest at the town's south gate, and
- * parameterised rather than hard-coded so the next cave system is a change to
- * {@link SYSTEM} rather than a second copy of this file. Everything it needs to
- * know is up there: where the way in is, how many floors, how many animals, how
- * dense the rock starts.
- *
- * ## How it decides where to dig
- *
- * - **The footprint is whatever is left.** A cell is a candidate if the surface
- *   above it stops daylight and it is not near a cave somebody has already
- *   authored. That mask is the shape of the map's coastline and of the existing
- *   dungeons, so a system is asymmetric before a single cell is carved — no
- *   bounding box is ever given to it.
- * - **A density field varies the cave from place to place.** Value noise picks
- *   the automaton's starting rock fraction per region, so one part of a floor
- *   comes out as open cavern and another as a warren of narrow passages.
- * - **Regions are joined by digging, not by filling.** What the automaton
- *   leaves separate is connected by tunnelling the shortest legal route between
- *   the two, which is where the long corridors between cave systems come from.
- *
- * ## Two rules it exists to keep
- *
- * **Rock is only ever a shell around what was carved.** Filling the footprint
- * instead is tens of thousands of quads nobody will see the inside of, and at
- * the size of the animal den that is the difference between a map that draws
- * inside its budget and one that does not.
- *
- * **Nothing is written until the whole system has been walked.** Floors are
- * decided, then the ramps and holes between them, and only then is the system
- * flooded from its mouth across every floor at once — anything that flood does
- * not reach is filled back in before a tile is placed. Punching a hole through
- * a floor for a ramp can cut a wing off it, and finding that out afterwards
- * means a cave with rooms nobody can enter.
- *
- * Everything is a pure function of {@link SYSTEM}'s seeds, so a re-run
- * reproduces the same caves rather than reshuffling the map.
- */
 import { MAP_FILE_VERSION } from "../app/lib/types";
 import {
   chunkifyMap,
@@ -51,8 +8,6 @@ import {
   serializeMap,
 } from "../app/lib/mapData";
 import { canWalk, listStandingSurfaces } from "../app/game/movement";
-// The editor's generators seed themselves with the same stream, and a cave
-// carved here has to match one previewed there.
 import { mulberry32 } from "../app/editor/generator";
 import { isSkyExposed, stackOcclusion } from "../app/lib/lighting";
 import { computeLightingFlood } from "../app/lib/lightingFlood";
@@ -67,213 +22,69 @@ import {
 } from "../app/lib/types";
 import type { Direction, PlacedTile, TileDef } from "../app/lib/types";
 
-// ---------------------------------------------------------------------------
-// The cave system to carve
-// ---------------------------------------------------------------------------
-
 type Placed = { tileId: string; direction?: Direction; description?: string };
 
-/**
- * Everything about *this* cave system, as opposed to how caves are made.
- *
- * The knobs worth reaching for first are `rockChance` — how much of a floor is
- * stone, and the difference between halls and warrens — and `population`, which
- * is measured in server ticks as much as in danger: every creature is a brain
- * the simulation steps five times a second.
- */
 const SYSTEM = {
-  /** Floors, top to bottom. One seed each: change one and only that floor moves. */
   levels: [-1, -2, -3] as const,
   seeds: [0x5ea11ce, 0x7b04e57, 0xcabe770] as const,
 
-  /**
-   * The mouth: a notch in the ground a few steps down the road out of the
-   * town's south gate, which is at (2..3, 11).
-   *
-   * The surface cell is left *empty* — a hole — with a ramp on the floor below
-   * it, so walking in off the road takes you down the slope. That hole is the
-   * one place daylight reaches the caves, which is what a cave mouth should
-   * look like.
-   */
   mouth: { x: 10, y: 20 },
-  /** Which way you walk in. The ramp climbs back out the opposite way. */
   mouthDescent: "s" as Direction,
 
-  /**
-   * The automaton's starting rock fraction, at its most open and most solid.
-   *
-   * Picked per cell from the density field rather than fixed, which is the
-   * whole of why one part of a floor is a hall and another is a warren. Below
-   * about 0.46 the smoothing has nothing to bite on and a floor comes out as
-   * one enormous room with islands in it; above about 0.70 it closes into rock
-   * that the tunnels then have to cross in long straight lines.
-   */
   rockChance: { open: 0.5, dense: 0.66 },
 
-  /** Ramps between each pair of floors, and the cells kept between two of them. */
   rampsPerTransition: 14,
   rampSpacing: 14,
 
-  /**
-   * Holes with no floor at all, per floor, top to bottom. The bottom floor gets
-   * none: there is nothing under it to drop into.
-   */
   pitsPerFloor: [10, 10, 0],
 
-  /**
-   * Rats thicken with depth, wolves start on the second floor, the troll is
-   * alone at the bottom.
-   *
-   * **This is a tick budget as much as a difficulty.** Every creature is a
-   * brain the simulation steps five times a second, and that step is the whole
-   * of the spike in a tick: measured at ~0.037ms each, against a 33ms tick that
-   * already spends ~3.4ms on everything else. A hundred and fifty of them cost
-   * ~9ms p95 and ~13ms at worst on a developer machine, which leaves the
-   * production box its own factor of two. Twice this many measured ~12/20ms and
-   * is where it stops being comfortable.
-   *
-   * One animal per ~130 cells of floor, which reads as sparse and is meant to:
-   * a den you walk through for a while before something finds you.
-   */
   population: [
     { rat: 32, wolf: 0, "cave-troll": 0 },
     { rat: 40, wolf: 11, "cave-troll": 0 },
     { rat: 50, wolf: 20, "cave-troll": 1 },
   ] as ReadonlyArray<Readonly<Record<string, number>>>,
 
-  /**
-   * One crystal per this many cells of floor.
-   *
-   * Sparse on purpose twice over: they are the only light down here, so the
-   * point is that most of it is dark — bring a torch — and every one of them is
-   * a spherical flood the light baker pays for on any change to the map.
-   */
   cellsPerCrystal: 190,
 } as const;
 
-// ---------------------------------------------------------------------------
-// How caves are made
-// ---------------------------------------------------------------------------
-
-/**
- * Solid rock: two `half-stone` is exactly a level, which seals it for both
- * light and movement.
- *
- * No `dirt` underneath, unlike the older cave under the north of the map. That
- * third tile is a floor waiting for whoever carves the wall away later, and it
- * is also a third more quads on every wall cell — fourteen thousand of them in
- * the animal den. Carving a wall here means painting a floor first.
- */
 const ROCK: Placed[] = [{ tileId: "half-stone" }, { tileId: "half-stone" }];
 const CAVE_FLOOR: Placed[] = [{ tileId: "dirt" }];
 
-/**
- * What a carve is allowed to overwrite.
- *
- * Everything else underground — a cellar floor, a torch, the portal in the
- * sunken glade — is somebody's work, and a generator that walks over it is a
- * generator nobody runs twice. Conflicts are reported rather than resolved.
- */
 const OVERWRITABLE = new Set(["dirt", "half-stone", "grass-2", "grass"]);
 
-/**
- * Cells kept between a new cave and one that is already there.
- *
- * Three rather than one because the wall shell is two thick: at any less the
- * two systems share a wall, and the first stray carve opens the animal den into
- * somebody's cellar.
- */
 const EXISTING_CAVE_BUFFER = 3;
 
-/** Rock shell around the carved space. Two, so no cave ever backs onto a void. */
 const WALL_SHELL = 2;
 
-/**
- * How far from the caves the daylight lid is laid.
- *
- * `MAX_LIGHT_LEVEL`, because that is exactly how far the sky flood carries:
- * past it the spill has decayed to nothing and there is nothing to shut out.
- *
- * **A wall around a cave does not keep daylight out of it, and this is why.**
- * Every column the surface does not seal — a pond, and the whole of the void
- * past the coastline — takes the sky shaft all the way down, and the flood is
- * three-dimensional. Light walks sideways through the void at ground level,
- * *down* an empty column beside the cave, and back in three levels below the
- * surface, going round the wall rather than through it. Half of the animal
- * den's floor was daylit at noon before this existed, brightest at the coast
- * and fading inland over about a dozen cells, which is that leak's fingerprint.
- */
 const DAYLIGHT_LID_REACH = MAX_LIGHT_LEVEL;
 
-/** Cells a region must have before it is worth tunnelling to. */
 const MIN_REGION_CELLS = 24;
 
-/** How often a tunnel opens a cell to one side, so it is not a ruled line. */
 const TUNNEL_BULGE_CHANCE = 0.4;
 
-/** Cells across one lobe of the density field. */
 const DENSITY_FIELD_SCALE = 22;
 
-/** Smoothing passes. Five is where the outlines stop changing much. */
 const SMOOTH_PASSES = 5;
 
-/** A cell with at least this many rock neighbours (of 8) becomes rock. */
 const ROCK_CROWDING = 5;
 
-/**
- * A cell with no more than this many rock cells in its 5×5 becomes rock, for
- * the first passes only — the rule that puts pillars and islands in open
- * country instead of leaving it blank.
- */
 const OPEN_SPRAWL = 4;
 const SPRAWL_PASSES = 4;
 
-/**
- * How much daylight a carved cell may catch before it counts as a leak.
- *
- * Not zero, and the reason is the map rather than the caves: some of the older
- * rooms underground are lit from above on purpose — the sunken glade is open to
- * the sky, and there is a pond over the city dungeon put there as a skylight —
- * and light spreads out of them for `MAX_LIGHT_LEVEL` cells whatever is built
- * next door. A tenth of full daylight at the far edge of that is a glow at the
- * boundary of somebody else's lit room. Anything brighter is a hole, and the
- * check says so.
- */
 const DIM_ENOUGH = 64;
 
-/** Cells between two pits, and the clearance a pit keeps from any ramp. */
 const PIT_SPACING = 14;
 const PIT_RAMP_CLEARANCE = 4;
 
-/** Cells between any two creatures, so a floor is not one solid ambush. */
 const CREATURE_SPACING = 4;
-/** Cells kept clear of creatures around the mouth and around every ramp. */
 const ARRIVAL_SAFE_RADIUS = 5;
 
-/** Rock neighbours (of 8) a cell needs before a crystal will grow there. */
 const CRYSTAL_NOOK_ROCK = 5;
-/** Cells between crystals, so the lit pools stay separate. */
 const CRYSTAL_SPACING = 8;
-/** How far from a hole its marker crystal may stand and still light it. */
 const CRYSTAL_HOLE_REACH = 2;
 
-/**
- * The crystals, split by whether they reach the ceiling.
- *
- * A tile as tall as a level tops out exactly on the floor plane of the level
- * above, and `surfaceTileAt` walks up from the bottom and takes the first stack
- * that surfaces there — so on a tie the lower one answers. Both of these are
- * `walkable: false`, so one standing under an open cell makes that cell
- * unwalkable: a tall crystal on the top floor put a hole in the forest that
- * could not be walked across. They only grow where the roof is stone. See
- * `docs/notes.md`, "A level is four height units, and a body is three".
- */
 const TALL_CRYSTAL_TILES = ["arcane-crystal-1", "arcane-crystal-2"];
 const LOW_CRYSTAL_TILES = ["arcane-crystal-3"];
-
-// ---------------------------------------------------------------------------
-// Setup
-// ---------------------------------------------------------------------------
 
 const MAP_PATH = "data/map.json";
 const TILES_PATH = "data/tiles.json";
@@ -304,7 +115,6 @@ const STEP: Record<Direction, Cell> = {
   w: { x: -1, y: 0 },
 };
 const DIRS: Direction[] = ["n", "e", "s", "w"];
-/** Walking `dir` up a ramp needs the ramp facing the way you came from. */
 const RAMP_FACING: Record<Direction, Direction> = { n: "s", e: "w", s: "n", w: "e" };
 const OPPOSITE = RAMP_FACING;
 
@@ -317,8 +127,6 @@ function shuffled<T>(items: readonly T[], random: () => number): T[] {
   return out;
 }
 
-// One indexing scheme over the whole map, so a cell index means the same thing
-// on every floor and a column can be asked about from any of them.
 const surfaceKeys = Object.keys(map.levels["0"] ?? {});
 let X0 = Infinity;
 let X1 = -Infinity;
@@ -344,7 +152,6 @@ const chebyshev = (a: Cell, b: Cell) => Math.max(Math.abs(a.x - b.x), Math.abs(a
 type Mask = Uint8Array;
 const newMask = () => new Uint8Array(W * H);
 
-/** Grow a mask by `radius` cells in the eight directions. */
 function dilate(mask: Mask, radius: number): Mask {
   let current = mask;
   for (let step = 0; step < radius; step++) {
@@ -363,36 +170,12 @@ function dilate(mask: Mask, radius: number): Mask {
   return current;
 }
 
-// ---------------------------------------------------------------------------
-// Candidate space
-// ---------------------------------------------------------------------------
-
-/**
- * Columns whose surface stops daylight on its way down.
- *
- * Two ways to stop it, and the gap between them is the trap. A bare floor —
- * grass, dirt, cobblestone — hard-seals the shaft: height 0, so no opacity, and
- * `lightingFlood` treats a height-0 floor as a lid the sky flood may not cross.
- * A full block — a tree, a wall — stops it because nothing gets through solid.
- *
- * **Anything in between leaks, and most of the map's surface is in between.**
- * A bush, a sign, a fence, a chair on the grass is half a level tall, which
- * makes the cell half opaque, which disqualifies it from the hard seal and
- * lets the shaft down through it at half strength. The flood then spreads that
- * through the cave. A pond leaks for the plainer reason that water passes
- * light. So both are kept out of the footprint, and a cave simply does not run
- * under them.
- */
 const SEALED_ROOF: Mask = (() => {
   const mask = newMask();
   for (const key of surfaceKeys) {
     const [x, y] = key.split(",").map(Number) as [number, number];
     const stack = (map.levels["0"]![key] ?? []) as PlacedTile[];
     const { opacity, sealsLevel } = stackOcclusion(stack, tilesById);
-    // Either a bare floor, which hard-seals the shaft, or a full block, which
-    // stops it outright. Anything between the two leaks — see the note above.
-    // `lightingFlood` spells the first half of this as `opacity <
-    // TRANSMISSION_EPSILON`; a stack of height-0 tiles sums to exactly zero.
     if ((sealsLevel && opacity === 0) || opacity >= 1) {
       mask[idx(x, y)] = 1;
     }
@@ -400,22 +183,12 @@ const SEALED_ROOF: Mask = (() => {
   return mask;
 })();
 
-/** A cell of an existing cave: underground, and not solid rock. */
 function isExistingOpen(z: number, x: number, y: number): boolean {
   const stack = getStack(z, x, y);
   if (stack.length === 0) return false;
   return !stack.some((t) => t.tileId === "half-stone");
 }
 
-/**
- * Columns far enough inside the map for the lid to be able to protect them.
- *
- * Outside the map's own content the light bake has nothing to occlude with, so
- * its domain margin is open air at every depth and lit to the top of the scale.
- * A lid cannot be laid out there — there is no map to lay it on — so the caves
- * keep {@link DAYLIGHT_LID_REACH} cells back from the edge instead, which is
- * exactly the distance at which that margin's spill has decayed to nothing.
- */
 const INSIDE_THE_MAP: Mask = (() => {
   const mask = newMask();
   for (let i = 0; i < mask.length; i++) {
@@ -426,7 +199,6 @@ const INSIDE_THE_MAP: Mask = (() => {
   return mask;
 })();
 
-/** Where a floor may be carved: roofed, inside the map, and clear of anybody else's cave. */
 function candidatesFor(z: number, roof: Mask): Mask {
   const existing = newMask();
   for (const key of Object.keys(level(z))) {
@@ -442,17 +214,6 @@ function candidatesFor(z: number, roof: Mask): Mask {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// The automaton
-// ---------------------------------------------------------------------------
-
-/**
- * Smooth value noise in [0, 1], for the density field.
- *
- * Lattice values from the seeded PRNG, smoothstepped between — enough structure
- * to give a floor regions with a character of their own, and not worth a
- * gradient noise for.
- */
 function densityField(seed: number): Float32Array {
   const random = mulberry32(seed);
   const lw = Math.ceil(W / DENSITY_FIELD_SCALE) + 2;
@@ -484,14 +245,12 @@ function rockAround(rock: Mask, x: number, y: number, span: number): number {
   for (let dy = -span; dy <= span; dy++) {
     for (let dx = -span; dx <= span; dx++) {
       if (dx === 0 && dy === 0) continue;
-      // Off the candidate space counts as rock: a cave does not open onto it.
       if (!inBounds(x + dx, y + dy) || rock[idx(x + dx, y + dy)]) n++;
     }
   }
   return n;
 }
 
-/** Cellular-automata cave over `candidates`, everything else rock. */
 function generateCave(seed: number, candidates: Mask): Mask {
   const random = mulberry32(seed);
   const density = densityField(seed ^ 0xf1e1d);
@@ -522,7 +281,6 @@ function generateCave(seed: number, candidates: Mask): Mask {
   return rock;
 }
 
-/** Four-connected open regions, largest first. */
 function regionsOf(rock: Mask): number[][] {
   const seen = new Uint8Array(rock.length);
   const out: number[][] = [];
@@ -547,7 +305,6 @@ function regionsOf(rock: Mask): number[][] {
   return out.sort((a, b) => b.length - a.length);
 }
 
-/** Shortest route from a region to the main body, through anything candidate. */
 function routeThroughRock(
   from: readonly number[],
   target: Uint8Array,
@@ -560,9 +317,6 @@ function routeThroughRock(
     seen[i] = 1;
     queue.push(i);
   }
-  // The neighbour order is shuffled per node, which costs nothing and is the
-  // difference between a corridor and a ruled line: every shortest path is the
-  // same length, and this picks a different one of them each time.
   const random = mulberry32(Math.imul(from[0]!, 2654435761));
 
   for (let head = 0; head < queue.length; head++) {
@@ -587,14 +341,6 @@ function routeThroughRock(
   return null;
 }
 
-/**
- * Join every region worth keeping to the one holding `anchor`, by digging.
- *
- * The route runs through the *candidate* space rather than through open cells —
- * a tunnel is allowed to cross solid rock, which is the whole point of one — so
- * this succeeds wherever the candidate space is connected at all. Regions it
- * cannot reach, and regions too small to be worth a corridor, are filled in.
- */
 function connectRegions(rock: Mask, candidates: Mask, anchor: number) {
   for (;;) {
     const regions = regionsOf(rock);
@@ -610,12 +356,9 @@ function connectRegions(rock: Mask, candidates: Mask, anchor: number) {
 
     const path = routeThroughRock(next, mainSet, candidates);
     if (!path) {
-      // Nothing legal joins it up; it is a pocket, not a wing.
       for (const i of next) rock[i] = 1;
       continue;
     }
-    // Carved a cell at a time with the odd bulge, so a corridor reads as
-    // something water made rather than as something surveyed.
     const widen = mulberry32(Math.imul(path.length, 2246822519));
     for (const i of path) {
       rock[i] = 0;
@@ -628,7 +371,6 @@ function connectRegions(rock: Mask, candidates: Mask, anchor: number) {
     }
   }
 
-  // Whatever is still separate at this point is small or unreachable.
   const regions = regionsOf(rock);
   const main = regions.find((r) => r.includes(anchor)) ?? regions[0] ?? [];
   const keep = new Uint8Array(rock.length);
@@ -636,7 +378,6 @@ function connectRegions(rock: Mask, candidates: Mask, anchor: number) {
   for (let i = 0; i < rock.length; i++) if (!rock[i] && !keep[i]) rock[i] = 1;
 }
 
-/** Open a cell and its four neighbours, so an anchor is never a pocket. */
 function carveRoom(rock: Mask, candidates: Mask, cell: Cell) {
   rock[idx(cell.x, cell.y)] = 0;
   candidates[idx(cell.x, cell.y)] = 1;
@@ -646,29 +387,13 @@ function carveRoom(rock: Mask, candidates: Mask, cell: Cell) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Carving
-// ---------------------------------------------------------------------------
-
 type Floor = { z: number; rock: Mask; open: Mask };
-/**
- * A slope from one floor up to the next.
- *
- * The shape is forced by the rules rather than chosen. A ramp is two units tall
- * and two units is exactly `MAX_CLIMB_HEIGHT`, so a body climbs a level in two
- * steps: floor, ramp, the floor above. Standing on the ramp puts a three-high
- * body's head a unit *into* the level above, so the cell over the ramp has to be
- * empty — a floor plate there is a ceiling and `fitsHeightAtElevation` refuses
- * it. That empty cell is the hole you step into from above, which is the same
- * slope seen from the other end.
- */
 type Ramp = { z: number; cell: number; ascend: Direction };
 type Prop = { z: number; cell: number; tileId: string };
 
 type Carved = {
   floors: Floor[];
   ramps: Ramp[];
-  /** `z:cell` of every hole: the mouth of a ramp, and every pit. */
   rampHoles: Set<string>;
   pits: Set<string>;
   crystals: Prop[];
@@ -693,7 +418,6 @@ function carveSystem(): Carved {
   });
   const floorAt = (z: number) => floors.find((f) => f.z === z);
 
-  // --- ramps, one floor to the next ---------------------------------------
   const ramps: Ramp[] = [];
   for (let i = 1; i < floors.length; i++) {
     const lower = floors[i]!;
@@ -708,7 +432,6 @@ function carveSystem(): Carved {
         const out = { x: here.x + STEP[ascend].x, y: here.y + STEP[ascend].y };
         const back = { x: here.x - STEP[ascend].x, y: here.y - STEP[ascend].y };
         if (!inBounds(out.x, out.y) || !inBounds(back.x, back.y)) continue;
-        // You climb out onto the floor above, and reach the ramp along this one.
         if (!upper.open[idx(out.x, out.y)]) continue;
         if (!lower.open[idx(back.x, back.y)]) continue;
         options.push({ z: lower.z, cell: c, ascend });
@@ -727,7 +450,6 @@ function carveSystem(): Carved {
     }
   }
 
-  // The mouth is a ramp like any other, with the surface as its upper floor.
   ramps.push({
     z: SYSTEM.levels[0]!,
     cell: idx(SYSTEM.mouth.x, SYSTEM.mouth.y),
@@ -735,10 +457,8 @@ function carveSystem(): Carved {
   });
 
   const rampHoles = new Set(ramps.map((r) => `${r.z + 1}:${r.cell}`));
-  // The cell over a ramp stops being floor; the ramp itself is still walked on.
   for (const ramp of ramps) floorAt(ramp.z + 1)?.open.fill(0, ramp.cell, ramp.cell + 1);
 
-  // --- pits ----------------------------------------------------------------
   const pits = new Set<string>();
   for (let i = 0; i < floors.length; i++) {
     const floor = floors[i]!;
@@ -755,7 +475,6 @@ function carveSystem(): Carved {
       if (chosen.length >= wanted) break;
       const here = at(c);
       if (!below.open[c]) continue;
-      // Only in the middle of a chamber, so a hole is never the one way past.
       const roomy = DIRS.every((dir) => {
         const n = { x: here.x + STEP[dir].x, y: here.y + STEP[dir].y };
         return inBounds(n.x, n.y) && floor.open[idx(n.x, n.y)];
@@ -774,20 +493,9 @@ function carveSystem(): Carved {
     }
   }
 
-  // --- walk it before writing it -------------------------------------------
   for (const ramp of ramps) floorAt(ramp.z)!.open[ramp.cell] = 1;
   const rampAt = new Map(ramps.map((r) => [`${r.z}:${r.cell}`, r] as const));
 
-  /**
-   * Every cell a body can reach from the foot of the entrance slope, across
-   * every floor at once.
-   *
-   * The graph is the movement rules in miniature: neighbours on a floor, a ramp
-   * up to the floor above and back down through its hole, and a pit as a
-   * one-way drop. `--verify` checks the same thing afterwards with the game's
-   * own `canWalk`; this exists so the answer is known while it can still be
-   * acted on.
-   */
   const reached = (() => {
     const start = `${SYSTEM.levels[0]}:${idx(mouthFoot.x, mouthFoot.y)}`;
     const seen = new Set([start]);
@@ -813,12 +521,10 @@ function carveSystem(): Carved {
           visit(`${z}:${nc}`);
           continue;
         }
-        // A hole in this floor: the head of a ramp, or a drop to the one below.
         if (rampHoles.has(`${z}:${nc}`)) visit(`${z - 1}:${nc}`);
         else if (pits.has(`${z}:${nc}`) && floorAt(z - 1)?.open[nc]) visit(`${z - 1}:${nc}`);
       }
 
-      // Standing on a ramp, the way up is the one direction it faces.
       const ramp = rampAt.get(`${z}:${cell}`);
       if (ramp) {
         const out = { x: here.x + STEP[ramp.ascend].x, y: here.y + STEP[ramp.ascend].y };
@@ -840,17 +546,13 @@ function carveSystem(): Carved {
     }
   }
 
-  // A ramp the trim stranded, or whose landing it took away, is not a way
-  // anywhere any more.
   for (const ramp of [...ramps]) {
     const out = {
       x: cellX(ramp.cell) + STEP[ramp.ascend].x,
       y: cellY(ramp.cell) + STEP[ramp.ascend].y,
     };
     const landing =
-      ramp.z + 1 > SYSTEM.levels[0]!
-        ? true // the mouth lands on the surface, which the trim cannot touch
-        : floorAt(ramp.z + 1)?.open[idx(out.x, out.y)] === 1;
+      ramp.z + 1 > SYSTEM.levels[0]! ? true : floorAt(ramp.z + 1)?.open[idx(out.x, out.y)] === 1;
     if (reached.has(`${ramp.z}:${ramp.cell}`) && landing) continue;
     ramps.splice(ramps.indexOf(ramp), 1);
     rampAt.delete(`${ramp.z}:${ramp.cell}`);
@@ -865,12 +567,9 @@ function carveSystem(): Carved {
     if (!reachable) pits.delete(key);
   }
 
-  // --- crystals and animals ------------------------------------------------
   const crystals: Prop[] = [];
   const creatures: Prop[] = [];
-  /** Cells now filled by something a body cannot walk through. */
   const filled = new Set<string>();
-  /** Cells a ramp climbs out onto: blocking one strands the ramp. */
   const landings = new Set(
     ramps.map((r) => {
       const out = {
@@ -910,7 +609,6 @@ function carveSystem(): Carved {
       filled.add(`${floor.z}:${c}`);
     };
 
-    // One beside every hole first, so a way down is always something you can see.
     for (const c of nooks) {
       if (!holesHere.some((h) => chebyshev(h, at(c)) <= CRYSTAL_HOLE_REACH)) continue;
       take(c);
@@ -922,7 +620,6 @@ function carveSystem(): Carved {
       take(c);
     }
     for (const c of chosen) {
-      // A tall crystal needs stone overhead — see TALL_CRYSTAL_TILES.
       const kinds = upper?.rock[c] === 1 ? TALL_CRYSTAL_TILES : LOW_CRYSTAL_TILES;
       crystals.push({ z: floor.z, cell: c, tileId: kinds[Math.floor(random() * kinds.length)]! });
     }
@@ -934,11 +631,6 @@ function carveSystem(): Carved {
         arrivals.every((a) => chebyshev(a, at(c)) >= ARRIVAL_SAFE_RADIUS),
     );
 
-    /**
-     * The troll takes the cell furthest from the mouth on its floor, and
-     * everything else is scattered. Distance is the only ordering that makes a
-     * boss feel like the bottom of a den rather than like the second room.
-     */
     const byRemoteness = habitable
       .slice()
       .sort(
@@ -953,7 +645,6 @@ function carveSystem(): Carved {
       const homes = tileId === "cave-troll" ? byRemoteness : scattered;
       for (let n = 0; n < count; n++) roster.push({ tileId, homes });
     }
-    // Trolls first, so the one remote cell goes to the thing that wants it.
     roster.sort((a, b) => (a.tileId === "cave-troll" ? -1 : b.tileId === "cave-troll" ? 1 : 0));
 
     const taken: Cell[] = [];
@@ -976,14 +667,6 @@ function carveSystem(): Carved {
   return { floors, ramps, rampHoles, pits, crystals, creatures, trimmed };
 }
 
-/**
- * Would putting something solid here cut the floor in two?
- *
- * A local test rather than a flood: the open cells in the ring around it have to
- * form one contiguous arc, or the cell is the join between two of them. It is
- * conservative — it refuses some cells that would have been fine — which is the
- * right way round for a wall nobody can walk through.
- */
 function wouldPinch(floor: Floor, cell: number): boolean {
   const here = at(cell);
   const ring = (
@@ -1008,15 +691,10 @@ function wouldPinch(floor: Floor, cell: number): boolean {
   return runs > 1;
 }
 
-// ---------------------------------------------------------------------------
-// Writing
-// ---------------------------------------------------------------------------
-
 function writeSystem(carved: Carved) {
   const placed = { floor: 0, rock: 0, lid: 0, ramps: 0, holes: 0, crystals: 0, creatures: 0 };
   const conflicts: string[] = [];
 
-  /** Carve a cell, unless somebody authored something there worth keeping. */
   const carve = (z: number, cell: number, stack: Placed[]) => {
     const here = at(cell);
     const existing = getStack(z, here.x, here.y);
@@ -1038,9 +716,6 @@ function writeSystem(carved: Carved) {
       placed.floor++;
     }
 
-    // The shell: rock within reach of anything carved, and only where the map
-    // is empty. A cell that already holds something is either rock already or
-    // somebody else's, and either way it is not ours to write.
     const shell = dilate(floor.open, WALL_SHELL);
     for (let c = 0; c < shell.length; c++) {
       if (!shell[c] || floor.open[c]) continue;
@@ -1057,7 +732,6 @@ function writeSystem(carved: Carved) {
     }
   }
 
-  // Holes, emptied after the shell so nothing fills them back in.
   for (const key of [...carved.pits, ...carved.rampHoles]) {
     const [z, cell] = key.split(":").map(Number) as [number, number];
     const here = at(cell);
@@ -1081,21 +755,6 @@ function writeSystem(carved: Carved) {
     placed.creatures++;
   }
 
-  /**
-   * The lid: rock in the empty columns daylight comes down, at the topmost
-   * level the caves use.
-   *
-   * One level is enough for all of them. The shaft is per column and stops
-   * dead at the first full block, so a lid at the top floor leaves every level
-   * under it with no sky of its own — and with no lit cell underground
-   * anywhere, there is nothing left to spill sideways either. See
-   * {@link DAYLIGHT_LID_REACH}.
-   *
-   * Only *empty* columns are lidded. A pond over the older dungeon is a
-   * skylight somebody authored, and its floor is already down there sealing
-   * it; putting rock under it would take the daylight out of a room that is
-   * meant to have some.
-   */
   const nearCaves = dilate(
     (() => {
       const carvedMask = newMask();
@@ -1120,8 +779,6 @@ function writeSystem(carved: Carved) {
     placed.lid++;
   }
 
-  // The surface: the mouth itself is a hole, with stone around the sides so it
-  // reads as cut into the ground rather than as a tile somebody forgot.
   const surfaceGround = (x: number, y: number): Placed[] => {
     const ground = getStack(0, x, y).filter(
       (t) => t.tileId === "grass" || t.tileId === "grass-2" || t.tileId === "dirt",
@@ -1150,35 +807,11 @@ function writeSystem(carved: Carved) {
   return { placed, conflicts };
 }
 
-// ---------------------------------------------------------------------------
-// Checking, by the game's own rules
-// ---------------------------------------------------------------------------
-
-/**
- * Walk the written map with `canWalk` and the real `player` tile.
- *
- * The generator's own reachability model above is a sketch of the movement
- * rules; this is the rules. Ramps, two-unit climbs, holes, headroom and the
- * tie between a full-height tile and the floor above it are all decided by the
- * code that decides them in play, against the file as it will be shipped.
- *
- * Creatures are lifted off the board first. A wolf is `walkable: false` and
- * would read as a wall in a corridor it is about to wander out of, which would
- * make this report rooms as sealed that are nothing of the sort.
- */
 function checkWritten(carved?: Carved): string[] {
   const problems: string[] = [];
   let live = parseMap(serializeMap(chunkifyMap(map as never)));
   const playerDef = tilesById["player"]!;
 
-  /**
-   * The cells this run carved, so the check is about them and not about the
-   * caves that were already down there.
-   *
-   * Without a carve to ask, `--verify` falls back to "underground floor" — a
-   * looser net that also picks up the cellars and the older dungeon, whose
-   * problems are somebody else's and are reported all the same.
-   */
   const ours = carved
     ? new Set(
         carved.floors.flatMap((floor) => {
@@ -1209,7 +842,6 @@ function checkWritten(carved?: Carved): string[] {
     }
   }
 
-  // Daylight, before the creatures come off — occlusion does not care.
   const occlusion = new Map<string, ReturnType<typeof stackOcclusion>>();
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y, stack } of listCoords(live, z)) {
@@ -1223,22 +855,11 @@ function checkWritten(carved?: Carved): string[] {
     problems.push(`open sky over ${x},${y} on L${z}`);
   }
 
-  /**
-   * Daylight, as the baker actually spreads it — which is not the same question
-   * as whether the column is open.
-   *
-   * `isSkyExposed` asks about the shaft straight up. The flood also walks light
-   * sideways and down, so a cave can be lit at noon by a hole a dozen cells away
-   * and three levels up, with nothing wrong at the cell itself. This is the
-   * check that catches that, and it is why the mouth is the only opening the
-   * caves have.
-   */
   const flood = computeLightingFlood(live, tilesById);
   let daylit = 0;
   let worst = { sky: 0, at: "" };
   for (const cell of denCells) {
     const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
-    // The mouth is meant to let the day in, and to spill a little way inside.
     const fromMouth = Math.max(Math.abs(x - SYSTEM.mouth.x), Math.abs(y - SYSTEM.mouth.y));
     if (fromMouth <= MAX_LIGHT_LEVEL) continue;
     const lv = flood.levels.get(z);
@@ -1278,7 +899,6 @@ function checkWritten(carved?: Carved): string[] {
     }
   }
 
-  // Off the board they come.
   for (const z of SYSTEM.levels) {
     for (const { x, y, stack } of listCoords(live, z)) {
       const kept = stack.filter((p) => tilesById[p.tileId]?.kind !== "battler");
@@ -1287,7 +907,6 @@ function checkWritten(carved?: Carved): string[] {
     }
   }
 
-  /** Where a body's feet come to rest in this column, arriving at `feetAbs`. */
   const settle = (x: number, y: number, feetAbs: number) => {
     const surfaces = listStandingSurfaces(live, x, y, tilesById);
     return (
@@ -1317,8 +936,6 @@ function checkWritten(carved?: Carved): string[] {
     for (const direction of DIRS) {
       const step = canWalk(live, { ...from, stackIndex }, direction, playerDef, tilesById);
       if (!step.ok) continue;
-      // A step into open air commits to the level it left and gravity finishes
-      // it, which is what makes a hole a route rather than a wall.
       const landed = settle(step.to.x, step.to.y, feetAt(step.to.x, step.to.y, step.to.z));
       if (!landed) continue;
       const key = `${step.to.x},${step.to.y},${landed.z}`;
@@ -1372,10 +989,6 @@ function checkWritten(carved?: Carved): string[] {
   console.log(`carved ${denCells.size} cells; walked to ${walked.join(", ")}`);
   return problems;
 }
-
-// ---------------------------------------------------------------------------
-// Run
-// ---------------------------------------------------------------------------
 
 let carved: Carved | undefined;
 if (!verifyOnly) {

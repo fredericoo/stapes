@@ -1,26 +1,3 @@
-/**
- * Builds `data/tilesets/water.png` — the water autotile — and rewrites the
- * `water` tile's slices in `data/tiles.json` to match.
- *
- * Two masks make the art, and neither is drawn by hand:
- *
- * - **The wave**, `scripts/wave-frames.png`: fourteen 8x8 frames recovered from
- *   an old screen recording, white where the wave catches the light and
- *   transparent where it does not. This is the source of truth for the
- *   animation, and the reason it lives beside this script rather than in
- *   `data/tilesets/` is that it is not a tileset — nothing draws it.
- * - **The shape**, the green autotile block in `data/tilesets/floors.png`: its
- *   green pixels say which part of each of the 47 neighbourhoods is *inside* the
- *   material. Reused rather than redrawn because a pond's rim has to tuck itself
- *   into its neighbours exactly the way the ground autotiles already do, and two
- *   hand-drawn versions of that would drift apart.
- *
- * Which of the sixteen source cells each slice takes comes from `dirt`, the
- * autotile already laid out on this sheet. Reading it rather than restating it
- * means the water and the ground can never disagree about what slice 23 is.
- *
- * Run: bun run generate:water
- */
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
@@ -33,77 +10,25 @@ const TILESETS = path.join(DATA, "tilesets");
 
 const CELL = 8;
 
-/** Where the green block sits in `floors.png`, in cells. */
 const SHAPE_BLOCK_X = 4;
 
-/** The green block's fill. Anything else in a source cell is outside the shape. */
 const SHAPE_FILL: [number, number, number] = [35, 144, 99];
 
-/**
- * The three tones the water is drawn in, and they are opaque.
- *
- * The tile used to be the translucent slab water has always been, which made it
- * whatever it was lying on with a blue wash over it — a pond over dirt read as
- * mud. Opaque, water is water, and the ground still shows at the rim because
- * that is where the autotile's own shape stops.
- *
- * Three rather than two because the wave needed somewhere to fall: see
- * {@link shadowOf}.
- */
 const SHADOW: [number, number, number, number] = [0x24, 0x43, 0x6b, 255];
 const BASE: [number, number, number, number] = [0x33, 0x5c, 0x8c, 255];
 const HIGHLIGHT: [number, number, number, number] = [0x5b, 0x8f, 0xbf, 255];
 
-/**
- * How far the bank's shade reaches into the water, in pixels.
- *
- * @see bankOf
- */
 const BANK_DEPTH = 2;
 
-/** Frame cadence, in milliseconds. 12.5fps — what the recording was captured at. */
 const FRAME_MS = 80;
 
-/**
- * How far the cycle advances per cell, east and south.
- *
- * The vector the recording itself used. Without it every cell of a pond shows
- * the same frame and the whole thing blinks as one; with it the wave travels
- * diagonally across the water. See `SpritePhase`.
- */
 const PHASE = { x: 3, y: -1 };
 
-/** The autotile whose slice layout the water borrows. */
 const SHAPE_SOURCE_TILE = "dirt";
 
 const TILESET_ID = "water";
 const TILE_ID = "water";
 
-/**
- * Where a frame's wave casts, as a mask.
- *
- * One darker pixel down and to the right of every bright one, which is all a
- * crest needs to stop reading as a flat line and start reading as something
- * standing up out of the surface. It never lands **on** a bright pixel, so a
- * dense stretch of wave stays bright rather than eating itself.
- *
- * **The edge pixels come from the neighbouring tile's frame, not this one's.**
- * A shadow on the left column is cast by the pixel one to its left, which is in
- * the tile to the west — and that tile is {@link PHASE}`.x` frames further along
- * the cycle, so its column 7 is a different column 7 from this frame's. Wrapping
- * within the frame is what a *tiling* pattern wants and this pattern is phased:
- * it tiles across space only after the clock has been shifted per cell. Getting
- * it wrong is not subtle once you look — every cell grows a column of shadow
- * that answers to nothing on the other side of the seam.
- *
- * So the source frame is stepped back by the phase of whichever neighbour the
- * pixel actually came from: `-PHASE.x` across the left seam, `-PHASE.y` across
- * the top one, both at the corner.
- *
- * **This bakes the phase into the art.** Change {@link PHASE} and the sheet has
- * to be regenerated, or every tile's leading edges stop lining up with its
- * neighbours. That is the price of drawing a cross-tile shadow into a tile.
- */
 function shadowOf(litByFrame: boolean[][][], frame: number): boolean[][] {
   const count = litByFrame.length;
   const lit = litByFrame[frame]!;
@@ -121,42 +46,11 @@ function shadowOf(litByFrame: boolean[][][], frame: number): boolean[][] {
   return out;
 }
 
-/**
- * The band just inside a slice's top and left edges, as a mask.
- *
- * What makes the water read as *sunken* rather than as painted on: the bank
- * above it and to its left is between the surface and the light, so the first
- * couple of pixels of water sit in its shade. Two pixels because one reads as an
- * outline and three swallows a small slice whole.
- *
- * Off-tile counts as **inside**, which is the whole trick. Slice 46 is water
- * with water on every side and its mask fills the tile, so nothing here fires
- * and open water gets no bank — while an edge slice, whose shape the artwork
- * already cuts in from the tile's edge, gets exactly the band its own outline
- * describes.
- */
-/**
- * The four inner corners, as the bit that has to be missing and the pixel it
- * takes when it is.
- *
- * A blob autotile's extra 31 slices are exactly these: a cell with water on two
- * adjacent sides but *not* on the diagonal between them, where a wedge of ground
- * pokes into the corner. The ground autotiles get away with ignoring them —
- * their fill is flat, so a nicked corner and a square one look identical — but
- * water is shaded from the top and left now, and a corner with no nick has no
- * shade in it either. That is the whole reason this exists.
- *
- * One pixel, because that is the radius the artwork rounds its own corners by:
- * the cell that has neither north nor west drops its top row, its left column,
- * and one more pixel at the corner of what is left. Rounding the inner corner
- * by the same amount is the only answer that matches the sheet it sits in.
- */
 const CORNERS: {
   needs: number;
   missing: number;
   x: number;
   y: number;
-  /** Whether ground in this corner is above the water, and so can shade it. */
   casts: boolean;
 }[] = [
   { needs: N | W, missing: NW, x: 0, y: 0, casts: true },
@@ -165,18 +59,6 @@ const CORNERS: {
   { needs: S | E, missing: SE, x: CELL - 1, y: CELL - 1, casts: false },
 ];
 
-/**
- * The slice's shape, with a pixel taken out of each corner the ground reaches
- * into.
- *
- * `casting` asks for the shape the **bank** is measured from rather than the one
- * drawn, and the two differ at the southern corners. A nick there is the near
- * shore: the light is coming over the water's top-left shoulder, so that ground
- * is lit rather than casting, and letting it cast drew a bar of shadow running
- * off to the right along the bottom of the tile with nothing above it to explain
- * itself. The northern nicks do cast, because ground poking in at the top is
- * between the surface and the light exactly like the bank along a whole edge is.
- */
 function nickCorners(inside: boolean[][], mask: number, casting = false): boolean[][] {
   const out = inside.map((row) => [...row]);
   for (const corner of CORNERS) {
@@ -195,11 +77,6 @@ function bankOf(shape: boolean[][], inside: boolean[][]): boolean[][] {
   for (let y = 0; y < CELL; y++) {
     for (let x = 0; x < CELL; x++) {
       if (!inside[y]![x]!) continue;
-      // The whole square up and to the left, not a row and a column of it. Two
-      // separate reaches leave the corner where they meet unshaded, and a bank
-      // that turns a corner in two strips with a gap between them reads as two
-      // shadows rather than as one edge — most visibly around a corner nick,
-      // where the strips do not touch at all.
       for (let dy = 0; dy <= BANK_DEPTH && !out[y]![x]; dy++) {
         for (let dx = 0; dx <= BANK_DEPTH; dx++) {
           if (dx === 0 && dy === 0) continue;
@@ -231,7 +108,6 @@ function setPixel(png: PNG, x: number, y: number, rgba: readonly number[]) {
   png.data[i + 3] = rgba[3]!;
 }
 
-/** The 4x4 source cell each of the 47 slices takes, read off the ground autotile. */
 async function sliceCells(): Promise<Map<number, { x: number; y: number }>> {
   const tiles = JSON.parse(await fs.readFile(path.join(DATA, "tiles.json"), "utf8")) as TileDef[];
   const source = tiles.find((t) => t.id === SHAPE_SOURCE_TILE);
@@ -260,19 +136,12 @@ async function main() {
   }
   const slices = [...cells.keys()].sort((a, b) => a - b);
 
-  // A frame across, a slice down. Nothing depends on that orientation beyond
-  // the rects written below, but a row per slice keeps one neighbourhood's
-  // fourteen frames on one line of the sheet, which is what you want to be
-  // looking at when a slice is wrong.
   const sheet = new PNG({
     width: frameCount * CELL,
     height: slices.length * CELL,
   });
   sheet.data.fill(0);
 
-  // Per frame rather than per slice-and-frame: the wave and its shadow are the
-  // same 8x8 pattern in all 47 neighbourhoods, and only the shape cutting them
-  // differs.
   const litByFrame: boolean[][][] = [];
   for (let frame = 0; frame < frameCount; frame++) {
     litByFrame.push(
@@ -301,8 +170,6 @@ async function main() {
       for (let y = 0; y < CELL; y++) {
         for (let x = 0; x < CELL; x++) {
           if (!shape[y]![x]!) continue;
-          // The bank outranks the wave: this is the ground shading the water,
-          // and a crest does not catch light it is standing in the shade of.
           const tone = bank[y]![x]!
             ? SHADOW
             : lit[y]![x]!
@@ -318,9 +185,6 @@ async function main() {
 
   await fs.writeFile(path.join(TILESETS, `${TILESET_ID}.png`), PNG.sync.write(sheet));
 
-  // The tile and the sheet are written together on purpose: a slice's rect is a
-  // coordinate in the image this run just produced, so anything that reads one
-  // without the other is reading a stale half.
   const tilesPath = path.join(DATA, "tiles.json");
   const tiles = JSON.parse(await fs.readFile(tilesPath, "utf8")) as TileDef[];
   const water = tiles.find((t) => t.id === TILE_ID);

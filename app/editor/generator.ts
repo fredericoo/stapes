@@ -1,18 +1,3 @@
-/**
- * The parts every procedural generator is built out of.
- *
- * A generator is a pure function from a map, a rectangle, a level and a
- * settings object to the list of {@link StackEdit}s that build the thing — or
- * to the reason it cannot be built. That contract is the whole of why the drag
- * preview and the commit cannot disagree: they call the same function. See
- * `docs/notes.md`, "A generator is a plan, and the plan is the preview".
- *
- * This module holds what more than one of them needs: the rectangle, the grid
- * of open cells they carve into, the noise they carve with, and the two
- * features — water and scattered props — that a cave and a forest decorate
- * their floors with in exactly the same way.
- */
-
 import { getStack, type StackEdit } from "../lib/mapData";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, isDirectional, physicalHeight, resolveWalkable } from "../lib/types";
@@ -21,13 +6,8 @@ export type Rect = { x0: number; y0: number; x1: number; y1: number };
 
 export type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 
-/** What every generator returns: the edits, or why there are none. */
 export type GeneratedPlan = { ok: true; edits: StackEdit[] } | { ok: false; reason: string };
 
-/**
- * Both dimensions of any generator's footprint, so an accidental drag across
- * the world refuses cheaply rather than planning four thousand cells.
- */
 export const MAX_FOOTPRINT = 64;
 
 export function boundsOf(rect: Rect): Bounds {
@@ -39,7 +19,6 @@ export function boundsOf(rect: Rect): Bounds {
   };
 }
 
-/** A placement of `tileId`, wearing `direction` only if the tile has faces. */
 export function placed(
   tileId: string,
   tilesById: Record<string, TileDef>,
@@ -52,15 +31,6 @@ export function placed(
   return { tileId };
 }
 
-/**
- * A column of `tileId` exactly `units` tall, or why it cannot be one.
- *
- * A wall that does not reach the top of its level is a wall daylight and
- * arrows go over; one that passes it overflows into the level above. Rather
- * than round either way, the tile has to divide the height being filled —
- * which `half-stone` (two units) and a full-level block both do, and which is
- * the reason the wall pickers offer those and not the whole catalogue.
- */
 export function columnOf(
   tileId: string,
   units: number,
@@ -83,20 +53,8 @@ export function columnOf(
   return { ok: true, stack };
 }
 
-/** Half a level, which is what a low wall along a cave's edge fills. */
 export const HALF_LEVEL = HEIGHT_PER_LEVEL / 2;
 
-// ---------------------------------------------------------------------------
-// The grid
-// ---------------------------------------------------------------------------
-
-/**
- * Which cells of a footprint are open, in world coordinates.
- *
- * Every generator that carves works on one of these and reads it back at the
- * end: `cells[i]` is 1 where something may stand and 0 where it may not, which
- * for a cave is rock and for a forest is a tree.
- */
 export type CellGrid = {
   readonly minX: number;
   readonly minY: number;
@@ -117,7 +75,6 @@ export function newGrid(bounds: Bounds): CellGrid {
   };
 }
 
-/** A fraction, held inside the range a fraction can be. */
 export function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
@@ -146,7 +103,6 @@ export function setOpen(g: CellGrid, x: number, y: number, open: boolean): void 
   if (inGrid(g, x, y)) g.cells[gridIndex(g, x, y)] = open ? 1 : 0;
 }
 
-/** Every open cell, in reading order. */
 export function openCells(g: CellGrid): Array<{ x: number; y: number }> {
   const out: Array<{ x: number; y: number }> = [];
   for (let i = 0; i < g.cells.length; i++) {
@@ -168,12 +124,6 @@ const ORTHOGONAL = [
   { dx: -1, dy: 0 },
 ] as const;
 
-/**
- * Cells reachable from each other by orthogonal steps, largest region first.
- *
- * `mask` defaults to the grid's own open cells; passing a different one is how
- * the water pass asks which parts of the floor are still dry *and* joined.
- */
 export function regionsOf(g: CellGrid, mask?: Uint8Array): number[][] {
   const cells = mask ?? g.cells;
   const seen = new Uint8Array(cells.length);
@@ -204,21 +154,6 @@ export function regionsOf(g: CellGrid, mask?: Uint8Array): number[][] {
   return regions;
 }
 
-// ---------------------------------------------------------------------------
-// Joining on to what is already there
-// ---------------------------------------------------------------------------
-
-/**
- * Whether the cell at `x,y` is ground of the kind this generator lays, and
- * clear enough to walk in from.
- *
- * **The floor has to be the top of the stack, not somewhere in it.** A cave's
- * rock stands on the same floor its cave does — see `planCave` — so a shell
- * cell contains the floor tile as surely as an open one does, and a test that
- * only asked whether the tile was present would read every wall as an
- * invitation. Anything standing on the floor is an obstruction for the same
- * reason: a bush is not a way in.
- */
 export function isJoinableGround(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -235,31 +170,19 @@ export function isJoinableGround(
   };
 }
 
-/** A cell on the rectangle's border, and the way in from it. */
 export type Connection = {
   x: number;
   y: number;
   inward: { dx: number; dy: number };
 };
 
-/**
- * Where the rectangle should open on to what is already around it.
- *
- * Each side is walked for runs of border cells whose outside neighbour is
- * ground you could step in from, and **each run gives one opening, at its
- * middle** rather than one per cell. Opening the whole run would take the
- * shell off a cave's entire flank, and would strip the dither off a forest's
- * edge — the point is a way through, not a missing side.
- */
 export function connectionsAlongBorder(
   bounds: Bounds,
   joinable: (x: number, y: number) => boolean,
 ): Connection[] {
   const sides: Array<{
-    /** Along the side, from `lo` to `hi`. */
     lo: number;
     hi: number;
-    /** The border cell, and the cell outside it, for a position along the side. */
     border: (at: number) => { x: number; y: number };
     outside: (at: number) => { x: number; y: number };
     inward: { dx: number; dy: number };
@@ -310,19 +233,6 @@ export function connectionsAlongBorder(
   return out;
 }
 
-/**
- * Cut a two-wide way in from `connection` until it meets open ground.
- *
- * Two wide for the reason everything here is two wide, and it stops as soon as
- * the cells ahead of it are already open so that joining on to a cave whose
- * floor reaches the shell costs one cell rather than a corridor. A run that
- * never meets anything stops at `maxDepth` and is left for {@link joinRegions},
- * which is why `maxDepth` wants to be deep enough that the stub is worth
- * joining rather than filling in.
- *
- * Returns the cells it opened, since a forest counts them as another way in
- * when it decides what is reachable.
- */
 export function openConnection(
   g: CellGrid,
   bounds: Bounds,
@@ -331,7 +241,6 @@ export function openConnection(
 ): number[] {
   const opened: number[] = [];
   const { dx, dy } = connection.inward;
-  // The brush is anchored so both of its cells stay inside the rectangle.
   const anchor = (x: number, y: number) => ({
     x: Math.min(Math.max(x, bounds.minX), Math.max(bounds.minX, bounds.maxX - 1)),
     y: Math.min(Math.max(y, bounds.minY), Math.max(bounds.minY, bounds.maxY - 1)),
@@ -363,14 +272,6 @@ export function openConnection(
   return opened;
 }
 
-// ---------------------------------------------------------------------------
-// Noise
-// ---------------------------------------------------------------------------
-
-/**
- * Mixing constants from the usual 32-bit avalanche families, as in
- * `app/lib/scatter.ts` — named so the arithmetic reads as a hash.
- */
 const X_MIX = 0x9e3779b1;
 const Y_MIX = 0x85ebca6b;
 const SEED_MIX = 0xc2b2ae35;
@@ -380,7 +281,6 @@ const HIGH_SHIFT = 15;
 const LOW_SHIFT = 12;
 const UINT32 = 4294967296;
 
-/** A well-mixed 32-bit value for one cell of one seed. */
 export function hashCell(x: number, y: number, seed: number): number {
   let h = Math.imul(x | 0, X_MIX) ^ Math.imul(y | 0, Y_MIX) ^ Math.imul(seed | 0, SEED_MIX);
   h ^= h >>> HIGH_SHIFT;
@@ -390,18 +290,10 @@ export function hashCell(x: number, y: number, seed: number): number {
   return (h ^ (h >>> HIGH_SHIFT)) >>> 0;
 }
 
-/**
- * White noise in [0, 1) for one cell.
- *
- * Keyed on world coordinates rather than on a position within the rectangle,
- * so the pattern is anchored to the map: growing a drag reveals more of the
- * same cave rather than reshuffling the one already on screen.
- */
 export function randomAt(x: number, y: number, seed: number): number {
   return hashCell(x, y, seed) / UINT32;
 }
 
-/** Deterministic PRNG for the passes that are a sequence rather than a field. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -412,12 +304,10 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-/** Smoothstep, so a lattice of white noise interpolates without visible creases. */
 function ease(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Value noise in [0, 1]: white noise on a lattice of `scale` cells, interpolated. */
 export function valueNoise(x: number, y: number, seed: number, scale: number): number {
   const fx = x / scale;
   const fy = y / scale;
@@ -434,11 +324,6 @@ export function valueNoise(x: number, y: number, seed: number, scale: number): n
   return top + (bottom - top) * ty;
 }
 
-/**
- * Value noise summed over `octaves`, each half the size and half the weight of
- * the one before. Detail on top of shape, which is what stops a threshold of it
- * reading as a set of circles.
- */
 export function fbm(x: number, y: number, seed: number, scale: number, octaves: number): number {
   let sum = 0;
   let amplitude = 1;
@@ -451,24 +336,6 @@ export function fbm(x: number, y: number, seed: number, scale: number, octaves: 
   return sum / total;
 }
 
-// ---------------------------------------------------------------------------
-// Two ground tiles wide, everywhere
-// ---------------------------------------------------------------------------
-
-/**
- * Close every passage narrower than two cells.
- *
- * **A one-cell passage is a passage you cannot see into.** The world is drawn
- * in an oblique projection, so the wall on the near side of a corridor is drawn
- * over the floor behind it — a corridor one cell wide is a corridor whose floor
- * is entirely hidden, and whatever is standing in it with it. Two cells is the
- * narrowest that leaves a visible strip.
- *
- * The rule that gets there is mechanical: an open cell has to be part of some
- * fully open 2x2 square. Anything else is a spur, a diagonal pinch or a
- * one-wide neck, and filling it in can expose a new one — so this runs to a
- * fixed point rather than once.
- */
 export function widenToTwo(g: CellGrid): void {
   let changed = true;
   while (changed) {
@@ -492,19 +359,10 @@ export function widenToTwo(g: CellGrid): void {
   }
 }
 
-/** Whether the 2x2 square with its north-west corner at (x, y) is all open. */
 function squareOpen(g: CellGrid, x: number, y: number): boolean {
   return isOpen(g, x, y) && isOpen(g, x + 1, y) && isOpen(g, x, y + 1) && isOpen(g, x + 1, y + 1);
 }
 
-/**
- * One orthogonal step from `from` towards `to`.
- *
- * The axis is picked in proportion to how far there is left to go on each, so
- * something with twice as far to travel east as south goes east twice as often
- * — a rough diagonal, rather than the L that taking the longer axis every time
- * produces.
- */
 export function stepTowards(
   from: { x: number; y: number },
   to: { x: number; y: number },
@@ -520,33 +378,8 @@ export function stepTowards(
   return { dx: 0, dy: Math.sign(dy) || 1 };
 }
 
-// ---------------------------------------------------------------------------
-// Joining up what a carve left separate
-// ---------------------------------------------------------------------------
-
-/** Cells sampled from each region when looking for the closest pair to join. */
 const JOIN_SAMPLES = 48;
 
-/**
- * Fill in what is too small to be worth reaching, and join what is left.
- *
- * **Joining is done by opening, not by filling.** A cave that came out as three
- * rooms gets the passages that make it one cave, and a wood whose far side the
- * path cannot reach gets a track to it — rather than either of them losing the
- * part that ended up separate. What is genuinely too small to be worth a
- * corridor is filled back in instead, because a room reached down a long bored
- * passage that turns out to be a 2×2 closet is worse than no room.
- *
- * `home` picks which region the others are joined *to*; by default the largest.
- * A forest passes the one its path runs through, since that is what "reachable"
- * means there.
- *
- * `tooSmall` is what happens to a region below `minRegionCells`. A cave fills
- * them: a hole in solid rock that no passage reaches is a hole nobody will ever
- * know is there, and it costs quads. A forest leaves them, because a hollow in
- * a thicket that you cannot quite get into is a thicket — and planting them
- * over instead is what turns the far half of a dense wood into one solid block.
- */
 export function joinRegions(
   g: CellGrid,
   box: Bounds,
@@ -613,7 +446,6 @@ function closestPair(
   return best;
 }
 
-/** A two-wide L between two cells, turning at a corner picked by the seed. */
 function boreTunnel(
   g: CellGrid,
   box: Bounds,
@@ -637,10 +469,6 @@ function boreLine(
   const stepY = Math.sign(to.y - from.y);
   let { x, y } = from;
   for (let guard = 0; guard <= g.cells.length; guard++) {
-    // The *brush* is clamped into the box, not each of its cells: clamping
-    // cell by cell folds the far column onto the near one at the boundary and
-    // leaves a corridor one cell wide there — which is the one thing every
-    // generator here exists to avoid.
     const bx = Math.min(Math.max(x, box.minX), Math.max(box.minX, box.maxX - 1));
     const by = Math.min(Math.max(y, box.minY), Math.max(box.minY, box.maxY - 1));
     for (let dy = 0; dy <= 1; dy++) {
@@ -654,29 +482,14 @@ function boreLine(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Water
-// ---------------------------------------------------------------------------
-
-/**
- * Share of a water budget spent on basins rather than on streams.
- *
- * Streams are what water underground mostly is — something that runs along the
- * floor of a passage and that you step over — and a floor that is a sixth
- * still water reads as a flooded cave rather than a cave with a stream in it.
- */
 const BASIN_SHARE = 1 / 6;
 
-/** Steps one stream runs for, before it either meets the edge or stops. */
 const STREAM_LENGTH = { min: 5, max: 18 } as const;
 
-/** Chance a stream carries straight on rather than turning at a step. */
 const STREAM_STRAIGHTNESS = 0.72;
 
-/** Radius of one basin, in cells. */
 const BASIN_RADIUS = { min: 1, max: 3 } as const;
 
-/** Tries per stream or basin before the budget is given up on as unspendable. */
 const PLACEMENT_ATTEMPTS = 40;
 
 const STEPS = [
@@ -686,24 +499,6 @@ const STEPS = [
   { dx: -1, dy: 0 },
 ] as const;
 
-/**
- * Where the water goes: several streams and the occasional basin.
- *
- * **Water cuts its own channel.** It is laid over the area rather than over
- * what has already been carved, so a stream that runs into rock takes the rock
- * out — which is how water actually shapes a cave, and what stops the streams
- * reading as puddles that happen to sit in rooms somebody else dug. The caller
- * opens every cell this returns.
- *
- * The brush is 2x2 for the same reason a passage is never one cell wide: a
- * channel one cell across running east-west is drawn over by the wall in front
- * of it, and an invisible stream is not worth cutting. It also means the
- * eroded channel already satisfies {@link widenToTwo} and survives it.
- *
- * Returned as grid indices rather than written into the grid, because water is
- * *on* the floor rather than instead of it — the cell is still carved, still
- * lit and still part of the cave's shape.
- */
 export function planWater(
   g: CellGrid,
   area: Bounds,
@@ -718,8 +513,6 @@ export function planWater(
   if (budget <= 0) return water;
   const basinBudget = Math.round(budget * BASIN_SHARE);
   const random = mulberry32(seed);
-  // Streams start on floor that is already there — a stream has to come from
-  // somewhere — and are free to wander into the rock from it.
   const source = () => floor[Math.floor(random() * floor.length)]!;
   const wet = (x: number, y: number) => {
     if (x < area.minX || x > area.maxX || y < area.minY || y > area.maxY) return;
@@ -759,8 +552,6 @@ export function planWater(
       BASIN_RADIUS.min + Math.floor(random() * (BASIN_RADIUS.max - BASIN_RADIUS.min + 1));
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
-        // Round rather than square: a basin is a pool, and the corners of a
-        // square one are what make a scatter of them read as tiles.
         if (dx * dx + dy * dy > radius * radius) continue;
         wet(centre.x + dx, centre.y + dy);
       }
@@ -770,34 +561,12 @@ export function planWater(
   return water;
 }
 
-/**
- * Take water back out wherever it has cut the floor in two.
- *
- * Water is `walkable: false`, so a stream one cell wide laid across a passage
- * two cells wide is a wall — and the half of the cave behind it is a place
- * nobody can reach. Rather than refuse to put water in narrow places, which
- * leaves streams as dashes rather than as streams, the floor is checked once
- * at the end and the shortest crossing back to each stranded part is dried
- * out. What that leaves on the map is a ford: a stream with stepping stones
- * where the passage needed them.
- *
- * **Done in one sweep rather than one per stranded piece.** A flood from every
- * dry cell at once labels each water cell with the piece of floor nearest it,
- * so wherever two labels meet is a candidate crossing and its length is
- * already known. Taking those cheapest-first and keeping track of what is
- * joined to what leaves the same result as reconnecting one piece at a time,
- * for one pass instead of one per piece — which at a full-size rectangle was
- * twenty-seven floods and most of the cost of planning a cave.
- */
 export function cutFords(g: CellGrid, water: Set<number>): void {
   const dryMask = new Uint8Array(g.cells);
   for (const i of water) dryMask[i] = 0;
   const pieces = regionsOf(g, dryMask);
   if (pieces.length <= 1) return;
 
-  // Flood outward from every piece of dry floor at once. `label` is the piece
-  // a cell was reached from and `from` the step it was reached by, so a water
-  // cell can walk itself back to dry land.
   const label = new Int32Array(g.cells.length).fill(-1);
   const from = new Int32Array(g.cells.length).fill(-1);
   const distance = new Int32Array(g.cells.length);
@@ -830,7 +599,6 @@ export function cutFords(g: CellGrid, water: Set<number>): void {
     if (label[i] === -1) continue;
     const x = gridX(g, i);
     const y = gridY(g, i);
-    // East and south only: every adjacent pair is then seen exactly once.
     for (const { dx, dy } of [
       { dx: 1, dy: 0 },
       { dx: 0, dy: 1 },
@@ -868,37 +636,16 @@ export function cutFords(g: CellGrid, water: Set<number>): void {
   }
 }
 
-/** Take the water off a cell and off every step back to dry land. */
 function dryPathHome(cell: number, from: Int32Array, water: Set<number>): void {
   for (let step = cell; step !== -1 && water.has(step); step = from[step]!) {
     water.delete(step);
   }
 }
 
-// ---------------------------------------------------------------------------
-// Scattered props
-// ---------------------------------------------------------------------------
-
-/**
- * A tile dropped on the floor here and there, and how often.
- *
- * The frequency is per cell rather than a count, so the same settings put the
- * same density of mushrooms in a small cave and a large one.
- */
 export type ScatterRule = { tileId: string; chancePercent: number };
 
-/** How many props one generator may be given. A form, not a spreadsheet. */
 export const MAX_SCATTER_RULES = 4;
 
-/**
- * Where each scattered prop lands.
- *
- * A cell takes at most one: two props in a stack is a pile rather than a
- * scatter, and the earlier rule wins so the list reads top to bottom. Rules
- * whose tile could not stand on the floor at all — taller than the level has
- * room for once the floor is under it — are dropped rather than planned and
- * refused, which is what "where they fit" means here.
- */
 export function planScatter(
   cells: ReadonlyArray<{ x: number; y: number }>,
   rules: readonly ScatterRule[],
@@ -917,8 +664,6 @@ export function planScatter(
   for (const { x, y } of cells) {
     for (let r = 0; r < usable.length; r++) {
       const rule = usable[r]!;
-      // A seed per rule, so raising one prop's frequency does not reshuffle
-      // where the others landed.
       if (randomAt(x, y, seed + r * 0x1000193) * 100 >= rule.chancePercent) {
         continue;
       }

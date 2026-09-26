@@ -28,11 +28,6 @@ describe("the debug panel", () => {
     expect(rows.draws).toContain("248 calls");
   });
 
-  /**
-   * A client that has been sent nothing yet is a real state for the frame or
-   * two after a join, and "+0c" would read as "the subscription is exactly the
-   * view", which is the opposite of what is happening.
-   */
   it("says it is waiting rather than claiming a reach of nothing", () => {
     const rows = panelRows(3, { ...READING, heldReachCells: null });
     expect(rows.held).toContain("waiting");

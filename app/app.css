@@ -1,36 +1,10 @@
 @import "tailwindcss";
 
-/**
- * The in-world pixel font. NF Pixels, by Steve Gigou, under the SIL Open Font
- * License — the licence travels with it in public/fonts.
- *
- * Replaced Silkscreen, which had no real lowercase: its minuscules are drawn at
- * cap height, so a sentence typed into chat came out reading as capitals. NF
- * Pixels has a true lowercase — a 5-pixel x-height under a 7-pixel cap — which
- * is the whole reason for the swap.
- *
- * **It is pixel-exact, and the sizes that keep it so are the multiples of
- * 10px.** Its em is 1000 units on a 100-unit grid: exactly 10 design pixels per
- * em, with every advance width a whole number of them too. Any other size puts
- * block edges on half pixels, which the browser antialiases into grey — the one
- * thing 1-bit type cannot absorb. This is the same constraint Silkscreen had at
- * multiples of 8px, and it is worth holding on to.
- *
- * Subset here to printable ASCII, which takes it to 2kB. The full font covers
- * western European Latin-1, so accents could be had by reaching for a wider
- * subset — chat strips to ASCII today, which is what keeps this file small.
- * One gap worth knowing: the font has no `~`, and `app/net/chat.ts` drops that
- * character for exactly that reason.
- */
 @font-face {
   font-family: "NF Pixels";
   src: url("/fonts/nf-pixels-ascii.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  /* Names and speech are typeset in it, over the game canvas. `block` rather
-     than `swap` because the fallback is a normal face at the wrong metrics: a
-     label that arrives a moment late reads as loading, while one that arrives
-     wrong and reflows reads as broken. */
   font-display: block;
 }
 
@@ -42,46 +16,14 @@
   --color-muted: #7a7568;
   --color-accent: #2d6a4f;
   --color-danger: #9b2226;
-  /* The same meaning as `danger`, on `ink` rather than on paper. `danger` is
-     about 2:1 against `ink`, too dark to read as text there; this is about
-     6:1. The doors are the dark surface that needs it — see `DoorError`. */
   --color-danger-on-ink: #ff6b6b;
-  /* Acting on a thing. The same yellow the outline in the world wears when the
-     pointer is over something you could act on — see `HOVER_COLOR` in
-     `render/GameRenderer.ts`, which must be this value. A row and the cursor are
-     two ways of pointing at one thing, so a state named in the list and the same
-     state drawn in the world cannot be two different colours.
-
-     It is one of four, and the four are the whole vocabulary: yellow acts on
-     something, red fights it, white singles it out, blue looks at it. */
   --color-interact: #ffcc00;
-  /* Taking something you can only ever take once. The same purple the outline
-     in the world wears over a reward — see `REWARD_COLOR` in
-     `render/GameRenderer.ts`, which must be this value.
-
-     A fifth colour, and it earns its place by naming a different *kind* of
-     thing rather than another way of acting. Yellow, red, white and blue all
-     say what you would be doing; this one says the offer is finite. A chest you
-     can open for ever and a chest you can open once are the same tap and the
-     same verb, and the only honest place to put the difference is the colour. */
   --color-reward: #b15cff;
-  /* Looking. The same blue as the outline in the world and the label above it,
-     so the button, the silhouette and the text are visibly one mode. */
   --color-look: #3fa9ff;
   --color-border: #1a1a1a;
   --shadow-hard: 2px 2px 0 0 #1a1a1a;
 }
 
-/**
- * A pull being made, filling left to right.
- *
- * A keyframe rather than a width the page rewrites each frame, and that is the
- * whole reason a row with a pull on it costs nothing: the element is given the
- * *whole* duration and a negative delay equal to however much of it has already
- * gone, so the browser runs it on the compositor from exactly the right point
- * and React never hears about it again. Nothing on the wire, no per-frame
- * state, and no re-render between a pull starting and its ending.
- */
 @keyframes fill-progress {
   from {
     transform: scaleX(0);
@@ -92,9 +34,6 @@
 }
 
 @layer utilities {
-  /* Anchored left so the fill grows from the leading edge rather than the
-     middle, which is what `scaleX` does by default. Transform rather than
-     width, so the whole thing stays off the layout. */
   .fill-progress {
     transform-origin: left;
     animation-name: fill-progress;
@@ -102,59 +41,16 @@
     animation-fill-mode: forwards;
   }
 
-  /* How much longer is information, not decoration — somebody who has asked
-     for less motion still needs to know when the pull lands. So the fill is not
-     removed, only stepped: it jumps rather than slides. */
   @media (prefers-reduced-motion: reduce) {
     .fill-progress {
       animation-timing-function: steps(8, end);
     }
   }
 
-  /**
-   * A scrolling surface that runs to the bottom of the screen, under the
-   * browser's toolbar, and can be scrolled out from under it.
-   *
-   * `AppShell` leaves the bottom safe-area inset to the game rather than taking
-   * it itself, so the reading column beside the arrows ends at the physical
-   * bottom edge instead of above the toolbar. That is the room this buys — on a
-   * phone with a home indicator it is the inset plus the gap the row used to
-   * keep, and it goes to the one thing on that half of the screen that can use
-   * more of it.
-   *
-   * The padding is what keeps the trade honest: the last rows would otherwise
-   * sit permanently behind the toolbar, and this makes that band scrollable
-   * space instead. **Padding rather than `scroll-padding`** — the latter moves
-   * where a programmatic scroll comes to rest and adds no room at all, so a row
-   * at the very bottom would stay under the toolbar however you asked to be
-   * taken to it. Room was the thing missing.
-   *
-   * Inert anywhere with no inset to speak of, which is every desktop and the
-   * column this same list is drawn in there.
-   */
   .scrolls-past-toolbar {
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /**
-   * A scrolling box inside the game's chrome, with a scrollbar you can see.
-   *
-   * **The point is that it takes space.** A browser drawing overlay scrollbars
-   * shows nothing at all until the pointer is already moving over the box, so a
-   * capped panel whose cut lands between two rows reads as a panel that simply
-   * ends — and six masteries below the fold are six a player never learns they
-   * have. Naming a `scrollbar-color` is what opts a Chromium scroller out of
-   * overlay scrollbars, so the declaration is load-bearing rather than
-   * decoration.
-   *
-   * `stable` holds the gutter open whether or not there is anything to scroll,
-   * so a panel does not shuffle its right-aligned figures sideways the moment a
-   * status lands and pushes it past its cap.
-   *
-   * Muted rather than paper: it is the edge of a box and not a reading, and the
-   * game's panels are light-on-dark, where a full-strength thumb reads as a
-   * second column of content.
-   */
   .scrolls-in-chrome {
     scrollbar-width: thin;
     scrollbar-color: var(--color-muted) transparent;
@@ -174,34 +70,11 @@
   border-radius: 0 !important;
 }
 
-/**
- * The exceptions to the corner above, and there are three of them.
- *
- * The rule is a house style — everything in this interface is a hard rectangle —
- * and it is stated with `!important` because it has to beat a component library
- * rounding its own widgets. Which means anything that genuinely is round has to
- * say so at the same weight, exactly as the slider's thumb below does.
- *
- * The direction pad is round because it is a stick, not four keys. It was drawn
- * as four squares, and people tapped the squares one at a time — the picture was
- * of four buttons, however the pointer was actually read underneath. A disc with
- * a knob in it is a picture of the thing it really is. See `./components/
- * DirectionPad.tsx`, which is the only thing that may use these.
- */
 .pad-disc,
 .pad-knob {
   border-radius: 9999px !important;
 }
 
-/**
- * A spell button, on the same terms.
- *
- * The countdown is an arc around the button's rim, and an arc wants a rim to run
- * along: on a rectangle it either leaves the corners empty or stops being a
- * circle, and neither reads as a clock. The stone is round in the hand as well,
- * so the button and the thing it presses are the same shape. See
- * `./components/SpellBar.tsx`, which is the only thing that may use this.
- */
 .spell-disc {
   border-radius: 9999px !important;
 }
@@ -218,20 +91,6 @@ body {
   margin: 0;
 }
 
-/**
- * Form controls take the page font. Left alone, a `<button>` or `<input>` gets
- * the browser's own 13.33px system face, which is not the face anything else
- * on the page is set in.
- *
- * This lives in `@layer base` and has to. Tailwind v4 emits its utilities in
- * `@layer utilities`, and an unlayered rule wins over every layered one no
- * matter the specificity. Declared outside a layer, this reset beat `text-xs`,
- * `font-medium` and `font-mono` on every button, input, select and textarea in
- * the app: a `<button class="font-bold text-xs">` computed to 16px / 400, and
- * `Button`'s size variants differed only in padding. In `base` the reset still
- * wins over the browser's stylesheet and loses to utilities, which is the
- * order a default is supposed to sit in.
- */
 @layer base {
   button,
   input,
@@ -241,58 +100,16 @@ body {
   }
 }
 
-/* Nearest-neighbor for pixel art canvases / imgs */
 .pixelated {
   image-rendering: -moz-crisp-edges;
   image-rendering: pixelated;
 }
 
-/**
- * In-world text: names over heads, what people say, and what you are looking at.
- *
- * Everything about *size* lives here and nowhere else, because the whole point
- * is that it does not scale with the canvas — the view zooms in whole steps as
- * the window grows and this text does not move with it.
- *
- * Everything about *position* lives in `app/render/labelLayout.ts` and nowhere
- * else, for the opposite reason: where a label goes depends on where the others
- * went, and a stylesheet cannot see a crowd. It writes each label's top left
- * corner into `--label-x` / `--label-y` in CSS pixels, already measured and
- * already resolved against every other label on screen. Nothing here may shift
- * a label again — a second opinion about position is exactly the overlap that
- * pass exists to prevent.
- *
- * One thing in here is not in the world at all: `.notice-stack`, pinned to the
- * bottom edge and addressed to the player rather than to a cell. It is here for
- * the font, the brick and the outline, which are declared on this layer and
- * nowhere else.
- */
 .world-label-layer {
-  /* 20px, which must stay a multiple of 10 — see the @font-face note. Two CSS
-     pixels per font pixel, and 20 specifically because it puts the x-height at
-     10 CSS pixels: exactly the height Silkscreen's letters were at 16px, so
-     swapping the font did not resize the world's chrome. Capitals are taller
-     than they used to be, which is what having a real lowercase to be taller
-     than buys. 10px is legible but thin next to art drawn at 5x; 30px shouts.
-
-     Declared on the layer rather than on the label so everything in world space
-     is one size — the damage numbers share it, and "the same font as the rest of
-     the world" has to mean the same size to be true. */
   --world-label-size: 20px;
-  /* EarthBound's dialogue yellow. Shared by the name tag and by noises, so the
-     two cannot drift apart into two nearly-identical yellows. */
   --label-yellow: #ffd23f;
-  /* Exactly one of the font's own pixels, since the em is 10 of them. */
   --world-label-brick: calc(var(--world-label-size) / 10);
-  /* Carried on the layer as well as on each label, so a brick can be read back
-     out of a computed font size — `./render/textLabels` sizes a health bar to a
-     cell and needs the brick as a real length, which a custom property holding
-     a `calc` is not. Every child sets the same size explicitly, so this changes
-     nothing about what is drawn. */
   font-size: var(--world-label-size);
-  /* The four offsets the outline is built from, one and two bricks either way.
-     Named short because they are about to be written out two dozen times — see
-     `.world-label` for the shape they make and why it takes that many. */
   --o1: var(--world-label-brick);
   --o2: calc(var(--world-label-brick) * 2);
   --o1n: calc(var(--world-label-brick) * -1);
@@ -300,78 +117,28 @@ body {
 
   position: absolute;
   inset: 0;
-  /* Clicks belong to the canvas underneath: a label must never eat the pointer
-     that was aiming at the object it is standing on. */
   pointer-events: none;
-  /* A label near the edge is cut off by the view rather than escaping it. */
   overflow: hidden;
 }
 
 .world-label {
-  /* Anchored at the layer's origin and moved entirely by the transform below.
-     Not `left`/`top`: an absolutely positioned box only gets
-     `containingBlockWidth - left` to lay out in, so positioning that way made a
-     label wrap according to how near the right edge it was rather than to its
-     own max-width. A transform does not affect layout, so every label lays out
-     against the full width wherever it ends up. */
   position: absolute;
   left: 0;
   top: 0;
-  /* A column of lines flowing downward, so the last one rests nearest the
-     ground and everything earlier is pushed up by exactly the height of what
-     came after it — wrapped or not. This is what makes several messages at one
-     cell stack inside a single label; keeping labels apart from *each other* is
-     the layout pass's job, not this one's. */
   display: flex;
   flex-direction: column;
   align-items: center;
   font-family: "NF Pixels", monospace;
   font-size: var(--world-label-size);
-  /* 1.2, because the font's own line box is 12 of its pixels — 10 above the
-     baseline and 2 below. A wrapped bubble's lines therefore sit a whole number
-     of font pixels apart instead of drifting off the grid down the paragraph. */
   line-height: 1.2;
   white-space: pre-wrap;
   text-align: center;
-  /* Long enough for a sentence, short enough that it cannot wall off the view.
-     Relative to the square, so it holds at every window size. */
   max-width: 60%;
-  /* A pasted 128-character word has to break somewhere. */
   overflow-wrap: break-word;
-  /* The corner the layout pass chose. No percentage nudges: the pass measured
-     this box and placed it as a box, so centring it on the anchor and hanging
-     it above are decisions it has already made. */
   transform: translate(var(--label-x, 0px), var(--label-y, 0px));
-  /* Above a name tag wherever the two meet, which they are allowed to. */
   z-index: 1;
 }
 
-/**
- * The outline. One brick by default, two for the things that have to interrupt.
- *
- * `text-shadow` does not grow a region, it *copies the glyph*: a copy pushed two
- * bricks out lands two bricks out and covers nothing on the way. So an outline
- * is not a stroke of a given width, it is the union of a set of translations,
- * and the set has to be every offset the outline is meant to occupy — the whole
- * square, corners included, not a ring at each distance.
- *
- * **One brick is the 3×3 square, two bricks is the 5×5, and the second is
- * exactly the first applied twice.** Growing a shape by a 3×3 and then growing
- * the result by another 3×3 gives a 5×5 in one go: dilation is associative and
- * the sum of two squares is a square. Chaining `text-shadow` is impossible and
- * unnecessary — the second pass has a closed form, and it is the list below.
- *
- * Getting that set wrong is what made ascenders and descenders spike. With the
- * outer diagonals left out — 12 offsets instead of 24 — the outline above a
- * one-brick stem was three bricks wide at one brick's distance and *one* brick
- * wide at two, so every `y` tail and `m` shoulder tapered to a point instead of
- * ending in a flat cap.
- *
- * A third brick would be a 7×7 square, 48 entries. At that point it wants
- * generating rather than typing — or a chain of four `drop-shadow` filters per
- * brick, which does compose, at the cost of putting every child of the label
- * through the filter too.
- */
 .world-label,
 .notice {
   text-shadow:
@@ -385,27 +152,6 @@ body {
     var(--o1) var(--o1) 0 #000;
 }
 
-/**
- * Two bricks, for the two that are saying something new somewhere new.
- *
- * A name and a look label are always there — a name over every battler on
- * screen, a look label under the pointer for as long as it rests. Weight spent
- * on those is weight spent on the whole screen at once, and the world stops
- * reading as art with text over it and starts reading as text with art behind
- * it. Speech and damage are the opposite: they arrive, they matter for a second
- * or five, and they have to win against whatever colour they happen to land on.
- *
- * A notice is *not* one of them, though it arrives the same way, and the reason
- * is that it always lands in the same place. Speech and damage appear over
- * whatever the world happens to be doing at that cell, so the outline is what
- * buys them a background; a notice sits at the foot of the view, where the eye
- * already knows to look and the art is furthest from the centre of the frame.
- * Two bricks there is weight spent on a fight already won, and it thickens a
- * whole sentence rather than two digits.
- *
- * Must stay after `.world-label` — same specificity, so it is source order that
- * decides, and this replaces the property rather than adding to it.
- */
 .world-label--speech,
 .world-label--noise,
 .damage-number {
@@ -436,99 +182,31 @@ body {
     var(--o2) var(--o2) 0 #000;
 }
 
-/* EarthBound's dialogue yellow, near enough. A tag, not a voice — which is why
-   it is the one label allowed to be covered, and so the one drawn underneath:
-   a sentence over a name has to read as a sentence, not as a collision. */
 .world-label--name {
   color: var(--label-yellow);
   z-index: 0;
 }
 
-/*
- * A noise, in the same yellow and with speech's heavy outline.
- *
- * Yellow rather than a colour of its own, and shared with the name tag rather
- * than a second hex that happens to match: the palette here is small on purpose,
- * and a noise is world chrome in the way a tag is rather than something a person
- * chose to say. What tells the two apart is not hue — it is that a tag sits
- * under a body and stays, while a noise lands where it happened and is gone in
- * two seconds.
- *
- * The two-brick outline it inherits above is doing the real work: a noise has to
- * win against whatever it lands on, exactly as speech and damage do, because it
- * arrives unannounced and is read at a glance or not at all.
- */
 .world-label--noise {
   color: var(--label-yellow);
 }
 
-/*
- * A health bar, sitting in the name label's own column.
- *
- * Being an element rather than a quad in the scene is the whole point: the world
- * is drawn at whole world pixels, five or six screen pixels each at play zoom,
- * so a bar built there has a border five pixels thick and a fill that steps in
- * huge jumps. Here it is measured in the same screen pixels the text is, which
- * buys a real hairline border and a fill that moves smoothly — twice the
- * resolution of the art it hangs over, exactly as the type is.
- *
- * Sized in ems so it tracks `--world-label-size`: the bar and the name it sits
- * under are one piece of chrome and have to stay in proportion when that moves.
- * And because it is a sibling of the name inside one flex column, no amount of
- * shifting the group can ever bring the two together.
- */
 .world-label__bar {
-  /* Every dimension is a whole font brick, so the bar is drawn on exactly the
-     grid the letters are. Anything finer — a hairline border, a fill sliding by
-     fractions of a pixel — is a resolution the type beside it cannot match, and
-     reads as a widget from another program pasted over the game. It shows worst
-     on a small screen, where the world is zoomed out and the text is at its
-     coarsest while the bar stays razor sharp.
-
-     Width is written by `./render/textLabels` rather than here, because it is
-     not a constant: a track is exactly one cell wide, rounded down to whole
-     bricks, so that two creatures standing side by side have two bars that
-     cannot touch — see `healthBarTrackBricks`. */
-  /* Content-box, against Tailwind's global border-box, and it is load-bearing:
-     these lengths count *fill* bricks, which is what the width written from
-     `healthBarTrackBricks` means — that function has already taken the border
-     below off a cell. Under border-box the height would be the whole box, both
-     borders would eat it, and the fill would be left with next to nothing — a
-     bar that renders as a solid black sliver whatever the health. */
   box-sizing: content-box;
-  /* Height comes from `./render/textLabels` with the width, and for the same
-     reason: a track is a cell long, and how thick that should be depends on how
-     long it turned out — see `healthBarFillHeightBricks`. Fixed at four bricks
-     it read as a gauge on a monitor and very nearly as a square on a phone. */
-  /* One brick a side, and `TRACK_BORDER_BRICKS` in `./render/healthBar` is the
-     same number: the track is fitted to a cell with this counted in. */
   border: var(--world-label-brick) solid #000;
   background: #1a1014;
-  /* The fill starts at the left edge and grows right, like every health bar. */
   display: flex;
-  /* Bars are chrome, not type: keep the line box from adding leading under it. */
   line-height: 0;
   margin-top: var(--world-label-brick);
-  /* Horizontally, the bar is not part of the column at all: the layout pass
-     puts it on the battler's own head and hands the distance from the group's
-     corner down as `--bar-x`, so a long name sliding away from the edge of the
-     view no longer drags the reading with it. Starting at that corner rather
-     than centred in the column is what keeps the offset a whole number of
-     pixels — half a pixel is the browser antialiasing a 1-bit border. */
   align-self: start;
   transform: translateX(var(--bar-x, 0px));
 }
 
 .world-label__bar > div {
   height: 100%;
-  /* Width and colour are written per frame from the health reading, in bricks. */
   width: 100%;
 }
 
-/* A pull or a cast in progress. The same track as the health bar, but over the
-   name rather than under it, so its brick of space goes below it instead of
-   above — see `fill` in `./render/textLabels`, where the row order is argued.
-   White, and never tinted: it says the body is busy, not how the body is. */
 .world-label__bar--progress {
   margin-top: 0;
   margin-bottom: var(--world-label-brick);
@@ -542,26 +220,10 @@ body {
   color: var(--color-paper);
 }
 
-/* What you are pointing at, and what it says. Blue because that is the colour
-   of the outline drawn round the same object — one mode, one colour. */
 .world-label--look {
   color: #9ad8ff;
 }
 
-/*
- * Damage, rising off whoever took it.
- *
- * Deliberately not a `.world-label`: it borrows the font and the outline, and
- * nothing else. A label is placed by the layout pass, which measures it, keeps
- * it clear of its neighbours and hides it when the view is crowded — every one
- * of which would be wrong here. A number has to appear where the blow landed and
- * stay there, so its position comes straight from its own anchor.
- *
- * One size, whatever the figure. A number that scaled with the damage would make
- * a big hit occupy more of the screen than a small one, which is a second thing
- * to read on top of the digits already saying it. Centred on the anchor for the
- * same reason, so 1 and 100 rise up the same line.
- */
 .damage-number {
   position: absolute;
   left: 0;
@@ -570,59 +232,22 @@ body {
   font-size: var(--world-label-size);
   line-height: 1.2;
   color: #fff;
-  /* Centred horizontally on the anchor. The -50% is this element's own doing
-     rather than a layout pass's, because unlike a label nobody measured it. */
   transform: translate(var(--label-x, 0px), var(--label-y, 0px)) translateX(-50%);
-  /* Over the bubbles: a number is the newest thing that happened. */
   z-index: 2;
 }
 
-/* Damage the viewer took, as opposed to damage they dealt. The one distinction
-   worth a colour: everything hurting *you* is the thing you cannot afford to
-   miss while reading the numbers coming off your target. */
 .damage-number--own {
   color: #ff4d4d;
 }
 
-/* A swing that came to nothing — "miss" or "dodge".
-
-   Grey rather than white, and grey whoever it happened to: the red above marks
-   hit points you cannot afford to miss, and a blow that took none is the one
-   thing in this layer with nothing at stake. It stays in the same layer, font
-   and rise as the numbers so the three read as one language, and it deliberately
-   does not outrank `--own` — a dodge of your own is still nothing happening.
-
-   A placeholder for an animation, and honest about it: a whiff wants a swing
-   that visibly goes wide, which is art rather than a word. Until then the word
-   is what makes the mastery penalty legible at all. */
 .damage-number--nothing {
   color: #9a9a9a;
 }
 
-/* Health that actually went back in — a mend, a bandage, a charm's tick, a `fed`
-   status doing its work.
-
-   Light rather than saturated, and green because green is the one hue in this
-   layer nothing else claims: white is somebody else's damage, red is your own,
-   grey is nothing happening. It is deliberately *not* split into own and other
-   the way damage is — red exists because your own hit points are the thing you
-   cannot afford to miss while reading the traffic, and there is no equivalent
-   fear about being healed.
-
-   The sign carries the meaning where the colour cannot: `textFor` writes `+5`,
-   so a reader who cannot separate green from white still knows which way the bar
-   went. Never floated at all unless something was actually restored, so a full
-   health bar is silent. */
 .damage-number--mend {
   color: #7fe08a;
 }
 
-/* The dotted line from a caster to whoever their spell will land on — see
-   `./render/castLines`. Under every label, so a name reads over a line crossing
-   it: the SVG is the layer's first child and every label is later in the tree.
-
-   `--cast-line-px` is one world pixel in CSS pixels, written by the layer when
-   the zoom changes, so a dot is a pixel of the world at every scale. */
 .cast-line-layer {
   position: absolute;
   inset: 0;
@@ -630,12 +255,9 @@ body {
   height: 100%;
   overflow: visible;
   z-index: 0;
-  /* A one-pixel black edge underneath, so a white line reads on snow. */
   filter: drop-shadow(0 var(--cast-line-px, 2px) 0 #000);
 }
 
-/* A dot one world pixel long, then a gap two long, marching from caster to
-   target: a negative offset moves the pattern towards the line's end. */
 .cast-line {
   stroke: #fff;
   stroke-width: var(--cast-line-px, 2px);
@@ -643,13 +265,10 @@ body {
   animation: cast-line-march 300ms linear infinite;
 }
 
-/* Aimed at the viewer, in the red a blow you took is floated in. */
 .cast-line--at-you {
   stroke: #ff4d4d;
 }
 
-/* The viewer's own attack, at half strength: it is up for the whole fight, and
-   a spell line at full strength only lasts one cast. */
 .cast-line--attack {
   stroke-opacity: 0.5;
 }
@@ -663,82 +282,35 @@ body {
   }
 }
 
-/* The ends and the colour say who is casting at whom; the march only repeats
-   it, so it is the part that goes. */
 @media (prefers-reduced-motion: reduce) {
   .cast-line {
     animation: none;
   }
 }
 
-/**
- * What the game has just told you, stacked at the foot of the view.
- *
- * The one thing in this layer that is not in the world: a name is over a
- * creature and a number is over a blow, and this is addressed to the person
- * holding the keyboard. So it takes nothing from the camera — no anchor, no
- * `--label-x`, no layout pass — and sits against the bottom edge of the square
- * wherever that square happens to be.
- *
- * It lives in the world layer regardless, and that is deliberate rather than
- * convenient: it is drawn in the same 1-bit font, at the same size, with the
- * same outline as everything else the game says out loud, and those are all
- * declared once on the layer. A container of its own would be a second place
- * for the brick to be defined and a second thing to forget when it moves.
- *
- * See `app/render/notifications.ts` for how many there are and how long they
- * stay.
- */
 .notice-stack {
   position: absolute;
-  /* Full width so the column can centre against the square rather than against
-     its own contents — a one-word notice and a full sentence then share a
-     centre line, and a new line arriving does not shift the one above it
-     sideways. */
   left: 0;
   right: 0;
-  /* Two of the font's own pixels clear of the edge. Off the very bottom because
-     the layer clips, and a descender flush against the boundary reads as text
-     that has been cut rather than text that has been placed. */
   bottom: calc(var(--world-label-brick) * 2);
   display: flex;
-  /* Downwards, so the newest sits nearest the bottom edge and an older line is
-     pushed up by exactly its own height — wrapped or not, measured by nobody.
-     The same trick a multi-line label plays, and for the same reason: the thing
-     that just happened is always in the same place. */
   flex-direction: column;
   align-items: center;
   gap: var(--world-label-brick);
-  /* A notice must never eat a click aimed at the world underneath it. Inherited
-     from the layer already; stated because this is the element a future
-     dismissable notice would have to change. */
   pointer-events: none;
 }
 
 .notice {
   font-family: "NF Pixels", monospace;
   font-size: var(--world-label-size);
-  /* 1.2, matching every other block of this font — see `.world-label`. */
   line-height: 1.2;
-  /* White, like a damage number that happened to somebody else: the neutral end
-     of this layer's palette. The vocabulary in the world is spoken for — yellow
-     is a tag, red is your own hit points, blue is looking — and a notice is
-     none of those. When the refusals arrive they can take a colour of their own
-     off this. */
   color: #fff;
   text-align: center;
-  /* Wider than a label's 60%, because this one is not standing on anything it
-     could obscure, and narrower than the square so a long sentence wraps to a
-     shape rather than running the full width. */
   max-width: 80%;
   overflow-wrap: break-word;
-  /* Over the numbers, which are themselves over the bubbles. Whatever the world
-     is doing, the sentence addressed to the player is the thing that must be
-     readable. */
   z-index: 3;
 }
 
-/* Hard-edged checkbox — matches Input / Segmented chrome */
 .hard-checkbox {
   -webkit-appearance: none;
   appearance: none;
@@ -768,7 +340,6 @@ body {
   opacity: 0.5;
 }
 
-/* Hard-edged range control — matches Input / Segmented chrome */
 .hard-slider {
   -webkit-appearance: none;
   appearance: none;

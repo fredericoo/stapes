@@ -37,19 +37,6 @@ import {
 } from "./equipment";
 import { tile } from "../lib/testTile";
 
-/**
- * Which stones can be cast, and why not the rest.
- *
- * The module four callers depend on agreeing with itself — two on the client,
- * one on the server, and these — so every reason a cast can be refused gets a
- * case and each effect gets a happy path. Pure throughout: a map, a catalogue, a
- * kit and two positions, exactly as the move-rule and affordance suites are.
- *
- * The content cases at the bottom assert against the *authored* world rather
- * than against a fixture, on the terms the equipment suite's "what we ship"
- * cases do: a design quietly ceasing to be true should fail here.
- */
-
 function stoneTile(id: string, item: Record<string, unknown>): TileDef {
   return tile({
     id,
@@ -60,7 +47,6 @@ function stoneTile(id: string, item: Record<string, unknown>): TileDef {
   });
 }
 
-/** The passive half of what an automatic stone used to be. @see CharmItem */
 function charmTile(id: string, item: Record<string, unknown>): TileDef {
   return tile({
     id,
@@ -75,8 +61,6 @@ const NEAR_REACH = { cells: 3, height: 2 };
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
-  // Tall and opaque, so a stone thrown through it fails the same way a shot
-  // does — the line is what a wall costs.
   tile({ id: "wall", height: 4, lightPassing: false }),
   stoneTile("mend-stone", {
     effect: { kind: "bolt", damage: -10, on: "caster" },
@@ -87,9 +71,6 @@ const tiles: TileDef[] = [
       kind: "bolt",
       damage: 10,
       on: "target",
-      // An id into the projectile catalogue, which is what the block has taken
-      // since the flight stopped being written out per stone. @see
-      // `../lib/item`'s `StoneEffect`
       projectile: "arrow",
     },
     cooldownMs: 20_000,
@@ -123,7 +104,6 @@ const tiles: TileDef[] = [
     requirements: { arcane: 10 },
   }),
   charmTile("life-charm", { everyMs: 10_000, hp: 5 }),
-  // Both halves at once, which is what a charm's two optional fields are for.
   charmTile("balm-charm", {
     everyMs: 10_000,
     hp: 5,
@@ -150,13 +130,8 @@ const tiles: TileDef[] = [
     interactions: { item: { type: "armor", slot: "head", def: 2 } },
   }),
   tile({ id: "fire", intangible: true, lightPassing: true }),
-  // What does the stepping for a conjure with nobody targeted. @see CasterPoint
   tile({ id: "body", height: 2 }),
-  // Somebody standing in the cell in front: a brain is what makes a placement a
-  // body rather than scenery. @see resolveActor
   tile({ id: "rat", height: 2, interactions: { brain: { kind: "wander" } } }),
-  // The two shapes a height check alone said had room: a floor nobody can
-  // stand on, and something low and solid that a flame used to be stacked on.
   tile({ id: "water", walkable: false }),
   tile({ id: "bush", height: 2, walkable: false }),
 ];
@@ -172,7 +147,6 @@ function instance(tileId: string, cooldownMs?: number): ItemInstance {
   };
 }
 
-/** Two clear cells, `apart` cells along the x axis, with nothing between them. */
 function open(apart: number): MapFile {
   let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
   for (let x = 1; x <= apart; x++) {
@@ -181,7 +155,6 @@ function open(apart: number): MapFile {
   return map;
 }
 
-/** Standing on the grass at the origin, facing along the strip. */
 const HERE: CasterPoint = {
   x: 0,
   y: 0,
@@ -199,7 +172,6 @@ const point = (x: number): CastPoint => ({
   stackIndex: 1,
 });
 
-/** The strip, with whatever this is standing on the cell in front of the caster. */
 function inFront(tileId: string): MapFile {
   return replaceStack(open(6), 1, 0, 0, [{ tileId: "grass" }, { tileId }]);
 }
@@ -227,11 +199,6 @@ describe("why a stone cannot be cast", () => {
     });
   });
 
-  /**
-   * A hand holding a sword is not a hand holding a spell. The refusal is the
-   * same one an empty square gets, because to a caster they are the same thing:
-   * there is no stone there.
-   */
   it("refuses a square holding something that is not a stone", () => {
     expect(castability(context({ weapon: instance("sword") }), squareSlot("weapon"))).toEqual({
       ok: false,
@@ -239,13 +206,6 @@ describe("why a stone cannot be cast", () => {
     });
   });
 
-  /**
-   * A body mid-cast has its hands full, and the refusal is about the *body*
-   * rather than the square — so the stone in the other hand is refused too, and
-   * the whole row dims and comes back together. The square the cast came out of
-   * is refused in its own word, because it is the one button a caster can still
-   * do something with: pressing it again stops the cast.
-   */
   it("refuses every square while a cast is running, naming the one it came from", () => {
     const casting = context(
       { weapon: instance("mend-stone"), offhand: instance("ward-stone") },
@@ -268,11 +228,6 @@ describe("why a stone cannot be cast", () => {
     ).toEqual({ ok: false, reason: "cooling" });
   });
 
-  /**
-   * **Cooling beats every other reason**, and deliberately: it is the fact that
-   * will still be true when the player has walked closer, so it is the one worth
-   * telling them.
-   */
   it("says cooling over out of range when both are true", () => {
     const state = context({ weapon: instance("curse-stone", 4_000) }, { target: point(6) });
     expect(castability(state, squareSlot("weapon"))).toEqual({
@@ -299,13 +254,6 @@ describe("why a stone cannot be cast", () => {
     ).toEqual({ ok: true });
   });
 
-  /**
-   * A spell that asks for nothing is castable by a body that has learnt
-   * nothing, and that is not a degenerate case — it is what a creature's own
-   * special move is. Asking nothing is not the same as asking zero of
-   * everything; it means there is no gate here at all, so nothing about the
-   * caster can close it. @see `../lib/mastery`'s `meetsRequirements`
-   */
   it("allows one that asks for nothing, of a caster who has nothing", () => {
     expect(
       castability(
@@ -321,11 +269,6 @@ describe("why a stone cannot be cast", () => {
     );
   });
 
-  /**
-   * Two players who have not both opted into fighting. Refused here rather than
-   * where the bolt lands, so the button says so and no cooldown is spent on a
-   * cast that could do nothing. @see `./pvp`
-   */
   it("refuses a bolt that takes health at somebody it may not harm", () => {
     const state = context(
       { weapon: instance("bolt-stone") },
@@ -353,11 +296,6 @@ describe("why a stone cannot be cast", () => {
     expect(castability(state, squareSlot("weapon"))).toEqual({ ok: true });
   });
 
-  /**
-   * Only the damage is read here. A spell whose whole effect is a curse is
-   * stopped where every other bad status is — on the way onto the body — so the
-   * button stays lit and the press is honest about having been made.
-   */
   it("allows a bolt that takes no health, curse or no curse", () => {
     const state = context(
       { weapon: instance("curse-stone") },
@@ -374,11 +312,6 @@ describe("why a stone cannot be cast", () => {
     });
   });
 
-  /**
-   * The same rule a bow is under: most of what an archer can see is not, at this
-   * instant, something they can hit. A spell out of range fails the way a swing
-   * does, wall included.
-   */
   it("refuses a target in reach with a wall in the way", () => {
     let map = open(4);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
@@ -396,11 +329,6 @@ describe("why a stone cannot be cast", () => {
 });
 
 describe("a stone that acts on its caster", () => {
-  /**
-   * Story 18 and story 20 in one case: a mend works with nothing targeted, and
-   * works the same with something targeted a mile away. A self spell never
-   * misfires at an enemy because it never looks at one.
-   */
   it("works with no target and ignores one entirely", () => {
     const alone = context({ weapon: instance("mend-stone") });
     expect(castability(alone, squareSlot("weapon"))).toEqual({ ok: true });
@@ -417,10 +345,6 @@ describe("a stone that acts on its caster", () => {
 });
 
 describe("a conjuring stone", () => {
-  /**
-   * The one case where "nobody targeted" is not a refusal: the tile lands on the
-   * cell the caster is facing, so a flame can be laid in a doorway.
-   */
   it("can be cast with nothing targeted", () => {
     expect(castability(context({ weapon: instance("flame-stone") }), squareSlot("weapon"))).toEqual(
       { ok: true },
@@ -446,12 +370,6 @@ describe("a conjuring stone", () => {
     expect(conjureLanding(west, "fire")).toEqual({ at: { x: 2, y: 0, z: 0 } });
   });
 
-  /**
-   * The same rule as a target's, and the case that was missing it: `canWalk`
-   * says yes to a cell somebody is standing in, so an untargeted flame went on
-   * top of the rat in front of you — which is a flame nothing is standing in,
-   * and one that goes away the moment the rat takes a step.
-   */
   it("lands beneath whoever is standing in the cell it faces", () => {
     const state = context({}, { map: inFront("rat") });
     expect(conjureLanding(state, "fire")).toEqual({
@@ -468,12 +386,6 @@ describe("a conjuring stone", () => {
     });
   });
 
-  /**
-   * A conjure that cannot land is refused rather than cast, so it costs no
-   * cooldown. The three shapes are the three that were reported: a flame that
-   * vanished into a wall, one stacked on top of a bush, and one floating on
-   * water. What they share is that nobody could step there.
-   */
   it.each(["wall", "bush", "water"])("refuses to conjure where a %s is in front", (tileId) => {
     const state = context(
       { weapon: instance("flame-stone") },
@@ -486,22 +398,11 @@ describe("a conjuring stone", () => {
   });
 });
 
-/** The strip, with the cell in front of the caster a pond rather than a lawn. */
 function waterInFront(): MapFile {
   return replaceStack(open(6), 1, 0, 0, [{ tileId: "water" }]);
 }
 
 describe("the charm square", () => {
-  /**
-   * **The square has no say in what a stone reaches.** The charm used to be
-   * refused a target outright, and the cost of that rule was that a stone
-   * authored `on: "target"` did not fail there — it silently landed on its
-   * wearer, so moving an attack stone onto the charm turned it into self-harm
-   * behind a fully lit button.
-   *
-   * So the same stone answers the same in both squares, and the two cases are
-   * asserted together because the claim is that they cannot differ.
-   */
   it("asks for a target exactly as a hand does", () => {
     const nobodyTargeted = context({
       charm: instance("curse-stone"),
@@ -517,7 +418,6 @@ describe("the charm square", () => {
     });
   });
 
-  /** And is held to the same reach, with the same wall in the way. */
   it("is held to the stone's reach exactly as a hand is", () => {
     const near = context(
       { charm: instance("curse-stone"), weapon: instance("curse-stone") },
@@ -540,11 +440,6 @@ describe("the charm square", () => {
     });
   });
 
-  /**
-   * What still separates the squares, and it is a price rather than a reach: a
-   * stone in a hand is a swing you gave up, and only the charm takes the kind of
-   * thing that acts without being asked.
-   */
   it("is the only square that takes a charm", () => {
     expect(wornAccepts("charm", tilesById["life-charm"]!)).toBe(true);
     expect(handAccepts(tilesById["life-charm"]!)).toBe(false);
@@ -554,7 +449,6 @@ describe("the charm square", () => {
     }
   });
 
-  /** And a stone is welcome in a hand now that nothing acts on its own. */
   it("takes a stone that either hand would also take", () => {
     expect(wornAccepts("charm", tilesById["mend-stone"]!)).toBe(true);
     expect(handAccepts(tilesById["mend-stone"]!)).toBe(true);
@@ -566,11 +460,6 @@ describe("what the squares will take", () => {
     expect(handAccepts(tilesById["mend-stone"]!)).toBe(true);
   });
 
-  /**
-   * A hand is a thing you act with. One that acted by itself would be a body
-   * casting spells nobody asked it to, so an automatic stone has exactly one
-   * square.
-   */
   it("refuses a hand a charm, and the charm square takes it", () => {
     expect(handAccepts(tilesById["life-charm"]!)).toBe(false);
     expect(wornAccepts("charm", tilesById["life-charm"]!)).toBe(true);
@@ -590,11 +479,6 @@ describe("what the squares will take", () => {
 });
 
 describe("the rotation, unchanged", () => {
-  /**
-   * The whole of stories 3 to 5, and none of it needed a line of new code: the
-   * rotation already skips a hand with nothing to swing, and a stone is not a
-   * weapon.
-   */
   it("takes no turn for a hand holding a stone", () => {
     const kit = {
       ...emptyEquipment(),
@@ -610,7 +494,6 @@ describe("the rotation, unchanged", () => {
       offhand: instance("mend-stone"),
     };
     expect(handToSwing(kit, tilesById, "weapon")).toBe("weapon");
-    // And again on the turn the off hand would otherwise have taken.
     expect(handToSwing(kit, tilesById, "offhand")).toBe("weapon");
   });
 
@@ -625,11 +508,6 @@ describe("the rotation, unchanged", () => {
 });
 
 describe("the row of buttons", () => {
-  /**
-   * The one thing about the row that is a rule rather than a drawing: as many
-   * buttons as there are stones to press, and none at all for a body carrying
-   * none.
-   */
   it("is empty for a body carrying no stones", () => {
     expect(castableSpells(context({ weapon: instance("sword") }))).toEqual([]);
   });
@@ -648,11 +526,6 @@ describe("the row of buttons", () => {
     ]);
   });
 
-  /**
-   * The refusal a button cannot help with. Every other one changes by standing
-   * somewhere else or waiting; this one changes by going away and levelling, so
-   * a disc that says "not learnt yet" for hours is a square spent on nothing.
-   */
   it("leaves out a stone the caster has not earned", () => {
     expect(
       castableSpells(context({ weapon: instance("adept-stone") }, { masteries: { arcane: 9 } })),
@@ -666,11 +539,6 @@ describe("the row of buttons", () => {
     expect(buttons.map((button) => button.tileId)).toEqual(["adept-stone"]);
   });
 
-  /**
-   * Read off the requirements rather than off the verdict, which reports the
-   * first refusal that is true: mid-cast every square answers `casting`, and an
-   * unearned stone would blink into the row for as long as the bar runs.
-   */
   it("leaves it out while the caster is part-way through another cast", () => {
     const buttons = castableSpells(
       context(
@@ -700,14 +568,9 @@ describe("the row of buttons", () => {
 });
 
 describe("what a row of buttons says", () => {
-  /**
-   * Whole seconds, because that is what a countdown can show — so a cooling
-   * stone re-renders the row about once a second rather than thirty times.
-   */
   it("reads the same across one second of cooling", () => {
     const at = (cooldownMs: number) =>
       spellReading(castableSpells(context({ weapon: instance("mend-stone", cooldownMs) })));
-    // Two different instances, so only the *reading* can make these agree.
     expect(at(4_400).replace(/itm_\d+/, "x")).toBe(at(4_001).replace(/itm_\d+/, "x"));
     expect(at(4_400).replace(/itm_\d+/, "x")).not.toBe(at(3_400).replace(/itm_\d+/, "x"));
   });
@@ -717,71 +580,32 @@ describe("what a row of buttons says", () => {
   });
 });
 
-/**
- * The ladder, as authored, in the order it is climbed.
- *
- * **Three rungs, three elements, and the same three numbers in three colours.**
- * That symmetry is the feature rather than a coincidence of authoring — no
- * element is the cheap one and none is the strong one, because the only thing
- * that separates fire from water is which status it leaves and which way the
- * wheel turns. So the tests below assert the ladder *across* elements as well as
- * up each one, and a stone retuned on its own reddens them.
- *
- * Flame is deliberately absent. It is fire's utility stone, not a rung: it
- * conjures rather than throws, and the test that says so is below.
- */
 const LADDER: Record<Element, readonly string[]> = {
   fire: ["arcane-stone-of-cinder", "arcane-stone-of-ember", "arcane-stone-of-pyre"],
   water: ["arcane-stone-of-sleet", "arcane-stone-of-frost", "arcane-stone-of-rime"],
   nature: ["arcane-stone-of-barbs", "arcane-stone-of-thorns", "arcane-stone-of-bramble"],
 };
 
-/**
- * What each element does differently, as multiples of the rung water climbs.
- *
- * **The same three numbers at every rung, and they cancel exactly.** Fire trades
- * reliability for tempo, nature trades tempo for weight, and water is the
- * yardstick both are written against — see the parity test below for why fire's
- * cooldown multiple is 0.8 rather than something rounder.
- */
 const TRAITS: Record<Element, { damage: number; variance: number; cooldown: number }> = {
   fire: { damage: 1, variance: 60, cooldown: 0.8 },
   water: { damage: 1, variance: 25, cooldown: 1 },
   nature: { damage: 1.2, variance: 25, cooldown: 1.2 },
 };
 
-/** Which status each element's rungs leave behind. */
 const LEAVES: Record<Element, string> = {
   fire: "burned",
   water: "chilled",
   nature: "poison",
 };
 
-/**
- * The ladder with no element on it, which is the one everybody climbs first.
- *
- * **Three rungs of plain arcane force**, asking Arcane and nothing else, so
- * pressing one trains Arcane and nothing else — see `./experience`'s
- * `practiceEarnings`, which pays the elements a spell is *made of* and reads
- * that off the requirements. A stone with no element in its block is made of
- * nothing, so there is nothing else to pay.
- *
- * It sits one gate below the elemental ladder at every rung: Spark asks the
- * Arcane a new player is seeded with, and each elemental rung asks five more
- * than the neutral rung beside it. That gap is the whole of what "you learn
- * magic before you learn to point it" means, and the tests below assert it
- * rather than leaving it to two lists of numbers that happen to line up.
- */
 const NEUTRAL_LADDER = [
   "arcane-stone-of-spark",
   "arcane-stone-of-bolt",
   "arcane-stone-of-lance",
 ] as const;
 
-/** How much more Arcane an elemental rung asks than the neutral rung beside it. */
 const ELEMENTAL_ARCANE_GAP = 5;
 
-/** Everything else a stone, which is to say everything off the ladder. */
 const BESIDE_THE_LADDER = ["arcane-stone-of-flame", "arcane-stone-of-verdance"];
 
 describe("the stones we ship", () => {
@@ -790,7 +614,6 @@ describe("the stones we ship", () => {
 
   const SHIPPED = [...ELEMENTS.flatMap((e) => LADDER[e]), ...NEUTRAL_LADDER, ...BESIDE_THE_LADDER];
 
-  /** One rung's stone, resolved, with a readable failure when it is missing. */
   function rung(element: Element, index: number) {
     const id = LADDER[element][index]!;
     const stone = resolveStone(shipped[id]!);
@@ -798,7 +621,6 @@ describe("the stones we ship", () => {
     return stone;
   }
 
-  /** One rung of the neutral ladder, resolved. @see NEUTRAL_LADDER */
   function neutral(index: number) {
     const id = NEUTRAL_LADDER[index]!;
     const stone = resolveStone(shipped[id]!);
@@ -806,14 +628,12 @@ describe("the stones we ship", () => {
     return stone;
   }
 
-  /** What a neutral rung throws. */
   function neutralBolt(index: number) {
     const effect = neutral(index).effect;
     if (effect.kind !== "bolt") throw new Error(`neutral ${index} is not a bolt`);
     return effect;
   }
 
-  /** What a rung throws, which every rung on the ladder does. */
   function bolt(element: Element, index: number) {
     const effect = rung(element, index).effect;
     if (effect.kind !== "bolt") throw new Error(`${element} ${index} is not a bolt`);
@@ -828,21 +648,11 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * One case per effect, asserted against the authored file rather than a
-   * fixture: the vocabulary is closed, and shipping one of each is what proves
-   * both arms are reachable by an author.
-   */
   it("uses both of the two effects", () => {
     const kinds = SHIPPED.map((id) => resolveStone(shipped[id]!)!.effect.kind);
     expect([...new Set(kinds)].sort()).toEqual(["bolt", "conjure"]);
   });
 
-  /**
-   * **Both directions of the one arm, authored.** A bolt is a signed number and
-   * the sign is the whole of what separates a curse from a blessing, so shipping
-   * only one of them would leave half the vocabulary reachable only in a test.
-   */
   it("ships a bolt that mends and a bolt that harms", () => {
     const verdance = resolveStone(shipped["arcane-stone-of-verdance"]!)!;
     expect(verdance.effect).toMatchObject({ kind: "bolt", on: "caster" });
@@ -852,41 +662,20 @@ describe("the stones we ship", () => {
     const first = bolt("fire", 0);
     expect(first.on).toBe("target");
     expect(first.damage).toBeGreaterThan(0);
-    // What the kind made checkable: the id names a tile the world holds *and*
-    // that tile is a projectile. A bolt pointed at a missing tile throws
-    // nothing, and one pointed at the arcane shard — which is the coin the
-    // shopkeeper trades in, not ammunition — would throw nothing either.
-    // Neither would fail anything but the eye.
     expect(resolveProjectile(shipped[first.projectile!])).not.toBeNull();
   });
 
-  /**
-   * **Every stone on the shelf takes time, and pays for it in reach.** A cast
-   * time is a window in which a blow breaks the spell, so an instant stone is
-   * strictly the better stone at any distance a sword can close. The reach each
-   * stone gained with its cast time is what the window buys: a caster who is
-   * further away is a caster who is harder to interrupt.
-   */
   it("gives every stone a cast time", () => {
     for (const id of SHIPPED) {
       expect(resolveStone(shipped[id]!)!.castTimeMs ?? 0, id).toBeGreaterThan(0);
     }
   });
 
-  /**
-   * Three seconds for the caster who has only just earned it, and quick for one
-   * who has grown past it. The figures are the design rather than the
-   * arithmetic — `castDurationMs` has its own cases — and what they say is that
-   * a starter spell becomes a cantrip rather than something you stop carrying.
-   */
   it("makes Flame quick for an arcanist who has outgrown it", () => {
     const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
     const asks = flame.requirements!;
 
     expect(castDurationMs(flame, asks)).toBe(3_000);
-    // Six points past the eleven it asks for, which is half again — coverage is
-    // pooled across the whole block, so the figure that halves the cast is read
-    // off Arcane and Fire together. @see `../lib/mastery`'s requirementCoverage
     expect(castDurationMs(flame, { ...asks, arcane: 16 })).toBeLessThan(2_000);
     expect(castDurationMs(flame, { arcane: MAX_MASTERY, fire: MAX_MASTERY })).toBe(0);
   });
@@ -906,16 +695,6 @@ describe("the stones we ship", () => {
     expect(shipped[flame.effect.tileId]).toBeDefined();
   });
 
-  /**
-   * **Every step up is a step up in all four things at once**, which is what
-   * makes the ladder a ladder rather than a spread of options: a rung that hit
-   * harder on a shorter cooldown than the one below would make the one below
-   * unauthored content the moment you could reach it.
-   *
-   * The cooldown climbing *with* the damage is the part that reads backwards
-   * until you remember there is no mana here — the cooldown is what a cast
-   * costs, so a deeper bolt has to cost longer.
-   */
   it("climbs damage, cooldown, cast time, reach and requirements at every step", () => {
     for (const element of ELEMENTS) {
       for (let index = 1; index < LADDER[element].length; index++) {
@@ -935,12 +714,6 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * **An element's character is the same three multiples at every rung**, so a
-   * player who has learnt what fire feels like at the bottom has learnt what it
-   * feels like at the top. Written against water, which is the rung as authored
-   * and carries no trait of its own.
-   */
   it("gives each element the same character on every rung", () => {
     for (const element of ELEMENTS) {
       const trait = TRAITS[element];
@@ -958,31 +731,10 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * **And the three characters come to exactly the same damage a second**, which
-   * is what makes them characters rather than a ranking: an element is what you
-   * point magic at, not how good the magic is, so a fire specialist and a water
-   * specialist who have practised equally must arrive at the same place.
-   *
-   * The parity is arithmetic rather than tuning, and it is why fire's cooldown
-   * multiple is 0.8 and not a rounder number. A variance is a band that runs
-   * *downward* from the authored damage — see `./combat`'s `damageFraction` —
-   * so its mean is `1 - variance/200`: 0.875 at a quarter, 0.70 at fire's
-   * three fifths. Fire's cooldown multiple is the ratio of those two, and
-   * nature's is its own damage multiple, so both cancel exactly.
-   *
-   * The consequence worth naming, because nothing here asserts it: fire fits
-   * more casts into a minute than nature does, so it rolls its status more
-   * often and earns its element faster. That is fire's real advantage, and it
-   * is paid for in never being able to count on a number.
-   */
   it("comes to the same expected damage a second on every element", () => {
     for (let index = 0; index < LADDER.water.length; index++) {
       const rates = ELEMENTS.map((element) => {
         const effect = bolt(element, index);
-        // Both draws at the middle of their range is the mean of the band: the
-        // two rolls are averaged before they are read, so a pair of halves is
-        // the average pair.
         const mean = effect.damage! * damageFraction(effect.variance!, [0.5, 0.5]);
         return mean / rung(element, index).cooldownMs;
       });
@@ -992,11 +744,6 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * **What is deliberately not a trait**: who may hold the stone, how far it
-   * throws, and how long it takes to throw. An element that reached further or asked less would be an element
-   * that was simply better, which is the thing the wheel exists to prevent.
-   */
   it("asks and reaches the same whichever element you climbed", () => {
     for (const element of ELEMENTS) {
       for (let index = 0; index < LADDER[element].length; index++) {
@@ -1012,12 +759,6 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * **The neutral ladder is a ladder on the same terms the elemental ones are**,
-   * and it is tested separately rather than as a fourth element because the
-   * things that make an element an element — a status, a place on the wheel, a
-   * second mastery to train — are exactly what it does not have.
-   */
   it("climbs the neutral ladder at every step too", () => {
     for (let index = 1; index < NEUTRAL_LADDER.length; index++) {
       const below = neutral(index - 1);
@@ -1032,17 +773,6 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * **Arcane and nothing else, which is what makes these the tutorial's stones.**
-   * A spell's elements are read off its requirements and nowhere else — see
-   * `../lib/mastery`'s `spellElements` — so an element written into one of these
-   * blocks would silently make it an elemental spell: it would turn on the
-   * wheel, be thrown at the mean of two masteries rather than at Arcane, and
-   * start paying an element that the player has no other way to spend.
-   *
-   * It would also quietly re-gate the first stone in the game behind a mastery,
-   * which is the one thing this ladder exists to avoid.
-   */
   it("asks Arcane of the neutral rungs and never an element", () => {
     for (let index = 0; index < NEUTRAL_LADDER.length; index++) {
       const where = `neutral rung ${index}`;
@@ -1050,22 +780,11 @@ describe("the stones we ship", () => {
 
       expect(spellElements(stone.requirements), where).toEqual([]);
       expect(stone.requirements!.arcane, where).toBeGreaterThan(0);
-      // Nothing else at all, so a Toughness or a Fist creeping in is caught too:
-      // what these teach and what they ask are meant to be the same one number.
       expect(Object.keys(stone.requirements!), where).toEqual(["arcane"]);
       expect(neutralBolt(index).statuses, where).toBeUndefined();
     }
   });
 
-  /**
-   * **What an element buys you, stated as a difference.** The two ladders run
-   * side by side on the same cooldown, cast time and reach, so the only things an
-   * element adds are damage and the status — and the only thing it costs is a
-   * second mastery and five more Arcane to be let near the stone at all.
-   *
-   * Written against water for the same reason the element traits are: it is the
-   * rung as authored and carries no character of its own.
-   */
   it("runs the neutral ladder one gate below the elemental one", () => {
     for (let index = 0; index < NEUTRAL_LADDER.length; index++) {
       const where = `rung ${index}`;
@@ -1082,13 +801,6 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * **The bottom rung is damage and nothing else, and what the two above it add
-   * is the element showing up on the target.** A first stone that already left
-   * something burning would have nothing left to grow into; the chance climbing
-   * rather than the duration is what makes the top rung feel like the same spell
-   * landing properly rather than a different one.
-   */
   it("opens plain and leaves more behind the higher it goes", () => {
     for (const element of ELEMENTS) {
       expect(bolt(element, 0).statuses, element).toBeUndefined();
@@ -1105,26 +817,12 @@ describe("the stones we ship", () => {
       ).toEqual([LEAVES[element]]);
       expect(top[0]!.chance, element).toBeGreaterThan(middle[0]!.chance!);
 
-      // The middle rung cuts the status short and the top one lets it run its
-      // own authored length, which is the second half of what "landing properly"
-      // means. An override on the top rung would be the status def saying one
-      // thing and the strongest stone in the game saying another.
       expect(middle[0]!.toMs, element).toBeLessThan(statusDefs[LEAVES[element]]!.toMs);
       expect(top[0]!.fromMs, element).toBeUndefined();
       expect(top[0]!.toMs, element).toBeUndefined();
     }
   });
 
-  /**
-   * **The way onto the ladder, checked against the world as authored.** A player
-   * is seeded from the `player` tile's own masteries — see `../lib/mastery`'s
-   * `xpFromMasteries` — so Spark asking exactly the Arcane that tile grants is
-   * the whole of "everybody can cast on their first day". If the seed or the
-   * bottom neutral rung moves without the other, an arcanist has no way to
-   * begin at all: the elemental rungs are out of reach on day one by design,
-   * and casting is the only thing in the game that pays Arcane experience
-   * without a weapon in your hand.
-   */
   it("lets a brand new player onto the bottom neutral rung and no other", () => {
     const seeded = resolveBattler(shipped.player!)!.masteries;
 
@@ -1136,16 +834,6 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * **The element is what a new player is short of, not the element.** The one
-   * point of Fire, Water and Nature the `player` tile grants is still exactly
-   * what the bottom elemental rung asks for — what stands between a new player
-   * and their first fire spell is Arcane alone, which Spark is how you earn.
-   *
-   * Asserted because the two halves are authored in different places and only
-   * this says they agree: an element requirement that drifted above the seed
-   * would make the wait for fire a wait for something nothing in the game pays.
-   */
   it("keeps the elemental gate on Arcane rather than on the element", () => {
     const seeded = resolveBattler(shipped.player!)!.masteries;
 
@@ -1156,13 +844,6 @@ describe("the stones we ship", () => {
     }
   });
 
-  /**
-   * **Flame is fire's utility stone and is deliberately not a rung.** It asks
-   * what the bottom rung asks, so it is the first stone anybody presses, and it
-   * costs many times what the whole ladder does per cast — because what it
-   * leaves behind is a light source that cooks, burns whoever steps in it and
-   * outlives the cooldown of every attack stone in the game.
-   */
   it("keeps Flame beside the ladder rather than on it", () => {
     const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
     expect(flame.effect.kind).toBe("conjure");
@@ -1170,11 +851,6 @@ describe("the stones we ship", () => {
     expect(flame.cooldownMs).toBeGreaterThan(rung("fire", 2).cooldownMs);
   });
 
-  /**
-   * A conjured tile with no lifetime is a battlefield that never clears. The
-   * hearth flame deliberately has none — it is scenery — so the conjured one has
-   * to be a tile of its own.
-   */
   it("gives the conjured flame a lifetime and leaves the hearth alone", () => {
     const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
     if (flame.effect.kind !== "conjure") throw new Error("not a conjure");
@@ -1184,22 +860,12 @@ describe("the stones we ship", () => {
     expect(shipped.flame!.interactions?.decay).toBeUndefined();
   });
 
-  /** Every stone in the world is a stone, and no stone is anything else. */
   it("authors them on the item union and nowhere else", () => {
     for (const id of SHIPPED) {
       expect(resolveItem(shipped[id]!)?.type, id).toBe("stone");
     }
   });
 
-  /**
-   * **The one charm the world ships, and the reason the kind exists.**
-   *
-   * It was an arcane stone marked `automatic`: a spell with a cast, a target, a
-   * reach and a cooldown, none of which are questions about something that
-   * happens without you. Asserted here rather than in a fixture because the
-   * claim is about the shipped world — that there is a passive worth a square,
-   * and that it is not pretending to be a spell.
-   */
   it("ships a necklace that is a charm rather than a stone that presses itself", () => {
     const def = shipped["arcane-necklace-of-life"]!;
     expect(resolveStone(def)).toBeNull();
@@ -1207,26 +873,15 @@ describe("the stones we ship", () => {
     const charm = resolveCharm(def);
     expect(charm).not.toBeNull();
     expect(charm!.everyMs).toBeGreaterThan(0);
-    // It mends, which is the whole of what it did before and all a charm may do
-    // to a health bar — see `../lib/item`'s CharmItem.hp for why it is unsigned.
     expect(charm!.hp).toBeGreaterThan(0);
-    // And it goes round a neck and nowhere else.
     expect(wornAccepts("charm", def)).toBe(true);
     expect(handAccepts(def)).toBe(false);
   });
 });
 
-/**
- * How long a cast takes in a particular pair of hands.
- *
- * The one piece of arithmetic a player is told in words — the tooltip says the
- * figure and the bar draws it — so the cases below are the sentence the design
- * is stated in: 110% of what it asks is 10% less time, and double is none.
- */
 describe("how long a cast takes", () => {
   const AUTHORED_MS = 3_000;
 
-  /** A stone asking ten points in all, which makes a percentage easy to read. */
   const ASKS = { arcane: 8, fire: 2 };
 
   function stone(castTimeMs: number | undefined, requirements: Masteries = ASKS) {
@@ -1247,7 +902,6 @@ describe("how long a cast takes", () => {
     expect(castDurationMs(stone(AUTHORED_MS), { arcane: 8, fire: 2 })).toBe(AUTHORED_MS);
   });
 
-  /** The sentence the whole feature is stated in. */
   it("takes a tenth off for a caster bringing 110% of it", () => {
     expect(castDurationMs(stone(AUTHORED_MS), { arcane: 9, fire: 2 })).toBe(AUTHORED_MS * 0.9);
   });
@@ -1261,37 +915,21 @@ describe("how long a cast takes", () => {
     expect(castDurationMs(stone(AUTHORED_MS), { arcane: 100, fire: 100 })).toBe(0);
   });
 
-  /**
-   * Pooled across the block, so a point of Fire is worth exactly as much off the
-   * clock as a point of Arcane. What it must not do is grow longer: a caster
-   * short of the requirements is refused the cast outright, and the arm above
-   * the authored time would only ever describe one that cannot happen.
-   */
   it("counts every requirement, and never runs longer than authored", () => {
     expect(castDurationMs(stone(AUTHORED_MS), { arcane: 8, fire: 3 })).toBe(AUTHORED_MS * 0.9);
     expect(castDurationMs(stone(AUTHORED_MS), {})).toBe(AUTHORED_MS);
   });
 
-  /**
-   * A stone that asks nothing takes exactly as long as it says, for ever. There
-   * is nothing to have outgrown, and reading the empty block as "instantly met"
-   * would make a requirement-free stone the fastest thing in the game.
-   */
   it("holds a stone that asks nothing at its authored time", () => {
     expect(castDurationMs(stone(AUTHORED_MS, {}), { arcane: 100 })).toBe(AUTHORED_MS);
   });
 });
 
-/**
- * What pressing a button asks for, which is the one question a tap and a number
- * key both ask — so it is answered here and not in the component.
- */
 describe("spellPress", () => {
   it("asks for a cast from a stone that would land", () => {
     expect(spellPress({ ok: true })).toBe("cast");
   });
 
-  /** The press is what produces the sentence. @see `./notices` */
   it("asks for one with nobody targeted, so the session can say why not", () => {
     expect(spellPress({ ok: false, reason: "noTarget" })).toBe("cast");
   });

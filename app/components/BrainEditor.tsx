@@ -47,43 +47,14 @@ import { EditorIssues } from "./EditorIssues";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { Button, Input, NumberInput, Segmented, Select, Switch } from "../ui";
 
-/**
- * Authoring a brain as two tables rather than JSON.
- *
- * The shape is the tiles editor's own — sections and rows — because the thing
- * being authored is already a table: an ordered transition list where position
- * is priority, and a set of states each holding an ordered `do` list where
- * position is priority again. A node canvas would draw those orderings badly, so
- * the one thing this UI works to make loud is order: the number on a row, the
- * handle that drags it, the fact that the first match and the first non-failing
- * action are what run. Reorder is drag-and-drop, the same @dnd-kit sortable the
- * tile-stack list uses, so the two ordered things in the editor behave alike.
- *
- * Every picker is fed from the registry catalog, so the editor cannot name a
- * condition, action or effect the runtime does not implement — a whole class of
- * broken brain that simply cannot be authored here.
- */
-
 type Props = {
-  /** The brain, or undefined on a tile that has none yet. */
   brain: BrainDef | undefined;
-  /** Whole library — the tile chips are picked out of it. */
   tiles: TileDef[];
-  /** The status catalogue, for the `status` condition's picker. */
   statusDefs: Record<string, StatusDef>;
-  /**
-   * The spells on this very tile's battler block, for the `cast` action's
-   * picker. Handed down rather than read off the brain, because a brain does
-   * not know what body it is on — the dialog holding both tabs does.
-   */
   spells?: readonly BrainSpell[];
   onChange: (next: BrainDef | undefined) => void;
 };
 
-/**
- * What this tab needs of a spell: its name to list it by, and its effect to
- * know whether a `cast` of it can take a target.
- */
 type BrainSpell = Pick<NaturalSpell, "name" | "effect">;
 
 const EMPTY_BRAIN: BrainDef = {
@@ -92,17 +63,6 @@ const EMPTY_BRAIN: BrainDef = {
   transitions: [],
 };
 
-/**
- * Tiles worth offering as a `nearest` target — the ones a body can actually be.
- *
- * Every tile in the library would be a picker with a hundred walls and floors in
- * it, none of which anything is ever standing on. The player is named explicitly
- * because it is a body by virtue of somebody connecting to it rather than by an
- * authored flag, so {@link resolveActor} does not see it.
- *
- * Sorted so the picker does not reshuffle when the library is reordered, with the
- * player first because it is the target nearly every brain wants.
- */
 export function bodyTileIds(tiles: TileDef[]): string[] {
   const ids = tiles
     .filter((tile) => tile.id !== PLAYER_TILE_ID && resolveActor(tile))
@@ -111,22 +71,6 @@ export function bodyTileIds(tiles: TileDef[]): string[] {
   return [PLAYER_TILE_ID, ...ids];
 }
 
-/**
- * Tiles worth offering as a `thing` target — the ones that do something.
- *
- * Every tile in the library would be a picker with a hundred floors and walls in
- * it, and unlike {@link bodyTileIds} there is no flag saying which are worth
- * naming: a bush is an ordinary prop that happens to carry an `extract` block.
- * So the block *is* the test. A tile with an interaction is a tile a creature
- * could do something about; a tile with none is scenery, and a brain that walked
- * to it would be walking to a patch of floor.
- *
- * Actors are left out because they are {@link bodyTileIds}' answer already, and
- * offering a wolf under both readings would be two ways to say one thing with
- * different results.
- *
- * Sorted, so the picker does not reshuffle when the library is reordered.
- */
 export function thingTileIds(tiles: TileDef[]): string[] {
   return tiles
     .filter((tile) => !resolveActor(tile) && hasAnyInteraction(tile))
@@ -134,127 +78,44 @@ export function thingTileIds(tiles: TileDef[]): string[] {
     .sort();
 }
 
-/** Does this tile carry an interaction block with anything in it? */
 function hasAnyInteraction(tile: TileDef): boolean {
   return Object.keys(tile.interactions ?? {}).length > 0;
 }
 
-/**
- * What a *brain* can do to this tile, in the words the row uses.
- *
- * The inference the whole `thing` selector exists for, and it is deliberately
- * read off the tile rather than written down beside it: author an `extract`
- * block onto a rock and the brain editor says the rock can be picked, in the
- * same edit and with nothing else to remember.
- *
- * **The brain's verbs and not the player's.** A tile is pushable, or edible off
- * the floor, or a dozen other things a person can do to it — and a line here
- * naming one of those would be telling an author about a verb this table cannot
- * offer them. So the list is exactly the two actions that take a {@link Selector}
- * and can refuse it: `attack`, which wants a body, and `extract`, which wants a
- * thing. Eating is not among them because `consume` names a tile in the bag
- * rather than a selector — its own picker is where that inference lands.
- *
- * Empty for a tile a brain can only walk to, which is most of them — and an
- * empty list is the useful answer, because it is what tells an author that the
- * `extract` they just pointed at the player will never do anything.
- */
 export function affordancesOf(tileId: string, tiles: TileDef[]): string[] {
   const tile = tiles.find((one) => one.id === tileId);
   if (!tile) return [];
 
   const verbs: string[] = [];
-  // The author's own word for the pull — "pick" on a bush, "mine" on a vein —
-  // because a row that said "extract" would be the schema's word rather than
-  // the one already on the button a player presses.
   const extract = resolveExtract(tile);
   if (extract?.actionName) verbs.push(extract.actionName.toLowerCase());
-  // A body is the only thing with hit points to take, and `resolveActor` is the
-  // same test the `nearest` picker is built from — so what this says about a
-  // wolf and what that offers as a wolf cannot come apart.
   if (resolveActor(tile) || resolveBattler(tile)) verbs.push("attack");
   return verbs;
 }
 
-/**
- * One kind a selector may be: `nearest`, `thing`, `speaker`, or a slot the brain
- * binds.
- *
- * The picker used to offer one row per *tile* — "nearest Player", "nearest Rat",
- * "the Bush" — which worked while a selector named one tile and stopped working
- * the moment it could name several. There is no dropdown row for "deer and
- * rabbit but not wolf". So the kind and the tiles are two controls: this picks
- * the question, and {@link TileChips} picks what it is about.
- */
 export type SelectorKind = {
-  /** Stable id for the `<select>`, and how a selector is matched to its kind. */
   key: string;
   label: string;
-  /** A fresh selector of this kind. */
   make: () => Selector;
-  /** Tiles this kind may name. Empty for the kinds that name none. */
   tiles: TileOption[];
 };
 
-/** What a selector names and what a brain can do to it. @see affordancesOf */
 export type SelectorNames = { tiles: string[]; affords: string[] };
 
-/** One tile a picker may offer. */
 export type TileOption = { tileId: string; label: string };
 
-/**
- * Everything this editor may offer, worked out once from the brain and the
- * library.
- *
- * One value rather than four props, because they are all answers to the same
- * question — what is authorable here — and they are all needed at the same
- * depth: a selector picker, its tile chips and a `tile` field sit side by side
- * on one action row, five components down from the only place that has seen the
- * library.
- *
- * {@link describe} is a closure rather than data because a slot's answer depends
- * on the brain: `$bush` affords picking only because of the transition that
- * binds it, and a control deep in a state's action list has no way to know that.
- */
 export type Vocabulary = {
   kinds: SelectorKind[];
-  /** The tiles each kind of `tile` field will offer. @see TileFilter */
   tiles: Record<TileFilter, TileOption[]>;
-  /** The whole status catalogue, for a `status` field. */
   statuses: Array<{ value: string; label: string }>;
-  /**
-   * The spells on the body this brain drives, for a `cast` field.
-   *
-   * The body's own rather than the library's, unlike every other picker here: a
-   * natural spell belongs to one tile, and offering another creature's would be
-   * offering a line that can only fail. Empty on a tile with none, where the
-   * row says so rather than showing a dropdown with nothing in it.
-   *
-   * **Named to read and numbered to write.** What is authored is the position —
-   * see `../lib/brain`'s `cast` — and what an author picks from is a list of
-   * names, because nobody knows a spell by its index. The label carries both,
-   * so the row says the same thing the Spells tab does.
-   *
-   * `self` marks a spell that lands on its caster, which a `cast` row shows as
-   * taking no target. @see ../lib/brainCatalog's `aim`
-   */
   spells: Array<{ value: string; label: string; self: boolean }>;
   describe(selector: Selector): SelectorNames | null;
 };
 
-/** Which kind a selector is, as the key its row in the picker carries. */
 export function selectorKindKey(selector: Selector): string {
   return selector.type === "slot" ? `$${selector.data.name}` : selector.type;
 }
 
-/**
- * The tiles behind each {@link TileFilter}, which is where those names turn into
- * a filter over the library.
- *
- * `item` is anything that can be in a bag and `consumable` is the half of that
- * which can be eaten, so the two nest — which is right, because `carrying berry`
- * and `consume berry` are the same berry asked about twice.
- */
 export function tileOptions(tiles: TileDef[]): Record<TileFilter, TileOption[]> {
   const items = tiles.filter((tile) => resolveItem(tile));
   return {
@@ -267,19 +128,6 @@ function tileOption(tile: TileDef): TileOption {
   return { tileId: tile.id, label: tile.name || tile.id };
 }
 
-/**
- * The kinds a selector may be, and what each may name.
- *
- * `speaker` and `attacker` are offered everywhere rather than only on the
- * transitions that hear or are hit, because the editor would have to know which
- * condition a bind sits beside to say otherwise — and a selector that answers
- * nobody is already the documented behaviour, not a broken brain. `home` is
- * offered on the same terms and is the odd one out: it names a place, so the
- * verbs wanting a body answer nobody with it.
- *
- * Every slot the brain's transitions bind is offered too, which is what makes
- * `$prey` authorable in the state the transition leads to.
- */
 export function selectorVocabulary(
   brain: BrainDef,
   tiles: TileDef[],
@@ -301,9 +149,6 @@ export function selectorVocabulary(
     {
       key: "nearest",
       label: "nearest body",
-      // The player rather than any other tile, because every verb this is a
-      // default for — notice, chase, swing — is overwhelmingly authored about
-      // the person.
       make: () => nearest(PLAYER_TILE_ID),
       tiles: bodies,
     },
@@ -337,9 +182,6 @@ export function selectorVocabulary(
     if (tileIds.length === 0) return null;
     return {
       tiles: tileIds.map(nameOf),
-      // The union, because a wolf offered "deer or rabbit" can do to either
-      // whatever it can do to both — and a verb that only one of them affords
-      // is exactly the mismatch worth showing.
       affords: [...new Set(tileIds.flatMap((tileId) => affordancesOf(tileId, tiles)))],
     };
   };
@@ -351,11 +193,6 @@ export function selectorVocabulary(
       value: def.id,
       label: def.name,
     })),
-    // Positions, counting from one, off the list as it is authored — so the
-    // number a row writes is the number beside the spell on the Spells tab.
-    // Unnamed rows are kept rather than filtered, because dropping one would
-    // shift every position below it and the picker would then disagree with
-    // the file about what "the second spell" is.
     spells: spells.map((spell, index) => ({
       value: String(index + 1),
       label: `${index + 1} — ${spell.name.trim() || "unnamed"}`,
@@ -365,7 +202,6 @@ export function selectorVocabulary(
   };
 }
 
-/** Pull the item at `from` out and drop it back in at `to`. */
 export function arrayMove<T>(list: T[], from: number, to: number): T[] {
   if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
     return list;
@@ -376,13 +212,6 @@ export function arrayMove<T>(list: T[], from: number, to: number): T[] {
   return next;
 }
 
-/**
- * The reorder half of a sortable list: read a settled drag and move the item.
- *
- * The same shape the tile-stack list uses — a cancelled or in-place drag is a
- * no-op, and only a real move rewrites the array, which for these lists *is* the
- * semantics being edited.
- */
 function onSortEnd<T>(
   event: Parameters<NonNullable<React.ComponentProps<typeof DragDropProvider>["onDragEnd"]>>[0],
   list: T[],
@@ -396,7 +225,6 @@ function onSortEnd<T>(
   apply(arrayMove(list, initialIndex, index));
 }
 
-/** Rebuild the states record with `oldName` re-keyed to `newName`, order kept. */
 export function renamedState(brain: BrainDef, oldName: string, newName: string): BrainDef {
   const states: Record<string, BrainStateDef> = {};
   for (const [name, state] of Object.entries(brain.states)) {
@@ -607,11 +435,6 @@ function EmitField({
   );
 }
 
-/**
- * The shared editor for an ordered list of named verbs — a state's actions or
- * its effects. Both are "pick a name, fill its parameters, and mind the order",
- * so both are this.
- */
 function VerbList<T extends BrainActionDef | BrainEffectDef>({
   title,
   items,
@@ -827,10 +650,6 @@ function TransitionRow({
   );
 }
 
-/**
- * A transition's `if`, however deep it goes — the shared tree editor, with the
- * brain's own condition picker as its leaf. @see ./ConditionTreeEditor
- */
 function ConditionTree({
   root,
   vocab,
@@ -852,7 +671,6 @@ function ConditionTree({
   );
 }
 
-/** The condition picker and whatever parameters that condition takes. */
 function LeafFields({
   leaf,
   vocab,
@@ -883,14 +701,6 @@ function LeafFields({
   );
 }
 
-/**
- * The one slot a transition binds, as a checkbox with a name.
- *
- * Kept to a single slot in the UI though the shape allows several: a transition
- * that writes down who set the creature off has exactly one quarry, and every
- * creature authored so far binds one thing. The name is what a state then reads
- * back as `$name`.
- */
 function BindField({
   transition,
   vocab,
@@ -936,15 +746,6 @@ function BindField({
   );
 }
 
-/**
- * A selector as a dropdown.
- *
- * The one place the object/string boundary is crossed: options are keyed for the
- * `<select>` and mapped straight back to the selector they stand for, so nothing
- * downstream ever sees the key. A value the brain carries but the library no
- * longer offers — a tile since renamed — still shows, rather than silently
- * reading as whatever happens to sit first in the list.
- */
 function SelectorPicker({
   value,
   vocab,
@@ -952,22 +753,14 @@ function SelectorPicker({
   onClear,
   className,
 }: {
-  /** Null only beside `onClear`: the row names no target. */
   value: Selector | null;
   vocab: Vocabulary;
   onChange: (next: Selector) => void;
-  /**
-   * Offer {@link NO_TARGET_LABEL} as the first row, called when it is picked.
-   * A `cast`'s way of naming nobody. @see ../lib/brainCatalog's `aim`
-   */
   onClear?: () => void;
   className?: string;
 }) {
   const key = value ? selectorKindKey(value) : NO_TARGET_KEY;
   const kind = vocab.kinds.find((one) => one.key === key);
-  // A kind the brain carries but the library no longer offers — a slot whose
-  // last bind was deleted — still shows, marked, rather than silently reading as
-  // whatever happens to sit first in the list.
   const missing = value && !kind ? [{ key, label: `${key} (missing)` }] : [];
   const none = onClear ? [{ key: NO_TARGET_KEY, label: NO_TARGET_LABEL }] : [];
   const rows = [...none, ...missing, ...vocab.kinds];
@@ -996,29 +789,9 @@ function SelectorPicker({
   );
 }
 
-/**
- * What a `cast` naming nobody says, in the picker and in place of it.
- *
- * "(self)" because that is the only kind of spell such a line can cast: one
- * that needs somebody is refused for it. @see ../lib/brain's `cast`
- */
 const NO_TARGET_LABEL = "No target (self)";
-/** Its row's key — empty, so no selector kind or `$slot` can ever share it. */
 const NO_TARGET_KEY = "";
 
-/**
- * The tiles a selector names, as removable chips plus a dropdown that adds one.
- *
- * **Chips rather than the library's `TileIdMultiSelect`**, which is a searchable
- * panel with previews and is right where it is used — a whole field on a tile's
- * own form. This sits inline in an action row beside three other controls, and a
- * panel there would push the row that *is* the semantics off the screen.
- *
- * The last chip will not come off. A selector naming no tiles is one the schema
- * refuses, so removing it would make the brain inert for what looks like an
- * ordinary click; changing your mind about the only tile is picking the new one
- * and then dropping the old.
- */
 function TileChips({
   picked,
   options,
@@ -1069,20 +842,6 @@ function TileChips({
   );
 }
 
-/**
- * What the selected thing is and what can be done to it — `Bush · pick`.
- *
- * Read from the tile rather than from the verb beside it, and it deliberately
- * neither filters the verb picker nor refuses a save. An author mid-way through
- * re-pointing a row has a line that momentarily makes no sense, and a UI that
- * argued with them about it would be arguing on every keystroke. What this does
- * is answer the question the row cannot: `$bush` is a slot name somebody
- * invented, and this is where the editor says what is actually in it.
- *
- * Nothing at all for a selector naming no tile, rather than a line saying so:
- * `speaker` affords whatever the speaker turns out to be, and an empty label
- * beside it would read as an assertion.
- */
 function Affordances({ names }: { names: SelectorNames | null }) {
   if (!names) return null;
   return (
@@ -1120,19 +879,10 @@ function ParamFields({
   );
 }
 
-/** Whether the spell at this position lands on the body casting it. */
 function castsOnSelf(position: unknown, vocab: Vocabulary): boolean {
   return vocab.spells.some((spell) => spell.self && spell.value === String(position));
 }
 
-/**
- * Drop the target off a row once it casts a spell that lands on its caster.
- *
- * The field stops being shown then, and a selector left in the file that no
- * control displays is one nobody can see to take out. So picking a self spell
- * on a row that was aimed at the player writes the line with no `of`, the same
- * line an author would have written by hand.
- */
 export function dropSelfAims(
   item: Record<string, unknown>,
   params: ParamSpec[],
@@ -1147,22 +897,6 @@ export function dropSelfAims(
   return next;
 }
 
-/**
- * One field of a condition or action, written back into it.
- *
- * **A value that means "not set" deletes the key rather than writing a falsy
- * one**, which is the whole of what this exists to get right. A false boolean is
- * authored by its absence, matching how the rest of `tiles.json` writes optional
- * flags, so it round-trips clean. So is a filter set back to "anybody": absence
- * *is* the value, not a third state beside it. An emptied optional text is the
- * same shape of thing — "any sound" is the field not being there, and writing
- * `""` would author a word of length zero that the schema refuses, turning the
- * creature inert for what looks like an empty box.
- *
- * A *required* text is deliberately not covered by that last rule: an empty one
- * there is a mistake rather than a meaning, and removing the key would hide it
- * behind a default instead of showing it as the broken condition it is.
- */
 export function paramPatch(
   item: Record<string, unknown>,
   spec: ParamSpec,
@@ -1187,7 +921,6 @@ function ParamField({
 }: {
   spec: ParamSpec;
   value: unknown;
-  /** For an `aim` field: the row's spell lands on its caster. */
   selfCast: boolean;
   vocab: Vocabulary;
   onChange: (value: unknown) => void;
@@ -1235,9 +968,6 @@ function ParamField({
     );
   }
   if (spec.kind === "spell") {
-    // Says so rather than offering an empty dropdown, on the terms the immunity
-    // toggles do when nothing is authored: a picker with nothing in it looks
-    // like a picker that has not loaded.
     if (vocab.spells.length === 0) {
       return <span className="text-[10px] uppercase text-muted">no spells on this body</span>;
     }
@@ -1246,9 +976,6 @@ function ParamField({
         {spec.label}
         <Select
           value={typeof value === "number" ? String(value) : null}
-          // Never cleared to nothing: the schema wants a position of at least
-          // one, and a refused action takes the whole brain down rather than
-          // leaving one row inert. Picking another spell re-points the row.
           onValueChange={(position) => position && onChange(Number(position))}
           options={vocab.spells}
           className="min-w-[7rem]"
@@ -1315,22 +1042,12 @@ function ParamField({
       value={typeof value === "string" ? value : ""}
       onChange={(e) => onChange(e.target.value)}
       className="w-28"
-      // An optional box says what leaving it empty means, since that is a value
-      // rather than a field somebody has not filled in yet.
       placeholder={spec.optional ? "any" : spec.label}
       aria-label={spec.label}
     />
   );
 }
 
-/**
- * Whether a `consume` eats off the board, and what.
- *
- * **"Out of the bag" is a value in this picker and the absence of the field**,
- * on {@link SpeakerFilterField}'s terms and for its reason: a `consume` with no
- * selector eats what it is carrying, and a selector sitting there beside a
- * switch reading "bag" would look as though it meant something.
- */
 function GroundField({
   spec,
   value,
@@ -1355,19 +1072,6 @@ function GroundField({
   );
 }
 
-/**
- * A tile from the library, as a dropdown.
- *
- * **"Anything" is a value in this picker and the absence of the field in the
- * authored line**, which is the same collapse {@link SpeakerFilterField} makes
- * of "anybody" and is here for the same reason: a `carrying` with no tile asks
- * about anything at all, and an empty box that could also mean an unset field
- * would be two states drawn as one.
- *
- * A tile the brain names but the library no longer offers still shows, marked,
- * on {@link SelectorPicker}'s terms — a renamed tile is a line worth seeing
- * rather than one that silently reads as whatever sits first in the list.
- */
 function TilePicker({
   spec,
   value,
@@ -1401,15 +1105,6 @@ function TilePicker({
   );
 }
 
-/**
- * Whose voice a `heard` counts, as one control rather than two.
- *
- * "Anybody" is a value in this picker and the *absence* of the field in the
- * authored condition, and collapsing the two is what stops the editor writing a
- * filter with a match and no selector. The selector only appears once there is
- * somebody to be — a dropdown offering `$partner` beside a match of "anybody"
- * would read as though it meant something.
- */
 function SpeakerFilterField({
   spec,
   value,

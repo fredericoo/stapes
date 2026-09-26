@@ -69,10 +69,6 @@ const ladderTop = tile({
   lightPassing: true,
   intangible: true,
 });
-// `lightPassing`, like every emitter in `data/tiles.json`: a lamp is a thing
-// you see light through, and a torch that sealed its own cell would be a
-// fixture testing itself — it would stop its own light reaching the floor it
-// hangs over.
 const torch = tile({
   id: "torch",
   height: 0,
@@ -159,8 +155,6 @@ describe("rayTransmission", () => {
   });
 
   it("seals vertical travel through a half-block too", () => {
-    // Half a level tall is half a wall to look across and a whole lid to fall
-    // through: the ray meets the tile's footprint however short it stands.
     const occlusion = new Map([["1:0,0", { opacity: 0.5, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
@@ -240,14 +234,11 @@ describe("computeLighting flood fill", () => {
     const wallCell = sampleLevelLight(level, 2, 0)[0];
     const outside = sampleLevelLight(level, 3, 0)[0];
     expect(inside).toBeGreaterThan(0.5);
-    // Solid wall stays dark (sky ambient is 0 in this bake).
     expect(wallCell).toBeLessThan(0.05);
-    // Direct path through the wall is blocked — wrap-around is allowed but weaker.
     expect(outside).toBeLessThan(inside);
   });
 
   it("does not leak light to the floor above through a seal", () => {
-    // Sealed shaft: torch below cannot wrap around to the roof via open air.
     const map = mapAt([
       { x: 0, y: 0, z: 0, tiles: ["floor", "torch"] },
       { x: 0, y: 0, z: 1, tiles: ["floor"] },
@@ -265,8 +256,6 @@ describe("computeLighting flood fill", () => {
   });
 
   it("does not leak light to the floor below through the floor it stands on", () => {
-    // A torch on a cave floor, with a second cave storey directly beneath it.
-    // The floor it is standing on is the lower storey's ceiling.
     const map = mapAt([
       { x: 0, y: 0, z: 0, tiles: ["floor", "torch"] },
       { x: 1, y: 0, z: 0, tiles: ["floor"] },
@@ -289,8 +278,6 @@ describe("computeLighting flood fill", () => {
   });
 
   it("daytime: sky-exposed walls, half-bricks, and trees get full daylight", () => {
-    // Positive-height tiles are opaque to flood but must still receive the
-    // vertical shaft so outdoor solids aren't baked black.
     const map = mapAt([
       { x: 0, y: 0, tiles: ["wall"] },
       { x: 1, y: 0, tiles: ["half"] },
@@ -362,9 +349,6 @@ describe("computeLighting flood fill", () => {
   });
 
   it("daytime: sky spill wraps around walls via open air (diagonal flood)", () => {
-    // Incomplete wall boxes don't isolate rooms once sky floods the exterior;
-    // Euclidean diagonals make wrap-around brighter than Manhattan, but the
-    // wall still blocks the direct path so the next room stays below full sky.
     const map = mapAt([
       { x: 0, y: 0, z: 0, tiles: ["floor"] },
       { x: 1, y: 0, z: 0, tiles: ["wall"] },
@@ -432,9 +416,6 @@ describe("computeLighting flood fill", () => {
   });
 
   it("overlayEmitterOverrides respects a wall out near the radius edge", () => {
-    // The overlay only gathers occluders within the emitter's reach. A wall
-    // three cells out, shadowing a target near the rim, is exactly what a
-    // too-tight reach box would miss — the target would come back lit.
     const map = mapAt([
       { x: 0, y: 0, tiles: ["floor", "torch"] },
       { x: 1, y: 0, tiles: ["floor"] },
@@ -447,14 +428,11 @@ describe("computeLighting flood fill", () => {
       { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
     ]);
 
-    // Open cell before the wall is lit; the one it shadows is not.
     expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(0);
     expect(sampleLevelLight(painted.levels.get(0)!, 3, 0)[0]).toBe(0);
   });
 
   it("overlayEmitterOverrides lights the whole radius, not a clipped box", () => {
-    // Torch radius is 4, so cell 3 must still receive light. A reach box built
-    // from anything smaller than the radius would cut this short.
     const cells = [{ x: 0, y: 0, tiles: ["floor", "torch"] }];
     for (let x = 1; x <= 6; x++) cells.push({ x, y: 0, tiles: ["floor"] });
     const map = mapAt(cells);
@@ -466,7 +444,6 @@ describe("computeLighting flood fill", () => {
 
     const level = painted.levels.get(0)!;
     expect(sampleLevelLight(level, 3, 0)[0]).toBeGreaterThan(0);
-    // Falls off with distance rather than ending abruptly.
     expect(sampleLevelLight(level, 1, 0)[0]).toBeGreaterThan(sampleLevelLight(level, 3, 0)[0]);
   });
 
@@ -484,10 +461,6 @@ describe("computeLighting flood fill", () => {
     expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.5);
   });
 
-  // A torch in somebody's bag is not on the board — that is the whole item
-  // model — so there is no cell to look it up in and no tile for the bake to
-  // omit. The override has to carry the light itself, and this is the case that
-  // says so: an empty floor, lit by a lantern nothing is standing on.
   it("overlayEmitterOverrides casts lights the override carries itself", () => {
     const map = mapAt([
       { x: 0, y: 0, tiles: ["floor"] },
@@ -511,8 +484,6 @@ describe("computeLighting flood fill", () => {
     expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(0);
   });
 
-  // Two lanterns is twice the light, and it falls out of the cast accumulating
-  // rather than out of a blending rule anybody had to invent.
   it("overlayEmitterOverrides sums several carried lights at one position", () => {
     const map = mapAt([{ x: 0, y: 0, tiles: ["floor"] }]);
     const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);
@@ -528,9 +499,6 @@ describe("computeLighting flood fill", () => {
     );
   });
 
-  // The point of the whole path: a carried light is painted over the bake, so
-  // the map it is cast against is untouched and the chunks nobody edited stay
-  // the objects they were. That identity is what `ChunkedLighting` re-bakes on.
   it("overlayEmitterOverrides leaves the map it lights alone", () => {
     const map = mapAt([{ x: 0, y: 0, tiles: ["floor"] }]);
     const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);
@@ -554,16 +522,7 @@ describe("computeLighting flood fill", () => {
   });
 });
 
-/**
- * The ground is a lid, and what somebody stands on it does not open one.
- *
- * Every case here is one cell of surface over a sealed room, changing only what
- * is in that surface cell. The room below is walled in on all eight sides and
- * floored, so daylight has exactly one way in — down through the surface — and
- * the reading is about that cell and nothing else.
- */
 describe("daylight through the surface into a room below", () => {
-  /** 3×3 of ground at L0 over a 1-cell room at L-1, walled in all round. */
   function roomUnder(surface: string[]): MapFile {
     const cells: Array<{ x: number; y: number; z: number; tiles: string[] }> = [];
     for (let x = -1; x <= 1; x++) {
@@ -591,9 +550,6 @@ describe("daylight through the surface into a room below", () => {
   });
 
   it("a floor with a sign standing on it seals it exactly the same", () => {
-    // The bug this covers: a sign is half a level tall, which made the cell
-    // half opaque, which disqualified the floor under it from sealing at all.
-    // Nothing about the floor changed — something was placed on it.
     expect(litBelow(["floor", "sign"])).toBe(litBelow(["floor"]));
   });
 
@@ -614,14 +570,6 @@ describe("daylight through the surface into a room below", () => {
   });
 });
 
-/**
- * Void: a cell with nothing at or below it in its column, on any level.
- *
- * Below the map's edge, under a bridge, beneath a pond authored over nothing.
- * It is pitch black, it does not relay the sky flood, and it takes no block
- * light — but daylight still lands on the top of every column exactly as it
- * did, wherever that top happens to be.
- */
 describe("void", () => {
   function skyAt(map: MapFile, x: number, y: number, z: number): number {
     const level = map && computeLighting(map, tilesById, AMBIENT_PRESETS.day).levels.get(z);
@@ -643,9 +591,6 @@ describe("void", () => {
   });
 
   it("does not carry daylight down an empty column and back under the floor", () => {
-    // Ground at 0 over a basement at (1,0,-1); the column at x=2 is empty all
-    // the way down. The shaft used to run down x=2 to the bottom of the world
-    // and flood sideways into the basement, which then followed the hour.
     const map = mapAt([
       { x: 0, y: 0, tiles: ["floor"] },
       { x: 1, y: 0, tiles: ["floor"] },
@@ -671,9 +616,6 @@ describe("void", () => {
   });
 
   it("a carried torch does not light the storey below through the floor", () => {
-    // What a player standing in a cave with a lantern actually is: an override
-    // at a cell whose stack is the floor under their feet, and a second cave
-    // storey beneath that floor.
     const map = mapAt([
       { x: 0, y: 0, z: 0, tiles: ["floor"] },
       { x: 1, y: 0, z: 0, tiles: ["floor"] },
@@ -721,7 +663,6 @@ describe("void", () => {
 });
 
 describe("isPitchBlack", () => {
-  /** A 5×5 level at the origin, unlit except for the texels given. */
   function gridWith(texels: { x: number; y: number; rgba: [number, number, number, number] }[]) {
     const rgba = new Uint8Array(5 * 5 * 4);
     for (const t of texels) rgba.set(t.rgba, (t.y * 5 + t.x) * 4);

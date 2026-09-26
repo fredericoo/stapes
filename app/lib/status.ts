@@ -4,43 +4,10 @@ import { NO_VFX, resolveStatusVfx, type StatusVfx, statusVfxSchema } from "./sta
 import { type CellRect, defaultBase, type AnchoredSprite } from "./types";
 import { MAX_WALK_SPEED_PERCENT, MIN_WALK_SPEED_PERCENT } from "./walkSpeed";
 
-/**
- * What a status effect *is*: a lifetime, something it does while it lasts, and
- * a name for the person carrying it.
- *
- * ## Why these live in a file of their own
- *
- * A status is not a thing in the world. It is never placed, never stacked, never
- * walked into and never picked up, so giving it a `TileDef` would mean every
- * consumer of `tilesById` carrying entries that can never appear on a board.
- * `data/statuses.json` is a fourth authored blob beside the map, the tiles and
- * the tilesets, read through the same `./dataStore`.
- *
- * ## Parsed, never trusted
- *
- * The same discipline `./battler` and `./interactions` are under: an entry that
- * does not validate is **dropped from the catalogue**, and everything that
- * references it behaves as though it were never authored. A world whose author
- * fat-fingered a formula should lose one effect, not fail to start.
- *
- * The formulas are compiled here, once, rather than at the point of use — a
- * status's effect is evaluated once a second per bearer and its modifiers once
- * per body per frame, and re-parsing at that rate would be the most expensive
- * thing in either loop.
- */
-
-/** Which way a status leans. See {@link StatusDef.tone}. */
 export type StatusTone = "good" | "bad";
 
 export const STATUS_TONES: StatusTone[] = ["good", "bad"];
 
-/**
- * The numbers a status may move, as formulas evaluated where the stats are read.
- *
- * A subset of `FightingStats` on purpose: `range` and `sight` are facts about a
- * body rather than a condition it is in, and a status that changed how far you
- * could see would be a different feature wearing this one's clothes.
- */
 export type StatusModifiers = {
   damage?: Formula;
   def?: Formula;
@@ -61,151 +28,27 @@ export const MODIFIER_KEYS = [
 
 export type StatusDef = {
   id: string;
-  /** What it is called where it is shown. "Fed". */
   name: string;
-  /**
-   * One line saying what it does, in words rather than arithmetic.
-   *
-   * Required, unlike a consumable's `label` or `sound`, because there is exactly
-   * one thing that ever explains a status and this is it: the tooltip on a panel
-   * row and on a strip icon, and the second half of every icon's accessible
-   * name. A blank one is an icon nobody can identify.
-   */
   description: string;
-  /**
-   * Whether this is something being done *to* you or *for* you.
-   *
-   * **Not derived from the sign of the effects**, because a status can perfectly
-   * well heal you while wrecking your accuracy and only the author knows which of
-   * those is the point.
-   *
-   * It earns its keep beyond colour: it is the first term of the comparator both
-   * the strip and the stats panel sort by, so when the strip runs out of room the
-   * thing dropped into its `+N` is never the poison.
-   */
   tone: StatusTone;
-  /**
-   * The picture, as a rectangle on a tileset.
-   *
-   * Its own sprite rather than a borrowed tile id, which is what lets a status
-   * be drawn from anywhere on any sheet instead of only where a tile happens to
-   * exist. It is a bare {@link AnchoredSprite} and not a `Frame`, because a frame is
-   * what carries a duration and a status icon has nothing to animate — see
-   * `../components/TilePreview`'s `SpritePreview`.
-   *
-   * Optional: a status with no icon is a status somebody has not drawn yet, and
-   * a blank cell in the lane is a better answer than refusing to load one.
-   */
   icon?: AnchoredSprite;
-  /** How long one application lasts, both ends included. One draw. */
   fromMs: number;
   toMs: number;
-  /**
-   * Whether re-applying adds to what is left, or merely refreshes it.
-   * See `../game/statuses`.
-   */
   stacks: boolean;
-  /** Ceiling on accumulated duration. Only read when {@link stacks}. */
   maxMs: number;
-  /**
-   * How often {@link effects} fire, in milliseconds. Zero or less means never —
-   * a status that only modifies stats has no cadence to have.
-   *
-   * A formula rather than a number, evaluated against the same scope the
-   * effect is, so a cadence can depend on the body: Fed pays a whole point a
-   * period and sets the period from the maximum, which is how a fifty-point
-   * body is healed every six seconds and a hundred-point one every three,
-   * both full in the same three hundred. Authored as a plain number it is a
-   * constant, which is every status written before this was a formula.
-   */
   everyMs: Formula;
-  /** What one period does to the bearer. */
   effects: { hp?: Formula };
-  /** What holding this does to the numbers a fight is fought with. */
   modifiers: StatusModifiers;
-  /**
-   * How much quicker or slower this makes its bearer walk, as a percentage.
-   *
-   * Zero is the pace the body is authored at; `-50` is half speed and `100` is
-   * twice it. Several sources sum before anything is divided — see
-   * `./walkSpeed`'s {@link walkDurationFrom} — so two chills are worse than
-   * one and neither can drive a body to a standstill.
-   *
-   * **Beside {@link modifiers} rather than inside it**, for two reasons that
-   * point the same way. Every modifier there is a delta in a fighting stat's own
-   * units, applied where `FightingStats` is read; walking pace is not a fighting
-   * stat and is not read there — `spd` is how fast you *swing*. And a modifier
-   * is a formula, evaluated against a scope that includes how long the status
-   * has left to run; the browser times other bodies' steps from the status
-   * *ids* it is broadcast and has no countdown for anybody but its viewer, so a
-   * pace that varied with the remainder would have the two sides drawing the
-   * same step at two different speeds. A plain number is the same answer on
-   * both.
-   *
-   * Zero for every status authored before this existed, which is the honest
-   * reading: a condition says nothing about your legs unless somebody says so.
-   */
   walkSpeedPercent: number;
-  /**
-   * Whether its bearer can do anything at all while it runs.
-   *
-   * An incapacitated body takes no step and no turn, swings at nothing, casts
-   * nothing, and uses, moves, picks up, drops or talks to nothing; a creature's
-   * brain is not given a turn. What is already happening to it carries on — a
-   * fall still lands, a shove still slides, its statuses still tick — because
-   * this is about what the body *does*, and none of those are.
-   *
-   * A flag on the def rather than a list of status ids somewhere in the
-   * simulation, so the gates read one question — `../game/statuses`'s
-   * `incapacitated` — and never learn which statuses answer it. Sleep is the
-   * one authored today.
-   *
-   * False for every status authored before this existed.
-   */
   incapacitates: boolean;
-  /**
-   * Whether taking damage ends it on the spot.
-   *
-   * Read where damage is applied, after the amount has landed: the blow that
-   * wakes a sleeper still hurts. Any damage counts, whatever caused it — a
-   * blade, a bolt, a burn ticking over, a fall — and a miss, a heal and a blow
-   * armour soaks to nothing do not.
-   *
-   * False for every status authored before this existed.
-   */
   endsOnDamage: boolean;
-  /**
-   * What it looks like: a colour on the body, a plume over the tile.
-   *
-   * Never {@link NO_VFX} by accident — a status with nothing authored gets it on
-   * purpose, and every status written before this existed is exactly that case.
-   * The renderers read this and the simulation never does; see `./statusVfx` for
-   * why that separation is worth a file.
-   */
   vfx: StatusVfx;
 };
 
-/**
- * Longest a description may be.
- *
- * It bounds a **tooltip** rather than a row of the panel, which loosens what it
- * is protecting without removing it: a popup is free to be two lines and must
- * not be a paragraph, and this same text is the second half of every icon's
- * accessible name.
- */
 export const MAX_STATUS_DESCRIPTION_LENGTH = 80;
 
-/**
- * Longest a status may run, however much is stacked onto it.
- *
- * A sanity bound rather than a balance one, on the terms
- * `MAX_CONSUMABLE_HP_SHIFT` is: an hour is longer than anything worth authoring,
- * and a typo'd extra digit reads as malformed rather than as an effect somebody
- * carries for a week.
- */
 export const MAX_STATUS_DURATION_MS = 60 * 60 * 1000;
 
-/** What a fresh status gets in the editor. Complete, and usable on the tick it is made. */
 export const DEFAULT_STATUS_SOURCE = {
   id: "",
   name: "",
@@ -222,23 +65,9 @@ export const DEFAULT_STATUS_SOURCE = {
   walkSpeedPercent: 0,
   incapacitates: false,
   endsOnDamage: false,
-  // Neither half authored, so a new status looks like every existing one until
-  // somebody turns an effect on. The editor's defaults for each half live in
-  // `./statusVfx`, and are only reached when an author asks for one.
   vfx: { tint: null, particles: null, light: null, taperMs: 0 },
 };
 
-/**
- * A rectangle on a tileset, in 8px cells.
- *
- * The same shape a tile frame's sprite has, restated here rather than imported
- * from a tile schema because the two are validated at different boundaries and
- * a status must not start depending on what a tile happens to allow.
- *
- * A tileset id naming nothing draws the magenta placeholder rather than failing
- * to load — a missing sheet should be *visible*, on the terms the renderer
- * already treats one.
- */
 const iconSchema = v.object({
   tilesetId: v.string(),
   rect: v.object({
@@ -247,8 +76,6 @@ const iconSchema = v.object({
     w: v.pipe(v.number(), v.integer(), v.minValue(1)),
     h: v.pipe(v.number(), v.integer(), v.minValue(1)),
   }),
-  // Defaulted rather than required, so a sprite written by hand needs only the
-  // rectangle — `defaultBase` is the same answer the tile editor fills in.
   base: v.optional(
     v.object({
       x: v.pipe(v.number(), v.integer(), v.minValue(0)),
@@ -264,13 +91,6 @@ const durationMs = v.pipe(
   v.maxValue(MAX_STATUS_DURATION_MS),
 );
 
-/**
- * The shape on disk, before the formulas are anything but strings.
- *
- * Formulas stay strings through validation and are compiled in
- * {@link compileStatus}, so a syntax error and a malformed number fail at the
- * same place and in the same way rather than one throwing past the other.
- */
 const statusSourceSchema = v.pipe(
   v.object({
     id: v.pipe(v.string(), v.trim(), v.minLength(1)),
@@ -287,9 +107,6 @@ const statusSourceSchema = v.pipe(
     toMs: durationMs,
     stacks: v.optional(v.boolean(), false),
     maxMs: v.optional(durationMs, MAX_STATUS_DURATION_MS),
-    // A number or a formula: see `StatusDef.everyMs`. A number is bounded the
-    // way the other durations are; a formula is bounded by what it comes to,
-    // which `snapToTick` reads as "never" at zero and below.
     everyMs: v.optional(v.union([durationMs, v.string()]), 0),
     effects: v.optional(v.object({ hp: v.optional(v.string()) }), () => ({})),
     modifiers: v.optional(
@@ -301,11 +118,6 @@ const statusSourceSchema = v.pipe(
       ),
       () => ({}),
     ),
-    // A plain number rather than a formula, unlike everything in `modifiers`
-    // above — see `StatusDef.walkSpeedPercent`, which is where the reason is.
-    // Bounded on both sides by the band `../game/movement` clamps to anyway, so
-    // a typo'd extra digit reads as malformed rather than as a body that cannot
-    // be caught.
     walkSpeedPercent: v.optional(
       v.pipe(
         v.number(),
@@ -317,9 +129,6 @@ const statusSourceSchema = v.pipe(
     ),
     incapacitates: v.optional(v.boolean(), false),
     endsOnDamage: v.optional(v.boolean(), false),
-    // Optional and defaulted, which is the whole compatibility story: every
-    // status in `data/statuses.json` predates this field, and an absent block
-    // has to keep loading rather than dropping the status from the catalogue.
     vfx: v.optional(statusVfxSchema, () => ({
       tint: null,
       particles: null,
@@ -327,21 +136,11 @@ const statusSourceSchema = v.pipe(
       taperMs: 0,
     })),
   }),
-  // An inverted range is malformed and reads as "not a status", exactly as an
-  // inverted decay lifetime does — the editor keeps the pair ordered, so nothing
-  // authored through it can land here.
   v.check((raw) => raw.toMs >= raw.fromMs, "duration range is inverted"),
 );
 
 export type StatusSource = v.InferOutput<typeof statusSourceSchema>;
 
-/**
- * Turn a validated entry into a def, compiling every formula on it.
- *
- * Null when any formula fails to parse, and **the whole status goes**, not just
- * the field: a status whose heal did not compile is one that says "Fed" in the
- * panel and does nothing, which is worse than one that is simply not there.
- */
 function compileStatus(raw: StatusSource): StatusDef | null {
   const effects: StatusDef["effects"] = {};
   if (raw.effects.hp !== undefined) {
@@ -383,43 +182,20 @@ function compileStatus(raw: StatusSource): StatusDef | null {
   };
 }
 
-/** One entry, validated and compiled, or null when it is not a status. */
 export function resolveStatus(raw: unknown): StatusDef | null {
   const parsed = v.safeParse(statusSourceSchema, raw);
   return parsed.success ? compileStatus(parsed.output) : null;
 }
 
-/** The id the combat flag runs under. See {@link COMBAT_STATUS}. */
 export const COMBAT_STATUS_ID = "combat";
 
-/** How long one blow, swing or hurt keeps somebody in combat. */
 export const COMBAT_DURATION_MS = 60_000;
 
-/**
- * Being in a fight: the one status the engine owns rather than an author.
- *
- * **Code, not `data/statuses.json`**, because a rule hangs off it: closing the
- * tab while this is running leaves the body standing in the world until it
- * runs out (`server/GameServer`'s `lingering`). A rule that an edit in the
- * status editor could delete is not a rule — and a catalogue that dropped a
- * malformed entry would drop the rule with it.
- *
- * It is a status rather than a field of its own so that everything a status
- * already has comes for free: the strip draws it with a countdown bar, the
- * stats panel names it, it rides the viewer's `statuses` message and the
- * broadcast status ids, and it is stored and restored beside the rest.
- *
- * Nothing rolls it. `../game/statuses`'s `enterCombat` writes it at full
- * length directly, so a fight draws exactly as many dice as it did before
- * this existed. `fromMs`, `toMs` and `maxMs` are all the one figure so the bar
- * reads full at the moment of the blow.
- */
 export const COMBAT_STATUS: StatusDef = {
   id: COMBAT_STATUS_ID,
   name: "In combat",
   description: "You fought recently. Leaving now leaves your body here until it ends.",
   tone: "bad",
-  // The iron sword's picture on the equipment sheet.
   icon: {
     tilesetId: "equipment",
     rect: { x: 0, y: 18, w: 1, h: 1 },
@@ -432,24 +208,12 @@ export const COMBAT_STATUS: StatusDef = {
   everyMs: constantFormula(0),
   effects: {},
   modifiers: {},
-  // Being in a fight says nothing about your legs: you can run from one.
   walkSpeedPercent: 0,
   incapacitates: false,
   endsOnDamage: false,
   vfx: NO_VFX,
 };
 
-/**
- * The catalogue, keyed by id.
- *
- * Malformed entries are dropped rather than throwing, on the terms above. A
- * duplicate id keeps the **first**, which is the same rule `tilesByIdFromList`
- * runs on and is the one that makes an accidental paste inert rather than
- * silently authoritative.
- *
- * {@link COMBAT_STATUS} is always in it, and wins over an authored entry with
- * the same id: that id belongs to the engine.
- */
 export function statusesById(raw: unknown[]): Record<string, StatusDef> {
   const out: Record<string, StatusDef> = {};
   for (const entry of raw) {
@@ -461,13 +225,6 @@ export function statusesById(raw: unknown[]): Record<string, StatusDef> {
   return out;
 }
 
-/**
- * One status as the chrome needs to draw it: the instance joined to its def.
- *
- * The join lives here rather than in either component because both of them need
- * it and neither should hold half of one — the same reason `resolveReward` is the
- * only place a placement and its def meet.
- */
 export type ActiveStatus = {
   defId: string;
   name: string;
@@ -475,52 +232,13 @@ export type ActiveStatus = {
   tone: StatusTone;
   icon: AnchoredSprite | null;
   remainingMs: number;
-  /**
-   * What a full bar means for this status — see {@link fullDurationMs}.
-   *
-   * Resolved here rather than in the component because it is a property of the
-   * *def*, and the chrome should not have to know that a stacking status is
-   * measured against a different ceiling from one that is not.
-   */
   fullDurationMs: number;
 };
 
-/**
- * The duration a status's bar reads as full.
- *
- * Two answers, because a status means two different things by "as long as this
- * gets":
- *
- * - **Stacking** — the ceiling it can be piled up to. A bar that filled at one
- *   helping would have nowhere left to show the second, which is the whole point
- *   of a status that stacks.
- * - **Not stacking** — the longest the roll could have come out. A short draw
- *   therefore *starts* short, which is the honest reading: two people who ate
- *   the same thing did not get the same thing, and the bar is where that shows.
- *
- * Never the instance's own rolled duration. That would make every status start
- * full and drain identically, which is easier to read and says nothing.
- *
- * **The trade this makes, decided deliberately:** a status whose ceiling is far
- * above a single helping spends most of its life pinned to the bar's minimum.
- * Fed is exactly that — 10–30 seconds a berry against an hour of stacking — so
- * one berry is under a percent and reads as the one-pixel floor
- * `../components/StatusStrip` keeps for anything still running. That is honest
- * rather than broken: against an hour, a berry *is* a rounding error, and the
- * bar is saying so. An author who wants a readable bar brings `maxMs` within
- * reach of what one use grants.
- */
 export function fullDurationMs(def: StatusDef): number {
   return def.stacks ? def.maxMs : def.toMs;
 }
 
-/**
- * A stored sprite with its base filled in.
- *
- * `base` is optional on disk — `defaultBase` is the same answer the tile editor
- * writes — so anything reading an authored sprite has to complete it. One helper
- * rather than the same `??` at each of the four places that draw one.
- */
 export function completeSprite(
   sprite: { tilesetId: string; rect: CellRect; base?: { x: number; y: number } } | undefined,
 ): AnchoredSprite | null {
@@ -528,7 +246,6 @@ export function completeSprite(
   return { ...sprite, base: sprite.base ?? defaultBase(sprite.rect) };
 }
 
-/** What is running on a body, ready to draw. Unknown ids are dropped. */
 export function activeStatuses(
   instances: readonly { defId: string; remainingMs: number }[],
   catalogue: Record<string, StatusDef>,

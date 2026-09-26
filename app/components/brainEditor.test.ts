@@ -24,7 +24,6 @@ function tile(partial: Record<string, unknown> & { id: string }): TileDef {
   });
 }
 
-/** A player, two things that can be bodies, and scenery that cannot. */
 const LIBRARY: TileDef[] = [
   tile({ id: "stone-wall", height: 4 }),
   tile({ id: "rat", actor: true }),
@@ -35,15 +34,8 @@ const LIBRARY: TileDef[] = [
   }),
 ];
 
-/**
- * The editor's pure moves, tested where the correctness actually lives: order is
- * the semantics, so a reorder that dropped an item or a rename that missed a
- * reference would author a different creature than the one on screen.
- */
-
 describe("reordering", () => {
   it("pulls an item out and drops it back in at the target", () => {
-    // Drag the head to the tail, and a middle item up to the front.
     expect(arrayMove(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"]);
     expect(arrayMove(["a", "b", "c"], 1, 0)).toEqual(["b", "a", "c"]);
   });
@@ -79,8 +71,6 @@ describe("renaming a state", () => {
   });
 
   it("keeps the states in their authored order", () => {
-    // Order is not semantic for states, but a rename that reshuffled them would
-    // scramble the editor's own list under the author's hands.
     expect(Object.keys(renamedState(brain, "idle", "resting").states)).toEqual(["resting", "flee"]);
   });
 
@@ -100,9 +90,6 @@ describe("offering selectors", () => {
       states: { idle: { do: [] } },
       transitions: [],
     };
-    // The two live queries, then the two that ask the transition who just spoke
-    // and who just swung, then the one that names a place instead of a body.
-    // Which *tiles* each names is the chips' question, not the picker's.
     expect(selectorVocabulary(brain, LIBRARY).kinds.map((k) => k.key)).toEqual([
       "nearest",
       "thing",
@@ -135,7 +122,6 @@ describe("offering selectors", () => {
     ]);
   });
 
-  /** The value behind each option is the object the brain actually stores. */
   it("carries the selector itself, not a string to be parsed back", () => {
     const brain: BrainDef = {
       initial: "idle",
@@ -155,7 +141,6 @@ describe("offering selectors", () => {
     expect(kinds.at(-1)!.make()).toEqual(slot("spooked"));
   });
 
-  /** A tile's own name, so the chips read as the world does. */
   it("labels each tile chip with the tile name", () => {
     const named = [tile({ id: "player", height: 4, name: "Player" })];
     const { kinds } = selectorVocabulary(
@@ -165,55 +150,25 @@ describe("offering selectors", () => {
     expect(kinds[0]!.tiles).toEqual([{ tileId: "player", label: "Player" }]);
   });
 
-  /**
-   * The picker names bodies, not tiles. Offering the whole library would bury
-   * the four things anything can be standing on under a hundred walls and floors.
-   */
   it("offers only tiles a body can be, player first", () => {
     expect(bodyTileIds(LIBRARY)).toEqual(["player", "cat", "rat"]);
   });
 
-  /**
-   * The player is a body because somebody connected to it, not because of an
-   * authored flag — so the rule that finds the others cannot find it.
-   */
   it("keeps the player even though nothing marks it an actor", () => {
     expect(bodyTileIds([tile({ id: "player", height: 4 })])).toEqual(["player"]);
   });
 
-  /**
-   * Against the library we actually ship, because the picker being *short* is the
-   * point: a list with every wall and floor in it would be unusable, and nothing
-   * about the filter says so until it meets a real tiles.json.
-   *
-   * The rule, not the roster. Listing the ids made this fail every time somebody
-   * authored an NPC, which says nothing about whether the filter is right. What
-   * the shipped library is here to answer is the one question a fixture cannot:
-   * whether the filter still cuts a hundred tiles down to a handful.
-   */
   it("stays short against the shipped library", () => {
     const authored = normalizeTiles(tilesJson as unknown[]);
     const offered = bodyTileIds(authored);
 
     expect(offered[0]).toBe("player");
-    // Short, and short because the filter worked rather than because it found
-    // nothing: a filter that returned the hardcoded player alone would pass the
-    // length test on its own.
     expect(offered.length).toBeGreaterThan(1);
     expect(offered.length).toBeLessThan(authored.length / 4);
   });
 });
 
-/**
- * Writing one field back into a condition.
- *
- * The interesting half is what happens to a field somebody emptied: a value
- * meaning "not set" has to leave the key off entirely, because the schema reads
- * absence and a falsy value as two different things — and one of them makes the
- * creature inert.
- */
 describe("editing a parameter", () => {
-  /** The text box on `heard noise`, which is authored as optional. */
   const NOISE_TEXT = CONDITIONS.heard_noise.params.find((spec) => spec.key === "text")!;
 
   it("writes a value somebody typed", () => {
@@ -224,7 +179,6 @@ describe("editing a parameter", () => {
     });
   });
 
-  /** An empty box on an optional field is "any sound", not a word of no letters. */
   it("takes the key away again when the box is emptied", () => {
     const patched = paramPatch({ cond: "heard_noise", cells: 20, text: "howl" }, NOISE_TEXT, "");
 
@@ -232,10 +186,6 @@ describe("editing a parameter", () => {
     expect(patched).not.toHaveProperty("text");
   });
 
-  /**
-   * The same emptied box on a field that requires one stays empty and stays
-   * broken, which is the honest outcome: there is no "any word" to fall back to.
-   */
   it("leaves a required text where it is, empty and all", () => {
     const required = CONDITIONS.heard.params.find((spec) => spec.key === "text")!;
 
@@ -257,12 +207,6 @@ describe("editing a parameter", () => {
   });
 });
 
-/**
- * A `cast` row switched onto a spell that lands on its caster.
- *
- * The target field stops being shown for one, so a selector left behind would
- * sit in the file with no control to take it out.
- */
 describe("picking a spell for a cast row", () => {
   const CAST = ACTIONS.cast.params;
   const SPELL = CAST.find((spec) => spec.key === "spell")!;
@@ -284,14 +228,6 @@ describe("picking a spell for a cast row", () => {
   });
 });
 
-/**
- * What the editor can say about a selector without being told.
- *
- * The whole point of the `thing` selector is that a bush is authored as a bush
- * once, in `tiles.json`, and everything downstream reads it. This is that
- * reading: the picker knows a bush can be picked because the bush says so, and a
- * slot knows it holds a bush because the transition that fills it says so.
- */
 describe("what a selector affords", () => {
   const ORCHARD: TileDef[] = [
     ...LIBRARY,
@@ -330,8 +266,6 @@ describe("what a selector affords", () => {
     const things = tilesFor(IDLE, "thing");
     expect(things).toContain("bush");
     expect(things).toContain("boulder");
-    // Scenery with no interaction block is not worth naming, and a body is
-    // already offered under `nearest`.
     expect(things).not.toContain("hedge");
     expect(things).not.toContain("rat");
   });
@@ -344,10 +278,6 @@ describe("what a selector affords", () => {
     expect(describe_(IDLE, nearest("rat"))?.affords).toEqual(["attack"]);
   });
 
-  /**
-   * A boulder is pushable and a brain has no verb for pushing, so saying so
-   * would be telling an author about a row this table cannot offer them.
-   */
   it("names only the verbs a brain actually has", () => {
     expect(describe_(IDLE, thing("boulder"))).toEqual({
       tiles: ["boulder"],
@@ -355,7 +285,6 @@ describe("what a selector affords", () => {
     });
   });
 
-  // Whatever it can do to either, since the selector may answer with either.
   it("unions the verbs across a list of tiles", () => {
     expect(describe_(IDLE, thing("bush", "boulder"))).toEqual({
       tiles: ["bush", "boulder"],

@@ -17,62 +17,15 @@ import { type StatusDef, statusesById } from "../../lib/status";
 import type { TileDef } from "../../lib/types";
 import { Button, NumberInput, Segmented } from "../../ui";
 
-/**
- * The combat simulator: two bodies, no world, and the arithmetic on the table.
- *
- * **A balancing instrument rather than a game screen.** Every other way to find
- * out what a weapon is worth involves walking somewhere and fighting something,
- * which folds the answer together with the terrain, the brain that was driving
- * the thing and whether it happened to be standing on a crate. None of those are
- * balance, and all of them are noise in the measurement. So the premise here is
- * fixed and stated: the two are a cell apart, on one floor, facing each other,
- * both in reach, with nothing in the way and nobody walking away.
- *
- * Two halves, and the order on the page is the order they are worth reading in:
- *
- * - **The table is exact.** `../game/combatMetrics` works the odds out in closed
- *   form over the same curves blows are struck on, so a point of accuracy moves
- *   a figure by exactly what a point of accuracy is worth. It is the thing to
- *   tune against.
- * - **The fight is one sample.** `../game/duel` is the loop the session runs,
- *   tick for tick and draw for draw. What it adds is the shape of a fight —
- *   whether the axe's first blow decides it, whether the rat ever gets a second
- *   swing — which is a question about a sequence and cannot be read off a mean.
- *
- * The seed is on the page for the same reason it is in the world: a fight
- * somebody watched and wants to ask about has to be the same fight when they
- * run it again.
- *
- * ## Nothing on this page describes a formula in words
- *
- * The premise used to be stated in a paragraph at the top and every metric had a
- * tooltip explaining the curve behind it. Both are gone. A sentence describing
- * arithmetic is a second copy of that arithmetic which no test fails when the
- * first one is tuned — and this page exists precisely to be trusted *while* the
- * curves are moving. Every string it renders is a label, a slot name, or a
- * number that came out of a function; the reasoning lives in the modules that
- * have to stay true to it.
- */
-
 export async function clientLoader() {
   await requireAdmin();
   return await fetchBootstrap();
 }
 
-/** Real time per simulated second. The extremes are for different questions. */
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const;
 
-/**
- * Most ticks one animation frame may run.
- *
- * A tab left in the background hands back a gap of minutes, and stepping the
- * whole of it in one frame would run a fight to its end between two paints —
- * the one thing a *watched* fight must not do. The same bound
- * `GameSession.update` keeps, and for the same reason.
- */
 const MAX_TICKS_PER_FRAME = 10;
 
-/** How much of the log is kept. Older than this is scrollback nobody reads. */
 const MAX_LOG_ENTRIES = 200;
 
 type LogEntry = {
@@ -84,15 +37,6 @@ type LogEntry = {
 
 type Lean = { atMs: number | null; kind: "swing" | "dodge" };
 
-/**
- * Everything the page draws, published once per frame.
- *
- * A snapshot rather than reading the `Duel` during render, because the duel is a
- * mutable object stepped inside an animation frame: React would be reading a
- * value that changes underneath it, and a fight drawn half a tick apart from
- * itself is exactly the kind of bug that only shows up as a number that looked
- * wrong once.
- */
 type Snapshot = {
   elapsedMs: number;
   hp: Record<Side, number>;
@@ -127,9 +71,6 @@ export default function ArenaPage() {
     () => Object.fromEntries(tiles.map((tile) => [tile.id, tile])),
     [tiles],
   );
-  // Compiled once per load rather than per render: `statusesById` parses every
-  // formula in the catalogue, and the fight asks for it on every tick a status
-  // is running.
   const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
   const battlers = useMemo(() => battlerTiles(tiles), [tiles]);
 
@@ -142,12 +83,8 @@ export default function ArenaPage() {
   const [playing, setPlaying] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
 
-  // Every blow each side throws, in the order its hands take turns — one entry
-  // for the overwhelmingly common one-weapon body, two for a body fighting with
-  // both. The duel alternates through them exactly as the world does.
   const swingsA = useMemo(() => swingsOf(a, tilesById), [a, tilesById]);
   const swingsB = useMemo(() => swingsOf(b, tilesById), [b, tilesById]);
-  // The opening blow, which is what the odds row and the readouts quote.
   const statsA = swingsA[0] ?? null;
   const statsB = swingsB[0] ?? null;
   const names = useMemo(
@@ -164,14 +101,6 @@ export default function ArenaPage() {
     if (current) setSnapshot(current.snapshot(statusDefs));
   }, [statusDefs]);
 
-  /**
-   * A fresh fight whenever what is being fought changes.
-   *
-   * Setup-driven rather than a button, because a figure on the table and a fight
-   * on the stage that came from different loadouts is the one state this page
-   * must never be in — somebody edits a mastery mid-fight and reads the rest of
-   * the bout as though it had been fought that way.
-   */
   useEffect(() => {
     setPlaying(false);
     runtime.current =
@@ -187,9 +116,6 @@ export default function ArenaPage() {
     let frame = 0;
     let lastAt = performance.now();
     const tick = (now: number) => {
-      // Scaled here rather than by changing the tick length: the simulation runs
-      // at one fixed rate and always will — what a speed control changes is how
-      // much of it a second of watching is worth.
       current.advance((now - lastAt) * speed);
       lastAt = now;
       publish();
@@ -321,13 +247,6 @@ function stageSide(
   };
 }
 
-/**
- * The fight in reverse, newest first.
- *
- * Newest at the top rather than at the bottom with a scroll chasing it: the line
- * somebody wants is always the one that just happened, and a log that has to be
- * scrolled to stay current is one that is wrong every time a frame is dropped.
- */
 function CombatLog({ entries }: { entries: readonly LogEntry[] }) {
   return (
     <div className="flex max-h-80 min-h-32 flex-col overflow-hidden border-2 border-border bg-panel">
@@ -360,22 +279,11 @@ const LOG_TONE: Record<LogEntry["tone"], string> = {
   death: "font-bold text-danger",
 };
 
-/**
- * The fight, plus everything the page needs to draw it that the fight itself has
- * no opinion about.
- *
- * A class beside the component rather than state inside it, because all of this
- * changes on a simulation tick and none of it should cost a React render on its
- * own: a fight at 4× runs forty ticks a second, and a `setState` per event would
- * be forty renders where one per frame is what a screen can show. The component
- * asks for a {@link Snapshot} once a frame and draws that.
- */
 class Runtime {
   private readonly duel: Duel;
   private readonly floaters: Floater[] = [];
   private readonly log: LogEntry[] = [];
   private readonly lean: Record<Side, Lean> = { a: NO_LEAN, b: NO_LEAN };
-  /** Sim time owed but not yet stepped — a tick is indivisible. */
   private owedMs = 0;
   private nextId = 0;
 
@@ -384,13 +292,6 @@ class Runtime {
     swingsB: readonly FightingStats[],
     seed: number,
     statusDefs: Record<string, StatusDef>,
-    /**
-     * What to call each side in the log.
-     *
-     * Names rather than "A" and "B", because the log is the one place the fight
-     * is written down in sentences — and a line reading "A → B −4" asks the
-     * reader to hold which of the two was which while they read it.
-     */
     private readonly names: Record<Side, string>,
   ) {
     this.duel = new Duel({ swings: swingsA }, { swings: swingsB }, new Rng(seed), { statusDefs });
@@ -400,13 +301,11 @@ class Runtime {
     return this.duel.finished;
   }
 
-  /** Step one tick, whatever the clock says. What the Step button does. */
   step() {
     if (this.duel.finished) return;
     this.consume(this.duel.tick());
   }
 
-  /** Run whatever the last frame was worth, a whole tick at a time. */
   advance(elapsedMs: number) {
     this.owedMs += Math.max(0, elapsedMs);
     let budget = MAX_TICKS_PER_FRAME;
@@ -415,9 +314,6 @@ class Runtime {
       budget--;
       this.consume(this.duel.tick());
     }
-    // A frame that could not keep up drops what it could not run rather than
-    // banking it: a backlog paid off on the next frame is a fight that speeds up
-    // to catch itself, which is the opposite of watching one.
     if (budget === 0) this.owedMs = 0;
   }
 
@@ -434,8 +330,6 @@ class Runtime {
     const at = opponentOf(by);
     const arrow = `${this.names[by]} → ${this.names[at]}`;
 
-    // A ranged weapon never leans: what it throws is the arrow. The same gate
-    // `swingToward` puts on it, asked of the weapon rather than of the distance.
     if (!isRanged(this.duel.statsOf(by))) {
       this.lean[by] = { atMs: this.duel.elapsedMs, kind: "swing" };
     }
@@ -446,8 +340,6 @@ class Runtime {
       return;
     }
     if (event.outcome.dodged) {
-      // No number floats. The hop is the whole account of a dodge — a word
-      // beside it would be the same event told twice.
       this.lean[at] = { atMs: this.duel.elapsedMs, kind: "dodge" };
       this.note(`${arrow} dodged (worth ${event.outcome.potentialDamage})`, "miss");
       return;
@@ -499,11 +391,8 @@ class Runtime {
     if (this.log.length > MAX_LOG_ENTRIES) this.log.length = MAX_LOG_ENTRIES;
   }
 
-  /** What the page should draw right now. */
   snapshot(statusDefs: Record<string, StatusDef>): Snapshot {
     const elapsedMs = this.duel.elapsedMs;
-    // Aged here rather than on a clock of their own, so a paused fight holds its
-    // numbers in the air instead of losing them to real time nobody is spending.
     const alive = this.floaters.filter(
       (floater) => elapsedMs - floater.bornAtMs < DAMAGE_NUMBER_LIFETIME_MS,
     );

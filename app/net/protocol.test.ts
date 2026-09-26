@@ -4,16 +4,6 @@ import { parseClientMessage, parseServerMessage, type MotionEvent } from "./prot
 import { SWING_OUTCOMES } from "../game/GameSession";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
 
-/**
- * What a browser is allowed to say.
- *
- * Everything inbound arrives from a machine nobody controls, so the standard is
- * that a malformed message is a *dropped* message and never a crashed world. The
- * cases worth pinning are the ones where a number reaches a map lookup:
- * coordinates have to be whole, and a slot index has to be a number that can be
- * compared against a container's size.
- */
-
 function parsed(message: unknown) {
   return parseClientMessage(JSON.stringify(message));
 }
@@ -61,7 +51,6 @@ describe("moveItem", () => {
     });
   });
 
-  /** A pack in a hand is a container too, and `of` is which one. */
   it("takes a contents slot naming the hand it is inside", () => {
     const from = { kind: "contents", index: 1, of: "offhand" };
     expect(parsed({ type: "moveItem", from, to: { kind: "weapon" } })).toEqual({
@@ -94,12 +83,6 @@ describe("moveItem", () => {
     ).toBeNull();
   });
 
-  /**
-   * An index past the end of a container is *not* refused here. What an index
-   * may be depends on the size of the thing it is read against, which the
-   * session knows and this schema does not — so it parses, reads as an empty
-   * slot, and is refused in the one place capacity is understood.
-   */
   it("takes an index that is merely too big, and leaves the refusal to the board", () => {
     expect(
       parsed({ type: "moveItem", from: { kind: "contents", index: 9999 }, to: { kind: "weapon" } }),
@@ -198,9 +181,6 @@ describe("craft", () => {
   });
 
   it("keeps a recipe past the end, which the session refuses instead", () => {
-    // How many recipes a tile has is decided by the tile, and the schema does
-    // not hold the catalogue — so an index out of range is a refusal in the one
-    // place the list is understood, not a malformed frame.
     const message = {
       type: "craft",
       ref: { x: 0, y: 0, z: 0, stackIndex: 0 },
@@ -222,7 +202,6 @@ describe("command", () => {
 });
 
 describe("cancelCast", () => {
-  /** A body makes one cast at a time, and the server knows which. */
   it("carries nothing but its name", () => {
     expect(parsed({ type: "cancelCast" })).toEqual({ type: "cancelCast" });
   });
@@ -277,12 +256,6 @@ describe("drop", () => {
     ).toBeNull();
   });
 
-  /**
-   * A cell, never a stack slot: you choose where, and gravity chooses how high.
-   * An extra field is *stripped* rather than refused — these are `v.object`
-   * throughout, which is the standard this protocol already holds itself to, and
-   * the parsed message is the cell with nothing else riding along.
-   */
   it("keeps a stray stack index out of the cell it parses", () => {
     expect(
       parsed({
@@ -302,24 +275,9 @@ describe("drop", () => {
   });
 });
 
-/**
- * A kit the client cannot read must cost the client its kit, and nothing else.
- *
- * The failure this replaces was total: `hello` carries the map, and one item in
- * one pocket that did not satisfy the schema took the whole message with it —
- * so a player who had touched the wrong sword connected, streamed patches, and
- * never finished joining, with nothing in the game they could do about it.
- */
 describe("a kit that will not parse", () => {
   const badItem = { tileId: "rusty-sword" };
 
-  /**
-   * Every square empty, written out rather than taken from `emptyEquipment`.
-   *
-   * The wire's own answer to a kit it cannot read is a literal in the schema,
-   * and a test that built its expectation from the runtime shape would pass
-   * whatever that literal said. Two lists, on purpose.
-   */
   const EMPTY_KIT = {
     weapon: null,
     offhand: null,
@@ -361,9 +319,6 @@ describe("a kit that will not parse", () => {
   });
 
   it("empties the kit rather than salvaging the half it could read", () => {
-    // A readable weapon beside an unreadable bag. Keeping the weapon would be
-    // the client deciding what somebody is holding, which is the server's to
-    // say — and two clients deciding differently is how one sword becomes two.
     const message = parseServerMessage(
       helloWith({
         weapon: { id: "itm_w", tileId: "rusty-sword" },
@@ -386,13 +341,6 @@ describe("a kit that will not parse", () => {
     expect(message?.type === "equipment" && message.equipment).toEqual(EMPTY_KIT);
   });
 
-  /**
-   * A kit written by a build that had fewer squares than this one, which is
-   * every kit in storage from before each of them. Absent reads as an empty
-   * square — the same answer every other part of the kit gives to a thing the
-   * world no longer holds — and deliberately not as a `hello` that will not
-   * parse, which is a player who never finishes joining.
-   */
   it("reads a kit saved before the worn slots existed", () => {
     const message = parseServerMessage(
       JSON.stringify({
@@ -428,8 +376,6 @@ describe("a kit that will not parse", () => {
     expect(message?.type === "equipment" && message.equipment).toEqual(equipment);
   });
 
-  // The tolerance is the equipment field's alone: a `hello` whose *world* cannot
-  // be read is still a message with nothing to draw.
   it("is not a licence for the rest of the message", () => {
     expect(
       parseServerMessage(
@@ -442,18 +388,6 @@ describe("a kit that will not parse", () => {
   });
 });
 
-/**
- * Every field the type promises, actually surviving the wire.
- *
- * The bug this exists for: `outcome` was added to a damage event, the type was
- * updated and the schema was not, and valibot strips what a schema does not
- * name. It type-checked, it parsed, and every blow struck online drew nothing —
- * because the one thing reading that field turns `"hit"` into a number and
- * everything else into a word, and `undefined` is neither.
- *
- * Asserted by comparing what came back against what went in, rather than by
- * naming the fields: a test that lists them is a second place to forget one.
- */
 describe("nothing is quietly dropped in transit", () => {
   const damageEvent = {
     kind: "damage" as const,
@@ -499,7 +433,6 @@ describe("nothing is quietly dropped in transit", () => {
     }
   });
 
-  /** A ⭐ rides with hit points, and had to survive the same trip. */
   it("carries a body's rating beside its hit points", () => {
     const hp = { actorId: "rat", hp: 3, maxHp: 11, rating: 8 };
     const message = parseServerMessage(
@@ -515,7 +448,6 @@ describe("nothing is quietly dropped in transit", () => {
     expect(message?.type === "patch" && message.hps[0]).toEqual(hp);
   });
 
-  /** Who a cast is aimed at is what the dotted line from caster to target is drawn from. */
   it("carries who a cast is aimed at", () => {
     const cast = {
       actorId: "wolf",
@@ -557,17 +489,10 @@ describe("nothing is quietly dropped in transit", () => {
     const withPull = patchOf({ extractions: [pull] });
     expect(withPull?.type === "patch" && withPull.extractions).toEqual([pull]);
 
-    // From a server built before pulls were broadcast.
     const without = patchOf({});
     expect(without?.type === "patch" && without.extractions).toEqual([]);
   });
 
-  /**
-   * One of every kind, so a kind added to the union and not to the schema fails
-   * here rather than in a browser — where the whole frame, patch and all, is
-   * dropped without a word. Keyed by kind, so a new kind with no entry here is a
-   * type error before it is a test failure.
-   */
   it("carries one of every event kind through whole", () => {
     const oneOfEach: {
       [K in MotionEvent["kind"]]: Extract<MotionEvent, { kind: K }>;
@@ -641,12 +566,6 @@ describe("nothing is quietly dropped in transit", () => {
     }
   });
 
-  /**
-   * Not in the map above, because that one is exhaustive over event *kinds* and
-   * this is the same kind wearing an optional field. It is the field most
-   * worth a test of its own: a struck note that arrives without it looks up a
-   * side the body does not have and plays nothing, silently.
-   */
   it("carries a struck body's borrowed effect through whole", () => {
     const event = {
       kind: "tileTransition" as const,

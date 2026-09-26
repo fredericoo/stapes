@@ -7,16 +7,6 @@ import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
 import { readOpenedContainer } from "./openedContainer";
 
-/**
- * Whether a box somebody opened is still theirs to look into.
- *
- * Open or closed, with nothing in between: walking off closes it, and so does
- * somebody carrying it away. The caller forgets the reference on a close (see
- * `GameRenderer.pushOpenedContainer`), which is what stops a panel reopening on
- * its own as you wander back past a chest — and, with nothing kept, stops a slot
- * that has come to hold another bag being shown under the old panel.
- */
-
 function tile(partial: Record<string, unknown>): TileDef {
   return normalizeTileDef({
     name: partial.id,
@@ -48,7 +38,6 @@ const ME = { x: 0, y: 0, z: 0 };
 const REF: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const CHEST_ID = "itm_chest";
 
-/** A chest one cell east, holding one thing. */
 function board(tileId = "chest", itemId: string | undefined = CHEST_ID): MapFile {
   return replaceStack(emptyMap(), 1, 0, 0, [
     { tileId: "grass" },
@@ -91,12 +80,6 @@ describe("walking away", () => {
   });
 });
 
-/**
- * The case worth being strict about: what is in a bag belongs to whoever has
- * it, and a reference is a slot rather than a thing. This matters even with the
- * reference dropped on every close, because a box can be swapped while you are
- * standing right over it — which is exactly when nobody is walking anywhere.
- */
 describe("a box that is not that box any more", () => {
   it("is closed once somebody has taken it", () => {
     const taken = replaceStack(emptyMap(), 1, 0, 0, [{ tileId: "grass" }]);

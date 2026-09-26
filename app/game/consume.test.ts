@@ -12,36 +12,12 @@ import { COMBAT_STATUS_ID, type StatusDef, statusesById } from "../lib/status";
 import { snapToTick } from "./statuses";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
- * here like every other tile id in this file: what a body carries is authored
- * content now, so there is no constant in the engine left to import.
- */
 const BAG_TILE_ID = "basic-bag";
 
-/**
- * Eating and drinking, as the session runs them.
- *
- * The item rules have their own files; this is about what a consume *does* —
- * the thing stops existing, the hit points move, and both refusals and deaths
- * land on the same paths every other cause of them uses.
- */
-
-/**
- * The Toughness these tests count their hit points in, and the maximum it now
- * buys.
- *
- * **Derived rather than pinned.** It used to be the other way round — a hundred
- * hit points written as `PLAYER_MAX_HP - 8` Toughness — which was exact only for
- * as long as a point of Toughness was worth exactly one hit point. It is not any
- * more: the curve accelerates, so the last points are worth three each. See
- * `../lib/battler`'s `maxHpFrom`.
- */
 const PLAYER_BASE_HP = 8;
 const PLAYER_TOUGHNESS = 92;
 const PLAYER_MAX_HP = maxHpFrom(PLAYER_BASE_HP, PLAYER_TOUGHNESS);
 
-/** A consumable that grants statuses instead of moving hit points on the spot. */
 function granter(id: string, statuses: StatusGrant[]): TileDef {
   return tile({
     id,
@@ -66,8 +42,6 @@ function consumable(id: string, hp: number, sound?: string): TileDef {
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
-  // Something with volume, which is what it takes to bury a thing: a flat tile
-  // lying on top of another one hides nothing.
   tile({ id: "crate", height: 2 }),
   tile({
     id: "player",
@@ -89,7 +63,6 @@ const tiles: TileDef[] = [
           spd: 100,
           mastery: "fist",
         },
-        // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
       },
     },
@@ -103,19 +76,13 @@ const tiles: TileDef[] = [
   consumable("cherry", 5, "crunch"),
   consumable("poison", -10, "glug"),
   consumable("hemlock", -PLAYER_MAX_HP, "glug"),
-  // Authored with no noise, which is every consumable until somebody writes one.
   consumable("quiet-cherry", 5),
-  // The berry as `data/tiles.json` now authors it: no instant heal at all.
   granter("berry", [{ id: "fed" }]),
   granter("mystery-fruit", [{ id: "no-such-status" }]),
-  // The same status, authored to last far longer — a loaf against a berry.
   granter("bread", [{ id: "fed", fromMs: 60_000, toMs: 60_000 }]),
   ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
     ["green-potion", "luminous-potion", "empty-bottle"].includes(t.id),
   ),
-  // A drink that leaves its glass behind, and the glass. The potion piles to
-  // four so a hand can hold the rest of one; the bottle piles so two of them
-  // are one square.
   tile({
     id: "potion",
     kind: "item",
@@ -162,7 +129,6 @@ const tiles: TileDef[] = [
   }),
 ];
 
-/** Open grass with the player at the origin. */
 function field(half = 4): MapFile {
   let map = emptyMap();
   for (let x = -half; x <= half; x++) {
@@ -199,7 +165,6 @@ describe("eating off the floor", () => {
     expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
     expect(session.getSnapshot().equipment.bag?.contents).toEqual([]);
-    // Nothing entered the kit, so there is nothing to announce.
     expect(session.drainEquipmentChanges()).toEqual([]);
   });
 
@@ -223,8 +188,6 @@ describe("eating off the floor", () => {
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
   });
 
-  // Poison rides the damage path, so it shows its number like a blow does —
-  // one codepath for losing hit points, however they were lost.
   it("shows poison as a damage number", () => {
     const session = withItem(1, 0, "poison");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
@@ -239,9 +202,6 @@ describe("eating off the floor", () => {
     expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
 
     expect(session.actorSnapshots()).toEqual([]);
-    // The body is off the board too, not just the runtime. Nothing is lying
-    // there because the bag was empty and a dead body's bag is destroyed rather
-    // than dropped — poison being a death like any other.
     expect(tilesAt(session, 0, 0)).toEqual(["grass"]);
   });
 
@@ -322,7 +282,6 @@ describe("eating out of a slot", () => {
       }),
     ).toBe(true);
     expect(getStack(session.getMap(), 1, 0, 0)[1]!.contents).toEqual([]);
-    // The chest's placement changed and nobody's kit did.
     expect(session.drainEquipmentChanges()).toEqual([]);
   });
 
@@ -361,13 +320,6 @@ describe("eating out of a slot", () => {
   });
 });
 
-/**
- * The noise it makes, and who hears it.
- *
- * A sound goes out on the noise channel and never on the speech one, which is
- * the distinction the channel exists for: biting an apple is not the eater
- * saying anything, so nothing may arrive attributed to them.
- */
 describe("the noise a consumable makes", () => {
   it("makes it where it was eaten, with nobody's name on it", () => {
     const session = withItem(1, 0, "cherry");
@@ -376,19 +328,14 @@ describe("the noise a consumable makes", () => {
     const heard = session.drainNoise();
     expect(heard).toHaveLength(1);
     expect(heard[0]!.text).toBe("crunch");
-    // Made at the eater's own cell, not at the cell the cherry was in.
     expect({ x: heard[0]!.x, y: heard[0]!.y, z: heard[0]!.z }).toEqual({
       x: 0,
       y: 0,
       z: 0,
     });
-    // Nothing on the channel that names a speaker. This is the assertion the
-    // whole feature turns on: a crunch must never become "somebody says:
-    // crunch", and the only way to guarantee that is for speech to stay empty.
     expect(session.drainSpeech()).toEqual([]);
   });
 
-  /** No speaker to carry, so the shape has no room for one. */
   it("carries no actor or tile to be named by", () => {
     const session = withItem(1, 0, "cherry");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
@@ -414,11 +361,6 @@ describe("the noise a consumable makes", () => {
     expect(session.drainNoise()).toEqual([]);
   });
 
-  /**
-   * The ordering that matters: `kill` takes the body off the board, so a sound
-   * recorded after the hit points would have nowhere to hang and would be
-   * dropped. Recorded first, a last gulp still reaches the room.
-   */
   it("still sounds when the drink is the one that kills you", () => {
     const session = withItem(1, 0, "hemlock");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
@@ -434,15 +376,6 @@ describe("the noise a consumable makes", () => {
     expect(session.drainNoise()).toEqual([]);
   });
 
-  /**
-   * Why the server flushes on input rather than only on the clock.
-   *
-   * A consume arrives *between* ticks, and `tick` empties the pending page at
-   * its top — so anything recorded by one and not drained before the next tick
-   * never reaches the wire. `GameServer.flushSounds` is what drains it in time;
-   * this pins the hazard that makes it necessary, so removing it fails here
-   * rather than going quiet in production.
-   */
   it("leaves the wire's copy behind at the next tick", () => {
     const session = withItem(1, 0, "cherry");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
@@ -451,15 +384,6 @@ describe("the noise a consumable makes", () => {
     expect(session.drainNoise()).toEqual([]);
   });
 
-  /**
-   * The simulation's third copy, which is neither of the other two: it carries
-   * who made the sound, it is never drawn, and it empties on the slower brain
-   * clock so a creature deciding once every few ticks does not miss it.
-   *
-   * Provable here and nowhere else in the tests, because nothing in this file
-   * has a brain — a world with any wildlife in it is held awake by the clause
-   * that keeps their timers running, which would swallow the assertion whole.
-   */
   it("keeps the world awake until the brains have had a turn at it", () => {
     const session = withItem(1, 0, "cherry");
     expect(session.isAtRest()).toBe(true);
@@ -467,19 +391,12 @@ describe("the noise a consumable makes", () => {
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
     expect(session.isAtRest()).toBe(false);
 
-    // One round of decisions is all it takes, after which the crunch is gone
-    // rather than lying about waiting to be heard a second time.
     for (let elapsed = 0; elapsed < BRAIN_TICK_MS; elapsed += TICK_MS) {
       session.tick(TICK_MS);
     }
     expect(session.isAtRest()).toBe(true);
   });
 
-  /**
-   * The half a local viewer reads, which outlives the wire's copy on purpose:
-   * a single-player world has nobody to broadcast to and still has to hear its
-   * own snakes. This is the gap speech has never closed.
-   */
   it("is still on screen after the tick that cleared the wire's copy", () => {
     const session = withItem(1, 0, "cherry");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
@@ -499,11 +416,6 @@ describe("the noise a consumable makes", () => {
   });
 });
 
-/**
- * A body with no hit points cannot be fed. The check runs before anything is
- * destroyed, so the refusal costs nothing — better an inert cherry than one
- * wasted on a body the number cannot land on.
- */
 describe("a consumer with no hit points", () => {
   const ghostTiles = tiles.map((t) => (t.id === "player" ? { ...t, kind: "prop" as const } : t));
 
@@ -516,20 +428,7 @@ describe("a consumer with no hit points", () => {
   });
 });
 
-/**
- * A consumable that hands over a status instead of moving hit points.
- *
- * The berry, end to end and as authored: `data/statuses.json`'s Fed against
- * `data/tiles.json`'s berry, through the same `statusesById` the routes use, so
- * a typo in either file fails here rather than in a browser.
- */
 describe("eating something that grants a status", () => {
-  /**
-   * Fixed ends, so the roll is a constant and the arithmetic below is exact.
-   *
-   * The full three hundred seconds rather than the berry's ten to thirty, so
-   * that one helping is enough to run the wound below all the way back up.
-   */
   const FED_MS = 300_000;
 
   const catalogue = statusesById([
@@ -548,11 +447,6 @@ describe("eating something that grants a status", () => {
     },
   ]);
 
-  /**
-   * What a status's cadence comes to on the player, as the loop will run it.
-   * The scope's clocks are zero because no shipped cadence reads them; whether
-   * the player is fighting matters, because Fed's does.
-   */
   function cadenceSecondsOf(def: StatusDef, fighting: boolean): number {
     const ms = def.everyMs.evaluate({
       DURATION_SEC: 0,
@@ -565,36 +459,22 @@ describe("eating something that grants a status", () => {
     return snapToTick(ms) / 1000;
   }
 
-  /**
-   * A berry to the east and a poison to the north.
-   *
-   * The poison is not decoration: a body at full health has nothing to recover,
-   * so every assertion about healing would pass against a `Fed` that did
-   * absolutely nothing. Wounding first is what makes the numbers below mean
-   * something.
-   */
   function fedWorld(): GameSession {
     let map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry" }]);
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "poison" }]);
     return new GameSession(map, tiles, { statuses: catalogue });
   }
 
-  /** Take the poison to the north, leaving the body ten points down. */
   function wound(session: GameSession) {
     session.consume({ kind: "floor", ref: refAt(session, 0, 1) });
   }
 
-  /** Run whole seconds through the session's own fixed tick. */
   function runSeconds(session: GameSession, seconds: number) {
     for (let i = 0; i < Math.round((seconds * 1000) / TICK_MS); i++) {
       session.tick(TICK_MS);
     }
   }
 
-  /**
-   * What eating put on the body, leaving out the combat flag that the wound
-   * before it put there — being hurt by the poison is being hurt.
-   */
   function eatenOn(session: GameSession): string[] {
     return (session.statusesOf("local") ?? [])
       .map((s) => s.defId)
@@ -618,22 +498,14 @@ describe("eating something that grants a status", () => {
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
     const start = hpOf(session)!;
 
-    // The authored effect is `ceil(MAX_HP / 100)` a period, and the period is
-    // however long that share takes at a full heal every three hundred
-    // seconds — both read off the maximum rather than typed, since Toughness
-    // no longer buys a hit point a point and the maximum moves with its curve.
     const perPeriod = Math.ceil(PLAYER_MAX_HP / 100);
     const periods = 3;
-    // The wound put them in combat, and the session has to say so to the
-    // formula: at the calm cadence this would have paid twice over.
     expect(session.inCombat("local")).toBe(true);
     runSeconds(session, periods * cadenceSecondsOf(catalogue.fed!, true));
-    // Less than the wound, or the cap would be what this measured.
     expect(perPeriod * periods).toBeLessThan(10);
     expect(hpOf(session)).toBe(start + perPeriod * periods);
   });
 
-  /** The cap still holds: a berry cannot make anybody overfull. */
   it("stops at the maximum", () => {
     const session = fedWorld();
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
@@ -648,8 +520,6 @@ describe("eating something that grants a status", () => {
     runSeconds(session, FED_MS / 1000);
 
     expect(eatenOn(session)).toEqual([]);
-    // Three hundred seconds of Fed is a full heal on any body, and this one
-    // was only ten points down.
     expect(hpOf(session)).toBe(PLAYER_MAX_HP);
   });
 
@@ -660,7 +530,6 @@ describe("eating something that grants a status", () => {
     expect(session.inCombat("local")).toBe(true);
   });
 
-  /** A burn or a poison nobody is answerable for still hurts, and still counts. */
   it("puts somebody a status is hurting in combat", () => {
     const authored = statusesById(statusesJson as unknown[]);
     const session = new GameSession(field(), tiles, { statuses: authored });
@@ -687,23 +556,15 @@ describe("eating something that grants a status", () => {
     expect(session.statusesOf("local")![0]!.remainingMs).toBe(FED_MS * 2);
   });
 
-  /**
-   * **The reason the range lives on the item.** Bread and a berry leave you
-   * with the same condition and differ only in how much of it — expressing that
-   * with a second status would put two identical rows in the panel, refusing to
-   * stack with each other.
-   */
   it("takes the item's duration over the status's own", () => {
     const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "bread" }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
 
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
 
-    // 60s from the loaf, not the 300s the status itself is authored at here.
     expect(session.statusesOf("local")![0]!.remainingMs).toBe(60_000);
   });
 
-  /** And stacking is what makes the pair worth having: one Fed, longer. */
   it("stacks a meal onto a snack as one status", () => {
     const map = replaceStack(
       replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry" }]),
@@ -721,10 +582,6 @@ describe("eating something that grants a status", () => {
     expect(session.statusesOf("local")![0]!.remainingMs).toBe(FED_MS + 60_000);
   });
 
-  /**
-   * Renamed content reads as an effect that did not happen, never as a world
-   * that will not start — the same rule a reward naming a missing tile is under.
-   */
   it("eats an item naming a status nobody authored, and does nothing", () => {
     const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "mystery-fruit" }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
@@ -734,11 +591,6 @@ describe("eating something that grants a status", () => {
   });
 });
 
-/**
- * The green potion, end to end and as authored: `data/tiles.json` against
- * `data/statuses.json`'s poison, so a typo in either file fails here rather
- * than in a browser.
- */
 describe("drinking the green potion, as authored", () => {
   const catalogue = statusesById(statusesJson);
 
@@ -765,15 +617,6 @@ describe("drinking the green potion, as authored", () => {
   });
 });
 
-/**
- * A drink that leaves its bottle behind.
- *
- * The rule under test is `ConsumableItem.leaves` end to end: the glass lands
- * where the potion was, pours onto a bottle already there, and a body with
- * nowhere to put it cannot drink at all — and is told so. `./residue.test`
- * pins the order of places against a kit built by hand; this is the session
- * doing it.
- */
 describe("a drink that leaves its bottle", () => {
   const BAG_SLOT = { kind: "contents", index: 0 } as const;
 
@@ -783,7 +626,6 @@ describe("a drink that leaves its bottle", () => {
       .equipment.bag?.contents?.map((i) => (i.count ? `${i.tileId}x${i.count}` : i.tileId));
   }
 
-  /** The bag filled with swords, so nothing else fits in it. */
   function fillBag(session: GameSession) {
     for (const [x, y] of [
       [-1, 0],
@@ -795,7 +637,6 @@ describe("a drink that leaves its bottle", () => {
     }
   }
 
-  /** Swords on four cells within reach, and a potion on a fifth. */
   function armoury(): GameSession {
     let map = field();
     for (const [x, y] of [
@@ -814,7 +655,6 @@ describe("a drink that leaves its bottle", () => {
     const session = withItem(1, 0, "potion");
     expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(tilesAt(session, 1, 0)).toEqual(["grass", "bottle"]);
-    // Never in the bag: a floor drink never entered it, and neither does its glass.
     expect(bagOf(session)).toEqual([]);
   });
 
@@ -858,7 +698,6 @@ describe("a drink that leaves its bottle", () => {
   it("leaves the bottle in the hand that held the potion", () => {
     const session = armoury();
     fillBag(session);
-    // A full bag sends the pickup to a hand — the off hand first.
     session.pickUp(refAt(session, 1, 0));
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe("potion");
 
@@ -886,10 +725,6 @@ describe("a drink that leaves its bottle", () => {
   });
 
   it("refuses the drink, says so, and leaves the potion where it was", () => {
-    // Two potions in one hand, a cherry in the other and four swords in the
-    // bag: the drink spends one potion, the hand still holds the other, and
-    // there is genuinely nowhere for the bottle. A sword would not do for the
-    // second hand — a pickup refuses a thing that has a slot of its own.
     let map = field();
     for (const [x, y] of [
       [-1, 0],
@@ -916,8 +751,6 @@ describe("a drink that leaves its bottle", () => {
   });
 
   it("refuses a floor drink whose bottle the cell cannot hold", () => {
-    // A potion balanced on a full-height crate: the stack is at the ceiling,
-    // and one more placement on it is what `canReplaceStack` refuses.
     const map = replaceStack(field(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "crate" },
@@ -958,18 +791,9 @@ describe("drinking the luminous potion, as authored", () => {
     expect(tilesAt(session, 1, 0)).toEqual(["grass", "empty-bottle"]);
     const held = session.statusesOf("local");
     expect(held?.map((s) => s.defId)).toEqual(["luminous"]);
-    // The item's own duration over the status's minute: the whole point of
-    // buying one. An hour is the most a status may run, so this is the cap.
     expect(held![0]!.remainingMs).toBe(HOUR_MS);
   });
 
-  /**
-   * The claim the whole "a glow needs no new simulation" argument rests on: it is
-   * an ordinary status whose visual block carries a light, riding the same
-   * emitter path a carried torch does. It used to be asserted beside the stones,
-   * because a stone of light was what granted it; the potion is the granter now,
-   * and the claim moved with it.
-   */
   it("glows because the status carries a light, and nothing else", () => {
     const luminous = catalogue.luminous;
     expect(luminous).toBeDefined();
@@ -987,19 +811,9 @@ describe("drinking the luminous potion, as authored", () => {
   });
 });
 
-/**
- * Raw meat, end to end and as authored.
- *
- * The one consumable in the world whose grants are a gamble: it feeds you every
- * time and turns your stomach most of the time, and the "most" is the whole
- * reason a chance moved onto `StatusGrant` at all. Read against
- * `data/tiles.json` and `data/statuses.json` together, so a typo in either
- * fails here rather than in a browser.
- */
 describe("eating raw meat, as authored", () => {
   const catalogue = statusesById(statusesJson);
 
-  /** The wolf as authored, plus the two tiles a test board needs. */
   const carnivores: TileDef[] = [
     ...tiles,
     ...normalizeTiles(tilesJson as unknown[]).filter((t) => ["raw-meat", "wolf"].includes(t.id)),
@@ -1027,11 +841,6 @@ describe("eating raw meat, as authored", () => {
     expect(hpOf(session)).toBe(before);
   });
 
-  /**
-   * Eighty percent, so across a spread of seeds it lands on most of them and not
-   * on all of them. Counted rather than asserted per seed, because which seed
-   * comes up which way is the dice's business and not this test's.
-   */
   it("turns your stomach most of the time, but not always", () => {
     const ill = [...Array(20).keys()].filter((seed) => {
       const session = meatWorld(seed);
@@ -1043,11 +852,6 @@ describe("eating raw meat, as authored", () => {
     expect(ill.length).toBeLessThan(20);
   });
 
-  /**
-   * What a wolf *is*: it lives on carrion, so carrion cannot be what makes it
-   * ill. Every seed, because an immunity is not a resistance — there is no roll
-   * left to come up the other way.
-   */
   it("never makes a wolf ill, whatever the dice say", () => {
     for (const seed of [...Array(20).keys()]) {
       const session = meatWorld(seed, "wolf");

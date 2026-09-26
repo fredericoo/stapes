@@ -40,9 +40,25 @@ an oblique cabinet projection with Three.js.
   `bun run format` and `bun run lint` from `README.md`, and open a draft PR as
   below.
 - **`README.md`** — every script, and what it is for.
-- **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules, and a
-  paragraph per exception saying why the rule is wrong here. A rule turned off
-  without that paragraph is one nobody can turn back on.
+- **`docs/<subject>.md`** — `combat`, `terrain`, `renderer`, `ui`, `server`,
+  `deploy`, `testing`, `tooling`: the constraints in the code that the obvious
+  change would break.
+- **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules. Each
+  exception has its reason in `docs/tooling.md`. A rule turned off without one
+  is one nobody can turn back on.
+
+## No code comments
+
+Source files carry no comments. Lint and type directives
+(`// oxlint-disable-next-line`, `// @ts-expect-error`, `/// <reference>`) are
+the exception, without a reason appended.
+
+When something must be written down, it goes in `docs/<subject>.md`, and only
+if the code as it stands would lead a reader to break it: an ordering
+constraint, an invariant another module relies on, a value that must match
+another by hand, a platform quirk being worked around. Describe the current
+state. Do not record past decisions or history unless the default way of doing
+something would undo them.
 
 `CLAUDE.md` is a symlink to this file.
 
@@ -85,7 +101,7 @@ against a real world, not in `vitest`.
 ## Say what you mean
 
 This applies to everything written here: commit messages, PR titles and
-descriptions, `docs/notes.md`, and code comments.
+descriptions, and everything in `docs/`.
 
 Mannered prose substitutes metaphor and flourish for direct statement. Instead
 of "a parameter worth varying," the mannered writer produces "a dial worth

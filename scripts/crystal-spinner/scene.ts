@@ -1,37 +1,19 @@
-/**
- * The browser half of `generate-crystal-spinner.ts`: a Three.js scene with one
- * crystal in it, rendered frame by frame into a render target and read back as
- * RGBA. Bundled by the generator and run in headless Chromium, because Three
- * needs WebGL and Bun has none.
- *
- * The shader does not choose final colours. It writes a smooth blue that the
- * generator snaps to the logo's palette, so everything here is about getting
- * the facets' light and hue right, not about hitting exact entries.
- */
 import * as THREE from "three";
 
 export type SceneParams = {
-  /** Render-target side in pixels (the GIF side times the supersample factor). */
   size: number;
   frames: number;
-  /** Degrees the crystal turns across the whole loop. */
   sweepDeg: number;
   sides: number;
   radius: number;
   topHeight: number;
   bottomHeight: number;
-  /** Half-height of the straight band between the two pyramids. */
   girdle: number;
-  /** Camera pitch in degrees, positive looking down on the crystal. */
   pitchDeg: number;
-  /** Tilt of the crystal's axis towards the viewer's right, in degrees. */
   tiltDeg: number;
-  /** Orthographic half-extent of the view, in world units. */
   viewExtent: number;
-  /** Opacity of the front facets over the interior (0 glass, 1 solid). */
   frontOpacityMin: number;
   frontOpacityMax: number;
-  /** How fast the iridescent hue turns with view angle. */
   filmFrequency: number;
 };
 
@@ -66,12 +48,11 @@ function crystalGeometry(p: SceneParams): THREE.BufferGeometry {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  // Non-indexed, so every vertex normal is its face's normal: flat facets.
   g.computeVertexNormals();
   return g;
 }
 
-const vertexShader = /* glsl */ `
+const vertexShader = `
   varying vec3 vNormal;
   varying vec3 vWorld;
   varying float vHeight;
@@ -84,11 +65,6 @@ const vertexShader = /* glsl */ `
   }
 `;
 
-/**
- * Two ramps from the logo, dark to light: a saturated one (cyan through royal
- * blue) and a greyer periwinkle one. Hue shift is a walk between them, which is
- * what iridescence reads as once the palette is only blues.
- */
 const SATURATED = [
   "#010728",
   "#021652",
@@ -112,7 +88,7 @@ const PERIWINKLE = [
   "#e0f9fd",
 ];
 
-const fragmentShader = /* glsl */ `
+const fragmentShader = `
   #define RAMP_LENGTH ${SATURATED.length}
   uniform vec3 uLight;
   uniform float uInterior;
@@ -151,15 +127,11 @@ const fragmentShader = /* glsl */ `
     float diffuse = clamp(dot(n, uLight), 0.0, 1.0);
     float spec = pow(clamp(dot(n, normalize(uLight + v)), 0.0, 1.0), 24.0);
 
-    // Thin-film stand-in: the hue walks with the angle the facet is seen at,
-    // so each facet shifts as it turns past the camera.
     float film = 0.5 + 0.5 * sin(ndv * uFilm + n.y * 2.5 + vHeight * 1.5);
 
     vec3 col;
     float alpha;
     if (uInterior > 0.5) {
-      // The far side, seen through the glass: brighter towards the core, so
-      // the crystal looks lit from inside rather than hollow.
       float lum = 0.35 + 0.35 * diffuse + 0.25 * (1.0 - abs(vHeight) * 0.6);
       col = mix(saturated(lum), periwinkle(lum), 0.35 * film);
       alpha = 1.0;
@@ -178,7 +150,6 @@ window.renderCrystal = (p: SceneParams): number[][] => {
   canvas.height = p.size;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true });
   renderer.setClearColor(0x000000, 0);
-  // The shader writes sRGB ramp values directly; no conversion on output.
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 
   const e = p.viewExtent;
@@ -244,7 +215,6 @@ window.renderCrystal = (p: SceneParams): number[][] => {
     renderer.clear();
     renderer.render(scene, camera);
     renderer.readRenderTargetPixels(target, 0, 0, p.size, p.size, buf);
-    // WebGL reads bottom row first; flip so row 0 is the top.
     const flipped: number[] = Array.from({ length: buf.length });
     const row = p.size * 4;
     for (let y = 0; y < p.size; y++) {

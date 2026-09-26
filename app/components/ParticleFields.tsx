@@ -13,32 +13,8 @@ import {
 } from "../lib/particleVfx";
 import { Button, FieldLabel, Input, NumberInput, Switch } from "../ui";
 
-/**
- * Authoring one plume, wherever it hangs from.
- *
- * Its own file rather than more of `./StatusVfxFields` because there are two
- * subjects now and neither owns the other: a status carries an emitter, and so
- * does a tile — a chimney is not under an effect. Everything a plume is
- * authored with lives here, and the two dialogs that want one import the same
- * panel rather than growing two that drift.
- *
- * ## Sliders, not number fields
- *
- * Everything on a 0-to-1 scale gets a slider, and that is not decoration. An
- * opacity is a *judgement* — the author is looking at the canvas beside this and
- * deciding when the smoke reads as smoke — and a number field makes that a cycle
- * of type, tab, look, retype. A slider makes it one gesture with the answer
- * moving under it.
- *
- * Ranges keep number fields, because those are quantities an author reasons
- * about rather than dials they hunt for: a lifetime is "about a second", and 900
- * is easier to type than to find.
- */
-
-/** Slider granularity for the 0-to-1 dials. Fine enough to be smooth, coarse enough to land on a round number. */
 const UNIT_STEP = 0.05;
 
-/** What a fresh ramp stop is worth, before the author moves it. */
 const NEW_STOP: RampStop = { at: 0.5, color: "#fbb954" };
 
 export function Row({ children }: { children: React.ReactNode }) {
@@ -52,7 +28,6 @@ export function Field({
   children,
 }: {
   label: string;
-  /** How the simulation reads it — the caption's tooltip. */
   info?: React.ReactNode;
   hint?: string;
   children: React.ReactNode;
@@ -87,10 +62,6 @@ export function NumberField({
 }) {
   return (
     <Field label={label} info={info} hint={hint}>
-      {/* Bounded here rather than left to the schema, because the schema's
-          answer to an out-of-range number is to drop the whole status — which
-          would mean the Save button going dark with no field saying which one
-          did it. */}
       <NumberInput
         className="w-24"
         min={min}
@@ -141,9 +112,6 @@ export function ColorField({
   return (
     <Field label={label}>
       <div className="flex items-center gap-1">
-        {/* The platform's own picker rather than a swatch grid of our palette:
-            the useful colours in a burn are the ones *between* two ramp entries,
-            and the quantise on the preview beside this shows where they land. */}
         <input
           type="color"
           className="h-8 w-10 cursor-pointer border-2 border-border bg-paper"
@@ -162,7 +130,6 @@ export function ColorField({
   );
 }
 
-/** A toggle that turns half of an effect on, filled in with something visible. */
 function RampEditor({
   ramp,
   onChange,
@@ -198,9 +165,6 @@ function RampEditor({
             />
           </Field>
           <Button
-            // The last stop cannot go: a ramp with no stops is not a colour, and
-            // the schema refuses it — so the button that would produce one is
-            // off rather than the Save button going dark a moment later.
             disabled={ramp.length <= 1}
             onClick={() => onChange(ramp.filter((_, j) => j !== i))}
           >
@@ -220,11 +184,6 @@ function RampEditor({
   );
 }
 
-/**
- * A 5×5 grid of pixels to click on and off, drawn in the ramp's first colour on
- * the dark the game is mostly played against, so the author sees roughly what
- * will be on screen.
- */
 function ShapeEditor({
   shape,
   color,
@@ -280,9 +239,6 @@ export function ParticleFields({
           max={MAX_PARTICLE_RATE}
           onChange={(ratePerSecond) => patch({ ratePerSecond })}
         />
-        {/* Both ends kept ordered here rather than checked later, the same way
-            the status duration pair is: an inverted range is malformed, and the
-            editor should not be able to author one. */}
         <NumberField
           label="Lives from (ms)"
           value={particles.ttlFromMs}
@@ -383,10 +339,6 @@ export function ParticleFields({
       </Row>
 
       <Row>
-        {/* Labelled by compass rather than by axis, because an author looking
-            at the canvas is deciding which way the wind blows, not which way
-            `+x` runs. The projection turns east into down-right on screen and
-            nothing here has to say so. */}
         <NumberField
           label="Wind east"
           hint="Cells a second squared. Negative blows west."

@@ -9,7 +9,6 @@ import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { tile } from "../lib/testTile";
 
-/** Ticks a started walk needs to reach its destination and commit. */
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 
 function directionalTile(id: string, extra: Record<string, unknown> = {}) {
@@ -44,15 +43,12 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     walkable: false,
   }),
-  // A body somebody else can shove, which is what the authored player tile is.
   directionalTile("shovable", {
     actor: true,
     affectedByGravity: true,
     walkable: false,
     interactions: { push: { climb: "half", moveOnTileIds: [] } },
   }),
-  // A pad you walk onto. Flat, so it neither buries what is under it nor stops
-  // anybody standing on it.
   tile({
     id: "pad",
     height: 0,
@@ -60,7 +56,6 @@ const tiles: TileDef[] = [
       teleport: { trigger: "step", destination: { kind: "absolute" } },
     },
   }),
-  // The doorway: pressed from the next square over.
   tile({
     id: "portal",
     height: 4,
@@ -72,11 +67,7 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // Intangible, like the real one: it marks the top of a climb and holds
-  // nobody up, which is the whole point of the case below.
   tile({ id: "ladder-top", height: 2, intangible: true }),
-  // A delta that travels nowhere, which reads as unauthored rather than as a
-  // rung that takes a press and does nothing.
   tile({
     id: "still",
     height: 0,
@@ -87,8 +78,6 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // The motivating case for `relative` — one rung tile, every ladder in the
-  // world, each carrying its own climb on its placement.
   tile({
     id: "ladder",
     height: 0,
@@ -112,7 +101,6 @@ function run(session: GameSession, ticks: number) {
   for (let i = 0; i < ticks; i++) session.tick(TICK_MS);
 }
 
-/** Walk exactly one cell, releasing input so the commit does not chain. */
 function step(session: GameSession, direction: Direction) {
   session.setInput({ directions: [direction] });
   session.tick(TICK_MS);
@@ -155,16 +143,12 @@ describe("resolveTeleport", () => {
       y: 4,
       z: 1,
     });
-    // The same tile, dropped somewhere else, makes the same journey. This is
-    // the whole reason a ladder's delta belongs to the def.
     expect(
       resolveTeleport({ tileId: "ladder" }, tilesById.ladder, { x: -3, y: 8, z: 2 })?.to,
     ).toEqual({ x: -3, y: 8, z: 3 });
   });
 
   it("ignores a destination written on a relative placement", () => {
-    // The arms do not overlap: a ladder reads its tile and nothing else, so a
-    // stale cell left on a placement cannot quietly redirect it.
     const placed: PlacedTile = {
       tileId: "ladder",
       teleportTo: { x: 99, y: 99, z: 5 },
@@ -177,11 +161,9 @@ describe("resolveTeleport", () => {
   });
 
   it("is nothing without the half that carries the numbers", () => {
-    // A tile that does not teleport, however the placement is written.
     expect(
       resolveTeleport({ tileId: "grass", teleportTo: { x: 1, y: 1, z: 0 } }, tilesById.grass, at),
     ).toBeNull();
-    // An absolute tile with nothing written on the slot.
     expect(resolveTeleport({ tileId: "portal" }, tilesById.portal, at)).toBeNull();
   });
 
@@ -197,14 +179,11 @@ describe("resolveTeleport", () => {
 });
 
 describe("reachableTeleportAt", () => {
-  /** A portal at (1,0) with the traveller standing at (0,0). */
   function doorway(trigger: "interact" | "interactOver") {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    // The portal is absolute and carries its target; the ladder is relative and
-    // carries nothing, which is the difference under test everywhere else.
     const placed: PlacedTile =
       trigger === "interact"
         ? { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } }
@@ -221,7 +200,6 @@ describe("reachableTeleportAt", () => {
       y: 5,
       z: 0,
     });
-    // Diagonally is not "squarely beside", exactly as it is not for a switch.
     expect(reachableTeleportAt(map, tilesById, { x: 0, y: 1, z: 0 }, ref)).toBeNull();
   });
 
@@ -232,11 +210,6 @@ describe("reachableTeleportAt", () => {
     expect(reachableTeleportAt(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).not.toBeNull();
   });
 
-  /**
-   * The floor of slack a press is allowed (see `INTERACT_LEVEL_SLACK`) is not a
-   * licence to press through rock. A doorway in the cellar is a doorway you
-   * open from the cellar.
-   */
   it("refuses an `interact` portal a floor down under solid ground", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -251,7 +224,6 @@ describe("reachableTeleportAt", () => {
     expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)).toBeNull();
   });
 
-  /** And the same doorway with a hole in the floor above it. */
   it("offers one a floor down where that ground is missing", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -302,16 +274,10 @@ describe("reachableTeleportAt", () => {
     map = replaceStack(map, 5, 5, 0, [{ tileId: "wall" }]);
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
     const actor = { x: 0, y: 0, z: 0 };
-    // The trip is authored — it is the far end that refuses it.
     expect(reachableTeleportAt(map, tilesById, actor, ref)).not.toBeNull();
     expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.player!)).toBe(false);
   });
 
-  /**
-   * The whole reason a person passes through a person: one player at the top of
-   * a ladder must not be a lid on it, and a rung is the one place in the world
-   * where waiting for somebody to move is the only way past.
-   */
   it("sends a person to a far end somebody is already standing on", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -328,14 +294,11 @@ describe("reachableTeleportAt", () => {
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
     const actor = { x: 0, y: 0, z: 0 };
     expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.player!)).toBe(true);
-    // A deer that walks onto the same pad is stopped by them, as it is by
-    // anything else standing in the way.
     expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.deer!)).toBe(false);
   });
 });
 
 describe("GameSession teleport", () => {
-  /** A world with the player beside a portal, and floor at the far end. */
   function world(portal: PlacedTile) {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -407,10 +370,8 @@ describe("GameSession teleport", () => {
 });
 
 describe("stepping onto a pad", () => {
-  /** Pad one cell east of the player, with floor at the far end. */
   function padWorld(to: { x: number; y: number; z: number }, tileId = "player") {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId, direction: "e" }]);
-    // Every map needs exactly one player tile, so a deer's world still parks one.
     if (tileId !== "player") {
       map = replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
     }
@@ -431,16 +392,12 @@ describe("stepping onto a pad", () => {
       actorIds: [],
     });
     expect(whereIs(session.getMap(), "deer")).toMatchObject({ x: 0, y: 0 });
-    // Driven straight rather than through a brain: what is under test is the
-    // pad, and a wandering mind would decide when — or whether — to step on it.
     expect(session.requestStep("npc:0,0,0,1", "e")).toBe("started");
     run(session, TICKS_PER_STEP);
     expect(whereIs(session.getMap(), "deer")).toMatchObject({ x: 5, y: 5 });
   });
 
   it("does not chain: arriving by teleport is not arriving by step", () => {
-    // Two pads pointing at each other. Landing on the first sends you to the
-    // second, and there the trip ends — otherwise this ticks for ever.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
@@ -470,10 +427,6 @@ describe("stepping onto a pad", () => {
 });
 
 describe("being shoved onto a pad", () => {
-  /**
-   * Player at the origin, a shovable body beside them, a pad beyond it. The
-   * shove is the whole of the motion here — nobody walks anywhere.
-   */
   function shoveWorld(to: { x: number; y: number; z: number }) {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -492,12 +445,6 @@ describe("being shoved onto a pad", () => {
   });
 });
 
-/**
- * The shape a ladder has to be authored in: rungs on the floor below, and a
- * floor of its own under the intangible top. The top is scenery hanging in the
- * cell, not a surface — a landing needs something solid, exactly as it does
- * anywhere else, which is what keeps an intangible floor readable as a hole.
- */
 describe("climbing onto an intangible ladder top", () => {
   function ladderColumn(top: { tileId: string }[]) {
     const map = replaceStack(emptyMap(), 0, 0, 0, [
@@ -534,18 +481,12 @@ describe("climbing onto an intangible ladder top", () => {
     expect(whereIs(session.getMap(), "player")).toMatchObject({ z: 0 });
   });
 
-  /**
-   * The case the cell-sharing rule was written for. A ladder has one top, so a
-   * body resting on it used to close the only route between two floors for
-   * however long its owner felt like standing there.
-   */
   it("climbs past somebody already standing on the top", () => {
     const session = new GameSession(ladderColumn(flooredTop), tiles, {
       actorIds: ["up-there", "climber"],
     });
     const rung = { x: 0, y: 0, z: 0, stackIndex: 1 };
 
-    // Both start on the rung — the first thing the rule has to allow.
     expect(session.activateTeleport(rung, "up-there")).toBe(true);
     run(session, 30);
 

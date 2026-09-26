@@ -16,7 +16,6 @@ import type { MapFile } from "../lib/types";
 import { coordKey } from "../lib/types";
 import { isCellVisible } from "./cameraSight";
 
-/** A cut that takes exactly the cells named, on the levels they are on. */
 const cutting = (
   floor: number,
   ...cells: Array<{ x: number; y: number; z: number }>
@@ -31,15 +30,6 @@ const cutting = (
   return (x, y, z) => cutHides(cut, x, y, z);
 };
 
-/**
- * Which chimneys are worth simulating.
- *
- * Every one of these is a cost that does not show up on screen when it is
- * wrong: an emitter two rooms away still fills the pool, and one above the
- * roof-cut is simulated in full and then hidden.
- */
-
-/** The camera's own reach at level 0. The apron is the module's to add. */
 const WINDOW = { x0: 0, y0: 0, x1: 10, y1: 10 };
 
 const at = (x: number, y: number, z = 0): ParticleEmitterSpec => ({
@@ -77,10 +67,6 @@ describe("culling the board's plumes", () => {
   });
 
   it("keeps a plume just off screen, whose sparks can still drift into it", () => {
-    // A plume is anchored to its cell but is not drawn there — a particle rises,
-    // and rising is up-and-left. An emitter a little past the edge still puts
-    // sparks inside the frame, and one that popped into existence at the border
-    // would read as a bug.
     const justOutside = at(WINDOW.x1 + PARTICLE_WINDOW_MARGIN, 5);
     const wellOutside = at(WINDOW.x1 + PARTICLE_WINDOW_MARGIN + 1, 5);
     const out = appendVisibleTileEmitters(byLevel(justOutside, wellOutside), WINDOW, undefined, []);
@@ -88,18 +74,11 @@ describe("culling the board's plumes", () => {
   });
 
   it("gives each level its own reach rather than the union of every level", () => {
-    // The projection shifts level `z` by exactly `z` cells, so a plume two
-    // storeys up is visible two cells further east than one on the ground. The
-    // light bake unions all seventeen levels because a light on any of them can
-    // reach here; a plume is on one known level, and taking the union instead
-    // would admit emitters over four times the visible area to spend the pool
-    // on sparks nobody can see.
     const eastEdge = WINDOW.x1 + PARTICLE_WINDOW_MARGIN;
     const beyondGround = at(eastEdge + 2, 5, 2);
     const out = appendVisibleTileEmitters(byLevel(beyondGround), WINDOW, undefined, []);
     expect(out).toEqual([beyondGround]);
 
-    // The same cell on the ground floor is past the edge and is dropped.
     expect(
       appendVisibleTileEmitters(byLevel(at(eastEdge + 2, 5, 0)), WINDOW, undefined, []),
     ).toEqual([]);
@@ -117,8 +96,6 @@ describe("culling the board's plumes", () => {
   });
 
   it("keeps a chimney on the roof next door, which the cut left standing", () => {
-    // The whole point of a per-structure cut: the level is no longer the answer,
-    // so a plume on an uncut roof at the same height still smokes.
     const neighbour = at(8, 8, 1);
     const out = appendVisibleTileEmitters(
       byLevel(at(6, 6, 1), neighbour),
@@ -135,9 +112,6 @@ describe("culling the board's plumes", () => {
   });
 
   it("leaves the caller's plumes in front of the board's", () => {
-    // The pool is served in emitter order, so a status has to come first: a
-    // board crowded with smoke should thin its smoke, not stop drawing the fire
-    // on the rat.
     const status = { ...at(5, 5), id: "rat:burning" };
     const out = appendVisibleTileEmitters(byLevel(at(6, 6)), WINDOW, undefined, [status]);
     expect(out[0]).toBe(status);
@@ -145,11 +119,10 @@ describe("culling the board's plumes", () => {
   });
 
   it("caps the board's own without ever counting the caller's", () => {
-    const crowd = Array.from({ length: MAX_VISIBLE_TILE_EMITTERS + 20 }, (_, i) =>
-      // Stacked on one cell rather than spread, so every one of them is inside
-      // the window and the cap is the only thing that can be doing the cutting.
-      ({ ...at(5, 5), id: tileEmitterId(`0:5,5:${i}`) }),
-    );
+    const crowd = Array.from({ length: MAX_VISIBLE_TILE_EMITTERS + 20 }, (_, i) => ({
+      ...at(5, 5),
+      id: tileEmitterId(`0:5,5:${i}`),
+    }));
     const status = { ...at(5, 5), id: "rat:burning" };
     const out = appendVisibleTileEmitters(byLevel(...crowd), WINDOW, undefined, [status]);
     expect(out).toHaveLength(MAX_VISIBLE_TILE_EMITTERS + 1);
@@ -157,11 +130,6 @@ describe("culling the board's plumes", () => {
 });
 
 describe("a plume under the ground the viewer stands on", () => {
-  /**
-   * A cave one storey down with a fire in it, under solid ground on level 0.
-   * The fire is not cut away — nothing is cut outdoors — so the roof-cut alone
-   * kept it, and its sparks rose up through the ground.
-   */
   const tilesById = { ground: tile({ id: "ground", height: 0 }) };
   const FIRE = at(5, 5, -1);
 
@@ -170,8 +138,6 @@ describe("a plume under the ground the viewer stands on", () => {
     for (let x = 0; x <= 12; x++) {
       for (let y = 0; y <= 12; y++) {
         map = replaceStack(map, x, y, -1, [{ tileId: "ground" }]);
-        // The cell above the fire and the one the camera looks down through
-        // to it: this projection paints (x, y, -1) under (x + 1, y + 1, 0).
         if (hole && x === y && (x === 5 || x === 6)) continue;
         map = replaceStack(map, x, y, 0, [{ tileId: "ground" }]);
       }
@@ -179,7 +145,6 @@ describe("a plume under the ground the viewer stands on", () => {
     return map;
   }
 
-  /** What the renderer hands the cull when it knows who is looking. */
   const seenFrom =
     (map: MapFile, viewerZ: number, cut?: RoofCut): CellHidden =>
     (x, y, z) =>
@@ -195,7 +160,6 @@ describe("a plume under the ground the viewer stands on", () => {
   });
 
   it("keeps it for a viewer down in the cave, whose cut takes the ground away", () => {
-    // Underground the cut refuses and takes the whole storey above the viewer.
     const whole: RoofCut = { floor: -1, cells: null };
     const out = appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(), -1, whole), []);
     expect(out).toEqual([FIRE]);
@@ -204,15 +168,11 @@ describe("a plume under the ground the viewer stands on", () => {
 
 describe("addressing one cell's plumes", () => {
   it("gives every plume of a cell the prefix that cell is cleared by", () => {
-    // The two have to agree or a rebuilt cell keeps emitting from the tile it
-    // used to hold — which looks like a chimney that never goes out.
     expect(tileEmitterId("2:7,3:1").startsWith(tileEmitterPrefix(2, 7, 3))).toBe(true);
     expect(tileEmitterId("2:7,3:1").startsWith(tileEmitterPrefix(2, 7, 4))).toBe(false);
   });
 
   it("does not read a neighbouring cell as its own", () => {
-    // `1,2` must not be cleared by a rebuild of `1,20` — the trap every
-    // prefix-matched index has, and the reason the separator is in the prefix.
     expect(tileEmitterId("0:1,20:0").startsWith(tileEmitterPrefix(0, 1, 2))).toBe(false);
   });
 });

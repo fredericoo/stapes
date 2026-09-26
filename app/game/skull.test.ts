@@ -9,30 +9,14 @@ import { TICK_MS } from "./constants";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * What a person leaves behind.
- *
- * A skull is engraved with whose it is and described by what finished them off,
- * so what is asserted here is the two halves of that line arriving from the
- * three directions harm comes from — a blow, a condition, and something eaten —
- * plus the one body that leaves none.
- */
-
-/** What the bodies below are authored to leave. */
 const SKULL = "bone-skull";
 
-/**
- * Small enough that a burn or a couple of blows finishes it inside the bound
- * below — these tests are about what is left on the floor, not about how long
- * a fight takes.
- */
 const BASE_HP = 8;
 const FRAIL = 1;
 const FRAIL_MAX_HP = maxHpFrom(BASE_HP, FRAIL);
 
 const CERTAIN = { accuracy: 100, spd: 100, variance: 0 };
 
-/** A creature that swings at whoever hit it and never stops. */
 const brawlerBrain = {
   initial: "idle",
   states: {
@@ -95,8 +79,6 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // The motivating creature: it hits back, and what it hits back with has a
-  // name of its own — there is no tile to read one off.
   tile({
     id: "wolf",
     name: "Wolf",
@@ -120,8 +102,6 @@ const tiles: TileDef[] = [
       brain: brawlerBrain,
     },
   }),
-  // The same creature with nothing written on its teeth, which is every body
-  // authored before a blow had to be named.
   tile({
     id: "nameless-wolf",
     name: "Wolf",
@@ -144,8 +124,6 @@ const tiles: TileDef[] = [
       brain: brawlerBrain,
     },
   }),
-  // The case the field exists for: a creature worth remembering, which is not
-  // most of them. Otherwise the wolf above, which leaves nothing.
   tile({
     id: "boss",
     name: "Troll",
@@ -182,7 +160,6 @@ const tiles: TileDef[] = [
   }),
 ];
 
-/** Everything but the skull, for the world whose catalogue never had one. */
 const boneless = tiles.filter((def) => def.id !== SKULL);
 
 function field(stack: PlacedTile[] = [{ tileId: "grass" }]): MapFile {
@@ -206,7 +183,6 @@ function withBody(
   return replaceStack(map, x, y, 0, [...under, { tileId }]);
 }
 
-/** Long enough for any of these to finish, and a failure rather than a hang. */
 const LONG_ENOUGH_TO_KILL_MS = 60_000;
 
 function advanceUntilDead(session: GameSession, id = LOCAL_ACTOR_ID) {
@@ -217,13 +193,11 @@ function advanceUntilDead(session: GameSession, id = LOCAL_ACTOR_ID) {
   throw new Error("nobody died");
 }
 
-/** The skull lying in one cell, or null where none is. */
 function skullAt(session: GameSession, x: number, y: number) {
   const stack = getStack(session.getMap(), x, y, 0);
   return stack.find((placed) => placed.tileId === SKULL) ?? null;
 }
 
-/** Swing at whatever is standing beside the player until somebody falls. */
 function fight(session: GameSession, targetId: string) {
   session.setTarget(targetId);
   session.setAttackMode(true);
@@ -233,8 +207,6 @@ describe("a player who dies", () => {
   it("leaves a skull engraved with who they were", () => {
     const session = new GameSession(field([{ tileId: "hearth" }]), tiles, {
       statuses: catalogue,
-      // The name a character was created with, which is the only thing a body
-      // could be engraved with now. @see `./displayName`
       names: { [LOCAL_ACTOR_ID]: "Arthur" },
     });
 
@@ -255,12 +227,6 @@ describe("a player who dies", () => {
     expect(skullAt(session, 0, 0)?.description).toBe("Cause of death: Burned by Hearth");
   });
 
-  /**
-   * The quiet half, and it has to be: a skull is not a sign. A cause written
-   * where a sign's words go is recited to everybody who walks past the cell,
-   * which for a spot people keep dying on is a wall of text over the ground.
-   * @see `../render/nearbyInscriptions`
-   */
   it("writes the cause where nobody walking past recites it", () => {
     const session = new GameSession(field([{ tileId: "hearth" }]), tiles, {
       statuses: catalogue,
@@ -278,15 +244,9 @@ describe("a player who dies", () => {
 
     advanceUntilDead(session);
 
-    // Named after its tile rather than out of the name generator, which is what
-    // `./displayName` already decides for everything a creature is called.
     expect(skullAt(session, 0, 0)?.description).toBe("Cause of death: Fangs by Wolf");
   });
 
-  /**
-   * A body whose teeth nobody named still killed somebody, and the line has to
-   * read as a sentence rather than trail off into the attribution.
-   */
   it("names an unnamed blow something rather than nothing", () => {
     const session = new GameSession(withBody(field(), 1, 0, "nameless-wolf"), tiles);
     const wolf = session.actorSnapshots().find((a) => a.tileId === "nameless-wolf")!;
@@ -297,10 +257,6 @@ describe("a player who dies", () => {
     expect(skullAt(session, 0, 0)?.description).toBe("Cause of death: A blow by Wolf");
   });
 
-  /**
-   * Minted on the way out like anything else entering the world, so two skulls
-   * from two deaths are two things rather than one that exists twice.
-   */
   it("mints the skull an identity", () => {
     const session = new GameSession(field([{ tileId: "hearth" }]), tiles, {
       statuses: catalogue,
@@ -322,15 +278,6 @@ describe("a player who dies", () => {
   });
 });
 
-/**
- * Not a rule about people any more, but still the default: what a body leaves
- * is authored, and almost nothing authors it. A world where every rat leaves a
- * keepsake is knee-deep in rats' skulls by the evening.
- *
- * Both of these die burned where they stand rather than being killed, because
- * a creature the player can beat is a creature that cannot kill the player in
- * the tests above.
- */
 describe("a creature that dies", () => {
   it("leaves nothing when its tile says nothing", () => {
     const session = new GameSession(
@@ -345,7 +292,6 @@ describe("a creature that dies", () => {
     expect(skullAt(session, 1, 0)).toBeNull();
   });
 
-  /** The case the field exists for. */
   it("leaves what its tile says, named after the creature", () => {
     const session = new GameSession(
       withBody(field(), 1, 0, "boss", [{ tileId: "hearth" }]),
@@ -357,9 +303,6 @@ describe("a creature that dies", () => {
     advanceUntilDead(session, boss.id);
 
     const skull = skullAt(session, 1, 0);
-    // Its tile's name, which is what `./displayName` calls every creature —
-    // so an author picks the art and the world writes on it. A creature is
-    // never given a name of its own, however many of them the map holds.
     expect(skull?.engraved).toBe("Troll");
     expect(skull?.description).toBe("Cause of death: Burned by Hearth");
   });

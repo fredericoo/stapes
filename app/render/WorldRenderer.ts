@@ -151,248 +151,87 @@ import {
 } from "./tileEmitters";
 import { PLAYER_TILE_ID } from "../game/constants";
 
-/**
- * A separate mesh whose sprite changes over time — because it animates, because
- * its {@link SpriteState} can change, or both.
- *
- * One registry for both rather than two, because they are the same operation
- * seen at two speeds: point this mesh at a different {@link Frame}. A state
- * change is only unusual in that it also replaces the list being indexed, which
- * is why `def` and the cell ride along — enough to re-resolve without going back
- * to the map for the placement.
- */
 type AnimatedInstance = {
   mesh: THREE.Mesh;
-  /** Instance key, so a cell's animated meshes can be dropped without a sweep. */
   key: string;
   frames: Frame[];
   tileset: TilesetDef;
   animKey: string;
-  /** What resolved {@link frames}, so a state change can resolve them again. */
   def: TileDef;
   placed: PlacedTile;
   cell: { x: number; y: number; z: number };
-  /** The state {@link frames} were resolved for. */
   state: SpriteState;
-  /**
-   * Index into {@link frames} the mesh's UVs currently show.
-   *
-   * Held per instance rather than inferred from the shared per-key index,
-   * because a mesh can be younger than the key: a step rebuilds the walker's
-   * mesh, and the rebuilt one starts at whatever frame the build wrote, not at
-   * whatever frame the key last ticked to.
-   */
   frameIdx: number;
 };
 
-/**
- * How high in its level's band an arrow sorts against coplanar surfaces.
- *
- * Above anything a real stack reaches — stacks are single digits and the band is
- * 64 wide — because an arrow drawn at exactly a floor's height is over that
- * floor rather than inside it. Well under the band, so it can never bleed into
- * the level above's. @see depthStackBias
- *
- * `./projectileMotion` holds the same number for what a flight *plays*, which
- * belongs exactly where the arrow that played it was. Two constants rather than
- * one import, because this file is THREE and that one is deliberately not.
- */
 const PROJECTILE_STACK_BIAS = 32;
 
-/**
- * Where a wading body falls in the draw order: after every level's geometry,
- * before the plumes.
- *
- * Its see-through edge is blended, and a blend is with whatever is already in
- * the frame, so the water under it has to have been drawn first. Nothing else
- * the world draws depends on order — every other fragment is opaque past the
- * alpha cutoff and sorts by the depth it writes — so only a mesh that is wading
- * is moved. @see WorldView.wading
- */
 const WADING_RENDER_ORDER = 0.5;
 
-/** One arrow's mesh and everything needed to keep drawing it. */
 type ProjectileMesh = {
   mesh: THREE.Mesh;
-  /** Held for its height, which is the depth box's thickness. */
   def: TileDef;
-  /**
-   * The frames of the bearing it is currently drawn on.
-   *
-   * **Re-resolved when the bearing changes, which it now can.** A flight's
-   * bearing used to be fixed, because both its ends were; a shot follows the
-   * body it was aimed at, so one chasing a body that steps sideways turns as it
-   * goes — see `./projectileMotion`'s `aimedAt`. Held rather than looked up per
-   * frame because the overwhelming majority of frames are on the same bearing
-   * as the last.
-   */
   frames: Frame[];
-  /** Which bearing {@link frames} was resolved for. */
   direction: Octant;
   tileset: TilesetDef;
   texture: THREE.Texture;
-  /** Which frame the UVs currently show; -1 until the first is written. */
   frameIdx: number;
-  /** The level whose material it is wearing. */
   z: number;
-  /** The sprite footprint, so the centre can be found without the rect again. */
   w: number;
   h: number;
-  /**
-   * Where in that footprint the flight point sits, in cells.
-   *
-   * **The first frame's, held for the whole flight**, because the quad above is
-   * the first frame's too and the two have to agree. Every later frame is drawn
-   * by swapping this quad's UVs, which is the same bargain the merged animation
-   * batch makes — see `./animTable`'s `uniformFootprint`, which refuses a tile
-   * whose frames disagree about exactly this.
-   *
-   * Read per frame, it moved the arrow: a projectile whose second frame carried
-   * a base one cell up had its whole sprite jump a cell up on that frame and
-   * back on the next, once per animation cycle, for as long as it was in the
-   * air. A placed tile can afford to honour a per-frame base — it is standing
-   * still, and `uniformFootprint` sends it down a path that rebuilds. A flight
-   * cannot: it is one quad, built once, moving.
-   */
   base: { x: number; y: number };
-  /**
-   * The holder its own material's transition is written through, or null.
-   *
-   * Null for every projectile that authors no dissolve and no scale, which is
-   * the overwhelming majority and the case worth keeping cheap: no holder means
-   * the shared, cached material every other quad at that level wears, and not a
-   * uniform written per frame. @see wearsFlightTransition
-   */
   uniforms: TransitionUniforms | null;
 };
 
-/** One quad the builder will emit, plus what decides how it is drawn. */
 type BuildItem = Quad & {
   texture: THREE.Texture;
-  /** The placement's slot in its stack, so a transition can find its quads. */
   stackIndex: number;
-  /** The appear this placement is forming under, if any. @see formingAt */
   transitionId?: string;
-  /**
-   * The middle of the cell the placement stands on, in world pixels: what a
-   * transition's scale shrinks towards, so a tile shrinks into its own cell
-   * rather than into the bottom of its sprite.
-   */
   pivotX: number;
   pivotY: number;
-  /**
-   * Set when this tile is drawn as a mesh of its own rather than merged into a
-   * batch — because it moves, or only for as long as it is forming.
-   */
   tileKey?: string;
-  /**
-   * Whether the placement can ever change cell, which is what makes its own
-   * mesh permanent.
-   *
-   * **Not the same question as {@link tileKey}**, and reading one for the other
-   * is what left a conjured flame invisible: a still tile is separate only
-   * while its appear runs, and its batch has to take it back afterwards.
-   * @see ./tileTransitions#rejoinsBatch
-   */
   moves?: boolean;
   anim?: Omit<AnimatedInstance, "mesh" | "key">;
-  /**
-   * The animation this quad plays from inside the merged batch, before the
-   * level's table has given it a row.
-   *
-   * The row is assigned in {@link WorldRenderer.buildLevel} rather than here so
-   * that {@link WorldRenderer.cellItems} stays a pure function of the map: the
-   * incremental path calls it twice on the same cell to compare, and a call
-   * that quietly grew the level's table would make the two comparisons differ
-   * by having been run.
-   */
   mergedAnim?: { frames: Frame[]; tileset: TilesetDef; phaseMs: number };
-  /**
-   * The plume this placement gives off, on the one quad that stands for it.
-   *
-   * Ridden in on the build item rather than gathered in a sweep of its own,
-   * because the emitter needs the placement's foot elevation and its depth box
-   * and {@link WorldRenderer.cellItems} has just worked both of those out. A
-   * second walk would be a second copy of the elevation arithmetic, and the two
-   * would drift.
-   *
-   * A pile draws one quad per thing in it and emits once, so this is set on the
-   * first offset only. @see WorldRenderer.tileEmittersByLevel
-   */
   emitter?: ParticleEmitterSpec;
 };
 
-/** A transition this renderer is playing, and the meshes wearing it. */
 type TransitionState = {
   live: LiveTransition;
   uniforms: TransitionUniforms | null;
   material: THREE.MeshBasicMaterial | null;
   meshes: TransitionMesh[];
-  /**
-   * The baked light as it was when the tile left, which still holds that
-   * tile's light. Its fading light is painted only once the bake has moved on.
-   * @see WorldRenderer.withFadingLights
-   */
   gridAtStart: PackedLightGrid | null;
-  /** Appear only: the placement's own plume, thinned in while it forms. */
   plumeId: string | null;
-  /** Disappear only: the plume the tile gave off, carried on by its copy. */
   plume: ParticleEmitterSpec | null;
-  /** The transition's own burst, for as long as it runs. */
   burst: ParticleEmitterSpec | null;
 };
 
-/**
- * One mesh wearing a transition, and where it stands when it is whole.
- *
- * A copy is a quad of a tile the map no longer has, and is disposed when the
- * transition ends. Anything else is the placement's own mesh, which is handed
- * back to its chunk's batch.
- */
 type TransitionMesh = {
   mesh: THREE.Mesh;
   texture: THREE.Texture;
   z: number;
-  /** The quad's middle when whole, in world pixels. */
   centreX: number;
   centreY: number;
-  /** The middle of its base cell, which a scale shrinks towards. */
   pivotX: number;
   pivotY: number;
   w: number;
   h: number;
   copy: boolean;
-  /** Its depth box and bias where it stands, before a drop lifts them. */
   box: DepthBox;
   stackBias: number;
-  /**
-   * Set when the placement has a mesh of its own for good — an actor, anything
-   * that moves. Its motion is added to its pose, and when the transition ends
-   * it gets its plain material back instead of a rebuild: it has no batch to
-   * rejoin, and may be cells from where it formed. @see rejoinsBatch
-   */
   moves: boolean;
-  /** The placement's key, for the motion a mover is under. @see moves */
   tileKey?: string;
 };
 
-/**
- * Stand a transitioning sprite as its pose says: shrunk towards the middle of
- * the cell it stands on, and lifted by whole storeys for a drop — its depth box lifted with it, so it
- * sorts as something above its own cell rather than as a tile standing on the
- * cell up-left of it, and the roof cut keeps reading its own cell.
- */
 function poseTransitionMesh(
   held: TransitionMesh,
   pose: TransitionPose,
   dropping: boolean,
   motion: TileMotion | undefined,
 ) {
-  // A body mid-step is posed where the step has it, not back at its cell.
   const ox = motion?.ox ?? 0;
   const oy = motion?.oy ?? 0;
-  // On the world-pixel grid, so the shader's one-texel-per-pixel redraw has
-  // whole pixels to fill. @see pixelSnappedQuad
   const at = pixelSnappedQuad(
     {
       centreX: held.centreX + ox,
@@ -408,11 +247,7 @@ function poseTransitionMesh(
   held.mesh.position.set(at.x, at.y, 0);
   held.mesh.updateMatrix();
   held.mesh.updateMatrixWorld(true);
-  // Every frame and not only when it changes: `applyTileMotions` writes a
-  // movable mesh's box back to its cell on each view.
   if (dropping) {
-    // The storeys drawn, not the storeys asked for, so the depth is raised by
-    // exactly as much as the picture was.
     const up = at.dropLevels * HEIGHT_PER_LEVEL;
     const box = motion
       ? depthBox(motion.box.x, motion.box.y, motion.box.foot, motion.box.top)
@@ -425,10 +260,8 @@ function poseTransitionMesh(
   }
 }
 
-/** A transitioning sprite stood as it is on the board. */
 const WHOLE_POSE: TransitionPose = { scale: 1, dropLevels: 0 };
 
-/** Copy the plumes whose cell the viewer can see onto the end of `into`. */
 function keepVisiblePlumes(
   specs: readonly ParticleEmitterSpec[],
   hidden: CellHidden,
@@ -439,12 +272,10 @@ function keepVisiblePlumes(
   }
 }
 
-/** Shared empties, so the common frame allocates nothing to say "none". */
 const EMPTY_TINTS: ReadonlyMap<string, StatusTint> = new Map();
 
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
-/** Map cell + stack slot identifying a placed tile instance. */
 export type TileInstanceKey = {
   x: number;
   y: number;
@@ -452,60 +283,27 @@ export type TileInstanceKey = {
   stackIndex: number;
 };
 
-/**
- * The string one placement is addressed by across every per-frame index —
- * motions, sprite states, separate meshes, ghosts.
- *
- * Exported because {@link WorldView.spriteStates} and
- * {@link WorldView.tileMotions} are both keyed by it and both are filled in by
- * the caller: two spellings of this would mean a state map whose keys silently
- * match nothing, with no type error and no missing sprite to notice — just a
- * deer that never animates.
- */
 export function tileInstanceKey(k: TileInstanceKey): string {
   return `${k.z}:${k.x},${k.y}:${k.stackIndex}`;
 }
 
-/**
- * The level out of an instance key.
- *
- * Beside the function it inverts, and NaN-guarded, because the whole hazard of a
- * string key is that the two halves drift apart in different files: a parser
- * living next to the builder is one edit away from staying right, and one that
- * silently returned NaN would fetch a material against a level nothing else uses
- * and light the sprite by a room that does not exist.
- */
 export function tileInstanceLevel(key: string): number {
   const z = Number.parseInt(key, 10);
   return Number.isNaN(z) ? 0 : z;
 }
 
-/**
- * Where a moving tile's solid volume is right now, in fractional cells and
- * absolute height units. A tile mid-step straddles two cells, so its box has
- * to travel with the sprite rather than snap between the cells it occupies.
- */
 export type MotionBox = {
   x: number;
   y: number;
   foot: number;
   top: number;
-  /** Separates the mover from whatever floor plane its feet are resting on. */
   stackBias: number;
 };
 
-/**
- * Per-frame motion for a placed tile (walk/fall lerp, push, etc.).
- * Not player-specific — any tile can move.
- */
 export type TileMotion = TileInstanceKey & {
   ox: number;
   oy: number;
   box: MotionBox;
-  /**
-   * Also draw under this level while moving. Used when descending so the
-   * mover stays visible after roof-cut hides the origin level group.
-   */
   alsoDrawAtZ?: number;
 };
 
@@ -514,125 +312,26 @@ export type WorldView = {
   tilesById: Record<string, TileDef>;
   camera: { x: number; y: number };
   zoom: number;
-  /** Minutes past midnight — drives ambient + clear colour. */
   minutesOfDay: number;
-  /** Active lerps; each carries the depth box its sprite currently occupies. */
   tileMotions?: TileMotion[];
-  /**
-   * Arrows in the air, positioned for this frame. @see `./projectileMotion`
-   *
-   * Not a {@link TileMotion}, and the difference is that a motion moves a
-   * *placement* — it is keyed by the slot it offsets, and there is a tile on the
-   * board underneath it. A projectile is on no cell and in no stack: there is
-   * nothing for it to be an offset of.
-   */
   projectiles?: ProjectileView[];
-  /**
-   * Tile transitions taken this frame, for the renderer to play from now on.
-   *
-   * A hand-over rather than a reading: each is passed once, and the renderer
-   * keeps it for as long as it plays. See `./tileTransitions`.
-   */
   transitions?: readonly HeldTransition[];
-  /**
-   * How each placement looks right now, keyed by {@link TileInstanceKey}, and
-   * holding only the entries that are *not* {@link SpriteState} `idle`.
-   *
-   * Sparse on purpose, on the same terms {@link tileMotions} is: almost nothing
-   * in a map is ever in a non-idle state, and an absent key is the answer for
-   * all of it. The caller decides what a state means — walking, mid-swing, open
-   * — because that is a reading of the session, which this renderer has no
-   * access to and no business guessing at.
-   */
   spriteStates?: ReadonlyMap<string, SpriteState>;
-  /**
-   * Fractional cell-space emit positions for tiles mid-walk/fall so cast
-   * light tracks sprite motion. Logical `x,y,z` must match the map cell.
-   */
   emitterOverrides?: EmitterOverride[];
-  /**
-   * The geometry the view has cut away — the structure the player can see
-   * into, not a whole storey. Omit to draw everything (editor / preview).
-   */
   roofCut?: RoofCut;
-  /**
-   * The level the viewer's eye is on, for culling plumes the viewer cannot see:
-   * a fire in the cave under their feet, a chimney behind a roof that is drawn.
-   * The rule is `isCellVisible`'s, the one name tags use. Omit to cull plumes by
-   * the roof-cut alone (editor / preview).
-   */
   viewerZ?: number;
-  /**
-   * The colour each placement is wearing, keyed by {@link TileInstanceKey}.
-   *
-   * Sparse, on the terms {@link spriteStates} is: almost nobody is ever under
-   * anything, and an absent key is the answer for all of them.
-   *
-   * **Only reaches placements that have their own mesh** — every actor, and
-   * nothing that is merged into its floor's batch. A tint is a material uniform
-   * (see `./spriteTint`), and a merged tile shares its material with the whole
-   * floor, so tinting one would tint the ground it is standing on. A key naming
-   * a merged tile is dropped rather than approximated.
-   */
   spriteTints?: ReadonlyMap<string, StatusTint>;
-  /**
-   * How deep each placement is standing in a `wade` tile, from 0 (dry) to 1
-   * (all the way in), keyed by {@link TileInstanceKey}. Fractional while a body
-   * steps into or out of the water.
-   *
-   * Sparse, on the terms {@link spriteTints} is, and with the same reach: only a
-   * placement with its own mesh can wade, which is every actor. The sprite is
-   * moved down-right and its edge made see-through; the depth box is left where
-   * it is. @see TileDef.wade, `WADE_SINK_PX` in `../lib/geometry`
-   */
   wading?: ReadonlyMap<string, number>;
-  /**
-   * The plumes on screen this frame.
-   *
-   * Reconciled by id rather than replaced, so a plume that moved is the same
-   * plume and keeps its particles — see `./particles`. A plume that stops being
-   * listed is retired and its last sparks are allowed to finish.
-   */
   particleEmitters?: readonly ParticleEmitterSpec[];
-  /**
-   * The square of world the player can actually see, in world pixels, when the
-   * camera has been pulled back off it.
-   *
-   * Absent in every shipped frame, where the camera *is* the play square and
-   * {@link camera} plus the buffer says so. Present only under the debug view
-   * (`./debugView`), and it is what keeps that view honest: every window this
-   * renderer decides — geometry, lighting, plumes — is derived from
-   * {@link cameraWindow}, so without this they would all grow with the pulled-back
-   * camera and the zoom-out would show nothing but a bigger normal frame.
-   */
   playSquare?: { x: number; y: number; sizePx: number };
 };
 
-/** Silhouette outline around one placed tile, drawn over the finished frame. */
 export type ObjectOutlineOverlay = TileInstanceKey & {
   kind: "objectOutline";
   color: number;
-  /**
-   * Breathe rather than sit still, for an outline that marks a decision the
-   * player made rather than something the pointer happens to be over.
-   *
-   * A property of the outline and not of what it is around, because the same
-   * body is outlined both ways within a second of each other — hovered, then
-   * chosen — and the difference between those two readings is exactly this.
-   */
   pulse?: boolean;
 };
 
-/**
- * A tile drawn where it *would* go, translucent, over a cell it is not in.
- *
- * The one overlay that is not about something already on the board, which is
- * why it names a tile rather than a stack slot: there is no placement to point
- * at yet, and the whole question is whether there is about to be one.
- *
- * It lands on top of whatever is in the cell, because that is where a dropped
- * thing goes — the ghost is drawn by the same rule that will place it.
- */
 export type TileGhostOverlay = {
   kind: "ghost";
   tileId: string;
@@ -648,24 +347,9 @@ function overlaySpecKey(spec: OverlaySpec): string {
   if (spec.kind === "ghost") {
     return `g:${spec.tileId}@${spec.x},${spec.y},${spec.z}:${spec.alpha}`;
   }
-  // Nothing about how the tile *looks* is in here — not the frame, not the pose,
-  // not where the lerp has carried it. An outline follows the mesh it was cut
-  // around (see {@link WorldRenderer.outlineFor}), so the only things that can
-  // make it the wrong mesh are which tile it is on and what colour it wears.
-  //
-  // The pulse is in the key but the *phase* deliberately is not: a breathing
-  // outline is one mesh whose uniform is written per frame, so keying on how lit
-  // it is right now would rebuild the whole chrome layer sixty times a second.
   return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}${spec.pulse ? "~" : ""}`;
 }
 
-/**
- * Stable cache key for fractional emitter overrides (~0.01 cell).
- *
- * The lights are in it because an override that carries its own is not
- * answerable from the map: two people standing in one spot, one of them holding
- * a lantern, are the same six numbers and a different room.
- */
 function emitterOverridesKey(overrides: EmitterOverride[] | undefined): string {
   if (!overrides?.length) return "";
   return overrides
@@ -678,62 +362,17 @@ function emitterOverridesKey(overrides: EmitterOverride[] | undefined): string {
     .join("|");
 }
 
-/**
- * Tiles the static bake leaves out, painted per frame by the overlay instead.
- *
- * Derived from the tile set rather than named, so a second character — or a
- * hundred — is omitted automatically. A hardcoded `{player}` was correct only
- * for as long as exactly one thing moved.
- *
- * Both conditions are load-bearing, and both are *narrow*. **Actor** is the
- * rule, not "mobile": the overlay paints an override per actor per frame, so an
- * actor is exactly the population that gets painted back. **Light-passing** is
- * what makes omitting it sound: the overlay is add-only, so it can paint a light
- * the bake left out but cannot carve a shadow the bake never knew about.
- * Omitting an occluder would light straight through it. A mobile tile that
- * blocks light therefore stays baked and pays for its movement — see the note in
- * docs/notes.md before changing that.
- *
- * **It used to say `isMobileTile`, and that let a lit thing vanish.** A lantern
- * is affected by gravity and passes light, so it was omitted from the bake — and
- * nothing paints an override at a cell nobody is standing in, so a lantern lying
- * on the floor lit nothing at all. Omitting a tile is only ever worth it for
- * something that moves *every frame*; a dropped item moves on the tick it lands
- * and dirties a cell doing it, which is a cost it was always going to pay.
- *
- * **The player is named rather than derived, and it has to be.** It is driven by
- * a connection and adopted by tile id, so {@link resolveActor} deliberately
- * refuses it — see the note there. Deriving this set from actorhood alone
- * therefore returned an empty set on the shipped tile catalogue and quietly
- * stopped omitting the one body that moves every single frame, which put a ~22ms
- * rebake on every step the player took.
- */
 export function dynamicLightTileIds(tilesById: Record<string, TileDef>): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const def of Object.values(tilesById)) {
-    // Light-passing is the load-bearing half and is checked first: omitting an
-    // occluder would light straight through it, whoever it belongs to.
     if (!resolveLightPassing(def)) continue;
     if (resolveActor(def) || def.id === PLAYER_TILE_ID) ids.add(def.id);
   }
   return ids;
 }
 
-/**
- * Changed cells on one level past which they stop being examined one by one.
- *
- * Deciding whether an edit moved the *merged* batch costs two
- * {@link cellItems} rebuilds per cell, over the cell and its autotile ring. A
- * tick of ordinary play changes a couple of dozen cells across the world and is
- * worth asking about, because the answer is almost always "no" and the reward
- * is swapping one sprite instead of rebuilding a chunk. A paint stroke or a
- * level load changes hundreds, and there the question costs more than
- * rebuilding the chunks outright. Set well above what gameplay produces and
- * well below what an edit does.
- */
 const MAX_ANALYSED_CELLS = 64;
 
-/** The cells themselves plus their 8 neighbours — an autotile's whole input. */
 function withNeighbourRing(cells: Iterable<string>): Set<string> {
   const out = new Set<string>();
   for (const key of cells) {
@@ -745,19 +384,6 @@ function withNeighbourRing(cells: Iterable<string>): Set<string> {
   return out;
 }
 
-/**
- * Every tile id that some autotile in the catalogue reads as a neighbour.
- *
- * An autotile picks its slice from an eight-way mask, and `stackConnects` fills
- * that mask by matching a neighbour's placements against the autotile's own id
- * and its `connectsTo` list — nothing else in a stack is looked at. So a change
- * to a cell that touches none of these ids cannot restyle anything around it,
- * however much else about the cell moved.
- *
- * Which is the difference between a cheap frame and an expensive one, because
- * the change a tick actually produces is creatures walking: a rat is not in any
- * autotile's vocabulary, so its step needs no ring at all.
- */
 function autotileVocabulary(tilesById: Record<string, TileDef>): Set<string> {
   const out = new Set<string>();
   for (const def of Object.values(tilesById)) {
@@ -768,7 +394,6 @@ function autotileVocabulary(tilesById: Record<string, TileDef>): Set<string> {
   return out;
 }
 
-/** The placements of a stack that any autotile would notice, in order. */
 function autotileInputOf(
   stack: readonly PlacedTile[] | undefined,
   vocabulary: ReadonlySet<string>,
@@ -781,101 +406,43 @@ function autotileInputOf(
   return sig;
 }
 
-/**
- * One chunk's geometry, and everything built alongside it.
- *
- * Held together rather than spread across four indexes keyed the same way,
- * because they are created and destroyed as a unit: a chunk leaving the window
- * has to take its meshes, its animated instances, its plumes *and* its entries
- * in the renderer-wide movable registry with it, and the failure when one of
- * those is forgotten is a stale key pointing at disposed geometry.
- */
 type ChunkGeometry = {
   group: THREE.Group;
   z: number;
   chunk: string;
   animated: AnimatedInstance[];
   emitters: ParticleEmitterSpec[];
-  /**
-   * The {@link movableMeshes} keys this chunk installed.
-   *
-   * Recorded rather than recovered by prefix, because the prefix of a movable
-   * key is its *cell* and what is being dropped is a chunk: finding them any
-   * other way means walking the registry, which holds every mesh in the built
-   * world.
-   */
   movableKeys: Set<string>;
 };
 
-/** Do two windows name the same cells? Four compares on the common frame. */
-/**
- * What the debug view can say in numbers — see {@link WorldRenderer.debugReading}.
- *
- * Every "reach" is cells past the edge of the play square on the side that
- * reaches furthest, which is the comparison worth making: it is how much world
- * is being paid for that nobody can see.
- */
 export type DebugReading = {
-  /** Built chunks, counting each level of a column separately. */
   meshChunks: number;
-  /** ...and the chunk columns those sit in, which is what gets outlined. */
   meshColumns: number;
   meshReachCells: number;
-  /** Light chunks in the cache, and how many of them are waiting on a rebake. */
   lightChunks: number;
   lightStale: number;
   lightReachCells: number;
-  /** Chunk columns this client's map holds anything in — its subscription. */
   heldColumns: number;
-  /** Null before the first chunks arrive. */
   heldReachCells: number | null;
   drawCalls: number;
   triangles: number;
 };
 
-/**
- * How faint each chunk grid is.
- *
- * The meshed grid is the brighter of the two because it is the one that moves:
- * a column appears and disappears as you walk, and that is the event worth
- * catching. What has been sent is context — a couple of hundred rectangles in
- * single player — and at this weight it reads as a wash the other lines sit on
- * rather than as competition for them.
- */
 const DEBUG_MESH_GRID_OPACITY = 0.6;
 const DEBUG_HELD_GRID_OPACITY = 0.22;
 
-/**
- * How far inside its chunk the meshed grid is drawn, in world pixels.
- *
- * A meshed column is always inside a sent one, so the two rectangles are the
- * same four lines. Drawn coincident, one of them is invisible and which one is
- * a matter of floating-point luck; a pixel apart, the frame says "this chunk is
- * both sent and built" in a way that can be read at a glance.
- */
 const DEBUG_GRID_INSET = 1;
 
-/** Render-order bump for the play square, over every window outline. */
 const DEBUG_PLAY_DEPTH = 4;
 
-/** How a debug rectangle is drawn. `depth` orders coincident ones. */
 type DebugRectStyle = { heavy?: boolean; opacity?: number; depth?: number };
 
-/** A rectangle drawn this many pixels inside another. */
 function inset(rect: PxRect, by: number): PxRect {
   return { x: rect.x + by, y: rect.y + by, w: rect.w - by * 2, h: rect.h - by * 2 };
 }
 
-/**
- * How often the debug view re-reads what the client has been sent.
- *
- * Chunks arrive a couple per tick, so four readings a second misses nothing a
- * person watching could see — and the read is a walk of every level's chunk
- * list, which at frame rate would be a cost invented by the tool measuring it.
- */
 const DEBUG_READ_INTERVAL_MS = 250;
 
-/** A window as a string, for telling whether it has moved. */
 function rectSignature(rect: WorldRect | null): string {
   return rect ? `${rect.x0},${rect.y0},${rect.x1},${rect.y1}` : "-";
 }
@@ -893,10 +460,6 @@ function disposeObject3D(obj: THREE.Object3D) {
   });
 }
 
-/**
- * Shared map world draw — preview-style (all levels opaque, no editor chrome).
- * Driven imperatively; no editor store.
- */
 export class WorldRenderer {
   private canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
@@ -905,55 +468,18 @@ export class WorldRenderer {
   private world: THREE.Group;
   private overlayScene: THREE.Scene;
   private overlays: THREE.Group;
-  /** null forces a rebuild; "" is the valid signature of an empty overlay set. */
   private overlaySig: string | null = null;
-  /**
-   * The debug view's window outlines, in a group of their own.
-   *
-   * Beside {@link overlays} rather than inside it because the two rebuild on
-   * different clocks: chrome is rebuilt whenever the pointer crosses a row, and
-   * these are rebuilt when the player crosses a chunk boundary. Sharing a
-   * signature would mean re-cutting forty chunk rectangles every time somebody
-   * moved the mouse.
-   */
   private debugWindows: THREE.Group;
-  /** The play square, built once and moved — it slides with every walk frame. */
   private debugPlayRect: THREE.Group | null = null;
   private debugOn = false;
-  /** Windows the outlines were last cut for; null forces a rebuild. */
   private debugWindowKey: string | null = null;
-  /** The map the held-chunk reading was last taken from, and that reading. */
   private debugHeldMap: MapFile | null = null;
   private debugHeldColumns: string[] = [];
   private debugReadAtMs = 0;
-  /**
-   * What the last *whole* frame cost, summed across its passes.
-   *
-   * `renderer.info` resets itself on every `render` call, and a frame here is
-   * three of them — world, palette blit, chrome — so reading it live reports
-   * whichever pass happened to go last. Under the debug view the auto-reset is
-   * turned off and the total is banked at the end of the frame instead. @see
-   * renderOnce
-   */
   private debugFrameCalls = 0;
   private debugFrameTriangles = 0;
-  /**
-   * Materials of the outlines that breathe, and the clock they breathe on.
-   *
-   * The clock is the renderer's rather than each mesh's, so a target replaced
-   * mid-cycle — a walking one is rebuilt on every frame it moves — picks the new
-   * outline up at the phase the old one was leaving, instead of snapping back to
-   * a full stop.
-   */
   private pulsingOutlines: THREE.ShaderMaterial[] = [];
-  /**
-   * The outline materials, kept across rebuilds so the shader is compiled once
-   * for the life of the page rather than once per rebuild — see
-   * {@link OutlineMaterials}. Rebuilds are frequent: every step a target takes
-   * and every row the pointer crosses is one.
-   */
   private outlineMaterials = new OutlineMaterials();
-  /** Outlines borrowing a world mesh, and the mesh each one is around. */
   private followingOutlines: { outline: THREE.Mesh; source: THREE.Mesh }[] = [];
   private pulseElapsedMs = 0;
   private textures = new Map<string, THREE.Texture>();
@@ -961,136 +487,32 @@ export class WorldRenderer {
   private tilesets: TilesetDef[] = [];
   private tilesetById = new Map<string, TilesetDef>();
   private tilesById: Record<string, TileDef> = {};
-  /**
-   * One group per level, holding that level's built chunks.
-   *
-   * Kept as the parent of the chunk groups rather than replaced by them,
-   * because the roof-cut's whole-storey arm is `group.visible = false` on one
-   * object — a cut that hides a floor should skip that floor's draw calls with
-   * one flag, not with a walk of however many chunks happen to be built.
-   */
   private levelGroups = new Map<number, THREE.Group>();
-  /**
-   * The geometry that exists right now, one entry per built chunk.
-   *
-   * Keyed by {@link chunkAddressKey}. This is the whole of what makes the
-   * renderer's cost track the window rather than the world: a chunk outside the
-   * window has no entry, no group and no quads, and comes into being on the
-   * frame the camera reaches for it. @see meshWindow
-   */
   private chunkGeometry = new Map<string, ChunkGeometry>();
-  /**
-   * The window the built set was last decided against, so a frame in which
-   * neither the map nor the camera moved costs one comparison.
-   */
   private meshedWindow: WorldRect | null = null;
-  /**
-   * Every emitting placement on the board, by level.
-   *
-   * Derived from the built chunks rather than maintained beside them — see
-   * {@link refreshTileEmitters} — because the geometry's unit is the chunk and
-   * this one's is the level, which is the shape `appendVisibleTileEmitters`
-   * culls in.
-   *
-   * Every built chunk, not the window: what is built is already a window, and
-   * the per-frame cull is a finer question than this index answers.
-   */
   private tileEmittersByLevel = new Map<number, ParticleEmitterSpec[]>();
-  /**
-   * Whether {@link tileEmittersByLevel} still agrees with the built chunks.
-   *
-   * The index is per level because that is the shape `appendVisibleTileEmitters`
-   * culls in, and the geometry is per chunk, so the two are reconciled — lazily,
-   * on the next frame that asks for emitters. Plumes are a handful in the whole
-   * world, so rebuilding the index outright is cheaper than keeping it in step
-   * edit by edit.
-   */
   private tileEmittersStale = false;
-  /**
-   * The plumes handed to the particle system this frame, refilled in place.
-   *
-   * One array reused rather than a fresh one per frame: this is written on every
-   * frame that has a plume in it, and an array per frame at 120fps is a
-   * collection in the middle of the frame budget for a list that is usually
-   * three entries long.
-   */
   private readonly visibleEmitters: ParticleEmitterSpec[] = [];
   private animated: AnimatedInstance[] = [];
   private animatedByKey = new Map<string, AnimatedInstance[]>();
-  /** @see WorldView.spriteStates — held so the map build can read it. */
   private spriteStates: ReadonlyMap<string, SpriteState> | undefined;
-  /** Separate meshes that can receive {@link TileMotion} offsets (anim or in-motion). */
   private movableMeshes = new Map<string, THREE.Mesh>();
-  /** Every transition playing, by note id. @see ./tileTransitions */
   private liveTransitions = new Map<string, TransitionState>();
-  /**
-   * Placements forming under an appear, by {@link transitionAddress}, which
-   * is what `cellItems` asks to give one a mesh of its own while it plays.
-   */
   private formingAt = new Map<string, string>();
-  /** The same, for a placement with a name, by that name. @see placementIdentity */
   private formingByPlacement = new Map<string, string>();
-  /**
-   * Every placement mesh wearing a transition's material. A tint leaves
-   * these alone until the transition is over: the transition's material
-   * has no tint in it, and a tint's material has no transition.
-   */
   private transitioningMeshes = new Set<THREE.Mesh>();
-  /** This view's motions by placement, so a posed body keeps its step. */
   private currentMotions: ReadonlyMap<string, TileMotion> = new Map();
-  /**
-   * Chunks a transition needs rebuilt, flushed once per pass rather than per
-   * transition: a burst of flames finishing in one chunk is one rebuild and
-   * one walk of the world's matrices, not one of each per flame.
-   */
   private chunksToRebuild = new Set<string>();
-  /** Copies of tiles already gone from the map, dissolving where they stood. */
   private transitionGroup: THREE.Group;
-  /**
-   * The arrows currently in the air, by flight id.
-   *
-   * Held between frames rather than rebuilt, for the reason the overlay layer is
-   * *not*: an arrow moves every single frame of its life, so a signature-gated
-   * rebuild would allocate and throw away a mesh thirty times a second. What
-   * changes per frame is a position, a depth box and a light sample — three
-   * attribute writes — which is exactly what a walking sprite already costs.
-   */
   private projectileMeshes = new Map<string, ProjectileMesh>();
-  /**
-   * Every arrow, in one group under {@link world} rather than one per level.
-   *
-   * **Deliberately outside the level groups, which is the one thing that makes
-   * this survive a map edit.** A level group is destroyed and rebuilt whenever
-   * its floor changes, and a mesh parented in one would be disposed underneath
-   * the map that still holds it — a torn-down geometry drawn on the next frame.
-   * Nothing is lost by staying out: depth is resolved per fragment from the box
-   * each quad carries, so group membership decides nothing about sorting. The
-   * one thing it did decide is roof-cut visibility, and that is a line of code
-   * here instead — see {@link applyProjectiles}.
-   */
   private projectileGroup: THREE.Group;
   private movableBasePos = new Map<string, { x: number; y: number }>();
   private movableBaseBox = new Map<string, { box: DepthBox; stackBias: number }>();
-  /**
-   * Extra draw of a descending mover under {@link TileMotion.alsoDrawAtZ}.
-   * Geometry is cloned (not shared) so level dispose cannot free the source.
-   */
   private motionGhosts = new Map<string, THREE.Mesh>();
-  /** Last roof-cut — level groups created mid-frame need it. */
   private roofCut: RoofCut | undefined;
-  /**
-   * The cut, per level, as the shader reads it.
-   *
-   * Held beside {@link lightUniformsByZ} and for the same reason: materials bind
-   * uniforms by reference, so writing the level's own object reaches every
-   * material on that floor without touching any of them.
-   */
   private cutUniformsByZ = new Map<number, LevelCutUniforms>();
-  /** Per level, the uniforms its materials read the animation table through. */
   private animUniformsByZ = new Map<number, LevelAnimUniforms>();
-  /** Per level, the table itself — kept to free its texture and to time frames. */
   private animTablesByZ = new Map<number, AnimationTable>();
-  /** Mask textures owned here, so a replaced one is freed rather than leaked. */
   private cutTextures = new Map<number, THREE.DataTexture>();
   private animClock = 0;
   private lastAnimTime = 0;
@@ -1102,70 +524,30 @@ export class WorldRenderer {
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightingKey = "";
   private staticLightGrid: PackedLightGrid | null = null;
-  /**
-   * The grid last handed to the GPU — the bake with every carried light painted
-   * over it — so {@link isCellPitchBlack} reads the light that was drawn.
-   */
   private shownLightGrid: PackedLightGrid | null = null;
-  /** Latest tint, so a level whose uniforms appear later still gets it. */
   private pendingAmbient: [number, number, number] | null = null;
   private gpuLighting = new GpuLighting();
   private lighting = new ChunkedLighting({}, dynamicLightTileIds({}));
-  /** Null under SSR and tests, where the bake stays on the calling thread. */
   private lightBaker: WorkerChunkBaker | null = null;
-  /** Tile defs the light cache was built against; new defs void every chunk. */
   private lightingTilesById: Record<string, TileDef> | null = null;
-  /**
-   * Actor bodies whose *own* light changes as they animate — a creature that
-   * glows in pulses rather than steadily. Empty in every map so far, and cheap
-   * to keep that way: their phase joins the overlay's cache key, and an empty
-   * list contributes nothing to it.
-   *
-   * Only bodies. A light in somebody's bag is resolved before it ever reaches
-   * this renderer and travels by value on the override, so
-   * {@link emitterOverridesKey} already sees it change.
-   */
   private flickeringDynamicDefs: TileDef[] = [];
-  /** @see setLightingEnabled */
   private lightingEnabled = true;
-  /** @see autotileVocabulary — rebuilt only when the catalogue is replaced. */
   private autotileVocab: ReadonlySet<string> = new Set();
-  /** The catalogue {@link autotileVocab} was derived from. */
   private autotileVocabFor: Record<string, TileDef> | null = null;
   private prevMap: MapFile | null = null;
   private needsRender = true;
   private canvasW = 0;
   private canvasH = 0;
   private resizeObserver: ResizeObserver | null = null;
-  /** Square buffer side in pixels, or null to track the element. */
   private fixedBufferPx: number | null = null;
-  /**
-   * Whether every tileset is on the GPU. Nothing is painted until it is —
-   * @see renderOnce.
-   */
   private assetsReady = false;
-  /** Fired once, after the next frame that actually reaches the canvas. */
   private onNextFrame: (() => void) | null = null;
   private view: WorldView | null = null;
   private looping = false;
   private raf = 0;
   private palettePass = new PalettePass();
   private profiler: FrameProfiler | null = null;
-  /**
-   * The plumes, and every spark in the air. Built in the constructor because it
-   * owns GPU buffers sized once — see `./particleLayer`.
-   */
   private particles: ParticleLayer;
-  /**
-   * Placements currently wearing a tint, and what it takes to take one off.
-   *
-   * The texture and level are held rather than re-derived, because taking a tint
-   * off is `materialFor(sameTexture, sameLevel, null)` and the instance key does
-   * not carry either. The mesh is held so a placement whose level was rebuilt
-   * under it can be recognised: the rebuilt mesh is already untinted, and
-   * restoring a material onto a mesh that no longer exists is a no-op worth not
-   * doing.
-   */
   private tintedMeshes = new Map<
     string,
     { mesh: THREE.Mesh; texture: THREE.Texture; z: number; tintKey: string }
@@ -1190,8 +572,6 @@ export class WorldRenderer {
     this.world = new THREE.Group();
     this.scene.add(this.world);
 
-    // Chrome lives in its own scene so it can be drawn after the palette
-    // quantise, keeping outline colours exact instead of snapped to the ramp.
     this.overlayScene = new THREE.Scene();
     this.overlayScene.matrixWorldAutoUpdate = false;
     this.overlays = new THREE.Group();
@@ -1222,16 +602,8 @@ export class WorldRenderer {
     this.whiteTex.generateMipmaps = false;
     this.whiteTex.needsUpdate = true;
 
-    // Last, because `ensureLightUniforms` needs `whiteTex` to exist.
-    // Per level, because a lit spark has to be lit by the room it is in — see
-    // `ParticleLayer`. Bound rather than passed once, so a plume on a storey
-    // nobody has visited yet still gets that storey's light map.
     this.particles = new ParticleLayer((z) => this.ensureLightUniforms(z));
     this.world.add(this.particles.mesh);
-    // Once, and never again: particle positions are baked into the vertices, so
-    // the mesh's own matrix is the identity for its whole life. The scene does
-    // not update matrices itself (see above), so without this the mesh keeps an
-    // identity `matrixWorld` it was never given.
     this.particles.mesh.updateMatrixWorld(true);
 
     this.bindResize();
@@ -1245,8 +617,6 @@ export class WorldRenderer {
     void this.preloadTextures().then(() => {
       if (this.disposed) return;
       this.prevMap = null;
-      // Force light re-upload after rebuild — materials may be new, and
-      // the first setView can race textures still loading.
       this.lightingKey = "";
       this.staticLightGrid = null;
       if (this.view) {
@@ -1258,7 +628,6 @@ export class WorldRenderer {
     });
   }
 
-  /** Attach a profiler to break {@link setView} down by phase. Null to stop. */
   setProfiler(profiler: FrameProfiler | null) {
     this.profiler = profiler;
   }
@@ -1270,17 +639,10 @@ export class WorldRenderer {
   setView(view: WorldView) {
     this.view = view;
     this.tilesById = view.tilesById;
-    // Before applyMap, which is what reads it: a cell rebuilt this frame has to
-    // come back in the state this view says it is in.
     this.spriteStates = view.spriteStates;
-    // Before applyMap, which is the whole of the ordering: a forming tile has
-    // to be on record when its chunk is patched, and a going one has to be read
-    // off `prevMap` while that still holds it.
     this.ingestTransitions(view);
     this.applyCamera(view.camera.x, view.camera.y, view.zoom);
 
-    // Before applyMap, which advances prevMap — the light cache needs to see
-    // both versions to work out which chunks the edit reached.
     if (this.lightingEnabled) {
       this.time("sync", () => this.lighting.syncTo(this.prevMap, view.map));
     }
@@ -1293,38 +655,19 @@ export class WorldRenderer {
     if (this.lightingEnabled) {
       this.time("light", () => this.updateLighting(view));
     }
-    // After applyMap, so a mesh rebuilt this frame is in the registry to be
-    // reached; before nothing, since a swap only touches its own quad.
     this.time("state", () => {
       this.applySpriteStates(view.spriteStates);
-      // Beside the states, and after them, because both answer "what does this
-      // placement look like right now" and a state change rebuilds the very
-      // mesh a tint is worn by.
       this.applySpriteTints(view.spriteTints);
     });
     this.time("motion", () => {
       this.applyTileMotions(view.tileMotions, view.wading);
-      // Beside the motions, because it is the same kind of work at the same
-      // point in the frame: something that is not where the map says it is.
       this.applyProjectiles(view.projectiles);
-      // The plumes are only *reconciled* here. Advancing them is `tick`'s job,
-      // because a plume moves with the clock rather than with the world: a
-      // frame in which nothing at all changed still has sparks in it.
       this.particles.setEmitters(this.emittersFor(view));
     });
-    // Last, so it reports on the windows this frame settled on rather than the
-    // previous one's. Off in every shipped frame.
     if (this.debugOn) this.syncDebugOverlay(view);
     this.needsRender = true;
   }
 
-  /**
-   * Every plume on screen this frame: the caller's, then the board's own.
-   *
-   * The board's half is culled by `./tileEmitters`, which owns the rule and the
-   * arithmetic. What is left here is the one thing that needs a renderer: the
-   * window, which is the camera's and is the same one the light bake crops to.
-   */
   private emittersFor(view: WorldView): readonly ParticleEmitterSpec[] {
     if (this.tileEmittersStale) this.refreshTileEmitters();
 
@@ -1335,9 +678,6 @@ export class WorldRenderer {
     if (this.tileEmittersByLevel.size === 0 && this.liveTransitions.size === 0) return out;
 
     appendVisibleTileEmitters(this.tileEmittersByLevel, this.cameraWindow(view), hidden, out);
-    // Culled after the fact rather than on the way in, because a transition
-    // also rewrites a tile plume already in the list by id, and that plume has
-    // been through the cull above.
     const board = out.length;
     appendTransitionEmitters(out, this.liveTransitions.values(), this.animClock);
     let kept = board;
@@ -1349,33 +689,12 @@ export class WorldRenderer {
     return out;
   }
 
-  /**
-   * Whether the viewer cannot see the cell a plume hangs from.
-   *
-   * The roof-cut alone when the view names no viewer, which is the editor's and
-   * the preview's case. Otherwise `isCellVisible`, so a plume is hidden exactly
-   * when a name tag on the same cell would be: a fire one storey down in a cave
-   * is under the ground the viewer stands on, and its sparks must not rise
-   * through it. @see CellHidden
-   */
   private readonly plumeCellHidden: CellHidden = (x, y, z) => {
     const view = this.view;
     if (!view || view.viewerZ === undefined) return cutHides(this.roofCut, x, y, z);
     return !isCellVisible(view.map, view.tilesById, { x, y, z }, view.viewerZ, this.roofCut);
   };
 
-  /**
-   * Draw the world unlit, and stop computing light at all.
-   *
-   * Not a shader switch with the bake still running behind it: while this is
-   * off nothing is baked, stitched, uploaded or diffed for invalidation — the
-   * two most expensive phases of a frame (`sync` and `light`) are skipped
-   * outright, which is the point of the toggle.
-   *
-   * Skipping `syncTo` means the cache stops hearing about edits, so every
-   * chunk it holds is suspect the moment light comes back on: turning it on
-   * throws the cache away rather than trusting a diff that has a hole in it.
-   */
   setLightingEnabled(enabled: boolean) {
     if (enabled === this.lightingEnabled) return;
     this.lightingEnabled = enabled;
@@ -1385,28 +704,17 @@ export class WorldRenderer {
     }
     if (enabled) {
       this.lighting.invalidateAll();
-      // Left for the next frame's setView rather than baked here: that one
-      // arrives with the emitter overrides this frame's view no longer has,
-      // so baking now would only pay for a grid missing every dynamic light.
       this.staticLightGrid = null;
       this.lightingKey = "";
     }
     this.needsRender = true;
   }
 
-  /**
-   * Is this cell drawn black by the light the GPU was last given?
-   *
-   * False while lighting is off, and before the first grid is uploaded: with no
-   * light to read, nothing is known to be dark, and the world is drawn unlit.
-   * @see isPitchBlack
-   */
   isCellPitchBlack(x: number, y: number, z: number): boolean {
     if (!this.lightingEnabled || !this.shownLightGrid || !this.pendingAmbient) return false;
     return isPitchBlack(this.shownLightGrid, this.pendingAmbient, x, y, z);
   }
 
-  /** Asset handles the shared sprite-quad builder needs. */
   quadAssets(): SpriteQuadAssets {
     return {
       tilesetById: this.tilesetById,
@@ -1416,10 +724,6 @@ export class WorldRenderer {
     };
   }
 
-  /**
-   * Replace the chrome layer. Rebuilding allocates throwaway meshes, so a
-   * signature gates it — this is called every frame from the play loop.
-   */
   setOverlays(specs: OverlaySpec[]) {
     const sig = specs.map((spec) => this.overlayKey(spec)).join("|");
     if (sig === this.overlaySig) return;
@@ -1429,26 +733,11 @@ export class WorldRenderer {
     this.pulsingOutlines = [];
     this.followingOutlines = [];
     for (const spec of specs) this.addOverlay(spec);
-    // At the phase the clock is already at, so a rebuild is invisible rather
-    // than a flash back to full brightness.
     this.applyPulse();
-    // Scene has matrixWorldAutoUpdate=false — without this the meshes keep an
-    // identity matrixWorld and all draw at the world origin.
     this.overlays.updateMatrixWorld(true);
     this.needsRender = true;
   }
 
-  /**
-   * Put every borrowed outline back on top of the mesh it is around.
-   *
-   * Here rather than in `setOverlays`, because the frames an outline has to keep
-   * up on are the ones where it is *not* rebuilt: a sprite mid-step moves every
-   * frame while the overlay set stays exactly as it was. Drawing is the one
-   * thing that cannot be skipped on such a frame, so the copy rides with it.
-   *
-   * A copy rather than parenting, since the chrome is a separate scene — drawn
-   * after the palette pass so an outline keeps its exact colour.
-   */
   private syncFollowingOutlines() {
     for (const { outline, source } of this.followingOutlines) {
       outline.matrix.copy(source.matrixWorld);
@@ -1456,19 +745,9 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * Draw the renderer's own windows over the world, or stop.
-   *
-   * Only ever on under `?debug=1` — see `./debugView` for what the picture is
-   * of and `../render/GameRenderer` for how the camera gets pulled back off the
-   * play square so that there is anything to see.
-   */
   setDebugView(on: boolean) {
     if (on === this.debugOn) return;
     this.debugOn = on;
-    // Counted per frame rather than per pass, and only while somebody is
-    // reading it: an accumulating counter nobody resets is a slow leak of a
-    // number into nonsense.
     this.renderer.info.autoReset = !on;
     if (!on) {
       disposeGroupChildren(this.debugWindows);
@@ -1484,19 +763,6 @@ export class WorldRenderer {
     this.needsRender = true;
   }
 
-  /**
-   * Cut the window outlines again, when what they are outlining has moved.
-   *
-   * Two clocks, because the two halves move at different rates. The play square
-   * slides with every frame of a walk, so it is one rectangle built once and
-   * given a new position; the windows only change when the player crosses a
-   * chunk boundary or the server hands over a chunk, so they are re-cut against
-   * a key and, for the subscription, no more often than
-   * {@link DEBUG_READ_INTERVAL_MS} — the map takes a new identity on every
-   * commit anywhere in the world, and re-listing every level's chunks at sixty
-   * hertz to learn that nothing arrived is exactly the cost this view exists to
-   * warn about.
-   */
   private syncDebugOverlay(view: WorldView) {
     const square = view.playSquare;
     if (!square) return;
@@ -1516,12 +782,6 @@ export class WorldRenderer {
     this.debugWindowKey = key;
 
     disposeGroupChildren(this.debugWindows);
-    // Back to front, because a meshed column sits exactly on top of the sent
-    // column it is inside: same chunk, same four lines, and with nothing
-    // deciding between them the answer would change frame to frame. The
-    // {@link DEBUG_GRID_INSET} on the meshed grid is the other half of the same
-    // point — a line you can see *beside* the one underneath says more than a
-    // line that merely won.
     const frame = this.drawnWindow(view);
     for (const column of this.debugHeldColumns) {
       if (!columnTouches(column, frame)) continue;
@@ -1557,13 +817,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * The play square, put where the play square now is.
-   *
-   * Built at the origin once and moved, rather than re-cut: this runs on every
-   * frame of every walk, and five points of throwaway `BufferGeometry` sixty
-   * times a second is the kind of thing this whole view is for spotting.
-   */
   private placeDebugPlayRect(square: { x: number; y: number; sizePx: number }) {
     if (!this.debugPlayRect) {
       const group = new THREE.Group();
@@ -1576,8 +829,6 @@ export class WorldRenderer {
         DEBUG_COLORS.play,
         true,
       )) {
-        // Over every window outline: this is the one rectangle that says what
-        // the game is, and the rest are what it costs.
         line.renderOrder += DEBUG_PLAY_DEPTH;
         group.add(line);
       }
@@ -1589,24 +840,12 @@ export class WorldRenderer {
     this.debugPlayRect.updateMatrixWorld(true);
   }
 
-  /**
-   * What the debug view has to say in words, for the panel beside it.
-   *
-   * Read off the same state the outlines are cut from, so the number and the
-   * rectangle can never disagree. Null when the view is off, or before there is
-   * a frame to report on.
-   */
   debugReading(): DebugReading | null {
     if (!this.debugOn || !this.view?.playSquare) return null;
     const square = this.view.playSquare;
     const light = this.lightWindow(this.view);
     const held = boundsOfColumns(this.debugHeldColumns);
     const columns = builtChunkColumns(this.chunkGeometry.keys());
-    // The built columns rather than {@link meshedWindow}: that field holds the
-    // camera window the built set was *decided* from, which by construction
-    // reaches exactly as far as the view and would report zero forever. What
-    // was actually built is the window plus the margin, rounded out to chunks,
-    // and it is what the green outlines are drawn around.
     const mesh = boundsOfColumns(columns);
     return {
       meshChunks: this.chunkGeometry.size,
@@ -1622,7 +861,6 @@ export class WorldRenderer {
     };
   }
 
-  /** Write this instant's brightness into every breathing outline. */
   private applyPulse() {
     if (this.pulsingOutlines.length === 0) return;
     const alpha = pulseAlphaAt(this.pulseElapsedMs);
@@ -1631,17 +869,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * {@link overlaySpecKey}, plus the one thing about a tile's *appearance* that
-   * belongs in it.
-   *
-   * That key deliberately holds nothing about how a tile looks, because an
-   * outline follows the mesh it was cut around. A heap breaks the deliberate
-   * part: its outline is one ring per thing in it, so eating a berry out of a
-   * pile somebody is pointing at changes how many rings are correct while every
-   * other word in the key stays the same. Absent for anything that is not a
-   * pile, so no key in the game but a heap's changes by a character.
-   */
   private overlayKey(spec: OverlaySpec): string {
     const key = overlaySpecKey(spec);
     if (spec.kind === "ghost") return key;
@@ -1651,7 +878,6 @@ export class WorldRenderer {
     return count > 1 ? `${key}x${count}` : key;
   }
 
-  /** The placed tile an overlay refers to, plus the elevation it is drawn at. */
   private overlaySubject(key: TileInstanceKey) {
     const map = this.view?.map;
     if (!map) return null;
@@ -1680,24 +906,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * An outline around one placed tile, cut from whatever the world is drawing it
-   * with.
-   *
-   * A tile that animates or can move owns its mesh, and the outline borrows it:
-   * the frame, the pose and the walk lerp are then facts the two share rather
-   * than facts the chrome has to be told about. That is the whole of keeping an
-   * outline in step — every other tile is in a merged batch precisely because
-   * nothing about it can change, so cutting it a quad of its own is exact too.
-   *
-   * **A list, because a heap is one placement drawn several times.** Outlining
-   * only the quad the placement would have drawn on its own put a ring around a
-   * single berry in the middle of a dozen — which reads as "that one", where
-   * what a press actually takes is all of them. One ring per sprite says the
-   * true thing, and it says it in the same offsets the sprites were drawn at, so
-   * the chrome cannot disagree with the art about where the berries are. See
-   * `./pileLayout`.
-   */
   private outlinesFor(spec: ObjectOutlineOverlay): THREE.Mesh[] {
     const key = this.tileKey(spec);
     const source = this.movableMeshes.get(key);
@@ -1718,14 +926,6 @@ export class WorldRenderer {
       subject.def,
     );
     if (!quad) return [];
-    // The borrowed branch above has already taken every tile with a mesh of its
-    // own, which is every tile a pile is not — so the count is read straight
-    // off the placement here, exactly as `cellItems` reads it.
-    //
-    // One ring per sprite, at the offset that sprite was drawn at, each told
-    // where the others are so the heap comes out with one silhouette around the
-    // whole of it rather than a dozen rings crossing through it. See
-    // `./pileLayout`'s `pileRings` and `./overlayMeshes`' `OutlinePeers`.
     return pileRings(countOf(subject.placed)).map(({ at, peers }) =>
       makeSpriteOutline(
         { ...quad, x: quad.x + at.dx, y: quad.y + at.dy },
@@ -1736,13 +936,6 @@ export class WorldRenderer {
     );
   }
 
-  /**
-   * Draw a tile that is not there, on top of the cell it would land in.
-   *
-   * The elevation is the *whole* stack's height rather than a slice of it,
-   * which is the one difference from an outline: an outline is cut around
-   * something already in the stack, and this is drawn above everything in it.
-   */
   private addGhost(spec: TileGhostOverlay) {
     const map = this.view?.map;
     const def = this.tilesById[spec.tileId];
@@ -1765,25 +958,6 @@ export class WorldRenderer {
     this.overlays.add(makeSpriteGhost(quad, spec.alpha));
   }
 
-  /**
-   * Hand the frame's cut to the geometry. No mesh rebuild, ever.
-   *
-   * **Two mechanisms, because the cut has two shapes.** A whole-storey cut is a
-   * level threshold and stays what it always was: `group.visible = false`, which
-   * skips the floor's draw calls outright. A structure cut is a set of cells
-   * inside a level whose static geometry is merged into one draw call per
-   * texture, so there is no object to hide — that one is a mask the fragment
-   * shader reads (see {@link writeCutMask}).
-   *
-   * Rebuilding the merged geometry instead was the obvious alternative and is
-   * the one thing that must not happen here: rebuilding walks every coordinate
-   * of a chunk, and the cut changes every time the player takes a step.
-   *
-   * Skipped when the cut is the same object as last frame, which is the usual
-   * case — `GameRenderer` caches it on the map and the anchor, so it is a new
-   * object only when one of those moved. Level groups made after this point read
-   * {@link roofCut} for themselves.
-   */
   private applyRoofCut(cut: RoofCut | undefined) {
     if (cut === this.roofCut) return;
     this.roofCut = cut;
@@ -1793,14 +967,6 @@ export class WorldRenderer {
     for (const z of this.cutUniformsByZ.keys()) this.writeCutMask(z);
   }
 
-  /**
-   * Upload one level's cut as a mask in cell space, or switch it off.
-   *
-   * The layout is `./cutMask`'s; what is left here is the one thing that needs a
-   * renderer. A fresh texture per change rather than a resized one: the cut
-   * changes when the player steps or the world is edited, which is a few times a
-   * second at most, and a few hundred bytes uploaded then is not worth a pool.
-   */
   private writeCutMask(z: number) {
     const u = this.cutUniformsByZ.get(z);
     if (!u) return;
@@ -1815,9 +981,6 @@ export class WorldRenderer {
     const texture = new THREE.DataTexture(mask.data, mask.w, mask.h, THREE.RedFormat);
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
-    // A row of a single-channel mask is `w` bytes and `w` is whatever the roof
-    // measures, so the default four-byte row alignment would read the wrong
-    // pixels for three widths in four.
     texture.unpackAlignment = 1;
     texture.needsUpdate = true;
 
@@ -1829,43 +992,21 @@ export class WorldRenderer {
     u.uCutEnabled.value = 1;
   }
 
-  /**
-   * The clock every animation is read against, in milliseconds.
-   *
-   * Exposed because emission is authored per frame, and a light resolved
-   * anywhere else — a lantern in a bag, which is on no cell for the bake to
-   * find — has to be read against the same clock as the sprite it belongs to,
-   * or the two tell different stories about the same object.
-   */
   get animTimeMs(): number {
     return this.animClock;
   }
 
-  /** Advance sprite animations; call from the host rAF loop. */
   tick(dt: number) {
-    // Before the early return: a breathing outline is the one thing on screen
-    // that moves while the world is perfectly still, which is exactly the case
-    // `updateAnimations` says there is nothing to do in.
     if (this.pulsingOutlines.length > 0) {
       this.pulseElapsedMs += dt;
       this.applyPulse();
       this.needsRender = true;
     }
-    // Kept outside `updateAnimations`, which has nothing to do — and used to
-    // return before advancing this — when no animated sprite is on screen. The
-    // light bake reads the same clock, and an emitter can sit outside the built
-    // geometry while its light still reaches inside the window.
     this.animClock += dt;
-    // Beside the clock it reads, and before the early return below: a tile
-    // forming in an otherwise still world is exactly the frame that reports
-    // nothing else to do.
     if (this.liveTransitions.size > 0) {
       this.advanceTransitions();
       this.needsRender = true;
     }
-    // Before the animation check, for the reason the pulse is: a plume is a
-    // thing that moves while the world is perfectly still, which is exactly the
-    // case `updateAnimations` reports nothing to do in.
     if (this.particles.active) {
       this.particles.update(dt, this.plumeCellHidden);
       this.needsRender = true;
@@ -1897,27 +1038,12 @@ export class WorldRenderer {
     cancelAnimationFrame(this.raf);
   }
 
-  /**
-   * Called once, after the next frame reaches the canvas, so whoever owns the
-   * page can take a screen down against the world appearing rather than against
-   * a guess at when it will.
-   *
-   * It fires once and clears itself, so asking again is how a page waits for a
-   * second world: the first paint takes the loading screen down, and a rebirth
-   * re-arms it to take the waiting screen down against the world the `hello`
-   * brought rather than against the message that promised it.
-   */
   setOnNextFrame(cb: (() => void) | null) {
     this.onNextFrame = cb;
   }
 
   renderOnce() {
     if (this.disposed) return;
-    // Not one pixel until every tileset is on the GPU. A material whose texture
-    // has not arrived draws `magentaTex`, so painting early means a frame or
-    // more of magenta over the whole world — the placeholder is there to make a
-    // *missing* tileset obvious, and a tileset that is merely still in flight is
-    // not missing. `setAssets` flips this and asks for a frame.
     if (!this.assetsReady) return;
     this.updateCanvasSize();
     if (this.view) {
@@ -1926,7 +1052,6 @@ export class WorldRenderer {
     const r = this.renderer;
     if (this.debugOn) r.info.reset();
 
-    // PROTOTYPE — always palettise play frames.
     const target = this.palettePass.sceneTarget(r);
     r.setRenderTarget(target);
     r.setClearColor(VOID_BACKGROUND, 1);
@@ -1934,8 +1059,6 @@ export class WorldRenderer {
     r.render(this.scene, this.camera);
     this.palettePass.blitToCanvas(r);
 
-    // Quantise before chrome so hover outlines and target squares keep their
-    // exact colour instead of snapping to the nearest palette entry.
     if (this.overlays.children.length > 0 || this.debugOn) {
       this.syncFollowingOutlines();
       r.autoClear = false;
@@ -1948,8 +1071,6 @@ export class WorldRenderer {
       this.debugFrameTriangles = r.info.render.triangles;
     }
 
-    // After the draw, never before: the callback's whole job is to say that
-    // there is something on the canvas now.
     const painted = this.onNextFrame;
     this.onNextFrame = null;
     painted?.();
@@ -1973,8 +1094,6 @@ export class WorldRenderer {
     disposeGroupChildren(this.projectileGroup);
     this.projectileMeshes.clear();
     this.retireAllTransitions();
-    // Dropped with the meshes they belong to: a disposed material written to on
-    // a stray tick is a use-after-free as far as WebGL is concerned.
     this.pulsingOutlines = [];
     this.followingOutlines = [];
     this.renderer.dispose();
@@ -2008,12 +1127,8 @@ export class WorldRenderer {
       const baseBox = this.movableBaseBox.get(key);
       if (!base || !baseBox) continue;
 
-      // Sprite offset and depth box come from the same motion, so what is drawn
-      // and where it sorts can never disagree for a frame.
       const motion = byKey.get(key);
       const wade = wading?.get(key) ?? 0;
-      // Whole pixels, like every other sprite offset, so a body stepping into
-      // water drops by one pixel and then another rather than drawing between.
       const sinkPx = Math.round(wade * WADE_SINK_PX);
       const edgePx = Math.round(wade * WADE_EDGE_PX);
       mesh.position.x = base.x + (motion?.ox ?? 0) + sinkPx;
@@ -2027,16 +1142,9 @@ export class WorldRenderer {
           : baseBox.box,
         motion ? motion.box.stackBias : baseBox.stackBias,
       );
-      // Scene has matrixWorldAutoUpdate=false — must push local → world or the
-      // mesh never moves on screen despite position changing.
       mesh.updateMatrix();
       mesh.updateMatrixWorld(true);
 
-      // Descending movers: also draw under the destination level so roof-cut can
-      // hide the origin group without the sprite vanishing mid-lerp. Hide the
-      // origin mesh while the dest copy is up so we never double-draw.
-      // Not while it forms: the ghost wears a plain material, so a body taking
-      // the stairs mid-appear would drop its appear for that step.
       const ghostZ = this.transitioningMeshes.has(mesh) ? undefined : motion?.alsoDrawAtZ;
       if (ghostZ != null) {
         activeGhosts.add(key);
@@ -2054,21 +1162,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * Draw this frame's arrows.
-   *
-   * A mesh per flight, made once and moved ever after. Everything that varies
-   * frame to frame — where it is, what it sorts against, which cell's light it
-   * takes — is an attribute write on geometry that already exists; the sprite's
-   * footprint is fixed, because a flight's bearing never changes and the frames
-   * of one sprite share a rect.
-   *
-   * A flight whose tile the catalogue has lost, or whose art is unauthored on
-   * the bearing it is travelling, simply draws nothing. That is the same answer
-   * every other id in a kit gets when the world has moved on underneath it: the
-   * fact is out of date, not corrupt, and a fight is not worth refusing over the
-   * art.
-   */
   private applyProjectiles(views: ProjectileView[] | undefined) {
     if (views === undefined && this.projectileMeshes.size === 0) return;
 
@@ -2088,13 +1181,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * The mesh for one flight, made on the frame it first appears.
-   *
-   * Null when there is nothing to draw with, and null every frame after that
-   * too — the lookups are all off a catalogue that does not change mid-flight,
-   * so a miss on the first frame is a miss for the whole flight.
-   */
   private projectileMesh(view: ProjectileView): ProjectileMesh | null {
     const existing = this.projectileMeshes.get(view.id);
     if (existing) return existing;
@@ -2108,18 +1194,11 @@ export class WorldRenderer {
 
     const texture = this.textures.get(tileset.id) ?? this.magentaTex;
     const rect = spriteRect(def.anchor, frames[0]!.sprite);
-    // Decided once, on the tile, because a projectile's authored sides cannot
-    // change mid-flight: a projectile that wears none keeps the shared material
-    // it always had, and only one that wears a dissolve or a scale pays for a
-    // material and a uniform write of its own.
     const uniforms = wearsFlightTransition(def) ? noTransitionUniforms() : null;
     const quad: Omit<Quad, "x" | "y"> = {
       w: rect.w * CELL_SIZE,
       h: rect.h * CELL_SIZE,
       ...frameUvs(def.anchor, frames[0]!, tileset),
-      // Placeholders. Every one of these is rewritten by `placeProjectile`
-      // before the frame is drawn, and they exist here only because a geometry
-      // has to be built with something in its attributes.
       box: depthBox(view.x, view.y, view.elevAbs, view.elevAbs),
       stackBias: 0,
       lightX0: view.x,
@@ -2135,8 +1214,6 @@ export class WorldRenderer {
         ? this.transitionMaterial(texture, view.z, uniforms)
         : this.materialFor(texture, view.z),
     );
-    // Never culled, for the reason every other single-quad mesh here is not: the
-    // bounding sphere is computed once and the thing moves every frame.
     mesh.frustumCulled = false;
     mesh.matrixAutoUpdate = false;
     this.projectileGroup.add(mesh);
@@ -2159,20 +1236,12 @@ export class WorldRenderer {
     return entry;
   }
 
-  /** Put one arrow where this frame says it is. */
   private placeProjectile(entry: ProjectileMesh, view: ProjectileView) {
-    // **Before the frame is picked**, so a turn takes effect on the frame it
-    // happened rather than the one after. A bearing with no art authored is
-    // kept on the one it had: a shot that turns into an unauthored corner
-    // should go on being drawn, not blink out.
     if (view.direction !== entry.direction) {
       const turned = getFrames(entry.def, { direction: view.direction });
       if (turned?.length) {
         entry.direction = view.direction;
         entry.frames = turned;
-        // Forced, because the index is compared against the *old* list's — the
-        // same ordinal on a new bearing is a different frame and its UVs have
-        // to be written.
         entry.frameIdx = -1;
       }
     }
@@ -2183,28 +1252,15 @@ export class WorldRenderer {
       writeFrameUvs(entry.mesh, entry.def.anchor, frame, entry.tileset);
     }
 
-    // The level's own light and the level's own roof-cut, both re-asked every
-    // frame because an arrow can cross a storey mid-flight — a shot from a
-    // balcony passes through the boundary on its way down, and a material fixed
-    // at launch would light the whole descent by the room it left.
     if (view.z !== entry.z) {
       entry.z = view.z;
       if (entry.uniforms) {
-        // Rebuilt rather than re-pointed, because a transition material binds
-        // one level's light and roof-cut uniforms when its program compiles —
-        // and disposed here rather than left, since it belongs to this one
-        // flight and nothing else is holding it. The holder survives the swap,
-        // so a dissolve does not restart on a shot that crosses a storey.
         (entry.mesh.material as THREE.Material).dispose();
         entry.mesh.material = this.transitionMaterial(entry.texture, view.z, entry.uniforms);
       } else {
         entry.mesh.material = this.materialFor(entry.texture, view.z);
       }
     }
-    // An arrow is parented to `world` rather than to a level group, so the group
-    // toggle does not reach it — and neither can the shader mask, whose cell
-    // comes from the box, which for a flight is where the arrow *is* rather than
-    // a cell the fill ever claimed.
     entry.mesh.visible = !cutHides(this.roofCut, view.x, view.y, view.z);
 
     const localElev = view.elevAbs - view.z * HEIGHT_PER_LEVEL;
@@ -2225,27 +1281,6 @@ export class WorldRenderer {
     writeLightUvAttr(entry.mesh.geometry, view.x, view.y, view.x + 1, view.y + 1);
   }
 
-  /**
-   * Dress one flight's mesh in whichever of its sides is playing.
-   *
-   * **Rewritten every frame rather than bound once**, unlike a placed tile's,
-   * and for a reason a placed tile does not have: an arrow moves. A sweep is
-   * laid out against the sprite's own middle, so a dissolve pointed once at the
-   * muzzle would sweep across an arrow that is no longer there. It is a handful
-   * of number writes — the same trade `./VfxPreview` makes, playing transition
-   * after transition through one holder.
-   *
-   * A scale is applied to the mesh rather than through {@link pixelSnappedQuad},
-   * which is the one place a flight departs from how a tile wears the same
-   * effect. Snapping exists so a shrinking sprite loses whole rows of art
-   * instead of drawing it at a fraction of a pixel — and a tile can, because it
-   * stands on the world-pixel grid. A flight never does: it is at a fractional
-   * cell on almost every frame it is drawn, so there is no grid to snap to and
-   * snapping would only make the shrink jump.
-   *
-   * It shrinks towards its own middle rather than towards the base of a cell,
-   * which is the other half of the same fact: a flight stands in no cell.
-   */
   private wearFlightSide(
     entry: ProjectileMesh,
     view: ProjectileView,
@@ -2263,14 +1298,9 @@ export class WorldRenderer {
 
     writeTransitionUniforms(
       uniforms,
-      // A note built here rather than carried, on the terms `./VfxPreview`
-      // builds one: the only field either reads is the side, and a flight has
-      // no cell or stack slot to put in the rest.
       {
         note: {
           id: view.id,
-          // `hit` sweeps the way a `disappear` does, because it is one — see
-          // `../game/projectile`'s `ProjectileSide`.
           side: phase.side === "appear" ? "appear" : "disappear",
           tileId: view.tileId,
           x: view.x,
@@ -2288,7 +1318,6 @@ export class WorldRenderer {
     entry.mesh.scale.set(scale, scale, 1);
   }
 
-  /** Level group for z, creating an empty one when the dest floor has no tiles yet. */
   private ensureLevelGroup(z: number): THREE.Group {
     let group = this.levelGroups.get(z);
     if (group) return group;
@@ -2348,22 +1377,9 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * Bring the built geometry into line with this map, seen from this window.
-   *
-   * Two things can make it out of date and they are not the same thing. The
-   * *map* changing is an edit, and costs the chunks it touched. The *window*
-   * moving is a walk, and costs the chunks that have come into range and the
-   * ones that have left. A frame where neither moved is the common one and
-   * costs the comparison below and nothing else.
-   */
   private applyMap(map: MapFile, window: WorldRect, force: boolean) {
     const mapMoved = force || map !== this.prevMap;
     if (!mapMoved && sameRect(this.meshedWindow, window)) return;
-    // Stacks moved under the chrome — whatever it was anchored to may be gone.
-    // Only for an edit: panning does not move anything the chrome is anchored
-    // to, and clearing this on every step would rebuild the overlays for a
-    // camera that merely scrolled.
     if (mapMoved) this.overlaySig = null;
     if (force || !this.prevMap) this.discardGeometry();
     this.syncChunks(map, window);
@@ -2378,14 +1394,6 @@ export class WorldRenderer {
     this.updateCanvasSize();
   }
 
-  /**
-   * Draw into a square buffer of `px`, ignoring the element's CSS box.
-   *
-   * Play mode fixes the buffer so the world renders at a whole number of pixels
-   * per world pixel and the element is then stretched over its pane — see
-   * `./viewport`. Left unset, the buffer tracks the element, which is what the
-   * editor wants: there the pane *is* the view.
-   */
   setBufferSize(px: number) {
     this.fixedBufferPx = Math.max(1, Math.floor(px));
     this.updateCanvasSize();
@@ -2398,20 +1406,9 @@ export class WorldRenderer {
     if (w === this.canvasW && h === this.canvasH) return;
     this.canvasW = w;
     this.canvasH = h;
-    // `false`: the CSS box is the layout's business, and under a fixed buffer
-    // it is deliberately not the buffer's size.
     this.renderer.setSize(w, h, false);
   }
 
-  /**
-   * Every tileset onto the GPU, and a failure is one tileset's problem.
-   *
-   * Each load is caught on its own because the frame loop now waits on this
-   * whole pass finishing (@see renderOnce). Left to reject, a single 404 would
-   * mean `assetsReady` never flips and the world is never drawn at all —
-   * trading a magenta wall, which is the placeholder doing its job, for a black
-   * screen, which is the game not starting.
-   */
   private async preloadTextures() {
     await Promise.all(
       this.tilesets.map(async (ts) => {
@@ -2446,14 +1443,6 @@ export class WorldRenderer {
     this.camera.updateMatrixWorld(true);
   }
 
-  /** This level's cut uniforms, with the mask already written into them. */
-  /**
-   * This level's animation uniforms, inert until the level is built.
-   *
-   * Held by reference the way the light and cut ones are: a material binds the
-   * object once when its program compiles, so a rebuild must replace what is
-   * *inside* it rather than hand out a new object nothing is looking at.
-   */
   private ensureAnimUniforms(z: number): LevelAnimUniforms {
     let u = this.animUniformsByZ.get(z);
     if (!u) {
@@ -2463,15 +1452,6 @@ export class WorldRenderer {
     return u;
   }
 
-  /**
-   * This level's animation table, which outlives any one chunk of it.
-   *
-   * Level-scoped because materials are: `materialFor` keys on (texture, level),
-   * so every chunk on a floor draws through one set of uniforms and therefore
-   * one table. It only ever grows — a chunk streaming out does not take its rows
-   * with it — which is what keeps the rows the surviving chunks point at valid,
-   * and costs a texel per frame per animation that floor has ever shown.
-   */
   private ensureAnimTable(z: number): AnimationTable {
     let table = this.animTablesByZ.get(z);
     if (!table) {
@@ -2481,7 +1461,6 @@ export class WorldRenderer {
     return table;
   }
 
-  /** Point this level's materials at its table, after a chunk may have grown it. */
   private publishAnimTable(z: number) {
     const table = this.animTablesByZ.get(z);
     const u = this.ensureAnimUniforms(z);
@@ -2489,9 +1468,6 @@ export class WorldRenderer {
       u.uAnimEnabled.value = 0;
       return;
     }
-    // `bake` is cached until a row is added, so re-publishing per chunk is a
-    // map lookup on the overwhelmingly common chunk that brought no new
-    // animation with it.
     u.uAnimTable.value = table.bake();
     u.uAnimSize.value.set(table.width, table.height);
     u.uAnimClockMs.value = this.animClock;
@@ -2503,8 +1479,6 @@ export class WorldRenderer {
     if (!u) {
       u = noCutUniforms(this.whiteTex);
       this.cutUniformsByZ.set(z, u);
-      // A level whose first material appears while a cut is already standing has
-      // to arrive cut, or it is the one floor still drawing its roof.
       this.writeCutMask(z);
     }
     return u;
@@ -2517,8 +1491,6 @@ export class WorldRenderer {
         uLightMap: { value: this.whiteTex },
         uLightOrigin: { value: new THREE.Vector2(0, 0) },
         uLightSize: { value: new THREE.Vector2(1, 1) },
-        // A level whose materials appear while the toggle is off must arrive
-        // unlit too, or it would be the one floor still shaded.
         uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
         uAmbient: { value: new THREE.Vector3(0, 0, 0) },
       };
@@ -2527,15 +1499,6 @@ export class WorldRenderer {
     return u;
   }
 
-  /**
-   * The material for a texture on a level, optionally wearing a status's colour.
-   *
-   * Cached on all three, because a tint is a property of the *material* rather
-   * than of the geometry — see `./spriteTint` for why it is a uniform and what
-   * that costs. The cache therefore grows by one entry per (sheet, level, tint)
-   * actually seen, and the tint population is the authored status catalogue, so
-   * in practice it grows by a handful and then stops.
-   */
   private materialFor(
     texture: THREE.Texture,
     z: number,
@@ -2546,8 +1509,6 @@ export class WorldRenderer {
     if (!mat) {
       const lightUniforms = this.ensureLightUniforms(z);
       const cutUniforms = this.ensureCutUniforms(z);
-      // Resolved once, here, rather than per frame: the uniforms are the tint,
-      // so a material that has one never needs telling about it again.
       const tintU = tint && tint.strength > 0 ? tintUniforms(tint) : noTintUniforms();
       mat = new THREE.MeshBasicMaterial({
         map: texture,
@@ -2568,14 +1529,6 @@ export class WorldRenderer {
     return mat;
   }
 
-  /**
-   * Cells the camera can reach at any level.
-   *
-   * The projection is axis-aligned in world pixels — level `z` shifts a cell by
-   * `CELL_SIZE * z` (see {@link screenToCoord}) — so the visible region is a
-   * plain rect per level, and the union across levels is the same rect grown by
-   * the level span. Cheap enough to redo every frame.
-   */
   private lightWindow(view: WorldView): WorldRect {
     const base = this.cameraWindow(view);
     return {
@@ -2586,21 +1539,6 @@ export class WorldRenderer {
     };
   }
 
-  /**
-   * The cells the **play view** covers on level 0, with no apron and no level
-   * span.
-   *
-   * The one honest primitive under both windows: the projection shifts level `z`
-   * by exactly `z` cells, so every consumer's rect is this one plus whatever
-   * slack that consumer actually needs. {@link lightWindow} unions the whole
-   * level span onto it because a light on any storey can reach here; a plume is
-   * on one known level and takes that level's own shift instead — see
-   * `./tileEmitters`.
-   *
-   * The play view is the drawn frame in every shipped frame and in the editor,
-   * which is why the camera answers for it. {@link WorldView.playSquare} is the
-   * one case where the two come apart.
-   */
   private cameraWindow(view: WorldView): WorldRect {
     const square = view.playSquare;
     const x = square?.x ?? view.camera.x;
@@ -2615,15 +1553,6 @@ export class WorldRenderer {
     };
   }
 
-  /**
-   * The cells the camera actually draws, as opposed to the ones the play view
-   * covers.
-   *
-   * The same arithmetic {@link cameraWindow} did before the play square could
-   * come apart from the camera, and it has exactly one caller: the debug view,
-   * which culls its own outlines to the frame. Nothing about the world is
-   * decided from this — that is the whole point of the split.
-   */
   private drawnWindow(view: WorldView): WorldRect {
     const w = this.canvasW / view.zoom;
     const h = this.canvasH / view.zoom;
@@ -2644,9 +1573,6 @@ export class WorldRenderer {
         .filter((def): def is TileDef => def != null && tileLightVaries(def));
       this.lightingTilesById = view.tilesById;
       this.staticLightGrid = null;
-      // The worker holds the catalogue it bakes against, so a new catalogue is
-      // a new worker rather than a message — there is no correct light to make
-      // from the old one while the new one is being adopted.
       this.lightBaker?.dispose();
       this.lightBaker = null;
       if (canBakeOffThread()) {
@@ -2655,32 +1581,16 @@ export class WorldRenderer {
       }
     }
 
-    // Before anything can ask for a bake, and that order is the whole of the
-    // consistency argument: messages are delivered in order, so a map the
-    // worker is told about here cannot be older than a request sent below.
     this.lightBaker?.syncMap(view.map);
 
-    // Ambient is a uniform, not a bake input. Moving the clock now costs one
-    // vector write per level — no re-tint, no re-upload, nothing invalidated.
     const ambient = sampleIllumination(view.minutesOfDay).ambient;
     for (const u of this.lightUniformsByZ.values()) {
       u.uAmbient.value.set(ambient[0], ambient[1], ambient[2]);
     }
     this.pendingAmbient = ambient;
 
-    // Bakes only the chunks in view that are missing, and hands back the same
-    // grid object while nothing has changed — so identity, not a content hash,
-    // is what decides whether the textures need rewriting. This is what
-    // replaced hashing every cell in the map on every frame.
-    //
-    // The animation clock is a bake input: a torch that flickers emits what its
-    // live frame says it does, not what frame 0 said. Chunks no flicker reaches
-    // are unaffected by it, so the clock alone never causes a bake.
     const base = this.lighting.packedGridFor(view.map, this.lightWindow(view), this.animClock);
 
-    // The dynamic emitters' own phase belongs in the key as well as the static
-    // one. Their light is painted, not baked, so nothing about the grid or the
-    // override positions would change as their frames tick over.
     const overrides = this.withFadingLights(view, base);
     const overridesKey = [
       emitterOverridesKey(overrides),
@@ -2715,11 +1625,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * No grid for this level, so it draws unlit. Alpha 0 as well as RGB 0 — with
-   * ambient applied in the shader, a leftover alpha would tint this to the sky
-   * colour instead of leaving it dark.
-   */
   private uploadDarkLevel(z: number) {
     const u = this.ensureLightUniforms(z);
     const data = new Uint8Array([0, 0, 0, 0]);
@@ -2742,7 +1647,6 @@ export class WorldRenderer {
     u.uLightSize.value.set(1, 1);
   }
 
-  /** Hand the packed plane straight to the GPU — it is already in texture layout. */
   private uploadPackedLevel(z: number, level: PackedLevelLight) {
     const u = this.ensureLightUniforms(z);
     if (this.pendingAmbient) {
@@ -2770,25 +1674,8 @@ export class WorldRenderer {
     u.uLightMap.value = tex;
   }
 
-  /**
-   * Throw away every mesh this class owns, so the next sync builds from nothing.
-   *
-   * **Anything parented to `world` that this does not own has to be named
-   * here**, and the failure when it is not is total rather than subtle: the
-   * child is removed *and disposed*, so its geometry is freed underneath a
-   * renderer that goes on thinking it is drawing. The particle mesh is built
-   * once in the constructor and the first map build ate it, which looked
-   * exactly like a particle system that had never been wired up at all.
-   * @see projectileGroup
-   *
-   * Arrows and plumes survive on purpose: a new tile catalogue is not a reason
-   * for a shot already in the air to vanish or a fire to go out, and neither is
-   * keyed by cell, so there is nothing in either that a rebuilt board
-   * invalidates.
-   */
   private discardGeometry() {
     this.clearMotionGhosts();
-    // Every transition names a slot on a board this is about to throw away.
     this.retireAllTransitions();
     for (const child of [...this.world.children]) {
       if (
@@ -2803,9 +1690,6 @@ export class WorldRenderer {
     }
     this.levelGroups.clear();
     this.chunkGeometry.clear();
-    // The rows only mean anything to the geometry that carried them, and that
-    // has just gone. Kept across a *chunk* being dropped, cleared when the whole
-    // world is.
     for (const table of this.animTablesByZ.values()) table.dispose();
     this.animTablesByZ.clear();
     for (const u of this.animUniformsByZ.values()) u.uAnimEnabled.value = 0;
@@ -2819,16 +1703,6 @@ export class WorldRenderer {
     this.movableBaseBox.clear();
   }
 
-  /**
-   * Build what has come into range, drop what has left, patch what changed.
-   *
-   * The three arms are deliberately separate rather than "drop everything
-   * outside and rebuild everything inside": a chunk that is both still wanted
-   * and unchanged is the overwhelming majority on every frame, and it must cost
-   * a set lookup and a reference compare. That compare is the map's own
-   * copy-on-write identity — a step rewrites the one chunk it crossed and
-   * leaves every other chunk the same object.
-   */
   private syncChunks(next: MapFile, window: WorldRect) {
     const prev = this.prevMap;
     const wanted = visibleChunkKeys(next, window);
@@ -2853,44 +1727,17 @@ export class WorldRenderer {
         meshesChanged = true;
         continue;
       }
-      // Unchanged merged geometry, by {@link dirtyChunks}. What is left is
-      // whatever moved *through* the chunk, which is a mesh of its own and can
-      // be swapped without touching the batch.
       if (prev && getChunk(prev, z, chunk) === getChunk(next, z, chunk)) continue;
       this.patchChunkSeparates(prev!, next, built);
       meshesChanged = true;
     }
 
-    // Dropping a chunk changes the animated index as much as building one does,
-    // so this is not gated on `meshesChanged`: a chunk that only scrolled off
-    // has taken its animated instances with it.
     this.rebuildAnimatedIndex();
     if (meshesChanged) this.world.updateMatrixWorld(true);
     this.prevMap = next;
     this.meshedWindow = window;
   }
 
-  /**
-   * The built chunks whose **merged** geometry this edit moved.
-   *
-   * The one question worth asking carefully, because the answer decides between
-   * rebuilding a chunk and swapping one sprite. A changed *cell* is not a
-   * changed batch: a creature stepping rewrites two cells and neither is in the
-   * merged batch at all, which is the case every frame of ordinary play. So the
-   * test is the cell's merged contribution before and after, through the same
-   * {@link cellItems} the build uses.
-   *
-   * **The ring is why this is not asked chunk by chunk.** An autotile reads its
-   * eight neighbours, so a wall placed at the edge of one chunk restyles cells
-   * in the chunk next door without those cells changing. When geometry was one
-   * batch per floor that fell out for free — the whole floor was rebuilt. Per
-   * chunk it has to be said out loud, and the failure it prevents is a visible
-   * seam at a chunk boundary that nothing later would repair.
-   *
-   * A cell outside the built set is skipped before its signature is computed,
-   * so an edit in an unwatched corner of the world costs the walk and nothing
-   * else.
-   */
   private dirtyChunks(prev: MapFile, next: MapFile, wanted: ReadonlySet<string>): Set<string> {
     const dirty = new Set<string>();
     if (prev === next) return dirty;
@@ -2900,12 +1747,6 @@ export class WorldRenderer {
       const changed = changedCellsOnLevel(prev, next, z);
       if (changed.size === 0) continue;
 
-      // Past a paint stroke's worth, stop asking one cell at a time and dirty
-      // everything the edit and its ring could possibly have restyled. The
-      // comparison is two `cellItems` builds a cell, so at this size it costs
-      // more than the rebuilds it is trying to avoid — and an edit that large
-      // is somebody in the editor rather than the world going about its
-      // business.
       if (changed.size > MAX_ANALYSED_CELLS) {
         for (const key of withNeighbourRing(changed)) {
           const { x, y } = parseCoordKey(key);
@@ -2915,11 +1756,6 @@ export class WorldRenderer {
         continue;
       }
 
-      // **The ring is only owed to a cell that could restyle its neighbours**,
-      // and what a tick actually changes is where creatures are standing. A rat
-      // is in no autotile's vocabulary, so its step is asked about on its own
-      // cell and nowhere else — which turns the common frame from nine
-      // signature comparisons per changed cell into one.
       for (const key of this.restyled(prev, next, z, changed)) {
         const { x, y } = parseCoordKey(key);
         const addr = chunkAddressKey(z, chunkKeyFor(x, y));
@@ -2932,14 +1768,6 @@ export class WorldRenderer {
     return dirty;
   }
 
-  /**
-   * The cells whose merged contribution has to be compared, given what changed.
-   *
-   * Every changed cell, plus the eight around any of them that touched a tile
-   * an autotile reads — see {@link autotileVocabulary}. A creature stepping
-   * therefore costs its own two cells and nothing else, while placing a wall
-   * costs the ring that wall can restyle.
-   */
   private restyled(
     prev: MapFile,
     next: MapFile,
@@ -2951,7 +1779,6 @@ export class WorldRenderer {
       this.autotileVocabFor = this.tilesById;
     }
     const vocabulary = this.autotileVocab;
-    // Nothing in the catalogue autotiles, so nothing has neighbours to notice.
     if (vocabulary.size === 0) return new Set(changed);
 
     const out = new Set(changed);
@@ -2967,18 +1794,6 @@ export class WorldRenderer {
     return out;
   }
 
-  /**
-   * Swap the own-mesh tiles of a chunk whose merged batch did not move.
-   *
-   * Everything a tick of ordinary play produces lands here: a creature is a
-   * mobile tile, a mobile tile is never merged, and so a step is a mesh
-   * replaced inside a group that is otherwise untouched. That the batch really
-   * is unchanged is {@link dirtyChunks}'s finding, not an assumption made here.
-   *
-   * Ordering inside the group is not a concern: depth comes from the box
-   * attribute each quad carries, resolved per fragment, so a mesh appended late
-   * still sorts where it belongs.
-   */
   private patchChunkSeparates(prev: MapFile, next: MapFile, entry: ChunkGeometry) {
     const { z, chunk } = entry;
     const changed = changedCellsInChunk(prev, next, z, chunk);
@@ -2990,9 +1805,6 @@ export class WorldRenderer {
     for (const key of changed) {
       const { x, y } = parseCoordKey(key);
       for (const item of this.cellItems(next, z, x, y, getStack(next, x, y, z))) {
-        // Ahead of the separates filter, and that placement is the whole reason
-        // this is not inside it: the merged tiles this loop skips are exactly
-        // the still, unanimated ones a chimney is.
         if (item.emitter) {
           entry.emitters.push(item.emitter);
           this.tileEmittersStale = true;
@@ -3003,14 +1815,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * Every mesh and index entry one chunk owns, gone.
-   *
-   * Ordinary on every walk, which is what makes the bookkeeping worth being
-   * exact about: a leftover key in {@link movableMeshes} points at geometry
-   * that has been disposed, and the next motion frame writes attributes into
-   * freed buffers.
-   */
   private dropChunk(key: string) {
     const entry = this.chunkGeometry.get(key);
     if (!entry) return;
@@ -3027,15 +1831,6 @@ export class WorldRenderer {
     if (entry.emitters.length > 0) this.tileEmittersStale = true;
   }
 
-  /**
-   * Turn one chunk of one level into geometry.
-   *
-   * The same split the level build always made — merged batches per texture for
-   * everything still, a mesh of its own for anything animated or mobile — with
-   * the floor replaced by the chunk. Which is the whole change: the merged
-   * batch an edit used to invalidate was 4,565 cells of ground on level 0 and
-   * is now at most `CHUNK_SIZE` squared.
-   */
   private buildChunk(map: MapFile, z: number, chunk: string) {
     const cells = getChunk(map, z, chunk);
     if (!cells) return;
@@ -3065,17 +1860,9 @@ export class WorldRenderer {
     };
     this.chunkGeometry.set(chunkAddressKey(z, chunk), entry);
 
-    // The table is the *level's*, not this chunk's: materials are keyed by
-    // level, so every chunk on a floor reads one table. Rows are append-only, so
-    // a chunk streaming in can add to it without renumbering the rows the
-    // chunks already built are pointing at.
     const animTable = this.ensureAnimTable(z);
     const staticByTex = new Map<THREE.Texture, Quad[]>();
     for (const item of items) {
-      // Before the split, because an emitting tile is as likely to be merged
-      // into the floor's batch as to have a mesh of its own: a chimney does not
-      // move and does not animate, and a plume is drawn by the particle layer
-      // either way.
       if (item.emitter) entry.emitters.push(item.emitter);
       if (item.anim || item.tileKey) {
         this.installSeparate(entry, item);
@@ -3108,22 +1895,17 @@ export class WorldRenderer {
     if (entry.emitters.length > 0) this.tileEmittersStale = true;
   }
 
-  /** The merged-batch contribution of one cell, as a comparable string. */
   private mergedSignatureAt(map: MapFile, z: number, x: number, y: number): string {
     let sig = "";
     for (const item of this.cellItems(map, z, x, y, getStack(map, x, y, z))) {
       if (item.anim || item.tileKey) continue;
       const b = item.box;
-      // The animation is part of the merged contribution now, so an edit that
-      // changes which cycle a cell plays — or how far into it that cell starts —
-      // has to fall through to a full rebuild rather than be read as unchanged.
       const a = item.mergedAnim;
       sig += `${item.x},${item.y},${item.w},${item.h}|${item.u0},${item.v0},${item.u1},${item.v1}|${b.eastPx},${b.southPx},${b.foot},${b.top}|${item.stackBias}|${item.unlit ? 1 : 0}|${item.texture.uuid}|${a ? `${a.frames.length},${a.phaseMs}` : ""}~`;
     }
     return sig;
   }
 
-  /** Drop every own-mesh tile at a cell, so the cell can be rebuilt from scratch. */
   private removeSeparatesAt(entry: ChunkGeometry, x: number, y: number) {
     const prefix = `${entry.z}:${x},${y}:`;
     for (const key of entry.movableKeys) {
@@ -3143,14 +1925,6 @@ export class WorldRenderer {
     if (kept.length !== entry.animated.length) entry.animated = kept;
   }
 
-  /**
-   * Drop every plume a cell was giving off, so the cell can be rebuilt.
-   *
-   * Filtered by id prefix rather than by coordinate fields, on the terms
-   * {@link removeSeparatesAt} does it: the id *is* the instance key, so one
-   * spelling of "this cell" serves both indexes and there is no second parse of
-   * the same string to get out of step.
-   */
   private removeTileEmittersAt(entry: ChunkGeometry, x: number, y: number) {
     const prefix = tileEmitterPrefix(entry.z, x, y);
     const kept = entry.emitters.filter((spec) => !spec.id.startsWith(prefix));
@@ -3159,14 +1933,6 @@ export class WorldRenderer {
     this.tileEmittersStale = true;
   }
 
-  /**
-   * Every built chunk's plumes, gathered by level for the frame's culling.
-   *
-   * Rebuilt outright rather than kept in step, and only when something has said
-   * it is out of date: the whole world holds a handful of emitting placements,
-   * so walking the built chunks costs less than maintaining a second index
-   * through every drop, build and patch.
-   */
   private refreshTileEmitters() {
     this.tileEmittersStale = false;
     this.tileEmittersByLevel.clear();
@@ -3197,14 +1963,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * Quads for one cell's stack.
-   *
-   * The single place a placed tile becomes geometry. Both the full level build
-   * and the incremental one go through it, so the cheap path cannot silently
-   * disagree with the expensive one about what a cell should look like — which
-   * is the failure mode that makes incremental rendering hard to trust.
-   */
   private cellItems(
     map: MapFile,
     z: number,
@@ -3213,24 +1971,16 @@ export class WorldRenderer {
     stack: PlacedTile[],
   ): BuildItem[] {
     const items: BuildItem[] = [];
-    // What sorts a slot is its *clump*, not its own volume — see `./depthClump`.
-    // Computed once for the stack rather than per placement, because this runs
-    // over every cell of a floor.
     const extents = clumpExtents(stack, this.tilesById);
     let elev = 0;
 
     stack.forEach((placed, stackIndex) => {
-      // Lifted before anything is drawn from it: a placement that overrules its
-      // own foot is drawn from there, and the stack carries on from its top.
       elev = footElevation(elev, placed);
 
       const def = this.tilesById[placed.tileId];
       if (!def) return;
 
       const instanceKey = this.tileKey({ x, y, z, stackIndex });
-      // The state is read at build time so a cell rebuilt while a creature is
-      // mid-step comes back walking, rather than snapping to standing and
-      // waiting for the next state pass to notice.
       const state = this.spriteStates?.get(instanceKey) ?? "idle";
       const sprite = resolveTileSprite(def, {
         state,
@@ -3242,11 +1992,6 @@ export class WorldRenderer {
         z,
       });
       const frames = sprite?.frames;
-      // The phase the shared clock is at, not frame 0. A rebuild happens on
-      // whatever frame the world happened to change on — every step, for a
-      // walker — and a mesh born at frame 0 would sit there until the clock
-      // crossed into the *next* index, which is a walk cycle that restarts
-      // several times a second. See `updateAnimations`.
       const frameIdx = frames ? frameIndexAtTime(frames, this.animClock) : 0;
       const live = frames?.[frameIdx];
       if (!live || !frames) return;
@@ -3255,32 +2000,9 @@ export class WorldRenderer {
       if (!tileset) return;
 
       const animates = frames.length > 1;
-      // Own mesh only when the tile can *move* — not merely when it animates.
-      // Animation used to be a reason too, because the only way to change a
-      // frame was to rewrite the UVs of a mesh nobody else shared; the shader
-      // reads the frame off a table now, so a still animated tile merges like
-      // any other scenery. That is what makes a pond affordable: water is
-      // terrain and arrives in hundreds, and hundreds of meshes is hundreds of
-      // draw calls. See `./animTable`.
-      //
-      // Keying this on the live motion set was the older bug: a tile changed
-      // batch membership the instant it started and stopped, and changing
-      // membership rebuilds the whole floor — a full rebuild per step.
-      //
-      // `isMobileTile` also covers every tile that can change sprite state,
-      // because `moving` is the only state and `availableStates` gates it on
-      // exactly this predicate. A state that a still tile can be in — an opened
-      // chest — would need its own term here; see plans/stateful-sprites.md.
-      // Or while it is forming under an appear, which is played on a mesh of
-      // its own and handed back to the batch when it is done — see
-      // `./tileTransitions`.
       const forming = this.formingTransitionAt(x, y, z, stackIndex, placed);
       const moves = isMobileTile(def);
       const separate = moves || forming !== undefined;
-      // The shader moves a merged quad, so it is built at frame 0 and the table's
-      // offsets are measured from there. A separate one is built at the frame the
-      // clock is on and moved by `updateAnimations`. Mixing the two would shift a
-      // sprite by however far the clock had run when its level was last rebuilt.
       const mergedAnim =
         !separate && animates && tableCanHold(frames)
           ? {
@@ -3304,34 +2026,8 @@ export class WorldRenderer {
       const texture = this.textures.get(tileset.id) ?? this.magentaTex;
       const animKey = animationKey(def, placed, x, y, z, state);
 
-      // **A pile draws once per thing in it**, laid out like the pips on a die —
-      // see `./pileLayout`. Everything else in the world is a pile of one and
-      // takes the single centred offset, so this loop runs once and moves
-      // nothing for all but a handful of cells.
-      //
-      // A tile with a mesh of its own draws once whatever its count says, and
-      // the reason is `tileKey` and `anim` below: both name *one* mesh, and a
-      // second copy carrying either would collide in `movableMeshes` or leave a
-      // stale entry in the animated list. Nothing that piles is animated or
-      // mobile — only food piles — so this is a rule that keeps the invariant
-      // rather than one anybody trips over.
       const offsets = separate ? NO_PILE_OFFSET : pileOffsets(countOf(placed));
       const stackBias = depthStackBias(z, stackIndex);
-      // **A heap declares a body, however flat the tile it is made of.**
-      //
-      // A pile's sprites are spread across their cell, so the southern ones hang
-      // over the cell in front — and `../lib/geometry`'s `boxSurface` rescues
-      // that art only for a box with volume, on the grounds that a *flat* tile's
-      // art past its own foot is more floor and two coplanar floors keep painter
-      // order. That is right about a floor and wrong about a heap of berries,
-      // which is an object lying on the ground: without this the bottom of every
-      // pile is drawn under the floor of the cell in front of it.
-      //
-      // A hair of one, not a real height — see {@link DEPTH_LEAST_BODY}. What
-      // the tile declares still wins where it declares anything, and the height
-      // that decides stacking and gravity is untouched: this is a fact about
-      // sorting, and it lives here rather than on the tile because that is all
-      // it is.
       const extent = extents[stackIndex] ?? { foot: elev, top: elev };
       const boxFoot = absoluteElevation(z, extent.foot);
       const boxTop = absoluteElevation(z, extent.top);
@@ -3342,15 +2038,6 @@ export class WorldRenderer {
         offsets.length > 1 ? Math.max(boxTop, boxFoot + DEPTH_LEAST_BODY) : boxTop,
       );
 
-      // Anchored to the cell and sorted with the placement, which is the rule
-      // `./particles` states and the reason it is built here: a plume takes the
-      // depth box of the thing it comes off, so a chimney's smoke is in front of
-      // the chimney at every pixel they share and behind whatever is nearer.
-      //
-      // Its foot is the placement's own, so an author's spawn elevation is
-      // measured from the tile the plume belongs to rather than from the floor
-      // of the cell — smoke leaves the pot on top of the stack, not the bricks
-      // under it.
       const emitter: ParticleEmitterSpec | undefined = def.particles
         ? {
             id: tileEmitterId(instanceKey),
@@ -3361,16 +2048,10 @@ export class WorldRenderer {
             z,
             box,
             stackBias,
-            // A tile is never winding down: a taper is what is left of a status,
-            // and a chimney has nothing left to run.
             taper: 1,
           }
         : undefined;
 
-      // An indexed loop rather than `forEach`: this runs once per placement on a
-      // floor — thousands of them per rebuild — and a callback here is a closure
-      // allocated per tile to walk a list that is one long for all but a handful
-      // of them.
       for (let i = 0; i < offsets.length; i++) {
         const offset = offsets[i]!;
         items.push({
@@ -3383,9 +2064,6 @@ export class WorldRenderer {
           u1,
           v1,
           box,
-          // Inside one stack index, so the sprites of a heap overlap front to
-          // back without the heap moving relative to anything above or below it
-          // in the stack. See `pileDepthNudge`.
           stackBias: stackBias + pileDepthNudge(i, offsets.length),
           texture,
           lightX0: x,
@@ -3400,15 +2078,7 @@ export class WorldRenderer {
           pivotX: baseOrigin.x + CELL_SIZE / 2 + offset.dx,
           pivotY: baseOrigin.y + CELL_SIZE / 2 + offset.dy,
           mergedAnim,
-          // On the first quad only — a heap of six berries is one placement and
-          // gives off one plume, not six.
           emitter: i === 0 ? emitter : undefined,
-          // Registered when it merely *can* change state, not only when it
-          // animates: a creature standing still on one frame becomes a four-frame
-          // walk cycle the moment it steps, and the registry is what the state
-          // pass reaches it through.
-          // Only a tile with a mesh of its own: everything else animates in the
-          // shader, and an entry here would hand it a mesh to rewrite.
           anim:
             separate && (animates || hasSpriteStates(def))
               ? {
@@ -3425,37 +2095,19 @@ export class WorldRenderer {
         });
       }
 
-      // Through `terrainHeight` and never `physicalHeight`: a body adds nothing
-      // to what is drawn above it, and summing two people in a cell puts the
-      // second one's feet on the first one's head.
       elev += terrainHeight(placed, this.tilesById);
     });
 
     return items;
   }
 
-  /**
-   * Take on this frame's transitions.
-   *
-   * Each note's slot is resolved against the board it is about — the new map
-   * for an appear, the previous one for a disappear — and trusted only while
-   * the tile it names is still there (see `resolveTransitionSlot`). A note that
-   * cannot be placed is not played, and its tile simply changes.
-   */
   private ingestTransitions(view: WorldView) {
-    // A world that restarts counts its ids from zero again, so a client that
-    // reconnects mid-transition can be handed an id it is still playing. Taking
-    // it again would orphan the first one's meshes for good — and it is dropped
-    // here, before the cap, so it cannot take a slot from a new one.
     const heard = view.transitions?.filter((held) => !this.liveTransitions.has(held.note.id));
     if (!heard?.length) return;
     const window = this.meshedWindow;
     const admitted = admitTransitions(heard, {
       clockMs: this.animClock,
       live: this.liveTransitions.size,
-      // A struck body wears its attacker's effect rather than one of its own,
-      // which is the one note whose transition is not the placement's — see
-      // `../lib/tileTransition`'s `TileTransitionNote.struckBy`.
       transitionOf: (note) =>
         note.struckBy
           ? projectileEffect(view.tilesById[note.struckBy], "hit")
@@ -3481,10 +2133,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * Put a forming placement on record, so its chunk builds it as a mesh of its
-   * own. False when the new map has no telling which placement was meant.
-   */
   private markForming(state: TransitionState, map: MapFile): boolean {
     const { note } = state.live;
     const stack = getStack(map, note.x, note.y, note.z);
@@ -3497,13 +2145,6 @@ export class WorldRenderer {
     state.plumeId = tileEmitterId(
       this.tileKey({ x: note.x, y: note.y, z: note.z, stackIndex: slot }),
     );
-    // **A note can arrive a frame after the tile it is about.** The board may
-    // already have drawn the tile into its chunk's batch, and nothing about
-    // the next map change would take it back out: the batch compares its cells
-    // with this tile routed away on both sides, sees no difference and keeps
-    // the whole copy drawn under the forming one. So a tile the drawn board
-    // already holds has its chunk rebuilt now. Arriving together, the map
-    // change this frame builds it right and this finds nothing to do.
     const prev = this.prevMap;
     if (prev && resolveTransitionSlot(getStack(prev, note.x, note.y, note.z), note) !== undefined) {
       this.queueChunkRebuild(note.x, note.y, note.z);
@@ -3511,16 +2152,7 @@ export class WorldRenderer {
     return true;
   }
 
-  /**
-   * A copy of a tile the map no longer has, to dissolve where it stood.
-   *
-   * Built by `cellItems` over the whole previous stack, so the copy stands at
-   * exactly the height and depth it did, and then only its own quads are kept.
-   */
   private playOutCopy(state: TransitionState): boolean {
-    // Unlike an appear, a disappear cannot arrive after its patch: a decay
-    // only ever happens on a tick, and a tick's events ride in the same
-    // message as its cell patches. So `prevMap` still holds the tile here.
     const prev = this.prevMap;
     const { note } = state.live;
     if (!prev) return false;
@@ -3539,15 +2171,6 @@ export class WorldRenderer {
     return items.length > 0;
   }
 
-  /**
-   * A hit's burst where the body it struck stood, for a body the blow took off
-   * the board. False when the note is not a hit, or when the old board cannot
-   * place the body either. @see struckRemainsSlot
-   *
-   * Built by `cellItems` over the whole previous stack, as {@link playOutCopy}
-   * builds a copy, so the sparks stand at the body's height — and then no mesh
-   * is made: the transition carries the burst alone, and retires when it ends.
-   */
   private throwStruckBurst(state: TransitionState): boolean {
     const prev = this.prevMap;
     const { note } = state.live;
@@ -3563,7 +2186,6 @@ export class WorldRenderer {
     return state.burst !== null;
   }
 
-  /** The appear playing on this placement, if one is. */
   private formingTransitionAt(
     x: number,
     y: number,
@@ -3583,13 +2205,6 @@ export class WorldRenderer {
     return tileId === placed.tileId ? id : undefined;
   }
 
-  /**
-   * Dress a mesh in its transition.
-   *
-   * One material per transition, made on the first mesh and shared by the rest
-   * — a heap of berries is several quads and one transition. The sweep is laid
-   * out against that first quad's sprite.
-   */
   private attachTransition(
     state: TransitionState,
     mesh: THREE.Mesh,
@@ -3639,13 +2254,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * A world material wearing one transition's uniforms.
-   *
-   * Uncached, unlike {@link materialFor}: it belongs to one transition and is
-   * disposed with it. It shares the world program — same cache key — so making
-   * one compiles nothing, and disposing one releases nothing the others need.
-   */
   private transitionMaterial(
     texture: THREE.Texture,
     z: number,
@@ -3672,25 +2280,18 @@ export class WorldRenderer {
     return mat;
   }
 
-  /** Wind every transition on to the clock, and retire the ones that are done. */
   private advanceTransitions() {
     for (const [id, state] of this.liveTransitions) {
       if (this.transitionIsOver(state)) {
         this.retireTransition(id, state);
         continue;
       }
-      // A patch or a rebuild replaces a forming placement's mesh, and the one
-      // it replaced is off the graph. Scaling it every frame would be work on
-      // a mesh nobody draws.
       state.meshes = state.meshes.filter((held) => this.stillDrawn(held));
       const shown = liveShown(state.live, this.animClock);
       if (state.uniforms) state.uniforms.uFxShown.value = shown;
       const { scale, drop } = state.live.transition;
       const pose = transitionPose(state.live.transition, shown);
       for (const held of state.meshes) {
-        // After `applyTileMotions`, which resets every movable mesh to its
-        // cell centre on each `setView`: the host runs the view, then this
-        // tick, then the render, so the pivot set here is the one drawn.
         if (scale || drop) {
           poseTransitionMesh(held, pose, Boolean(drop), this.motionOf(held));
         }
@@ -3700,28 +2301,12 @@ export class WorldRenderer {
     this.flushChunkRebuilds();
   }
 
-  /**
-   * Done playing, and for a tile going away, done lighting too.
-   *
-   * Its light steps down on a shared grid that can lag the dissolve by up to
-   * one step, so the transition is kept until that reaches nothing — or the
-   * last step of light would cut out on the frame the copy went.
-   */
   private transitionIsOver(state: TransitionState): boolean {
     if (!isFinished(state.live, this.animClock)) return false;
     if (state.live.note.side !== "disappear") return true;
     return fadingLightScale(state.live, this.animClock) <= 0;
   }
 
-  /**
-   * End a transition.
-   *
-   * A copy is simply thrown away. A formed placement is handed back to its
-   * chunk: the chunk is rebuilt now, so the tile is merged into the batch again
-   * on the same frame its own mesh goes. Left for the next edit to find, it
-   * would be dropped by the first patch that touched its cell, because the
-   * batch that should hold it was never told it existed.
-   */
   private retireTransition(id: string, state: TransitionState) {
     this.liveTransitions.delete(id);
     for (const [key, formingId] of this.formingAt) {
@@ -3739,13 +2324,6 @@ export class WorldRenderer {
     }
   }
 
-  /**
-   * Take a transition off one mesh.
-   *
-   * A copy is thrown away. A placement with a mesh of its own for good is
-   * stood whole and given its plain material back. A merged tile's mesh is
-   * left for its chunk's rebuild, which replaces it.
-   */
   private retireMesh(state: TransitionState, held: TransitionMesh) {
     this.transitioningMeshes.delete(held.mesh);
     if (held.copy) {
@@ -3753,9 +2331,6 @@ export class WorldRenderer {
       held.mesh.geometry.dispose();
       return;
     }
-    // A still tile is left as it is for the rebuild `retireTransition` has
-    // queued, which merges it back into its chunk's batch and throws this mesh
-    // away with the rest of the chunk.
     if (rejoinsBatch(held) || !held.mesh.parent) return;
     const { scale, drop } = state.live.transition;
     if (scale || drop) {
@@ -3764,14 +2339,12 @@ export class WorldRenderer {
     held.mesh.material = this.materialFor(held.texture, held.z);
   }
 
-  /** Whether a transitioning mesh is still on the graph; forgotten if not. */
   private stillDrawn(held: TransitionMesh): boolean {
     if (held.mesh.parent !== null) return true;
     this.transitioningMeshes.delete(held.mesh);
     return false;
   }
 
-  /** Where this frame's motion has a transitioning placement, if it is moving. */
   private motionOf(held: TransitionMesh): TileMotion | undefined {
     return held.tileKey ? this.currentMotions.get(held.tileKey) : undefined;
   }
@@ -3792,15 +2365,10 @@ export class WorldRenderer {
     this.chunksToRebuild.clear();
   }
 
-  /** Ask for the chunk holding this cell to be rebuilt at the next flush. */
   private queueChunkRebuild(x: number, y: number, z: number) {
     this.chunksToRebuild.add(chunkAddressKey(z, chunkKeyFor(x, y)));
   }
 
-  /**
-   * Rebuild every queued chunk against the map it was built from, then pay
-   * once for the index and the matrices however many there were.
-   */
   private flushChunkRebuilds() {
     const map = this.prevMap;
     if (this.chunksToRebuild.size === 0 || !map) return;
@@ -3815,21 +2383,6 @@ export class WorldRenderer {
     this.world.updateMatrixWorld(true);
   }
 
-  /**
-   * The view's own overrides, plus the light of every tile dissolving away,
-   * dimming with it on the shared step grid. @see fadingLightScale
-   *
-   * The tile has already left the map, so the bake has dropped its light; this
-   * paints it back as an `EmitterOverride` carrying the tile's own light, the
-   * same path `view.emitterOverrides` uses for a light that is not on the
-   * board. Frame 0's light, so a flickering sprite adds no steps of its own
-   * to the cache key.
-   *
-   * **Not until the bake has dropped it.** The bake can run off the main
-   * thread, so for a few frames after the tile leaves the grid being drawn is
-   * still the one that holds its light. Painting the fade over that doubled
-   * the light for exactly those frames — the room flared before it dimmed.
-   */
   private withFadingLights(view: WorldView, base: PackedLightGrid): EmitterOverride[] | undefined {
     let out: EmitterOverride[] | undefined;
     for (const { live, gridAtStart } of this.liveTransitions.values()) {
@@ -3857,7 +2410,6 @@ export class WorldRenderer {
     return out ?? view.emitterOverrides;
   }
 
-  /** A transition's burst, anchored to the placement it plays on. */
   private burstFor(live: LiveTransition, item: BuildItem): ParticleEmitterSpec | null {
     const config = live.transition.particles;
     if (!config) return null;
@@ -3875,7 +2427,6 @@ export class WorldRenderer {
     };
   }
 
-  /** Give an item its own mesh and register it in whichever indexes claim it. */
   private installSeparate(entry: ChunkGeometry, item: BuildItem) {
     const mesh = this.addQuadMesh(entry.group, item, item.texture, entry.z);
     if (item.tileKey) {
@@ -3914,24 +2465,7 @@ export class WorldRenderer {
     return mesh;
   }
 
-  /**
-   * Point every animated mesh at the frame {@link animClock} says is live.
-   *
-   * The index is a pure function of the shared clock, so two placements of one
-   * sprite are on the same frame by construction rather than by having started
-   * together — and a sprite's cadence is the cadence its frames are authored
-   * with, whatever the frame rate.
-   *
-   * The skip is per instance, not per key. Keying it off the shared index was
-   * the bug that made walking look erratic: a step rebuilds the walker's mesh
-   * at build-time UVs, and a shared index that already read `2` said "nothing
-   * to write" about a mesh that was showing something else entirely.
-   */
   private updateAnimations(): boolean {
-    // The merged batch's animations are a function of this one number, so a
-    // pond costs a uniform write per level rather than a UV rewrite per cell.
-    // Whether it *looks* different is the separate question `crossedFrame`
-    // answers, so a world sitting between two frames still stops rendering.
     let changed = false;
     for (const [z, u] of this.animUniformsByZ) {
       if (u.uAnimEnabled.value === 0) continue;
@@ -3960,43 +2494,11 @@ export class WorldRenderer {
     return changed;
   }
 
-  /**
-   * Point every stateful mesh at the sprite its current {@link SpriteState}
-   * resolves to.
-   *
-   * A sibling of {@link applyTileMotions} rather than part of the map build, for
-   * the reason that pass is separate too: a state changes on a frame where the
-   * map has not, so routing it through the rebuild would mean inventing a map
-   * edit to trigger one. Here it costs a walk of the registry, which holds only
-   * the handful of meshes that can change at all.
-   *
-   * Only the frame *list* is replaced. The mesh's geometry keeps the footprint it
-   * was built with, which is why a state's sprites must match idle's `rect` and
-   * `base` — the same constraint the animation path has always had between the
-   * frames of one sprite, applied one level up. See `validateStateFootprints`.
-   */
-  /**
-   * Put each placement in the colour its statuses say it is wearing, and take
-   * the colour off anything that has stopped wearing one.
-   *
-   * Reaches only placements with their own mesh, which is every actor — see
-   * {@link WorldView.spriteTints}. A key naming a merged tile finds nothing in
-   * {@link movableMeshes} and is dropped; that is the documented limit rather
-   * than a miss, and it is why the status editor draws its subject as a mesh of
-   * its own.
-   *
-   * The whole pass is skipped on the overwhelmingly common frame where nobody is
-   * tinted and nobody was tinted last frame, which is every frame of a world
-   * where nothing has been poisoned.
-   */
   private applySpriteTints(tints: ReadonlyMap<string, StatusTint> | undefined) {
     if (!tints?.size && this.tintedMeshes.size === 0) return;
 
     for (const [key, worn] of this.tintedMeshes) {
       if (tints?.has(key)) continue;
-      // A level rebuilt under a tinted placement hands back a fresh, untinted
-      // mesh, and the one held here is off the graph. Restoring onto it would
-      // write to a mesh nobody draws.
       const drawn = this.movableMeshes.get(key) === worn.mesh;
       if (drawn && !this.transitioningMeshes.has(worn.mesh)) {
         worn.mesh.material = this.materialFor(worn.texture, worn.z, null);
@@ -4006,15 +2508,9 @@ export class WorldRenderer {
 
     for (const [key, tint] of tints ?? EMPTY_TINTS) {
       const mesh = this.movableMeshes.get(key);
-      // Put on once its transition is over, by the first view after.
       if (!mesh || this.transitioningMeshes.has(mesh)) continue;
       const tintKey = tintCacheKey(tint);
       const held = this.tintedMeshes.get(key);
-      // Nothing to do for a placement already wearing this exact colour on this
-      // exact mesh, which is every frame after the first. It is not merely a
-      // saving: `materialFor` marks the material it hands back as needing an
-      // update, and doing that per frame asks the driver to revisit the program
-      // sixty times a second for a uniform that has not moved.
       if (held && held.mesh === mesh && held.tintKey === tintKey) continue;
 
       const texture = held?.texture ?? (mesh.material as THREE.MeshBasicMaterial).map;
@@ -4043,9 +2539,6 @@ export class WorldRenderer {
         y,
         z,
       });
-      // A state with nothing authored resolves to idle's frames, so this is only
-      // empty for a tile with no sprite at all — leave the mesh as it is rather
-      // than blanking it.
       if (!frames?.length) continue;
 
       const idx = frameIndexAtTime(frames, this.animClock);
@@ -4063,14 +2556,6 @@ export class WorldRenderer {
   }
 }
 
-/** Point one quad at a frame's slice of its atlas. */
-/**
- * A frame's slice of its atlas, in texture coordinates.
- *
- * Written down once because three places need it — the level build, the
- * animation pass and the projectile pass — and the v axis is flipped, which is
- * exactly the kind of arithmetic that gets copied slightly wrong.
- */
 function frameUvs(
   anchor: SpriteAnchor,
   frame: Frame,

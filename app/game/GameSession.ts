@@ -376,11 +376,6 @@ export type WalkState = {
   to: Coord;
   direction: Direction;
   elapsedMs: number;
-  /**
-   * How long this particular step takes — the walker's own pace, not a shared
-   * constant. Carried on the motion rather than looked up while it runs, so a
-   * step keeps the speed it began at even if the body under it is swapped.
-   */
   durationMs: number;
 };
 
@@ -391,73 +386,22 @@ export type FallState = {
 };
 
 export type GameInput = {
-  /** Held movement directions; latest pressed wins when several are held. */
   directions: Direction[];
-  /** Shift: update facing only, do not walk. */
   faceOnly?: boolean;
-  /** Option/Alt: prefer lowest surface in climb band. */
   preferDescend?: boolean;
 };
 
-/**
- * A pushed object whose sprite is still catching up to where it already is.
- *
- * Deliberately without its progress, which travels beside it as
- * {@link ActorSnapshot.slideProgress}. A snapshot carrying its own progress has
- * to be a fresh object every tick, and the game server announces motion by
- * *identity* — so a rebuilt one reads as a brand new slide every tick, and the
- * client restarts its lerp on each of the six announcements one push produced.
- * Walking and falling hand over their live state for exactly this reason; this
- * is the same discipline, learned late.
- */
 export type SlideSnapshot = {
-  /**
-   * The lowest of the shoved placements, at its committed cell — the move is
-   * already in the map.
-   */
   object: ObjectRef;
   from: Coord;
-  /**
-   * How many placements are travelling, {@link object} included.
-   *
-   * A shove takes the column above the object with it, and the riders sit
-   * directly on top of it at the destination — so the whole group is
-   * `object.stackIndex` through `object.stackIndex + count - 1`, and a count is
-   * all it takes to name them. Sent rather than re-derived because the client
-   * cannot tell which of the tiles now stacked at that cell arrived with this
-   * shove and which were already there.
-   */
   count: number;
 };
 
-/**
- * Where an actor is, small enough to keep.
- *
- * Deliberately not an {@link ActorSnapshot}: this is what survives a
- * disconnection, so it holds only what is still true when nobody is driving —
- * a cell and a facing, no motion and no stack index. The index would be a lie
- * the moment anything else is placed in that cell.
- */
 export type ActorPosition = Coord & { direction: Direction };
 
-/** One actor as a viewer sees it. */
 export type ActorSnapshot = {
   id: string;
-  /**
-   * What to call this body, for a body somebody is playing, and null for every
-   * creature — which is named after its tile. @see `./displayName`
-   *
-   * On the snapshot rather than derived from the id, which is what it used to
-   * be: a name is typed at character creation now, so it is a fact about the
-   * body and the only place to read it off is the body.
-   */
   name: string | null;
-  /**
-   * The tile this actor's body is. Carried because an actor is no longer
-   * necessarily a person: chrome meant for players — a name over the head,
-   * above all — has to be able to tell a visitor from a deer, and the body is
-   * the honest way to ask.
-   */
   tileId: string;
   x: number;
   y: number;
@@ -470,522 +414,89 @@ export type ActorSnapshot = {
   fallProgress: number;
   slide: SlideSnapshot | null;
   slideProgress: number;
-  /**
-   * The lean of a blow this body is part-way through, or null for the usual
-   * case of a body not swinging at anything. @see `./strike`
-   */
   strike: StrikeState | null;
   strikeProgress: number;
-  /**
-   * Hit points right now, or null for a body with none — a crate, a sign, a
-   * creature nobody has given stats to.
-   *
-   * Null rather than zero for "not a battler", because zero is a real and very
-   * different answer: it means dead, and a body that hits zero is off the board
-   * on the same tick. Anything drawing a health bar keys off the null.
-   */
   hp: number | null;
-  /**
-   * What is running on this body. Empty for almost everybody almost always.
-   *
-   * On the snapshot rather than only on the runtime because the viewer's own
-   * chrome reads it off here, exactly as the kit and the ⭐ are read — and by
-   * reference, since the list is replaced wholesale rather than mutated.
-   */
   statuses: readonly StatusInstance[];
-  /** What {@link hp} is measured against; null exactly when `hp` is. */
   maxHp: number | null;
-  /**
-   * How good at fighting this body is — its ⭐ — or null exactly when `hp` is.
-   *
-   * **Broadcast, unlike everything else about a body's competence.** What a
-   * player is carrying is theirs alone because nobody else's frame can show it;
-   * a ⭐ is the opposite — sizing something up before swinging at it is the whole
-   * point of the number, and a rat whose difficulty you can only discover by
-   * losing to it is a rat nobody can make a decision about.
-   *
-   * The same figure the reward curve divides by. Two numbers here would be a
-   * player shown one game and playing another.
-   */
   rating: number | null;
-  /**
-   * The tiles of the lit things this actor is carrying.
-   *
-   * The one part of a kit everybody can see, and therefore the one part that is
-   * broadcast: a torch in your bag lights the room for the people in it. The
-   * rest of what you are carrying is yours alone — see {@link GameSnapshot.equipment}.
-   *
-   * Tile ids rather than resolved lights, because every client already holds the
-   * catalogue. Empty for almost everybody, which is the case the renderer is
-   * built around.
-   */
   carriedLights: string[];
-  /**
-   * The pull this body is part-way through, or null for almost everybody.
-   *
-   * On every body rather than only on {@link GameSnapshot.extracting}, because
-   * a pull is something you can see somebody doing: a deer at a bush and a
-   * player at a vein both get a bar over their heads. Only the fraction — the
-   * key the viewer's own row needs stays on the viewer's own channel.
-   *
-   * By reference to the object the runtime winds in place, so its identity
-   * changes only when a pull starts or ends. That identity is what the server
-   * diffs the broadcast on. @see ./extract's `Extraction`
-   */
   extracting: ExtractionProgress | null;
-  /**
-   * The cast this body is part-way through, or null for almost everybody.
-   *
-   * Beside {@link extracting} rather than folded into it, and the pairing is
-   * deliberate: they are two different facts that happen to be drawn with one
-   * picture. A bar over a head says "this body is part-way through something and
-   * you have until it fills"; what the something *is* — a bush being picked, a
-   * flame being called — is said by the board around them.
-   * @see `../render/GameRenderer`, which draws whichever is running.
-   *
-   * Never both at once: starting either takes the other off you, because both
-   * are what a body's hands are doing. @see GameSession.cast
-   *
-   * By reference to the object the runtime winds in place, so its identity
-   * changes only when a cast starts or ends. That identity is what the server
-   * diffs the broadcast on. @see ./progress
-   *
-   * Carries which square as well as the clock, because the caster's own row
-   * needs it: the button the cast came out of is the one that stops it. @see
-   * `./casting`'s `CastProgress`
-   */
   casting: CastProgress | null;
-  /**
-   * Whether this body is fighting other players. @see `./pvp`
-   *
-   * Broadcast on exactly the terms {@link rating} is, and for the same reason:
-   * it is something you have to be able to read off somebody *before* deciding
-   * anything, and a switch you could only discover by swinging at a stranger
-   * and being refused is a switch nobody can plan around. It is what puts the
-   * mark beside a name — see `./displayName`'s `fightingName`.
-   *
-   * False for every creature, whose aggression is its brain's rather than a
-   * decision anybody made.
-   */
   pvp: boolean;
-  /**
-   * Whether this body is withheld from everybody but its owner. @see
-   * ActorRuntime.hidden
-   *
-   * On the snapshot because the snapshot is what the server scopes from: a
-   * viewer's set of held bodies is built off this list, and a hidden body left
-   * out of it takes its cell, its motion and every per-body diff with it.
-   */
   hidden: boolean;
 };
 
-/**
- * A number floating off somebody who was just hit.
- *
- * Kept alive with its own clock rather than fired and forgotten, for the same
- * reason a chat bubble is: it has to outlive the tick that produced it, and
- * often outlives the body it came off — a killing blow deletes its target
- * immediately, and the number is the only thing left saying what happened.
- *
- * Which is why the cell travels rather than the actor id alone. By the time this
- * is drawn there may be nobody by that name to ask where they were standing.
- */
-/**
- * A noise something made, and where it was made.
- *
- * **Not speech, and deliberately not shaped like it.** A noise carries no
- * speaker and no body: nothing here can name who made it, because naming is the
- * thing that would turn "crunch" into "Amethyst Piranha says: crunch". A snake's
- * hiss and a bitten apple are the same kind of event — a sound the room heard —
- * and neither is a sentence anybody uttered.
- *
- * Pinned to a cell like a bubble, and aged like a damage number: it is a thing
- * that happened at a place, not a thing a body is carrying around.
- */
 export type NoiseEmission = {
-  /** Distinct per noise, so two in one tick are two labels. */
   id: string;
   text: string;
   x: number;
   y: number;
   z: number;
-  /** Where the maker stood in that cell's stack, so it starts at them. */
   stackIndex: number;
   elapsedMs: number;
 };
 
-/**
- * What a swing came to, as the thing floating off the body says it.
- *
- * **A dodge is not in here, and used to be.** It was a third word, and the three
- * were genuinely three different facts — but a dodge is the only one of them
- * that the body it happened to can *act out*, and it now does: the defender hops
- * half a tile out of the way. See `./strike`. A word as well would be the same
- * event told twice, and the weaker telling would be the one drawing the eye
- * away from the bodies.
- *
- * A miss keeps its word for the reason it never had a movement: it is the
- * *attacker* failing, the defender did nothing, and there is no body whose
- * motion could say so.
- */
 export type SwingOutcome = "hit" | "miss" | "heal";
 
-/**
- * Why `heal` is in here at all, beside two words about swinging.
- *
- * **Because the channel is "something happened to this body", not "somebody
- * swung".** The name is the case it started as — see {@link DamageNumber}, which
- * says the same — and a mend is exactly as much a receipt as a blow: it happens
- * to a body, at a moment, for an amount, and the player needs to see the figure
- * to know whether the thing they are wearing is worth the square.
- *
- * A second mechanism for it would drift in placement, lifetime and rise from the
- * numbers it is meant to sit beside, and a player reading a red 5 rising off
- * their head has to be able to read a green 5 the same way.
- */
-
-/**
- * The same two, as values.
- *
- * A union alone cannot be validated at a boundary, and the wire is a boundary —
- * see `../net/protocol`, where the schema forgetting this field made every blow
- * online draw nothing.
- */
 export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss", "heal"];
 
-/**
- * A receipt floating off whatever was just swung at.
- *
- * Named for the case it started as and now carries all three: this is the
- * channel for "something happened to this body on this tick", and a miss is
- * exactly that even though nothing came off. Keeping one channel is what makes
- * the three read as one language on screen; a second mechanism for the two
- * bloodless outcomes would drift in placement and lifetime from the numbers they
- * are meant to sit beside.
- */
 export type DamageNumber = {
-  /** Distinct per blow, so two hits on one tick are two numbers. */
   id: string;
-  /** Who took it. Compared against the viewer's own id to colour the number. */
   targetId: string;
   outcome: SwingOutcome;
-  /** Zero for anything but a hit, where the word carries the meaning instead. */
   amount: number;
   x: number;
   y: number;
   z: number;
-  /** Where the target stood in that cell's stack, so the number starts at them. */
   stackIndex: number;
   elapsedMs: number;
 };
 
-/**
- * Something somebody said, and where it is hanging.
- *
- * Pinned to a cell rather than to its author: the coordinate is the one it was
- * said in, and it stays there while the speaker walks away or disconnects.
- */
 export type ChatBubble = {
-  /** Distinct per message, so two lines from one actor are two bubbles. */
   id: string;
   actorId: string;
-  /**
-   * The body the speaker was in when they said it, which is what decides how
-   * they are named: a person by the name they typed, a creature by what its
-   * tile is called.
-   *
-   * Carried on the bubble rather than looked up when it is drawn, because the
-   * bubble outlives its author — the deer that yelped can wander off, and the
-   * editor can replace the map underneath it, and the words are still hanging
-   * there for the rest of their five seconds.
-   */
   tileId: string;
-  /**
-   * What the speaker was called, for a speaker who is a person, and null for a
-   * creature — which is named after {@link tileId} instead.
-   *
-   * On the bubble for exactly the reason the tile is: it outlives its author.
-   * Reading the name off the live board when the bubble is drawn would be
-   * asking about somebody who has since walked out of view, logged out, or
-   * been killed by the thing they were shouting about.
-   */
   name: string | null;
   text: string;
   x: number;
   y: number;
   z: number;
-  /**
-   * Where the speaker stood in that cell's stack. Carried so the bubble can
-   * hang over the ground *beneath* them rather than over their own head.
-   */
   stackIndex: number;
 };
 
 export type GameSnapshot = {
   map: MapFile;
-  /**
-   * The viewer's own actor. Camera and roof-cut follow this one and only this
-   * one — they are affordances for whoever is looking, not properties of the
-   * board.
-   */
   self: ActorSnapshot;
-  /** Every actor on the board, self included, in stable id order. */
   actors: ActorSnapshot[];
-  /**
-   * Who the viewer has picked a fight with, or null.
-   *
-   * The viewer's own, and that is the point: a target is an affordance for
-   * whoever is looking, not a property of the board. It is
-   * what the auto-attack swings at *while {@link attacking}*, and it survives
-   * until they clear it, walk out of sight of it, or it dies.
-   */
   targetId: string | null;
-  /**
-   * Whether the viewer is in attack mode — see {@link ActorRuntime.attacking}.
-   *
-   * Read off the session rather than held by the page that flips it, because the
-   * outline colour in the world and the state of the button are two readings of
-   * one fact, and a fight that carried on after the button said otherwise would
-   * be the client and the server disagreeing about something the player can see.
-   */
   attacking: boolean;
-  /**
-   * Damage still floating, oldest first.
-   *
-   * Present in every session, unlike {@link chats}: a blow landing is something
-   * the local simulation very much does have to say, and `/play` shows numbers
-   * exactly as the online client does.
-   */
   damage: DamageNumber[];
-  /**
-   * Arrows still in the air, oldest first.
-   *
-   * Beside {@link damage} rather than inside it, and the split is the same one
-   * the whole protocol is built on: a number is what a blow *came to* and an
-   * arrow is what it *looked like*. They are not one event told twice — a melee
-   * blow floats a number and no arrow, and a shot that killed its target floats
-   * a number over a body that is no longer there while the arrow carries on to
-   * where it used to be.
-   *
-   * Present in every session, on exactly the terms {@link damage} is: a bow
-   * fired in `/play` puts an arrow in the air with nobody to broadcast it to.
-   */
   projectiles: ProjectileFlight[];
-  /**
-   * The effects those flights are playing, oldest first.
-   *
-   * Beside {@link projectiles} rather than derived from them by whoever is
-   * drawing, because a landing happens once and a renderer only ever sees before
-   * and after: a flight is in this frame's list and gone from the next one, and
-   * nothing in that pair says whether it arrived or whether the session simply
-   * dropped it.
-   *
-   * Present in every session on the terms {@link projectiles} is, and for one
-   * more: nothing announces an effect over the wire, so a client that could not
-   * work one out for itself would never see any. @see `./projectile`
-   */
   flightEffects: FlightEffect[];
-  /**
-   * What the viewer is carrying.
-   *
-   * The viewer's own, like {@link targetId}, and for a stronger reason than it:
-   * nobody else's inventory is drawn. There is no
-   * paperdoll — a sword changes no sprite — so broadcasting everyone's kit to
-   * everyone would be paying fan-out for something no frame can show.
-   *
-   * The day a carried torch lights the room, that is *not* what changes this:
-   * light needs a per-actor projection of the equipment
-   * (`carriedLightTileIds`), not the equipment itself.
-   */
   equipment: Equipment;
-  /**
-   * What the viewer has been marked with — see {@link RewardInteraction.tag}.
-   *
-   * Theirs alone, on exactly the terms {@link equipment} is: a tag decides what
-   * *this* player is still owed, and nobody else's chest rows are drawn.
-   *
-   * Replaced wholesale rather than appended to, so identity is the change
-   * signal — the same contract the kit has, and what lets the renderer gate the
-   * interaction list on it without walking the list.
-   */
   tags: readonly string[];
-  /**
-   * Where the viewer comes back after a death, or null where nothing has said.
-   *
-   * Theirs alone on exactly the terms {@link tags} is, and for the same reason
-   * a kit is: nobody else's respawn point is drawn, and broadcasting everyone's
-   * would be fan-out for something no frame can show.
-   *
-   * **Here so a row can go grey**, and for nothing else. The mark is the
-   * server's — see `GameServer`'s `spawn:` rows — and the client is told it so
-   * that the respawn point it is already standing on can say so rather than
-   * offering a press that would change nothing. Null means "nothing has told us
-   * yet", which reads as a live row: a grey button that would have worked is a
-   * worse lie than a live one that turns out to be a no-op.
-   */
   spawnAt: Coord | null;
-  /**
-   * Where the viewer is in a conversation, or null when no panel is open.
-   *
-   * Theirs alone, on exactly the terms {@link tags} is, and replaced wholesale
-   * so identity is the change signal. @see ./dialogRuntime
-   */
   conversation: Conversation | null;
-  /**
-   * The pull the viewer is part-way through making, or null — see `./extract`'s
-   * `extractKey`, which is how the placement is named.
-   *
-   * Theirs alone on exactly the terms {@link tags} is, and the pairing with the
-   * shared half is the whole of what makes a resource a resource: how much is
-   * left in a vein and how much of that people are already holding is on the
-   * board where everybody sees it, and what *you* are half way through is here.
-   *
-   * Carries how much of the pull is left *and* how long the whole pull takes,
-   * which is what lets a row draw a bar filling rather than merely go quiet.
-   * See `./extract`'s {@link Extraction}.
-   *
-   * Replaced when a pull starts or ends and wound in place in between, so
-   * identity is the change signal — the same contract the kit and the tags
-   * have, and what lets the renderer gate the interaction list on it without
-   * walking the list.
-   */
   extracting: Extraction | null;
-  /**
-   * The wait before this viewer's next blow, or null when they are not engaged.
-   *
-   * Theirs alone, on exactly {@link targetId}'s terms: it is what the fight
-   * outline round their target is drawn from — see `../render/GameRenderer` —
-   * and a fight is an affordance for whoever is looking rather than a property
-   * of the board. Broadcasting everybody's would be fan-out for a ring only one
-   * person can see.
-   *
-   * Carries how much of the wait is left *and* what it is a wait out of, which
-   * is what lets the outline fill rather than merely go on and off. Replaced
-   * when the wait changes and wound in place in between, so identity is the
-   * change signal — the same contract {@link extracting} above has. @see
-   * {@link ActorRuntime.nextBlow}
-   */
   nextBlow: Progress | null;
-  /**
-   * What the viewer has learnt, as raw experience.
-   *
-   * Theirs alone on exactly the terms {@link equipment} is — what you are good
-   * at is yours, the same as what is in your bag — and beside it rather than on
-   * {@link self} for that reason: {@link ActorSnapshot} is what everybody sees
-   * of everybody, and only the ⭐ belongs there.
-   *
-   * The experience rather than the levels, because the levels are derivable from
-   * it and the part-way-there is not — see `../lib/mastery`'s
-   * `progressToNextLevel`.
-   */
   masteryXp: MasteryXp;
-  /**
-   * What the viewer's own body fights and walks at, or null for a body with no
-   * stats at all.
-   *
-   * Theirs alone on exactly the terms {@link masteryXp} is, and for the same
-   * reason: it folds in what they are wearing and what they have practised, and
-   * nobody else's frame draws either. The ⭐ on {@link ActorSnapshot} is still
-   * the only part of a body's competence everybody sees.
-   *
-   * A projection rather than the `FightingStats` a blow is resolved against —
-   * see `./attributes`, which is where the two are turned into one another.
-   */
   attributes: Attributes | null;
-  /**
-   * The viewer's own switch: whether they are fighting other players, and
-   * whether it may be moved right now. @see `./pvp`
-   *
-   * Theirs alone on {@link attributes}' terms — everybody else's `on` is on
-   * their {@link ActorSnapshot}, because a mark over a head is drawn from it.
-   * What is here and nowhere else is `changeable`, which is a fact about a
-   * fight the viewer is in rather than about any body on the board, and which
-   * only a session can answer. @see GameSession.canSetPvp
-   */
   pvp: { on: boolean; changeable: boolean };
-  /**
-   * Speech still on screen, on this viewer's level only.
-   *
-   * Always present rather than optional so the renderer's contract stays total;
-   * the local simulation has nobody to talk to and returns an empty list.
-   */
   chats: ChatBubble[];
-  /**
-   * Noises still hanging in the air, on this viewer's level only.
-   *
-   * Unlike {@link chats} this *is* filled in by the local simulation: a noise
-   * needs no second person to have made it, so a single-player world hears
-   * every hiss and crunch in it. @see NoiseEmission
-   */
   noises: NoiseEmission[];
-  /**
-   * Placements with a status running on them — the ground that is on fire.
-   *
-   * Beside {@link actors} rather than folded into the map, because it is not a
-   * fact about the board: the map says a tile is grass, and this says that grass
-   * is currently burning. Nothing in the simulation reads it — a pool's
-   * arithmetic is `./endure`'s and never the renderer's — so this exists purely
-   * so a fire can be *seen*. @see `./endure`'s {@link AfflictedPlacement}
-   *
-   * Present in every session on {@link noises}' terms: a flame lit in `/play`
-   * has nobody to broadcast to and still has to draw.
-   */
   afflicted: readonly AfflictedPlacement[];
 };
 
-/**
- * What a player needs to know about their own body, in numbers.
- *
- * A projection of {@link ActorSnapshot} rather than the thing itself, because
- * what a stats panel wants is the three readings and not a position on a board.
- * Null on every field for a body with no stats at all, which is the same answer
- * `hp` has always given.
- */
 export type Vitals = {
   hp: number | null;
   maxHp: number | null;
   rating: number | null;
-  /**
-   * What is running on this body, in the order the session holds it.
-   *
-   * Here rather than on its own callback because it answers the same question
-   * the other three do — *what state is my body in* — and because the panel and
-   * the strip that draw it are the two things already reading this. The instances
-   * only; joining them to the catalogue is `../lib/status`'s `activeStatuses`,
-   * and it happens in the route that has the catalogue.
-   */
   statuses: readonly StatusInstance[];
-  /**
-   * What this body hits for, how often, and how fast it walks — or null for a
-   * body with no stats at all, on the same terms every field above is.
-   *
-   * Carried here rather than on a channel of its own because it answers the
-   * same question the rest of the block does: *what state is my body in*. See
-   * `./attributes`, which works it out, and `../components/StatsPanel`, which is
-   * the one thing that reads it.
-   */
   attributes: Attributes | null;
-  /**
-   * Whether this body is fighting other players, and whether that may be
-   * changed right now. @see `./pvp`
-   *
-   * Here rather than on a channel of its own because it answers the block's own
-   * question — *what state is my body in* — and because the one thing that
-   * reads it is the switch that sets it. The second half is the session's
-   * answer rather than the chrome's: a fight is what freezes the switch, and
-   * the chrome would have to re-derive "in combat" from the status list to know
-   * it. @see GameSession.canSetPvp
-   */
   pvp: { on: boolean; changeable: boolean };
 };
 
-/**
- * A body nothing has reported on yet.
- *
- * Shared because four places need one — the viewport's default, and each route's
- * state before the first frame and again after a reconnect — and because a
- * block written out four times is a block that grows a field in three of them.
- */
 export const NO_VITALS: Vitals = {
   hp: null,
   maxHp: null,
@@ -995,65 +506,23 @@ export const NO_VITALS: Vitals = {
   pvp: { on: false, changeable: false },
 };
 
-/** The id the single local actor takes when nobody names one. */
 export const LOCAL_ACTOR_ID = "local";
 
-/**
- * What a body with no spells of its own has, shared so the overwhelmingly
- * common answer costs no allocation — one frozen empty list rather than one per
- * body per cast question. @see `../lib/battler`'s `BattlerDef.spells`
- */
 const NO_SPELLS: readonly NaturalSpell[] = [];
 
-/**
- * Shared empty list for the overwhelmingly common "nobody hit me" answer, so
- * asking costs a map lookup rather than an allocation per creature per tick.
- */
 const EMPTY_ATTACKERS: readonly string[] = [];
 
-/**
- * Shared empty list for the overwhelmingly common silent tick, on the same terms
- * {@link EMPTY_ATTACKERS} is shared: a world where nothing made a sound should
- * not allocate one array per creature to say so.
- */
 const EMPTY_SOUNDS: readonly Sound[] = [];
 
-/**
- * Shared empty list for everybody who has taken no reward yet — which is every
- * creature in the world for ever, and every player until the first chest.
- *
- * Shared safely because the array is never appended to: taking a reward replaces
- * it, on the same terms a kit is replaced, so there is no way for one actor's
- * tag to appear on another.
- */
 const NO_TAGS: readonly string[] = [];
 
-/** Shared empty list for a tile nobody in the world is standing on. */
 const NO_ACTORS: readonly string[] = [];
 
-/**
- * Everything in a round of sounds that this body could have heard — which is
- * everything but its own.
- *
- * Excluding itself here rather than in the brain, for the reason
- * `nearestOnTile` excludes itself there: the runtime has no notion of which body
- * it is running, and giving it one to solve this would widen the narrowest
- * interface in the simulation. It is also the rule that keeps a state which
- * howls on entry from howling forever at itself.
- */
 function soundsHeardBy(sounds: readonly Sound[], actorId: string): readonly Sound[] {
   if (sounds.length === 0) return EMPTY_SOUNDS;
   return sounds.filter((sound) => sound.sourceId !== actorId);
 }
 
-/**
- * Which way to turn to face a neighbouring cell.
- *
- * The dominant axis wins, so a diagonal foe is faced along whichever side of the
- * square is longer — and a tie, which is every true diagonal, resolves
- * north/south. Null only when the two are in the same cell, which nothing solid
- * can be.
- */
 function facingToward(from: Coord, to: Coord): Direction | null {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -1062,1016 +531,135 @@ function facingToward(from: Coord, to: Coord): Direction | null {
   return dy > 0 ? "s" : "n";
 }
 
-/** A cell and its level, as a key. @see GameSession.walkingInto */
 function walkKey(cell: Coord): string {
   return `${cell.x},${cell.y},${cell.z}`;
 }
 
-/**
- * What the renderer needs from whatever is driving it.
- *
- * {@link GameSession} implements this by simulating locally; the online client
- * implements it by applying patches from the server and interpolating between
- * them. The renderer draws a snapshot and reports a pointer either way — it has
- * no stake in where the truth came from, which is the whole reason this is an
- * interface rather than a concrete class.
- *
- * The methods without an actor argument are the viewer's own: there is exactly
- * one pointer and one camera per client.
- */
 export interface PlaySession {
   update(dtMs: number): void;
   getSnapshot(): GameSnapshot;
-  /**
-   * Every tile transition since the last call, for the renderer to play.
-   *
-   * On the session rather than the snapshot because it is a hand-over and not
-   * a reading: each note is taken once and forgotten. See
-   * `../lib/tileTransition`.
-   */
   takeTransitions(): HeldTransition[];
   getMap(): MapFile;
-  /**
-   * Point at somebody, or at nobody with null.
-   *
-   * The client decides *who*, because choosing a target is pointing at something
-   * on a screen; this side decides *whether and how often* a blow lands, because
-   * that is the board's business and a client cannot be trusted with its own
-   * attack speed. A target on its own is only a target — see
-   * {@link setAttackMode}.
-   */
   setTarget(actorId: string | null): void;
-  /** Swing at the target, or merely keep it. @see GameSnapshot.attacking */
   setAttackMode(enabled: boolean): void;
-  /**
-   * Opt into fighting other players, or back out of it. @see `./pvp`
-   *
-   * Answers whether anything moved, which for both implementations is false
-   * exactly when the body is still in a fight — the one refusal there is. What
-   * the chrome draws from is {@link GameSnapshot.pvp}, whose `changeable` is the
-   * same answer asked before the press rather than after it.
-   */
   setPvp(enabled: boolean): boolean;
-  /**
-   * Every arcane stone this body could press, in square order, with why each
-   * can or cannot be cast right now.
-   *
-   * On the interface rather than on the snapshot, and the reason is the same one
-   * that keeps `drainNotices` off it: a snapshot is what the *board* looks like,
-   * and this is a question about a body's kit, its target and the levels it has
-   * earned — three things only whichever end owns the session can put together.
-   * Both ends answer it with the same pure function, so the buttons a browser
-   * draws and the casts a server honours cannot disagree. @see ./casting
-   *
-   * Empty for the overwhelming majority of bodies, which is what makes the row
-   * of buttons absent rather than empty for anybody who has never picked a stone
-   * up.
-   */
   spells(): SpellButton[];
-  /**
-   * Cast what this slot names, or refuse.
-   *
-   * **A square or a spell's name, never an instance id**, on the same grounds
-   * every other slot reference in this game names a square: a client naming an
-   * instance would be naming something the far end has to go looking for. A
-   * body's own spells have no instance at all and are named by their author —
-   * see `./casting`'s {@link CastSlot}. Server-authoritative with no
-   * prediction, exactly as attacking is — a browser says "cast the stone in my
-   * off hand" and is told what came of it by the equipment message that follows.
-   *
-   * False for every refusal and no reason with it, on `moveItem`'s terms: the
-   * client asked {@link spells} before it offered the button, so a cast arriving
-   * that cannot be honoured is a race or a client making things up.
-   */
   cast(slot: CastSlot): boolean;
-  /**
-   * Stop the cast this body is making, or do nothing if it is making none.
-   *
-   * **A verb of its own rather than a second press of {@link cast}**, and the
-   * reason is the queue the server keeps: a cast is honoured behind the steps
-   * sent before it, so a press that meant "start" and a press that meant "stop"
-   * would be told apart only by what the server happened to be doing when each
-   * came off the queue. Two taps on a stone while walking would start a cast
-   * and stop it in the same tick. This says what it means, and it is honoured
-   * the moment it arrives, because stopping does not depend on where anybody is
-   * standing.
-   *
-   * No square, because a body makes one cast at a time. Nothing is spent by it
-   * and nothing is handed back: a cast costs nothing until it lands, so a cast
-   * stopped is a cast that cost the seconds. True if there was one to stop.
-   */
   cancelCast(): boolean;
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
-  /**
-   * Take the thing at this slot — into your bag, or into a free hand.
-   *
-   * On the interface rather than left to {@link interact}, because the list
-   * offers pick-up as its own row and a row that named one action and ran
-   * whatever `interact` happened to choose would be lying about what a tap
-   * does.
-   */
   pickUp(ref: ObjectRef): boolean;
-  /**
-   * Put the thing at this slot on — into the hand or the back it belongs in.
-   *
-   * A separate verb from {@link pickUp} rather than a destination inside it,
-   * because the list says "Wield" and means it. It is also the row that works
-   * with no bag at all.
-   */
   equip(ref: ObjectRef): boolean;
-  /**
-   * Eat or drink a consumable, from a slot in your kit or off the floor.
-   *
-   * On the interface for the reason {@link pickUp} is: both the inventory tap
-   * and the "Eat" row name the act, and a row that named one action and ran
-   * whatever `interact` happened to choose would be lying about what a tap
-   * does.
-   */
   consume(from: ConsumeSource): boolean;
-  /**
-   * Run one recipe at a crafter: spend its inputs and take back what the dice
-   * give.
-   *
-   * On the interface for the reason {@link pickUp} is, and one step further: a
-   * crafter offers several recipes on one placement, so there is no `ref` a
-   * bare {@link interact} could disambiguate. The index is the position in the
-   * tile's authored list — see `./craft`.
-   */
   craft(ref: ObjectRef, recipe: number): boolean;
-  /**
-   * Talk to a body, press one of its buttons, go back, or close the panel.
-   *
-   * On the interface because a conversation is a per-viewer fact the panel
-   * drives, and the two implementations differ only in where the buttons are
-   * answered: the local session decides, the remote one asks and is told by
-   * the `conversation` message that follows. @see ./dialogRuntime
-   */
   talk(action: TalkAction): boolean;
-  /**
-   * Take one pull out of a resource — mine a crystal, pick a bush.
-   *
-   * **Not on the interface**, unlike {@link pickUp} and {@link craft}, and
-   * the omission is the design: a resource is reached by a plain tap, so
-   * {@link interact} routes it and there is no second entry point that could
-   * disagree with the precedence about what a tap does. A crafter needs its
-   * own verb because one placement offers several recipes and a `ref` cannot say
-   * which; a bush offers exactly one thing, which is the bush.
-   */
-  /**
-   * Would this move be honoured right now?
-   *
-   * Asked by whatever is drawing the drag, so a slot lights up only where the
-   * thing would actually land. Same function the move itself runs, which is what
-   * stops the interface offering something a drop would refuse.
-   */
   canMoveItem(from: SlotRef, to: SlotRef): boolean;
-  /** Move a carried thing from one slot to another. @see canMoveItem */
   moveItem(from: SlotRef, to: SlotRef): boolean;
-  /**
-   * Would this thing land on this cell?
-   *
-   * Asked once per pointer move while a drag is over the world, so the ghost
-   * under the cursor is drawn only where the drop would be honoured — the same
-   * rule the server re-runs, which is what stops the ghost promising something a
-   * release would refuse.
-   */
   canDrop(from: SlotRef, to: Coord): boolean;
-  /** Put a carried thing down on the board. @see canDrop */
   drop(from: SlotRef, to: Coord): boolean;
-  /**
-   * Sentences the game has for the viewer, taken away as they are read.
-   *
-   * A drain rather than state, because a notice is an *event*: it happened once,
-   * it is said once, and nothing on either side has any use for it afterwards.
-   * The two implementations differ only in where the sentence was composed — the
-   * local session writes its own, and the remote one repeats what the server
-   * addressed to it. @see ../render/notifications
-   *
-   * Deliberately not on the snapshot beside `damage`. A snapshot describes the
-   * board and may be taken freely; this empties something, and a getter that
-   * emptied a queue would lose a line to anybody who looked twice.
-   */
   drainNotices(): string[];
 }
 
-/**
- * The tail of a push. The object lands in the map the instant it is shoved, so
- * everything that queries the board — walking into the cell it vacated above
- * all — sees the truth immediately; this is the animation catching up. Holding
- * the commit back would not remove the halfway state, only hide it from the
- * map, where every collision check is looking.
- */
 type SlideState = {
-  /** The lowest of the shoved placements, at its new home. */
   object: ObjectRef;
   from: Coord;
-  /** How many placements travelled. @see SlideSnapshot.count */
   count: number;
   elapsedMs: number;
 };
 
-/**
- * Everything that belongs to one actor rather than to the board.
- *
- * The board's own state — the map, plate and wire indexes, what has settled —
- * stays on the session: a plate does not care which actor stepped on it.
- */
-/** A cell on the plan, with no level. */
 type PlanCoord = { x: number; y: number };
 
-/**
- * A consumable that has just been swallowed, and what it was called.
- *
- * The name travels beside the block rather than being looked up afterwards,
- * because by then there is nothing left to look it up on: the thing has been
- * destroyed, and what it was is exactly what a death by it has to say.
- */
 type Eaten = { consumable: ConsumableItem; name: string };
 
-/**
- * One pull being made, as the session has to hold it.
- *
- * The {@link Extraction} everybody downstream draws, plus the three facts that
- * decide whether it may go on. All three are read every tick — see
- * `holdsExtraction` — and all three are recorded at the start rather than
- * re-derived, because every one of them is a thing that can change out from
- * under the pull and the whole point is to notice when it does.
- */
 type ExtractionRun = {
-  /** The half that goes out on the snapshot and the wire, wound in place. */
   progress: Extraction;
-  /** Which slot is being worked. */
   ref: ObjectRef;
-  /**
-   * What was standing there when the pull began.
-   *
-   * The other half of {@link extractKey}, kept beside the ref so the reservation
-   * can be handed back to the same tile it was taken from. A bush that somebody
-   * else emptied is a different tile and owes nothing.
-   */
   tileId: string;
-  /**
-   * Where the player was standing when the pull began.
-   *
-   * Standing still is the rule, so the cell is what the rule is checked against.
-   */
   from: Coord;
 };
 
-/**
- * One cast being made, as the session has to hold it.
- *
- * The {@link Progress} everybody downstream draws, plus the three facts that
- * decide what happens when it fills. All three are recorded at the start rather
- * than re-derived, on {@link ExtractionRun}'s terms: every one of them is a
- * thing that can change out from under the cast, and the point is to notice.
- */
 type CastingRun = {
-  /**
-   * The half that goes out on the snapshot and the wire, wound in place.
-   *
-   * Which button the spell is being cast from travels inside it rather than
-   * beside it, because the caster's own row needs to know — see `./casting`'s
-   * `CastProgress` — and one object is what the broadcast is diffed on.
-   */
   progress: CastProgress;
-  /**
-   * Which particular stone, so a caster who swaps hands mid-cast finishes
-   * nothing.
-   *
-   * The instance id rather than the tile, on {@link extractKey}'s reasoning: two
-   * identical stones in two hands are two stones, and the one that spends its
-   * cooldown has to be the one that was pressed.
-   *
-   * Null for a body casting one of its own spells, which is the whole of what
-   * there is to check: a natural spell cannot be swapped out of a hand, and the
-   * name in {@link progress} is already what identifies it.
-   */
   itemId: string | null;
-  /**
-   * Whether a blow leaves it running, read off the stone when it started.
-   *
-   * Recorded rather than looked up at the moment of the blow, so that a cast is
-   * decided by the stone it was begun with — the same discipline the run above
-   * keeps about the tile it was begun against.
-   */
   uninterruptible: boolean;
-  /**
-   * Whether the stone lands on the caster's target, read off the stone when it
-   * started, so {@link advanceCasting} knows whether to keep
-   * `progress.targetId` in step with the caster's target.
-   */
   aimed: boolean;
 };
 
-/**
- * Who a cast is aimed at, as {@link CastProgress.targetId} carries it: the
- * caster's target for a stone that lands on one, and nobody otherwise.
- */
 function castTargetOf(actor: { targetId: string | null }, aimed: boolean): string | undefined {
   return aimed ? (actor.targetId ?? undefined) : undefined;
 }
 
-/**
- * What a player is told when a cast is broken.
- *
- * Said for the reason an interrupted pull's line is said: the bar vanishing is
- * exactly what a *finished* cast looks like, so without a line a flame broken at
- * two and a half seconds and one that simply did nothing are the same event on
- * screen.
- */
 const CAST_INTERRUPTED_NOTICE = "Your cast is broken";
 
-/**
- * What a player is told when a pull is taken off them.
- *
- * Said rather than left to the bar disappearing, because the bar disappearing
- * is exactly what a finished pull looks like: without a line, a mine
- * interrupted at thirteen seconds and one that paid out nothing are the same
- * event on screen.
- */
 const EXTRACT_INTERRUPTED_NOTICE = "You are interrupted";
 
-/**
- * What became of one application of a status.
- *
- * Three answers rather than a boolean because the two that are not "it went on"
- * are not the same thing and the one caller that reads this has to say something
- * different about each: a body already under it has been refreshed, and a body
- * the author made immune has been refused. Everything else — a bite, a bolt, a
- * berry — discards it, which is why `grantStatus` reads as though it returned
- * nothing at almost every call site.
- *
- * `"acquired"` is the only one that speaks on its own, and it is what the
- * arrival sentence hangs off. @see ./notices' `statusAcquiredNotice`
- */
 type StatusGrantOutcome = "acquired" | "refreshed" | "refused";
 
-/**
- * What a bolt's dice came to: health to take, or health to put back.
- *
- * **One number and a direction, rather than a signed one.** The sign is how the
- * arithmetic says it — `damageFraction` on a stone authored to mend comes out
- * negative — but the sign is a fact about the formula, and what the two arms
- * actually differ in is who has a say: armour and the elemental wheel weigh a
- * harm, a full health bar stops a mend, and nobody has ever worn armour against
- * being healed. Naming the direction is what keeps the arm that reads none of
- * those from having to explain itself.
- *
- * Always positive, on both arms, for the same reason: a reader of the mend arm
- * should not have to negate anything to know how much went in.
- *
- * @see GameSession.rollHealthMove
- */
 type HealthMove = { kind: "harm" | "mend"; amount: number };
 
-/**
- * One round of creature decisions, planned on the tick it fell due and taken a
- * share per tick after that. @see GameSession's `brainRound`
- */
 type BrainRound = {
-  /** Who thinks this round, in order, each with the time its turn covers. */
   turns: { actor: ActorRuntime; tickMs: number }[];
-  /** The next turn to take. */
   next: number;
-  /** How many turns each tick takes. */
   perTick: number;
-  /** What was made to be heard, said, and struck before the round began. */
   sounds: readonly Sound[];
   heard: readonly Utterance[];
   hurt: ReadonlyMap<string, string[]>;
-  /**
-   * The world's time of day as the round began. Read once rather than per turn,
-   * so a round spread over several ticks does not straddle an hour for some of
-   * its creatures and not for others. @see GameSession.clock
-   */
   minutesOfDay: MinutesOfDay;
 };
-/**
- * One blow, settled, waiting out the flight of the thing that depicts it.
- *
- * Two fields and no more, because everything a blow *is* stayed in the method
- * that rolled it. @see GameSession.blowsInFlight
- */
 type BlowInFlight = {
-  /**
-   * How much longer, in milliseconds.
-   *
-   * A countdown rather than an elapsed time and a duration, because nothing
-   * ever asks how far along one of these is: a blow is invisible until it
-   * lands. The flight beside it counts the other way for the opposite reason —
-   * an arrow is drawn at a fraction of the way along, every frame.
-   */
   remainingMs: number;
-  /** The tail of the swing or the cast that rolled it. */
   land: () => void;
 };
 
 type ActorRuntime = {
   readonly id: string;
-  /**
-   * What this body is called, for a body that is a person, and null for
-   * everything else.
-   *
-   * Written once when the actor is seated and never again — a character's name
-   * is typed at creation and is the one thing about it that cannot change, so
-   * there is nothing here to keep in step. Null for every creature on the map,
-   * which is named after its tile instead. @see `./displayName`
-   */
   readonly name: string | null;
-  /**
-   * Lives in the map rather than on a socket, so nothing outside will ever
-   * drive it. Recorded when the actor is created because that is the only
-   * moment the distinction is free — after that it would mean asking the board
-   * what kind of body this is, once per creature per tick.
-   */
   readonly resident: boolean;
-  /**
-   * What this actor is wearing and carrying. See `./equipment`.
-   *
-   * On the runtime rather than on the placement, on exactly the terms {@link hp}
-   * is: a placement field would broadcast itself through cell patches, and every
-   * equip would dirty the light chunks and level geometry around the player for
-   * a change nothing in the world can see.
-   *
-   * Unlike `hp` and `brain` this is *not* something a fresh runtime can rebuild
-   * from the tile — it is the only state here that a world owes continuity for,
-   * because what somebody is carrying came from somewhere.
-   */
   equipment: Equipment;
-  /**
-   * The tiles of the lit things in that kit, kept in step with it.
-   *
-   * Derived, and cached here rather than computed where it is read, because it
-   * is read *every frame per actor* and changes only when somebody equips
-   * something. Walking a bag looking for lanterns sixty times a second to find
-   * the same empty list would be the whole cost of a feature almost nobody is
-   * using at any moment.
-   *
-   * The one rule: it is written only beside {@link GameSession.setEquipment}, so
-   * there is no way to change a kit without this following.
-   */
   carriedLights: string[];
-  /**
-   * What this actor has been marked with by the rewards they have taken.
-   *
-   * Beside {@link equipment} rather than folded into it, and the pairing is the
-   * point: they are the two halves of what a reward does — the items go in the
-   * bag, the tag goes here — and the one thing that must never happen is one
-   * landing without the other. Both are written in the same call and made
-   * durable in the same storage batch for that reason.
-   *
-   * The other state a world genuinely owes continuity for. Hit points and brains
-   * are rebuilt from the tile on every load; a tag cannot be, because what it
-   * records is that something already happened.
-   *
-   * Read-only and replaced wholesale, so a snapshot holding the previous array
-   * cannot be quietly rewritten under whoever is drawing from it.
-   */
   tags: readonly string[];
-  /**
-   * What this actor has earned towards each mastery, or null for a body that
-   * does not earn.
-   *
-   * **The third thing a world genuinely owes continuity for**, beside
-   * {@link equipment} and {@link tags} and written in the same storage batch.
-   * Hit points and brains are rebuilt from the tile on every load; experience
-   * cannot be, because what it records is that something already happened.
-   *
-   * Null on a {@link resident} for ever: a rat does not get better at biting,
-   * and a creature's masteries are read straight off the tile. Null on a player
-   * only until somebody first asks — the numbers are seeded from the authored
-   * block the moment there is a body to read one from, on exactly the terms
-   * {@link hp} is filled in. See {@link GameSession.bodyOf}.
-   *
-   * Replaced wholesale rather than mutated, on exactly the terms
-   * {@link equipment} and {@link tags} are: the block goes out on the snapshot,
-   * and identity is what tells whoever is drawing it that something moved. A
-   * block edited in place would be the same object on every frame and a bar that
-   * never advanced. One small allocation per landed blow is the price, and it is
-   * paid on a tick that is already broadcasting a damage number.
-   */
   masteryXp: MasteryXp | null;
-  /**
-   * The pull this actor is part-way through making, or null.
-   *
-   * **The per-player half of an extract, and the reason a shared resource is
-   * worth fighting over.** How much is left in a vein and how much of that is
-   * spoken for are the world's and live on the placement; this is one person's
-   * hands, and there is only one pair of them — starting a pull elsewhere
-   * abandons whatever this was.
-   *
-   * **Not durable**, like {@link hp} and unlike {@link tags}. A tag records that
-   * something *happened*; this records something that is happening, and a world
-   * that has gone quiet is a world where nobody is standing at the vein any
-   * more. The reservation it was holding is dropped with it — see
-   * `./extract`'s `clearExtractReservations`.
-   *
-   * Null for the great majority of actors, every deer in the world included, so
-   * nothing is allocated for a body that never works anything.
-   */
   extraction: ExtractionRun | null;
-  /**
-   * The cast this actor is part-way through, or null.
-   *
-   * **The one thing a stone costs before it does anything**, and the only state
-   * in the game a blow can take away from somebody who was not holding still —
-   * see {@link GameSession.applyDamage}, which breaks it.
-   *
-   * **Not durable**, like {@link extraction} and for the same reason: it records
-   * something that is happening rather than something that happened, and a world
-   * that has gone quiet is one where nobody is mid-spell. Nothing has been spent
-   * when it is dropped — the cooldown and the experience are paid when the bar
-   * fills — so a cast lost to a restart costs the caster the seconds and nothing
-   * else.
-   *
-   * Null for the great majority of actors, every creature in the world included.
-   */
   casting: CastingRun | null;
-  /**
-   * The authored body with this actor's earned masteries in it, keyed on the
-   * authored block it was built from.
-   *
-   * The same staleness discipline as {@link memo}: `resolveBattler` memoises on
-   * def identity, so holding the block this was derived from is an exact check.
-   * Dropped whenever experience is granted, which is the only other thing that
-   * can move it.
-   *
-   * Worth memoising because {@link GameSession.battlerOf} is asked once per body
-   * per swing *and* once per body per frame by whatever draws health bars, and
-   * reading seven levels out of seven square roots at that rate is a cost with
-   * nothing to show for it.
-   */
   earnedBody: { authored: BattlerDef; body: BattlerDef } | null;
-  /**
-   * Whose turn it is, when this body has a weapon in each hand.
-   *
-   * **The whole of ambidexterity's state, and it is one word.** A body with two
-   * weapons alternates between them, so something has to remember which one is
-   * next; everything else about the rotation is a pure function of what is being
-   * held — see `./equipment`'s {@link handToSwing}, which honours this only if
-   * that hand still has something to swing.
-   *
-   * That fallback is what keeps this a hand rather than a history. Dropping the
-   * sword you were about to use swings the other one; picking a second one up
-   * joins the rotation wherever it happens to be; a body with one weapon swings
-   * it every turn whatever this says. So nothing that moves an item has to reach
-   * in and correct it, which is the failure mode a counter or an index would
-   * have had — one that could be left pointing at an empty fist.
-   *
-   * **Not durable**, like {@link hp} and {@link brain} rather than like the kit
-   * itself: which fist somebody was about to use is the state of a fight, and a
-   * fight does not survive the world being unloaded. Coming back mid-rotation on
-   * the other hand costs one blow of a weapon you were going to swing anyway.
-   * It never crosses the wire either — the client is *told* its cooldown rather
-   * than working it out, so there is no prediction here to keep in step.
-   */
   nextHand: Hand;
-  /**
-   * How many defensive payouts each attacker has already been worth, and how
-   * long since the last one.
-   *
-   * **Not durable, and deliberately so** — it is rebuilt like {@link hp} and
-   * {@link brain} rather than owed continuity. What it records is the state of a
-   * fight, and a fight does not survive the world being unloaded.
-   *
-   * Null until this body is first hit by anything, so the great majority of
-   * actors never allocate one.
-   */
   defensiveDecay: Map<string, { payouts: number; idleMs: number }> | null;
-  /**
-   * Who is currently swinging at this body, and how long each of them has left
-   * before they stop counting.
-   *
-   * The whole of "how outnumbered am I" — `../game/combat`'s `underPressure`
-   * reads nothing but the size of this. **Kept per defender rather than derived
-   * on demand**, because the honest question is who is *attacking* you, and
-   * there is nothing on the board to derive that from: a creature's target lives
-   * inside its brain's memory as a bound slot, and a body standing next to you
-   * minding its own business is not an assailant. A swing is the only thing that
-   * says for certain, so a swing is what writes here.
-   *
-   * The value is milliseconds left, wound down by the tick loop exactly as
-   * {@link defensiveDecay} is — the same reason too: a timestamp compared later
-   * would disagree with the rest of the session about how long a second is, and
-   * a world nobody is ticking would quietly empty while it slept.
-   *
-   * **Not durable**, like {@link hp} and {@link defensiveDecay}: it is the state
-   * of a fight, and a fight does not survive the world being unloaded. Null until
-   * something first swings at this body, so the great majority of actors never
-   * allocate one.
-   */
   assailants: Map<string, number> | null;
-  /**
-   * Where this creature is in its state machine, or null for a body with no
-   * brain — every player, and any creature whose authored brain did not parse.
-   * Built on first use rather than at adoption, which is what makes "brain
-   * state resets on load" free: a fresh runtime has no memory to restore.
-   */
   brain: BrainMemory | null;
-  /**
-   * How long the charm this body is wearing has been counting, and which charm.
-   *
-   * **Keyed on the instance id rather than being a bare number**, which is the
-   * whole of what makes swapping charms behave: the same charm put back on picks
-   * its clock up where it left it, and a *different* one starts from zero. A
-   * bare number would let somebody wear a cheap charm to run the clock down and
-   * swap to an expensive one on the last tick.
-   *
-   * **Not durable**, like {@link hp} and {@link assailants}. A stone's cooldown
-   * is deliberately the opposite — see `../lib/itemInstance` — because a
-   * cooldown rebuilt on load would make reconnecting the cheapest spell in the
-   * game. This one is the mirror of that argument and comes out the other way: a
-   * charm clock rebuilt on load costs the wearer at most one interval of
-   * healing, where making it durable would put a deadline on a placement and
-   * land it in `data/map.json` the moment somebody saved from the editor.
-   *
-   * Null for every body wearing no charm, which is nearly all of them.
-   */
   charmClock: { itemId: string; elapsedMs: number } | null;
-  /**
-   * Rounds this creature has slept through since it last had a turn, as the
-   * milliseconds they were worth.
-   *
-   * A creature nobody is near is given a turn only when the round's budget
-   * reaches it — see {@link GameSession.tickBrains} — and the rounds it was
-   * passed over are not lost: they are handed to the brain along with the one
-   * it is deciding in, so a `wait` still ends when it should and an `after`
-   * still fires. Zero for every creature that thinks every round.
-   */
   brainDeferredMs: number;
-  /**
-   * Where this creature is walking to, or null for one going nowhere.
-   *
-   * **The one piece of a decision that outlives the round that took it**, and it
-   * exists because the two clocks are not the same one. A brain decides every
-   * `BRAIN_TICK_MS`, which is one walk at the standard pace; a body walks at its
-   * own `walkDurationMs`, which for a bat is 90ms and for a wolf 140. An action
-   * that pressed one direction per round capped every creature at the brain's
-   * pace, so the bat crossed ground at 200ms a cell — 2.2× slower than it was
-   * authored to — and stood still for the other 110ms of every round, which is
-   * what the stutter was.
-   *
-   * What is kept is the *intent*, never a route: {@link driveWalkOrder} searches
-   * afresh for every leg, so `docs/notes.md`'s "nothing is kept between two
-   * decisions" is untouched. The goal is a body rather than a cell wherever a
-   * body was named, so a chase re-reads where its quarry is on every leg instead
-   * of walking to where they stood when it decided.
-   *
-   * **Dropped at the top of every one of this creature's turns**, so an order
-   * only stands while the state that wanted it keeps asking — see
-   * {@link tickOneBrain}. Without that, a creature that transitioned out of
-   * chasing would walk out a plan nothing believes in any more.
-   *
-   * Not durable, on {@link brain}'s terms: it is a state of play, and a world
-   * coming back from a save has every creature decide again. Null for every
-   * player and for the great majority of creatures at any moment, so nothing is
-   * allocated for a body standing still.
-   */
   walkOrder: {
     goal: WalkGoal;
     allowDrops: boolean | undefined;
-    /**
-     * Where the walk ends. You stop *beside* a body and *in* a cell, which is
-     * the difference between closing on somebody and getting somewhere.
-     *
-     * Explicit rather than derived from the goal's shape, because `home` is a
-     * cell too and a creature has always stopped beside it. @see
-     * PathOptions.arrive
-     */
     arrive: "beside" | "on";
   } | null;
-  /**
-   * The cell this creature is running to, or null for one not fleeing.
-   *
-   * **Kept across rounds on purpose, and it is the only thing here that is.** A
-   * refuge is chosen by a flood over everywhere within reach — see
-   * `./pathfinding`'s `findRefuge` — and re-choosing one every round is what
-   * made a fleeing animal shuffle: the best cell flips as the threat moves, and
-   * an animal that acts on the flip is one that never actually goes anywhere.
-   * Committing to somewhere is what a run *is*.
-   *
-   * Dropped when it is reached, when the threat has come between the animal and
-   * it, or when there was nowhere better to begin with. Not durable, on
-   * {@link brain}'s terms, and null for everything that is not at this moment
-   * running away from something.
-   */
   refuge: Coord | null;
-  /**
-   * Could anybody notice this creature, as of its last round?
-   *
-   * Cached from {@link attentive} rather than asked again, because what reads it
-   * is {@link maybeStartWalk} — once per actor per *tick*, where the predicate
-   * is a scan of every connected player. It is what keeps a standing order from
-   * turning the doze budget back into a per-creature cost: a dozing creature's
-   * order is pressed only on the turns the budget hands it, which is exactly the
-   * pace it walked at before any of this. @see BRAIN_DOZE_BUDGET
-   */
   brainAttentive: boolean;
-  /**
-   * Who this body is talking to and where in their dialog it is, or null.
-   *
-   * The *player's* state, not the NPC's — see `./dialogRuntime`'s
-   * `Conversation` — which is what lets any number of people talk to one
-   * salesman at once. Never checkpointed, on the brain memory's terms: a
-   * conversation is a state of play, and a world coming back from a save
-   * starts every one afresh. Ended by the session the tick its partner is out
-   * of talking reach.
-   */
   conversation: Conversation | null;
-  /**
-   * The cell this body was authored on, or null for one nobody authored.
-   *
-   * What the brain's `home` selector reads, and the only piece of a creature's
-   * bearings that is *not* rebuilt from the world each load: it is decoded from
-   * the actor's own name, which was minted from the authored placement the first
-   * time the map was seen and has ridden on that placement through every
-   * checkpoint since. @see residentHome
-   *
-   * Resolved here rather than per tick because it can never change: a body does
-   * not get a second birthplace, and re-deriving one every brain tick would be a
-   * string parse per creature per turn for an answer that was already settled.
-   *
-   * Null for every player, who has a spawn point rather than a home — see
-   * `GameServer`'s `spawn:` rows, which are a different fact about a different
-   * kind of body.
-   */
   home: Coord | null;
-  /**
-   * Where this body comes back after a death, or null for one that does not
-   * come back at all.
-   *
-   * The counterpart of {@link home} and its exact opposite in every way that
-   * matters. A creature's birthplace is authored, permanent and derived; a
-   * player's door is chosen, movable and *durable* — it lives in `GameServer`'s
-   * `spawn:` row, which is the record, and this is the session's copy of it.
-   *
-   * Held here for one reason: so that a press on a marker can tell whether it
-   * would change anything. Without it the session would have to queue a write
-   * and a sentence on every press and let the server discard both, which makes
-   * a `step` block you walk across say its line once a stride. So the server
-   * seeds it on {@link GameSession.spawn} and drains the changes — see
-   * {@link GameSession.drainSpawnMarks} — and the session never reads it for
-   * anything else. Null for a resident, who has no such row, and for a body the
-   * server said nothing about, which reads as "unknown, so the first press
-   * moves it".
-   */
   spawnMark: Coord | null;
-  /**
-   * Hit points, or null for a body that has never had any read.
-   *
-   * Filled on first use rather than at creation, which is what makes it free:
-   * the stats live on the tile the actor *is*, and at creation the body may not
-   * be on the board yet. Null therefore means "ask the tile", and a body with no
-   * battler block leaves it null forever. See {@link GameSession.hpOf}.
-   *
-   * Deliberately absent from the checkpoint, exactly like {@link brain}: a world
-   * nobody is looking at owes no continuity, and the alternative is a saved
-   * number that has to survive somebody editing the tile's max.
-   */
   hp: number | null;
-  /**
-   * What is running on this body right now. See `./statuses`.
-   *
-   * **Durable, unlike {@link hp} used to be and unlike {@link brain}.** What a
-   * status records is a rule currently being applied to somebody, and the whole
-   * point of it is that logging off neither cancels it nor advances it — so it
-   * rides in the same storage batch as the kit and the tags. That is also why hit
-   * points became durable beside it: a heal-over-time undone by a reconnect is
-   * not an effect.
-   *
-   * Replaced wholesale rather than mutated, on the terms {@link tags} and
-   * {@link masteryXp} are — the list goes out on a snapshot and identity is what
-   * says something moved.
-   */
   statuses: readonly StatusInstance[];
-  /**
-   * How long this body has been standing on the cell it is standing on, towards
-   * the next helping of whatever that cell grants.
-   *
-   * **The whole of "a fire keeps burning you while you stand in it".** Arriving
-   * on a tile grants its status and zeroes this, and every
-   * `STANDING_STATUS_EVERY_MS` of standing still grants it again — see
-   * {@link GameSession.tickStandingStatuses}. Per body rather than one clock for
-   * the whole world, because a shared one would come round whenever it came
-   * round: somebody who stepped into a flame a tick before it did would take two
-   * helpings in two ticks, and somebody who stepped in a tick after it would
-   * take their second a full second later than the next person.
-   *
-   * Counted for every body whatever it is standing on, because the alternative
-   * is asking the board what is underfoot thirty times a second per actor. What
-   * this buys is that the stack is walked once a second per body and only then.
-   *
-   * **Not durable**, like {@link hp} and {@link attackCooldownMs}: it records
-   * something that is happening rather than something that happened, and a body
-   * that comes back into a world waits a whole period for its next helping.
-   */
   standingStatusMs: number;
-  /** Milliseconds until this body may swing again. See `./combat`. */
   attackCooldownMs: number;
-  /**
-   * Who this body is getting into a blow against, and what is left of the wait.
-   *
-   * **Time owed in reach, where {@link attackCooldownMs} is time owed anywhere.**
-   * A blow may not go out until this has run down. It is armed to `./combat`'s
-   * {@link swingWindupMs} when a body picks a target and again by every blow it
-   * throws, and it only winds while {@link inReach} holds. Null is nobody: not
-   * engaged, and the next reach that holds starts a new wait.
-   *
-   * **Paused out of reach, not reset.** It used to be dropped the moment the
-   * body left reach, and that made a slow creature harmless to anybody faster:
-   * hit it, step back while it winds up, let it follow, step back again. The
-   * creature started from zero on every arrival and never finished one, while
-   * the player's own short windup fit inside each visit. Kept, every visit adds
-   * to it, and a creature that has been beside you for half its interval in
-   * total swings the moment it is beside you again. Both sides now pay for the
-   * blow in the same currency, time spent in reach, so stepping in and out gives
-   * back no more than standing still does.
-   *
-   * **Re-armed by every blow**, which is what stops the pause reopening the
-   * older withdrawal: without it the windup would be spent once per fight, and
-   * "touch, swing, leave for an interval, come back" would find the next blow
-   * waiting. In a fight nobody leaves, the re-armed half interval runs out
-   * inside the whole interval of cooldown beside it, so the rate is unchanged.
-   *
-   * It exists because reach alone decided the opening blow, which made an
-   * approach free and made it equally free whatever was being swung. See
-   * {@link SWING_WINDUP_SHARE} for what that cost the fight.
-   *
-   * **Wound on the tick clock rather than on whoever is asking**, which is what
-   * makes it the same wait for everybody: a player's standing target is tried
-   * every tick and a creature's brain reaches its `attack` action once a round,
-   * and a clock that advanced per question would make the slower asker wind up
-   * six times more slowly. What the brain's cadence does cost a creature is that
-   * it notices it has left reach up to a round late, which is the resolution
-   * everything else about a creature's fight already has.
-   *
-   * **Keyed by target rather than a bare number**, so a body that turns on
-   * somebody else pays the approach again. Without the id, killing one rat and
-   * turning to the one beside it would swing on the tick the target changed —
-   * the same free opening blow this rule is about, taken at the only moment
-   * nobody had to walk anywhere for it.
-   *
-   * **Dropped when nobody is still asking**, which is what {@link
-   * WINDUP_LAPSE_MS} is for. `sinceSeenMs` counts from the last time anybody
-   * asked to swing at this target, in reach or not: a creature chasing you asks
-   * every round and keeps what it has wound, and one that has given up stops
-   * asking and forgets it two rounds later.
-   *
-   * **Not durable**, like {@link attackCooldownMs} and {@link attackRecoveryMs}:
-   * it records something that is happening rather than something that happened.
-   */
   windup: {
     targetId: string;
     msLeft: number;
     sinceSeenMs: number;
-    /**
-     * Whether the last reach check against this target held. The windup winds
-     * only while it is true. @see {@link ActorRuntime.windup}
-     */
     inReach: boolean;
   } | null;
-  /**
-   * The wait before this body's next blow, as one clock something can be drawn
-   * from — or null for a body that is not engaged and has no next blow to
-   * predict.
-   *
-   * **A reading, not a rule.** Nothing is gated on it: {@link windup} and
-   * {@link attackCooldownMs} remain the two things a swing actually asks, and
-   * this is the longer of the two, measured against the swing interval. It
-   * exists because neither of those alone answers the
-   * question a fighter is asking — *when do I hit next* — and reading one of
-   * them would be right for half a fight and silent for the other half: the
-   * windup is what an approach costs and is spent the moment you stand still,
-   * while the cooldown is what a blow costs and says nothing about arriving.
-   *
-   * **Replaced when the wait changes and wound in place in between**, which is
-   * the contract {@link ActorSnapshot.extracting} has and for the same reason:
-   * identity is what the broadcast diffs on, so a fresh object per tick would
-   * be a message per tick for something that changes twice a swing. It is
-   * replaced on exactly three events — a windup armed against somebody new, a
-   * paused windup coming back into reach, and a cooldown spent — and nulled
-   * when the body leaves reach, since a paused wait is not counting down to
-   * anything. @see disengage
-   */
   nextBlow: Progress | null;
-  /**
-   * Milliseconds until this body may take a step again, having just swung.
-   *
-   * **Its own clock rather than a second reading of {@link attackCooldownMs},
-   * because the two answer to different things.** How often you may swing
-   * belongs to the weapon, through {@link FightingStats.spd}. How long a blow
-   * plants you belongs to the *body* and to nothing it is holding — which is
-   * the whole point of it: a fight where the nimble could swing and keep
-   * walking was a fight decided by who was willing to hold a movement key down,
-   * and a plant that scaled with a stat would be one more thing to train out of
-   * the way.
-   *
-   * Two of this body's steps, read off the tile it is — see `./combat`'s
-   * {@link strikeRecoveryMs}. Not a constant of its own, and that is what makes
-   * it fair rather than merely fixed: a blow costs a creature two steps of *its*
-   * walking, so something authored to move slowly is not punished twice for it.
-   *
-   * **It plants the aim as well**, which is the other half of what a blow costs
-   * and the reason turning into a target is worth doing at all: see
-   * {@link turnToward} and {@link applyStepRequest}, which gates above the
-   * facing rather than below it.
-   *
-   * Only the *start* of a step is gated. A walk already in flight when the blow
-   * goes out finishes it — a body cannot be stopped mid-cell without leaving it
-   * standing between two of them.
-   */
   attackRecoveryMs: number;
-  /**
-   * Milliseconds until each of this body's **own** spells may be cast again, by
-   * name. Absent is ready. @see `../lib/battler`'s `BattlerDef.spells`
-   *
-   * **On the body rather than on an item, which is the one place a natural
-   * spell differs from a carried stone.** A stone's cooldown rides its
-   * {@link ItemInstance} because a stone is picked up, put down and stored; a
-   * body's own spell has no instance to hang one on, so it is kept where the
-   * swing cooldown is kept.
-   *
-   * **Not durable**, like {@link attackCooldownMs} and unlike a stone's — and
-   * the difference is what is being kept. A stone's cooldown is durable because
-   * a stone survives a reconnection and coming back holding a cooled one would
-   * make reconnecting the cheapest spell in the game. Everything about a *body*
-   * that is mid-swing or mid-recovery is dropped on the way in, and a body's
-   * spell is part of the body.
-   */
   spellCooldownMs: Record<string, number>;
-  /** Who this actor is set on, for a body driven by somebody pointing at things. */
   targetId: string | null;
-  /**
-   * Whether a target is somebody to fight or merely somebody being watched.
-   *
-   * Off by default, and the two halves of what used to be one decision:
-   * {@link targetId} says *who*, this says *whether to swing*. Pointing at
-   * something is how a player asks about it — a name tag, a health bar, a row in
-   * the list — and before this the only way to look at a creature that closely
-   * was to start a fight with it.
-   *
-   * Per actor rather than per session because it arrives on a socket like every
-   * other thing a player asks for, and a brain never sets it: a creature's
-   * aggression is its brain's `attack` action, which goes straight to
-   * {@link GameSession.tryAttack} and never through a standing target.
-   */
   attacking: boolean;
-  /**
-   * Whether this player has opted into fighting other players. @see `./pvp`
-   *
-   * Off for everybody the world has never met, and off for every creature —
-   * nothing reads it for a resident, because `mayHarm` answers on the residency
-   * first. Restored with the rest of what a returning player brings back, since
-   * a switch that forgot itself on every reconnect would be a switch nobody
-   * could rely on.
-   *
-   * Beside {@link attacking} because they are the two halves of "am I
-   * fighting", and separate for the same reason {@link targetId} is separate
-   * from the mode: attack mode is what this body is doing *right now* and this
-   * is a standing decision about who may do it to whom.
-   */
   pvp: boolean;
-  /**
-   * Whether this body is invisible to other players, as though its owner were
-   * offline. Only an administrator can turn it on; the server decides that,
-   * because the role belongs to the account and never to the body. @see
-   * `../../server/GameServer`'s `setHidden`
-   *
-   * The session's half is the world's: a creature does not find, follow, hear
-   * or hold a grudge against a hidden body, because a wolf chasing somebody
-   * nobody can see is a wolf pointing at them. What the wire withholds is the
-   * server's half, done where each viewer's set of bodies is decided.
-   *
-   * What the body *does* still lands. A blow it strikes, a tile it places or a
-   * crate it pushes changes the world, and the world is not hidden.
-   */
   hidden: boolean;
   input: GameInput;
   walk: WalkState | null;
   fall: FallState | null;
   slide: SlideState | null;
-  /**
-   * The lean of a blow this body is still part-way through. @see `./strike`
-   *
-   * Beside the three motions rather than folded into the cooldown, because it is
-   * a different kind of clock: the cooldown is when this body may swing again
-   * and it outlives the strike several times over at any ordinary speed.
-   */
   strike: StrikeState | null;
-  /**
-   * Location memo, keyed on the map object it was read from.
-   *
-   * Map mutation is persistent, so object identity is an exact staleness check:
-   * this recomputes once per edit and never returns a stale answer.
-   *
-   * `chunk` is the chunk the body stood in on that map, with the two keys that
-   * find it. A later map whose chunk there is the same object has not touched
-   * one cell of it, so the body is still exactly where it was — which answers
-   * the memo without a stack lookup after an edit somewhere else entirely, the
-   * usual reason a map has changed. @see GameSession's `tryLocate`
-   */
   memo: {
     map: MapFile;
     loc: ActorLocation;
@@ -2081,101 +669,16 @@ type ActorRuntime = {
   } | null;
 };
 
-/**
- * The slack allowed when comparing accumulated ticks against
- * `COOLDOWN_STEP_MS`, which lives in `./casting` because the button drawing the
- * countdown reads it too.
- *
- * The same accumulated-float slack `./statuses` absorbs: `TICK_MS` is 1000/30
- * and is not representable, so thirty ticks of it come to 1000.0000000000005
- * and an honest comparison against a thousand would be a step late about half
- * the time.
- */
 const COOLDOWN_EPSILON_MS = 1e-6;
 
-/**
- * How often standing on a status-granting tile hands the status over again.
- *
- * **A cadence rather than every tick, and the reason is the dice.** Every
- * application draws a duration from the world's own generator — see
- * `./statuses`'s `rollDurationMs` — so a per-tick grant would be thirty seeded
- * draws a second per body standing in a flame, and what every fight in the
- * world rolled after it would depend on how long somebody loitered. It would
- * also walk the stack under every actor thirty times a second to find out
- * whether there was anything to grant at all.
- *
- * A second, because that is the rhythm the thing it feeds already runs on:
- * Burned spends hit points once a second, so a helping per second is one grant
- * per payout and the two clocks do not beat against each other. It is exactly
- * thirty ticks — `snapToTick(1000)` is a no-op on it — which is what lets the
- * accumulator below be compared against it with nothing but the float slack.
- *
- * What it means for a stacking status is that standing still climbs to the
- * authored ceiling and holds there: four seconds in a flame is four helpings of
- * Burned, which is its `maxMs`. That is the intent — a fire you stand in should
- * be worse than one you walk through — and it is a balance change as much as a
- * mechanism one.
- */
 const STANDING_STATUS_EVERY_MS = 1000;
 
-/**
- * What a mend is worth, before the learning rate.
- *
- * Flat, where a blow is scaled by how far above or below you the other body is.
- * Mending is not an exchange with anybody: scaling it by whoever you happen to
- * be pointing at would make bandaging yourself worth more against a troll and
- * nothing at all against a rat, and neither of those is a fact about the
- * bandaging.
- *
- * **Paid at this rate whoever the mend landed on**, now that a bolt can be
- * pointed at somebody else. A caster who has mended a troll has mended
- * somebody rather than beaten them, so there is still no second body in the
- * exchange for a Rating to weigh — which is the same argument, one step wider
- * than it used to have to be.
- */
 const SELF_SPELL_MULTIPLIER = 1;
 
-/**
- * What kind of blow a bolt counts as, for the armour it has to get through.
- *
- * **Arcane, because that is the mastery a stone answers to** — see
- * `../lib/mastery`, where the rename collapsed "the mastery a staff swings by"
- * and "how good you are at magic" into one number precisely so that this
- * question would have one answer. A breastplate authored with an arcane
- * resistance is warded against magic, and this is what makes it so.
- *
- * The elements deliberately do *not* appear here. What an element is worth
- * against a body is the wheel's question and is asked one step later, on the
- * damage that got through — see {@link elementalDamage}. Keying resistance off
- * them as well would let one piece of armour answer the same blow twice.
- *
- * Shaped as the sliver of a `FightingStats` that `damageAfterDefence` actually
- * reads, and frozen at module scope, so a cast allocates nothing to say the one
- * thing that is true of every cast in the world.
- */
 const ARCANE_BLOW: Pick<FightingStats, "mastery"> = { mastery: "arcane" };
 
-/**
- * What a bolt with no statuses authored leaves behind, shared on the terms
- * `NO_ELEMENTS` is: one frozen empty list rather than one per cast.
- */
 const NOTHING_INFLICTED: readonly WeaponStatus[] = [];
 
-/**
- * The same kit with every cooling stone `spent` milliseconds nearer ready, or
- * the very same object when nothing in it was cooling.
- *
- * **Identity is the answer**, which is what makes this free for the
- * overwhelming majority of bodies: nobody is carrying a stone, so the walk finds
- * nothing, allocates nothing, and the caller does not touch the kit at all. It
- * is the same contract `withStatusModifiers` keeps for a body under nothing.
- *
- * The three squares a stone can be in and no others — see `./casting`'s
- * {@link CAST_SQUARES}. A cooldown left over on something in a bag is not
- * counting down, and should not be: a stone in a bag is a stone nobody is
- * carrying, and the lock is what stops one getting there mid-cooldown in the
- * first place.
- */
 function cooledEquipment(equipment: Equipment, spentMs: number): Equipment {
   let next: Equipment | null = null;
   for (const square of CAST_SQUARES) {
@@ -2183,9 +686,6 @@ function cooledEquipment(equipment: Equipment, spentMs: number): Equipment {
     if (!held?.cooldownMs) continue;
     const remaining = held.cooldownMs - spentMs;
     next ??= { ...equipment };
-    // Dropped rather than written as zero, so "ready" is the absence of a
-    // cooldown everywhere — the same thing an instance that has never been cast
-    // says, and one fewer state for anything reading this to tell apart.
     if (remaining > 0) {
       next[square] = { ...held, cooldownMs: remaining };
     } else {
@@ -2196,507 +696,69 @@ function cooledEquipment(equipment: Equipment, spentMs: number): Equipment {
   return next ?? equipment;
 }
 
-/**
- * A body the world has just taken off the board.
- *
- * More than an id, because by the time anybody asks these questions the runtime
- * that could answer them is gone: {@link GameSession.kill} deletes it, and the
- * one moment a dead player's cell and kit exist is the moment that destroys
- * them. The server writes them down from here — see `GameServer.noteDeaths`,
- * which is what makes a death survive a reload.
- */
 export type Death = {
   id: string;
-  /**
-   * What the body still owns once the floor has taken what it could: empty when
-   * the kit landed as loot, and the whole kit when the cell refused it.
-   *
-   * One field rather than a "did it drop" flag, because the two facts have to
-   * agree and this is the shape in which they cannot disagree — whatever is not
-   * on the board is here, and the server writes exactly this.
-   */
   equipment: Equipment;
-  /**
-   * What it had learned and what it had been marked with, on the same terms the
-   * kit is here: a fight's last blows and a chest opened on the way in are
-   * earned facts, and the runtime that held them is about to stop existing.
-   */
   masteryXp: MasteryXp | null;
   tags: readonly string[];
 };
 
-/**
- * Authoritative play session. Mutates an in-memory map; no DOM / renderer.
- *
- * Holds any number of actors. `/play` runs exactly one and never names it; the
- * game server spawns one per connection.
- */
 export class GameSession implements PlaySession {
   private map: MapFile;
   private readonly tilesById: Record<string, TileDef>;
-  /** Insertion-ordered, which is what makes {@link tick} deterministic. */
   private readonly actors = new Map<string, ActorRuntime>();
-  /**
-   * The actors walking into each cell, keyed by {@link walkKey}, for
-   * {@link destinationTaken} — which is asked for every step anybody tries,
-   * and used to ask every actor in the world.
-   *
-   * Written where a walk starts ({@link applyStepRequest} is the only place one
-   * does) and wherever one ends or its body leaves the world. Read with each
-   * entry's walk checked against the cell all the same, so an entry that
-   * outlived its walk is passed over rather than trusted.
-   */
   private readonly walkingInto = new Map<string, ActorRuntime[]>();
-  /**
-   * Who is standing on each tile, so {@link nearestOnTile} answers from the
-   * handful of bodies that could possibly match rather than from every actor
-   * alive.
-   *
-   * **This is what stops brains being quadratic.** A `nearest` selector is
-   * asked fresh every brain tick — that is the whole point of it, and
-   * `app/lib/brain.ts` says so — so a world of five hundred creatures each
-   * looking for the nearest player was walking five hundred actors five hundred
-   * times, five times a second, to find the two people in it.
-   *
-   * Sound because an actor's tile is fixed for as long as they exist. A body is
-   * placed once and adopted rather than rewritten, and decay explicitly refuses
-   * to transform anything carrying an owner — so the only events that can move
-   * an entry here are the ones that add or remove an actor, which is why
-   * {@link forgetTileIndex} hangs off exactly those. Rebuilt lazily rather than
-   * maintained in place: spawning reads the board to find the new body anyway,
-   * and a world where nobody joins or dies builds this once and keeps it for
-   * ever.
-   *
-   * Never trusted on its own — see the tile check in {@link nearestOnTile}. An
-   * index that is over-inclusive is a wasted comparison; treating it as the
-   * final word would make any drift a wrong answer instead.
-   */
   private tileIndex: Map<string, string[]> | null = null;
   private readonly spawnAt: Coord & { stackIndex: number };
-  /**
-   * Cells holding a pressure plate, so settling reads a handful of columns
-   * instead of the whole board every tick. Kept true by
-   * {@link reindexCells} at the few sites that can relocate a plate; a stale
-   * extra entry only costs a wasted stack read, a missing one is a dead plate.
-   */
-  /**
-   * Actors whose kit has changed and whose owner has not been told yet.
-   *
-   * Ids rather than the kits themselves: by the time this is drained the
-   * equipment on the runtime is the current one, and holding a copy here would
-   * be a second version of the truth going stale between the tick that changed
-   * it and the flush that sends it.
-   */
   private readonly equipmentChanged = new Set<string>();
   private readonly conversationChanged = new Set<string>();
-  /** Actors whose tags have changed and whose owner has not been told yet. */
   private readonly tagsChanged = new Set<string>();
-  /**
-   * Actors whose pull has started, ended or been taken off them, and whose
-   * owner has not been told yet.
-   *
-   * A fourth queue beside the kit, the tags and the experience, and not folded
-   * into any of them for the reason they are not folded into each other: it
-   * moves on a different event at a different rate, and sharing a queue would
-   * put a whole inventory on the wire every time somebody started mining.
-   */
   private readonly extractionChanged = new Set<string>();
-  /**
-   * Actors whose experience has moved and whose owner has not been told yet.
-   *
-   * The busiest of the three queues by a long way — roughly one entry per landed
-   * blow — which is exactly why it is a queue rather than a message: a fight is
-   * several swings a second between them, and the set collapses all of it into
-   * one send on the next flush.
-   */
   private readonly masteriesChanged = new Set<string>();
-  /**
-   * The hour somebody asked the world's clock to read, waiting for the server.
-   *
-   * Held rather than acted on, because the session has no clock: time of day
-   * is a function of the server's wall clock, which this object never reads.
-   * The server drains it and moves its own. @see drainClockSet
-   */
   private pendingClockSet: MinutesOfDay | null = null;
-  /**
-   * What the world's clock reads now, for a brain asking the time.
-   *
-   * Handed in rather than read, for the reason {@link pendingClockSet} is held:
-   * the hour is the server's — the wall clock moved by `/time` — and this
-   * object never reads the wall clock. A session built without one sits at
-   * {@link DEFAULT_PLAY_MINUTES}, which is the hour a client shows before it is
-   * told, and keeps every test that is not about the time off the wall clock.
-   */
   private readonly clock: () => MinutesOfDay;
   private readonly plateCells = new Map<string, Coord>();
-  /**
-   * Cells holding a placement wired to a signal channel — emitters and
-   * receivers alike, since reading a channel means finding both. Same index
-   * discipline as {@link plateCells}.
-   */
   private readonly wiredCells = new Map<string, Coord>();
-  /**
-   * Cells holding a gravity body no runtime drives — a crate, a barrel. The
-   * settle pass drops these; an actor animates its own fall and is excluded by
-   * its owner. Same index discipline as {@link plateCells}.
-   */
   private readonly looseGravityCells = new Map<string, Coord>();
-  /**
-   * Placements counting down to becoming something else, or to nothing.
-   *
-   * Its own object rather than another cell index beside the three above,
-   * because it is the one that carries a *clock*: the others answer "which
-   * cells are worth re-reading" and this one also answers "when". Same index
-   * discipline all the same — {@link reindexCells} is what arms it, so any new
-   * site that places a tile has to reindex the cell or that tile never ages.
-   *
-   * Assigned in the constructor rather than here, because it draws its lifetimes
-   * from {@link rng} and a field initialiser would run before that exists.
-   */
   private readonly decay: DecayIndex;
-  /**
-   * Cells holding a placement that puts a status on its own stack — a flame on
-   * grass. Same index discipline as {@link plateCells}.
-   *
-   * Indexed rather than swept because a source keeps working for as long as it
-   * is there: unlike a decay, which fires once, a flame keeps adding to the burn
-   * on the ground under it for as long as it stands. Asking is one stack read a
-   * tick, and this is what keeps it to one read per flame in the world rather
-   * than one per cell.
-   */
   private readonly afflictCells = new Map<string, Coord>();
-  /**
-   * Placements being worn down by the statuses running on them.
-   *
-   * Its own object beside {@link decay} and for the same reason: it carries a
-   * clock the tick has to wind, and it is not a question about which cells are
-   * worth re-reading. Unlike every index above it, **nothing seeds it at load** —
-   * a pool opens the first time something is actually inflicted, so a world full
-   * of trees nobody has set fire to costs it nothing.
-   *
-   * Assigned in the constructor rather than here, because it draws its durations
-   * from {@link rng}.
-   */
   private readonly endure: EndureIndex;
-  /**
-   * The status catalogue, as authored. Keyed by id and never mutated.
-   *
-   * Handed in beside the tiles because it is the same kind of thing — authored
-   * content the session reads and never writes — and an empty one is a world
-   * where nothing has statuses, which is exactly what every test that does not
-   * care about them wants.
-   */
   private readonly statusDefs: Record<string, StatusDef>;
-  /**
-   * Whose statuses have moved in a way anybody could see, waiting to be
-   * announced.
-   *
-   * A fourth queue beside the kit, the tags and the experience, and it earns one
-   * for a reason none of those had: those three change when somebody *does*
-   * something, and this changes on its own, every tick, for as long as anything
-   * is running. So the queue is filled from a **reading** rather than from the
-   * fact of a change — see `./statuses`'s `statusReading` — which is what turns
-   * thirty announcements a second into about one.
-   */
   private readonly statusesChanged = new Set<string>();
-  /**
-   * What each actor's statuses last read as, so the queue above can tell a
-   * change worth announcing from a countdown ticking inside the same second.
-   *
-   * Cleared with the actor, or it would grow with everybody who has ever
-   * connected.
-   */
   private readonly statusReadings = new Map<string, string>();
-  /** Map identity the last settle pass read. See {@link settleBoardNow}. */
   private settledMap: MapFile | null = null;
   private accumulatorMs = 0;
-  /**
-   * Simulated milliseconds banked towards the next second of stone cooldown.
-   *
-   * On the session rather than per actor because every stone in the world cools
-   * at the same rate: one clock, drained a whole step at a time, keeps every
-   * cooldown in the world in phase and costs one addition per tick.
-   * @see advanceStoneCooldowns
-   */
   private stoneClockMs = 0;
-  /**
-   * The world's dice, shared by every brain in it.
-   *
-   * One stream rather than one per creature, which makes actor order part of
-   * what makes a world reproducible — the same order that already decides who
-   * wins a contested cell.
-   */
   private readonly rng: Rng;
-  /** Time towards the next round of decisions. See {@link BRAIN_TICK_MS}. */
   private brainAccumulatorMs = 0;
-  /**
-   * Where the dozing budget picks up next round. See {@link tickBrains}.
-   *
-   * A plain count of turns handed out, taken modulo however many creatures are
-   * dozing that round: the pool changes as people move, so this is fair over
-   * time rather than exact, and exactness would cost a stable list nobody
-   * else needs.
-   */
   private dozeCursor = 0;
-  /**
-   * What creatures said this tick, waiting to be broadcast.
-   *
-   * Emptied at the top of every tick and refilled by whatever brains say during
-   * it, so it only ever holds the current tick's speech. The server drains it
-   * after the tick and turns each line into the same chat a player sends; a
-   * session running with no wire — offline `/play` — simply never drains it, and
-   * the per-tick reset keeps that from leaking. Speech stays an online-only
-   * thing, as {@link getSnapshot} already declares.
-   */
   private pendingSpeech: ChatBubble[] = [];
-  /** Ticks up per line, so two things said in one tick are two bubbles. */
   private nextSpeechId = 0;
-  /**
-   * What has been said *to* the world since the brains last had a turn.
-   *
-   * The mirror of {@link pendingSpeech}, and the reason it is a separate list
-   * rather than the same one: that holds what creatures said and empties every
-   * tick on its way to the wire, while this holds what people said and empties
-   * on the slower brain clock, because a brain that ticks once per six ticks
-   * would otherwise miss five sixths of everything shouted at it.
-   *
-   * Held only until the next round of decisions. An utterance is an event, not a
-   * state of the world: a creature hears a thing said once, and a word left
-   * lying here would be heard again by whoever ticks next.
-   */
   private pendingHeard: Utterance[] = [];
-  /**
-   * Who has hit whom since the brains last had a turn, as `target -> attackers`.
-   *
-   * The exact counterpart of {@link pendingHeard}, cleared on the same slower
-   * clock and for the same reason: a brain gets one chance to notice a blow, and
-   * a blow left lying here would be noticed again by whoever ticks next. Indexed
-   * by target because that is the only question ever asked of it — "was I hit,
-   * and by whom" — and a flat list would mean every creature walking every blow
-   * struck anywhere in the world.
-   */
   private pendingHurt = new Map<string, string[]>();
-  /**
-   * Every sound made since the brains last had a turn, oldest first.
-   *
-   * The third of the same family as {@link pendingHeard} and
-   * {@link pendingHurt}, on the same slower clock and emptied for the same
-   * reason: a noise is an event, and one left lying here would be heard again by
-   * whoever ticks next.
-   *
-   * **Handed over at the top of the pass rather than cleared at the bottom**,
-   * which is the one way it differs from those two, and the difference is about
-   * where the events come from. A word is said by a player and a blow is usually
-   * thrown by one, so both are already on the page before any brain wakes up. A
-   * sound is overwhelmingly made by a *brain*, on its way into a state — so
-   * clearing at the bottom would mean a creature ticking before the howler heard
-   * the howl and one ticking after did not, and which of those you are is the
-   * order of a Map. Taking the batch first costs one brain tick of delay and
-   * buys the whole pack hearing the same thing. @see tickBrains
-   *
-   * Not {@link pendingNoise}, which looks like it and is not. That one empties
-   * every tick on its way to the wire, so a brain ticking once per six ticks
-   * would miss five sixths of everything the world made a sound about — the
-   * exact reason speech needed a second list too. This one also carries who made
-   * the sound, which the wire deliberately does not. @see NoiseEmission
-   */
   private pendingSound: Sound[] = [];
-  /**
-   * The round of decisions being taken, while it is spread over the ticks it
-   * covers — null between rounds.
-   *
-   * A round used to be taken whole on the tick it fell due, which put every
-   * awake creature's thinking on one tick in six. With a hundred players spread
-   * over the map that tick ran three times over its budget while the five
-   * between idled, and the lateness showed as a stutter every fifth of a second.
-   * So the round is decided on the tick it falls due — who is awake, whose
-   * dozing turn it is, and what was said, struck and heard — and then its turns
-   * are taken a share per tick until it is done. @see tickBrains
-   *
-   * What a round delivers is fixed when it is planned: speech, blows and sounds
-   * are taken off their pages then, so everything that happens while it is
-   * being worked through is the next round's to hear, exactly as a sound made
-   * during a round always was. @see pendingSound
-   */
   private brainRound: BrainRound | null = null;
-  /**
-   * Damage dealt this tick, waiting to be broadcast. Drained by the server
-   * exactly as {@link pendingSpeech} is, and emptied at the top of every tick so
-   * a session with no wire cannot accumulate it.
-   */
   private pendingDamage: DamageNumber[] = [];
-  /**
-   * Damage still on screen, aged down by the tick loop.
-   *
-   * Separate from {@link pendingDamage} because the two answer different
-   * questions: that one is "what happened in the last tick", which the wire
-   * wants once, and this is "what a viewer should still be able to see", which
-   * outlives it by a couple of seconds. Both are fed by the same blow.
-   */
   private liveDamage: DamageNumber[] = [];
-  /**
-   * Shots loosed this tick, waiting to be broadcast. Drained by the server
-   * exactly as {@link pendingDamage} is, and emptied at the top of every tick so
-   * a session with no wire cannot accumulate it.
-   */
   private pendingProjectiles: ProjectileFlight[] = [];
-  /**
-   * Tiles that formed or dissolved this tick for a reason worth playing.
-   *
-   * Drained and forgotten, and **never aged here**: how far along a transition
-   * is belongs to whoever draws it. A visual timer on this side would keep the
-   * world ticking — brains, settle, checkpoints — for something nobody can be
-   * hurt by. See `../lib/tileTransition`.
-   */
   private pendingTransitions: TileTransitionNote[] = [];
   private nextTransitionId = 0;
-  /**
-   * The same notes, kept for a viewer on this machine — offline `/play`.
-   *
-   * Separate from {@link pendingTransitions} because that one is emptied at the
-   * top of every tick, and a local viewer advances by {@link update}, which can
-   * run several ticks between two frames — and a cast lands between ticks
-   * altogether. A server's session fills it and never takes from it, which
-   * is harmless only because it is capped at `MAX_HELD_TRANSITIONS`.
-   */
   private heldForViewer: TileTransitionNote[] = [];
-  /**
-   * Arrows still in the air, aged down by the tick loop.
-   *
-   * The same pair {@link pendingDamage} and {@link liveDamage} make, for the
-   * same reason: one answers "what happened in the last tick" and the other
-   * "what a viewer should still be able to see". A flight outlives its tick by
-   * however long it takes to arrive.
-   */
   private liveProjectiles: ProjectileFlight[] = [];
-  /**
-   * The effects flights are playing — a muzzle, a landing — aged by the same
-   * loop.
-   *
-   * No pending twin, unlike {@link liveProjectiles}: nothing announces one,
-   * because nothing has to. The flight was announced when it was loosed and
-   * names the projectile it came out of, so every client works the effects out
-   * for itself from what it was already told. @see `./projectile`
-   */
   private liveFlightEffects: FlightEffect[] = [];
-  /** Ticks up per shot, so two arrows in one tick are two flights. */
   private nextProjectileId = 0;
-  /**
-   * Blows already rolled, waiting for the thing that depicts them to arrive.
-   *
-   * **This is where a slow arrow costs its target time rather than nothing.**
-   * The dice are still read on the tick the shot is loosed — see `./projectile`
-   * for why the outcome cannot wait for a flight drawn on somebody's render
-   * loop — but what the dice *came to* is held here until the arrow lands, so
-   * the receipt floats off a body at the moment the arrow reaches it, and a
-   * lobbed stone hurts later than a loosed arrow.
-   *
-   * A closure rather than a record of the blow, and the two are not close: what
-   * is deferred is the tail of {@link tryAttack} and the tail of
-   * {@link castBolt}, which between them move health, grant statuses, pay both
-   * sides of a fight and start a dodge. A record would be a second description
-   * of all of that, written beside the first and free to disagree with it.
-   *
-   * **Nothing here holds an `ActorRuntime`.** Every one of these outlives at
-   * least one tick of a board that can kill either end, so a closure re-asks
-   * {@link actors} for the bodies it needs and does nothing when they have gone.
-   *
-   * Wound down at the top of the tick by the same `tickMs` {@link ageProjectiles}
-   * winds the flights down by, which is what keeps the two in step: a blow
-   * queued for a flight's own `durationMs` lands on the tick that flight lands
-   * on, and neither can drift ahead of the other.
-   */
   private blowsInFlight: BlowInFlight[] = [];
-  /**
-   * Sentences waiting to be told to the people they are about.
-   *
-   * Addressed rather than broadcast, and that is what makes it a list of pairs
-   * rather than a list of lines: "you open the chest" is true of exactly one
-   * body in the room, and everybody else watching would be told about a chest
-   * they can still open themselves.
-   *
-   * A line queued for somebody who has just disconnected waits here until they
-   * come back and drain it, which is the right answer rather than a leak: they
-   * *did* take the reward, and being told on the next visit is still being told.
-   * Ids are stable per player, so the wait ends.
-   */
   private readonly pendingNotices: { actorId: string; text: string }[] = [];
-  /** Ticks up per blow, so two hits in one tick are two numbers. */
   private nextDamageId = 0;
-  /**
-   * Noises made this tick, waiting to be broadcast. Drained by the server
-   * exactly as {@link pendingDamage} is.
-   */
   private pendingNoise: NoiseEmission[] = [];
-  /**
-   * Whoever went through a teleport this tick, by id.
-   *
-   * Queued rather than diffed, on the same terms a blow is: a trip leaves no
-   * lasting state to compare two readings of — the body is simply somewhere
-   * else, which the cell patches already say. What the ids carry is the one
-   * thing the board cannot: that a client's guess about this body is void.
-   */
   private pendingTeleports: string[] = [];
-  /**
-   * Everybody who threw a blow this tick.
-   *
-   * Ids alone, because the only thing anybody does with one is start a clock
-   * whose length the receiver can already work out — a body's recovery is a
-   * body's walk, and both sides read that off the tile. @see drainSwings
-   */
   private pendingSwings: string[] = [];
-  /**
-   * Noises still on screen, aged down by the tick loop.
-   *
-   * The pair works the way damage's does rather than the way speech's does, and
-   * the difference is the point: speech is broadcast and forgotten by the
-   * session, so it never appears offline, while a noise is world-legible the
-   * way a damage number is and a single-player world has every right to hear
-   * one. A snake hissing in `/play` is the case that settles it.
-   */
   private liveNoise: NoiseEmission[] = [];
-  /** Ticks up per noise, so two in one tick are two labels. */
   private nextNoiseId = 0;
-  /**
-   * Who died this tick, waiting to be noticed.
-   *
-   * The session cannot act on a death beyond removing the body and putting what
-   * it carried on the floor — whether the connection behind it is kept out of
-   * the world afterwards is the server's question, and this is how it hears
-   * about one. Drained like speech and damage; a session with no wire never
-   * asks.
-   */
   private pendingDeaths: Death[] = [];
-  /**
-   * Who moved where they come back to this tick, waiting to be written down.
-   *
-   * The same shape of queue {@link pendingDeaths} is and for the same reason:
-   * the session can hold the fact but cannot make it durable, and the row that
-   * *is* the answer belongs to the server. Drained rather than diffed, on a
-   * death's terms — a caller that dropped one would leave a player's stored door
-   * disagreeing with the one they were told about.
-   *
-   * At most one entry per actor per drain, because a second press in the same
-   * tick lands on a mark the first one already moved and is refused for it.
-   */
   private pendingSpawnMarks: { actorId: string; at: Coord }[] = [];
-  /**
-   * The creature-driven emitters the last settle pass saw, as a signature.
-   *
-   * A brain entering or leaving a state that holds a channel changes nothing on
-   * the map — the body has not moved — so the map-identity skip in
-   * {@link settleBoardNow} would sail straight past it and the door would never
-   * hear. This is the other half of that skip: when the minds driving the wires
-   * change, the pass runs even though the board looks untouched.
-   */
   private settledEmitters = "";
 
-  /**
-   * The world and its content are positional because there is no world without
-   * them; everything else is optional and lives in one object. It used to be
-   * four trailing positionals, and by the time statuses needed one the calls
-   * that wanted only the last of them were writing `undefined` three times.
-   */
   constructor(
     map: MapFile,
     tiles: TileDef[],
@@ -2708,48 +770,17 @@ export class GameSession implements PlaySession {
       statuses: statusDefs = {},
       clock = () => DEFAULT_PLAY_MINUTES,
     }: {
-      /**
-       * Actors to start with. The default adopts the authored `player` tile as
-       * a single local actor, which is what `/play` wants; pass an empty array
-       * to open an empty world and {@link spawn} into it.
-       */
       actorIds?: readonly string[];
-      /**
-       * What to call the actors above, by id. Anybody left out is nameless,
-       * which is what `/admin/play`'s single local body is — there is no
-       * character table behind an offline session to ask. @see `./displayName`
-       */
       names?: Readonly<Record<string, string>>;
-      /**
-       * Where actors enter. Omit for an authored map, and it is read from the
-       * `player` tile, which is then consumed — adopted by the first actor or
-       * removed. **Required when resuming a map that has already been run**,
-       * because that map no longer has a marker to read: it was consumed the
-       * first time. Rediscovering it is impossible, so it has to be carried
-       * alongside.
-       */
       spawnAt?: Coord & { stackIndex: number };
-      /**
-       * Where the world's dice start. Carried in the checkpoint for the same
-       * reason `spawnAt` is — resuming from the opening seed would replay the
-       * wander the world had already played. Omit for a fresh world.
-       */
       seed?: number;
-      /**
-       * The status catalogue, keyed by id — see `../lib/status`. Omit for a
-       * world where nothing has statuses, which is every test not about them.
-       */
       statuses?: Record<string, StatusDef>;
-      /** What the world's clock reads now. @see GameSession.clock */
       clock?: () => MinutesOfDay;
     } = {},
   ) {
     this.clock = clock;
     this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
-    // The combat flag's def is the engine's, and a session built from a bare
-    // catalogue — a test fixture, a tool — must still know it: an unknown def
-    // is dropped on the next tick, and the flag with it.
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
@@ -2760,10 +791,6 @@ export class GameSession implements PlaySession {
       for (const id of actorIds) this.spawn(id, { name: names[id] ?? null });
     } else {
       this.spawnAt = spawnPoint(this.map);
-      // The first actor adopts the authored tile rather than spawning beside
-      // it, so a single-actor session is the map it was handed, tagged — the
-      // tile keeps its slot in the stack, and with it the elevation it stands
-      // at.
       const [first, ...rest] = actorIds;
       if (first === undefined) {
         this.map = removeAuthoredPlayer(this.map);
@@ -2777,17 +804,10 @@ export class GameSession implements PlaySession {
       for (const id of rest) this.spawn(id, { name: names[id] ?? null });
     }
 
-    // After the connecting actors, and before anything reads the board: a
-    // resident is on the map whether or not anybody is here to see it.
     this.adoptResidents();
 
-    // Before anything can pick one up, and idempotent against a resumed world
-    // whose items were minted the last time it loaded.
     this.map = mintItemIds(this.map, this.tilesById);
 
-    // A checkpoint can only have been written while somebody was mid-pull, and
-    // there is nobody mid-anything in a world that is only now starting. Left
-    // in, those holds would be held by nobody for ever.
     this.map = clearExtractReservations(this.map);
 
     for (const cell of findPlateCells(this.map, this.tilesById)) {
@@ -2802,32 +822,12 @@ export class GameSession implements PlaySession {
     for (const cell of findAfflictCells(this.map, this.tilesById)) {
       this.afflictCells.set(cellKey(cell), cell);
     }
-    // Authored decay starts counting from the moment the world opens, which is
-    // also how a resumed one recovers: the deadlines were never checkpointed,
-    // so whatever is on the board gets a fresh lifetime rather than none.
     for (const cell of findDecayCells(this.map, this.tilesById)) {
       this.decay.armCell(this.map, cell, this.tilesById);
     }
-    // An authored map opens in the state its load implies — a boulder already
-    // sitting on a plate means that plate starts pressed, not pressed one tick
-    // after the player first sees it, and the door that plate drives starts
-    // open.
     this.settleBoardNow();
   }
 
-  /**
-   * Give every body that lives in the map an actor to drive it.
-   *
-   * Placing the tile is the whole of putting an NPC in the world — there is no
-   * spawner and nothing to author beyond the placement itself. Idempotent
-   * against a resumed world: a body that already carries an owner keeps it and
-   * only gains its runtime back, because re-minting would hand the same
-   * creature a second identity and leave the first one on the board forever.
-   *
-   * The locations are read once, up front, and stayed reliable while the loop
-   * rewrites the map: adoption only ever writes an owner onto a placement, so
-   * nothing moves out from under the scan.
-   */
   private adoptResidents() {
     for (const body of listResidentBodies(this.map, this.tilesById)) {
       const owner = body.placed.owner ?? residentOwnerId(body);
@@ -2844,16 +844,7 @@ export class GameSession implements PlaySession {
     id: string,
     opts: {
       resident?: boolean;
-      /**
-       * What this body is called. Omitted for a creature, and for a player in
-       * the offline session, where there is no character table to ask.
-       */
       name?: string | null;
-      /**
-       * The tile of the body this actor is being seated in, which is what its
-       * kit is rolled from — see {@link rollKit}. Omit only where there is
-       * genuinely no body to name, which is nowhere today.
-       */
       bodyTileId?: string;
       carrying?: Equipment;
       tagged?: readonly string[];
@@ -2861,52 +852,22 @@ export class GameSession implements PlaySession {
       statuses?: readonly StatusInstance[];
       hp?: number;
       spawnAt?: Coord;
-      /** Whether this player was fighting other players. @see ActorRuntime.pvp */
       pvp?: boolean;
-      /** Whether this body starts hidden. @see ActorRuntime.hidden */
       hidden?: boolean;
     } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
-    // **Everybody gets a kit, and it comes from the body they are in.** It used
-    // to be "people get a starting bag, creatures get nothing", on the grounds
-    // that a backpack per deer is a bag to seat, checkpoint and diff for
-    // nothing. What changed is that a creature's kit is now something an author
-    // asked for — a rat with meat on it is why you fight a rat — so the cost is
-    // being paid for a reason, and only where a kit was actually authored.
-    //
-    // A returning player brings their own, already checked against the tiles
-    // this world has now — see `restoredEquipment`. It is not merged with the
-    // rolled one: coming back with a bag *and* a fresh one is a bag from
-    // nowhere, once per reconnect.
     const equipment =
       opts.carrying ?? (opts.bodyTileId ? this.rollKit(opts.bodyTileId) : emptyEquipment());
-    // The kit's first and only arming that does not go through
-    // {@link setEquipment}: a returning player's berries have been ripening in
-    // storage as far as they know, and start their lifetime again here.
     this.decay.armEquipment(equipment, this.tilesById);
     const actor: ActorRuntime = {
       id,
       name: opts.name ?? null,
       resident,
       equipment,
-      // Null rather than armed, so a body wearing a charm on arrival waits a
-      // whole interval before its first tick. @see ActorRuntime.charmClock
       charmClock: null,
       carriedLights: carriedLightTileIds(equipment, this.tilesById),
-      // Not checked against the world the way a kit is. A kit names things that
-      // have to still exist; a tag names something that *happened*, and a reward
-      // whose tile the author has since deleted is still a chest this player
-      // opened. Forgetting it would hand them the next version of it twice.
       tags: opts.tagged ?? NO_TAGS,
-      // Seeded lazily rather than here, for the reason `hp` is: the authored
-      // masteries live on the body, and at this moment the actor may have no
-      // body on the board to read one from. A returning player brings theirs.
-      //
-      // Checked rather than trusted, and `hasExperience` says why: an empty
-      // block is not a body with nothing learnt, it is one nobody has asked
-      // about — and passing it through would defeat the seeding below and hand
-      // somebody a body with half the hit points and no evasion.
       masteryXp: resident || !hasExperience(opts.earned) ? null : opts.earned,
       earnedBody: null,
       defensiveDecay: null,
@@ -2918,47 +879,20 @@ export class GameSession implements PlaySession {
       brainAttentive: false,
       conversation: null,
       home: residentHome(id),
-      // The server's to supply and the server's to keep — see
-      // {@link ActorRuntime.spawnMark}. Null for a resident and for any world
-      // with no storage behind it, both of which read the same way: the first
-      // press moves a mark nobody was holding.
       spawnMark: opts.spawnAt ?? null,
-      // Restored where a returning player had any, and null otherwise — null
-      // still means "ask the tile", which is what a fresh body and every
-      // creature in the world wants. A stored zero would be a corpse, so it
-      // floors at one: nothing should ever write one, because a death takes the
-      // actor off the board rather than leaving it at nothing, and this is a
-      // path whose whole job is bringing somebody back.
       hp: opts.hp === undefined ? null : Math.max(1, opts.hp),
-      // Whatever was still running when they left, frozen for exactly as long as
-      // they were away. A resident is handed nothing: its statuses are rebuilt
-      // from the tile like its brain, since a world nobody is looking at owes no
-      // continuity and a key per creature would spend the storage ceiling on
-      // remembering that a deer is uninjured.
       statuses: resident ? NO_STATUSES : (opts.statuses ?? NO_STATUSES),
-      // Zero rather than a full period, so a body placed straight into a fire
-      // waits the whole interval for its second helping — the first is the
-      // arrival's, which `arriveIn` grants.
       standingStatusMs: 0,
       attackCooldownMs: 0,
       attackRecoveryMs: 0,
-      // Nobody, so the first thing this body comes into reach of is an approach
-      // it pays for — see {@link ActorRuntime.windup}.
       windup: null,
-      // And therefore nothing to say about a next blow: an unengaged body has no
-      // wait to report. @see {@link ActorRuntime.nextBlow}
       nextBlow: null,
-      // Every spell ready, on the terms the swing cooldown above starts at
-      // zero: a body arriving in the world is a body that has not cast yet.
       spellCooldownMs: {},
       extraction: null,
       casting: null,
       targetId: null,
       attacking: false,
-      // Off unless the world remembers otherwise, which is the state a body
-      // nobody can hurt is in. @see ./pvp
       pvp: opts.pvp ?? false,
-      // Never a creature: nothing that has no owner can be anybody's secret.
       hidden: !resident && opts.hidden === true,
       input: { directions: [] },
       walk: null,
@@ -2973,150 +907,52 @@ export class GameSession implements PlaySession {
     return actor;
   }
 
-  /**
-   * What a body of this kind is born carrying, rolled on the world's dice.
-   *
-   * The dice are the session's rather than `Math.random()` for the reason every
-   * other draw here uses them: two worlds on one seed have to agree about what
-   * the wolf was carrying as well as about which way it walked. It is also what
-   * makes a kit assertable in a test without reaching for a mock.
-   */
   private rollKit(bodyTileId: string): Equipment {
     return equipmentForBody(bodyTileId, this.tilesById, () => this.rng.next());
   }
 
-  /**
-   * The kit the world hands somebody it has never met — and hands them again
-   * after a death, since as far as their pockets are concerned that is what
-   * they now are.
-   *
-   * Exposed because the server writes that second one down: a death deletes the
-   * runtime that would otherwise have rolled it. See `GameServer.saveActors`.
-   */
   startingKit(): Equipment {
     return this.rollKit(PLAYER_TILE_ID);
   }
 
-  /**
-   * Drop the tile index, to be rebuilt on the next question that needs it.
-   *
-   * Called from the three places that add or remove an actor, and from nowhere
-   * else — see {@link tileIndex} for why that is the complete list.
-   */
   private forgetTileIndex() {
     this.tileIndex = null;
   }
 
-  /**
-   * Put an actor on the board.
-   *
-   * Idempotent against the *map*, not just the actor table: a resumed world
-   * already holds the tiles of everyone who was standing in it, and minting a
-   * second body for them would leave one behind forever — `despawn` only ever
-   * removes one. So an actor who already has a tile is re-seated on it, keeping
-   * where they were rather than being sent back to spawn.
-   *
-   * No reindex: an actor tile is never a plate and never wired, so which cells
-   * carry those is unchanged. Arriving on a plate still presses it — the map
-   * identity changed, so the next {@link settleBoardNow} will not skip.
-   *
-   * Everything a returning player brings back with them is one object, because
-   * that is what it is: seven facts about the same person, restored together or
-   * not at all. Omit it entirely for somebody the world has never met.
-   */
   spawn(
     id: string,
     restored: {
-      /**
-       * What this character is called — typed once at creation and never
-       * changed, so it is restored beside the rest rather than kept in step.
-       * Omit for the offline session, whose one player has no account behind
-       * them. @see `./displayName`
-       */
       name?: string | null;
-      /**
-       * Where this actor was standing the last time anyone saw them. Consulted
-       * only when they have no tile on the board — a body already in the map is
-       * more recent than any memory of one — and honoured only if it still has
-       * room for them; see {@link findEntryCell}.
-       */
       at?: Coord & { direction?: Direction };
-      /**
-       * What they had on them, already checked against this world's tiles — see
-       * `restoredEquipment`. Omit for somebody new, who gets the starting kit.
-       */
       carrying?: Equipment;
-      /** Which rewards they have taken. Omit and they are owed all of them. */
       tagged?: readonly string[];
-      /**
-       * What they have learnt. Omit for somebody new, whose masteries are seeded
-       * from the authored block on the body they arrive in.
-       */
       earned?: MasteryXp;
-      /** What was still running on them, frozen for as long as they were away. */
       statuses?: readonly StatusInstance[];
-      /** What health they were on. Omit for a body that comes back full. */
       hp?: number;
-      /**
-       * Where this player has asked to come back, if they have moved it. The
-       * session's copy of the server's `spawn:` row, and the only thing it is
-       * ever read for is deciding whether a press on a marker would change
-       * anything — see {@link ActorRuntime.spawnMark}. Omit for somebody the
-       * world remembers nothing about.
-       */
       spawnAt?: Coord;
-      /**
-       * Whether this player had opted into fighting other players. Omit for
-       * somebody the world remembers nothing about, who arrives with it off.
-       * @see `./pvp`
-       */
       pvp?: boolean;
-      /**
-       * Whether this body arrives hidden. The server decides, off the role on
-       * the socket. @see ActorRuntime.hidden
-       */
       hidden?: boolean;
     } = {},
-    {
-      /**
-       * Whether a body placed here is an arrival, and plays its way in.
-       * False for a re-seat onto a board the editor just replaced: nobody
-       * arrived, and the editor saves constantly.
-       */
-      announce = true,
-    }: { announce?: boolean } = {},
+    { announce = true }: { announce?: boolean } = {},
   ) {
     if (this.actors.has(id)) return;
     const { at } = restored;
-    // Only a body that was not on the board arrives. A wake re-seats
-    // somebody onto the body the checkpoint kept, which nobody saw leave.
     let where: (Coord & { stackIndex: number }) | null = findActorAnywhere(this.map, id);
     if (!where) {
       const cell = at ? findEntryCell(this.map, this.tilesById, at, this.spawnAt) : this.spawnAt;
       const stackIndex = getStack(this.map, cell.x, cell.y, cell.z).length;
       this.map = spawnActor(this.map, id, cell, at?.direction);
-      // Nobody sees a hidden body arrive, so there is no way in to play.
       if (announce && !restored.hidden) {
         this.noteTransition("appear", PLAYER_TILE_ID, cell, stackIndex);
       }
       where = { x: cell.x, y: cell.y, z: cell.z, stackIndex };
     }
     this.addActor(id, { ...restored, bodyTileId: PLAYER_TILE_ID });
-    // Where the body is, known here for nothing, so the first question asked
-    // about it — the `hello` that follows every join asks at once — is one
-    // stack read rather than a second sweep of the board. @see tryLocate
     const actor = this.actors.get(id)!;
     const placed = actorStillAt(this.map, id, where);
     if (placed) this.remember(actor, placed);
   }
 
-  /**
-   * Where an actor is standing right now, and which way they are facing.
-   *
-   * Null rather than a throw when nobody by that name is on the board: both
-   * callers are persistence and cleanup, and neither has anything useful to do
-   * with an exception.
-   */
   actorPosition(id: string): ActorPosition | null {
     const actor = this.actors.get(id);
     if (!actor) return null;
@@ -3130,21 +966,8 @@ export class GameSession implements PlaySession {
     };
   }
 
-  /**
-   * Remove the bodies of actors nobody is driving.
-   *
-   * A world resumed from a checkpoint carries whoever was standing in it, and
-   * some of those connections are gone — they died while the object was
-   * evicted, so no close ever ran for them. Called with the set that is
-   * genuinely connected.
-   */
   reapAbsentActors(present: Iterable<string>) {
     const live = new Set(present);
-    // Residents are nobody's connection, so they are absent from every list of
-    // who is connected — reaping on that alone would clear the world of its
-    // wildlife on the first wake after an eviction. Read off the board rather
-    // than tracked beside it, and by the same rule adoption uses, so the two
-    // cannot come to disagree about what a resident is.
     const residents = new Set(
       listResidentBodies(this.map, this.tilesById)
         .map((body) => body.placed.owner)
@@ -3156,59 +979,25 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Take an actor off the board. Their tile goes with them, and a plate they
-   * were holding down releases on the next tick by the same identity check.
-   */
   despawn(id: string) {
-    // Before the delete, or the reading is left behind for somebody who is no
-    // longer here — and a returning actor would then be compared against what
-    // they were under last time and told nothing.
     this.statusReadings.delete(id);
     this.statusesChanged.delete(id);
-    // Before the delete too, and for a sharper reason: a body that leaves the
-    // board holding one of a vein's pulls holds it for ever, because there is
-    // nothing left to wind the clock that would have given it back.
     const leaving = this.actors.get(id);
     if (!leaving) return;
     this.cancelExtraction(leaving);
-    // Nothing to hand back, unlike the pull above — a cast holds no reservation
-    // and has spent nothing — but the run is dropped with the body all the same,
-    // so a player who reconnects is not mid-spell in a world they have left.
     this.cancelCasting(leaving);
     this.forgetWalk(leaving);
     this.actors.delete(id);
-    // Found before the tile comes off, which is the only record of where it
-    // stood — and a player leaving is their body going, which plays its way out.
     const loc = this.tryLocate(leaving);
     this.forgetTileIndex();
     if (loc && !leaving.hidden) {
       this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
     }
-    // Taken off the cell just located rather than by `despawnActor`, which
-    // sweeps the whole board to find the same body again. The sweep is for a
-    // body this session cannot find, and that is the only case it is left for.
     this.map = loc
       ? removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex)
       : despawnActor(this.map, id);
   }
 
-  /**
-   * Grow back what was authored at a spawn point, if it is still owed.
-   *
-   * Done means this deadline is spent — the point is filled, something grew,
-   * or nothing ever will — and the server can drop it. One call grows one
-   * placement, so a point authored with several identical objects refills one
-   * per window: the growth itself changes the cell, and the server's
-   * changed-cell sweep is what notices the count is still short and arms the
-   * next.
-   *
-   * A tile that has left the catalogue reads as settled, not as a retry: no
-   * amount of waiting authors it back, and the registry is rebuilt from the
-   * catalogue on the next save anyway.
-   *
-   * See {@link RespawnOutcome} for what the two answers oblige the caller to.
-   */
   respawnAt(point: SpawnPoint): RespawnOutcome {
     if (isSpawnFilled(this.map, point)) return { kind: "done" };
     const def = this.tilesById[point.placed.tileId];
@@ -3218,11 +1007,6 @@ export class GameSession implements PlaySession {
       return { kind: "blocked" };
     }
 
-    // A respawned item is a new item — the authored placement carries no ids
-    // (see `authoredPlacement`). Minted here rather than left to the sweep
-    // below because the id is half the answer: a point that knows which thing
-    // it grew can tell that thing going stale where it stands from somebody
-    // carrying it off, and one that knows only a tile id cannot.
     const itemId = isItem(def) ? mintItemId() : undefined;
     const stackIndex = getStack(this.map, x, y, z).length;
     this.map = appendTile(this.map, x, y, z, {
@@ -3230,21 +1014,14 @@ export class GameSession implements PlaySession {
       ...(itemId ? { itemId } : {}),
       ...(point.ownerId ? { owner: point.ownerId } : {}),
     });
-    // Still swept, for what the placement is *holding*: a respawned chest
-    // arrives full of anonymous contents, which need identities of their own.
     this.map = mintItemIds(this.map, this.tilesById);
     this.noteTransition("appear", def.id, point.cell, stackIndex);
-    // A body that grew back rolls its kit again, on the same terms its hit
-    // points are rebuilt from the tile: what respawned is a new creature, not
-    // the one that died holding what it was holding.
     if (point.ownerId && !this.actors.has(point.ownerId)) {
       this.addActor(point.ownerId, {
         resident: true,
         bodyTileId: point.placed.tileId,
       });
     }
-    // What grew back may be a plate's load, a wire's emitter or a decaying
-    // tile, so the cell's indexes are rebuilt exactly as they are after a kill.
     this.reindexCells([point.cell]);
     return { kind: "done", ...(itemId ? { itemId } : {}) };
   }
@@ -3253,133 +1030,42 @@ export class GameSession implements PlaySession {
     return [...this.actors.keys()];
   }
 
-  /**
-   * Whether this session still has a body for an id.
-   *
-   * Exists because a caller holding an id across a tick cannot assume it is
-   * still there: a death removes the runtime, and so does a world being
-   * replaced. Everything else that reaches for an actor throws when it is gone,
-   * which is right for the paths that genuinely require one — this is for the
-   * paths that are asking.
-   */
   hasActor(id: string): boolean {
     return this.actors.has(id);
   }
 
-  /**
-   * Whether this actor is a body the world owns rather than one a person drives.
-   *
-   * The distinction the server needs is "where does this actor come back from".
-   * A resident is on the board — adopted out of the map when a session opens —
-   * so the checkpointed board already says where it is. A player is not: their
-   * tile is consumed at spawn and their position is only recoverable from what
-   * was written down about them. See `GameServer.saveActors`, which is the one
-   * caller and writes a position row for the second kind only.
-   *
-   * False for nobody by that name, on the same grounds the accessors above
-   * return null: an actor who is not here is not a resident of anywhere.
-   */
   isResident(id: string): boolean {
     return this.actors.get(id)?.resident === true;
   }
 
-  /**
-   * What one actor is carrying, or null when nobody by that name is here.
-   *
-   * Null rather than an empty kit, because the two mean different things to the
-   * server: an actor with nothing is somebody to send an empty inventory to,
-   * and an actor who has died or never joined is somebody to send nothing at
-   * all. Only the server asks — a local viewer reads theirs off the snapshot.
-   */
   equipmentOf(id: string): Equipment | null {
     return this.actors.get(id)?.equipment ?? null;
   }
 
-  /**
-   * How long each of this body's own spells has left before it may be cast
-   * again, or null for nobody by that name.
-   *
-   * Sent beside the kit and for the kit's reason — see {@link setEquipment}'s
-   * queue: both are "what this caster can press right now", both are addressed
-   * to one socket, and only the owner's row draws either. Nobody else's spell
-   * cooldowns are drawn, on exactly the grounds nobody else's inventory is.
-   *
-   * The live record rather than a copy, on {@link equipmentOf}'s terms: the one
-   * consumer serializes it immediately.
-   */
   spellCooldownsOf(id: string): Readonly<Record<string, number>> | null {
     return this.actors.get(id)?.spellCooldownMs ?? null;
   }
 
-  /**
-   * Which rewards one actor has already taken, or null for nobody by that name.
-   *
-   * Null rather than an empty list on the same grounds {@link equipmentOf}
-   * returns it: "here and owed everything" and "not here at all" are different
-   * answers to the server, and only one of them is worth writing down.
-   */
   tagsOf(id: string): readonly string[] | null {
     return this.actors.get(id)?.tags ?? null;
   }
 
-  /**
-   * The pull one actor is part-way through, or null.
-   *
-   * The held object rather than a fresh read of the map, on
-   * {@link ActorRuntime.extraction}'s terms: this is on the snapshot, so it is
-   * asked every frame and its identity is what tells the renderer anything
-   * moved.
-   *
-   * Null for nobody by that name, which {@link equipmentOf} and {@link tagsOf}
-   * distinguish and this does not: a stranger is working nothing and so is
-   * somebody standing still, and there is nothing a caller could usefully do
-   * with the difference.
-   */
   extractionOf(id: string): Extraction | null {
     return this.actors.get(id)?.extraction?.progress ?? null;
   }
 
-  /**
-   * The wait before one actor's next blow, or null for a body with none.
-   *
-   * Beside {@link extractionOf} and handing back the live object for the same
-   * reason: identity is what the broadcast diffs on, so a copy made here would
-   * be a message every tick. @see {@link ActorRuntime.nextBlow}
-   */
   nextBlowOf(id: string): Progress | null {
     return this.actors.get(id)?.nextBlow ?? null;
   }
 
-  /**
-   * What one actor has learnt, or null for a body that does not learn.
-   *
-   * Null covers three cases the server treats alike — nobody by that name, a
-   * creature, and a player nothing has yet asked about — because all three come
-   * to the same thing when the question is "is there anything here worth writing
-   * down".
-   *
-   * The live object rather than a copy, on the same terms {@link equipmentOf}
-   * hands back the live kit. Whoever makes it durable copies it on the way out.
-   */
   masteryXpOf(id: string): MasteryXp | null {
     return this.actors.get(id)?.masteryXp ?? null;
   }
 
-  /**
-   * Where actors enter. Must be carried alongside any map this session is
-   * checkpointed into — see the constructor.
-   */
   getSpawnPoint(): Coord & { stackIndex: number } {
     return this.spawnAt;
   }
 
-  /**
-   * The dice as they stand, to be handed back to the constructor on resume.
-   *
-   * Must be checkpointed alongside the map: restoring a world from the seed it
-   * opened with would replay the wander it had already played, which is the one
-   * thing a fresh draw exists to avoid.
-   */
   getSeed(): number {
     return this.rng.save();
   }
@@ -3390,13 +1076,9 @@ export class GameSession implements PlaySession {
     return actor;
   }
 
-  /** Keep every cell index true for cells whose stack just changed. */
   private reindexCells(cells: Iterable<Coord>) {
     for (const cell of cells) {
       const key = cellKey(cell);
-      // Before the membership checks, and additive rather than a set/delete
-      // pair like the rest: the index holds a deadline, not a fact about the
-      // board, and the ones already in it are the ones that must not be reset.
       this.decay.armCell(this.map, cell, this.tilesById);
       if (cellHasPlate(this.map, cell, this.tilesById)) {
         this.plateCells.set(key, cell);
@@ -3421,28 +1103,10 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Bring the board in line with itself: unsupported bodies drop, then plates
-   * follow what now rests on them, then receivers follow the channels those
-   * plates drive.
-   *
-   * Gravity first, and all in the same tick, so a crate whose floor was pulled
-   * lands and presses its plate — and opens the door that plate drives — on the
-   * frame the floor goes rather than a tick later, one settle bleeding into the
-   * next.
-   *
-   * The skip is on map identity, not a dirty flag: the map is copy-on-write, so
-   * an unchanged map cannot have changed a plate's load or a channel's value.
-   * The identity recorded is the one read *before* the pass, which is what lets
-   * a swap that shifts another plate's load — or drives another channel —
-   * settle on the next tick rather than being mistaken for a board at rest.
-   */
   private settleBoardNow() {
     const before = this.map;
     const emitters = this.actorEmitters();
     const emitterSig = this.emitterSignature(emitters);
-    // Two ways the board can owe a pass: the map changed, or a mind driving a
-    // wire did. The second leaves no trace on the map, so it needs its own say.
     if (before === this.settledMap && emitterSig === this.settledEmitters) return;
     this.settledMap = before;
     this.settledEmitters = emitterSig;
@@ -3475,19 +1139,9 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Where an actor is, without sweeping the map unless they actually moved.
-   *
-   * A single tick can rewrite the map several times — commit a step, then
-   * settle a plate under it — and every rewrite makes the memo stale. Nearly
-   * all of those edits leave the actor exactly where they were, so confirming
-   * the one cell is enough; only a real relocation costs more.
-   */
   private tryLocate(actor: ActorRuntime): ActorLocation | null {
     const memo = actor.memo;
     if (memo?.map === this.map) return memo.loc;
-    // An edit elsewhere on the board: the chunk this body stands in is the same
-    // object, so the body is too. @see ActorRuntime.memo
     if (memo?.chunk && this.map.levels[memo.levelKey]?.[memo.chunkKey] === memo.chunk) {
       memo.map = this.map;
       return memo.loc;
@@ -3498,7 +1152,6 @@ export class GameSession implements PlaySession {
     return loc;
   }
 
-  /** Record where an actor stands on the current map. @see ActorRuntime.memo */
   private remember(actor: ActorRuntime, loc: ActorLocation) {
     const zk = levelKey(loc.z);
     const ck = chunkKeyFor(loc.x, loc.y);
@@ -3517,24 +1170,10 @@ export class GameSession implements PlaySession {
     return loc;
   }
 
-  /** Where a body is, in the terms reach is measured in. @see `./combat`'s `reachPointAt` */
   private reachPointOf(loc: ActorLocation) {
     return reachPointAt(this.map, this.tilesById, loc);
   }
 
-  /**
-   * Where a body's shots leave from and land, in the terms a flight is drawn in.
-   *
-   * {@link reachPointOf} with the body's own height folded in — see
-   * `./projectile`'s {@link FLIGHT_BODY_SHARE}. Its own method rather than a
-   * flag on that one, because the two answer different questions and only one
-   * of them is a claim about the fight: reach is measured between the surfaces
-   * two bodies stand on, and nothing here may move it.
-   *
-   * The height falls back to a whole level for a body whose tile the catalogue
-   * has lost, on the terms `../render/GameRenderer` picks one for a status
-   * plume: a flight still has to leave from somewhere.
-   */
   private flightPointOf(loc: ActorLocation): FlightPoint {
     const point = this.reachPointOf(loc);
     const body = this.tilesById[loc.placed.tileId];
@@ -3549,7 +1188,6 @@ export class GameSession implements PlaySession {
     this.actor(id).input = input;
   }
 
-  /** Advance by real-time `dtMs`, running fixed ticks. */
   update(dtMs: number) {
     this.accumulatorMs += dtMs;
     const maxCatchUp = TICK_MS * 10;
@@ -3561,17 +1199,7 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Single fixed tick.
-   *
-   * Actors move in insertion order, and that order is load-bearing: two actors
-   * stepping into the same cell on the same tick resolve by it, so a stable
-   * order is what makes a tick reproducible rather than dependent on which
-   * message happened to arrive first.
-   */
   tick(tickMs: number = TICK_MS) {
-    // Last tick's speech has been broadcast or discarded; this tick starts with
-    // an empty page, so anything left undrained cannot pile up.
     this.pendingSpeech = [];
     this.pendingDamage = [];
     this.pendingNoise = [];
@@ -3583,103 +1211,37 @@ export class GameSession implements PlaySession {
     this.ageNoises(tickMs);
     this.ageProjectiles(tickMs);
 
-    // Before the cooldowns and before anything swings, because a status is the
-    // one thing here that can change the numbers the rest of the tick is fought
-    // with — and because a poison that kills on this tick should take its bearer
-    // off the board before they get a swing out of it.
     this.tickStatuses(tickMs);
 
-    // Before anything swings, so a body whose cooldown expires on this tick can
-    // spend it on this tick — whether the swing comes from a brain below or from
-    // somebody's target above.
     this.advanceCooldowns(tickMs);
-    // Beside them, and before the swings for the same reason: a lean that is up
-    // this tick has to be gone before a body is given the chance to start
-    // another one.
     this.tickStrikes(tickMs);
-    // And straight after them, which is the one place in the tick a blow held
-    // behind an arrow can land without owing anything back: the leans have just
-    // been aged, so a dodge this starts gets its whole hop; the brains have not
-    // run, so a body told it was hit still answers on this tick; and the
-    // statuses above have had their turn, so a venom that arrives here waits a
-    // tick before it bites, exactly as one from a melee blow does.
     this.landArrivedBlows(tickMs);
-    // Beside the cooldowns, because it is the same kind of thing: a countdown
-    // somebody spent by swinging, winding back down while they do not.
     this.recoverDefensiveDecay(tickMs);
-    // And beside that, for the same reason it sits here: a body that stopped
-    // swinging has to fall out of the crowd it was part of before anybody rolls
-    // against a guard the crowd is no longer pressing on.
     this.forgetSpentAssailants(tickMs);
-    // And beside those, before anything is cast: a stone whose last second runs
-    // out on this tick is ready on this tick, whether the press comes from a
-    // player below or from a charm that fires on its own.
     this.advanceStoneCooldowns(tickMs);
-    // Beside them, and on the same tick: a worn charm counts in its own clock
-    // rather than in a stone's cooldown. @see tickCharms
     this.tickCharms(tickMs);
 
-    // Before the bodies move, so a decision taken now starts its walk on this
-    // tick rather than the next.
-    // Before the brains, so a partner who walked off this tick is gone by the
-    // time a `talking` condition asks.
     this.tickConversations();
     this.tickBrains(tickMs);
 
-    // After the brains, so a creature that decided to close the distance this
-    // tick is not also hit by a player's auto-attack before it has moved.
     this.runAutoAttacks();
 
     for (const actor of this.actors.values()) {
-      // Independent of the actor: a shoved object keeps travelling whatever
-      // they do next.
       this.tickSlide(actor, tickMs);
       this.tickMotion(actor, tickMs);
     }
-    // After the bodies have moved, so a body that stepped off a flame on this
-    // tick is not handed one more helping of a cell it has left — and after the
-    // arrival that step already fired, which zeroed the clock, so the two can
-    // never land in the same tick. @see tickStandingStatuses
     this.tickStandingStatuses(tickMs);
-    // Before the settle, so a body that rots away this tick drops whatever was
-    // resting on it and releases whatever plate it held on the same frame,
-    // rather than one settle bleeding into the next.
     this.decay.advance(tickMs);
     this.applyDueDecay();
-    // After the decay and before the settle, on exactly the decay's terms: a
-    // tree that burns down this tick drops whatever was resting on it and
-    // releases whatever plate it held on the same frame. Afflicting first, so a
-    // flame conjured this tick sets its ground alight this tick rather than a
-    // tick late.
     this.tickAfflictions(tickMs);
     this.applyWornThrough(tickMs);
 
-    // After the bodies and after decay, so a pull knows whether the person
-    // making it moved and whether the thing they were working is still there.
-    // @see advanceExtractions
     this.advanceExtractions(tickMs);
-    // Beside the pulls and after them, on the same argument: a cast that lands
-    // this tick is resolved against the board the tick leaves behind, so the
-    // crate somebody dropped in front of the caster is in the way of the flame
-    // rather than in the way of the next one. @see advanceCastings
     this.advanceCastings(tickMs);
 
-    // Last, and once for the whole board: plates and channels answer to the
-    // board the tick leaves behind, not to any particular actor having caused
-    // it. Running this per actor would settle the same plates N times.
     this.settleBoardNow();
   }
 
-  /**
-   * Turn everything whose time is up, and re-arm what it turned into.
-   *
-   * The two halves are applied apart because they are addressed apart: a
-   * placement is turned where it stands, and a thing is turned wherever it has
-   * got to — see `./decay`. Both feed one reindex, and the kits one
-   * {@link setEquipment} each, which is what starts the next leg of a chain:
-   * blood to a stain to nothing, a berry to a rotten one to nothing, with no
-   * chain to author beyond each tile naming the next.
-   */
   private applyDueDecay() {
     const due = this.decay.takeDue();
     if (due.length === 0) return;
@@ -3690,8 +1252,6 @@ export class GameSession implements PlaySession {
     const turned = applyDecay(this.map, placements, this.tilesById);
     this.map = turned.map;
     const changed = turned.changed;
-    // The old tile plays out and what it became plays in, at the one slot the
-    // swap happened in — each only if that tile has the side authored.
     for (const swap of turned.turned) {
       this.noteTransition("disappear", swap.tileId, swap.cell, swap.fromIndex);
       if (swap.into) {
@@ -3699,9 +1259,6 @@ export class GameSession implements PlaySession {
       }
     }
 
-    // Only when something carried is actually due: this pass walks the whole
-    // board looking for the things it names, and a tick where only blood dried
-    // has no reason to pay for that.
     if (items.length > 0) {
       const rotted = applyItemDecay(
         this.map,
@@ -3720,34 +1277,13 @@ export class GameSession implements PlaySession {
     this.reindexCells(changed);
   }
 
-  /**
-   * Set alight whatever is standing in a cell with a source in it, and keep it
-   * alight while the source stays.
-   *
-   * One stack read per source in the world per tick, which is what
-   * {@link afflictCells} exists to bound — a map with three braziers on it pays
-   * for three, not for the map.
-   *
-   * **The ground is treated as a body standing in the fire**: it catches on
-   * contact and takes another helping every `STANDING_STATUS_EVERY_MS`, the
-   * cadence {@link tickStandingStatuses} holds a body to, so `burned` stacks on
-   * the grass under a flame exactly as it does on somebody standing in one. The
-   * clock is `./endure`'s `hold`, which is what keeps this at one roll of the
-   * world's dice per helping rather than one per tick.
-   */
   private tickAfflictions(tickMs: number) {
     if (this.afflictCells.size === 0) return;
     for (const cell of this.afflictCells.values()) {
-      // Two sources of one status in a cell — a flame conjured onto a brazier —
-      // are one fire to the ground under them. Holding it twice would run its
-      // clock at double speed.
       const held = new Set<string>();
       for (const source of afflictionsFrom(this.map, cell, this.tilesById)) {
         if (held.has(source.statusId)) continue;
         held.add(source.statusId);
-        // A status the catalogue has not got is an affliction that does not
-        // happen, on exactly `grantStatus`'s terms: renamed content costs one
-        // effect rather than stopping the world.
         const def = this.statusDefs[source.statusId];
         if (!def) continue;
         for (const sufferer of sufferersIn(this.map, cell, source.statusId, this.tilesById)) {
@@ -3766,16 +1302,6 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Wind every pool down, turn what has been worn through, and pass on what is
-   * left of the status that did it.
-   *
-   * The order is load-bearing in one place: **the shares are worked out against
-   * the map as it was *before* the swap.** A tree that burns down is still in
-   * its cell when its neighbours are counted, which does not matter for its own
-   * cell — that is never a share target — but does for a stack of two burning
-   * things, where turning one first would change what the other divides by.
-   */
   private applyWornThrough(tickMs: number) {
     const consumed = this.endure.advance(tickMs, this.statusDefs);
     if (consumed.length === 0) return;
@@ -3787,20 +1313,6 @@ export class GameSession implements PlaySession {
     this.reindexCells(turned.changed);
   }
 
-  /**
-   * Hand what is left of a finished status to the neighbours that can take it.
-   *
-   * **Divided, never copied** — see `./endure`'s `spreadShares` for why that one
-   * choice is what keeps a forest fire bounded. The share arrives as an explicit
-   * range with equal ends, which is what `applyStatus`'s `range` parameter is
-   * for and costs exactly one draw, so a fire's spread perturbs the world's dice
-   * by a predictable amount rather than by however many trees it happened to
-   * find.
-   *
-   * The cause and the elements travel with it, which is the whole of how an
-   * arcanist is paid for a forest: the burn that kills a rat three trees away
-   * still names whoever cast the first flame. @see awardCausedDamage
-   */
   private spreadFrom(consumed: Consumed) {
     const def = this.statusDefs[consumed.statusId];
     if (!def) return;
@@ -3819,14 +1331,6 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Is anybody here to see it?
-   *
-   * Brains run only while somebody is connected, and this is the whole test:
-   * every actor is either somebody's connection or lives in the map, so "a
-   * non-resident exists" is "a player is present" without the session needing
-   * to know a socket from a hole in the ground.
-   */
   private observed(): boolean {
     for (const actor of this.actors.values()) {
       if (!actor.resident) return true;
@@ -3834,25 +1338,8 @@ export class GameSession implements PlaySession {
     return false;
   }
 
-  /**
-   * Let every brain decide, at its own slower cadence.
-   *
-   * Frozen while nobody is connected, and that is a cost decision rather than a
-   * fiction about the world: the tick loop keeps a Durable Object out of
-   * hibernation, so a single deer on a five-second timer would hold an empty
-   * world awake forever, for nobody. What freezes is *deciding* — a body
-   * already mid-step finishes it, because `isAtRest` waits on motion and a step
-   * abandoned halfway would checkpoint a creature between two cells, which the
-   * whole simulation is written to make impossible.
-   *
-   * The accumulator is drained rather than reset, so the phase of the brain
-   * clock survives a quiet spell instead of restarting on the next join.
-   */
   private tickBrains(tickMs: number) {
     if (!this.observed()) {
-      // Nobody here to have said it, and nobody left to hear it. Dropping the
-      // page rather than keeping it is what stops a word shouted on the way out
-      // of the door from greeting the next person to walk in.
       this.pendingHeard = [];
       this.pendingHurt.clear();
       this.pendingSound = [];
@@ -3863,34 +1350,13 @@ export class GameSession implements PlaySession {
     this.brainAccumulatorMs += tickMs;
     if (this.brainAccumulatorMs >= BRAIN_TICK_MS) {
       this.brainAccumulatorMs -= BRAIN_TICK_MS;
-      // Whatever the last round left undone is taken now rather than dropped.
-      // It only happens when a round covers fewer ticks than it was split over,
-      // which the accumulator's rounding can do once in a long while.
       if (this.brainRound) this.takeBrainTurns(this.brainRound, Infinity);
       this.brainRound = this.planBrainRound();
     }
     if (this.brainRound) this.takeBrainTurns(this.brainRound, this.brainRound.perTick);
   }
 
-  /**
-   * Decide who thinks this round, and take what they will hear off the pages.
-   *
-   * Two kinds of creature, and the split is what keeps a round's cost a
-   * function of who is here rather than of how big the world is. A creature
-   * somebody could notice — anybody within the furthest distance its brain
-   * ever asks about, or within a screen — thinks every round, so every authored
-   * chase, flight and investigation is exactly what it was. Everybody else is
-   * dozing: still on the clock, but given a turn only as the budget comes round
-   * to them. @see BRAIN_DOZE_BUDGET
-   */
   private planBrainRound(): BrainRound {
-    // Taken before anybody decides anything, so a howl made during this round
-    // is next round's business for every ear alike. @see pendingSound
-    //
-    // Speech and blows are taken the same way, which is what lets a round be
-    // spread over several ticks: one word reaches every ear this round, and a
-    // blow struck while the round is under way is noticed next round rather
-    // than by only the creatures whose turns had not come yet.
     const round: BrainRound = {
       turns: [],
       next: 0,
@@ -3908,9 +1374,6 @@ export class GameSession implements PlaySession {
     const dozing: ActorRuntime[] = [];
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
-      // Written down rather than only branched on: a standing walk order is
-      // pressed at the tick rate, and this is the flag that decides whether a
-      // dozing creature's is. @see ActorRuntime.brainAttentive
       actor.brainAttentive = this.attentive(actor, players, round.hurt);
       if (actor.brainAttentive) {
         round.turns.push({ actor, tickMs: BRAIN_TICK_MS + actor.brainDeferredMs });
@@ -3928,14 +1391,6 @@ export class GameSession implements PlaySession {
     return round;
   }
 
-  /**
-   * Take up to `count` of a round's turns, and close the round when none are
-   * left.
-   *
-   * A creature that has left the board since the round was planned — killed
-   * by a blow on one of the ticks in between — is passed over: the turn was for
-   * a body that is no longer there.
-   */
   private takeBrainTurns(round: BrainRound, count: number) {
     const stop = Math.min(round.turns.length, round.next + count);
     for (; round.next < stop; round.next++) {
@@ -3946,42 +1401,14 @@ export class GameSession implements PlaySession {
     if (round.next >= round.turns.length && this.brainRound === round) this.brainRound = null;
   }
 
-  /**
-   * Somebody said something out loud, for any brain near enough to notice.
-   *
-   * The server's to call, on the same message it broadcasts as chat — this is
-   * the simulation's copy of it, and the only reason the simulation gets one.
-   * Words that no creature is listening for cost a push and a clear.
-   *
-   * Deliberately not called for {@link recordSpeech}: creatures do not hear each
-   * other *speak*. They do hear each other's noises, which is a different
-   * channel and a deliberate difference — a hiss is a sound the room heard and
-   * every animal in it is entitled to react, while an NPC's line is addressed to
-   * somebody and putting it in every brain's ear would have a shopkeeper's
-   * greeting summon a wolf. @see recordNoise
-   */
   hear(speakerId: string, text: string) {
     if (this.isConcealed(speakerId)) return;
     this.pendingHeard.push({ speakerId, text });
   }
 
-  /**
-   * Talk to a body, press a choice, take or refuse a trade, or close the
-   * panel — the player's side of a conversation.
-   *
-   * Every verb re-asks what the client already checked, on the terms every
-   * other message is: reach for an `open`, and for a press that there is a
-   * conversation and a button at that position. A press on a stale panel —
-   * the def reloaded, the button gone — is refused rather than guessed at,
-   * and the client learns what is there from the next `conversation`.
-   *
-   * True when the conversation changed, which is what the wire sends on.
-   */
   talk(action: TalkAction, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor) return false;
-    // Closing is the one press left to a body that cannot act, because it is
-    // the one that asks nothing of it.
     if (action.kind !== "close" && this.incapacitated(actor)) return false;
     if (action.kind === "open") return this.openTalk(actor, action.ref);
     if (action.kind === "close") return this.setConversation(actor, null);
@@ -3989,8 +1416,6 @@ export class GameSession implements PlaySession {
     const current = actor.conversation;
     if (!current) return false;
     const dialog = this.dialogOf(current.npcId);
-    // The NPC is gone or has stopped being one that talks: the panel closes
-    // rather than answering out of a def that no longer exists.
     if (!dialog) return this.setConversation(actor, null);
 
     const view = this.partnerViewFor(actor);
@@ -4015,12 +1440,6 @@ export class GameSession implements PlaySession {
     return this.setConversation(actor, openConversation(dialog, body, view));
   }
 
-  /**
-   * The body standing at this slot, if it is one the runtime drives.
-   *
-   * Read off the placement's owner rather than searched for, because a
-   * placement's owner *is* the actor's id — see `adoptResidents`.
-   */
   private npcAt(ref: ObjectRef): ActorRuntime | null {
     const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
     if (!placed?.owner) return null;
@@ -4032,13 +1451,6 @@ export class GameSession implements PlaySession {
     return npc ? resolveDialog(this.defFor(npc)) : null;
   }
 
-  /**
-   * Replace an actor's conversation and note the change for the wire.
-   *
-   * Replaced wholesale rather than mutated, on the kit's terms: the object
-   * goes out on a snapshot and identity is what tells whoever is drawing it
-   * that something moved. Closing an already closed one is not a change.
-   */
   private setConversation(actor: ActorRuntime, next: Conversation | null): boolean {
     if (actor.conversation === next) return false;
     actor.conversation = next;
@@ -4046,20 +1458,10 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * End every conversation whose partner has walked out of talking reach, or
-   * whose NPC has gone.
-   *
-   * Every tick rather than on the brain's cadence, so a panel closes the
-   * moment the player has left rather than a few steps later — and silently,
-   * because walking away is its own goodbye.
-   */
   private tickConversations() {
     for (const actor of this.actors.values()) {
       const current = actor.conversation;
       if (!current) continue;
-      // Either side becoming unable to act ends it, on walking away's terms:
-      // nobody is left to answer, or nobody is left to ask.
       const npc = this.actors.get(current.npcId);
       const bothAct = !this.incapacitated(actor) && !(npc && this.incapacitated(npc));
       if (bothAct && this.withinTalkReach(actor, current.npcId)) continue;
@@ -4076,7 +1478,6 @@ export class GameSession implements PlaySession {
     return canTalkFrom(this.map, this.tilesById, mine, theirs);
   }
 
-  /** Is anybody talking to this body? What the brain's `talking` reads. */
   private anyoneTalkingTo(npcId: string): boolean {
     for (const actor of this.actors.values()) {
       if (actor.conversation?.npcId === npcId) return true;
@@ -4084,18 +1485,10 @@ export class GameSession implements PlaySession {
     return false;
   }
 
-  /** One actor's conversation, for the socket that is theirs. */
   conversationOf(id: string): Conversation | null {
     return this.actors.get(id)?.conversation ?? null;
   }
 
-  /**
-   * Whose conversation has changed since last asked, and forget.
-   *
-   * Its own queue beside the kit's and the tags', on the same argument: the
-   * server sends each of these to one socket, and a conversation that
-   * changed is one whose owner needs the whole of it again.
-   */
   drainConversationChanges(): string[] {
     if (this.conversationChanged.size === 0) return [];
     const changed = [...this.conversationChanged];
@@ -4103,11 +1496,6 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
-  /**
-   * What a press may ask of this partner. Every answer is a rule that lives
-   * elsewhere — `./trade`, the tag list, the status list — asked here so the
-   * dialog step never holds a kit.
-   */
   private partnerViewFor(partner: ActorRuntime): PartnerView {
     return {
       name: () => this.bodyName(partner.id),
@@ -4115,20 +1503,6 @@ export class GameSession implements PlaySession {
     };
   }
 
-  /**
-   * Run an option's effects on the partner, all or none.
-   *
-   * Planned in full before anything is written: every trade is worked out
-   * against the kit the one before it leaves, and a status has to be one the
-   * catalogue holds. Only then does the kit change, once, and the statuses and
-   * tags land beside it — so an option that both takes payment and grants a
-   * status cannot take the payment and fail the status.
-   *
-   * A status nobody authored refuses here where a potion's grant is skipped
-   * silently, because a drink still did something — it was spent — and an
-   * option whose whole point was the status did nothing at all. Saying `else`
-   * is the honest reading.
-   */
   private attemptDialogEffects(actorId: string, effects: readonly DialogEffectDef[]): boolean {
     const partner = this.actors.get(actorId);
     if (!partner) return false;
@@ -4149,7 +1523,6 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /** The non-kit half of an effect, once the whole list is known to run. */
   private applyDialogEffect(partner: ActorRuntime, effect: DialogEffectDef) {
     if (effect.effect === "add_status") {
       this.grantStatus(partner, { id: effect.statusId });
@@ -4164,19 +1537,12 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Take one status off a body, if it is under it.
-   *
-   * Replaced wholesale on the terms `applyStatus` replaces, so the list going
-   * out on a snapshot changes identity; noted for the same reason a grant is.
-   */
   private clearStatus(actor: ActorRuntime, statusId: string) {
     if (!actor.statuses.some((s) => s.defId === statusId)) return;
     actor.statuses = actor.statuses.filter((s) => s.defId !== statusId);
     this.noteStatusReading(actor);
   }
 
-  /** Take off everything authored to end on damage. Noted like any removal. */
   private endStatusesOnDamage(actor: ActorRuntime) {
     const statuses = endOnDamage(actor.statuses, this.statusDefs);
     if (statuses === actor.statuses) return;
@@ -4184,19 +1550,10 @@ export class GameSession implements PlaySession {
     this.noteStatusReading(actor);
   }
 
-  /**
-   * Whether anything on this body stops it acting. Every gate on what a body
-   * does asks this. @see `./statuses`' `incapacitated`
-   */
   private incapacitated(actor: ActorRuntime): boolean {
     return incapacitated(actor.statuses, this.statusDefs);
   }
 
-  /**
-   * Can this body see that cell? Its own height decides what it sees over, so
-   * a person clears the crates a rat has to walk around. Shared by the brain
-   * and the dialog, so the two never disagree about a wall.
-   */
   private canSeeFrom(actor: ActorRuntime, loc: ActorLocation, at: Coord): boolean {
     return hasLineOfSight(
       this.map,
@@ -4207,15 +1564,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * The dozing creatures' share of the round: the next `BRAIN_DOZE_BUDGET` of
-   * them in turn, each handed the time it slept through.
-   *
-   * Round-robin from {@link dozeCursor}, so over enough rounds every one of
-   * them gets its turn at the same rate — the rate being the pool's size over
-   * the budget, which is the one place the size of the world reaches a round.
-   * The creatures passed over bank the round they missed instead.
-   */
   private planDozing(dozing: readonly ActorRuntime[], round: BrainRound) {
     if (dozing.length === 0) return;
     const turns = Math.min(BRAIN_DOZE_BUDGET, dozing.length);
@@ -4232,21 +1580,6 @@ export class GameSession implements PlaySession {
     this.dozeCursor = start + turns;
   }
 
-  /**
-   * Could anybody notice this creature right now?
-   *
-   * Yes when a player stands within the furthest distance its own brain ever
-   * asks about — see `brainReach` — or within a screen of it, whichever is
-   * further, on any level: a creature can be seen down a hole and cannot see
-   * further than it is authored to. And yes when something has just hit it,
-   * because a blow is an event the next round delivers and dozing through it
-   * would drop it rather than delay it — a rat being eaten by a troll in the
-   * dark still gets to flinch.
-   *
-   * Measured as a square rather than in steps, which is a superset of every
-   * distance a condition reckons in. Being generous here costs a turn; being
-   * mean would cost a creature its chance to notice somebody.
-   */
   private attentive(
     actor: ActorRuntime,
     players: readonly PlanCoord[],
@@ -4264,13 +1597,11 @@ export class GameSession implements PlaySession {
     return false;
   }
 
-  /** The furthest distance this body's brain ever asks about, or zero. */
   private reachOf(def: TileDef): number {
     const brain = resolveBrain(def);
     return brain ? brainReach(brain) : 0;
   }
 
-  /** Where every connected person is standing, on the plan. */
   private playerPlans(): PlanCoord[] {
     const out: PlanCoord[] = [];
     for (const actor of this.actors.values()) {
@@ -4282,42 +1613,19 @@ export class GameSession implements PlaySession {
   }
 
   private tickOneBrain(actor: ActorRuntime, round: BrainRound, tickMs: number) {
-    // Nothing left to decide with. An actor outlives its body for as long as it
-    // takes something to notice — a creature killed by a status, or one that
-    // fell out of the world — and until then it is still in {@link actors} and
-    // still comes round in the doze budget. Asked through `tryLocate` on
-    // exactly the terms {@link buildTileIndex} and {@link attentive} ask, both
-    // of which have always skipped a body that is not on the board.
     const loc = this.tryLocate(actor);
     if (!loc) return;
-    // A body that cannot act does not think either: the brain is not stepped,
-    // so its clocks stop with it and it picks up where it left off. Its
-    // standing order is dropped, so it does not walk the moment it can.
     if (this.incapacitated(actor)) {
       actor.walkOrder = null;
       return;
     }
 
-    // A body with no brain, or one whose authored brain did not hold together,
-    // simply stands there. Resolving is memoised on def identity, so asking
-    // every tick costs a map lookup rather than a parse.
     const brain = resolveBrain(this.defFor(actor));
     if (!brain) return;
 
     actor.brain ??= initialMemory(brain);
-    // Before anything decides anything: a standing order is worth exactly one
-    // round unless this turn asks for it again, so a creature that has
-    // transitioned out of chasing stops rather than walking out a plan the
-    // state that wanted it has left. @see ActorRuntime.walkOrder
     actor.walkOrder = null;
-    // A creature with no stat block minds its own floor, which is what every
-    // creature did before this was authorable.
     const sight = this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight;
-    // The board is walked to answer a `thing` selector, so the same question
-    // asked twice on one turn — once by the condition that noticed the bush and
-    // once by the bind that commits to it — is answered once. Per turn rather
-    // than per tick of the world: what it caches is a fact about the board that
-    // a creature's own step can change.
     const thingsFound = new Map<string, FoundThing | null>();
     const reach = brainReach(brain);
     stepBrain(brain, actor.brain, tickMs, {
@@ -4335,9 +1643,6 @@ export class GameSession implements PlaySession {
         return found;
       },
       thingStillThere: (at, tileId) => this.thingStillThere(at, tileId),
-      // Null for a hidden body, which is what makes a chase already bound to
-      // somebody who has just gone hidden give up rather than carry on towards
-      // them. @see ActorRuntime.hidden
       positionOf: (id) => (this.isConcealed(id) ? null : this.actorCell(id)),
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       wouldStepIntoHazard: (direction) => this.stepLandsInHazard(actor, loc, direction),
@@ -4366,18 +1671,6 @@ export class GameSession implements PlaySession {
     });
   }
 
-  /**
-   * What a creature calls somebody it is talking about.
-   *
-   * `bodyNameFor`'s answer and nobody else's, which is the point of routing it
-   * here rather than deriving a name inside the brain: the words in a bubble and
-   * the label over the head they are about have to agree, and the moment there
-   * are two ways to name a body they will not.
-   *
-   * Null once they are gone — off the board, or never here. A line naming
-   * somebody who left still has to be a sentence, so what to say instead is the
-   * brain's decision and not this one's.
-   */
   private bodyName(id: string): string | null {
     const actor = this.actors.get(id);
     if (!actor) return null;
@@ -4386,17 +1679,6 @@ export class GameSession implements PlaySession {
     return bodyNameFor({ tileId: loc.placed.tileId, name: actor.name }, this.tilesById);
   }
 
-  /**
-   * Note something a creature said, at the cell it said it in.
-   *
-   * Sanitised here, once, on the same terms a player's message is — so an NPC
-   * cannot say anything a person could not, and the bubble a viewer sees is the
-   * bubble the rules allow. A line that survives to nothing is simply not
-   * recorded; an authored `!` always will.
-   *
-   * Pinned to the cell and the stack slot, like every bubble, so it hangs over
-   * the ground the creature stands on rather than over its own head.
-   */
   private recordSpeech(actor: ActorRuntime, loc: ActorLocation, raw: string) {
     const text = sanitizeChatText(raw);
     if (!text) return;
@@ -4413,21 +1695,7 @@ export class GameSession implements PlaySession {
     });
   }
 
-  /**
-   * Note a noise something made, at the cell it was made in.
-   *
-   * Sanitised on exactly the terms speech is — a noise is drawn text, and text
-   * that cannot be drawn is a hole rather than a character somebody is missing.
-   * A line that survives to nothing is simply not recorded.
-   *
-   * Pushed to both lists at once, the way a blow is: the pending one is what the
-   * wire wants once, and the live one is what a viewer should still be able to
-   * see two seconds from now. That second list is what makes a noise audible in
-   * a single-player world, where speech never has been.
-   */
   private recordNoise(sourceId: string, loc: ActorLocation, raw: string) {
-    // Not drawn for anybody and not heard by anything: a crunch at a cell is
-    // somebody standing there. @see ActorRuntime.hidden
     if (this.isConcealed(sourceId)) return;
     const text = sanitizeChatText(raw);
     if (!text) return;
@@ -4442,14 +1710,9 @@ export class GameSession implements PlaySession {
     };
     this.pendingNoise.push(noise);
     this.liveNoise.push(noise);
-    // A third list, and the only one that knows who made the sound. Nothing
-    // drawn is told — that is the whole of what keeps a crunch from arriving as
-    // "Amethyst Piranha says: crunch" — but a creature going to look for it
-    // needs somebody to walk towards. @see Sound
     this.pendingSound.push({ sourceId, text });
   }
 
-  /** Age the noises out, on the tick clock like every other timer. */
   private ageNoises(tickMs: number) {
     if (this.liveNoise.length === 0) return;
     let expired = false;
@@ -4462,101 +1725,42 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Every noise made this tick, handed over and forgotten.
-   *
-   * The server's to call, right after {@link tick} and alongside
-   * {@link drainSpeech}. Unlike speech, not draining it is harmless beyond the
-   * wire: the live list is what a local viewer reads, and it ages out on its
-   * own.
-   */
   drainNoise(): NoiseEmission[] {
     const made = this.pendingNoise;
     this.pendingNoise = [];
     return made;
   }
 
-  /**
-   * Everything a creature said this tick, handed over and forgotten.
-   *
-   * The server's to call, right after {@link tick}: it broadcasts each line to
-   * the level it was said on, exactly as a player's chat. Nobody else calls it,
-   * and the next tick would clear the list regardless — draining is how the
-   * speech reaches a wire, not how it is kept from piling up.
-   */
   drainSpeech(): ChatBubble[] {
     const said = this.pendingSpeech;
     this.pendingSpeech = [];
     return said;
   }
 
-  /**
-   * Everything that took a blow this tick, handed over and forgotten.
-   *
-   * The server's to call, right after {@link tick}, exactly as
-   * {@link drainSpeech} is. A session with no wire — offline `/play` — never
-   * drains it, and the per-tick reset keeps that from leaking; the numbers a
-   * local viewer sees come from {@link getSnapshot} instead.
-   */
   drainDamage(): DamageNumber[] {
     const dealt = this.pendingDamage;
     this.pendingDamage = [];
     return dealt;
   }
 
-  /**
-   * Every shot loosed this tick, handed over and forgotten.
-   *
-   * The server's to call, right after {@link tick}, exactly as
-   * {@link drainDamage} is. An offline `/play` never drains it and reads
-   * {@link liveProjectiles} through {@link getSnapshot} instead — the same split
-   * damage numbers are under.
-   */
   drainProjectiles(): ProjectileFlight[] {
     const loosed = this.pendingProjectiles;
     this.pendingProjectiles = [];
     return loosed;
   }
 
-  /**
-   * Every tile that formed or dissolved this tick for a reason worth playing,
-   * handed over and forgotten.
-   *
-   * The server's to call, right after {@link tick}, exactly as
-   * {@link drainProjectiles} is. Reset at the top of every tick, so a session
-   * nobody drains cannot pile them up.
-   */
   drainTransitions(): TileTransitionNote[] {
     const happened = this.pendingTransitions;
     this.pendingTransitions = [];
     return happened;
   }
 
-  /**
-   * The viewer's hand-over. @see PlaySession.takeTransitions
-   *
-   * Age zero, because a local viewer takes these every frame from a world that
-   * only moves when that viewer is drawing.
-   */
   takeTransitions(): HeldTransition[] {
     const taken = this.heldForViewer.map((note) => ({ note, ageMs: 0 }));
     this.heldForViewer = [];
     return taken;
   }
 
-  /**
-   * Queue a transition, if the tile has that side authored.
-   *
-   * **Raised only where something that was not on the board now is, or
-   * something that was has gone of its own accord**: a conjure, `/tile`, a
-   * respawn and a player arriving for an appear; a death or a player
-   * leaving for a disappear; a decay for either. Never for a thing that moved — a drop, a pickup, loot falling
-   * out of a kit, gravity — because it existed all along.
-   *
-   * **Opt-in is decided here, on the server**, so a tile with nothing authored
-   * costs the wire nothing — which is what keeps a fight's worth of drying blood
-   * from becoming a fight's worth of events.
-   */
   private noteTransition(side: TransitionSide, tileId: string, cell: Coord, stackIndex: number) {
     if (!transitionOf(this.tilesById[tileId], side)) return;
     const note: TileTransitionNote = {
@@ -4575,29 +1779,6 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Play an arrow's hit on the body it struck.
-   *
-   * **The one effect that is not the placement's own.** A hit belongs to what
-   * was thrown and happens to what it hit, so the note names both: the body,
-   * because that is the placement being dressed and the slot is checked against
-   * it, and the arrow, because that is where the effect is written down.
-   *
-   * Raised here rather than in `./projectile`'s `ageFlights`, which raises the
-   * arrow's own `disappear`, because only this side of the world knows *who*
-   * was struck. It is also the only place that knows where they are by now: a
-   * blow waits out its flight, so the body may have walked since the shot was
-   * loosed, and a transition on a named placement goes on following them after
-   * that — see `../render/tileTransitions`'s `placementIdentity`.
-   *
-   * A blow that kills takes the body off the map on this same tick, so the
-   * renderer cannot dress it. It plays the burst alone where the body stood —
-   * see `../render/tileTransitions`'s `struckRemainsSlot`.
-   *
-   * Silently nothing for a body that has left the board, which is the honest
-   * answer and the same one the blow itself gets: a shot at somebody who died
-   * mid-flight arrives at nobody, and there is nothing left to dress.
-   */
   private strikeBody(targetId: string, projectileTileId: string | null | undefined) {
     if (!projectileTileId) return;
     if (!projectileEffect(this.tilesById[projectileTileId], "hit")) return;
@@ -4607,8 +1788,6 @@ export class GameSession implements PlaySession {
 
     const note: TileTransitionNote = {
       id: `transition-${this.nextTransitionId++}`,
-      // Always `appear`, because a struck body has to end whole — see
-      // `../lib/tileTransition`'s `TileTransitionNote.struckBy`.
       side: "appear",
       tileId: loc.placed.tileId,
       x: loc.x,
@@ -4624,82 +1803,30 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Everybody who went through a teleport this tick, handed over and forgotten.
-   *
-   * The server's to call, right after {@link tick}, exactly as
-   * {@link drainDamage} is — and an offline `/play` never does, which costs
-   * nothing: the local viewer reads the board directly and has no prediction to
-   * invalidate.
-   */
   drainTeleports(): string[] {
     const travelled = this.pendingTeleports;
     this.pendingTeleports = [];
     return travelled;
   }
 
-  /**
-   * Everybody who threw a blow this tick, handed over and forgotten.
-   *
-   * The server's to call, right after {@link tick}, exactly as
-   * {@link drainTeleports} is — and an offline `/play` never does, which costs
-   * nothing: the local simulation *is* the thing holding the recovery, so there
-   * is no second guess anywhere for this to correct.
-   *
-   * Not recoverable from two readings of anything, which is why it is drained
-   * rather than diffed: a recovery is a number winding down, and a body that
-   * swung again a tick before the last one expired looks identical from
-   * outside to one that never did.
-   */
   drainSwings(): string[] {
     const swung = this.pendingSwings;
     this.pendingSwings = [];
     return swung;
   }
 
-  /**
-   * Everybody whose body ran out of hit points this tick, handed over once.
-   *
-   * Not cleared by the next tick, unlike speech and damage: a death is the one
-   * thing here the caller *must* not miss — a server that dropped one would put
-   * the actor back on the board at the next wake, undoing it, and would never
-   * hear what the body was carrying when it stopped existing.
-   */
   drainDeaths(): Death[] {
     const died = this.pendingDeaths;
     this.pendingDeaths = [];
     return died;
   }
 
-  /**
-   * Everybody who moved their door this tick, handed over once.
-   *
-   * Not clearable by the next tick, on a death's terms rather than a noise's:
-   * the session's copy has *already* moved by the time this is called, so a
-   * caller that missed one would leave the world believing a player comes back
-   * somewhere storage has never heard of — and the first press that would have
-   * corrected it is the one refused for changing nothing.
-   *
-   * Drained by the server both after a tick and after a message, because unlike
-   * a death this can happen between ticks: pressing a bed is an interaction, and
-   * an interaction arrives whenever it arrives. @see `GameServer.flushSpawnMarks`
-   */
   drainSpawnMarks(): { actorId: string; at: Coord }[] {
     const moved = this.pendingSpawnMarks;
     this.pendingSpawnMarks = [];
     return moved;
   }
 
-  /**
-   * Wind every cooldown down towards its next swing, every recovery down
-   * towards its next step, and every windup down towards its first blow.
-   *
-   * The first two together because they are the same kind of clock started by
-   * the same act — see {@link ActorRuntime.attackRecoveryMs} for why they are
-   * not the same number. The windup joins them because it is wound by the same
-   * clock and for the same reason, and is started by the opposite act: those two
-   * are what a blow costs, and it is what getting into one costs.
-   */
   private advanceCooldowns(tickMs: number) {
     for (const actor of this.actors.values()) {
       if (actor.attackCooldownMs > 0) {
@@ -4708,68 +1835,26 @@ export class GameSession implements PlaySession {
       if (actor.attackRecoveryMs > 0) {
         actor.attackRecoveryMs = Math.max(0, actor.attackRecoveryMs - tickMs);
       }
-      // Above the windup rather than inside it, though the two are armed and
-      // dropped together today: the reading is a clock and this is where clocks
-      // are wound, and a version of it that ever outlived a windup would freeze
-      // rather than fail where anybody would look for it.
-      // @see {@link ActorRuntime.nextBlow}
       if (actor.nextBlow) windProgress(actor.nextBlow, tickMs);
-      // On the tick clock rather than on whoever is asking, which is what makes
-      // an approach the same length for a player and for a creature thinking
-      // once a round. @see {@link ActorRuntime.windup}
       const windup = actor.windup;
       if (!windup) continue;
       windup.sinceSeenMs += tickMs;
-      // An engagement nobody has confirmed since before the lapse is over, and
-      // the next reach that holds is a fresh approach. @see `./combat`'s
-      // {@link WINDUP_LAPSE_MS}
       if (windup.sinceSeenMs > WINDUP_LAPSE_MS) {
         this.disengage(actor);
         continue;
       }
-      // Out of reach it keeps what it has and winds no further, so the time a
-      // body owes is time spent beside its target. @see {@link
-      // ActorRuntime.windup}
       if (windup.inReach && windup.msLeft > 0) {
         windup.msLeft = Math.max(0, windup.msLeft - tickMs);
       }
     }
   }
 
-  /**
-   * Wind every pull in progress on, and land or lose the ones that are done.
-   *
-   * **Late in the tick, after the bodies have moved and after decay has
-   * turned whatever it was going to turn.** Deliberately not beside the swing
-   * cooldowns, where this started: a pull is the one clock whose right to
-   * continue depends on what the *rest* of the tick did, so winding it first
-   * meant a player who stepped away kept a tick of progress and a bush that
-   * rotted under somebody was noticed a tick late. Reading the board the tick
-   * leaves behind is what makes "stand still" mean this tick rather than the
-   * next.
-   */
   private advanceExtractions(tickMs: number) {
     for (const actor of this.actors.values()) {
       this.advanceExtraction(actor, tickMs);
     }
   }
 
-  /**
-   * Wind one actor's pull on, and see whether it has landed or been lost.
-   *
-   * **The cancel is checked before the clock, not after it.** A player knocked
-   * back on the same tick their pull would have landed must lose it: the whole
-   * arrangement is that a pull can be taken off you, and one that paid out on
-   * the tick it was interrupted would make the last moment of a fourteen-second
-   * mine the only moment nobody could stop you.
-   *
-   * **Only the start and the end are announced.** The winding itself is silent,
-   * because the value is wound *in place* and everybody downstream is already
-   * holding it — see {@link Extraction}. The bar under the row fills on its own
-   * from the two numbers it was given.
-   *
-   * The great majority of actors hold no pull at all and pay one null check.
-   */
   private advanceExtraction(actor: ActorRuntime, tickMs: number) {
     const run = actor.extraction;
     if (!run) return;
@@ -4781,35 +1866,10 @@ export class GameSession implements PlaySession {
 
     run.progress.remainingMs -= tickMs;
     if (run.progress.remainingMs > 0) return;
-    // Floored rather than left negative: whatever draws the pull reads this as
-    // a fraction of the whole, and a frame of an over-full bar would be a frame
-    // of nonsense if the finish below refuses.
     run.progress.remainingMs = 0;
     this.finishExtraction(actor, run);
   }
 
-  /**
-   * Is this actor still in a position to be making this pull?
-   *
-   * **Standing still is the whole of the movement rule**, and it is one rule
-   * rather than three: a step of their own, a shove that slid them a cell, and
-   * a fall all end with the body somewhere else, and all three should end the
-   * pull. Comparing the cell is what covers them together — the alternative was
-   * a list of the ways a body can move, which is exactly the list that grows a
-   * gap the next time one is added.
-   *
-   * Mid-motion counts as moved even before the step commits, so the pull ends
-   * on the frame the player asks to leave rather than on the frame they arrive.
-   *
-   * The resource itself is re-asked every tick for the reason the cell is: a
-   * vein somebody else emptied, a crate dropped on top of it, or a bush that
-   * turned into a picked bush are all the thing you were working ceasing to be
-   * the thing you were working, and {@link extractKey} carries the tile id
-   * precisely so that shows up here.
-   *
-   * A body that stops being able to act lets go as well, which is what
-   * {@link readyToAct} adds to standing still.
-   */
   private holdsExtraction(actor: ActorRuntime, run: ExtractionRun): boolean {
     if (!this.readyToAct(actor)) return false;
     const at = this.actorCell(actor.id);
@@ -4822,18 +1882,6 @@ export class GameSession implements PlaySession {
     return reachableExtractAt(this.map, this.tilesById, this.locate(actor), run.ref) != null;
   }
 
-  /**
-   * Take a pull off somebody, and give back what it was holding.
-   *
-   * **The reservation is released whatever the reason**, which is the whole
-   * point of holding one: an interrupted mine has to leave the vein exactly as
-   * full as it was, or a room people keep getting knocked out of would silently
-   * become unworkable.
-   *
-   * The notice is optional because two of the callers are not interruptions at
-   * all — a body coming off the board has nobody left to tell, and a player
-   * starting a different pull has already said what they meant by tapping.
-   */
   private cancelExtraction(actor: ActorRuntime, notice?: string) {
     const run = actor.extraction;
     if (!run) return;
@@ -4842,14 +1890,6 @@ export class GameSession implements PlaySession {
     if (notice) this.say(actor.id, notice);
   }
 
-  /**
-   * Put the pull back in the vein.
-   *
-   * Refuses to touch a placement that is no longer the one that was reserved,
-   * which is the case {@link extractKey}'s tile id exists to catch: a bush that
-   * became a picked bush took its reservations with it when it was replaced,
-   * and decrementing the picked bush would invent a negative.
-   */
   private releaseReservation(run: ExtractionRun) {
     const { ref } = run;
     const stack = getStack(this.map, ref.x, ref.y, ref.z);
@@ -4861,49 +1901,15 @@ export class GameSession implements PlaySession {
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
   }
 
-  /**
-   * Hold an actor's pull, and tell whoever is drawing it.
-   *
-   * The one place it is written, on the terms {@link setEquipment} is the one
-   * place a kit is: the value goes out on the snapshot and on the wire, and a
-   * change nobody was told about would be a bar that never appears or one that
-   * never goes away.
-   *
-   * Runs on the two events that start and end a pull and never on the ticks in
-   * between — the remainder is wound inside the object this hands over.
-   */
   private setExtraction(actor: ActorRuntime, run: ExtractionRun | null) {
     actor.extraction = run;
     this.extractionChanged.add(actor.id);
   }
 
-  /**
-   * Wind every stone that is cooling down by whatever whole seconds have passed.
-   *
-   * **In whole seconds rather than per tick**, and that is a decision worth the
-   * paragraph. A cooldown lives on an {@link ItemInstance}, so winding one means
-   * replacing the kit that holds it — and the kit's *identity* is what tells the
-   * renderer its panel is stale and what tells the server there is an equipment
-   * message to send. Wound thirty times a second, a single cooling stone would
-   * re-render the page and put a whole inventory on the wire thirty times a
-   * second, for ever, for a number nothing on screen can show that finely.
-   *
-   * A second is the grain a countdown is drawn at — the same grain a status lane
-   * is compared at, for the same reason — so it is the grain the truth is kept
-   * at too. What it costs is that a cooldown which is not a whole number of
-   * seconds finishes up to a second late; every stone worth authoring is, and
-   * the schema's floor is a second.
-   *
-   * The accumulator is **drained rather than reset**, on the terms a status's
-   * cadence is: `update` runs up to ten ticks in one call, and a stone owes every
-   * second of that catch-up rather than the last one.
-   */
   private advanceStoneCooldowns(tickMs: number) {
     this.stoneClockMs += tickMs;
     if (this.stoneClockMs + COOLDOWN_EPSILON_MS < COOLDOWN_STEP_MS) return;
 
-    // Whole steps only; whatever is left over rides on to the next tick, so the
-    // clock never drifts against the loop.
     const steps = Math.floor((this.stoneClockMs + COOLDOWN_EPSILON_MS) / COOLDOWN_STEP_MS);
     this.stoneClockMs -= steps * COOLDOWN_STEP_MS;
     const spent = steps * COOLDOWN_STEP_MS;
@@ -4911,28 +1917,11 @@ export class GameSession implements PlaySession {
     for (const actor of this.actors.values()) {
       this.coolSpells(actor, spent);
       const next = cooledEquipment(actor.equipment, spent);
-      // The same object back whenever nothing was cooling, which is almost every
-      // body almost always: no allocation, no message, no re-render.
       if (next === actor.equipment) continue;
       this.setEquipment(actor, next);
     }
   }
 
-  /**
-   * Wind this body's own spells on, at the same grain a stone's cooldown is.
-   *
-   * **Written in place rather than rebuilt**, which is the whole difference from
-   * `cooledEquipment` above: a kit's identity is what tells the renderer and the
-   * wire that something changed, and this record is neither drawn nor sent —
-   * the browser holds the body's spells from the catalogue and winds the same
-   * clock for itself. Nothing downstream is watching for a new object, so
-   * mutating one costs no message and no re-render.
-   *
-   * A spell that has finished cooling has its key **deleted** rather than set to
-   * zero, on `cooledEquipment`'s terms: "ready" is the absence of a cooldown
-   * everywhere, which is one fewer state for anything reading this to tell
-   * apart, and it keeps the record empty for the overwhelming majority of bodies.
-   */
   private coolSpells(actor: ActorRuntime, spentMs: number) {
     let changed = false;
     for (const name of Object.keys(actor.spellCooldownMs)) {
@@ -4941,33 +1930,9 @@ export class GameSession implements PlaySession {
       else delete actor.spellCooldownMs[name];
       changed = true;
     }
-    // Announced on the kit's queue, because it goes out on the kit's message —
-    // both are "what this caster can press right now", both are addressed to
-    // one socket, and a second queue for a fact that changes at the same moment
-    // would be two things to keep in step. A body with nothing cooling marks
-    // nothing, which is almost every body.
     if (changed) this.equipmentChanged.add(actor.id);
   }
 
-  /**
-   * Wind every worn charm on, and let the ones that came due do their thing.
-   *
-   * The charm square alone, because {@link handAccepts} refuses a charm a hand:
-   * a hand is a thing you act *with*, and one that acted by itself would be a
-   * body doing things nobody asked it to.
-   *
-   * **This replaced an automatic arcane stone**, which was the same idea wearing
-   * a spell's clothes: it had a cast, a target, a reach and a cooldown, none of
-   * which are questions about something that happens without you, and it made
-   * the charm square a special square rather than a third place to put a stone.
-   *
-   * Nothing here waits for a moment worth acting on. The old `automaticFires`
-   * held a passive back until it would not be wasted — a mend waited until you
-   * were hurt — and a charm does not need that, because a tick that restored
-   * nothing costs nothing: {@link applyHealing} clamps at full health and floats
-   * no number, and a status grant that lands on somebody already under it is the
-   * same refresh every other granter in the game performs.
-   */
   private tickCharms(tickMs: number) {
     for (const actor of this.actors.values()) {
       const charm = this.wornCharm(actor);
@@ -4976,9 +1941,6 @@ export class GameSession implements PlaySession {
         continue;
       }
 
-      // A different charm starts its own clock, so wearing a cheap one to run
-      // the interval down and swapping to an expensive one on the last tick
-      // buys nothing. @see ActorRuntime.charmClock
       const clock =
         actor.charmClock?.itemId === charm.itemId
           ? actor.charmClock
@@ -4987,21 +1949,11 @@ export class GameSession implements PlaySession {
 
       clock.elapsedMs += tickMs;
       if (clock.elapsedMs < charm.item.everyMs) continue;
-      // Subtracted rather than zeroed, so a long-run cadence stays honest on a
-      // tick that does not divide the interval. Bounded by one interval a tick,
-      // which is what stops a world resumed after an hour paying out an hour of
-      // healing in a frame.
       clock.elapsedMs = Math.min(charm.item.everyMs, clock.elapsedMs - charm.item.everyMs);
       this.spendCharm(actor, charm.item);
     }
   }
 
-  /**
-   * The charm this body is wearing, with the id of the particular one.
-   *
-   * The id travels with it because the clock is keyed on it, and reading the
-   * square twice is how the two come to disagree about which charm is on.
-   */
   private wornCharm(actor: ActorRuntime): { itemId: string; item: CharmItem } | null {
     const held = actor.equipment.charm;
     if (!held) return null;
@@ -5010,18 +1962,6 @@ export class GameSession implements PlaySession {
     return item ? { itemId: held.id, item } : null;
   }
 
-  /**
-   * One tick of a charm: the health, then whatever it leaves behind.
-   *
-   * Health first, so a charm that both mends and wards reads in the order it
-   * happens — and so a body killed by nothing here can still take a status,
-   * because a charm cannot harm and there is no death to guard against. See
-   * `../lib/item`'s {@link CharmItem.hp} for why that is unsigned.
-   *
-   * The grants go through the same `grantStatus` a bolt's do, with no caster and
-   * no elements: nobody cast this, so nothing is owed experience for it and the
-   * wheel has no two sides to weigh.
-   */
   private spendCharm(actor: ActorRuntime, charm: CharmItem) {
     if (charm.hp) this.applyHealing(actor, charm.hp);
     for (const grant of charm.statuses ?? []) {
@@ -5029,40 +1969,14 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Age every lean, and drop the ones that are home.
-   *
-   * Beside {@link advanceCooldowns} and before anything swings, which is what
-   * lets a strike started on this tick begin at zero rather than a tick in — the
-   * body's own motions are ticked at the bottom of the tick, and a strike put
-   * there would lose its first frame to the swing that created it.
-   */
   private tickStrikes(tickMs: number) {
     for (const actor of this.actors.values()) {
       if (!actor.strike) continue;
       actor.strike.elapsedMs += tickMs;
-      // Nothing to commit — the body never left the cell it is standing in, so
-      // dropping the state is the whole of "recovered".
       if (actor.strike.elapsedMs >= STRIKE_DURATION_MS) actor.strike = null;
     }
   }
 
-  /**
-   * Swing for everybody in attack mode who has picked a fight and is standing
-   * close enough.
-   *
-   * Auto rather than per click, because {@link FightingStats.spd} is what decides
-   * how often a body swings. A client that had to ask for each blow would be
-   * asking for permission it is going to be refused most of the time, and a
-   * client that asked *faster* would gain nothing — which is precisely the
-   * property worth having on a wire anybody can write to.
-   *
-   * Failing quietly is the whole behaviour here: out of reach, on cooldown, or
-   * aimed at something with no hit points all simply do not swing. Only a target
-   * that has left the world is worth clearing, because a slot pointing at
-   * nobody would keep this looking them up forever — and that clearing happens
-   * whether or not anybody is swinging, since a target outlives the mode.
-   */
   private runAutoAttacks() {
     for (const actor of this.actors.values()) {
       const targetId = actor.targetId;
@@ -5076,33 +1990,11 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Forget that this body was getting into a blow against anybody.
-   *
-   * One call rather than two assignments at each place that does it,
-   * because {@link ActorRuntime.windup} and {@link ActorRuntime.nextBlow} are
-   * two readings of one fact — *this body is engaged* — and a site that dropped
-   * one of them would leave a ring counting down to a blow nobody is winding up
-   * for, or a wait with nothing to report it.
-   *
-   * The next reach that holds arms both again, at the full price. @see
-   * {@link ActorRuntime.windup}
-   */
   private disengage(actor: ActorRuntime) {
     actor.windup = null;
     actor.nextBlow = null;
   }
 
-  /**
-   * Note that this body asked to swing at `targetId` and could not reach it.
-   *
-   * Not {@link disengage}: a windup against this target keeps what it has
-   * wound and waits for the next reach that holds, and asking at all is what
-   * keeps {@link WINDUP_LAPSE_MS} from forgetting it. The reading is dropped,
-   * because a paused wait is not counting down to anything. A windup against
-   * somebody else is dropped whole, as it always was. @see
-   * {@link ActorRuntime.windup}
-   */
   private outOfReach(actor: ActorRuntime, targetId: string) {
     const windup = actor.windup;
     if (windup?.targetId !== targetId) {
@@ -5114,18 +2006,8 @@ export class GameSession implements PlaySession {
     actor.nextBlow = null;
   }
 
-  /**
-   * One body swings at another, if every reason not to is absent.
-   *
-   * The single path from "somebody wants to attack" to a blow, whether the
-   * wanting came from a brain's `attack` action or from a player's standing
-   * target. Returning false rather than throwing at each refusal is what lets
-   * the brain's priority list fall through — see the `attack` action.
-   */
   private tryAttack(attacker: ActorRuntime, targetId: string): boolean {
     if (targetId === attacker.id) return false;
-    // A body that cannot act swings at nothing, and winds up for nothing: the
-    // target stays picked, and the fight resumes at full price when it can.
     if (this.incapacitated(attacker)) {
       this.disengage(attacker);
       return false;
@@ -5134,12 +2016,6 @@ export class GameSession implements PlaySession {
     const target = this.actors.get(targetId);
     if (!target) return false;
 
-    // **Two players who have not both opted in do not swing at each other.**
-    // Before the reach and before the windup, because it is the one refusal that
-    // will still be true when everything below it has changed: walking closer
-    // does not make it a fight. The target stays targeted — pointing at
-    // somebody is how you read them, and a player you cannot fight is still a
-    // player you may want to look at. @see ./pvp
     if (!this.mayHarm(attacker, target)) {
       this.disengage(attacker);
       return false;
@@ -5151,58 +2027,18 @@ export class GameSession implements PlaySession {
     const fromPoint = this.reachPointOf(from);
     const toPoint = this.reachPointOf(to);
 
-    // **Which hand swings is a question about where the target is standing**,
-    // not only about what is in the hand. A weapon can be held and have no
-    // answer to this fight — a bow inside its `Reach.min`, a dagger across a
-    // courtyard — and the rotation skips one of those exactly as it skips an
-    // empty fist. That is what makes a bow and a knife one loadout instead of
-    // two: the knife takes the turns the bow cannot.
-    //
-    // It is also what stops the rotation stalling. The turn only advances on a
-    // swing that was actually spent, further down, so a body that picked a hand
-    // it could not use would fail the reach check, return here, and offer the
-    // same hand again forever.
-    //
-    // The weapon's own reach, not a constant and not the body's: a bow and a
-    // fist ask the same question with different numbers, and the number belongs
-    // to whatever is being swung. `canReach` is also where the wall costs
-    // something — a target picked through a window stays picked, and the shot
-    // simply does not go.
-    const hand = handToSwing(
-      attacker.equipment,
-      this.tilesById,
-      attacker.nextHand,
-      // Straight off the parsed weapon: `resolveWeapon` has already applied the
-      // schema's melee default, so there is no draft here for `reachOf` to
-      // rescue — and the class has a `reachOf` of its own about brains.
-      (weapon) => canReach(this.map, this.tilesById, fromPoint, toPoint, weapon.reach),
+    const hand = handToSwing(attacker.equipment, this.tilesById, attacker.nextHand, (weapon) =>
+      canReach(this.map, this.tilesById, fromPoint, toPoint, weapon.reach),
     );
-    // An armed body whose weapons all fall short does not start punching. A
-    // held weapon *replaces* the natural one — see `./equipment`'s
-    // `weaponInHand`, which reads a null hand as "swing what you were born
-    // with" — and that fallback is for a body with nothing in either fist, not
-    // for an archer who has let something get too close.
     if (hand === null && fightsWithAHand(attacker.equipment, this.tilesById)) {
       this.outOfReach(attacker, targetId);
       return false;
     }
 
-    // Both ends have to be battlers, and reading it off the body is what makes
-    // "attack anything, fail graciously" true: swinging at a crate is a lookup
-    // that comes back null, not a special case anybody had to write.
     const attackerStats = this.battlerOf(attacker, hand);
     const targetStats = this.battlerOf(target);
     if (!attackerStats || !targetStats) return false;
 
-    // **Bare hands only**, because every armed hand was held to exactly this
-    // above and asking twice is a second line-of-sight trace for an answer
-    // already given. A body with nothing in either fist swings its natural
-    // weapon, nothing filtered on that, and this is where it finds out its claws
-    // do not carry.
-    //
-    // The two are the same question because reach is the weapon's alone — no
-    // status modifies it, so what the filter saw is what `attackerStats` holds.
-    // A `reach` added to `withStatusModifiers`'s keys would have to undo this.
     if (
       hand === null &&
       !canReach(this.map, this.tilesById, fromPoint, toPoint, attackerStats.reach)
@@ -5211,18 +2047,8 @@ export class GameSession implements PlaySession {
       return false;
     }
 
-    // This hand's own, and read here rather than where it is spent below because
-    // the windup is measured against it too. A dagger's turn is a dagger's wait,
-    // so a body alternating a dagger and an axe keeps an uneven rhythm rather
-    // than averaging into one that belongs to neither.
     const interval = swingIntervalMs(attackerStats);
 
-    // **In reach is not yet a blow**, and everything above is what "in reach"
-    // costs to establish — which is why the cooldown is asked below this rather
-    // than at the top of the function where it used to be. A body on cooldown
-    // still has to be *seen* in reach, or a fighter who withdrew for the length
-    // of one and strolled back would find the wait already served. @see
-    // {@link ActorRuntime.windup}
     const armed = attacker.windup?.targetId === targetId;
     const returning = armed && !attacker.windup!.inReach;
     if (!armed) {
@@ -5237,11 +2063,6 @@ export class GameSession implements PlaySession {
     windup.inReach = true;
     windup.sinceSeenMs = 0;
     if (!armed || returning) {
-      // The longer of the two waits, not the windup alone: a body that turns on
-      // the rat beside the one it just killed is in reach immediately and still
-      // owes the rest of its cooldown, and a reading that forgot it would
-      // promise a blow that is not coming. A body coming back picks the bar up
-      // where its paused windup left it. @see {@link ActorRuntime.nextBlow}
       attacker.nextBlow = {
         remainingMs: Math.max(windup.msLeft, attacker.attackCooldownMs),
         durationMs: interval,
@@ -5251,98 +2072,26 @@ export class GameSession implements PlaySession {
 
     if (attacker.attackCooldownMs > 0) return false;
 
-    // Spent whether or not the blow connects: the swing happened, and a dodge
-    // that cost the attacker nothing would let a fast creature flail for free.
     attacker.attackCooldownMs = interval;
-    // And the next blow owes its own time in reach, or a body that swung once
-    // could leave for the cooldown and come back to a blow already waiting.
-    // Half of the cooldown just set, so in a fight nobody leaves it runs out
-    // first and changes nothing. @see {@link ActorRuntime.windup}
     windup.msLeft = swingWindupMs(attackerStats);
-    // The cooldown is now the whole of the wait, because the windup re-armed
-    // beside it is the shorter of the two. Replaced rather than wound down to
-    // the new figure, because identity is what says the wait changed. @see
-    // {@link ActorRuntime.nextBlow}
     attacker.nextBlow = { remainingMs: interval, durationMs: interval };
 
-    // The hand chosen above, carried down rather than asked again where the
-    // experience is settled: that would be the *next* hand's weapon teaching the
-    // wielder, and a body alternating a blade and a hammer would spend the whole
-    // fight training the wrong mastery.
     const swung = hand;
-    // Advanced on the swing rather than on the blow landing, on exactly the
-    // terms the cooldown above is spent: a hand that has taken its turn has
-    // taken it, and a miss that let you swing the same weapon again would make
-    // the better one of two worth flailing with.
     attacker.nextHand = swung ? otherHand(swung) : attacker.nextHand;
 
-    // And the body is planted for two of its own steps, on the same terms and
-    // for the balance the cooldown alone could not buy: see
-    // {@link ActorRuntime.attackRecoveryMs} and `./combat`'s
-    // {@link strikeRecoveryMs}. Announced as well as stored, because the one
-    // client that predicts its own footwork has to refuse the same steps this
-    // side is about to — a browser that walked through its recovery would spend
-    // the whole fight being told to walk back.
     attacker.attackRecoveryMs = strikeRecoveryMs(this.defFor(attacker));
     this.pendingSwings.push(attacker.id);
-    // On the swing rather than on the blow landing, and both sides of it: a
-    // player dodging a wolf is in a fight whether or not anything connects,
-    // and flagging only on damage would let them close the tab mid-dodge.
     this.flagCombat(attacker);
     this.flagCombat(target);
 
-    // Thrown before the dice, and on the same grounds the cooldown is spent
-    // before them: what the lean says is *this body swung at that one*, which is
-    // true of a miss, a dodge and a blow that armour ate. A strike a player only
-    // saw on the blows that landed would be a fight where half the traffic came
-    // from nowhere. Null past arm's length — see `./strike`.
-    //
-    // Unless this body has just got out of somebody else's way, which is the one
-    // thing that outranks its own swing. @see outranksSwing
     if (!outranksSwing(attacker.strike)) {
       attacker.strike = swingToward(fromPoint, toPoint, isRanged(attackerStats));
     }
 
-    // Turning into the blow, so a body that swings at something is looking at
-    // it — and on the same terms everything above happens on, which is to say
-    // whatever the blow comes to. A miss, a dodge and a blow that armour ate are
-    // all this body having attacked that one, and a turn that waited for damage
-    // would be a fight where half the swings came from a body facing the other
-    // way. Free when it already is — `setEntityDirection` guards the no-op,
-    // which matters because this runs on every swing.
-    //
-    // Onto the walk as well as onto the board, which is what makes it true of
-    // somebody swinging on their way out: `commitWalk` writes the walk's own
-    // direction when the step lands, so a turn that only touched the board was
-    // undone a few ticks later by the step it interrupted. @see turnToward
     this.turnToward(attacker, from, to);
 
-    // Counted before the dice and including this swing, so the body throwing it
-    // is one of the ones bearing down on the target: a lone attacker is an
-    // assailant of one and `underPressure` hands the stats straight back. Its own
-    // interval is what buys it a place in the count — see `ASSAILANT_GRACE_MS`.
     const assailants = this.noteAssailant(target, attacker.id, interval);
-    // **Not trimmed to the target's health here, which is the one thing that
-    // moved when a blow learned to travel.** The trim belongs wherever the blow
-    // actually lands — see {@link landSwing} — because an arrow crossing a yard
-    // gives everything else in the world time to take that health first, and a
-    // figure capped against what the target had when the bow was drawn is a
-    // receipt for hit points somebody else already collected. Paid out as well
-    // as floated, so an archer loosing three arrows at a body with four left
-    // would have been paid for three kills. @see `./combat`'s `cappedToHealth`
     const rolled = rollAttack(attackerStats, underPressure(targetStats, assailants), this.rng);
-    // Beside the lean rather than instead of it, and on the same terms: the two
-    // are the same announcement — *this body attacked that one* — made by
-    // whichever half of the pair the weapon has. Loosed whatever the dice said,
-    // so a shot that misses is a shot somebody saw taken; an arrow that only
-    // appeared on the blows that landed would be a fight where half the traffic
-    // came from nowhere.
-    //
-    // **After the roll rather than before it, and only for the landing.** The
-    // flight is drawn identically either way, but which side plays where it
-    // stops is a claim about the outcome, and a shot cannot be told whether it
-    // connected before anything has asked.
-    // @see fireProjectile
     const flightMs = this.fireProjectile(
       attackerStats.projectile,
       from,
@@ -5350,19 +2099,10 @@ export class GameSession implements PlaySession {
       !rolled.missed && !rolled.dodged,
     );
 
-    // Read here rather than in {@link landSwing}, because blame is a fact about
-    // the swing and the swing has already happened: an archer who is killed
-    // while their arrow is in the air is still the one who shot you, and asking
-    // the board for their name on the landing tick would get nothing.
     const blame = this.blameForSwing(attacker, swung);
-    // Ids rather than the runtimes, on {@link blowsInFlight}'s terms: either
-    // body may be off the board by the time this runs.
     const attackerId = attacker.id;
     const struckId = target.id;
     const targetMaxHp = targetStats.maxHp;
-    // Carried rather than re-read on arrival, on {@link blowsInFlight}'s terms:
-    // the weapon that threw it can be dropped, swapped or looted while the shot
-    // is still crossing, and what struck the body is what left the bow.
     const projectile = attackerStats.projectile;
     this.queueBlow(flightMs, () =>
       this.landSwing({
@@ -5380,66 +2120,28 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * Everything one swing comes to, once whatever depicts it has arrived.
-   *
-   * **The tail of {@link tryAttack}, moved behind the flight rather than
-   * changed.** A melee blow reaches it on the tick it was swung, because a fist
-   * puts nothing in the air and {@link queueBlow} lands a delay of zero on the
-   * spot; an arrow reaches it when the arrow does. Nothing here re-reads the
-   * dice — the outcome was settled the moment the weapon was swung, which is
-   * what keeps two clients agreeing about when somebody died. @see `./projectile`
-   *
-   * **Both bodies are looked up again**, because up to a second of world can
-   * have happened since: either end may have died, logged off or rotted away,
-   * and a blow that arrives at nobody simply does nothing. That is the honest
-   * answer rather than a gap — the arrow still finishes its flight and still
-   * plays whichever side it was told to play, which is the picture saying a
-   * shot was taken, and it was.
-   */
   private landSwing(blow: {
     attackerId: string;
     targetId: string;
-    /** Straight off the dice, untrimmed. @see cappedToHealth */
     rolled: AttackOutcome;
     swung: Hand | null;
     targetMaxHp: number;
     blame: Blame;
     fromPoint: ReachPoint;
     toPoint: ReachPoint;
-    /** What was thrown, so its hit can play on the body. @see strikeBody */
     projectile: string | null | undefined;
   }): void {
     const target = this.actors.get(blow.targetId);
     if (!target) return;
 
-    // On the body rather than at the point the arrow stopped, and only on a
-    // blow that connected: a miss and a dodge land nothing, so neither leaves
-    // anything behind. Before the damage, so a killing blow still sends its hit
-    // — the placement is still there to name. The renderer finds the body gone
-    // and plays only the sparks where it stood; see `strikeBody`.
     if (!blow.rolled.missed && !blow.rolled.dodged) {
       this.strikeBody(blow.targetId, blow.projectile);
     }
 
-    // **Trimmed against what the target has left *now*.** The whole reason the
-    // trim lives here rather than beside the roll: the experience, the floating
-    // receipt and the health all have to read one figure, and the only moment
-    // all three are about is this one.
     const outcome = cappedToHealth(blow.rolled, this.hpOf(target) ?? 0);
 
-    // Noted even on a dodge: what a creature reacts to is being swung at, and a
-    // cat that only fought back when a blow landed would stand there being
-    // missed. Before the damage, so a killing blow still tells the room.
-    //
-    // On arrival rather than on release, which is the one behaviour a slow shot
-    // changes here: a wolf shot from across a courtyard turns when the arrow
-    // reaches it, not when the string is let go — it had no way to know before.
     this.notePendingHurt(target.id, blow.attackerId);
 
-    // Only for an attacker still on the board. A body that died mid-flight has
-    // no experience to be given, which is the same rule the killing blow is
-    // already under one line further on.
     const attacker = this.actors.get(blow.attackerId);
     if (attacker) {
       this.awardExperience(attacker, target, outcome, blow.swung, blow.targetMaxHp);
@@ -5450,22 +2152,13 @@ export class GameSession implements PlaySession {
       return;
     }
     if (outcome.dodged) {
-      // The whole of what a dodge says now. No receipt floats: the hop is the
-      // account, and a word beside it would be the same event told twice.
       target.strike = dodgeAway(blow.toPoint, blow.fromPoint);
       return;
     }
 
     this.applyDamage(target, outcome.damage, blow.blame);
-    // After the damage, and only for a body still standing: a status is a
-    // condition you are *in*, and a corpse is not in one. Putting venom on
-    // something the same blow killed would queue an announcement about a body
-    // that has already left the board.
     if (outcome.inflicted.length > 0 && (this.hpOf(target) ?? 0) > 0) {
       for (const grant of outcome.inflicted) {
-        // No cause, and the venom is still attributed: a bite earns the snake
-        // nothing arcane — see `awardCausedDamage` — but a skull may still say
-        // who bit you. That split is the whole reason `blame` is not `causedBy`.
         this.grantStatus(target, grant, undefined, undefined, {
           source: this.statusName(grant.id),
           ...(blow.blame.by ? { by: blow.blame.by } : {}),
@@ -5474,40 +2167,6 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Put a projectile in the air, if there is one to put there.
-   *
-   * Silently nothing for a melee weapon and for a bolt that simply arrives,
-   * which between them are the overwhelming majority and are not a special case
-   * anybody had to write: `projectile` is absent, so there is nothing to loose.
-   * That is the same shape the lean above has in reverse, and between them every
-   * weapon says exactly one thing about itself.
-   *
-   * Silently nothing for an id the catalogue has lost, and for one naming a
-   * tile that is not a projectile — on the terms every other renamed id in this
-   * file is honoured: the fact is out of date rather than corrupt, and a fight
-   * is not worth refusing over the art.
-   *
-   * **The id is passed in rather than read off a `FightingStats`**, which is
-   * what lets a spell use this at all: a bolt names a projectile and has no
-   * fighting stats to hang it on — it is not swung, and resolving one for a
-   * caster would be inventing a weapon nobody is holding.
-   *
-   * **`connected` is the one thing a flight is told about the fight**, and it
-   * buys exactly one thing: which side plays where it lands. Passed in because
-   * only the caller has read the dice, and because a bolt has no dice to read.
-   *
-   * The flight is queued twice for the reason a damage number is — see
-   * {@link pendingDamage} and {@link liveDamage}. One list is "what happened in
-   * the last tick", which the wire drains once; the other is "what a viewer
-   * should still be able to see", which outlives it by the length of the flight.
-   *
-   * **Hands back how long the flight takes, which is how long its blow waits.**
-   * Zero for every case that puts nothing in the air — a melee weapon, a bolt
-   * that simply arrives, an id the catalogue has lost — so a caller reads it as
-   * "land it now" without asking a second question, and a weapon whose art has
-   * gone still deals its damage on the tick it was swung. @see queueBlow
-   */
   private fireProjectile(
     tileId: string | null | undefined,
     fromBody: ActorLocation,
@@ -5519,25 +2178,14 @@ export class GameSession implements PlaySession {
     const flies = resolveProjectile(def);
     if (!flies) return 0;
 
-    // **Locations rather than the points the caller already measured**, because
-    // a flight is drawn between two bodies' middles and reach is measured
-    // between the surfaces they stand on — see {@link flightPointOf}. Handing
-    // the reach points in is what put every shot on the floor.
     const from = this.flightPointOf(fromBody);
     const to = this.flightPointOf(toBody);
 
     const flight: ProjectileFlight = {
       id: `shot-${this.nextProjectileId++}`,
       tileId,
-      // Fresh objects rather than the ones above, because both ends are
-      // readings of a board that is about to move: the arrow owes nothing to
-      // where either body ends up while it is in the air.
       from: { x: from.x, y: from.y, elevAbs: from.elevAbs },
       to: { x: to.x, y: to.y, elevAbs: to.elevAbs },
-      // The body rather than the cell, so the drawing can follow it — see
-      // `./projectile`'s {@link ProjectileFlight.targetId}. Absent for a
-      // placement that is not a body, which is every shot at a thing rather
-      // than at somebody.
       ...(toBody.placed.owner ? { targetId: toBody.placed.owner } : {}),
       durationMs: flightDurationMs(from, to, flies),
       elapsedMs: 0,
@@ -5545,24 +2193,10 @@ export class GameSession implements PlaySession {
     };
     this.pendingProjectiles.push(flight);
     this.liveProjectiles.push(flight);
-    // The near end plays now rather than on the next tick, so the muzzle and
-    // the arrow leave together — a frame of daylight between them reads as the
-    // shot being fired by something a step behind the bow.
     beginEffect(flight, "appear", flight.from, def, this.liveFlightEffects);
     return flight.durationMs;
   }
 
-  /**
-   * Float a receipt off a body for one swing, whatever the swing came to.
-   *
-   * The cell travels with it rather than the actor id alone, because by the time
-   * anything draws this the body may be gone — a killing blow deletes its target
-   * on the same tick, and the number is the only thing left saying what
-   * happened.
-   *
-   * Silently does nothing for a body that cannot be located, which is the honest
-   * answer: a receipt has to hang somewhere, and there is nowhere to hang it.
-   */
   private floatSwing(target: ActorRuntime, outcome: SwingOutcome, amount: number) {
     const loc = this.tryLocate(target);
     if (!loc) return;
@@ -5582,50 +2216,13 @@ export class GameSession implements PlaySession {
     this.liveDamage.push(number);
   }
 
-  /**
-   * Pay both sides of one swing whatever it taught them.
-   *
-   * **Scaled by how far above the learner the other body is, and each side sees
-   * its own ratio.** The rat learns nothing from a player it could never beat,
-   * from the same blow the player learns from — which is the whole of what makes
-   * the world a ladder rather than a place to grind the first thing you meet.
-   *
-   * **The offensive side asks that question once per mastery**, because the
-   * answer differs: a rat is a fair opponent for a veteran's first sword and no
-   * opponent at all for their footwork. See `../lib/mastery`'s `standingIn`. The
-   * defensive side asks it once, against the Rating, because both masteries it
-   * pays are the body itself.
-   *
-   * Silent for a creature on either side. Only a player has experience to be
-   * given, and asking that question here rather than inside the arithmetic keeps
-   * `./experience` a set of pure functions about a swing.
-   */
   private awardExperience(
     attacker: ActorRuntime,
     target: ActorRuntime,
     outcome: AttackOutcome,
-    /**
-     * The hand that actually threw this blow, or null for bare hands.
-     *
-     * Passed in rather than read here, because the rotation has already moved on
-     * by the time this runs — see {@link tryAttack}. What a swing teaches is a
-     * fact about the weapon that swung.
-     */
     swung: Hand | null,
-    /**
-     * How much health the body being swung at has when it is whole.
-     *
-     * Passed rather than resolved here, on exactly the terms {@link swung} is:
-     * the caller has already asked {@link battlerOf} for this swing and a second
-     * answer is a second answer that can disagree. It is the *unpressured*
-     * maximum, which is the same number either way — being outnumbered costs a
-     * body its guard and never its size.
-     */
     targetMaxHp: number,
   ) {
-    // A miss pays nobody, so there is nothing to work out. Worth the early
-    // return rather than falling through the two arithmetics below to zero:
-    // this runs on every swing in the world.
     if (outcome.missed) return;
     if (attacker.resident && target.resident) return;
 
@@ -5647,10 +2244,6 @@ export class GameSession implements PlaySession {
       }
     }
 
-    // The multiplier before the decay, and the early return is the point: a rat
-    // gnawing somebody far above it pays nothing whatever the decay says, and
-    // spending a payout on it would charge that player for a blow they were
-    // never going to be paid for.
     const defensive = experienceMultiplier(attackerRating, targetRating);
     if (!target.resident && defensive > 0) {
       this.grantExperience(
@@ -5665,40 +2258,10 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Pay the arcanist whose spell dealt this damage, if a spell dealt it.
-   *
-   * **The whole of how a conjured flame earns its caster experience** — story by
-   * story the longest thread in the feature, and it comes down to this: a stone
-   * conjures a tile, the tile puts a status on whoever walks into it, the status
-   * remembers who is answerable, and this is where that memory is spent.
-   *
-   * Three refusals, and each is a rule rather than a guard:
-   *
-   * - **Nobody is answerable.** Every burn, poison and rot in the world that
-   *   nobody cast behaves exactly as it did before any of this existed.
-   * - **The caster is the victim.** Setting yourself on fire teaches you
-   *   nothing, or training would be a thing you do to yourself in a corner.
-   * - **The caster has left the world.** A name that no longer belongs to
-   *   anybody is out of date rather than corrupt, on the terms every other stale
-   *   id in this game is honoured.
-   *
-   * The stone is not consulted, because there may not be one any more: by the
-   * time a flame burns somebody the caster may have put the stone down, swapped
-   * it, or died holding it. What is being paid for is the damage, so the rate is
-   * the plain one — a caster who has outgrown their own fire is a refinement
-   * with nowhere to read the requirement from.
-   */
   private awardCausedDamage(
     victim: ActorRuntime,
     causedBy: string | undefined,
     damage: number,
-    /**
-     * What the spell was made of, so the elements it is made of are paid too.
-     *
-     * Off the status rather than off the stone, because there may be no stone
-     * left to ask — @see `./statuses`'s {@link StatusInstance.elements}.
-     */
     elements: readonly Element[],
   ) {
     if (!causedBy || causedBy === victim.id || damage <= 0) return;
@@ -5714,31 +2277,10 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Pay a caster for what one spell came to, in the masteries casting trains.
-   *
-   * One door for all three ways a spell can be worth something — damage it dealt
-   * on the spot, health it actually restored, and damage something it conjured
-   * dealt later — so the scale cannot come to differ between them.
-   * @see `./experience`'s `casterEarnings`
-   *
-   * The elements travel on their own rather than being read off a stone, because
-   * the indirect case has no stone left to read: a conjured flame outlives the
-   * thing that lit it.
-   */
   private grantCasting(
     caster: ActorRuntime,
     amount: number,
     elements: readonly Element[],
-    /**
-     * What this cast is worth to a given mastery, as a multiple of the plain
-     * rate.
-     *
-     * A function rather than a number because Arcane and each element are
-     * weighed against their own levels — see `../lib/mastery`'s `standingIn` —
-     * and because a mend has nobody to be weighed against at all and hands over
-     * a flat figure instead.
-     */
     multiplierFor: (mastery: Mastery) => number,
   ) {
     const body = this.bodyOf(caster);
@@ -5746,23 +2288,11 @@ export class GameSession implements PlaySession {
     this.grantExperience(caster, casterEarnings(amount, elements, multiplierFor));
   }
 
-  /**
-   * Add experience to a body, and forget whatever was derived from the old
-   * figures.
-   *
-   * The single place experience is written, which is what makes the memo above
-   * safe: there is no way to move a mastery without the body built from it being
-   * dropped in the same statement.
-   */
   private grantExperience(actor: ActorRuntime, earned: MasteryXp) {
     const xp = actor.masteryXp;
     if (!xp) return;
 
-    // Copied lazily, so a swing that taught nothing costs no allocation — which
-    // is most of them, once a player has outgrown what they are fighting.
     let moved: MasteryXp | null = null;
-    // Crossings are collected rather than said as they are found, so nothing is
-    // announced until the whole block is known to be going in — see below.
     let crossed: Mastery[] | null = null;
     for (const mastery of MASTERIES) {
       const amount = earned[mastery];
@@ -5771,10 +2301,6 @@ export class GameSession implements PlaySession {
       const before = moved[mastery] ?? 0;
       const after = before + amount;
       moved[mastery] = after;
-      // Read here rather than diffed later: this is the one place both totals
-      // for one mastery exist at once, and earning is the only thing that moves
-      // one. A body *seeded* with masteries never comes through here, which is
-      // why announcing at the source needs no baseline to be quiet about.
       if (levelForXp(after) > levelForXp(before)) (crossed ??= []).push(mastery);
     }
     if (!moved) return;
@@ -5782,22 +2308,11 @@ export class GameSession implements PlaySession {
     actor.masteryXp = moved;
     actor.earnedBody = null;
     this.masteriesChanged.add(actor.id);
-    // After the write, on the same rule the reward's line follows: a sentence is
-    // a receipt, and a receipt printed ahead of the thing it receipts is a lie
-    // waiting for an early return to be added above it.
     for (const mastery of crossed ?? []) {
       this.say(actor.id, masteryNotice(mastery, levelForXp(moved[mastery] ?? 0)));
     }
   }
 
-  /**
-   * What the next defensive payout from this attacker is worth, counting it as
-   * taken.
-   *
-   * Per attacker rather than per victim, because the thing being paced is one
-   * body farming another: a fight against something new starts at full rate
-   * however long you have just spent being chewed on by a rat.
-   */
   private spendDefensiveDecay(target: ActorRuntime, attackerId: string): number {
     const decayed = (target.defensiveDecay ??= new Map());
     const seen = decayed.get(attackerId);
@@ -5811,15 +2326,6 @@ export class GameSession implements PlaySession {
     return worth;
   }
 
-  /**
-   * Forgive one payout for every stretch an attacker has left a body alone, and
-   * forget them entirely once they are square.
-   *
-   * Aged on the tick clock like every other timer here rather than stamped with
-   * a time and compared later, so it agrees with the rest of the session about
-   * how long a second is — and so a world nobody is ticking does not quietly
-   * recover while it sleeps.
-   */
   private recoverDefensiveDecay(tickMs: number) {
     for (const actor of this.actors.values()) {
       const decayed = actor.defensiveDecay;
@@ -5835,32 +2341,12 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Count this body among the ones swinging at that one, and say how many that
-   * now is.
-   *
-   * The window is the attacker's own swing interval plus the grace on top, set
-   * afresh on every blow — so anything that keeps swinging keeps its place in the
-   * count, and anything that wanders off loses it one interval later without
-   * anybody having to notice it left. @see ASSAILANT_GRACE_MS
-   *
-   * Returns the size rather than the map, because the size is the only thing the
-   * rule wants and handing out the map is handing out something a caller can
-   * quietly hold past the tick it was true in.
-   */
   private noteAssailant(target: ActorRuntime, attackerId: string, swingMs: number): number {
     const onMe = (target.assailants ??= new Map());
     onMe.set(attackerId, swingMs + ASSAILANT_GRACE_MS);
     return onMe.size;
   }
 
-  /**
-   * Drop everything that has gone quiet for longer than it had left, and forget
-   * the map entirely once nobody is on this body.
-   *
-   * Wound down on the tick clock rather than stamped and compared, exactly as
-   * {@link recoverDefensiveDecay} is and for the same reasons.
-   */
   private forgetSpentAssailants(tickMs: number) {
     for (const actor of this.actors.values()) {
       const onMe = actor.assailants;
@@ -5874,99 +2360,39 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Start a body's combat minute again. See `../lib/status`'s `COMBAT_STATUS`.
-   *
-   * Everybody, creatures included. The flag began as the thing that keeps a
-   * player's body in the world after its socket closes, and it skipped
-   * residents because nothing read theirs. Now something does: a formula can
-   * ask `has_status('combat')`, and a fed deer under attack has to heal at the
-   * fighting rate, not the calm one. What that costs is a status-id patch per
-   * fighting creature when the flag appears and when it runs out; what only a
-   * player's flag still does is hold the world awake and a body in it — see
-   * `isAtRest` and `GameServer.dropSocket`.
-   */
   private flagCombat(actor: ActorRuntime) {
     actor.statuses = enterCombat(actor.statuses);
     this.noteStatusReading(actor);
   }
 
-  /** Whether this player fought, or was hurt, within the last minute. */
   inCombat(id: string): boolean {
     const actor = this.actors.get(id);
     return actor ? inCombat(actor.statuses) : false;
   }
 
-  /**
-   * Stop a body doing anything on its own: no held keys, no swinging.
-   *
-   * For a body whose player has gone but which stays in the world until its
-   * fight is over. It stands there to be hit; it does not go on fighting, or
-   * a fight against something that heals would keep it in the world for good.
-   */
   standIdle(id: string) {
     const actor = this.actors.get(id);
     if (!actor) return;
     actor.input = { directions: [] };
     actor.attacking = false;
-    // And whatever they were half way through casting, on exactly the grounds
-    // the swing is put away on: a flame that arrived two seconds after its
-    // caster's tab closed is the body going on fighting. Nothing is lost by it
-    // — a cast spends nothing until it lands — and no notice, because there is
-    // nobody left to read one.
     this.cancelCasting(actor);
   }
 
-  /** Remember who hit whom, for the brains' next round of decisions. */
   private notePendingHurt(targetId: string, attackerId: string) {
     const attackers = this.pendingHurt.get(targetId);
     if (attackers) attackers.push(attackerId);
     else this.pendingHurt.set(targetId, [attackerId]);
   }
 
-  /**
-   * Take hit points off a body, and take the body off the board if that empties
-   * it.
-   *
-   * The number is recorded before the death, and carries the cell rather than
-   * relying on the actor still being findable: by the time anything draws it,
-   * the body it came off may be gone.
-   */
-  private applyDamage(
-    target: ActorRuntime,
-    amount: number,
-    /**
-     * What to say about this if it is the blow that finishes them.
-     *
-     * Carried in rather than remembered on the runtime, because the only reader
-     * is the death two lines down: a body that survives has no use for it, and a
-     * field kept between blows would be a record of the last *scratch* rather
-     * than of what killed them. Absent for the harms nobody has to answer for —
-     * a typed `/hp`, and every caller written before a skull existed.
-     */
-    blame?: Blame,
-  ) {
+  private applyDamage(target: ActorRuntime, amount: number, blame?: Blame) {
     const before = this.hpOf(target);
     if (before === null) return;
 
-    // A blow takes a pull off you, and it is the reason a rich vein is worth
-    // clearing a room for. Gated on the blow being a blow: this same door is how
-    // a bandage is applied (see `consume`), and being healed mid-mine is not an
-    // interruption.
     if (amount > 0) this.cancelExtraction(target, EXTRACT_INTERRUPTED_NOTICE);
-    // And a cast, on the same gate and beside the pull it mirrors: what makes a
-    // long cast a decision about where you are standing is that anybody can take
-    // it off you. A stone authored `uninterruptible` is the exception somebody
-    // wrote on purpose. @see `../lib/item`'s {@link ArcaneStoneItem.uninterruptible}
     if (amount > 0 && target.casting && !target.casting.uninterruptible) {
       this.cancelCasting(target, CAST_INTERRUPTED_NOTICE);
     }
-    // Every harm comes through here — a blow, a bolt, a poison tick, a burn
-    // nobody lit — so this one line is "taking damage puts you in combat".
     if (amount > 0) this.flagCombat(target);
-    // And it ends whatever is authored to end on damage — a sleeper wakes. The
-    // blow that wakes them still lands below. @see `../lib/status`'s
-    // `StatusDef.endsOnDamage`
     if (amount > 0) this.endStatusesOnDamage(target);
 
     this.floatSwing(target, "hit", amount);
@@ -5976,28 +2402,6 @@ export class GameSession implements PlaySession {
     if (target.hp === 0) this.kill(target, blame);
   }
 
-  /**
-   * Put health back into a body, and float the figure only if any actually went
-   * in.
-   *
-   * **The mirror of {@link applyDamage}, and it exists because there were four
-   * of it.** Healing happened in four places — a status tick, a mend bolt, a
-   * consumable and the `/hp` command — each clamping at full health with its own
-   * two lines, and none of them showing a number. So a player drinking a potion
-   * at full health, or wearing a charm that tops them up, had no way to tell the
-   * thing was working at all.
-   *
-   * **What actually went in, not what was offered.** A body one point short of
-   * full that is offered five gains one, and one is what floats — the figure is
-   * a receipt for what happened to *this* body, and five would be a receipt for
-   * something else. A tick that restored nothing is silent: no number, no
-   * element created, nothing on the wire. That is the whole of "if you're full
-   * health and heal 1 it shouldn't show anything".
-   *
-   * Returns what it restored, because two callers need it for something other
-   * than the number: a mend pays its caster for health it actually put back, and
-   * a charm's grants are unaffected either way.
-   */
   private applyHealing(target: ActorRuntime, amount: number): number {
     if (amount <= 0) return 0;
     const stats = this.battlerOf(target);
@@ -6012,68 +2416,28 @@ export class GameSession implements PlaySession {
     return restored;
   }
 
-  /**
-   * Take a body off the board for good, and leave what it was carrying where it
-   * fell.
-   *
-   * The tile goes and so does the runtime, which for a player is exactly the
-   * intent: with no actor by that name the server ignores everything their
-   * socket sends, so a dead player sits there connected and can do nothing —
-   * which is what the death screen is drawn over. The one thing that gets past
-   * that gate is the request for a body back; see `GameServer.rebirth`. There
-   * is still no automatic respawn: coming back is something they ask for.
-   *
-   * **The kit does not go with the runtime.** It is dropped onto the corpse's
-   * cell first, so a sword somebody picked up a moment ago is still a sword in
-   * the world — findable, and theirs again if they walk back for it. The
-   * alternative is not "death costs you your things", it is the world quietly
-   * being one sword lighter, which nothing in it can ever put right.
-   *
-   * Everyone aiming at them is released here rather than discovering it later,
-   * so nothing is left swinging at a slot that can never be filled again.
-   */
   private kill(target: ActorRuntime, blame?: Blame) {
-    // Before the body comes off the board, which is what makes it unfindable —
-    // and before the reservation is looked for, since a vein still owes the
-    // pull a corpse was half way through. No notice: there is nobody left to
-    // read it, and the death screen has already said what happened.
     const loc = this.tryLocate(target);
     this.cancelExtraction(target);
-    // A dead caster is not casting, whatever the stone said about being
-    // uninterruptible: that flag is about blows landing, and this is the body
-    // going. No notice, on the line above's terms.
     this.cancelCasting(target);
 
     this.forgetWalk(target);
     this.actors.delete(target.id);
     this.forgetTileIndex();
-    // A body that dies goes of its own accord, as a decayed tile does, and
-    // plays its way out where it fell — unless nobody could see it there.
     if (loc && !target.hidden) {
       this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
     }
-    // Off the cell just located, as {@link despawn} takes a leaver off: the
-    // sweep `despawnActor` makes is for a body this session cannot find.
     this.map = loc
       ? removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex)
       : despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
     for (const actor of this.actors.values()) {
       if (actor.targetId === target.id) actor.targetId = null;
-      // A corpse presses on nobody's guard. It would time out on its own within
-      // the grace, and waiting for that would mean the last swing of a fight you
-      // just won was still fought outnumbered.
       actor.assailants?.delete(target.id);
     }
 
-    // After the despawn, so the pile lands in the room the corpse just made
-    // rather than being refused for the volume the body was still taking up.
     const equipment = loc ? this.dropKit(target.equipment, loc) : target.equipment;
 
-    // Beside the kit and not part of it: a kit refused for want of room is a
-    // kit the dead still own and come back carrying, where a skull refused is a
-    // skull that never existed. Two drops rather than one list, so neither
-    // decides the other.
     if (loc) this.dropRemains(target, loc, blame);
 
     this.pendingDeaths.push({
@@ -6083,31 +2447,9 @@ export class GameSession implements PlaySession {
       tags: target.tags,
     });
 
-    // The cell they were standing in has lost a body and gained a pile, both of
-    // which are real changes to what rests on a plate and to what is holding a
-    // crate up.
     if (loc) this.reindexCells([{ x: loc.x, y: loc.y, z: loc.z }]);
   }
 
-  /**
-   * Put a whole kit on the floor of one cell, and say what is left of it.
-   *
-   * All or nothing, unlike a player's {@link drop}, which places one thing and
-   * can be told no. A half-dropped kit would leave the server with no single
-   * true answer to "what does this body still own" — some of it on the board,
-   * some of it owed — and the two halves are written to different keys, so a
-   * disagreement between them is an item existing twice or not at all. Refusing
-   * the whole pile keeps the kit intact instead: nothing reached the floor, so
-   * the dead still own all of it and come back carrying it.
-   *
-   * In practice the cell has just lost a body and every carried thing is
-   * height-less, so the refusal is a guard rather than a path — but it is the
-   * guard that lets the caller trust what comes back.
-   *
-   * No settle here: the tick runs one pass over the whole board after everything
-   * that moved it, and a kit dropped over a hole falls into it there, by exactly
-   * the rule a shoved crate follows.
-   */
   private dropKit(equipment: Equipment, at: Coord): Equipment {
     const carried = spilled(equipment, this.tilesById);
     if (carried.length === 0) return equipment;
@@ -6116,21 +2458,8 @@ export class GameSession implements PlaySession {
     return dropped ? emptyEquipment() : equipment;
   }
 
-  /**
-   * Put a list of things on the floor of one cell, all or nothing, and say
-   * whether they got there.
-   *
-   * The half of a death's leavings that is the same for the kit and for the
-   * skull, and it is shared so that "a body that drowned leaves nothing in the
-   * water" is one rule rather than two that could come to disagree. What it is
-   * *not* is the decision about what a refusal means — the kit stays owned, the
-   * skull simply never was — which is why that stays with each caller.
-   */
   private dropOnFloor(at: Coord, placements: PlacedTile[]): boolean {
     const stack = getStack(this.map, at.x, at.y, at.z);
-    // The same rule a drop obeys: nothing is left on something nothing can
-    // stand on. A body that drowned keeps what it was carrying rather than
-    // spilling it into the water, which is the safe direction.
     if (walkableElevInStack(stack, this.tilesById) == null) return false;
     const room = canReplaceStack(
       this.map,
@@ -6143,38 +2472,11 @@ export class GameSession implements PlaySession {
     if (!room.ok) return false;
 
     for (const placed of placements) {
-      // Pouring, like every other way an item reaches a cell: a body that dies
-      // holding food where food is already lying leaves one pile behind. The
-      // room check above is unaffected — a pour adds no placement at all, so it
-      // asks for strictly more room than what actually happens needs.
       this.map = appendItem(this.map, at.x, at.y, at.z, placed, this.tilesById);
     }
     return true;
   }
 
-  /**
-   * Leave behind whatever this body's tile says it leaves, engraved with who it
-   * was and with what killed it written under it.
-   *
-   * **Authored, and absent on almost every body.** This was a rule about
-   * players — one tile id in the engine, one body tile it applied to — and the
-   * default it encoded is still the right one: a world where every rat leaves a
-   * keepsake is knee-deep in rats' skulls by the evening. But a boss worth
-   * killing once is exactly the case that wants to say otherwise, so it is a
-   * field an author fills in. See `../lib/battler`'s
-   * {@link BattlerDef.remains}.
-   *
-   * **The tile is authored; what it says is not.** Whose it is comes from the
-   * body — off the *tile* rather than the id, on `./displayName`'s own argument
-   * that `npc:` prefixes are how residents are keyed rather than what they are
-   * — and what killed them comes from the blow. A tile whose name has no hole
-   * in it ignores the engraving, which is what lets a plain `Troll skull` be a
-   * perfectly good thing for a troll to leave.
-   *
-   * Silently nothing where the catalogue no longer holds the tile, on the terms
-   * a reward naming a missing tile is left alone: renamed content should read
-   * as an effect that did not happen.
-   */
   private dropRemains(target: ActorRuntime, at: ActorLocation, blame?: Blame) {
     const def = this.tilesById[at.placed.tileId];
     const remains = def ? resolveBattler(def)?.remains : undefined;
@@ -6183,8 +2485,6 @@ export class GameSession implements PlaySession {
     this.dropOnFloor(at, [
       {
         tileId: remains,
-        // Minted here like any other thing coming into the world, so one
-        // player's two skulls are two things and can be told apart.
         itemId: mintItemId(),
         engraved: bodyNameFor({ tileId: at.placed.tileId, name: target.name }, this.tilesById),
         ...(blame ? { description: causeOfDeath(blame) } : {}),
@@ -6192,21 +2492,6 @@ export class GameSession implements PlaySession {
     ]);
   }
 
-  /**
-   * Age the arrows out, on the tick clock like every other timer.
-   *
-   * A flight that has arrived is dropped, and plays whichever side its landing
-   * owes. Nothing is *decided* here — the blow it depicts was settled on the
-   * tick it was loosed — but the blow itself comes off a body a few lines later
-   * on this same tick: {@link landArrivedBlows} winds its countdown by the same
-   * `tickMs` this winds the flights by, which is what keeps the picture and the
-   * health bar on one moment. @see `./projectile`
-   *
-   * The arithmetic is `./projectile`'s rather than this loop's, because
-   * `../net/RemoteSession` ages the same flights on the render loop's clock, and
-   * two copies of "a landing plays a side" is one rule that can disagree with
-   * itself.
-   */
   private ageProjectiles(tickMs: number) {
     if (this.liveProjectiles.length > 0) {
       this.liveProjectiles = ageFlights(
@@ -6221,16 +2506,6 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Hold a blow for the length of a flight, or land it now.
-   *
-   * **The one door between "a shot was fired" and "somebody was hit".** Every
-   * caller hands it whatever {@link fireProjectile} said the flight was worth,
-   * so a melee swing and a bow swing are the same three lines and the delay is
-   * the only thing that differs between them. A weapon that put nothing in the
-   * air reports zero and lands here and now, which is what keeps a fist, a
-   * blade and a projectile tile the catalogue has lost on one path.
-   */
   private queueBlow(delayMs: number, land: () => void) {
     if (delayMs <= 0) {
       land();
@@ -6239,24 +2514,6 @@ export class GameSession implements PlaySession {
     this.blowsInFlight.push({ remainingMs: delayMs, land });
   }
 
-  /**
-   * Land every blow whose flight has arrived.
-   *
-   * Wound down by the same `tickMs` {@link ageProjectiles} winds the arrows
-   * down by, so the blow and the picture of it are over on the same tick. It is
-   * deliberately *not* driven off the flight list — a flight is dropped the
-   * moment it lands and a blow would then have nothing to watch, and matching
-   * them up by id would be a second answer to a question two counters already
-   * agree on.
-   *
-   * **After the leans and before the brains**, which is the only window in the
-   * tick that owes nothing back: a dodge started here gets its full hop rather
-   * than being aged on the tick it began, and a creature told it has been hit
-   * still gets its turn to answer this tick. @see tick
-   *
-   * Landing can queue nothing new — a blow does not fire a weapon — so the list
-   * is safe to walk and rebuild in one pass.
-   */
   private landArrivedBlows(tickMs: number) {
     if (this.blowsInFlight.length === 0) return;
     const waiting: BlowInFlight[] = [];
@@ -6265,13 +2522,10 @@ export class GameSession implements PlaySession {
       blow.remainingMs -= tickMs;
       (blow.remainingMs <= 0 ? arrived : waiting).push(blow);
     }
-    // Swapped before anything lands rather than after, so a blow that kills
-    // somebody cannot be walked over twice by a re-entrant tick.
     this.blowsInFlight = waiting;
     for (const blow of arrived) blow.land();
   }
 
-  /** Age the floating numbers out, on the tick clock like every other timer. */
   private ageDamageNumbers(tickMs: number) {
     if (this.liveDamage.length === 0) return;
     let expired = false;
@@ -6286,45 +2540,15 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * The stat block of whatever body this actor is in, equipment counted, or
-   * null for a body with no stats at all.
-   *
-   * **The single place stats are answered**, which is what makes a weapon apply
-   * everywhere without anything else having to remember to ask: the swing reads
-   * it, the cooldown reads it, and the health bar's maximum reads it. A second
-   * caller of `resolveBattler` would be a body that fights with its sword and
-   * one that does not, depending on who asked.
-   */
   private battlerOf(
     actor: ActorRuntime,
     hand: Hand | null = this.handOf(actor),
   ): FightingStats | null {
     const base = this.baseBattlerOf(actor, hand);
     if (!base) return null;
-    return withStatusModifiers(
-      base,
-      actor.statuses,
-      this.statusDefs,
-      // The stored figure rather than {@link hpOf}, which reads *this* function
-      // and would loop. Statuses that read `HP` therefore see the raw number,
-      // which is what a formula wants anyway: the clamp exists so a lowered
-      // maximum cannot leave somebody overfull, not to change what they have.
-      actor.hp ?? base.maxHp,
-    );
+    return withStatusModifiers(base, actor.statuses, this.statusDefs, actor.hp ?? base.maxHp);
   }
 
-  /**
-   * The same block **before any status has touched it**.
-   *
-   * Split out because it is what a status formula's `MAX_HP` has to read: a
-   * status that raises maximum health and heals a share of it would otherwise
-   * compound against itself once a second, and each of those readings would be a
-   * fraction of the last. See `../lib/formula`.
-   *
-   * It is also the only honest input to `withStatusModifiers`, which sums deltas
-   * onto a base — folding statuses into their own input would apply them twice.
-   */
   private baseBattlerOf(
     actor: ActorRuntime,
     hand: Hand | null = this.handOf(actor),
@@ -6334,17 +2558,6 @@ export class GameSession implements PlaySession {
     return effectiveBattler(body, actor.equipment, this.tilesById, hand);
   }
 
-  /**
-   * The same body as a set of readings for its own player's chrome.
-   *
-   * **Beside {@link baseBattlerOf} rather than through it**, because the two
-   * want different hands: a swing is thrown with whichever hand's turn it is,
-   * and a panel has to hold still. `./attributes` owns that choice and both
-   * ends of the wire call it, which is what stops `/play` and a connected world
-   * quoting two figures for one body.
-   *
-   * Null for a body with no battler block, which the panel says plainly.
-   */
   private attributesOf(actor: ActorRuntime): Attributes | null {
     const body = this.bodyOf(actor);
     const loc = this.tryLocate(actor);
@@ -6357,46 +2570,18 @@ export class GameSession implements PlaySession {
       tilesById: this.tilesById,
       statuses: actor.statuses,
       statusDefs: this.statusDefs,
-      // The stored figure rather than {@link hpOf}, on exactly the terms
-      // {@link battlerOf} passes it: a formula reading `HP` wants what this body
-      // has, and filling it in is not this function's business.
       hp: actor.hp,
     });
   }
 
-  /**
-   * Which hand this body is about to swing with, or null for one swinging what
-   * it was born with.
-   *
-   * **A read and never a write**, which is what lets {@link battlerOf} stay
-   * something a health bar can ask sixty times a second: the rotation only
-   * advances where a swing is actually spent, in {@link tryAttack}. A body being
-   * *looked at* is not taking turns.
-   */
   private handOf(actor: ActorRuntime): Hand | null {
     return handToSwing(actor.equipment, this.tilesById, actor.nextHand);
   }
 
-  /**
-   * What a status is called, or its id where the catalogue has lost it.
-   *
-   * The same fallback a renamed status already gets everywhere else: an id at
-   * the player is a poor word and a blank line is a worse one.
-   */
   private statusName(id: string): string {
     return this.statusDefs[id]?.name ?? id;
   }
 
-  /**
-   * What to write on a skull this body's swing made.
-   *
-   * **Two sources for the weapon's name and they do not overlap.** A held weapon
-   * is a tile and a tile has a name, so asking the item for one would be asking
-   * the wrong half. A natural weapon has no tile at all, so its name is the only
-   * one there is — see `../lib/item`'s {@link WeaponItem.name}. Which of the two
-   * is in play is the same question {@link handOf} already answered: a null hand
-   * *is* the body swinging what it was born with.
-   */
   private blameForSwing(attacker: ActorRuntime, hand: Hand | null): Blame {
     const by = this.bodyName(attacker.id) ?? undefined;
     const held = hand ? attacker.equipment[hand] : null;
@@ -6413,106 +2598,33 @@ export class GameSession implements PlaySession {
     };
   }
 
-  /**
-   * Put a status on somebody, by id.
-   *
-   * An id the catalogue does not hold is skipped, in the same breath a reward
-   * naming a missing tile is left alone: renamed content should read as an effect
-   * that did not happen, not as a world that will not start.
-   *
-   * The dice are the world's own — see `./statuses`.
-   *
-   * Answers with what actually became of the application, which only
-   * {@link runStatusCommand} reads — see {@link StatusGrantOutcome}.
-   */
   private grantStatus(
     actor: ActorRuntime,
     grant: StatusGrant,
-    /**
-     * Who is answerable for it, when anybody is.
-     *
-     * Absent for a berry, a bite and every hearth in the world, which is nearly
-     * every call — see `./statuses`'s {@link StatusInstance.causedBy}, which is
-     * where "no cause behaves exactly as it always did" is written down.
-     */
     causedBy?: string,
-    /**
-     * What the spell doing it is made of, when a spell is doing it.
-     *
-     * Absent on every call but the two that come from a cast, which is what
-     * keeps a berry, a bite and a hearth neutral on the wheel — see
-     * `./statuses`'s {@link StatusInstance.elements}.
-     */
     elements?: readonly Element[],
-    /**
-     * What to say about this if it kills them.
-     *
-     * Beside the cause and not folded into it, because the two answer to
-     * different rules: a bite is nobody's *doing* for the purposes of
-     * experience and is very much somebody's for the purposes of a skull. See
-     * `./statuses`'s {@link StatusInstance.blame}.
-     */
     blame?: Blame,
   ): StatusGrantOutcome {
     const def = this.statusDefs[grant.id];
     if (!def) return "refused";
-    // **One gate, whatever brought it.** A wolf that cannot be made ill by raw
-    // meat cannot be made ill by a blade dipped in it either, and putting the
-    // check on the body rather than beside each source is what makes that true
-    // without anybody having to remember it. @see BattlerDef.immuneTo
-    // The *body's* authored block, not `battlerOf`'s equipment-and-status
-    // arithmetic: an immunity is a fact about what a wolf is, and reading it
-    // through a projection that statuses feed into would let a status decide
-    // whether a status may be applied.
     if (resolveBattler(this.defFor(actor))?.immuneTo?.includes(grant.id)) {
       return "refused";
     }
-    // **And the same gate for harm between two players.** Here rather than at
-    // each source, because this is the one place every bad status arrives at: a
-    // bolt's curse, a blade's poison, and the burn a conjured flame hands over.
-    // Only a status the author called `bad` — a player may still be mended or
-    // blessed by somebody they cannot fight, which is the one thing a switch
-    // about violence should not be allowed to refuse. @see ./pvp
     if (def.tone === "bad" && causedBy !== undefined) {
       const causer = this.actors.get(causedBy);
       if (causer && !this.mayHarm(causer, actor)) return "refused";
     }
-    // Read before the list is replaced, because afterwards there is nothing to
-    // compare against: `applyStatus` stacks and refreshes in place, so a body
-    // that was already burning and one that has just caught fire come back
-    // holding the same one instance.
     const already = actor.statuses.some((instance) => instance.defId === def.id);
-    // The item's range where it states one, and the status's own otherwise —
-    // see `../lib/item`'s `StatusGrant`. Both ends or neither, so this
-    // cannot end up ordering one source's floor against another's ceiling.
     const range =
       grant.fromMs === undefined || grant.toMs === undefined
         ? def
         : { fromMs: grant.fromMs, toMs: grant.toMs };
     actor.statuses = applyStatus(actor.statuses, def, this.rng, range, causedBy, elements, blame);
-    // **Only the arrival speaks.** A fire re-grants Burned on every standing
-    // period and a second berry is a longer helping of Fed, neither of which is
-    // news: what a player has to be told is that they are now under something
-    // they were not under a moment ago. @see ./notices' `statusAcquiredNotice`
-    //
-    // Said to the body rather than to whatever did it, so that every one of
-    // these — a bite, a bolt, a berry, a floor of flame — reads as one sentence
-    // about the player's own condition. `say` drops a resident's, so a deer
-    // walking through a fire queues nothing.
     if (!already) this.say(actor.id, statusAcquiredNotice(def.name));
-    // Noted here as well as on the tick, because eating happens *between* ticks
-    // and the world may be asleep when it does — the same reason the kit is
-    // flushed wherever it can change rather than only on the loop.
     this.noteStatusReading(actor);
     return already ? "refreshed" : "acquired";
   }
 
-  /**
-   * Queue an announcement if what this actor's statuses say has changed.
-   *
-   * Idempotent, and cheap on the overwhelmingly common path: a body under
-   * nothing reads as the empty string, which is what it read as last time.
-   */
   private noteStatusReading(actor: ActorRuntime) {
     const reading = statusReading(actor.statuses);
     if (this.statusReadings.get(actor.id) === reading) return;
@@ -6520,19 +2632,6 @@ export class GameSession implements PlaySession {
     this.statusesChanged.add(actor.id);
   }
 
-  /**
-   * Advance everything running on everybody, and pay out whatever came due.
-   *
-   * In the tick's own order rather than folded into another pass, because what it
-   * does is neither motion nor a fight: a status can heal, harm, kill, and change
-   * the numbers the swing three lines further down is fought with.
-   *
-   * **The two directions leave by different doors**, and that is the whole reason
-   * `./statuses` hands back signed figures rather than a net. A harm goes through
-   * {@link applyDamage} so it shows its number, tells the brains and can kill —
-   * a death by poison and a death by blows must not be two codepaths to keep
-   * alive. A heal clamps at the maximum, exactly as a consumable's does.
-   */
   private tickStatuses(tickMs: number) {
     for (const actor of this.actors.values()) {
       if (actor.statuses.length === 0) continue;
@@ -6544,7 +2643,6 @@ export class GameSession implements PlaySession {
         actor.statuses,
         tickMs,
         {
-          // `battlerOf`, from the base just read rather than from a second one.
           hp:
             this.hpOf(
               actor,
@@ -6562,62 +2660,18 @@ export class GameSession implements PlaySession {
         if (change.amount < 0) {
           const damage = this.elementalDamage(actor, -change.amount, change.elements);
           this.applyDamage(actor, damage, change.blame);
-          // Paid before the death check below, on the same terms a killing blow
-          // pays for itself: the arcanist who lit the fire earns from the last
-          // point of damage it did, and a body that has already left the board
-          // has nobody to pay. Paid on what the wheel made of it rather than on
-          // what the formula said, so a caster who picked the right element is
-          // paid for having picked it.
           this.awardCausedDamage(actor, change.causedBy, damage, change.elements ?? NO_ELEMENTS);
-          // The caster of a flame that is still burning somebody is dealing
-          // that damage, a minute after they lit it or not.
           const causer = change.causedBy ? this.actors.get(change.causedBy) : undefined;
           if (causer && damage > 0) this.flagCombat(causer);
-          // A body that has just died is off the board, and everything after
-          // this would be arithmetic on a corpse.
           if (actor.hp === 0) break;
           continue;
         }
         if (change.amount === 0) continue;
-        // Through the healing path rather than a bare clamp, so a `fed` tick
-        // that actually put something back says so — and one on a body already
-        // at full health stays silent. @see applyHealing
         this.applyHealing(actor, change.amount);
       }
     }
   }
 
-  /**
-   * What a spell's damage comes to against this particular body.
-   *
-   * **The one place the elemental wheel turns**, and it turns on damage rather
-   * than on anything else a spell can do: a mend has no second body to be good
-   * against, and a status's *duration* is a clock rather than a force. What the
-   * wheel changes is how hard the fire actually bites.
-   *
-   * Both sides come from where they were authored — the spell's elements were
-   * read off its requirements, whether they arrived here on a status, on a
-   * conjured placement or straight off the bolt that was just thrown, and the
-   * body's are what its battler says it is plus whatever it has on.
-   * @see `../lib/element`'s `effectiveness` for the arithmetic, and
-   * `./equipment`'s `bodyElements` for the two halves and why neither of them is
-   * read off a mastery.
-   *
-   * `bodyOf` is asked for the battler, and **only its authored `elements` are
-   * read** — the block it hands back differs from the authored one in its
-   * masteries alone, and masteries have no say here by design. A body that has
-   * spent a year throwing fire is not made of fire.
-   *
-   * **Never less than one point.** A resisted spell should land softly, not
-   * become a spell that visibly does nothing — a floating `0` over a target
-   * reads as a bug, and a burn that takes nothing off would never kill anything
-   * however long it ran.
-   *
-   * Returns the damage untouched for the overwhelming majority: an elementless
-   * status, a body attuned to nothing, or a matchup neither side wins. That path
-   * costs one length check and no lookup, which matters because it is every
-   * poison and every hearth in the world, every tick.
-   */
   private elementalDamage(
     victim: ActorRuntime,
     damage: number,
@@ -6635,21 +2689,10 @@ export class GameSession implements PlaySession {
     return Math.max(1, Math.round(damage * multiplier));
   }
 
-  /**
-   * What a cast is decided against, for one body, right now.
-   *
-   * Assembled here because this is the one place that knows where everybody is
-   * standing and what everybody has earned; decided in `./casting`, which knows
-   * none of that and is the same function the browser runs. Null for a body that
-   * is not on the board — a corpse casts nothing.
-   */
   private castContextFor(actor: ActorRuntime): CastContext | null {
     const from = this.tryLocate(actor);
     if (!from) return null;
 
-    // The target is honoured only if it is still somebody: a slot pointing at a
-    // body that has died reads as no target at all, which is the same answer
-    // `runAutoAttacks` gives before it clears the slot.
     const targetActor = actor.targetId ? this.actors.get(actor.targetId) : undefined;
     const to = targetActor ? this.tryLocate(targetActor) : null;
 
@@ -6658,30 +2701,17 @@ export class GameSession implements PlaySession {
       map: this.map,
       tilesById: this.tilesById,
       equipment: actor.equipment,
-      // The *earned* body's masteries, so a level crossed a moment ago is a
-      // level a stone can be cast on — see {@link bodyOf}, which is where
-      // experience becomes levels.
       masteries: body?.masteries ?? {},
       caster: this.casterPointOf(actor, from),
-      // What the body's hands are already doing, which refuses every square
-      // while it runs. Read off the runtime rather than passed in, so the one
-      // caller that must *not* see it — {@link finishCasting} — arranges that by
-      // clearing the run before it asks. @see `./casting`'s `CastContext`
       casting: actor.casting?.progress ?? null,
-      // Read off the tile rather than stored on the actor, on the terms the
-      // natural weapon is: what a body can do is a fact about what it is, and
-      // an authored change to a creature reaches every one of them at once.
       spells: this.spellsOf(actor),
       spellCooldownsMs: actor.spellCooldownMs,
       target: to ? this.castPointOf(to) : null,
-      // Whether a spell that takes health may be aimed at them at all. Asked of
-      // the two bodies here, because this is the side that has both. @see ./pvp
       mayHarmTarget: targetActor ? this.mayHarm(actor, targetActor) : true,
       incapacitated: this.incapacitated(actor),
     };
   }
 
-  /** This body's own spells, or none for a tile that is not a battler. */
   private spellsOf(actor: ActorRuntime): readonly NaturalSpell[] {
     return resolveBattler(this.defFor(actor))?.spells ?? NO_SPELLS;
   }
@@ -6690,19 +2720,6 @@ export class GameSession implements PlaySession {
     return { ...this.reachPointOf(loc), stackIndex: loc.stackIndex };
   }
 
-  /**
-   * Where this body casts from: where it stands, or the cell it is walking
-   * into.
-   *
-   * The walk's destination rather than the board's cell, because a step is
-   * committed only when it lands and the browser has drawn the body there
-   * already. Measured from the cell being left, a conjure with nobody targeted
-   * landed on the cell being entered — which is where the caster was about to
-   * stand. @see `./casting`'s `CasterPoint`
-   *
-   * The stack index is one past the top of the destination, which is where the
-   * body will be once it arrives: `moveEntity` appends.
-   */
   private casterPointOf(actor: ActorRuntime, from: ActorLocation): CasterPoint {
     const facing = actorDirection(from);
     const tileId = from.placed.tileId;
@@ -6721,46 +2738,12 @@ export class GameSession implements PlaySession {
     };
   }
 
-  /**
-   * Every stone this body could press, with why each can or cannot be cast.
-   *
-   * @see PlaySession.spells — the interface says why this is not on the
-   * snapshot. Empty for a body that is not on the board, which is the same
-   * answer it gives for a body carrying nothing.
-   */
   spells(id: string = LOCAL_ACTOR_ID): SpellButton[] {
     const actor = this.actors.get(id);
     const context = actor ? this.castContextFor(actor) : null;
     return context ? castableSpells(context) : [];
   }
 
-  /**
-   * Press the stone in this square.
-   *
-   * **Two shapes of cast, and the difference is one number.** A stone with no
-   * cast time authored resolves here and now, which is what every stone in the
-   * world did before cast times existed. A stone with one starts a
-   * {@link CastingRun} and resolves when the bar fills — see
-   * {@link finishCasting} — and everything in between is the caster standing
-   * there in front of whoever is watching.
-   *
-   * **Nothing is spent when a cast starts.** The cooldown, the experience and
-   * the effect all land together in {@link resolveCast}, so a cast that is
-   * broken by a blow or that finds its cell blocked has cost the caster the
-   * seconds and nothing else. That is the same argument the old instant path
-   * already made about a conjure with nowhere to land — a flame that never
-   * appeared is a press the player cannot tell from a dropped key — carried
-   * forward to the one case where a player can plainly see why.
-   *
-   * **Nothing is said at the start.** A cast used to shout the stone's name as
-   * it began; what a room hears now is the noise the stone is authored to make,
-   * and it hears it when the spell lands — see {@link recordCastSound}. A bar
-   * over the caster's head is what says something is coming.
-   *
-   * Nothing here is predicted by a client. A browser sends "cast the stone in
-   * this square" and finds out what came of it from the equipment message and
-   * the patches that follow, which is the same arrangement attacking is under.
-   */
   cast(slot: CastSlot, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor) return false;
@@ -6770,31 +2753,22 @@ export class GameSession implements PlaySession {
 
     const stone = spellIn(context, slot);
     if (!stone) return false;
-    // The instance, so a caster who swaps hands mid-cast finishes nothing. A
-    // body's own spell has none, and needs none. @see CastingRun.itemId
     const held = slot.from === "square" ? actor.equipment[slot.square] : null;
     if (slot.from === "square" && !held) return false;
 
     const verdict = castability(context, slot);
     if (!verdict.ok) {
-      // Said where the refusal happened, on the terms every other notice is —
-      // and only for the refusals the button does not draw, which today is
-      // exactly one. @see ./notices' castRefusalNotice
       const notice = castRefusalNotice(verdict.reason);
       if (notice) this.say(id, notice);
       return false;
     }
 
-    // What the caster brings against what the stone asks, which is the whole of
-    // how long this takes. @see `./casting`'s `castDurationMs`
     const durationMs = castDurationMs(stone, context.masteries);
     if (durationMs <= 0) {
       this.resolveCast(actor, slot, stone, context);
       return true;
     }
 
-    // Both hands, one job — the mirror of what starting a pull does to a cast.
-    // @see extract
     this.cancelExtraction(actor);
     const aimed = needsTarget(stone);
     const targetId = castTargetOf(actor, aimed);
@@ -6807,14 +2781,6 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * Stop the cast this body is making. @see PlaySession.cancelCast
-   *
-   * Quietly: no notice, unlike a cast a blow breaks. That one is said because a
-   * bar vanishing is exactly what a finished cast looks like and the caster did
-   * not choose it; this one the caster asked for, and the stone coming back lit
-   * with no cooldown on it is the whole of what there is to tell them.
-   */
   cancelCast(id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor?.casting) return false;
@@ -6822,49 +2788,20 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * Wind every cast on, and land the ones that have arrived.
-   *
-   * **Late in the tick and directly after the pulls**, for the pulls' own
-   * reason: a cast is resolved against the board the rest of the tick left
-   * behind, so a crate dropped in front of the caster this tick is in the way of
-   * this flame rather than of the next one.
-   *
-   * The great majority of actors hold no cast at all and pay one null check.
-   */
   private advanceCastings(tickMs: number) {
     for (const actor of this.actors.values()) {
       this.advanceCasting(actor, tickMs);
     }
   }
 
-  /**
-   * Wind one cast on, and see whether it has landed.
-   *
-   * **Nothing is re-checked here.** A pull asks every tick whether the person
-   * making it has moved and whether the thing they were working is still there;
-   * a cast asks nothing until the moment it lands, and that difference is the
-   * design. What takes a cast off you is a blow — see {@link applyDamage} — and
-   * making it also depend on standing still would mean a caster could not walk
-   * out of a fire while finishing a spell, which is a rule nobody would guess at
-   * from watching. Everything else the cast depends on is asked once, at the
-   * end, where a stone swapped or a target lost simply comes to nothing.
-   */
   private advanceCasting(actor: ActorRuntime, tickMs: number) {
     const run = actor.casting;
     if (!run) return;
-    // A caster who stops being able to act loses the cast, on a blow's terms —
-    // including an `uninterruptible` stone, which is about blows and not about
-    // hands that have gone still.
     if (this.incapacitated(actor)) {
       this.cancelCasting(actor, CAST_INTERRUPTED_NOTICE);
       return;
     }
 
-    // The caster may point at somebody else mid-cast, and the bolt lands on
-    // whoever is targeted when the bar fills, so the broadcast target follows.
-    // A new object rather than a write in place, because the broadcast is
-    // diffed on identity — this is the one change mid-cast that has to be sent.
     const targetId = castTargetOf(actor, run.aimed);
     if (run.progress.targetId !== targetId) {
       const { targetId: _was, ...rest } = run.progress;
@@ -6873,45 +2810,21 @@ export class GameSession implements PlaySession {
 
     run.progress.remainingMs -= tickMs;
     if (run.progress.remainingMs > 0) return;
-    // Floored rather than left negative, on a pull's terms: whatever draws this
-    // reads it as a fraction of the whole.
     run.progress.remainingMs = 0;
     this.finishCasting(actor, run);
   }
 
-  /**
-   * Land a cast whose bar has filled, or let it come to nothing.
-   *
-   * **The run comes off the actor first**, and it has to: everything below asks
-   * `castability` again, and a body that is still recorded as casting refuses
-   * every square — including the one it is finishing. @see `./casting`'s
-   * `CastRefusal`
-   *
-   * **A cast that can no longer be made simply does not happen**, which is the
-   * whole of what the second check is for. The obvious case is the motivating
-   * one — a flame aimed at a cell somebody has since dropped a crate on — and
-   * the rest fall out of the same call for free: a target who walked out of
-   * range, a target who died, a stone swapped into the other hand, a stone put
-   * away entirely. Nothing is spent and nothing is said. The stone is still
-   * ready, which is the sentence a player would have wanted anyway, and it is
-   * said in the one way that cannot be missed.
-   */
   private finishCasting(actor: ActorRuntime, run: CastingRun) {
     actor.casting = null;
 
     const slot = run.progress.slot;
     if (slot.from === "square") {
       const held = actor.equipment[slot.square];
-      // The same stone, not merely a stone: two identical stones in two hands
-      // are two stones, and the one that pays is the one that was pressed.
       if (!held || held.id !== run.itemId) return;
     }
 
     const context = this.castContextFor(actor);
     if (!context) return;
-    // Asked of the context rather than the kit, so a body's own spell is found
-    // the same way a held one is — and so a spell an author has since renamed
-    // out from under a running cast simply comes to nothing.
     const stone = spellIn(context, slot);
     if (!stone) return;
     if (!castability(context, slot).ok) return;
@@ -6919,55 +2832,24 @@ export class GameSession implements PlaySession {
     this.resolveCast(actor, slot, stone, context);
   }
 
-  /**
-   * Spend the cooldown, pay for the practice, and run the effect.
-   *
-   * **Everything a cast costs and everything it does, in one place and in one
-   * order**, which is what makes the instant path and the timed path the same
-   * cast. The cooldown is spent before the effect, on exactly the terms a
-   * swing's is spent before the dice are rolled: a bolt that healed nothing has
-   * still been cast, and a cost that depended on the outcome would make pressing
-   * at the wrong moment free.
-   */
   private resolveCast(
     actor: ActorRuntime,
     slot: CastSlot,
     stone: ArcaneStoneItem,
     context: CastContext,
   ) {
-    // What the spell is made of, read once at the top and handed to whichever
-    // arm runs: the elements decide what the cast trains and what it is worth
-    // against whoever it lands on, and re-deriving them per arm would be three
-    // places for the answer to drift. @see `../lib/mastery`'s `spellElements`
     const elements = spellElements(stone.requirements);
 
-    // Before the effect, so nothing below can return early out of paying for it.
     this.spendCooldown(actor, slot, stone);
-    // And beside the cooldown rather than after the effect, on exactly the same
-    // grounds: what casting teaches you for its own sake is owed for the cast,
-    // not for what came of it. A light that lands on nobody is still a spell you
-    // threw. @see `./experience`'s `practiceEarnings`
     this.grantExperience(actor, practiceEarnings(elements));
 
     if (stone.effect.kind === "bolt") {
       this.castBolt(actor, slot, stone, stone.effect, elements);
     } else this.castConjure(actor, context, stone.effect.tileId, elements);
 
-    // After the effect rather than before it, so the noise is the sound of
-    // something that has happened. Here rather than in `cast`, because this is
-    // the one place both shapes of cast come through — and a cast that never
-    // gets here made nothing, so it makes no sound.
     this.recordCastSound(actor, stone);
   }
 
-  /**
-   * What to call the spell that came out of this slot, for a skull to say.
-   *
-   * A carried stone is named by its tile and a body's own spell by itself.
-   * {@link UNNAMED_SPELL} is unreachable in practice from either arm — a square
-   * with nothing in it never reaches a cast — and is what stops a blame line
-   * from being written with a blank in it.
-   */
   private spellName(actor: ActorRuntime, slot: CastSlot): string {
     if (slot.from === "natural") return slot.name;
     const held = actor.equipment[slot.square];
@@ -6975,19 +2857,6 @@ export class GameSession implements PlaySession {
     return this.tilesById[held.tileId]?.name ?? held.tileId;
   }
 
-  /**
-   * Make the noise a stone makes, where the caster stands as the spell lands.
-   *
-   * {@link recordConsumeSound}'s twin, on every one of its terms: a noise and
-   * not speech, so it arrives unattributed — "whoosh" is what the room heard,
-   * not something the caster said — and through {@link recordNoise}, so a
-   * creature in earshot listening for one gets to notice. That last part is a
-   * change from the shout this replaced: a spell's name was chat, and creatures
-   * do not hear chat; a whoosh is a sound, and they do.
-   *
-   * Located now rather than when the cast began: a caster may walk while a bar
-   * runs, and the noise belongs where the spell came out.
-   */
   private recordCastSound(actor: ActorRuntime, stone: ArcaneStoneItem) {
     if (!stone.sound?.trim()) return;
     const loc = this.tryLocate(actor);
@@ -6995,34 +2864,13 @@ export class GameSession implements PlaySession {
     this.recordNoise(actor.id, loc, stone.sound);
   }
 
-  /**
-   * Take a cast off somebody.
-   *
-   * **Nothing is handed back**, unlike a pull's cancel: a cast holds no
-   * reservation and has spent nothing, so dropping the run is the whole of it.
-   * The notice is optional for a pull's reason — a caster who has just started a
-   * different job has already said what they meant.
-   */
   private cancelCasting(actor: ActorRuntime, notice?: string) {
     if (!actor.casting) return;
     actor.casting = null;
     if (notice) this.say(actor.id, notice);
   }
 
-  /**
-   * Put this stone on its cooldown, wherever it is being cast from.
-   *
-   * Through {@link setEquipment} rather than by writing the instance, because a
-   * cooldown is a change to the kit like any other: it has to reach the owner's
-   * screen so the button dims, and it has to be written down so a reconnection
-   * does not clear it.
-   */
   private spendCooldown(actor: ActorRuntime, slot: CastSlot, stone: ArcaneStoneItem) {
-    // A body's own spell has no instance to write a cooldown onto, so it goes
-    // on the body — which is also why it is written in place rather than
-    // through `setEquipment`: nothing is watching this record for a new object,
-    // because nothing draws it but the caster's own row and nothing sends it.
-    // @see ActorRuntime.spellCooldownMs
     if (slot.from === "natural") {
       actor.spellCooldownMs[slot.name] = stone.cooldownMs;
       this.equipmentChanged.add(actor.id);
@@ -7036,33 +2884,6 @@ export class GameSession implements PlaySession {
     });
   }
 
-  /**
-   * Land a bolt: move health, leave what it leaves, on the caster or on whatever
-   * they are pointing at.
-   *
-   * **One arm for every spell that touches a body**, which is the whole of what
-   * folding the old `status` arm into this one bought — see `../lib/item`'s
-   * {@link StoneEffect}. Two halves, both optional, and a stone that does both
-   * is a brand: it burns, and it sets you alight.
-   *
-   * **Harming and mending are one number with a sign.** What differs between the
-   * two directions is not the arithmetic but who has a say in it, and the split
-   * is exactly three things: armour, the elemental wheel, and the ceiling. A
-   * blow has to get through what the subject is wearing and is weighed on the
-   * wheel; a mend is stopped by neither, and stops at a full health bar instead.
-   * Nobody has ever worn armour against being healed.
-   *
-   * **No accuracy and no dodge, unlike a swing.** A cast is not aimed — you
-   * spent the cooldown and the stone answered — so the two failures a swing can
-   * have are absent here by design, and what is left of the dice is the variance
-   * band. That makes a bolt the reliable half of an arcanist's damage and a
-   * swing the frequent half, which is the trade the profession is built on: a
-   * press you paid a hand for cannot also be a coin toss.
-   *
-   * The order is the order it happens in, and each step is somebody's say:
-   * mastery, then the dice, then the subject's armour, then the wheel, then
-   * whatever the bolt leaves behind.
-   */
   private castBolt(
     actor: ActorRuntime,
     slot: CastSlot,
@@ -7070,11 +2891,6 @@ export class GameSession implements PlaySession {
     effect: Extract<StoneEffect, { kind: "bolt" }>,
     elements: readonly Element[],
   ) {
-    // Read here rather than passed down, because what a cast *does* and what a
-    // cast is allowed to do are two questions, and `./casting`'s `needsTarget`
-    // owns only the second. Both now answer it off the effect alone: the square
-    // used to override this to the caster, which meant a stone authored at a
-    // target landed on its wearer the moment it was worn as a charm.
     const onTarget = effect.on === "target";
     const subject = onTarget
       ? actor.targetId
@@ -7083,73 +2899,32 @@ export class GameSession implements PlaySession {
       : actor;
     if (!subject) return;
 
-    // Asked once and read three times below — whether anything flies, and
-    // whether the blow pays. A stone pointed at somebody who turns out to be
-    // yourself is a spell cast on yourself, whatever the effect said.
     const atSomebodyElse = subject !== actor;
 
     const stats = this.battlerOf(subject);
     const before = this.hpOf(subject);
-    // Nothing a bolt does is visible on something that cannot be hurt, which is
-    // `activateAddStatus`'s own argument and was the old status arm's too.
     if (!stats || before === null) return;
 
     const body = this.bodyOf(actor);
     if (!body) return;
 
-    // Loosed before anything lands, on the terms an arrow is: a shot somebody
-    // saw taken, whatever came of it. Never at yourself — a flight from a body
-    // to itself is a frame of art sitting on somebody's head.
-    //
-    // **And how long it takes is what the rest of this waits for.** A bolt
-    // crossing a yard takes its target's health when it gets there, exactly as
-    // an arrow does — see {@link blowsInFlight}. A bolt with no projectile
-    // authored reports zero and everything below happens on this tick, which is
-    // every cast at yourself and every stone whose art nobody wrote.
     let flightMs = 0;
     if (atSomebodyElse) {
       flightMs = this.fireBolt(effect.projectile, actor, subject);
-      // And the caster turns into it, on exactly the terms a swing does: a bolt
-      // at somebody is this body attacking that one, and the only difference
-      // between it and an arrow is which hand it left. Nothing plants a caster
-      // afterwards — what a cast costs is the bar and the cooldown — so this is
-      // a turn they can undo with the next step they take. @see turnToward
-      //
-      // On the tick it is cast rather than behind the flight: turning to face
-      // somebody is the act of aiming, not something the bolt does on arrival.
       const at = this.tryLocate(actor);
       const on = this.tryLocate(subject);
       if (at && on) this.turnToward(actor, at, on);
     }
 
-    // The spell as it is called. A carried one is read off the square rather
-    // than off the block, because an {@link ArcaneStoneItem} has no name — a
-    // stone is a tile, and the tile is what a death by it has to say. A body's
-    // own spell is the one case where the block *does* carry one, and it is the
-    // whole reason `NaturalSpell` has a name: "killed by A spell" is not a
-    // skull anybody wants to read.
-    //
-    // Read while the caster is certainly still here, on {@link landBolt}'s
-    // terms: a caster killed while their bolt is in the air is still the one
-    // who threw it.
     const spell = this.spellName(actor, slot);
     const caster = this.bodyName(actor.id);
 
-    // **Every draw this cast makes, taken now.** The bolt may not arrive for
-    // most of a second, and dice that waited for it would make the world's
-    // stream depend on how fast somebody authored a piece of art — see
-    // {@link blowsInFlight}, and `rollAttack`, which takes all of its draws up
-    // front for the same reason.
     const move = this.rollHealthMove(subject, stone, effect, elements, {
       stats,
       masteries: body.masteries,
     });
     const grants = this.boltInflicts(effect.statuses);
 
-    // Before the flight rather than behind it, on the terms a swing flags on
-    // the swing: a harmful bolt at somebody is an attack whether or not mail
-    // eats it, and a caster who could close the tab while their own bolt was
-    // still crossing the yard would be out of the fight they started.
     if (atSomebodyElse && move?.kind === "harm") {
       this.flagCombat(actor);
       this.flagCombat(subject);
@@ -7169,26 +2944,15 @@ export class GameSession implements PlaySession {
         elements,
         spell,
         caster,
-        // Exactly a swing's shape — the thing that did it, and who swung it —
-        // because that is what it is: a bolt is a blow thrown from a hand.
         blame: { source: spell, ...(caster ? { by: caster } : {}) },
       }),
     );
   }
 
-  /**
-   * Everything one bolt comes to, once the bolt has arrived.
-   *
-   * The tail of {@link castBolt}, moved behind the flight rather than changed —
-   * {@link landSwing}'s twin, and under the same two rules. The dice were read
-   * when the stone was pressed, and both bodies are looked up again because
-   * either may have left the board since.
-   */
   private landBolt(bolt: {
     casterId: string;
     subjectId: string;
     atSomebodyElse: boolean;
-    /** What was thrown, so its hit can play on the body. @see strikeBody */
     projectile: string | null | undefined;
     move: HealthMove | null;
     grants: readonly StatusGrant[];
@@ -7201,49 +2965,17 @@ export class GameSession implements PlaySession {
     if (!subject) return;
     const actor = this.actors.get(bolt.casterId);
 
-    // **And the room hears about it**, on exactly the terms a swing is noted:
-    // before anything lands, so a killing bolt still tells whoever was hit who
-    // did it. This was missing, and what it cost was every creature's reaction
-    // to magic — a rabbit stood still while a snake held it, because `attacked`
-    // had only ever been written by {@link tryAttack}. Being cast at *is* being
-    // attacked; the `attacked` condition says so now.
-    //
-    // Any bolt at somebody else, rather than only one that takes health: a
-    // spell whose whole effect is a status it leaves — a hold, a chill — is the
-    // case this exists for, and asking whether the status is a *bad* one would
-    // put an opinion about what is friendly in the engine. A mend thrown at
-    // somebody is authorable and reads as provocation here, which is a strange
-    // thing to author and a fair thing to be glared at for.
     if (bolt.atSomebodyElse) this.notePendingHurt(subject.id, bolt.casterId);
 
-    // Unconditionally, unlike a swing's: a bolt has no accuracy and nothing
-    // dodges one — it lands whatever it carries the moment it is cast. Before
-    // the health, so a killing bolt still sends its hit. @see strikeBody
     this.strikeBody(bolt.subjectId, bolt.projectile);
 
-    // **Asked again on arrival, not only when the stone was pressed.** A cast
-    // can take seconds and a bolt can be a yard in the air, and either is long
-    // enough for the switch at the far end to move — `castability` refused this
-    // press against the world as it was, and this is the same rule against the
-    // world the bolt actually landed in. A caster who has left the world is
-    // nobody to ask, and their bolt lands as every bolt did before this existed.
-    // @see ./pvp
     const harmless = bolt.move?.kind === "harm" && actor && !this.mayHarm(actor, subject);
     if (bolt.move && !harmless) {
       this.applyHealthMove(bolt.move, subject, actor, bolt);
     }
 
-    // **After the health and only onto a body still standing**, which is the
-    // rule a weapon's statuses are already under: a status is a condition you
-    // are *in*, and a corpse is not in one. The caster is recorded as the cause,
-    // so damage the status does later pays them — including on themselves, where
-    // the payout is refused for being self-inflicted rather than by never being
-    // recorded. @see awardCausedDamage
     if ((this.hpOf(subject) ?? 0) <= 0) return;
     for (const grant of bolt.grants) {
-      // The spell rather than the caster, on the conjured flame's terms: what
-      // is burning you is somebody's fire, and naming only the person loses
-      // which of their stones it came out of.
       this.grantStatus(subject, grant, bolt.casterId, bolt.elements, {
         source: this.statusName(grant.id),
         by: possessive(bolt.caster, bolt.spell),
@@ -7251,24 +2983,6 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * What a bolt's dice come to, or nothing for a bolt that moves no health.
-   *
-   * **The half of {@link castBolt} that reads the dice, split from the half
-   * that spends them** — because a bolt may be most of a second in the air and
-   * the world's stream must not wait for it. @see blowsInFlight
-   *
-   * Split out of {@link castBolt} to begin with because it is the half with two
-   * directions and four steps in it, and leaving it inline put the status grant
-   * below three branches deep — where the one thing that has to be obvious is
-   * that a status lands whichever way the health went, and whether it went at
-   * all.
-   *
-   * Null for a bolt with no damage authored, which is every pure ward and every
-   * pure curse. It still draws no dice: a spell that moves no health has no band
-   * to roll inside, and drawing one would make the world's dice depend on how a
-   * stone happened to be written.
-   */
   private rollHealthMove(
     subject: ActorRuntime,
     stone: ArcaneStoneItem,
@@ -7278,26 +2992,13 @@ export class GameSession implements PlaySession {
   ): HealthMove | null {
     if (!effect.damage) return null;
 
-    // What the stone is worth in *these* hands, off Arcane and off the elements
-    // the stone asks for. @see `../lib/battler`'s {@link spellPower}
     const power = spellPower(effect.damage, stone.requirements, context.masteries);
-    // What is left of a swing's dice: the damage band, and how much of its guard
-    // the subject has in the way. Both drawn whichever way the bolt runs and
-    // before either branch, so the world's dice advance by exactly as much for a
-    // mend as for a harm — the same property `rollAttack` protects by taking all
-    // its draws up front. A mend reads neither.
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
 
-    // A mend, and the sign is the whole of what says so. @see HealthMove
     if (rolled <= 0) return { kind: "mend", amount: -rolled };
 
-    // Armour first and the wheel second, which is the order a conjured flame's
-    // burn already goes through: what the fire is worth against this body is
-    // decided after what got through the mail. Read as an arcane blow, because
-    // that is what it is — a stone answers to Arcane, so a breastplate warded
-    // against magic turns one aside. @see `./combat`'s `defenceAgainst`
     const through = damageAfterDefence(rolled, context.stats, ARCANE_BLOW, guardRoll);
     return {
       kind: "harm",
@@ -7305,13 +3006,6 @@ export class GameSession implements PlaySession {
     };
   }
 
-  /**
-   * Spend what {@link rollHealthMove} rolled, on the tick the bolt arrives.
-   *
-   * A caster who has died in the meantime is paid nothing and blamed anyway —
-   * the blame was written down when the stone was pressed, and a skull naming a
-   * dead arcanist is the correct skull.
-   */
   private applyHealthMove(
     move: HealthMove,
     subject: ActorRuntime,
@@ -7319,63 +3013,24 @@ export class GameSession implements PlaySession {
     context: {
       atSomebodyElse: boolean;
       elements: readonly Element[];
-      /** What a skull this bolt makes says — see {@link castBolt}. */
       blame: Blame;
     },
   ) {
     if (move.kind === "harm") {
-      // **Trimmed to what the subject has left, on {@link landSwing}'s
-      // grounds**: what the wheel made of the blow is what the formula said,
-      // and a body with three points left can only lose three of them. It is
-      // also what is paid for — without the trim, a caster holding a bolt over
-      // a dying body would be paid for hit points that were never there.
       const dealt = Math.min(move.amount, this.hpOf(subject) ?? 0);
       if (dealt <= 0) return;
       this.applyDamage(subject, dealt, context.blame);
-      // Damage to yourself pays nothing, which is the rule `awardCausedDamage`
-      // states and the reason training is not something you do in a corner. Paid
-      // on what the wheel made of the blow rather than on what the formula said,
-      // so picking the right element is worth picking.
       if (context.atSomebodyElse && actor) {
         this.awardCastDamage(actor, subject, dealt, context.elements);
       }
       return;
     }
 
-    // **Clamped at a full health bar, and paid for what was actually restored.**
-    // That is the whole of "pressing a mend at full health teaches you nothing":
-    // a body two points down gets two points and two points' worth of experience
-    // out of a stone that says ten. The clamp is `applyHealing`'s now, which is
-    // also what floats the figure — it used to be written out here, and a mend
-    // was the one thing in the game that moved a health bar and showed nothing.
     const restored = this.applyHealing(subject, move.amount);
     if (restored <= 0 || !actor) return;
-    // **The wheel never touches a mend**, and the multiplier is flat for the
-    // same reason: what `experienceMultiplier` weighs is how far above or below
-    // you the other body is, and mending is not an exchange with anybody. A
-    // caster who has mended a troll has mended somebody, not beaten them.
-    // Flat, because a mend is not an exchange with anybody: there is no second
-    // body whose Rating could say how far above or below this was.
     this.grantCasting(actor, restored, context.elements, () => SELF_SPELL_MULTIPLIER);
   }
 
-  /**
-   * Which of a bolt's statuses took, drawn once apiece.
-   *
-   * Through `./combat`'s {@link inflictedBy}, which is the same question a
-   * weapon's list is put through and answers it the same way: against the
-   * authored percentage directly, never through the band a contest lives in. An
-   * author who writes 100 means a brand that always burns.
-   *
-   * **Drawn when the stone is pressed, and read when the bolt arrives.** They
-   * used to be drawn here, at the point of use, on the grounds that a cast
-   * cannot miss and so had no early return to protect. A bolt that travels is
-   * that early return: a subject who dies mid-flight takes no status, and dice
-   * that were only drawn when somebody survived would make the world's stream
-   * depend on the outcome — and on how fast the art was authored. Every draw a
-   * cast makes is now taken up front, which is the property `rollAttack` has
-   * protected all along. @see GameSession.blowsInFlight
-   */
   private boltInflicts(statuses: readonly WeaponStatus[] | undefined): readonly StatusGrant[] {
     if (!statuses?.length) return NOTHING_INFLICTED;
     return inflictedBy(
@@ -7384,17 +3039,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Pay an arcanist for damage one of their own casts just did.
-   *
-   * The direct twin of {@link awardCausedDamage}, which pays for damage done
-   * *later* by something they conjured. The two now differ in nothing but when
-   * they are called: a cast is paid for what it did, and the stone that did it
-   * scales nothing — see `./experience`'s {@link casterEarnings}.
-   *
-   * Silent for a creature, which is where every payout in this game stops: only
-   * a player has experience to be given.
-   */
   private awardCastDamage(
     caster: ActorRuntime,
     victim: ActorRuntime,
@@ -7411,18 +3055,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Put a bolt's projectile in the air between two bodies, if it has one.
-   *
-   * The one thing a spell's flight has to work out that a bow's does not: where
-   * the two ends *are*. A swing already holds both points, having measured the
-   * reach between them a moment earlier; a cast has two actors and has to locate
-   * them. A body that cannot be located throws nothing, which is the honest
-   * answer — a flight has to start and end somewhere.
-   *
-   * Hands back the flight time on {@link fireProjectile}'s terms, so a bolt's
-   * effect waits for its bolt exactly as a shot's waits for its arrow.
-   */
   private fireBolt(
     projectileTileId: string | undefined,
     from: ActorRuntime,
@@ -7432,31 +3064,9 @@ export class GameSession implements PlaySession {
     const start = this.tryLocate(from);
     const end = this.tryLocate(to);
     if (!start || !end) return 0;
-    // Always connected, and not as a simplification: a bolt has no accuracy and
-    // nothing dodges one — {@link castBolt} lands whatever it carries the
-    // moment it is cast. A spell that could miss would ask its own dice here,
-    // exactly as a swing does. @see fireProjectile
     return this.fireProjectile(projectileTileId, start, end, true);
   }
 
-  /**
-   * Put a conjured tile on the board — at the target's cell, or in front of the
-   * caster.
-   *
-   * **The one place a spell touches a cell, and the player never picks it.**
-   * With a target it lands on them, which is what makes a stone of flame a thing
-   * you aim the way you aim a bow; with nobody targeted it lands on the cell the
-   * caster is facing, which is what makes it a thing you can lay down in a
-   * doorway.
-   *
-   * Where it lands is `./casting`'s {@link conjureLanding}, the same call
-   * `castability` refused on, against the same context — so by the time this
-   * runs the cell is known to take the tile, and the nulls below are only a
-   * type's say-so.
-   *
-   * The placement remembers who cast it, which is the whole reason a flame can
-   * pay the arcanist who lit it. @see `../lib/types`'s `PlacedTile.castBy`
-   */
   private castConjure(
     actor: ActorRuntime,
     context: CastContext,
@@ -7470,68 +3080,34 @@ export class GameSession implements PlaySession {
     if (!where) return;
     const at = where.at;
 
-    // Turned into the cell it is laid in, which for a targeted conjure is
-    // somebody else's — the same turn a swing and a bolt owe whoever they are
-    // aimed at. An untargeted conjure lands in the cell the caster already
-    // faces, so this is the no-op `setEntityDirection` guards. @see turnToward
     const casting = this.tryLocate(actor);
     if (casting) this.turnToward(actor, casting, at);
 
     const placed: PlacedTile = {
       tileId: def.id,
-      // The editor's rule for an armed tile, so a conjured lamp faces the way a
-      // stamped one does — the same line `/tile` places under.
       ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
       ...(isItem(def) ? { itemId: mintItemId() } : {}),
       castBy: actor.id,
-      // Beside the caster and for the same journey: the status this tile puts
-      // on whoever steps in it carries both on, so the burn knows who owes for
-      // it and which wheel it turns on. Omitted when the spell was made of
-      // nothing, so an elementless conjure leaves an ordinary flame behind.
       ...(elements.length ? { castElements: [...elements] } : {}),
     };
     const stack = getStack(this.map, at.x, at.y, at.z);
     const next = [...stack];
-    // **Under a body that is already standing there, and on top otherwise.** The
-    // same rule `/tile` places underfoot by, and the reason it matters here is
-    // that a flame is a thing you are *standing in*: what a tile does to a body
-    // is read off the stack below it, so a flame conjured on top of somebody
-    // would be a flame nobody is in. A body who walks in afterwards arrives
-    // above it either way, so both arrivals read the same.
     const stackIndex = where.under ?? next.length;
     next.splice(stackIndex, 0, placed);
     this.map = replaceStack(this.map, at.x, at.y, at.z, next);
     this.noteTransition("appear", def.id, at, stackIndex);
-    // What arrived may be a plate, may be wired, and is very likely subject to
-    // gravity — the same three indexes a summoned tile rebuilds, and the one
-    // that arms its decay. A conjured tile with no lifetime authored on it is a
-    // permanent one, which is the author's decision and not this function's.
     this.reindexCells([at]);
     this.settleBoardNow();
 
-    // **A floor that appears under you is the same event as walking onto one.**
-    // Without this a flame conjured at a target who is standing still does
-    // nothing at all until they happen to move, which would make an aimed spell
-    // useless against exactly the thing it is aimed at. The rule is the tile's
-    // own either way — `statusOnArrival` reads the stack below the body and
-    // honours whatever it finds, caster included.
     const stood =
       where.under != null && actor.targetId ? this.actors.get(actor.targetId) : undefined;
     if (stood) this.statusOnArrival(stood);
   }
 
-  /** What is running on this actor, for the chrome and for the checkpoint. */
   statusesOf(id: string): readonly StatusInstance[] | null {
     return this.actors.get(id)?.statuses ?? null;
   }
 
-  /**
-   * The same list in the shape the wire carries, or null for nobody by that
-   * name.
-   *
-   * The cadence accumulator is dropped rather than sent: it is bookkeeping about
-   * when the next payout is due, and no client pays anything out.
-   */
   statusPatchesOf(id: string): { defId: string; remainingMs: number; durationMs: number }[] | null {
     const statuses = this.actors.get(id)?.statuses;
     if (!statuses) return null;
@@ -7542,13 +3118,6 @@ export class GameSession implements PlaySession {
     }));
   }
 
-  /**
-   * Hit points as they stand, for whoever is making them durable.
-   *
-   * Null where the body has none, and where it has never been asked — an actor
-   * whose `hp` is still null is one at full health by construction, and saving
-   * that would spend a storage key on the tile saying it again next load.
-   */
   storedHpOf(id: string): number | null {
     const actor = this.actors.get(id);
     if (!actor || actor.hp === null) return null;
@@ -7557,19 +3126,6 @@ export class GameSession implements PlaySession {
     return actor.hp;
   }
 
-  /**
-   * The body this actor actually fights in: the one authored on their tile, with
-   * whatever they have learnt in place of the authored masteries.
-   *
-   * **The two halves of a body come from different places and this is where they
-   * meet.** Everything about a body that is a fact rather than a competence — its
-   * reach, how far it bothers to look, what it bites with — is the tile's and is
-   * fixed. What it is *good at* belongs to whoever is in it, which for a player
-   * is something they earned and for a rat is something an author decided.
-   *
-   * A resident is handed the authored block untouched, which is the whole of why
-   * a creature never improves: there is no runtime number to improve.
-   */
   private bodyOf(actor: ActorRuntime): BattlerDef | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
@@ -7580,112 +3136,46 @@ export class GameSession implements PlaySession {
     const memo = actor.earnedBody;
     if (memo?.authored === authored) return memo.body;
 
-    // The one moment a fresh player's experience exists: the authored block
-    // becomes the experience that produces it, and from here on the masteries
-    // are derived from that alone. See `xpFromMasteries` for why a starting
-    // point rather than a floor.
     actor.masteryXp ??= xpFromMasteries(authored.masteries);
     const body = { ...authored, masteries: masteriesFromXp(actor.masteryXp) };
     actor.earnedBody = { authored, body };
     return body;
   }
 
-  /**
-   * How good at fighting this body is, all in — its ⭐.
-   *
-   * **Raw masteries, never equipment.** If a sword counted, taking it off would
-   * lower your Rating, raise the ratio every reward is scaled by, and make
-   * fighting naked the optimal way to play. Reading it off the same derived
-   * block the fight uses is what keeps that true without anybody having to
-   * remember it.
-   */
   private ratingOf(actor: ActorRuntime): number | null {
     const body = this.bodyOf(actor);
     return body ? rating(body.masteries) : null;
   }
 
-  /**
-   * Hit points as they stand, filling them in from the tile the first time
-   * anybody asks.
-   *
-   * Lazy because that is the only way it can be cheap *and* right: the stats
-   * live on the body, a body can be swapped underneath an actor, and at the
-   * moment an actor is created it may have no body at all. Null means the body
-   * has none to give.
-   */
   private hpOf(
     actor: ActorRuntime,
     stats: FightingStats | null = this.battlerOf(actor),
   ): number | null {
     if (!stats) return null;
     actor.hp ??= stats.maxHp;
-    // Clamped on read rather than on edit, so lowering a tile's maximum in the
-    // editor cannot leave a creature standing there overfull.
     return Math.min(actor.hp, stats.maxHp);
   }
 
-  /**
-   * Point an actor at somebody, or at nobody.
-   *
-   * Nothing is validated here beyond the id being a string: whether the target
-   * can actually be hit is decided every time a swing is attempted, and it has
-   * to be, because reach changes as both parties walk. A target that is merely
-   * out of range is a target being kept, not a bad one.
-   */
   setTarget(actorId: string | null, id: string = LOCAL_ACTOR_ID) {
     const actor = this.actors.get(id);
     if (!actor) return;
     actor.targetId = actorId === actor.id ? null : actorId;
   }
 
-  /**
-   * Turn swinging on or off, leaving whoever is targeted targeted.
-   *
-   * The other half of {@link setTarget}, and separate from it because the two
-   * are separate decisions a player makes at different moments: they pick who
-   * they are interested in by pointing at them, and they decide whether they are
-   * fighting by flipping a mode that outlives any one target. Toggling it off
-   * mid-fight is how you back out of one without losing sight of what you were
-   * backing out of.
-   */
   setAttackMode(enabled: boolean, id: string = LOCAL_ACTOR_ID) {
     const actor = this.actors.get(id);
     if (!actor) return;
     actor.attacking = enabled;
   }
 
-  /**
-   * Opt into fighting other players, or back out of it. @see `./pvp`
-   *
-   * **Never in the middle of a fight**, which is the whole of what stops the
-   * switch being a weapon: a body that could turn it off while somebody was
-   * swinging at them would be invulnerable on demand, and one that could turn it
-   * on mid-brawl would be doing the same trick from the other side. The combat
-   * flag is the exact test — it is already what keeps a closing tab in the fight
-   * it started, and it runs for a minute after the last blow either way.
-   *
-   * Answers whether anything moved, so the caller can say why not: false is
-   * either a body that has left the world, a creature (whose aggression is its
-   * brain's and not a switch), or somebody still in a fight.
-   */
   setPvp(enabled: boolean, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor) return false;
     if (!this.canSetPvp(id)) return false;
-    // Not a refusal: asking for the state you are already in is a press that
-    // changed nothing, and answering false would have the chrome say a fight is
-    // stopping you when nothing is.
     actor.pvp = enabled;
     return true;
   }
 
-  /**
-   * Whether this body's switch may be moved right now.
-   *
-   * Asked by the button as well as by {@link setPvp}, so a control that cannot
-   * be pressed is drawn as one rather than answering with a sentence. @see
-   * `../components/PvpToggle`
-   */
   canSetPvp(id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor) return false;
@@ -7693,24 +3183,14 @@ export class GameSession implements PlaySession {
     return !inCombat(actor.statuses);
   }
 
-  /** Whether this body is fighting other players. @see `./pvp` */
   pvpOf(id: string): boolean {
     return this.actors.get(id)?.pvp ?? false;
   }
 
-  /**
-   * Hide this body from other players, or show it again. @see ActorRuntime.hidden
-   *
-   * Not a permission check. Whether the caller may is the server's question,
-   * answered off the account before this is ever reached; what is refused here
-   * is only what cannot be hidden at all — nobody, and creatures.
-   */
   setHidden(enabled: boolean, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor || actor.resident) return false;
     if (actor.hidden === enabled) return true;
-    // Plays the way out a logout plays, and the way in a login does, so that to
-    // everybody watching the cell the two are the same thing.
     const loc = this.tryLocate(actor);
     if (loc) {
       this.noteTransition(enabled ? "disappear" : "appear", loc.placed.tileId, loc, loc.stackIndex);
@@ -7719,52 +3199,28 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /** Whether this body is hidden from other players. @see ActorRuntime.hidden */
   hiddenOf(id: string): boolean {
     return this.actors.get(id)?.hidden ?? false;
   }
 
-  /** Whether `id` names a body that nothing else in the world may find or follow. */
   private isConcealed(id: string): boolean {
     return this.actors.get(id)?.hidden === true;
   }
 
-  /**
-   * Who hurt a creature this round, less anybody hidden.
-   *
-   * A hidden body that strikes a creature still wounds it, because the blow is
-   * an act on the world. What the creature does not get is a name to turn on:
-   * retaliating is chasing, and chasing somebody nobody can see gives them away.
-   * The list is returned as it is whenever nobody on it is hidden, which is every
-   * round of every world that has no administrator hiding in it.
-   */
   private visibleAttackers(attackers: readonly string[] | undefined): readonly string[] {
     if (!attackers) return EMPTY_ATTACKERS;
     if (!attackers.some((id) => this.isConcealed(id))) return attackers;
     return attackers.filter((id) => !this.isConcealed(id));
   }
 
-  /**
-   * This body as the harm rule sees it. @see `./pvp`'s {@link Combatant}
-   *
-   * Its own method because four callers need the same three fields off a
-   * runtime, and a fifth that built them by hand would be the one that forgot
-   * residency.
-   */
   private combatantOf(actor: ActorRuntime): Combatant {
     return { id: actor.id, resident: actor.resident, pvp: actor.pvp };
   }
 
-  /** Whether harm from one of these bodies reaches the other. @see `./pvp` */
   private mayHarm(from: ActorRuntime, to: ActorRuntime): boolean {
     return mayHarm(this.combatantOf(from), this.combatantOf(to));
   }
 
-  /**
-   * The channels creatures are holding open right now, one entry per emitting
-   * mind. Read straight off each brain's current state, so a creature that has
-   * moved on is simply not among them and the wire it was driving falls quiet.
-   */
   private actorEmitters(): ExtraEmitter[] {
     const out: ExtraEmitter[] = [];
     for (const actor of this.actors.values()) {
@@ -7776,27 +3232,10 @@ export class GameSession implements PlaySession {
     return out;
   }
 
-  /**
-   * The emitting minds as one string, for the {@link settleBoardNow} skip.
-   *
-   * Insertion order, which is already what makes a tick reproducible, so the
-   * same set of held channels always renders the same signature and an unchanged
-   * mind never looks like a changed one.
-   */
   private emitterSignature(emitters: ExtraEmitter[]): string {
     return emitters.map((e) => `${e.channel}=${e.value}`).join(",");
   }
 
-  /**
-   * Would a step this way land on nothing?
-   *
-   * The same band `canWalk` measures against, asked separately rather than
-   * folded into it: the board deliberately permits walking into open air so
-   * gravity can pull an actor through a steeper drop, and that rule is shared
-   * with the client's own prediction. Changing it for creatures would put the
-   * two out of step over the one thing they must agree on. So the caution lives
-   * out here, where a brain can choose it per action.
-   */
   private stepLeavesGround(loc: ActorLocation, direction: Direction): boolean {
     const { dx, dy } = DIR_DELTA[direction];
     const fromAbs = standingAbs(this.map, loc.x, loc.y, loc.z, loc.stackIndex, this.tilesById);
@@ -7811,30 +3250,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Would a step this way put the body somewhere that does something to it?
-   *
-   * `./pathfinding`'s `unsafeToStepOn` asked of a single leg rather than of a
-   * whole search, and asked with the same catalogues, so a creature that
-   * wanders avoids exactly the cells a creature that walks a route avoids. The
-   * argument for refusing them at all is written there and in `docs/notes.md`;
-   * this is only the place that happens to hold the board.
-   *
-   * **Where the leg lands, which is not always the cell it was aimed at.** A
-   * step off a ledge is settled by gravity, so a flame at the bottom of the
-   * drop is what that leg walks into — the same reading `neighbours` takes of a
-   * falling edge.
-   *
-   * **Water, for a body that cannot swim.** The same `wade` cells a route
-   * keeps it out of — see `avoidWade` in {@link routeStep} — so a creature that
-   * cannot swim does not wander in either. Only from dry ground, on the route's
-   * terms: a body already in water may step on through it. @see TileDef.swims
-   *
-   * Two answers of "no" that are not about safety. A step the board would
-   * refuse is not a step, and a fall with nothing under it lands nowhere at
-   * all: both are {@link stepLeavesGround}'s business or the walk loop's, and
-   * saying "unsafe" about either would hide a refusal behind a caution.
-   */
   private stepLandsInHazard(
     actor: ActorRuntime,
     loc: ActorLocation,
@@ -7852,8 +3267,6 @@ export class GameSession implements PlaySession {
 
     const landing = this.stepLandingCell(loc, direction, def, check.to);
     if (!landing) return false;
-    // Whose step this is, because a tile this body conjured is not a hazard to
-    // it. @see ./conjured's `sparesStander`
     if (unsafeToStepOn(this.map, landing, this.tilesById, this.statusDefs, actor.id)) {
       return true;
     }
@@ -7861,12 +3274,6 @@ export class GameSession implements PlaySession {
     return !wadesAt(this.map, loc, this.tilesById) && wadesIn(this.map, landing, this.tilesById);
   }
 
-  /**
-   * The cell a permitted step comes to rest in: the one it walked into, or the
-   * one gravity carries it down to when it walked off a ledge.
-   *
-   * Null for a step into a column nothing will hold the body in.
-   */
   private stepLandingCell(
     loc: ActorLocation,
     direction: Direction,
@@ -7885,20 +3292,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Which way a creature should set off to end up beside `at`.
-   *
-   * The session's half of the brain's route-finding, and it is thin on purpose:
-   * the search is a pure question about a board (`./pathfinding`) and this is
-   * only the place that happens to hold one. It hands back the first leg and
-   * throws the rest away — see {@link stepAlongRoute} for why a route is not
-   * worth keeping between two decisions.
-   *
-   * `"arrived"` and null are kept apart all the way out here rather than
-   * collapsed to "no step", because the two are different facts about the world
-   * and the brain reads them differently: one creature is standing next to what
-   * it wanted, and the other cannot get there at all.
-   */
   private routeStep(
     actor: ActorRuntime,
     loc: ActorLocation,
@@ -7906,56 +3299,21 @@ export class GameSession implements PlaySession {
     allowDrops: boolean | undefined,
     arrive: "beside" | "on" = "beside",
   ): Direction | "arrived" | null {
-    // A creature decides where to go while standing still, so the cell it
-    // searches from and the body to leave off the board are the same one. They
-    // are not for a body mid-step — see `./pathfinding`'s `PathStart`, and
-    // `./walkTo`, which is where the two come apart.
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
     const def = this.defFor(actor);
     const found = findPath(
       this.map,
-      // Named, so a creature that conjured a flame walks back through it rather
-      // than round it. @see ./pathfinding's PathStart.who
       { at: self, self, who: actor.id },
       at,
       def,
       this.tilesById,
-      // Read for tone, so a route goes round a flame and over a shrine.
-      // @see PathOptions and `./pathfinding`'s `unsafeToStepOn`
       this.statusDefs,
-      // A creature given the flag is one an author wants falling, wherever the
-      // fall lands: a drop is an edge like any other to it. The narrower rule is
-      // the player's, whose click asked to be somewhere rather than to leap.
-      // @see PathOptions.drops
-      //
-      // A creature that cannot swim keeps out of water; a player's clicked walk
-      // does not come through here and wades. @see TileDef.swims
       { drops: allowDrops ? "anywhere" : "never", arrive, avoidWade: !def.swims },
     );
-    // Which limit a refusal hit is not a distinction a brain has anything to do
-    // with: unreachable, too far round and given up on all mean the same thing
-    // to a creature, which is that this is not the action to take. The sentence
-    // that needs them apart is the player's. @see PathRefusal
     if (!found.ok) return null;
     return found.route[0]?.direction ?? "arrived";
   }
 
-  /**
-   * Take a creature's order for somewhere to be, and answer what came of it.
-   *
-   * The brain's half of a standing walk, and it is deliberately thin: it writes
-   * the intent down and then asks {@link driveWalkOrder} the same question every
-   * later leg will be asked. What that buys is one answer rather than two — a
-   * route refused on the round it was ordered reads exactly as one refused four
-   * legs in, so an author's priority list falls through on the same terms
-   * either way.
-   *
-   * A body already in motion is not asked. It is walking where it was told to,
-   * and the order has just been re-affirmed, so there is nothing to decide and
-   * no search to pay for — the leg it is on will ask when it lands. That is also
-   * what keeps the cost honest: one search per *step*, not one per step plus one
-   * per round.
-   */
   private setWalkOrder(
     actor: ActorRuntime,
     goal: WalkGoal,
@@ -7966,34 +3324,12 @@ export class GameSession implements PlaySession {
     return this.driveWalkOrder(actor);
   }
 
-  /**
-   * Press the next leg of a standing order, or say why there is not one.
-   *
-   * The whole of what makes a creature walk at its own pace: called both by the
-   * round that gave the order and by {@link maybeStartWalk} on every tick the
-   * body comes free, which is where the two clocks come apart. A bat's next leg
-   * is pressed 90ms after the last one landed rather than at the next round.
-   *
-   * **A route per leg, and never a route kept.** The search is run again from
-   * wherever the body now stands, against a board that has moved and a quarry
-   * that has walked on — the argument `docs/notes.md` makes for recomputing a
-   * chase, which is unchanged by any of this because it was always one search
-   * per step. What is new is only that a step is no longer the same thing as a
-   * round.
-   *
-   * Every ending clears the order. Arriving, losing the target off the board, a
-   * board with no way there and a leg the walk loop refuses all leave the
-   * creature with no intent — and the next round decides again, which is at most
-   * `BRAIN_TICK_MS` away and is the cadence a blocked creature already stood at.
-   */
   private driveWalkOrder(actor: ActorRuntime): WalkOrderState {
     const order = actor.walkOrder;
     if (!order) return "blocked";
 
     const at = this.walkGoalCell(order.goal);
     const loc = this.tryLocate(actor);
-    // Nothing left to walk to, or nobody left to walk it: the quarry stepped
-    // off the board, or this body did.
     if (!at || !loc) {
       actor.walkOrder = null;
       return "blocked";
@@ -8005,9 +3341,6 @@ export class GameSession implements PlaySession {
       return direction === "arrived" ? "arrived" : "blocked";
     }
 
-    // A leg the board turns down — most often another body in the doorway,
-    // which `canWalk` reads as a wall. Reported rather than retried, so the
-    // creature's next round gets the chance to do something else about it.
     if (!this.applyStepRequest(actor, { directions: [direction] })) {
       actor.walkOrder = null;
       return "blocked";
@@ -8015,35 +3348,6 @@ export class GameSession implements PlaySession {
     return "walking";
   }
 
-  /**
-   * Point a creature away from something, and keep it pointed there.
-   *
-   * {@link setWalkOrder}'s opposite number. The order it writes is an ordinary
-   * one — a cell to get to, walked out a leg at a time by
-   * {@link driveWalkOrder} — and everything particular to fleeing is in how the
-   * cell is chosen and how long it is kept.
-   *
-   * **A refuge is kept until it is reached or cut off.** The three conditions
-   * below are the whole rule, and each is a different way of having stopped
-   * being somewhere worth running to:
-   *
-   * - standing in it, so there is nothing left to walk;
-   * - no longer further from the threat than the animal already is, which is
-   *   what "the threat got between us" and "the threat followed me" both look
-   *   like from here;
-   * - never chosen, because there was nowhere better.
-   *
-   * Anything else keeps it, and that is what makes a run read as a run. Asking
-   * the flood again every round would hand back a different best cell every
-   * time the threat moved, and an animal that acted on each one would shuffle
-   * between two of them and go nowhere — which is the behaviour this replaced.
-   *
-   * `"blocked"` means cornered: everywhere within reach was looked at and none
-   * of it is better than standing still. The author's next line gets its turn,
-   * and for the deer and the rabbit that is the `stuck` that puts them in
-   * `cornered`. What the state means has changed even though nothing about it
-   * has: it used to be reached after two steps of hill-climbing.
-   */
   private setFleeOrder(
     actor: ActorRuntime,
     loc: ActorLocation,
@@ -8056,9 +3360,6 @@ export class GameSession implements PlaySession {
     }
     if (!actor.refuge) return "blocked";
 
-    // `"on"` rather than `"beside"`: a refuge is a patch of ground to stand in,
-    // and stopping one cell short of it would leave the animal never arriving
-    // and so never asking for anywhere better.
     actor.walkOrder = {
       goal: { of: "cell", at: actor.refuge },
       allowDrops,
@@ -8066,15 +3367,10 @@ export class GameSession implements PlaySession {
     };
     if (!this.idle(actor)) return "walking";
     const state = this.driveWalkOrder(actor);
-    // The route ran out on the way — a door shut, or somebody filled the gap.
-    // Reported as cornered rather than retried on this tick: the next round
-    // floods again from wherever the animal is standing, which is the same
-    // answer a tick later and one search instead of two.
     if (state !== "walking") actor.refuge = null;
     return state === "arrived" ? "walking" : state;
   }
 
-  /** Is this still somewhere worth running to? @see setFleeOrder */
   private stillWorthRunningTo(refuge: Coord | null, here: Coord, threat: Coord): boolean {
     if (!refuge) return false;
     if (refuge.x === here.x && refuge.y === here.y && refuge.z === here.z) {
@@ -8087,21 +3383,6 @@ export class GameSession implements PlaySession {
     return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
   }
 
-  /**
-   * The best cell within reach to run to, or null for an animal with none.
-   *
-   * The session's half of the flood, thin for the reason {@link routeStep} is:
-   * the search is a question about a board, and this is only the place that
-   * happens to hold one and to know who can see what.
-   *
-   * **Sight is measured at the fleeing animal's own height**, which is an
-   * approximation and worth naming. The honest question is whether the *threat*
-   * can see the cell, and answering it would mean knowing which body the threat
-   * is — but a flee is given a position rather than a body, because "away" has
-   * always been measured against a place. A line between two cells is very
-   * nearly symmetric, and being wrong about it costs a rabbit a slightly worse
-   * hiding place rather than anything a player could notice.
-   */
   private findRefugeFor(
     actor: ActorRuntime,
     loc: ActorLocation,
@@ -8116,8 +3397,6 @@ export class GameSession implements PlaySession {
       threat,
       def,
       this.tilesById,
-      // An animal cornered against a fire is cornered: nothing is exempt from
-      // a flood, because nobody pointed at anywhere. @see findRefuge
       this.statusDefs,
       {
         drops: allowDrops ? "anywhere" : "never",
@@ -8125,60 +3404,24 @@ export class GameSession implements PlaySession {
         avoidWade: !def.swims,
       },
     );
-    // An empty route is an animal with nowhere better than where it stands, on
-    // the terms an empty route always means arrived. @see findRefuge
     if (!found.ok || found.route.length === 0) return null;
     return found.route[found.route.length - 1]!.to;
   }
 
-  /**
-   * Where a standing order is aimed, right now. @see WalkGoal
-   *
-   * Nowhere, for a body that has gone hidden: a creature bound to somebody
-   * before they hid would otherwise walk the rest of the way to them, and a
-   * player following one would lead everybody else to the cell. @see
-   * ActorRuntime.hidden
-   */
   private walkGoalCell(goal: WalkGoal): Coord | null {
     if (goal.of === "cell") return goal.at;
     return this.isConcealed(goal.id) ? null : this.actorCell(goal.id);
   }
 
-  /**
-   * Whichever other body standing on `tileId` is fewest steps away, or null when
-   * there is none.
-   *
-   * The tile is the whole test, which is what lets one selector cover every
-   * relationship a creature has: `player` is the person it hunts, its own tile is
-   * a flock, and some third tile is a leader it follows. Nothing here knows which
-   * of those an author meant, and it does not need to.
-   *
-   * Asking for `player` is asking for a connected person, because the player tile
-   * is the one thing a resident can never be wearing — {@link listResidentBodies}
-   * skips it, and a connection is the only way a body comes to have it.
-   *
-   * Self is excluded, without which a creature asking for its own tile would
-   * answer itself and follow itself in circles. Ties break on insertion order,
-   * the same order that already decides who wins a contested cell, which keeps
-   * the answer reproducible rather than dependent on a map sweep's traversal.
-   */
   private nearestOnTile(selfId: string, from: Coord, tileIds: readonly string[]): string | null {
     let best: string | null = null;
     let bestSteps = Infinity;
-    // Across the whole list rather than the first tile that answers: the list is
-    // one question, so a wolf offered a rabbit at nine cells and a deer at two
-    // goes for the deer whichever way round they were authored.
     for (const tileId of tileIds) {
       for (const id of this.actorsOnTile(tileId)) {
         if (id === selfId) continue;
         const actor = this.actors.get(id);
-        // A hidden body is not there to be found. @see ActorRuntime.hidden
         if (!actor || actor.hidden) continue;
         const loc = this.tryLocate(actor);
-        // The tile is re-checked against the board rather than taken from the
-        // index. Positions are read live here — the index only ever says who is
-        // worth asking about — so an entry that has gone stale costs a lookup
-        // instead of naming the wrong body.
         if (!loc || loc.placed.tileId !== tileId) continue;
         const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
         if (steps < bestSteps) {
@@ -8190,45 +3433,11 @@ export class GameSession implements PlaySession {
     return best;
   }
 
-  /**
-   * Everybody standing on a named tile, in the order they joined the world.
-   *
-   * Insertion order is inherited from {@link actors} and is load-bearing for the
-   * same reason it is there: two bodies exactly as far away must resolve the
-   * same way on every run, or a seeded world stops being reproducible.
-   */
   private actorsOnTile(tileId: string): readonly string[] {
     this.tileIndex ??= this.buildTileIndex();
     return this.tileIndex.get(tileId) ?? NO_ACTORS;
   }
 
-  /**
-   * The nearest cell within `cells` holding a placement of `tileId`, or null.
-   *
-   * {@link nearestOnTile}'s opposite number, and the two are different problems
-   * wearing the same sentence. A body is found by walking a list of actors,
-   * which is short and indexed; a placement is found by looking at the board,
-   * which is neither — so where that one has no radius at all, this one is
-   * bounded on every side.
-   *
-   * **Rings outward and stops at the first one that answers.** The nearest
-   * anything is overwhelmingly close: a deer beside a hedge finds its bush in
-   * ring one and reads four columns, where a scan of the square would read every
-   * column inside the radius to prove the same thing. The whole radius is only
-   * ever walked by a creature with nothing of the kind anywhere near it, which
-   * is the case where there is genuinely nothing cheaper to do.
-   *
-   * **Levels are the creature's own sight band**, which is the same reading
-   * `within` takes of a body: a deer authored to mind its own storey does not
-   * notice the bush on the balcony, and a hawk given `{ up: 2, down: 2 }` reads
-   * the whole stairwell. Nothing here asks whether the thing is *reachable* —
-   * that is the verb's question, and a bush behind a wall is still a bush the
-   * animal can see the top of.
-   *
-   * Ties inside a ring break on scan order, which is fixed, so a seeded world
-   * stays reproducible on the terms {@link nearestOnTile}'s insertion order keeps
-   * it.
-   */
   private nearestThing(
     from: Coord,
     tileIds: ReadonlySet<string>,
@@ -8244,22 +3453,6 @@ export class GameSession implements PlaySession {
     return null;
   }
 
-  /**
-   * Which chunks in a search's reach hold any of `tileIds` at all, as a test
-   * on a cell — or null when none of them does.
-   *
-   * **The search's answer is unchanged; this only says where not to look.**
-   * The rings still run in the same order and stop at the same first match. A
-   * column is skipped only when its chunk has no placement of any wanted tile
-   * on that level, which the chunk's own tile list says for certain. @see
-   * tileIdsInChunk
-   *
-   * It exists because the expensive case is the common one: a creature looking
-   * for something that is not near it reads every column in its reach on every
-   * level it can see, every round, and with players spread across the map that
-   * was a fifth of the server's time. Most chunks have none of what it wants,
-   * and ruling one out is a lookup instead of a few hundred.
-   */
   private chunksHolding(
     from: Coord,
     tileIds: ReadonlySet<string>,
@@ -8297,14 +3490,6 @@ export class GameSession implements PlaySession {
       holds[((z - z0) * height + (chunkIndexOf(y) - cy0)) * width + (chunkIndexOf(x) - cx0)] === 1;
   }
 
-  /**
-   * The first placement of `tileId` exactly `ring` steps away on the plan, or
-   * null.
-   *
-   * Walked as the diamond it is — every cell whose plan distance is exactly the
-   * ring — rather than as a square with the inside skipped, so the work done is
-   * the ring itself and a search that answers early has read nothing further out.
-   */
   private thingInRing(
     from: Coord,
     tileIds: ReadonlySet<string>,
@@ -8314,8 +3499,6 @@ export class GameSession implements PlaySession {
   ): FoundThing | null {
     for (let dx = -ring; dx <= ring; dx++) {
       const dy = ring - Math.abs(dx);
-      // At the poles of the diamond the two rows are the same row, and reading
-      // it twice would only find the same cell again.
       for (const y of dy === 0 ? [from.y] : [from.y - dy, from.y + dy]) {
         const found = this.thingInColumn(from.x + dx, y, from.z, tileIds, sight, mayHold);
         if (found) return found;
@@ -8324,7 +3507,6 @@ export class GameSession implements PlaySession {
     return null;
   }
 
-  /** The nearest floor in this column holding `tileId`, within the sight band. */
   private thingInColumn(
     x: number,
     y: number,
@@ -8346,25 +3528,6 @@ export class GameSession implements PlaySession {
     return null;
   }
 
-  /**
-   * Work a thing on a creature's behalf, and say whether a pull is under way.
-   *
-   * **The player's `extract` and nothing beside it.** The reservation, the
-   * duration stood still, the interruption on a step, the single roll at the end
-   * — a deer picking a bush takes a pull nobody else can take, and a player
-   * walking up mid-pick finds one fewer than they would have. That shared path
-   * is the whole reason the action is one line here.
-   *
-   * **A pull already running on this placement answers true rather than being
-   * started again**, which is what makes the action report `running` for the
-   * whole of a pick. Restarting is what {@link canBeginExtract} refuses, and
-   * treating that refusal as a failure would put the creature back at the top of
-   * its priority list every tick and walk it away from the bush it is holding.
-   *
-   * The stack slot is found from the tile rather than remembered, on
-   * {@link extractKey}'s terms: an index shifts when anything is placed under
-   * it, and the tile is what the commitment was ever about.
-   */
   private extractForBrain(actor: ActorRuntime, at: Coord, tileId: string): boolean {
     const run = actor.extraction;
     if (
@@ -8383,31 +3546,12 @@ export class GameSession implements PlaySession {
     return this.extract({ ...at, stackIndex }, actor.id);
   }
 
-  /**
-   * Eat something out of a creature's bag, and say whether anything was eaten.
-   *
-   * The first match in bag order, which is the order an author sees in the panel
-   * and the order a pull poured into. Nothing here picks the *best* thing to eat
-   * — a creature that should prefer one food over another says so by naming it,
-   * which is what the tile id is for.
-   *
-   * Through {@link consume} rather than beside it, so an animal eating a poison
-   * berry takes the damage, the status and the sound a player would.
-   */
   private consumeForBrain(actor: ActorRuntime, tileId: string | undefined): boolean {
     const index = this.edibleInBag(actor, tileId);
     if (index === null) return false;
     return this.consume({ kind: "slot", slot: { kind: "contents", index } }, actor.id);
   }
 
-  /**
-   * Eat what is lying at a cell, on a creature's behalf.
-   *
-   * The player's floor consume and nothing beside it — reach, cover and
-   * idleness, the gates a pickup runs — so a wolf cannot eat a carcass through a
-   * wall or from under a crate. The stack slot is found from the tile rather
-   * than remembered, on {@link extractForBrain}'s terms.
-   */
   private consumeOnGround(actor: ActorRuntime, at: Coord, tileId: string): boolean {
     const stackIndex = getStack(this.map, at.x, at.y, at.z).findIndex(
       (placed) => placed.tileId === tileId,
@@ -8416,19 +3560,6 @@ export class GameSession implements PlaySession {
     return this.consume({ kind: "floor", ref: { ...at, stackIndex } }, actor.id);
   }
 
-  /**
-   * How long this body's next step takes, with everything that has a say in it.
-   *
-   * The one place the sources are gathered, so a step begun by held input and
-   * by a creature's legs are timed the same way. The
-   * browser gathers the same two for itself — see `../net/RemoteSession`'s
-   * `walkDurationAt` — which is the arrangement a pace that never travels is
-   * under. @see `./movement`'s `walkDurationMsFor`
-   *
-   * `from` is where the step begins, and is passed rather than looked up
-   * because every caller is already holding it: the ground that has a say is
-   * the one being left. @see `./movement`'s `groundWalkSpeedPercent`
-   */
   private walkDurationOf(actor: ActorRuntime, from: ActorLocation): number {
     return walkDurationMsFor(
       this.defFor(actor),
@@ -8437,13 +3568,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Is a status running on this body, with at least this long left?
-   *
-   * Read off the live instances rather than through `battlerOf`, which is where
-   * statuses are *applied* to the numbers: what this asks is whether one is
-   * there, and the arithmetic it feeds is nothing to do with it.
-   */
   private hasStatus(actor: ActorRuntime, id: string, atLeastMs: number | undefined): boolean {
     return actor.statuses.some(
       (instance) =>
@@ -8451,39 +3575,11 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Cast one of this body's own spells, because its brain asked.
-   *
-   * **The same path a player's press takes**, which is the whole of why this is
-   * six lines: `cast` already asks `castability`, spends the cooldown, pays for
-   * the practice and lands the effect, and a second route into any of that
-   * would be a second set of rules about what a spell costs.
-   *
-   * **Aiming is pointing.** A creature casting at somebody is set on them, on
-   * exactly the terms a player pointing at a rat is — which is what lets the
-   * cast path read the target off the body as it already does, for the press
-   * and for the bar that finishes a beat later alike. It is not an attack:
-   * {@link runAutoAttacks} swings only for a body in attack mode, and a brain
-   * never sets that. Its own aggression is the `attack` action.
-   *
-   * A cast already running for this very spell is reported rather than
-   * restarted: pressing a stone that is casting *stops* it, and a brain that
-   * asked for the same spell twice in two ticks would otherwise cancel its own
-   * cast. @see ./brainRuntime's `BrainContext.cast`
-   *
-   * **A position in, a name out.** A brain names the spell by where it sits on
-   * the body's list — see `../lib/brain`'s `cast` — and everything downstream
-   * of here names it the way the player's own row does. So the one place the
-   * two ever meet is this lookup, and a position nothing sits at is a refusal
-   * rather than a slot naming a spell that is not there.
-   */
   private castForBrain(
     actor: ActorRuntime,
     position: number,
     targetId?: string | null,
   ): "cast" | "casting" | "no" {
-    // Counting from one, because that is the number the editor shows an author
-    // beside the spell. @see ../lib/brain's `cast`
     const stone = this.spellsOf(actor)[position - 1];
     if (stone === undefined) return "no";
     const spell = stone.name;
@@ -8491,51 +3587,14 @@ export class GameSession implements PlaySession {
     const running = actor.casting?.progress.slot;
     if (running?.from === "natural" && running.name === spell) return "casting";
 
-    // Only a spell that lands on somebody moves the creature's aim. One that
-    // lands on its caster has no use for a target, and pointing the body at
-    // whatever `of` answered — nobody, for a wolf curling up — would drop the
-    // one it is fighting. A line naming nobody at all is refused a spell that
-    // needs somebody, rather than borrowing whoever the body already points at:
-    // "no target" in the editor has to mean the same thing whatever came before.
-    //
-    // A conjure is the one exception, because a press with nobody picked is
-    // already a conjure's other way of landing: in front of the caster. So a
-    // line with no `of` clears the aim rather than being refused, which is what
-    // lets a creature lay a fire where it stands.
     if (needsTarget(stone)) {
       if (targetId === undefined && stone.effect.kind !== "conjure") return "no";
       actor.targetId = targetId ?? null;
     }
-    // Refusals are not said out loud on a creature's behalf, and nothing here
-    // has to arrange that: `say` drops a notice addressed to a resident, which
-    // every brain-driven body is. "Select a target first" is nonsense told to a
-    // wolf, and a queue nobody drains is the reason that gate exists.
     if (!this.cast(naturalSlot(spell), actor.id)) return "no";
-    // A bar rather than a spell that has landed: `cast` starts one when the
-    // stone has a time on it, and resolves on the spot when it does not.
     return actor.casting ? "casting" : "cast";
   }
 
-  /**
-   * Where this body stands against somebody, by the reach it would strike them
-   * with. What the brain's `attack_range` reads.
-   *
-   * **The reach is the first hand holding a weapon, else the body's own**, in
-   * `HANDS` order, which is the order `tryAttack` offers the hands in. A body
-   * with a bow and a knife is placed for the bow when the bow is in the main
-   * hand; the knife still takes the turns the bow cannot when somebody closes.
-   *
-   * **In position is anywhere the weapon reaches, and no closer.** It stops
-   * the moment the target is in reach, so a bow shoots from as far out as it
-   * can. An earlier version aimed for a ring at the bow's `min`, one cell
-   * wide, and a standing walk order carries a body one step past wherever
-   * the brain last looked: the imp crossed the ring, backed off, crossed it
-   * again, and the walking kept resetting the windup so it never loosed an
-   * arrow. The whole reach is many cells deep, so one step of overshoot
-   * stays inside it. Inside `min` is too close; out of reach, or in reach
-   * with a wall in the way, is too far, and the walk up routes round the
-   * wall.
-   */
   private standOff(actor: ActorRuntime, targetId: string): StandOff | null {
     const target = this.actors.get(targetId);
     if (!target) return null;
@@ -8554,7 +3613,6 @@ export class GameSession implements PlaySession {
       : "too_far";
   }
 
-  /** The reach of the first hand holding a weapon, else of the body's own. */
   private strikingReach(actor: ActorRuntime): Reach | null {
     for (const hand of HANDS) {
       const weapon = weaponSwungBy(actor.equipment, this.tilesById, hand);
@@ -8563,19 +3621,6 @@ export class GameSession implements PlaySession {
     return this.battlerOf(actor)?.reach ?? null;
   }
 
-  /**
-   * What share of its hit points this body has left, or null for a body that
-   * has none. What the brain's `health` condition reads.
-   *
-   * The maximum comes off {@link battlerOf} rather than off the authored block,
-   * so it is the same figure the health bar is drawn against: armour, a status
-   * that moves the maximum and whatever the body is wearing have all had their
-   * say. A creature deciding to run is looking at the bar, not at its tile.
-   *
-   * Clamped to one above, because {@link hpOf} can stand above the maximum for
-   * as long as a status that raised it is wearing off — and a body on more than
-   * a full bar is not *more* than unwounded.
-   */
   private healthShare(actor: ActorRuntime): number | null {
     const stats = this.battlerOf(actor);
     const hp = this.hpOf(actor);
@@ -8583,13 +3628,6 @@ export class GameSession implements PlaySession {
     return Math.min(1, hp / stats.maxHp);
   }
 
-  /**
-   * Where in the bag the thing to eat is, or null when there is nothing.
-   *
-   * A named tile still has to be a consumable to be found: naming one that is
-   * not is an authored mistake, and answering with its square would spend a turn
-   * on a {@link consume} that refuses.
-   */
   private edibleInBag(actor: ActorRuntime, tileId: string | undefined): number | null {
     const contents = actor.equipment.bag?.contents ?? [];
     for (const [index, instance] of contents.entries()) {
@@ -8600,27 +3638,12 @@ export class GameSession implements PlaySession {
     return null;
   }
 
-  /**
-   * Is there something in this creature's bag? What `carrying` reads.
-   *
-   * The bag alone, on {@link giveExtracted}'s terms: what a body wears it is
-   * using, and what is in its bag it is merely carrying. A body with no bag
-   * carries nothing, which is the answer for every creature nobody has authored
-   * a container onto.
-   */
   private carryingInBag(actor: ActorRuntime, tileId: string | undefined): boolean {
     const contents = actor.equipment.bag?.contents ?? [];
     if (tileId === undefined) return contents.length > 0;
     return contents.some((instance) => instance.tileId === tileId);
   }
 
-  /**
-   * Is `tileId` still standing at this cell? What a bound thing is re-asked.
-   *
-   * The cell and the tile, which is `extractKey`'s pair and is here for its
-   * reason: a bush that has been picked bare is a `picked-bush`, and the whole
-   * point of naming the tile is that the commitment to it ends by itself.
-   */
   private thingStillThere(at: Coord, tileId: string): boolean {
     return getStack(this.map, at.x, at.y, at.z).some((placed) => placed.tileId === tileId);
   }
@@ -8629,8 +3652,6 @@ export class GameSession implements PlaySession {
     const index = new Map<string, string[]>();
     for (const actor of this.actors.values()) {
       const loc = this.tryLocate(actor);
-      // No body on the board, so nothing to be nearest to. They will be indexed
-      // whenever the next spawn or death rebuilds this.
       if (!loc) continue;
       const on = index.get(loc.placed.tileId);
       if (on) on.push(actor.id);
@@ -8639,7 +3660,6 @@ export class GameSession implements PlaySession {
     return index;
   }
 
-  /** Where an actor is standing, or null once they are off the board. */
   private actorCell(id: string): Coord | null {
     const actor = this.actors.get(id);
     if (!actor) return null;
@@ -8647,20 +3667,10 @@ export class GameSession implements PlaySession {
     return loc ? { x: loc.x, y: loc.y, z: loc.z } : null;
   }
 
-  /**
-   * Hands free? Own motion owns the map until it settles; a slide no longer
-   * does, but is still held against the actor so pushes cannot be machine-
-   * gunned out faster than the object can be seen leaving.
-   */
   private idle(actor: ActorRuntime): boolean {
     return !actor.slide && !actor.walk && !actor.fall;
   }
 
-  /**
-   * Whether this body may reach out and do something to the world or its kit:
-   * {@link idle}, and under nothing that stops it acting. Every board-side act
-   * and every kit act is gated on this. @see incapacitated
-   */
   private readyToAct(actor: ActorRuntime): boolean {
     return this.idle(actor) && !this.incapacitated(actor);
   }
@@ -8671,10 +3681,6 @@ export class GameSession implements PlaySession {
     return canPushFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
 
-  /**
-   * Shove the object one cell directly away from the actor. Returns false
-   * when the push is illegal — a blocked push is a no-op, not an error state.
-   */
   push(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -8684,37 +3690,22 @@ export class GameSession implements PlaySession {
     const direction = pushDirectionFrom(loc, ref);
     if (!to || !direction) return false;
 
-    // The shove is what turns the actor, so facing lands before the motion.
     this.map = setEntityDirection(this.map, loc.x, loc.y, loc.z, loc.stackIndex, direction);
 
     const from = { x: ref.x, y: ref.y, z: ref.z };
-    // Who was shoved, if it was a somebody rather than a something. Read before
-    // the write, because afterwards the slot named by `ref` holds whatever the
-    // column left behind.
     const shovedOwner = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex]?.owner;
-    // Whatever is stacked on the shoved object rides with it, in one write —
-    // see `moveColumn`, and `pushDestination` for the room the column needs.
     const count = pushedColumn(this.map, ref).length;
     const landed = getStack(this.map, to.x, to.y, to.z).length;
     this.map = moveColumn(this.map, ref, count, to, undefined);
 
-    // A column lands on top of the destination stack, in order, so the object
-    // the player named is the lowest of the `count` slots that just appeared.
     actor.slide = {
       object: { ...to, stackIndex: landed },
       from,
       count,
       elapsedMs: 0,
     };
-    // The object itself may be a plate, so both ends of the shove are suspect.
     this.reindexCells([from, to]);
 
-    // **A shove is the fourth way a body reaches a new cell**, and the only one
-    // that is somebody else's doing. {@link tickMotion} finds the other three by
-    // comparing the cell either side of a tick, which cannot see this one: the
-    // shove commits to the map the instant it happens, so by the shoved body's
-    // next tick it has always already been where it now is. Without this, a
-    // person pushed into a flame stands in it unburned until they walk.
     const shoved = shovedOwner ? this.actors.get(shovedOwner) : undefined;
     if (shoved) this.arriveIn(shoved);
     return true;
@@ -8726,16 +3717,6 @@ export class GameSession implements PlaySession {
     return canPickUpFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
   }
 
-  /**
-   * Take the thing off the board and put it away — in the bag, or failing that
-   * in a free hand. @see pickUpDestination
-   *
-   * The placement becomes an instance and the map loses it, which is the whole
-   * operation — see {@link takeFromBoard}.
-   *
-   * Returns false when the pickup is illegal, on the same terms a blocked push
-   * does: a refusal is a no-op, not an error state.
-   */
   pickUp(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -8762,11 +3743,6 @@ export class GameSession implements PlaySession {
     const bag = actor.equipment.bag;
     if (!bag) return false;
 
-    // Where it lands is worked out **while the thing is still on the board**, so
-    // a pour that turns out not to fit leaves the pile where it is. Taking the
-    // placement off first and then discovering there is nowhere to put it would
-    // be a pickup that deletes what it picked up, and the one thing standing
-    // between those two orderings is this read.
     const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
     const taking = placed && instanceFromPlacement(placed);
     if (!taking) return false;
@@ -8789,17 +3765,6 @@ export class GameSession implements PlaySession {
     return canEquipFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
   }
 
-  /**
-   * Put the thing on, straight off the floor.
-   *
-   * The same trip a pickup makes and a different destination: a sword goes into
-   * the hand rather than into a bag, which is what lets somebody carrying
-   * nothing at all arm themselves. Which slot is the tile's own answer — see
-   * `equipSlotsFor` — and it has to be empty, so this never puts down what you are
-   * already holding.
-   *
-   * Returns false when the equip is illegal, on the same terms a pickup does.
-   */
   equip(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -8814,48 +3779,16 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * Lift a placement off the board and hand back what it became.
-   *
-   * The one crossing of the line for anything entering a kit, shared by
-   * {@link pickUp} and {@link equip} because it is the same trip whichever slot
-   * the thing is headed for: a container comes up with its `contents` intact
-   * because those ride on the placement, so nothing here has to know a bag from
-   * a sword.
-   *
-   * Null when there is nothing there or the placement has no identity — an item
-   * with no id means something skipped the minting pass, and better a pickup
-   * that does nothing than one that puts an anonymous thing in a kit and loses
-   * track of it forever. Nothing is removed in that case.
-   */
   private takeFromBoard(ref: ObjectRef): ItemInstance | null {
     const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
     const instance = placed && instanceFromPlacement(placed);
     if (!instance) return null;
 
     this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
-    // The cell has one fewer thing in it, which is a real change to what rests
-    // on a plate and to what was holding a crate up.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return instance;
   }
 
-  /**
-   * Use a consumable up: the thing is destroyed and its `hp` lands on the
-   * eater.
-   *
-   * The two sources cross different lines and are validated on their own
-   * terms. A floor consume is a board action — reach, cover and idleness, the
-   * gates a pickup runs — and takes a placement off the map without it ever
-   * entering a kit. A slot consume is a kit action, gated the way a move is
-   * (not on idleness: refusing to let a walking player drink would be a rule
-   * with nothing behind it), and reach for a ground container slot is re-asked
-   * inside `itemInSlot`.
-   *
-   * The eater must have hit points to change, asked *before* anything is
-   * destroyed: a body with none — a session with no battler tile — refuses
-   * rather than wasting the item on nothing.
-   */
   consume(from: ConsumeSource, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor || this.incapacitated(actor)) return false;
@@ -8868,26 +3801,10 @@ export class GameSession implements PlaySession {
     if (!eaten) return false;
     const { consumable } = eaten;
 
-    // Before the hit points land, on exactly the terms `notePendingHurt` is
-    // noted before its damage: a fatal drink still tells the room, because by
-    // the time the number has been applied the body may be off the board and
-    // there is nowhere left to hang a bubble.
     this.recordConsumeSound(actor, consumable);
 
-    // Before the hit points move, so a consumable that both grants something and
-    // kills you has already handed it over — and after the sound, on the same
-    // grounds: by the time a fatal number has landed there is no body left to
-    // hang anything on.
-    //
-    // Drawn through the same function a swing's brands go through, so a
-    // hundred means the same thing on a blade and on a supper — and drawn for
-    // *every* row whether or not it is certain, on the fixed-draw-count
-    // discipline. @see ./combat's `inflictedBy`
     const grants = consumable.statuses ?? [];
     const rolls = grants.map(() => this.rng.next());
-    // The food is what a skull names, both for the illness it brought and for
-    // the number it took off directly, and neither is anybody's *doing* —
-    // nobody made you eat it, so there is no cause and nobody is paid.
     for (const grant of inflictedBy(grants, rolls)) {
       this.grantStatus(actor, grant, undefined, undefined, {
         source: this.statusName(grant.id),
@@ -8896,42 +3813,20 @@ export class GameSession implements PlaySession {
     }
 
     if (consumable.hp < 0) {
-      // Through the damage path rather than a bare subtraction, so a poison
-      // apple shows its number, tells the brains, and can kill — a death by
-      // poison and a death by blows must not be two codepaths to keep alive.
       this.applyDamage(actor, -consumable.hp, { source: eaten.name });
     } else if (consumable.hp > 0) {
-      // The mirror of the damage path above, and for the same reason: a bandage
-      // shows its number where a poisoned apple shows its own.
       this.applyHealing(actor, consumable.hp);
     }
     return true;
   }
 
-  /**
-   * Make the noise a consumable makes, where it was used.
-   *
-   * A noise rather than speech, and that is the whole distinction the channel
-   * exists for: biting an apple is not the eater *saying* anything, so it must
-   * not arrive attributed to them. See {@link NoiseEmission}.
-   *
-   * A crunch *does* set off every brain in earshot listening for one, which is
-   * the point rather than a side effect: eating in the woods is a thing a wolf
-   * gets to notice. It goes out through {@link recordNoise} and never through
-   * {@link hear} — the eater is not saying anything, and the two channels stay
-   * apart all the way down.
-   */
   private recordConsumeSound(actor: ActorRuntime, consumable: ConsumableItem) {
     if (!consumable.sound?.trim()) return;
-    // Re-located rather than taken from the consume: a floor meal has already
-    // rewritten the cell it came out of, and a stale slot index would hang the
-    // noise on nothing.
     const loc = this.tryLocate(actor);
     if (!loc) return;
     this.recordNoise(actor.id, loc, consumable.sound);
   }
 
-  /** Take a consumable placement off the board. Null when refused. */
   private consumeFromFloor(actor: ActorRuntime, ref: ObjectRef): Eaten | null {
     if (!this.readyToAct(actor)) return null;
     const loc = this.tryLocate(actor);
@@ -8944,10 +3839,6 @@ export class GameSession implements PlaySession {
     const consumable = def ? resolveConsumable(def) : null;
     if (!consumable || !placed || !def) return null;
 
-    // One berry out of the pile, not the pile. Eating is the one act that takes
-    // an *amount* rather than a thing — see `../lib/piles`'s `peelOne` — and a
-    // meal that swallowed a heap of twelve would be the game deciding a number
-    // nobody was offered.
     const left = peelOne(placed);
     const spent = left
       ? stack.map((held, i) => (i === ref.stackIndex ? left : held))
@@ -8955,26 +3846,10 @@ export class GameSession implements PlaySession {
     const next = this.cellAfterLeaving(actor, ref, spent, consumable);
     if (!next) return null;
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
-    // The same reindex a pickup owes, for the same plates and the same
-    // unsupported crates. Owed even for a pile that merely got smaller: a pile
-    // adds no height, so nothing about the cell can have changed — but the
-    // reindex is a stack read, and a cheap one is worth more than a rule about
-    // when it may be skipped.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return { consumable, name: def.name };
   }
 
-  /**
-   * A cell's stack with what a floor drink leaves behind on it, or null when
-   * the cell cannot hold it.
-   *
-   * On the floor rather than in the drinker's kit, because that is where the
-   * potion was: a bottle drunk where it lies is left where it lay, exactly as a
-   * meal eaten off the floor never enters the bag. Poured, like every other way
-   * an item reaches a cell, so a second bottle joins the first. The room check
-   * is `canReplaceStack`'s, the same one a body dying holding things asks, and
-   * a refusal is said out loud on {@link leaveBehind}'s terms.
-   */
   private cellAfterLeaving(
     actor: ActorRuntime,
     ref: ObjectRef,
@@ -8990,14 +3865,6 @@ export class GameSession implements PlaySession {
     return null;
   }
 
-  /**
-   * The board and kit with what a slot drink leaves behind somewhere on the
-   * body, or null — said out loud — when there is nowhere.
-   *
-   * Asked with the drink already gone, which is what makes the ordinary case
-   * free: the square the last potion vacated is the square its bottle lands in.
-   * See `./residue` for the order the places are tried in.
-   */
   private leaveBehind(
     actor: ActorRuntime,
     loc: ActorLocation,
@@ -9013,22 +3880,12 @@ export class GameSession implements PlaySession {
     return null;
   }
 
-  /**
-   * What this consumable leaves behind, minted, or null for one that leaves
-   * nothing.
-   *
-   * A tile the catalogue no longer holds reads as leaving nothing, on the terms
-   * a status nobody authored does: renamed content is an effect that did not
-   * happen, not a drink that cannot be drunk. Minted before it is known to fit,
-   * because an id is random and one that lands nowhere costs nothing.
-   */
   private residueOf(consumable: ConsumableItem): ItemInstance | null {
     const tileId = consumable.leaves;
     if (!tileId || !this.tilesById[tileId]) return null;
     return { id: mintItemId(), tileId };
   }
 
-  /** Take a consumable out of a slot and destroy it. Null when refused. */
   private consumeFromSlot(actor: ActorRuntime, slot: SlotRef): Eaten | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
@@ -9038,19 +3895,12 @@ export class GameSession implements PlaySession {
     const consumable = def ? resolveConsumable(def) : null;
     if (!consumable || !def) return null;
 
-    // One off the pile, where `drop` takes the whole of it: the two verbs are
-    // the two ways something leaves a slot, and `peelSlot` falls through to
-    // `clearSlot` for the last one anyway.
     const emptied = peelSlot(this.map, this.tilesById, loc, actor.equipment, slot);
     if (!emptied) return null;
-    // Before anything is written, so a drink with nowhere to leave its bottle
-    // leaves the potion exactly where it was.
     const landed = this.leaveBehind(actor, loc, emptied, slot, consumable);
     if (!landed) return null;
 
     this.map = landed.map;
-    // Only when it actually changed, exactly as a move does: eating out of a
-    // chest is the chest's placement changing and nobody's kit.
     if (landed.equipment !== actor.equipment) {
       this.setEquipment(actor, landed.equipment);
     }
@@ -9065,52 +3915,19 @@ export class GameSession implements PlaySession {
     return canMoveItem(this.map, this.tilesById, loc, actor.equipment, from, to);
   }
 
-  /**
-   * Move one carried thing from one slot to another.
-   *
-   * Equipping, unequipping, looting a chest and stashing something into one are
-   * all this, read four ways — see `./itemMoves`, which owns every rule the move
-   * has to satisfy and is asked the same question by the client before it offers
-   * the drag.
-   *
-   * Not gated on {@link idle}, unlike a push or a pickup. Those two move the
-   * *board* and are held against the actor so they cannot be machine-gunned out
-   * faster than the result can be seen; this rearranges what somebody is
-   * carrying, and refusing to let a walking player put a sword in their hand
-   * would be a rule with nothing behind it. Reach for a ground endpoint is
-   * re-asked here regardless, against the cell the actor has committed to.
-   *
-   * No settle pass: a container's contents are not physics. Rewriting them
-   * changes what a placement *holds* and never its tile, so nothing rests
-   * differently on a plate and no wire has changed value — and the map identity
-   * has moved anyway, so the next tick's pass will not skip.
-   */
   moveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor || this.incapacitated(actor)) return false;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
 
-    // Said out loud before the move is tried, and the *only* refusal in this
-    // module that says anything. Every other one is a drag the interface never
-    // offered — see `./itemMoves`, which returns null without a reason on
-    // exactly those grounds — where this is a square a player can plainly see
-    // something in and plainly cannot empty. Silence there reads as the panel
-    // being broken rather than as a rule.
     if (this.noteCoolingRefusal(actor, loc, from)) return false;
-    // And the square being moved *into*, now that landing on a taken one trades
-    // the two things: the stone on its way out of that square is as stuck as one
-    // being dragged out of it, and the refusal looks identical from the outside.
-    // Squares on a body only — a container appends, so whatever is at an index
-    // there is not in the way of anything.
     if (isBodySlot(to) && this.noteCoolingRefusal(actor, loc, to)) return false;
 
     const moved = applyItemMove(this.map, this.tilesById, loc, actor.equipment, from, to);
     if (!moved) return false;
 
     this.map = moved.map;
-    // Only when it actually changed: `setEquipment` is what tells the owner's
-    // socket, and a loot from one chest into another is nobody's kit changing.
     if (moved.equipment !== actor.equipment) {
       this.setEquipment(actor, moved.equipment);
     }
@@ -9121,18 +3938,6 @@ export class GameSession implements PlaySession {
     return this.dropCandidate(from, to, id) != null;
   }
 
-  /**
-   * Tell this body why the thing in that square will not come out of it, if the
-   * reason is that it is cooling.
-   *
-   * True when it said something, so the caller can stop — which makes the call
-   * site read as "refused, and they have been told". False is the overwhelmingly
-   * common answer and costs one slot read.
-   *
-   * The stone is named rather than the square, because what is refusing is the
-   * thing rather than the place: put it in the other hand and it would refuse
-   * from there too.
-   */
   private noteCoolingRefusal(actor: ActorRuntime, loc: ActorLocation, from: SlotRef): boolean {
     const instance = itemInSlot(this.map, this.tilesById, loc, actor.equipment, from);
     if (!instance || !stoneLocked(instance, this.tilesById)) return false;
@@ -9141,13 +3946,6 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * What a drop would put down, and whether it may go there.
-   *
-   * One question rather than two, for the reason `pickUpDestination` is: the
-   * caller that says yes is the caller that then has to write the placement, and
-   * finding the instance a second time is how the two come to disagree.
-   */
   private dropCandidate(
     from: SlotRef,
     to: Coord,
@@ -9167,34 +3965,15 @@ export class GameSession implements PlaySession {
 
     const def = this.tilesById[instance.tileId];
     if (!def) return null;
-    // A stone that is still cooling stays where it is, on the floor's terms as
-    // well as the kit's — see `./equipment`'s `stoneLocked`. The move rules
-    // refuse the same thing for the same reason, and both have to: putting a
-    // cooling stone down and picking it up again would clear the cooldown, which
-    // is the exploit the lock exists for.
     if (stoneLocked(instance, this.tilesById)) return null;
     const destination = dropDestinationAt(this.map, this.tilesById, loc, to, def);
     if (!destination) return null;
     return { actor, instance, destination };
   }
 
-  /**
-   * Put a carried thing down on the board.
-   *
-   * The exact inverse of {@link pickUp}, and it shares that trip's conversion
-   * pair: an instance becomes a placement, contents and all, so a bag put on the
-   * floor is still full and a chest looted half-empty stays half-empty. Nothing
-   * here knows a bag from a sword.
-   *
-   * Landing on *top* of the target stack rather than at a chosen height, and
-   * then settling: a thing dropped over a hole falls into it, which is the same
-   * rule a shoved crate follows and needs no special case here.
-   */
   drop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
     const thrower = this.actors.get(id);
     const at = thrower ? this.tryLocate(thrower) : null;
-    // Ahead of the candidate, which refuses a cooling stone silently: a throw
-    // that goes nowhere owes the same sentence a drag that goes nowhere does.
     if (thrower && at && this.noteCoolingRefusal(thrower, at, from)) return false;
 
     const candidate = this.dropCandidate(from, to, id);
@@ -9204,15 +3983,10 @@ export class GameSession implements PlaySession {
     const emptied = clearSlot(this.map, this.tilesById, this.locate(actor), actor.equipment, from);
     if (!emptied) return false;
 
-    // The board first and the kit second, so there is no order in which the
-    // thing can leave a slot without arriving somewhere.
     const landed =
       destination.kind === "contents"
         ? stashInContainer(emptied.map, this.tilesById, destination.ref, instance)
-        : // Through the pouring append, so a pile of berries thrown at a cell
-          // that already has berries in it lands as more of that pile rather
-          // than beside it. See `../lib/piles`'s `appendItem`.
-          appendItem(
+        : appendItem(
             emptied.map,
             to.x,
             to.y,
@@ -9227,52 +4001,20 @@ export class GameSession implements PlaySession {
       this.setEquipment(actor, emptied.equipment);
     }
 
-    // Caught by the box it was thrown at, and then it is not on the board at
-    // all: no placement appeared, nothing rests differently on a plate, and no
-    // wire changed value — the same reasoning `moveItem` settles nothing under.
     if (destination.kind === "contents") return true;
 
-    // The thing that just landed may be a plate, may be wired, and is almost
-    // certainly subject to gravity — and the cell it came *out of*, for a drop
-    // taken from a container on the floor, has changed too.
     this.reindexCells([to]);
     this.settleBoardNow();
     return true;
   }
 
-  /**
-   * Put a whole new kit on an actor.
-   *
-   * **Replaces rather than mutates, and that is load-bearing.** The renderer
-   * hands equipment to React only when the object identity changes — see
-   * `GameRenderer.setOnEquipment` — so a kit edited in place would leave the
-   * panels showing what the player was carrying a moment ago, with nothing to
-   * correct it. Every change goes through here for that reason.
-   */
   private setEquipment(actor: ActorRuntime, next: Equipment) {
     actor.equipment = next;
-    // Re-derived here and nowhere else. It is the one moment the answer can have
-    // changed, and doing it beside the assignment is what makes "the cache
-    // cannot go stale" a fact about this function rather than a discipline
-    // spread over every caller.
     actor.carriedLights = carriedLightTileIds(next, this.tilesById);
-    // The kit's `reindexCells`, and here for the same reason: this is the one
-    // place a kit is written, so a thing that arrives in one starts counting
-    // down without every equip, stash and loot having to remember to say so.
-    // Additive, so nothing already ripening is set back by being moved.
     this.decay.armEquipment(next, this.tilesById);
     this.equipmentChanged.add(actor.id);
   }
 
-  /**
-   * Whose kit has changed since the last time anybody asked, and clears the
-   * list.
-   *
-   * Drained rather than read, because there is exactly one consumer: the server
-   * turning it into a message per socket. A second reader would silently get an
-   * empty answer, which is the right shape here — this is a queue of things to
-   * announce, not a record of what happened.
-   */
   drainEquipmentChanges(): string[] {
     if (this.equipmentChanged.size === 0) return [];
     const changed = [...this.equipmentChanged];
@@ -9280,14 +4022,6 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
-  /**
-   * Whose tags have changed since anybody last asked, and clears the list.
-   *
-   * Its own queue rather than a flag on the equipment one, even though today
-   * every tag arrives beside a kit. They are two facts with two messages, and a
-   * reward that handed over nothing — a tag for having spoken to somebody — is
-   * the obvious next thing to author.
-   */
   drainTagChanges(): string[] {
     if (this.tagsChanged.size === 0) return [];
     const changed = [...this.tagsChanged];
@@ -9295,14 +4029,6 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
-  /**
-   * Whose pull has started or ended since anybody last asked, and clears the
-   * list.
-   *
-   * Its own queue beside the other three, on {@link drainTagChanges}' argument:
-   * a pull starts when somebody taps a vein and ends on a tick nothing else
-   * happened, which is a different event at a different rate from a kit change.
-   */
   drainExtractionChanges(): string[] {
     if (this.extractionChanged.size === 0) return [];
     const changed = [...this.extractionChanged];
@@ -9310,14 +4036,6 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
-  /**
-   * Whose experience has moved since anybody last asked, and clears the list.
-   *
-   * A third queue beside the other two, and not folded into either: a kit
-   * changes when somebody moves an item and this changes when somebody lands a
-   * blow, which are different events at wildly different rates. Sharing a queue
-   * would send an inventory on every swing.
-   */
   drainMasteryChanges(): string[] {
     if (this.masteriesChanged.size === 0) return [];
     const changed = [...this.masteriesChanged];
@@ -9325,13 +4043,6 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
-  /**
-   * Whose statuses have changed in a way worth telling them about.
-   *
-   * A fourth queue, and the only one that is filled by the passage of time
-   * rather than by somebody doing something — see {@link statusesChanged} for
-   * why that makes the *reading* the thing being compared.
-   */
   drainStatusChanges(): string[] {
     if (this.statusesChanged.size === 0) return [];
     const changed = [...this.statusesChanged];
@@ -9339,13 +4050,6 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
-  /**
-   * The hour `/time` last asked for, if anybody has since this was last read.
-   *
-   * A drain on the terms the queues above are, because a change of hour is an
-   * event: the server moves its clock once, tells everybody once, and from
-   * there the clock runs on its own.
-   */
   drainClockSet(): MinutesOfDay | null {
     const minutes = this.pendingClockSet;
     this.pendingClockSet = null;
@@ -9365,23 +4069,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Hand this actor the reward, and mark them with its tag.
-   *
-   * **The board is not touched.** Nothing is taken off the map and nothing swaps
-   * — the chest is still a chest, still full for the next person, and the cell
-   * patch that would have announced an edit is never sent. The whole of what
-   * happened lives on the taker, which is what "once per player" means in a
-   * world several people are standing in.
-   *
-   * Every item is minted fresh ({@link mintItemId}), so two players who open the
-   * same chest come away with two distinct swords. An authored reward is a
-   * recipe, not an object being moved.
-   *
-   * The kit and the tag are written together and never conditionally: a reward
-   * whose items landed without its tag is one the player can take again, which
-   * is an item with no ceiling on how many exist.
-   */
   takeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -9392,8 +4079,6 @@ export class GameSession implements PlaySession {
     if (actor.tags.includes(reward.tag)) return false;
     if (!rewardFits(reward, this.tilesById, actor.equipment)) return false;
 
-    // Read before anything is written, because the notice names the giver and
-    // `reachableRewardAt` has already proved the slot holds one.
     const giverDef = this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
     if (!giverDef) return false;
 
@@ -9407,11 +4092,6 @@ export class GameSession implements PlaySession {
       bag: { ...bag, contents: [...(bag.contents ?? []), ...given] },
     });
     this.setTags(actor, [...actor.tags, reward.tag]);
-    // After the two writes, never before: the sentence says what the player now
-    // has, and a line queued ahead of a throw would be a receipt for a reward
-    // that never landed. Composed here rather than on the way out because this
-    // is the last place holding the giver *and* what it gave — by the time
-    // anything drains this, the ref is a coordinate and the reward is gone.
     this.say(actor.id, rewardNotice(reward, giverDef, this.tilesById));
     return true;
   }
@@ -9422,27 +4102,6 @@ export class GameSession implements PlaySession {
     return canCraftFrom(this.map, this.tilesById, this.locate(actor), actor.equipment, ref, recipe);
   }
 
-  /**
-   * Run one recipe at a crafter: spend its inputs, roll, and take back what
-   * came up.
-   *
-   * **The board is not touched**, on exactly a reward's terms and for a related
-   * reason: the forge has to still be a forge for the next person, so there is
-   * no cell patch to send and `settleBoardNow` has nothing to settle. What
-   * changes is one kit, which travels as an `equipment` message.
-   *
-   * Unlike a reward it leaves **no tag and no mark of any kind**, because there
-   * is nothing to stop: a fire cooks the second steak too, and what limits it is
-   * having something to spend.
-   *
-   * The dice are the session's, so a craft is as reproducible as a swing. Only
-   * the server holds them, which is why the client never predicts the result —
-   * it is told by the kit and the line that follow.
-   *
-   * Gated on {@link idle} like every other board-side act. It is a kit change,
-   * but it is one you reach out and do to something in the world, and a player
-   * mid-stride is not standing next to it yet.
-   */
   craft(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -9477,34 +4136,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-  /**
-   * Start a pull out of a resource. Returns false when it is not on offer.
-   *
-   * **Nothing is handed over here.** The tap buys a place at the vein and
-   * nothing else: one of its remaining pulls is held out of the shared count so
-   * nobody else can start on it, a clock begins, and the player has to stand
-   * there for the whole of {@link ExtractInteraction.durationMs} before
-   * anything comes out — see {@link finishExtraction}, which is where the dice
-   * are thrown and the board actually moves. Step, get shoved, get hit or watch
-   * the thing turn into something else, and the pull is gone with nothing to
-   * show for it and the reservation back in the vein.
-   *
-   * That is the whole of the redesign. A cooldown after the fact made a rich
-   * vein a thing to tap and walk away from; a cost paid in front makes it a
-   * thing to hold a room for.
-   *
-   * **A pull elsewhere is abandoned rather than refused.** A player who taps a
-   * second crystal has said which one they want, and making them walk away to
-   * say so would be a refusal with nothing on screen explaining it. Tapping the
-   * one they are already on is refused instead — that row is drawing their bar,
-   * and restarting it would be a way to never finish.
-   *
-   * **A resource authored at zero lands on the tap**, with no reservation and
-   * no clock: there is nothing to interrupt in an instant, and holding one for
-   * a tick would be bookkeeping nobody could see.
-   *
-   * Gated on {@link idle} like every other board-side act.
-   */
   extract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.canExtract(ref, id)) return false;
@@ -9519,13 +4150,7 @@ export class GameSession implements PlaySession {
     const at = this.actorCell(actor.id);
     if (!at) return false;
 
-    // Whatever else they had going, they have just said this is the one. Before
-    // the reservation below, so a player tapping two slots of the same cell in
-    // turn releases the first hold before taking the second.
     this.cancelExtraction(actor);
-    // Both hands, one job: reaching into a bush is not something you do while
-    // holding a spell half-said. The mirror of what starting a cast does to a
-    // pull. @see cast
     this.cancelCasting(actor);
 
     const run: ExtractionRun = {
@@ -9546,7 +4171,6 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /** Hold one of this placement's pulls for as long as the pull is being made. */
   private reserve(run: ExtractionRun) {
     const { ref } = run;
     const stack = getStack(this.map, ref.x, ref.y, ref.z);
@@ -9556,33 +4180,6 @@ export class GameSession implements PlaySession {
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
   }
 
-  /**
-   * Land a pull that has run its course.
-   *
-   * **Three things move and they are three different owners' state**, which is
-   * what makes this the only place in the session that writes to the board, the
-   * kit and a private clock in one act:
-   *
-   * - the placement loses a pull *and* the hold that was on it, in one write,
-   *   and turns into whatever the author named once it has none. That is a cell
-   *   patch, so everybody sees the vein run out.
-   * - the kit gains whatever came up, minted fresh on a reward's terms: two
-   *   people working one vein come away with two distinct shards.
-   * - the pull itself ends, which is what takes the bar off the row.
-   *
-   * **The dice are the world's and are thrown exactly once**, here, at the end.
-   * Nothing rolls when the pull starts — see `./extract`'s `extractFits`, which
-   * asks for room enough for the *best* possible pull so that offering the row
-   * costs no draws and cannot change what the next creature in the world rolls.
-   *
-   * **A finished pull is spent whatever came up.** A crystal that yields
-   * nothing on a bad roll has still been chipped at: the fourteen seconds went
-   * into the swing rather than into what came out of it.
-   *
-   * A board that refuses the swap leaves the pull unfinished and the hold in
-   * place — `spendPull`'s own refusal, which is rare and is the safe direction:
-   * the next tick tries again, and the player is standing there anyway.
-   */
   private finishExtraction(actor: ActorRuntime, run: ExtractionRun): boolean {
     const stack = getStack(this.map, run.ref.x, run.ref.y, run.ref.z);
     const placed = stack[run.ref.stackIndex];
@@ -9594,27 +4191,12 @@ export class GameSession implements PlaySession {
     const yielded = rollExtract(extract, () => this.rng.next());
     if (!this.spendPull(run.ref, stack, placed, extract)) return false;
     if (yielded.length > 0) this.giveExtracted(actor, yielded);
-    // After the board, because the hold came off the placement with the pull —
-    // see `placementAfterPull`. Nothing to release, only a clock to stop.
     if (actor.extraction === run) this.setExtraction(actor, null);
 
-    // After the board and the kit, never before: the sentence says what the
-    // player now has, and this is the last place holding both the thing worked
-    // and what came out of it.
     this.say(actor.id, extractNotice(extract, def, yielded, this.tilesById));
     return true;
   }
 
-  /**
-   * Take one pull off the placement, turning it into whatever the author named
-   * once it has none. Returns false when the swap could not be made.
-   *
-   * The refusal is `canReplaceStack`'s, and it is the same one a decay and a
-   * plate make: whatever a spent resource becomes has to fit under what has been
-   * stacked on it in the meantime. Refused rather than forced, and refused
-   * *before* anything is handed over — a pull that could not change the board
-   * has not landed, so nothing is minted and the hold stays where it was.
-   */
   private spendPull(
     ref: ObjectRef,
     stack: readonly PlacedTile[],
@@ -9622,10 +4204,6 @@ export class GameSession implements PlaySession {
     extract: ExtractInteraction,
   ): boolean {
     const after = placementAfterPull(placed, extract);
-    // A target that does not exist leaves the resource standing, on
-    // `decayedStack`'s terms: a typo in `tiles.json` should read as a pull that
-    // never happened rather than as content quietly deleting itself. A *blank*
-    // target is the authored way to say "and then it is gone", and is not this.
     if (!after && extract.tileId && !this.tilesById[extract.tileId]) return false;
 
     const next: PlacedTile[] = [];
@@ -9639,9 +4217,6 @@ export class GameSession implements PlaySession {
         next.push(after);
         continue;
       }
-      // Spent. The count goes with the tile it was counting — whatever this
-      // becomes has a durability of its own or none at all, and a number left
-      // behind would be the old resource's answer worn by a new tile.
       if (!extract.tileId) continue;
       const { extractsLeft: _spent, ...rest } = withoutReservations(current);
       next.push({ ...rest, tileId: extract.tileId });
@@ -9651,31 +4226,10 @@ export class GameSession implements PlaySession {
       return false;
     }
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
-    // The tile worked into may be a plate — or may have been one.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return true;
   }
 
-  /**
-   * Put what came up in the bag.
-   *
-   * The bag and only the bag, unlike a recipe's results, which spill to
-   * whichever square is free — and the difference is that a recipe is *paid
-   * for* out of a particular slot, so it has somewhere obvious to put the
-   * change. A pull comes out of the world and belongs where everything else you
-   * are merely carrying goes.
-   *
-   * **Through the same function that decided the row could be offered**, which
-   * is what lets a pull pour into a pile rather than demanding an empty square
-   * per berry. A run that worked the arrangement out again could work it out
-   * differently from the check — the trap `landingsFor` is documented as being
-   * in — so there is one answer and both halves ask for it.
-   *
-   * A null here is a race rather than an oversight: the kit moved between the
-   * check and the run. Nothing is minted and nothing is given, and the pull has
-   * already been paid for on the board — which is the safe direction, since the
-   * alternative is inventing somewhere to put things.
-   */
   private giveExtracted(actor: ActorRuntime, tileIds: readonly string[]) {
     const bag = actor.equipment.bag;
     if (!bag) return;
@@ -9687,23 +4241,6 @@ export class GameSession implements PlaySession {
     });
   }
 
-  /**
-   * Carry out something somebody typed, or tell them why it did not happen.
-   *
-   * **The command's one entry point, and the only place the world is changed by
-   * words.** Everything ahead of it is grammar (`./commands`) and everything
-   * behind it is prose (`./notices`); what is left is the questions only a
-   * session can answer — is there a body by that name, does it learn, does the
-   * catalogue hold that tile, and is there room for it.
-   *
-   * **Whether this body may run one is settled before it gets here**, by
-   * `server/GameServer.webSocketMessage`, off the account on the socket. It is
-   * not asked in this method and could not be: a session is the simulation, and
-   * the simulation has never known what an account is — it is handed a
-   * character's *name* rather than reading the table, and the same line holds
-   * for a character's role. A caller that has no business running one calls
-   * {@link refuseCommand} instead.
-   */
   runCommand(raw: string, id: string = LOCAL_ACTOR_ID) {
     const parsed = parseCommand(raw);
     if (!parsed.ok) {
@@ -9711,29 +4248,14 @@ export class GameSession implements PlaySession {
       return;
     }
 
-    // Each command answers with a refusal or with nothing, and the sentence is
-    // said in one place. The alternative — every arm saying its own — is how a
-    // command comes to refuse silently: the return is the only thing that
-    // reminds you there was something left to tell them.
     const refusal = this.runParsedCommand(parsed.command, id);
     if (refusal) this.say(id, commandRefusalNotice(refusal));
   }
 
-  /**
-   * Tell somebody they may not run commands at all.
-   *
-   * {@link runCommand}'s other door rather than a flag on it, and the split is
-   * the point: this one never parses, so nothing about the line is read and
-   * nothing about the grammar is said back. A player who may not set a mastery
-   * is owed the same sentence whether they typed `/mastery sharp 100` or
-   * `/masteyr`, and answering the second with "there is no /masteyr command"
-   * would be the world coaching somebody towards a door it has locked.
-   */
   refuseCommand(id: string = LOCAL_ACTOR_ID) {
     this.say(id, commandRefusalNotice({ kind: "notAdmin" }));
   }
 
-  /** One arm per verb, each answering with a refusal or with nothing. */
   private runParsedCommand(command: Command, id: string): CommandRefusal | null {
     switch (command.name) {
       case MASTERY_COMMAND:
@@ -9753,36 +4275,12 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * `/time` — ask for the world's clock to read that hour.
-   *
-   * Never refused: every hour that parsed is one the clock can read, and
-   * nobody needs a body to change it. The latest request wins when two land
-   * between flushes, which is the hour the last person typed.
-   */
   private runTimeCommand(command: TimeCommand, id: string): null {
     this.pendingClockSet = command.minutes;
     this.say(id, timeNotice(command.minutes));
     return null;
   }
 
-  /**
-   * Could this body stand in that cell — really stand, not merely fit?
-   *
-   * **A stricter question than `teleportFits`, and the difference is worth
-   * naming.** A portal's fit is about *volume*: is there room in the column for
-   * a body this tall. That is right for a portal, which an author placed and
-   * pointed somewhere they meant, and wrong for a coordinate somebody typed —
-   * it says yes to a cell with nothing under it, and to one another body is
-   * already standing in. Both of those put a player somewhere the game has no
-   * good answer for: falling out of the bottom of the world, or inside a deer.
-   *
-   * So this asks what the walk loop asks. A level is somewhere to be when the
-   * column has a standing surface at it and the body fits with its feet on
-   * that surface — which is `./pathfinding`'s `dropLanding` reduced to one
-   * level, and counts other bodies as walls for the same reason `canWalk`
-   * does.
-   */
   private canStandIn(actor: ActorRuntime, to: Coord): boolean {
     const def = this.defFor(actor);
     const surface = listStandingSurfaces(this.map, to.x, to.y, this.tilesById).find(
@@ -9792,28 +4290,14 @@ export class GameSession implements PlaySession {
     return fitsAtElevation(this.map, to.x, to.y, surface.abs, def, this.tilesById).ok;
   }
 
-  /**
-   * `/goto` — stand in the cell somebody named, read exactly as they typed it.
-   *
-   * Refused rather than forced when there is nowhere to stand, because a
-   * debugging tool that creates the bug it was reached for is worse than none:
-   * `noRoom` already says which cell would not take it. @see canStandIn, which
-   * is a stricter question than the one a portal asks, and {@link putBodyAt},
-   * which is what both of these verbs actually do.
-   */
   private runGotoCommand(
     command: Extract<Command, { name: typeof GOTO_COMMAND }>,
     id: string,
   ): CommandRefusal | null {
     const actor = this.actors.get(id);
     const loc = actor ? this.tryLocate(actor) : null;
-    // No body, so there is no "here" for a relative coordinate to be relative
-    // *to* — and the sign grammar means even an absolute-looking command may
-    // have one in it.
     if (!actor || !loc) return { kind: "nowhereToPlace" };
 
-    // An absent level means the one being stood on, which is a fact about the
-    // body and so is filled in here rather than in the parser.
     return this.putBodyAt(actor, loc, {
       x: command.at.x,
       y: command.at.y,
@@ -9821,14 +4305,6 @@ export class GameSession implements PlaySession {
     });
   }
 
-  /**
-   * `/move` — the same landing, counted from where the body is standing.
-   *
-   * The other half of {@link runGotoCommand}, and it is two lines because the
-   * split between them is in the *grammar* rather than in what either does: one
-   * reads its numbers as places and the other as distances, and after that they
-   * are the same command. @see putBodyAt
-   */
   private runMoveCommand(
     command: Extract<Command, { name: typeof MOVE_COMMAND }>,
     id: string,
@@ -9844,45 +4320,16 @@ export class GameSession implements PlaySession {
     });
   }
 
-  /**
-   * Put a body in a cell, or say why it cannot go there.
-   *
-   * Shared by both verbs so there is one answer to "what happens when you
-   * arrive" rather than one per command.
-   *
-   * The move itself is {@link moveThrough}, the same one a portal makes — it
-   * drops whatever motion was in flight, re-indexes both cells and announces
-   * the arrival — so a body that walks somewhere and a body that types its way
-   * there land in exactly one state and the client animates both the same way.
-   * A second kind of relocation is how the two come to disagree about what a
-   * body mid-step is.
-   */
   private putBodyAt(actor: ActorRuntime, loc: ActorLocation, to: Coord): CommandRefusal | null {
     if (to.x === loc.x && to.y === loc.y && to.z === loc.z) return null;
     if (!this.canStandIn(actor, to)) return { kind: "noRoom", at: to };
 
     this.moveThrough(actor, to);
-    // Whatever the new cell does to somebody arriving on it — a burn, a pad,
-    // a portal — happens on the same terms it would to somebody who walked.
     this.statusOnArrival(actor);
     this.settleBoardNow();
     return null;
   }
 
-  /**
-   * Put one mastery on one body, whoever asked.
-   *
-   * The target hears what *their* mastery now reads and the author hears what
-   * they did, which are two sentences because they are two facts. When they are
-   * the same person only the first is said: being told twice that you set your
-   * own sharp to 10 reads as a bug.
-   *
-   * One quiet edge, and it is `hasExperience`'s rather than this method's:
-   * zeroing every mastery leaves a block that reads as *absent* on the next
-   * load, so the body seeds itself from its tile again. Nothing worth closing
-   * here — the gate exists to stop a genuinely empty block sticking, and an
-   * admin command is not the reason to weaken it.
-   */
   private runMasteryCommand(command: MasteryCommand, id: string): CommandRefusal | null {
     const { mastery, level, target } = command;
     const targetId = target ?? id;
@@ -9892,8 +4339,6 @@ export class GameSession implements PlaySession {
     if (!this.setMastery(actor, mastery, level)) {
       return {
         kind: "unteachableTarget",
-        // Their tile's name for a creature and their handle for a person,
-        // through the one function that decides what a body is called.
         name: this.bodyName(targetId) ?? targetId,
       };
     }
@@ -9905,41 +4350,13 @@ export class GameSession implements PlaySession {
     return null;
   }
 
-  /**
-   * Call a tile into the world, wherever the summoner pointed.
-   *
-   * **Any tile in the catalogue, on the same terms the editor places one.**
-   * `canPlace` is the editor's own fit check and it is asked here for the
-   * reason it is asked there — a stack that would overflow two levels is not a
-   * thing the world can hold, and a command that wrote one anyway would leave a
-   * cell no renderer or gravity pass agrees about.
-   *
-   * **A cell of your own lands underfoot, not overhead.** Typing `/tile apple`
-   * while standing somewhere means an apple at your feet; appending it to the
-   * top of your stack — the obvious reading of "put it here" — balances it on
-   * your head instead, riding you around the map. The same rule holds however
-   * the cell was named, so `+0 +0 +0` and no coordinates at all do not quietly
-   * differ. Somebody *else's* stack is not special-cased: an admin dropping a
-   * crate on a rat asked for exactly that.
-   *
-   * A summoned body is adopted here rather than left to the load-time sweep,
-   * which is the same trade `respawnAt` makes: placing the tile is the whole of
-   * putting a creature in the world, and the sweep only exists because an
-   * authored map arrives with its residents already on the board.
-   */
   private runTileCommand(command: TileCommand, id: string): CommandRefusal | null {
     const actor = this.actors.get(id);
     const from = actor ? this.tryLocate(actor) : null;
-    // Refused even for three absolute coordinates, which need no origin: a
-    // command is something a body in the world does, and there is no body here.
     if (!from) return { kind: "nowhereToPlace" };
 
     const def = this.tilesById[command.tileId];
     if (!def) return { kind: "unknownTile", typed: command.tileId };
-    // A map is allowed exactly one — see `requireSinglePlayer`, which throws
-    // rather than choosing — so a second one is a world that cannot be opened
-    // again. The one tile worth refusing, and refused ahead of the fit check so
-    // the answer does not depend on where you were standing.
     if (def.id === PLAYER_TILE_ID) {
       return { kind: "spawnMarkerTile", typed: command.tileId };
     }
@@ -9947,21 +4364,8 @@ export class GameSession implements PlaySession {
     const at = resolveCell(command.at, from);
     const underfoot = at.x === from.x && at.y === from.y && at.z === from.z;
 
-    // **The count runs the placement again, and the cell is asked every time.**
-    // A pile absorbs most of them — a hundred shards is one pour after another
-    // into the same heap until it is full, then a second heap beside it — and a
-    // hundred crates is a hundred refusals as soon as the column runs out. That
-    // is the same rule a single `/tile` is under, said N times, rather than a
-    // second rule about how much of a thing may exist in a cell.
-    //
-    // Built whole before any of it is committed, so a count that does not fit
-    // leaves the board exactly as it was: half a command carried out is the one
-    // outcome nobody could act on, and every other multi-part move here — a
-    // trade above all — is already all or nothing. The map is persistent, so
-    // the candidate is only the next value of it.
     let candidate = this.map;
     const owners: string[] = [];
-    // Where each new placement ends up, for its way in. A pour makes none.
     let formed: number[] = [];
     for (let placement = 0; placement < command.count; placement++) {
       if (!canPlace(candidate, at.x, at.y, at.z, def, this.tilesById).ok) {
@@ -9972,30 +4376,13 @@ export class GameSession implements PlaySession {
       const stackIndex = underfoot ? from.stackIndex : stack.length;
       const placed: PlacedTile = {
         tileId: def.id,
-        // The editor's rule for an armed tile, so a lamp post summoned into the
-        // world faces the way one stamped into it does.
         ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
-        // A summoned item is a new item, on the terms a respawned one is: minted
-        // here rather than left to the load sweep, because nothing between now
-        // and the next load would give it one.
         ...(isItem(def) ? { itemId: mintItemId() } : {}),
-        // The names minted so far ride along because `addActor` has not been
-        // called for them yet: two bodies under one owner is the shape nothing
-        // recovers from, and within one command the runtime cannot yet see the
-        // clash for itself.
         ...(resolveActor(def)
           ? { owner: this.summonedOwnerId({ ...at, stackIndex }, new Set(owners)) }
           : {}),
       };
 
-      // Poured into a pile already in that cell where one will take it, exactly
-      // as a drop is: `/tile berry` onto a berry is two berries in that tile,
-      // not a second placement of one. A command puts a thing in the world, and
-      // once it is there it should be the thing the world would have had if
-      // somebody had walked over and put it down. See `../lib/piles`.
-      //
-      // A pour makes no placement, so the room `canPlace` asked for above is
-      // more than it needs, and the slot `stackIndex` names is left alone.
       const poured = pourInto(stack, placed, this.tilesById);
       const next = poured ?? [...stack];
       if (!poured) {
@@ -10014,35 +4401,12 @@ export class GameSession implements PlaySession {
     for (const stackIndex of formed) {
       this.noteTransition("appear", def.id, at, stackIndex);
     }
-    // What arrived may be a plate, may be wired, and is very likely subject to
-    // gravity — the same three indexes a respawn rebuilds, for the same reason.
     this.reindexCells([at]);
     this.settleBoardNow();
     this.say(id, tileNotice(def.name, at, command.count));
     return null;
   }
 
-  /**
-   * A name for a body somebody summoned.
-   *
-   * The authored scheme first ({@link residentOwnerId}), so a called creature
-   * knows the cell it was called into as its home in exactly the way a placed
-   * one does — that name *is* the cell and slot, and it is the whole of how a
-   * brain answers "where do I belong".
-   *
-   * Which is also why it can collide: the name stops describing where a body
-   * *is* the moment it walks off, leaving its slot free to be named a second
-   * time. Two bodies under one owner is the one shape nothing recovers from —
-   * `despawn` removes a single tile, so the other stands there forever, driven
-   * by a runtime that has been replaced out from under it. So a taken name
-   * falls back to a unique one, and the body wearing it is simply homeless:
-   * `residentHome` answers "nowhere" for any name it did not mint, which is
-   * already a case brains handle.
-   *
-   * `alsoTaken` is for a `/tile wolf x3`, where the first two are not actors
-   * yet: the map is built whole before anything is adopted, so the runtime
-   * cannot answer for names this same command has already minted.
-   */
   private summonedOwnerId(
     at: Coord & { stackIndex: number },
     alsoTaken: ReadonlySet<string> = new Set(),
@@ -10051,21 +4415,6 @@ export class GameSession implements PlaySession {
     return this.actors.has(home) || alsoTaken.has(home) ? `${home},${crypto.randomUUID()}` : home;
   }
 
-  /**
-   * Put a status on a body by hand, or take everything off it.
-   *
-   * **A debugging door, and the only way to see an effect without earning it.**
-   * Every other route to a status is a thing that happens to you — eating,
-   * stepping into a flame, being bitten — which is right for a game and useless
-   * for tuning what one looks like: nobody wants to walk a rat into a fire
-   * forty times to judge a colour ramp. It goes through {@link grantStatus}
-   * rather than writing the list itself, so what an author sees here is a real
-   * application with a real rolled duration and not a special case that could
-   * drift from one.
-   *
-   * The catalogue is checked here rather than in the parser for the reason
-   * `noSuchTarget` is: it is the world's, and the parser has never seen it.
-   */
   private runStatusCommand(command: StatusCommand, authorId: string): CommandRefusal | null {
     const targetId = command.target ?? authorId;
     const actor = this.actors.get(targetId);
@@ -10089,10 +4438,6 @@ export class GameSession implements PlaySession {
     }
 
     const outcome = this.grantStatus(actor, { id: def.id });
-    // The only way a grant is refused once the catalogue has answered: the body
-    // is authored immune to this one. Said rather than swallowed, because a
-    // debugging door that reads as silence is the failure this whole command is
-    // written against. @see BattlerDef.immuneTo
     if (outcome === "refused") {
       return {
         kind: "immuneTarget",
@@ -10101,36 +4446,13 @@ export class GameSession implements PlaySession {
       };
     }
     if (targetId !== authorId) {
-      // Said to whoever typed it rather than to the body it landed on: this is a
-      // debugging acknowledgement, not something that happened in the world, and
-      // a deer announcing that it is on fire because somebody set it on fire
-      // from a console is a bubble the room should not see.
       this.say(authorId, otherStatusNotice(this.bodyName(targetId) ?? targetId, def.name));
     } else if (outcome === "refreshed") {
-      // Already under it, so the grant refreshed rather than arrived and
-      // nothing announced it. A command that shows as nothing occurring is
-      // indistinguishable from one that was dropped — which is the whole reason
-      // this door says anything at all — so it says what they are under now.
       this.say(authorId, statusAcquiredNotice(def.name));
     }
     return null;
   }
 
-  /**
-   * Move a body's hit points by hand.
-   *
-   * **A set is turned into a shift and then there is one path**, because the
-   * alternative is two places that decide what reaching zero means — and the one
-   * that forgot would leave a body standing at nothing. So this works out the
-   * difference, and hands it to the same two doors everything else uses: harm
-   * through {@link applyDamage}, so it shows its number, tells the brains and
-   * can kill; a heal clamped at the maximum, which is the only thing a heal has
-   * ever been allowed to do.
-   *
-   * A set above the maximum is the maximum rather than a refusal. "Full health"
-   * is what somebody typing a big number meant, and making them look the ceiling
-   * up first would be a worse debugging tool.
-   */
   private runHealthCommand(command: HealthCommand, authorId: string): CommandRefusal | null {
     const targetId = command.target ?? authorId;
     const actor = this.actors.get(targetId);
@@ -10158,72 +4480,26 @@ export class GameSession implements PlaySession {
       this.applyHealing(actor, delta);
     }
 
-    // Read back rather than computed, because a fatal blow takes the body off
-    // the board and `hpOf` is the only thing that knows that happened.
     this.say(authorId, healthNotice(this.hpOf(actor) ?? 0, stats.maxHp));
     return null;
   }
 
-  /**
-   * Put one mastery exactly where it was asked for, or refuse the body.
-   *
-   * The experience is written rather than the level, because the level is
-   * *derived* — see `../lib/mastery` — and a second place that stored one would
-   * be a second answer to what a body is good at.
-   *
-   * **{@link bodyOf} is called first for its side effect**, which is the one
-   * thing in here that is not obvious. A player who has never been in a fight
-   * has no experience block at all: it is seeded from the authored tile the
-   * first time anybody asks for their body. Writing one mastery into a missing
-   * block would either be dropped or invent a body with six zeroes in it, so the
-   * seeding has to have happened before the write lands on top of it.
-   *
-   * False for a body that does not learn — a creature's masteries are authored
-   * and it has no runtime block to write to, which is exactly what the null here
-   * means. @see ActorRuntime.masteryXp
-   */
   private setMastery(actor: ActorRuntime, mastery: Mastery, level: number): boolean {
     this.bodyOf(actor);
     const xp = actor.masteryXp;
     if (!xp) return false;
 
-    // Replaced rather than mutated, and the derived body dropped, on exactly the
-    // terms `grantExperience` does both: identity is what tells a bar it moved,
-    // and a memo built from the old figures would outlive them.
     actor.masteryXp = { ...xp, [mastery]: xpForLevel(level) };
     actor.earnedBody = null;
     this.masteriesChanged.add(actor.id);
     return true;
   }
 
-  /**
-   * Queue a sentence for one body's owner.
-   *
-   * Private and deliberately narrow: everything that puts a line in front of a
-   * player goes through here, so there is one place to look when asking what the
-   * game is capable of saying. @see ./notices
-   *
-   * **A resident is told nothing, and the queue is why.** Notices are drained
-   * per socket — see {@link drainNotices} — so a line addressed to a body with
-   * no owner is one nobody ever takes away. That was harmless while only players
-   * could work the board and stopped being harmless the moment a brain could
-   * pick a bush: a hedge and a herd of deer would grow this list without bound
-   * for the length of the world's life.
-   */
   private say(actorId: string, text: string) {
     if (this.actors.get(actorId)?.resident) return;
     this.pendingNotices.push({ actorId, text });
   }
 
-  /**
-   * Take away everything queued for one body's owner.
-   *
-   * The id defaults to the local player, which is what makes this the
-   * {@link PlaySession} face of the queue; the worker passes real ids and drains
-   * one socket's worth at a time. Splicing rather than filtering because the
-   * list is nearly always empty and never long — a reward is once per player per
-   * chest, for ever.
-   */
   drainNotices(id: string = LOCAL_ACTOR_ID): string[] {
     if (this.pendingNotices.length === 0) return [];
     const mine: string[] = [];
@@ -10235,13 +4511,6 @@ export class GameSession implements PlaySession {
     return mine;
   }
 
-  /**
-   * Mark an actor, replacing the list rather than pushing onto it.
-   *
-   * Same contract {@link setEquipment} keeps and for the same reason: the array
-   * identity is what tells a renderer its rows are stale, and a list appended to
-   * in place would leave an emptied chest still offering itself.
-   */
   private setTags(actor: ActorRuntime, next: readonly string[]) {
     actor.tags = next;
     this.tagsChanged.add(actor.id);
@@ -10253,7 +4522,6 @@ export class GameSession implements PlaySession {
     return canSwitchFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
 
-  /** Replace the object with its switch target. Returns false when blocked. */
   activateSwitch(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     if (!this.canSwitch(ref, id)) return false;
     const loc = this.locate(this.actor(id));
@@ -10262,13 +4530,10 @@ export class GameSession implements PlaySession {
     if (!def || !sw) return false;
 
     const stack = getStack(this.map, ref.x, ref.y, ref.z);
-    // Only the tile id changes. The slot's own state — facing, signal channel,
-    // owner — belongs to the placement, not to whichever tile is filling it.
     const next = stack.map((placed, i) =>
       i === ref.stackIndex ? { ...placed, tileId: sw.targetTileId } : placed,
     );
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
-    // The tile switched into may be a plate — or may have been one.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return true;
   }
@@ -10279,14 +4544,6 @@ export class GameSession implements PlaySession {
     return canTeleportFrom(this.map, this.tilesById, this.locate(actor), ref, this.defFor(actor));
   }
 
-  /**
-   * Send this actor through. Returns false when the trip is not on offer.
-   *
-   * The pressed half only — a `step` teleport never arrives here, because there
-   * is no press to route. See {@link teleportOnArrival}, which fires those, and
-   * {@link moveThrough}, which both ends share so a portal you walk onto and one
-   * you push cannot land you differently.
-   */
   activateTeleport(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -10308,20 +4565,6 @@ export class GameSession implements PlaySession {
     return canAddStatusFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
 
-  /**
-   * Put the authored condition on whoever pressed this. Returns false when the
-   * gesture is not on offer.
-   *
-   * The pressed half only — a `step` one never arrives here, because there is no
-   * press to route. See {@link statusOnArrival}, which fires those.
-   *
-   * **Only a body with hit points takes it**, which is the one refusal this has
-   * that the board cannot answer: every effect a status has is arithmetic on hit
-   * points or on the stats a fight is fought with, so a crate left burning would
-   * be a countdown nobody could see and a row that visibly did nothing. That
-   * makes it the same rule `tickStatuses` already runs on — a bearer with no
-   * battler is skipped — asked one step earlier so the row is never offered.
-   */
   activateAddStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -10342,14 +4585,6 @@ export class GameSession implements PlaySession {
     return canRemoveStatusFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
 
-  /**
-   * Take the authored condition off whoever pressed this. Returns false when
-   * the gesture is not on offer; a press that finds nothing to take still
-   * counts, so the tap does not fall through to whatever else the tile offers.
-   *
-   * The pressed half only — a `step` one is fired by {@link statusOnArrival}.
-   * A body with no hit points is refused on {@link activateAddStatus}'s terms.
-   */
   activateRemoveStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -10370,20 +4605,6 @@ export class GameSession implements PlaySession {
     return canSetSpawnFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
 
-  /**
-   * Move where whoever pressed this comes back to. Returns false only when the
-   * gesture is not on offer at all — see below for why a press that moves
-   * nothing still counts.
-   *
-   * The pressed half only — a `step` one never arrives here, because there is no
-   * press to route. See {@link spawnMarkOnArrival}, which fires those.
-   *
-   * **Only somebody who comes back at all**, which is the one refusal the board
-   * cannot answer: a creature's return is a `SpawnPoint` the server owes it at
-   * its authored cell, and nothing about a rat pressing a bed could move that.
-   * `resident` is the exact test, and it is the same one {@link say} already
-   * runs — a line queued for a body with no owner is one nobody ever takes away.
-   */
   activateSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -10392,51 +4613,12 @@ export class GameSession implements PlaySession {
     const loc = this.locate(actor);
     if (!reachableSetSpawnAt(this.map, this.tilesById, loc, ref)) return false;
 
-    // **The marker's cell, not the presser's.** For the shipped tile they are
-    // the same cell — it is pressed from on top of it — and where an author
-    // makes them differ, the marker is the honest answer: two people pressing
-    // one marker from two sides should come back to one place, and that place
-    // should be the thing they can see.
-    //
-    // **Answered either way, and the tap is spent either way.** A press on the
-    // marker you are already anchored to is not a press that failed — nothing
-    // about the board refused it — so it must not fall through to whatever else
-    // the tile offers, and `canInteract` would disagree with this method if it
-    // did. It gets the other sentence instead, on `./notices`'s second rule: a
-    // refusal shows as nothing occurring, and a press on this block shows as
-    // nothing occurring even when it works.
     if (!this.markSpawn(actor, ref)) {
       this.say(actor.id, spawnMarkUnchangedNotice());
     }
     return true;
   }
 
-  /**
-   * Write this cell down as where the actor comes back, and say so.
-   *
-   * **The cell handed in is always a marker's**, never a presser's, and that is
-   * what makes the mark a thing in the world rather than a footprint: a marker
-   * two people press from two sides is one place, and it is the place they can
-   * both see. Whether anybody can *stand* there is not asked — the marker may
-   * be solid, and a rebirth resolves that the way a remembered position already
-   * does, by bubbling outward from it. @see findEntryCell
-   *
-   * **Refuses a move to where the mark already is**, and that refusal is what
-   * makes the whole block safe to author on a floor: a `step` one is asked on
-   * every arrival, so without it walking back and forth across a marker would
-   * be a storage write and a sentence per stride. It also makes pressing one
-   * twice read correctly — the second press is not a second thing happening.
-   *
-   * The cell only, with no facing. A door is not a footprint — the same reason
-   * `GameServer.rememberSpawn` stamps a fresh body's own direction on the row
-   * rather than whichever way somebody happened to be looking.
-   *
-   * Returns whether anything moved. Not whether the gesture counted — the two
-   * callers want opposite things from a mark that did not move, and both of
-   * them read this: {@link activateSetSpawn} says so and spends the tap anyway,
-   * while {@link spawnMarkOnArrival} says nothing, which is the whole of what
-   * makes a `step` block cost nothing to walk across.
-   */
   private markSpawn(actor: ActorRuntime, at: Coord): boolean {
     const cell = { x: at.x, y: at.y, z: at.z };
     const mark = actor.spawnMark;
@@ -10449,26 +4631,6 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * Take the cell this actor has just arrived in as their door, if what they
-   * landed on says so.
-   *
-   * The `step` trigger, and the twin of {@link statusOnArrival} and
-   * {@link teleportOnArrival}: asked once per tick per actor whose cell
-   * changed, and read top down so a pad with a rug over it can be buried by its
-   * author.
-   *
-   * **After the status and before the teleport**, which is the order the other
-   * two already fix between themselves and the only one this can sit in
-   * sensibly: a temple floor that also burns you should burn you where you
-   * stood, and one that also leads somewhere must mark the cell you walked onto
-   * rather than the one it is about to put you in.
-   *
-   * A resident is passed over on {@link activateSetSpawn}'s own argument, and
-   * the check is here rather than inside {@link markSpawn} because this is the
-   * path a herd of deer would otherwise run through every time one crossed the
-   * cell.
-   */
   private spawnMarkOnArrival(actor: ActorRuntime) {
     if (actor.resident) return;
 
@@ -10476,57 +4638,22 @@ export class GameSession implements PlaySession {
     const stack = getStack(this.map, loc.x, loc.y, loc.z);
 
     for (let i = stack.length - 1; i >= 0; i--) {
-      // Their own body, and anything riding above it. Neither is the floor they
-      // stepped onto.
       if (i >= loc.stackIndex) continue;
       const placed = stack[i]!;
       const def = this.tilesById[placed.tileId];
       const setSpawn = def ? resolveSetSpawn(def) : null;
       if (!setSpawn || setSpawn.trigger !== "step") continue;
-      // The marker's cell, as everywhere — and on this path it is also the
-      // cell the body is standing in, because the only way to set a `step`
-      // block off is to be on top of it.
       this.markSpawn(actor, { x: loc.x, y: loc.y, z: loc.z });
       return;
     }
   }
 
-  /**
-   * Take on whatever this actor has just arrived on top of.
-   *
-   * The `step` trigger, and the twin of {@link teleportOnArrival} in every way
-   * that matters: asked once per tick per actor whose cell changed, asked of
-   * every actor rather than only of players, and read top down so a pad with a
-   * rug over it can be buried by its author.
-   *
-   * **Before the teleport, and that is the order that makes a trapdoor of fire
-   * work**: it burns you where you landed and *then* takes you elsewhere. The
-   * other way round the flame would be a tile the traveller was never on.
-   *
-   * The clock is zeroed whether or not there was anything underfoot to take, so
-   * a body that walks out of a flame and back in waits a whole period before the
-   * standing helping rather than inheriting however far the last cell had got.
-   * @see ActorRuntime.standingStatusMs
-   */
   private statusOnArrival(actor: ActorRuntime) {
     actor.standingStatusMs = 0;
     this.clearStandingStatus(actor);
     this.grantStandingStatus(actor);
   }
 
-  /**
-   * Take off whatever the cell under this actor removes, once.
-   *
-   * Every `step` removal in the column below the body, rather than only the
-   * topmost as a grant is: a removal is not something a rug over the water
-   * could be said to cover, and walking into a cell that both puts out a fire
-   * and washes off a poison should do both.
-   *
-   * **Before the grant**, so a cell authored to both take a status off and put
-   * one on ends with the one it hands over. Called on arrival and on every
-   * standing second, beside {@link grantStandingStatus}, which is what puts out
-   * a burn that lands on a body already standing in the water.
-   */
   private clearStandingStatus(actor: ActorRuntime) {
     if (actor.statuses.length === 0) return;
 
@@ -10541,17 +4668,6 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * Hand over whatever the cell under this actor grants, once.
-   *
-   * Shared by the arrival and by {@link tickStandingStatuses}, which is what
-   * makes standing in a fire the same event as walking into one rather than a
-   * second rule that could drift from it — the same cover rule, the same
-   * attribution, the same silence on a body with nothing to spend.
-   *
-   * A body with no hit points is left alone, on {@link activateAddStatus}'s own
-   * argument: nothing a status does is visible on something that cannot be hurt.
-   */
   private grantStandingStatus(actor: ActorRuntime) {
     if (this.hpOf(actor) === null) return;
 
@@ -10559,104 +4675,37 @@ export class GameSession implements PlaySession {
     const stack = getStack(this.map, loc.x, loc.y, loc.z);
 
     for (let i = stack.length - 1; i >= 0; i--) {
-      // Their own body, and anything riding above it. Neither is the floor they
-      // stepped onto.
       if (i >= loc.stackIndex) continue;
       const placed = stack[i]!;
       const def = this.tilesById[placed.tileId];
       const addStatus = def ? resolveAddStatus(def) : null;
       if (!addStatus || addStatus.trigger !== "step") continue;
-      // **Your own flame is not a floor that burns you** — nor is one belonging
-      // to somebody whose harm does not reach you, which is the same sentence
-      // for a player standing in a stranger's fire. Passed over rather than
-      // answered with, so what is under it still gets its turn: an arcanist who
-      // conjured a flame on a bed of coals stands in the coals. Only a status
-      // the author called `bad` is skipped — a circle somebody laid down to be
-      // stood in still heals whoever laid it. @see ./conjured's `sparesStander`
       const status = this.statusDefs[addStatus.statusId];
       const spared = sparesStander(placed, status, actor.id, (castBy) => {
         const caster = this.actors.get(castBy);
-        // A caster who has left the world is nobody, and a fire nobody owns
-        // burns whoever stands in it — which is what every flame did before any
-        // of this existed. @see `../lib/types`' `PlacedTile.castBy`
         return caster ? this.mayHarm(caster, actor) : true;
       });
       if (spared) continue;
-      // Whoever conjured the tile, if anybody did — which is what makes a flame
-      // an arcanist lit pay them when somebody walks into it, and leaves every
-      // hearth in the world attributed to nobody exactly as it was.
       this.grantStatus(actor, { id: addStatus.statusId }, placed.castBy, placed.castElements, {
         source: this.statusName(addStatus.statusId),
-        // The tile as it is named on screen — which is what makes one
-        // `arcane-flame` def read as "Green Fox's Arcane Flame" where a stone
-        // lit it and as plain "Arcane Flame" where a hearth did. The same
-        // call the look label and the interaction row go through, so a skull
-        // names the fire the way the player saw it named.
         by: conjuredName(def?.name ?? placed.tileId, placed, (id) => this.bodyName(id)),
       });
       return;
     }
   }
 
-  /**
-   * Keep granting, to everybody who has not moved off what they are standing on.
-   *
-   * **The answer to a fire that burned you once and then let you stand in it.**
-   * A `step` trigger used to fire on arrival alone, so the way to survive a
-   * flame was to stop walking: the burn ran its four seconds out and the tile
-   * underneath had no further say. Now every `STANDING_STATUS_EVERY_MS` of
-   * standing hands the status over again, through the same {@link grantStatus}
-   * an arrival goes through — so it stacks where the status stacks and refreshes
-   * where it does not, and neither is a rule this method knows about.
-   *
-   * **The accumulator runs for every body and the stack is only walked when it
-   * comes round.** The cheap half is a number per actor per tick; the expensive
-   * half — locating the body and reading the column under it — happens once a
-   * second per body, which is what keeps this off the per-tick budget entirely.
-   *
-   * A body in mid-air is passed over and its clock left where it is: it has not
-   * arrived anywhere, which is the same reason {@link tickMotion} refuses to
-   * call the arrival on one. Falling through a column of flame burns you where
-   * you land and nowhere else, exactly as it did.
-   */
   private tickStandingStatuses(tickMs: number) {
     for (const actor of this.actors.values()) {
       if (actor.fall) continue;
       actor.standingStatusMs += tickMs;
-      // Against the epsilon rather than the figure itself, for the reason
-      // `COOLDOWN_EPSILON_MS` gives: thirty ticks come to 1000.0000000000005 and
-      // an honest comparison would be a tick late about half the time.
       const stoodMs = actor.standingStatusMs + COOLDOWN_EPSILON_MS;
       if (stoodMs < STANDING_STATUS_EVERY_MS) continue;
-      // Drained rather than zeroed, so the period stays a period: a tick is not
-      // a whole number of milliseconds and zeroing would lose the remainder
-      // every second, drifting a standing body a tick further behind each time.
       actor.standingStatusMs -= STANDING_STATUS_EVERY_MS;
       this.clearStandingStatus(actor);
       this.grantStandingStatus(actor);
     }
   }
 
-  /**
-   * Put a body down at the far end of a teleport, whatever set it off.
-   *
-   * **Motion is dropped, not carried.** A walk half-drawn out of the cell you
-   * just left would commit from the wrong end of the map, and a fall would go on
-   * measuring a column that is no longer under anybody — so whatever this actor
-   * thought it was doing is void, exactly as it is for a client whose prediction
-   * this cancels. Facing survives, because it is the one part of the trip the
-   * traveller decided.
-   *
-   * Falling from the far end is left to the next tick's {@link maybeStartFall},
-   * for the reason `findEntryCell` gives about an arriving player: this decides
-   * where somebody lands, not where they end up.
-   *
-   * The id is queued rather than the trip: nothing on the wire needs to know
-   * where a teleport went, because the cell patches carry that already. What a
-   * client cannot work out from the board is that the body it has been drawing
-   * a step for is no longer the body's business — see the `teleported` event in
-   * `../net/protocol`.
-   */
   private moveThrough(actor: ActorRuntime, to: Coord) {
     const loc = this.locate(actor);
     this.forgetWalk(actor);
@@ -10675,31 +4724,12 @@ export class GameSession implements PlaySession {
     this.pendingTeleports.push(actor.id);
   }
 
-  /**
-   * Go through whatever this actor has just arrived on top of.
-   *
-   * The `step` trigger, and the only one that is not a press. Asked once per
-   * tick per actor whose cell changed, which is what keeps a pair of portals
-   * pointed at each other from being a loop: arriving *by* teleport is not
-   * arriving *by* step, so the far end does not fire on the tick it catches you.
-   *
-   * Every actor, not only players. A deer that wanders onto a pad goes through
-   * it, on the same terms gravity and pressure plates already treat a body as a
-   * body — the alternative is a test for what drives one, which nothing else in
-   * the simulation has.
-   *
-   * The whole stack, top down: a pad with a rug thrown over it is still a pad,
-   * and the topmost answer wins so an author can bury one under another. Bounded
-   * by construction — one cell, and a stack is a handful of tiles.
-   */
   private teleportOnArrival(actor: ActorRuntime) {
     const loc = this.locate(actor);
     const stack = getStack(this.map, loc.x, loc.y, loc.z);
     const def = this.defFor(actor);
 
     for (let i = stack.length - 1; i >= 0; i--) {
-      // Their own body, and anything riding above it. Neither is the floor they
-      // stepped onto.
       if (i >= loc.stackIndex) continue;
       const placed = stack[i]!;
       const teleport = resolveTeleport(placed, this.tilesById[placed.tileId], loc);
@@ -10710,50 +4740,14 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /**
-   * The one thing a tap on this object does. Everything an actor can do to
-   * an object lives behind a single button, so the tile's own capabilities
-   * pick the action rather than the input device — switch wins when authored,
-   * push is the fallback. Returns false when nothing happened.
-   *
-   * Settles before returning, because this is the one edit that happens
-   * *between* ticks: input arrives whenever it arrives, while everything else
-   * that moves the board does so inside {@link tick}, which settles at the end.
-   * Movement therefore reads the board at the top of a tick as already
-   * answered-for, and an unsettled edit sitting there is a lie it will act on.
-   *
-   * A wired door is where that bites. Tapping one is allowed — a door may want
-   * to be both tappable and overruled by its channel — but the tap used to
-   * leave it open for the rest of the frame, which was long enough for a held
-   * direction to start a step through a doorway the channel was about to shut.
-   * The step is authorised once and committed later regardless, so the player
-   * ended up through a locked door, or standing on top of it. Closed → tap →
-   * open → channel disagrees → closed now happens with nothing in between.
-   */
   interact(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const acted =
       this.takeReward(ref, id) ||
-      // Above the switch, and below the reward, on the reward's own argument:
-      // this is the one of the three that takes the player somewhere else, so a
-      // door authored to both open and lead through would otherwise spend the
-      // tap on its hinge and leave them standing where they were.
       this.activateTeleport(ref, id) ||
       this.activateSwitch(ref, id) ||
-      // Below the switch, because a brazier authored to both light a room and
-      // burn the hand that lit it should light the room: the half of the tap the
-      // player can see is the half they were aiming at.
       this.activateAddStatus(ref, id) ||
-      // Directly under its inverse, on `../game/interactionOptions`' order.
       this.activateRemoveStatus(ref, id) ||
-      // Below the status, on the status's own argument one rung further down: a
-      // shrine authored to both bless you and take you as its own spends the tap
-      // on the blessing, which is the half that shows.
       this.activateSetSpawn(ref, id) ||
-      // Below every authored swap and above everything to do with carrying,
-      // which is where an explicit authored act belongs. It can never actually
-      // compete with one of them: a tile that both opened a door and could be
-      // mined is not a thing anybody has authored, and if they did, the hinge is
-      // the half the player can see.
       this.extract(ref, id) ||
       this.equip(ref, id) ||
       this.pickUp(ref, id) ||
@@ -10762,7 +4756,6 @@ export class GameSession implements PlaySession {
     return acted;
   }
 
-  /** Is there anything a tap on this object would do right now? */
   canInteract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     return (
       this.canTakeReward(ref, id) ||
@@ -10781,23 +4774,9 @@ export class GameSession implements PlaySession {
   private tickSlide(actor: ActorRuntime, tickMs: number) {
     if (!actor.slide) return;
     actor.slide.elapsedMs += tickMs;
-    // Nothing to commit — the sprite has simply arrived where the map already
-    // put it, so dropping the state is the whole of "landing".
     if (actor.slide.elapsedMs >= PUSH_STEP_MS) actor.slide = null;
   }
 
-  /**
-   * One actor's own motion for one tick — walking, falling, or starting to —
-   * and then whatever the cell they ended it in does to them.
-   *
-   * The arrival check is here, around the whole of motion, rather than at the
-   * end of the walk that usually causes it. A body reaches a new cell two
-   * ways — it walks there or it falls there — and a `step` teleport that only
-   * answered to the first would be a pad you could drop onto without going
-   * through. Comparing the cell either side of the tick is one rule for both,
-   * and it is what keeps a body still in
-   * mid-air out of it: they have not arrived anywhere yet.
-   */
   private tickMotion(actor: ActorRuntime, tickMs: number) {
     const from = this.locate(actor);
     this.advanceMotion(actor, tickMs);
@@ -10808,19 +4787,6 @@ export class GameSession implements PlaySession {
     this.arriveIn(actor);
   }
 
-  /**
-   * Whatever the cell an actor has just reached does to them.
-   *
-   * The three `step` triggers, in the order {@link statusOnArrival} argues for:
-   * the floor burns you, takes you as its own, and then sends you elsewhere —
-   * so a trapdoor of fire is a tile the traveller was in rather than one they
-   * were never on, and a temple floor with a portal in it marks the cell walked
-   * onto rather than the one it is about to lead to.
-   *
-   * One call rather than three at each site, because "arriving" is one event
-   * with three consequences and a caller that ran some of them would be a cell
-   * that half works — see {@link push}, which is the caller that is not motion.
-   */
   private arriveIn(actor: ActorRuntime) {
     this.statusOnArrival(actor);
     this.spawnMarkOnArrival(actor);
@@ -10850,11 +4816,7 @@ export class GameSession implements PlaySession {
 
   private actorSnapshot(actor: ActorRuntime): ActorSnapshot {
     const loc = this.locate(actor);
-    // Include leftover accumulator so 60fps+ renders interpolate between 30Hz ticks.
     const visualExtra = this.accumulatorMs;
-    // One reading of the battler for both figures below, which is one per actor
-    // per tick fewer. Except on the tick hit points are first filled in: a
-    // status formula reads them, so the maximum is read again once they are.
     const hpUnset = actor.hp == null;
     const stats = this.battlerOf(actor);
     return {
@@ -10871,19 +4833,11 @@ export class GameSession implements PlaySession {
       walkProgress: actor.walk
         ? Math.min(1, (actor.walk.elapsedMs + visualExtra) / actor.walk.durationMs)
         : 0,
-      // Unclamped, unlike the walk: a fall is a run of height units rather than
-      // one lerp, and the tick that commits a unit lands after the unit's time
-      // is up. Clamping there froze the sprite for a tick at every boundary and
-      // then lurched it. Past 1 is exactly what the next step will confirm.
       fallProgress: actor.fall ? (actor.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT : 0,
-      // Handed over by reference, exactly as `walk` and `fall` are: it is
-      // mutated in place as it advances, so the same slide across two ticks is
-      // the same object and the server can tell a continuing push from a new one.
       slide: actor.slide,
       slideProgress: actor.slide
         ? Math.min(1, (actor.slide.elapsedMs + visualExtra) / PUSH_STEP_MS)
         : 0,
-      // By reference and clamped, on the same terms as the slide above.
       strike: actor.strike,
       strikeProgress: actor.strike
         ? Math.min(1, (actor.strike.elapsedMs + visualExtra) / STRIKE_DURATION_MS)
@@ -10891,41 +4845,19 @@ export class GameSession implements PlaySession {
       hp: this.hpOf(actor, stats),
       maxHp: (hpUnset ? this.battlerOf(actor) : stats)?.maxHp ?? null,
       rating: this.ratingOf(actor),
-      // By reference, like the kit below: `advanceStatuses` replaces the list
-      // wholesale, so the same array across two ticks is the same answer.
       statuses: actor.statuses,
-      // By reference, like `walk` and `fall`: it is replaced wholesale whenever
-      // a kit changes, so the same array across two ticks is the same answer and
-      // nothing downstream has to copy it to be safe.
       carriedLights: actor.carriedLights,
-      // By reference, like `walk`: wound in place and replaced only when a pull
-      // starts or ends, so the same object across two ticks is the same pull.
       extracting: actor.extraction?.progress ?? null,
-      // By reference on exactly the terms above, and never non-null at the same
-      // time as its neighbour. @see ActorSnapshot.casting
       casting: actor.casting?.progress ?? null,
       pvp: actor.pvp,
       hidden: actor.hidden,
     };
   }
 
-  /**
-   * Every actor, with no viewpoint. What the server broadcasts — it is not
-   * looking at the world from anywhere.
-   */
   actorSnapshots(): ActorSnapshot[] {
     return [...this.actors.values()].map((a) => this.actorSnapshot(a));
   }
 
-  /**
-   * {@link actorSnapshots}, of the actors standing where `keep` says and of
-   * nobody else — in the same order, without building the rest.
-   *
-   * A `hello` wants the bodies near one joiner, and with a thousand players
-   * building a snapshot of everybody in order to keep a hundred of them was
-   * most of what choosing them cost. An actor that is not on the board is
-   * left out rather than thrown over, which {@link actorSnapshots} does.
-   */
   actorSnapshotsWhere(keep: (id: string, at: Coord) => boolean): ActorSnapshot[] {
     const out: ActorSnapshot[] = [];
     for (const actor of this.actors.values()) {
@@ -10935,13 +4867,6 @@ export class GameSession implements PlaySession {
     return out;
   }
 
-  /**
-   * Every placement with a status running on it.
-   *
-   * Public because the server broadcasts it and the local renderer reads it off
-   * the snapshot — two callers, one list, and nothing in the simulation reads it
-   * back. @see `./endure`'s `AfflictedPlacement`
-   */
   afflictedPlacements(): AfflictedPlacement[] {
     return this.endure.afflictedPlacements();
   }
@@ -10962,134 +4887,39 @@ export class GameSession implements PlaySession {
       conversation: self.conversation,
       extracting: this.extractionOf(self.id),
       nextBlow: this.nextBlowOf(self.id),
-      // Seeded by the line above rather than here: `actorSnapshots` asks every
-      // body for its stats, which is what fills a fresh player's experience in
-      // from their tile. The fallback is for the body that has none to give.
       masteryXp: self.masteryXp ?? {},
       attributes: this.attributesOf(self),
-      // Both halves read off the runtime this frame, because a fight ending is
-      // what unfreezes the switch and nothing announces that: the combat flag
-      // simply runs out. @see canSetPvp
       pvp: { on: self.pvp, changeable: this.canSetPvp(self.id) },
-      // Nobody to talk to: the local simulation has no wire and no other actors
-      // worth naming, so speech is a thing only the online client carries.
       chats: [],
-      // Unlike speech, which needs somebody to have said it to somebody: a
-      // noise is a thing that happened, and a world with one player in it still
-      // has snakes in it.
       noises: this.liveNoise,
       afflicted: this.afflictedPlacements(),
       damage: this.liveDamage,
-      // By reference, and aged in place: the renderer reads the elapsed time off
-      // the same object the tick loop is winding forward, exactly as a walk or a
-      // strike is handed over live.
       projectiles: this.liveProjectiles,
       flightEffects: this.liveFlightEffects,
     };
   }
 
-  /**
-   * Nothing is moving and nobody is asking to move.
-   *
-   * The server ticks only while this is false, so an idle world costs nothing
-   * and its Durable Object can hibernate with sockets still open. The board
-   * clause is the settle convergence condition rather than a flag: a pass that
-   * changed something leaves `map !== settledMap`, so the world keeps ticking
-   * until plates and channels agree with each other.
-   */
   isAtRest(): boolean {
-    // Something has been said that no brain has had a turn to hear. Resting on
-    // it would stop the clock that was going to deliver it — and unlike a
-    // wander, which merely happens later, this one never happens at all: the
-    // next tick clears the page. A world with nothing else to do stays awake
-    // for one brain tick and settles again.
     if (this.pendingHeard.length > 0) return false;
-    // A blow nobody has had a turn to notice, on exactly the same grounds: the
-    // next brain tick is what delivers it, and stopping the clock now would drop
-    // it entirely rather than merely delay it.
     if (this.pendingHurt.size > 0) return false;
-    // A sound nobody has had a turn to hear, on exactly those grounds again.
     if (this.pendingSound.length > 0) return false;
-    // A round of decisions part-way through, whose remaining turns are owed on
-    // the ticks after this one. @see brainRound
     if (this.brainRound) return false;
-    // Something is counting down, and this loop is the only clock it has. The
-    // world therefore stays awake for as long as the longest lifetime on the
-    // board — which is the price of decay being simulated rather than read off
-    // the wall, and why a lifetime is authored in seconds. Blood keeps a world
-    // ticking for half a minute after the last blow; a tile authored to decay
-    // in an hour would keep it ticking for an hour.
     if (this.decay.pending()) return false;
-    // Something is burning down, and this loop is the only clock winding it —
-    // exactly the decay clause above, and bounded more tightly: a status caps at
-    // its own `maxMs`, and a spread divides its fuel rather than multiplying it,
-    // so a fire cannot hold a world awake for longer than the fire it started
-    // as. @see `./endure`'s `spreadShares`
     if (this.endure.pending()) return false;
-    // An arrow in the air is a clock this loop owns, on exactly the terms a lean
-    // is one below. Falling asleep under it would strand the thing mid-flight
-    // for as long as nobody moved — and unlike a lean, which is over in 150ms,
-    // a slow projectile authored across a courtyard is a visible second of
-    // somebody's screen. The cost is bounded by what an author wrote, which is
-    // the same bargain decay lifetimes are under.
     if (this.liveProjectiles.length > 0) return false;
-    // And whatever one is playing, on precisely those terms: it is the same
-    // clock and the same shot, a moment further on. Bounded by what an author
-    // wrote, which is the same bargain a decay lifetime is under — and by
-    // `MAX_TRANSITION_MS`, which is five seconds rather than an hour.
     if (this.liveFlightEffects.length > 0) return false;
-    // And a blow riding one of those arrows, which today is always covered by
-    // the clause above — a blow only ever waits on a flight, and the two count
-    // down together. Stated anyway, because the cost of the invariant quietly
-    // ceasing to hold is a body that never takes a hit somebody already paid
-    // for, waiting on a clock nobody is winding. @see blowsInFlight
     if (this.blowsInFlight.length > 0) return false;
-    // A stone counting down is a clock this loop is the only thing winding, on
-    // exactly the terms decay is: falling asleep on one would leave a caster
-    // waiting for a cooldown that only resumes the next time somebody moves,
-    // which is the same bug "reconnecting resets it" was avoided to prevent,
-    // arrived at from the other side. Bounded by what an author wrote, which is
-    // the same bargain a lifetime is under.
     if (this.anyStoneCooling()) return false;
 
     let observed = false;
     let thinking = false;
     for (const actor of this.actors.values()) {
       if (actor.walk || actor.fall || actor.slide || actor.strike) return false;
-      // A recovery is a clock this loop is the only thing winding, exactly as a
-      // lean is. Falling asleep under one would plant a body until the next
-      // time somebody happened to move — and unlike the lean beside it, this
-      // one is holding a *step* the player has already asked for.
       if (actor.attackRecoveryMs > 0) return false;
-      // A pull being made is a clock this loop is the only thing winding, on
-      // exactly a cooling stone's terms — and more sharply, because this one is
-      // holding a reward the player is standing there waiting for rather than
-      // merely a row that is grey. Falling asleep under it would freeze the bar
-      // and the vein's reservation together until somebody happened to move.
-      // Bounded by what an author wrote, like every other clock in here.
       if (actor.extraction) return false;
-      // A cast being made, on exactly a pull's terms and for its sharper
-      // reason: the bar is the only thing standing between the player and the
-      // spell, and this loop is the only clock winding it. Falling asleep under
-      // one would leave a caster mid-flame until somebody happened to move —
-      // and the cast has spent nothing yet, so there is not even a cooldown on
-      // the board to hold the world awake in its place.
       if (actor.casting) return false;
       if (actor.input.directions.length > 0) return false;
-      // Somebody standing still next to the thing they are fighting is not an
-      // idle world: the next swing is on a cooldown that only this loop winds
-      // down, so resting here would end the fight by falling asleep in it.
-      //
-      // Gated on attack mode, and that gate is what keeps targeting free: a
-      // target held with the mode off produces no blows and no cooldowns, so a
-      // player standing there watching a deer must not hold the world awake for
-      // as long as they keep it in sight.
       if (actor.attacking && actor.targetId !== null) return false;
-      // The combat minute is a clock this loop is the only thing winding, and
-      // the server waits on it to let a disconnected body leave: asleep, the
-      // body would stand there until somebody else happened to move. A
-      // creature's minute waits on nobody, so its flag freezes with the rest
-      // of it and does not hold the world up.
       if (!actor.resident && inCombat(actor.statuses)) return false;
 
       if (!actor.resident) {
@@ -11099,27 +4929,11 @@ export class GameSession implements PlaySession {
       }
     }
 
-    // A creature counting down to its next move is pending work, even with
-    // nothing on the board moving. Without this the loop stops the moment a
-    // player stands still, which freezes the very timer that would have started
-    // the next wander — stand still and the wildlife stops existing. Gated on
-    // somebody being here, so an empty world is still free: that is the whole
-    // bargain, and it is why brains freeze rather than run on an alarm.
     if (observed && thinking) return false;
 
     return this.map === this.settledMap;
   }
 
-  /**
-   * Is anybody in the world holding — or simply *being* — a spell that has not
-   * finished cooling?
-   *
-   * Walked rather than counted, because a count would be a second piece of state
-   * that every equip, drop, death and cast had to remember to keep in step — and
-   * because there are three squares per body and the answer is almost always
-   * found on the first one that is empty. A body's own spells are asked after
-   * on the same terms, and the record is empty on every body that has not cast.
-   */
   private anyStoneCooling(): boolean {
     for (const actor of this.actors.values()) {
       for (const square of CAST_SQUARES) {
@@ -11132,7 +4946,6 @@ export class GameSession implements PlaySession {
     return false;
   }
 
-  /** Does this actor have a brain that is going to want a turn? */
   private thinks(actor: ActorRuntime): boolean {
     const loc = this.tryLocate(actor);
     if (!loc) return false;
@@ -11144,19 +4957,6 @@ export class GameSession implements PlaySession {
     return this.map;
   }
 
-  /**
-   * The tile an actor *is*, which is what every rule about their motion has to
-   * be asked against.
-   *
-   * This was the player's def for everybody, which was true for exactly as long
-   * as every actor was a person. A deer is a different height, may climb
-   * differently, and need not answer to gravity at all — reading the def off
-   * the body means none of that is a special case, and a new creature is a tile
-   * rather than a branch.
-   *
-   * Read through the location memo rather than stored on the runtime, because
-   * the body can be swapped underneath an actor and a copy would go stale.
-   */
   private defFor(actor: ActorRuntime): TileDef {
     const { placed } = this.locate(actor);
     const def = this.tilesById[placed.tileId];
@@ -11179,26 +4979,6 @@ export class GameSession implements PlaySession {
     actor.walk = null;
   }
 
-  /**
-   * Is another actor already walking into this cell?
-   *
-   * A walk commits to the map only when it lands, so for the whole step the
-   * destination still reads as empty to everyone else. Two actors pressing the
-   * same direction on the same tick therefore both pass {@link canWalk} and
-   * both arrive, ending up inside one another — the map cannot answer this
-   * question because the answer is not in the map yet.
-   *
-   * Reserving the destination rather than committing the move up front keeps
-   * the existing rule that a step is only real once it lands, which the whole
-   * of gravity and plate settling is written against.
-   *
-   * **A reservation is exactly as strong as the arrival it stands in for.** Two
-   * people may end a step in one cell, so a person walking there reserves it
-   * against creatures and against nobody else — refusing on their behalf would
-   * put the cell-sharing rule back in force for one step in every two, which
-   * reads as a doorway that intermittently refuses you. Everything else reserves
-   * against everybody. @see ../lib/validation's `FitOpts`
-   */
   private destinationTaken(cell: Coord, except: ActorRuntime): boolean {
     const walkers = this.walkingInto.get(walkKey(cell));
     if (walkers === undefined) return false;
@@ -11214,7 +4994,6 @@ export class GameSession implements PlaySession {
     return false;
   }
 
-  /** Take an actor's walk, if it has one, off the cell it was walking into. @see walkingInto */
   private forgetWalk(actor: ActorRuntime) {
     const to = actor.walk?.to;
     if (!to) return;
@@ -11226,39 +5005,14 @@ export class GameSession implements PlaySession {
     if (walkers.length === 0) this.walkingInto.delete(key);
   }
 
-  /**
-   * Whatever this body wants to do with the step it is now free to take.
-   *
-   * Held input first, and that ordering is the arbitration: a direction
-   * somebody is physically holding outranks a standing order, on the same rule
-   * `./heldDirections` uses for a click a player has walked in on. Nothing
-   * exercises it today — an order is a creature's and input is a person's —
-   * but the two must not be able to both press on one tick, and this is the one
-   * place that could happen.
-   *
-   * **A dozing creature's order is not pressed here.** It is walked out on the
-   * turns the round's budget hands it and nowhere else, so a creature nobody is
-   * near costs what it always did: the doze budget is the only term in a round
-   * that the size of the map reaches, and pressing legs at the tick rate for
-   * every distant body with somewhere to be would put that cost straight back.
-   * @see ActorRuntime.brainAttentive
-   */
   private maybeStartWalk(actor: ActorRuntime) {
     this.applyStepRequest(actor, actor.input);
     if (actor.walk || !actor.walkOrder || !actor.brainAttentive) return;
     this.driveWalkOrder(actor);
   }
 
-  /**
-   * Turn, and walk if the board allows it. The one path from "what is being
-   * asked for" to "what the actor does", whether the asking is a held key in
-   * `/play` or a step a networked client has already predicted.
-   */
   private applyStepRequest(actor: ActorRuntime, request: StepRequest): boolean {
-    // Nothing held, which is every idle body on every tick: `chooseStep`
-    // answers nothing for it, so nothing below would happen.
     if (request.directions.length === 0) return false;
-    // Neither a step nor a turn: a body that cannot act lies as it fell.
     if (this.incapacitated(actor)) return false;
     const loc = this.locate(actor);
     const choice = chooseStep(
@@ -11271,36 +5025,11 @@ export class GameSession implements PlaySession {
     );
     if (!choice) return false;
 
-    // **Before the turn, because a blow plants the aim with the body.** This
-    // used to gate the step alone, on the argument that a cornered fighter has
-    // to be able to point somewhere other than at what is already hitting them.
-    // What that bought in practice was a turn nobody could see: a body swinging
-    // on its way out of a fight was turned into its target by `tryAttack` and
-    // turned straight back by the next frame of a held movement key, so the one
-    // thing the rule is for — a fight you can read from outside it — lasted
-    // about a thirtieth of a second. The aim is now planted for exactly as long
-    // as the footwork, which is the whole of what attacking while retreating
-    // costs beyond the distance. @see turnToward
-    //
-    // The fought corner is still aimable: the plant is two of this body's steps
-    // and runs out between blows for every weapon anybody has authored.
     if (actor.attackRecoveryMs > 0) return false;
 
     this.turnActor(actor, loc, choice.facing);
 
     if (!choice.step) return false;
-    // **A cast plants you where you stand**, and unlike a blow it leaves you the
-    // turn: the gate is here, below the facing, rather than above it. That is
-    // what makes a long cast a decision about where you are standing rather than
-    // something you do on the way somewhere — and the turn is worth keeping,
-    // because a conjure with nobody targeted lands in the cell you are facing,
-    // so aiming it while the bar runs is the one piece of control a rooted
-    // caster still has. A blow has no such bar to aim during: it is over in the
-    // tick it was thrown, and what it aims at is whoever it was thrown at.
-    //
-    // A shove and a fall are not asked for here, so neither is refused: what a
-    // cast costs is your own legs, and being knocked out of the cell you chose
-    // is somebody else's doing.
     if (actor.casting) return false;
 
     this.forgetWalk(actor);
@@ -11318,26 +5047,6 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * Take one step, because a client says it has already taken it.
-   *
-   * The other way in besides held input, and the one online play uses. A
-   * browser predicting its own movement decides *when* a step happens — that is
-   * the whole point, since waiting for this object to decide is the latency
-   * being removed — and this re-runs the same rule against the authoritative
-   * board to decide whether it is allowed to have happened.
-   *
-   * Deciding when does not mean deciding how fast: a step is only taken while
-   * the actor is free, so a client sending a thousand of these walks at exactly
-   * the same pace as one sending the honest four per second.
-   *
-   * `"later"` is the answer for an actor still finishing a walk, and it is not a
-   * refusal — the client is half a round trip ahead by design, so its next
-   * intent routinely arrives a few milliseconds before this side is done with
-   * the last one. The caller holds it and asks again. A fall or a slide *is* a
-   * refusal: those are motion the client did not predict, so whatever it thought
-   * it was doing is already void.
-   */
   requestStep(
     id: string,
     direction: Direction,
@@ -11346,11 +5055,6 @@ export class GameSession implements PlaySession {
     const actor = this.actor(id);
     if (actor.fall || actor.slide) return "refused";
     if (actor.walk) return "later";
-    // `"later"` on the same grounds a walk is, and not a refusal: a recovery is
-    // a wait, so the step the client drew is one it is going to get. Rejecting
-    // it would drag the body back to where it swung from, which is the one
-    // thing the client would then have to *animate* — a correction for
-    // something neither side disagrees about.
     if (actor.attackRecoveryMs > 0) return "later";
 
     const started = this.applyStepRequest(actor, {
@@ -11360,60 +5064,18 @@ export class GameSession implements PlaySession {
     return started ? "started" : "refused";
   }
 
-  /**
-   * Turn an actor on the spot, because a client says it has turned.
-   *
-   * The turn half of what a held key asks for, arriving on its own because the
-   * browser sends a facing the moment it changes and a step only when it takes
-   * one — a player pressing into a wall turns and never steps. It lands on the
-   * walk as well as on the board for the reason every turn does; see
-   * {@link turnActor}, which is where that rule and its history live.
-   */
   faceActor(id: string, direction: Direction) {
     const actor = this.actor(id);
-    // A blow plants the aim with the body, and a turn asked for over the wire is
-    // the same turn a held key asks for — refused in `applyStepRequest` for the
-    // whole of the recovery. Honouring it here would hand a browser the turn its
-    // own prediction has already refused itself. @see turnToward
     if (actor.attackRecoveryMs > 0) return;
-    // Refused in `applyStepRequest` too, on the same argument.
     if (this.incapacitated(actor)) return;
     this.turnActor(actor, this.locate(actor), direction);
   }
 
-  /**
-   * Turn a body toward another, if the two are not in one cell.
-   *
-   * **What every form of striking owes whoever it is aimed at.** A swing, an
-   * arrow, a bolt and a conjure laid at somebody's feet are all this body
-   * attacking that one, and each of them turns the striker into it — whatever
-   * the blow came to, and whether or not it landed at all. Nothing reads the
-   * facing to decide a fight; what it decides is whether the fight is legible,
-   * and a body attacking something behind its own back is a fight nobody can
-   * read.
-   *
-   * Null only for two bodies in one cell, which is a direction of nothing rather
-   * than a turn worth making. @see facingToward
-   */
   private turnToward(actor: ActorRuntime, from: ActorLocation, to: Coord) {
     const facing = facingToward(from, to);
     if (facing) this.turnActor(actor, from, facing);
   }
 
-  /**
-   * Write a facing onto a body, and onto the step it is half way through.
-   *
-   * **A turn made mid-walk is the facing the walk lands with.** `commitWalk`
-   * writes the walk's own direction onto the body when it arrives, so a turn
-   * that touched only the board is undone a few ticks later by the step that was
-   * already in flight — which is exactly the case a blow thrown on the way out
-   * of a fight is in.
-   *
-   * Written onto the walk in place rather than by replacing it, because the
-   * walk's identity is what says a new one started — a fresh object would be
-   * announced to every client as a second step. @see GameServer's
-   * `collectMotionEvents`
-   */
   private turnActor(actor: ActorRuntime, loc: ActorLocation, direction: Direction) {
     if (actor.walk) actor.walk.direction = direction;
     this.map = setEntityDirection(this.map, loc.x, loc.y, loc.z, loc.stackIndex, direction);
@@ -11457,16 +5119,6 @@ export class GameSession implements PlaySession {
     this.relocateActorToFeet(actor, nextFeet);
   }
 
-  /**
-   * Put a falling body down where gravity stopped it.
-   *
-   * **Wherever that is, walkable or not.** `canWalk` refuses a step whose fall
-   * ends on a top nobody can stand on, so a walk never gets a body here. What
-   * still can is the board changing under it — a floor taken away, a tile laid
-   * in its path — and then it stands on what it landed on and walks off like
-   * anybody else. It used to be walked on in the direction it faced until it
-   * found a surface, which is motion the client could not predict.
-   */
   private land(actor: ActorRuntime, landingAbs: number) {
     actor.fall = null;
     this.commitLandAt(actor, landingAbs);
@@ -11479,7 +5131,6 @@ export class GameSession implements PlaySession {
 
     const next = removeEntity(this.map, loc.x, loc.y, loc.z, loc.stackIndex);
 
-    // Prefer attaching onto scenery whose top matches the landing.
     for (const zTry of [targetZ, targetZ - 1, loc.z]) {
       if (zTry < MIN_LEVEL) continue;
       const stack = getStack(next, loc.x, loc.y, zTry);
@@ -11513,13 +5164,6 @@ export class GameSession implements PlaySession {
   }
 }
 
-/**
- * The slots already filled in one stack, after one more placement is spliced
- * in at `at`: everything at or above it moves up one, and `at` joins them.
- *
- * A `/tile` with a count under the summoner's feet splices every copy into the
- * same slot, so each new one pushes the ones before it up the stack.
- */
 function slotsAfterInsert(slots: readonly number[], at: number): number[] {
   return [...slots.map((slot) => (slot >= at ? slot + 1 : slot)), at];
 }

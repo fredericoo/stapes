@@ -4,26 +4,8 @@ import { connect } from "node:net";
 import { constants, createInflateRaw, inflateRawSync, type InflateRaw } from "node:zlib";
 import { PER_MESSAGE_DEFLATE } from "./sockets";
 
-/**
- * What the game socket may send, given what Safari can read.
- *
- * Safari cannot read past a compressed frame that is sealed — a whole deflate
- * stream with its final block, which is how Bun's shared compressor sends
- * anything that compresses small. So whatever `PER_MESSAGE_DEFLATE` is set to,
- * no frame the socket sends may be one. With compression off that is true of
- * every frame; a setting that turns it back on has to keep it true. @see
- * PER_MESSAGE_DEFLATE
- *
- * **The client is written out by hand.** What is being checked is the frames
- * themselves, which a WebSocket client decodes before anybody can see them.
- */
-
 type Frame = { compressed: boolean; payload: Buffer };
 
-/**
- * Connect with Safari's offer, word for word, and collect the frames the
- * server sends until `count` have arrived.
- */
 function framesFrom(port: number, count: number): Promise<Frame[]> {
   return new Promise((resolve, reject) => {
     const socket = connect(port, "127.0.0.1");
@@ -79,11 +61,6 @@ function framesFrom(port: number, count: number): Promise<Frame[]> {
   });
 }
 
-/**
- * The next message out of one decompressor kept for the whole connection, as
- * a browser keeps it: fed the payload and the `00 00 ff ff` RFC 7692 takes off
- * the end, and flushed.
- */
 function inflateNext(inflater: InflateRaw, payload: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -99,7 +76,6 @@ function inflateNext(inflater: InflateRaw, payload: Buffer): Promise<string> {
   });
 }
 
-/** Whether a compressed payload is a whole deflate stream, final block included. */
 function sealed(payload: Buffer): boolean {
   try {
     inflateRawSync(payload, { finishFlush: constants.Z_FINISH });
@@ -111,8 +87,6 @@ function sealed(payload: Buffer): boolean {
 
 describe("the game socket's frames", () => {
   it("never sends a compressed frame sealed with a final block", async () => {
-    // What the game sends, by shape: an ordinary patch, a bigger one, a run of
-    // repeated cells that compresses very well, and a hello-sized message.
     const cell = JSON.stringify({ x: 21, y: -101, z: 0, stack: [{ tileId: "grass-2" }] });
     const messages = [
       JSON.stringify({ type: "patch", cells: Array(8).fill(JSON.parse(cell)) }),
@@ -128,8 +102,6 @@ describe("the game socket's frames", () => {
       websocket: {
         perMessageDeflate: PER_MESSAGE_DEFLATE,
         open(ws) {
-          // `true` asks for compression, as the game's transport does for any
-          // frame over its minimum length.
           for (const message of messages) ws.send(message, true);
         },
         message() {},
@@ -139,8 +111,6 @@ describe("the game socket's frames", () => {
     try {
       const frames = await framesFrom(server.port!, messages.length);
       expect(frames.filter((frame) => frame.compressed && sealed(frame.payload))).toEqual([]);
-      // And every message reads back through one decompressor, as it would in
-      // a browser that keeps one for the connection.
       const inflater = createInflateRaw();
       const texts: string[] = [];
       for (const { compressed, payload } of frames) {

@@ -39,7 +39,6 @@ const tiles: TileDef[] = [
   }),
 ];
 
-/** A strip of grass along y=0, with the authored spawn marker at x=0. */
 function strip(width: number): MapFile {
   let map = emptyMap();
   for (let x = 0; x < width; x++) {
@@ -50,23 +49,14 @@ function strip(width: number): MapFile {
   return map;
 }
 
-/**
- * Long enough for a walk to start *and* commit.
- *
- * A walk begins on one tick and finishes only once WALK_DURATION_MS has
- * accumulated after that, so advancing exactly one walk's worth leaves it a
- * tick short — the same margin the single-actor suites use.
- */
 const ONE_WALK_MS = WALK_DURATION_MS + 80;
 
 const tilesById = tilesByIdFromList(tiles);
 
-/** Run whole ticks worth of `ms`, as the render loop would. */
 function advance(session: GameSession, ms: number) {
   session.update(ms);
 }
 
-/** Walk exactly one cell, releasing input so the commit does not chain. */
 function step(session: GameSession, direction: Direction, id: string) {
   session.setInput({ directions: [direction] }, id);
   session.update(TICK_MS);
@@ -85,8 +75,6 @@ function ownersAt(session: GameSession, x: number, y: number, z = 0): (string | 
 describe("actor lifecycle", () => {
   it("adopts the authored player tile for the first actor, keeping its slot", () => {
     const session = new GameSession(strip(3), tiles);
-    // Adoption, not remove-and-respawn: the tile stays at stack index 1, which
-    // is what it was standing on.
     expect(idsAt(session, 0, 0)).toEqual(["grass", "player"]);
     expect(ownersAt(session, 0, 0)).toEqual([undefined, LOCAL_ACTOR_ID]);
     expect(session.actorIds()).toEqual([LOCAL_ACTOR_ID]);
@@ -122,7 +110,6 @@ describe("actor lifecycle", () => {
   it("leaves mid-walk without stranding the tile", () => {
     const session = new GameSession(strip(4), tiles, { actorIds: ["a", "b"] });
     session.setInput({ directions: ["e"] }, "b");
-    // Part-way through the walk, so `b` has a committed cell and a live lerp.
     advance(session, WALK_DURATION_MS / 2);
     expect(session.getSnapshot("b").self.walk).not.toBeNull();
 
@@ -138,17 +125,6 @@ describe("actor lifecycle", () => {
     expect(() => session.getSnapshot("nobody")).toThrow(/No actor/);
   });
 
-  /**
-   * Starting a session consumes the authored marker, so a map that has already
-   * been run cannot be handed back without its spawn point — there is no tile
-   * left to read it from. The server checkpoints the two together for exactly
-   * this reason.
-   */
-  /**
-   * The server resumes worlds from a checkpoint whose map already holds every
-   * actor's tile. Spawning them again would mint a second body, and `despawn`
-   * only ever removes one — so the first would linger forever.
-   */
   it("re-seats an actor who already has a tile instead of minting a second", () => {
     const first = new GameSession(strip(4), tiles, { actorIds: ["a"] });
     first.setInput({ directions: ["e"] }, "a");
@@ -160,7 +136,6 @@ describe("actor lifecycle", () => {
     const resumed = new GameSession(ranMap, tiles, { actorIds: ["a"], spawnAt: spawn });
 
     expect(findPlayers(resumed.getMap())).toHaveLength(1);
-    // And re-seated where they were, not sent back to spawn.
     expect(resumed.getSnapshot("a").self.x).toBe(1);
   });
 
@@ -195,7 +170,6 @@ describe("two actors on one board", () => {
     advance(session, ONE_WALK_MS);
 
     expect(session.getSnapshot("a").self.x).toBe(1);
-    // `b` never pressed anything and stayed home.
     expect(session.getSnapshot("b").self.x).toBe(0);
   });
 
@@ -208,8 +182,6 @@ describe("two actors on one board", () => {
   });
 
   it("lets both into a contested cell, on the same tick", () => {
-    // Both stand on x=0 and both press east. Neither reserves the cell against
-    // the other, so the tick that ends is the tick they both arrive.
     const session = new GameSession(strip(3), tiles, { actorIds: ["a", "b"] });
     session.setInput({ directions: ["e"] }, "a");
     session.setInput({ directions: ["e"] }, "b");
@@ -223,7 +195,6 @@ describe("two actors on one board", () => {
   it("walks into the cell another actor is standing in", () => {
     const session = new GameSession(strip(3), tiles, { actorIds: [] });
     session.spawn("a");
-    // Put `a` directly east of the spawn cell, then `b` on the spawn cell.
     step(session, "e", "a");
     session.spawn("b");
     expect(session.getSnapshot("a").self.x).toBe(1);
@@ -241,8 +212,6 @@ describe("two actors on one board", () => {
     session.setInput({ directions: ["e"] }, "b");
     advance(session, ONE_WALK_MS);
 
-    // Same cell, same level, and neither has been lifted a level by the other's
-    // volume — the second body would otherwise read the first's head as ground.
     const a = session.getSnapshot("a").self;
     const b = session.getSnapshot("b").self;
     expect(a.z).toBe(0);
@@ -256,7 +225,6 @@ describe("two actors on one board", () => {
     session.spawn("a");
     session.spawn("b");
 
-    // Both at the spawn cell, rather than `b` bubbling out to a free neighbour.
     expect(session.getSnapshot("b").self).toMatchObject({ x: 0, y: 0 });
     expect(ownersAt(session, 0, 0)).toEqual([undefined, "a", "b"]);
   });
@@ -273,7 +241,6 @@ describe("two actors on one board", () => {
 });
 
 describe("actors and shared objects", () => {
-  /** Grass strip with a crate at `crateX` and both actors at the origin. */
   function withCrate(crateX: number, width = 6): MapFile {
     let map = strip(width);
     map = replaceStack(map, crateX, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
@@ -286,7 +253,6 @@ describe("actors and shared objects", () => {
 
     expect(idsAt(session, 1, 0)).toEqual(["grass"]);
     expect(idsAt(session, 2, 0)).toEqual(["grass", "crate"]);
-    // The board is shared, so the other actor reads the same map.
     expect(session.getSnapshot("b").map).toBe(session.getMap());
   });
 
@@ -295,13 +261,11 @@ describe("actors and shared objects", () => {
     session.push({ x: 1, y: 0, z: 0, stackIndex: 1 }, "a");
 
     expect(session.getSnapshot("a").self.slide).not.toBeNull();
-    // `b` did not shove anything, so nothing of theirs is catching up.
     expect(session.getSnapshot("b").self.slide).toBeNull();
   });
 
   it("refuses a push from an actor who is not adjacent", () => {
     const session = new GameSession(withCrate(3), tiles, { actorIds: ["a", "b"] });
-    // Both are at x=0; the crate is three cells away.
     expect(session.canPush({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(false);
     expect(session.push({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(false);
   });

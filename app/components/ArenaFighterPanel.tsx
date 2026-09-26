@@ -24,38 +24,6 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { NumberInput, Select } from "../ui";
 import { TilePreview } from "./TilePreview";
 
-/**
- * One side of the match-up, as something to be set up rather than watched.
- *
- * ## Two things are editable and one deliberately is not
- *
- * **Masteries and equipment yes; the natural weapon no.** The first two are
- * things the world can produce — a mastery is earned and a weapon is picked up —
- * so a fight tuned around either is a fight that can actually happen. A natural
- * weapon is what the creature *is*: it is the axis that stops every animal from
- * being a bigger or smaller version of the same one (see `../lib/battler`), and
- * editing it here would be authoring a new creature in a tool with nowhere to
- * save it. It is shown in full and read-only, with the tile editor named as
- * where it is changed — a field you cannot edit and cannot see would just read
- * as missing.
- *
- * ## The derived block is the point of the panel
- *
- * Nothing above it is what a fight is fought with. `effectiveBattler` folds the
- * body, the masteries and every worn slot into the numbers `../game/combat`
- * reads — so showing them beside the inputs is what makes the derivation legible
- * instead of something to be inferred from the outcome.
- *
- * ## Nothing here explains a formula in words
- *
- * There were tooltips on every mastery and every slot saying what each one did
- * to a fight. They are gone, and their absence is the design: a sentence
- * describing a curve is a second copy of that curve which no test can fail when
- * the first one moves, and this panel exists to be trusted while those curves
- * are being tuned. Every string below is either a label, a slot name, or a
- * number that came out of a function.
- */
-
 export function ArenaFighterPanel({
   title,
   fighter,
@@ -74,9 +42,6 @@ export function ArenaFighterPanel({
   battlers: TileDef[];
 }) {
   const body = bodyOf(fighter, tilesById);
-  // Every blow, not the first one: a body fighting with two weapons throws two
-  // different blows and a tuner showing one of them is answering half the
-  // question. One entry for everything else, which is nearly everything.
   const swings = swingsOf(fighter, tilesById);
 
   return (
@@ -85,13 +50,6 @@ export function ArenaFighterPanel({
         <h2 className="text-xs font-bold uppercase">{title}</h2>
         <Select
           value={fighter.tileId}
-          // A new body brings its own masteries and keeps whatever is in its
-          // hands. Those are the two halves of the question this page asks: a
-          // creature is *what it is good at* — picking Snake and being handed a
-          // cat's agility would be a body the world cannot produce, and a silent
-          // one at that — while a weapon is a thing anybody can pick up, so
-          // "what is this axe worth to a wolf rather than a rat" has to survive
-          // changing the wolf for the rat.
           onValueChange={(tileId) => {
             if (!tileId) return;
             const fresh = fighterForTile(tileId, tilesById);
@@ -123,14 +81,7 @@ export function ArenaFighterPanel({
       <WeaponsInHand fighter={fighter} tilesById={tilesById} />
 
       {swings.map((stats: FightingStats, index: number) => (
-        <DerivedStats
-          key={index}
-          stats={stats}
-          // Named only when there is more than one, because "Fights with" is
-          // the whole truth for a body with a single weapon and a hand label
-          // beside it would be answering a question nobody asked.
-          hand={swings.length > 1 ? HANDS[index] : null}
-        />
+        <DerivedStats key={index} stats={stats} hand={swings.length > 1 ? HANDS[index] : null} />
       ))}
     </section>
   );
@@ -141,7 +92,6 @@ function Masteries({
   fighter,
   onChange,
 }: {
-  /** Which side these belong to, so two identical grids read apart. */
   title: string;
   fighter: ArenaFighter;
   onChange: (next: ArenaFighter) => void;
@@ -173,9 +123,6 @@ function Masteries({
               max={MAX_MASTERY}
               step={1}
               className="w-full"
-              // Scoped to the side, because the two panels are the same seven
-              // fields twice over — "sharp" alone names two different boxes,
-              // and a reader moving between them has no way to tell which.
               aria-label={`${title} ${mastery}`}
               value={fighter.masteries[mastery] ?? MIN_MASTERY}
               onChange={(level) => set(mastery, level)}
@@ -195,7 +142,6 @@ function Equipment({
   tilesById,
   tilesets,
 }: {
-  /** Which side these belong to, on the terms {@link Masteries} takes one. */
   title: string;
   fighter: ArenaFighter;
   onChange: (next: ArenaFighter) => void;
@@ -216,8 +162,6 @@ function Equipment({
               size={28}
               still
             />
-            {/* The slot's own name, so a slot added to the game names itself
-                here rather than waiting for somebody to write a label for it. */}
             <span className="w-20 shrink-0 text-[11px] uppercase text-muted">{slot}</span>
             <Select
               value={held ?? EMPTY_SLOT}
@@ -247,25 +191,8 @@ function Equipment({
   );
 }
 
-/**
- * The select's stand-in for an empty square.
- *
- * A sentinel rather than `null` or `""`, because "nothing chosen yet" and
- * "chosen nothing" are the same state here — a body with an empty hand is a body
- * fighting with what it was born with, which is an answer rather than a gap, and
- * a select showing its placeholder would offer it as neither. Bracketed so it
- * cannot collide with a tile id, which is any trimmed non-empty string.
- */
 const EMPTY_SLOT = "::empty::";
 
-/**
- * What each hand is called, where a row has to say which one it is talking
- * about.
- *
- * The kit editor's own words — see `../lib/kit`'s {@link SLOT_LABELS} — so the
- * square a weapon is chosen in and the row reporting what it swings for are
- * named the same thing.
- */
 const HAND_LABELS: Record<Hand, string> = {
   weapon: SLOT_LABELS.weapon,
   offhand: SLOT_LABELS.offhand,
@@ -280,17 +207,8 @@ function WeaponsInHand({
 }) {
   const body = bodyOf(fighter, tilesById);
   if (!body) return null;
-  // What is actually swung, not what the body was born with — a held weapon
-  // replaces the natural one, and a readout quoting the wrong one of the two is
-  // the single most misleading thing this panel could show.
-  //
-  // The hand a body starts on, rather than no hand at all: this row names a
-  // weapon, and "none in particular" would name the claws of a body plainly
-  // holding a sword. A fighter with one in each hand is showing the first of the
-  // two, which the Arena's own equipment rows say outright beside it.
   const equipment = equipmentOf(fighter, tilesById);
   const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand));
-  // Bare hands are a weapon, so a body swinging nothing still has one row.
   const rotation: (Hand | null)[] = hands.length > 0 ? hands : [null];
 
   return (
@@ -308,7 +226,6 @@ function WeaponsInHand({
   );
 }
 
-/** One weapon's authored numbers, named by the hand holding it. */
 function WeaponBlock({
   fighter,
   body,
@@ -344,15 +261,6 @@ function WeaponBlock({
   );
 }
 
-/**
- * What this weapon asks, how much of it the body brings, and what that comes to.
- *
- * **The most diagnostic block on the page, and every figure in it is computed.**
- * Requirements and skill are two axes that both arrive as the same three numbers
- * and neither is visible in the stats beside them, so they are printed — as
- * numbers, not as a sentence about what they do. `../lib/weaponDemand` says the
- * same thing to a player looking at the same weapon in the world.
- */
 function MasteryDemand({ fighter, weapon }: { fighter: ArenaFighter; weapon: WeaponItem }) {
   const asked = MASTERIES.filter((mastery) => (weapon.requirements?.[mastery] ?? 0) > 0);
   const share = requirementShare(fighter.masteries, weapon.requirements);
@@ -382,14 +290,7 @@ function MasteryDemand({ fighter, weapon }: { fighter: ArenaFighter; weapon: Wea
   );
 }
 
-function DerivedStats({
-  stats,
-  hand = null,
-}: {
-  stats: FightingStats | null;
-  /** Which hand this blow comes from, or null for a body throwing only one. */
-  hand?: Hand | null;
-}) {
+function DerivedStats({ stats, hand = null }: { stats: FightingStats | null; hand?: Hand | null }) {
   if (!stats) return null;
   return (
     <div className="flex flex-col gap-1 border-2 border-border bg-paper p-2">

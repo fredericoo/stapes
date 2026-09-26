@@ -6,17 +6,6 @@ import {
   type LabelRequest,
 } from "./labelLayout";
 
-/**
- * The promise this pass makes, tested without a browser.
- *
- * Measuring text needs a font and a layout engine; deciding where measured text
- * goes needs neither, which is why that decision is a pure function. What can be
- * wrong here is the arithmetic of a crowd: two labels that quietly print through
- * each other, or one shoved off the screen to avoid a tag that was never meant
- * to shove anything.
- */
-
-/** A square view, roughly the size the game is played at on a laptop. */
 const VIEW = { width: 600, height: 600 };
 
 function request(
@@ -86,7 +75,6 @@ describe("fitting the screen", () => {
     const box = boxOf(layoutLabels(requests, VIEW), "a", requests);
 
     expect(box.right).toBeLessThanOrEqual(VIEW.width);
-    // Still as near its anchor as it can be, rather than centred or dropped.
     expect(box.right).toBeGreaterThan(VIEW.width - 10);
   });
 
@@ -98,10 +86,6 @@ describe("fitting the screen", () => {
     expect(box.bottom).toBeLessThanOrEqual(VIEW.height);
   });
 
-  /**
-   * The label is about a thing, and the thing is not on screen. Sliding it into
-   * view would leave text pointing at nothing — the honest answer is silence.
-   */
   it("drops a label anchored outside the view", () => {
     const requests = [
       request("above", "speech", 300, -20),
@@ -124,7 +108,6 @@ describe("two labels at one spot", () => {
     expect(second.bottom).toBeLessThanOrEqual(first.top);
   });
 
-  /** Whoever was already there keeps their place; the newcomer moves. */
   it("leaves the earlier label where it was", () => {
     const alone = layoutLabels([request("first", "speech", 300, 400)], VIEW);
     const crowded = layoutLabels(
@@ -147,7 +130,6 @@ describe("two labels at one spot", () => {
     }
   });
 
-  /** Side by side is not a clash: only the ones actually in the way move. */
   it("does not move a label that was never in the way", () => {
     const requests = [
       request("here", "speech", 150, 400, { width: 100 }),
@@ -165,7 +147,6 @@ describe("priority", () => {
     const requests = [request("said", "speech", 300, 400), request("looked", "look", 300, 400)];
     const layout = layoutLabels(requests, VIEW);
 
-    // The look landed exactly where it would have alone.
     expect(layout.get("looked")).toEqual(
       layoutLabels([request("looked", "look", 300, 400)], VIEW).get("looked"),
     );
@@ -193,7 +174,6 @@ describe("names", () => {
     const requests = [request("name", "name", 300, 400), request("said", "speech", 300, 400)];
     const layout = layoutLabels(requests, VIEW);
 
-    // Both at their ideal height: the speech did not step around the tag.
     expect(layout.get("name")).toEqual({ left: 250, top: 376 });
     expect(layout.get("said")).toEqual({ left: 250, top: 376 });
   });
@@ -207,11 +187,6 @@ describe("names", () => {
     );
   });
 
-  /**
-   * Two names on two heads may print through each other, and that is the deal —
-   * but a name is never the reason a *sentence* moves, so a second name must not
-   * sneak into the pass as an obstacle either.
-   */
   it("is never an obstacle, even to another name", () => {
     const requests = [request("a", "name", 300, 400), request("b", "name", 300, 400)];
     const layout = layoutLabels(requests, VIEW);
@@ -220,10 +195,6 @@ describe("names", () => {
   });
 });
 
-/**
- * The bar is the reading, and a reading over the wrong body is worse than no
- * reading — so it is placed on the anchor rather than on the label carrying it.
- */
 describe("a health bar inside a name", () => {
   const BAR = 52;
 
@@ -234,16 +205,10 @@ describe("a health bar inside a name", () => {
     expect(layout.get("name")?.barLeft).toBe(300 - BAR / 2);
   });
 
-  /**
-   * The case from the edge of the square: a long name has to slide inward to
-   * stay readable, and the bar must not travel with it — half a name's width
-   * away it reads as belonging to whoever is standing over there.
-   */
   it("stays on its target when the name has to slide inside the view", () => {
     const requests = [request("name", "name", 40, 400, { width: 300, barWidth: BAR })];
     const layout = layoutLabels(requests, VIEW);
 
-    // The name gave up its target to stay on screen; the bar did not have to.
     expect(layout.get("name")?.left).toBe(2);
     expect(layout.get("name")?.barLeft).toBe(40 - BAR / 2);
   });
@@ -252,8 +217,6 @@ describe("a health bar inside a name", () => {
     const requests = [request("name", "name", 1, 400, { width: 300, barWidth: BAR })];
     const layout = layoutLabels(requests, VIEW);
 
-    // Never touching the edge, and never off it: the bar keeps the same two
-    // pixels of air every other label gets.
     expect(layout.get("name")?.barLeft).toBe(2);
     expect(
       layoutLabels([request("name", "name", 599, 400, { width: 300, barWidth: BAR })], VIEW).get(
@@ -270,10 +233,6 @@ describe("a health bar inside a name", () => {
 });
 
 describe("nowhere left to go", () => {
-  /**
-   * Upward is the preference; a label already at the ceiling takes the only
-   * other direction rather than being dropped.
-   */
   it("goes below when there is no room above", () => {
     const requests = [
       request("first", "speech", 300, 30, { height: 24 }),
@@ -287,11 +246,6 @@ describe("nowhere left to go", () => {
     expect(second.top).toBeGreaterThanOrEqual(first.bottom);
   });
 
-  /**
-   * The label is still trying to point at something. Climbing over a crowd to
-   * keep the "labels hang above" habit costs more of that than a short step
-   * down does — this is the case a strict preference for up gets wrong.
-   */
   it("takes the shorter way out when up is a long climb", () => {
     const requests = [
       request("tall", "look", 300, 300, { height: 250 }),
@@ -302,7 +256,6 @@ describe("nowhere left to go", () => {
     const late = boxOf(layout, "late", requests);
     const tall = boxOf(layout, "tall", requests);
     expect(intersects(late, tall)).toBe(false);
-    // Below the obstacle, a few pixels from its anchor — not above all 250px.
     expect(late.top).toBeGreaterThan(tall.bottom - 1);
     expect(late.top - 320).toBeLessThan(60);
   });
@@ -314,7 +267,6 @@ describe("nowhere left to go", () => {
     );
     const layout = layoutLabels(requests, VIEW);
 
-    // Three 200px labels do not fit in 600px of view once gaps are counted.
     expect(layout.size).toBeLessThan(requests.length);
     const boxes = [...layout.keys()].map((id) => boxOf(layout, id, requests));
     for (const [i, a] of boxes.entries()) {
@@ -324,7 +276,6 @@ describe("nowhere left to go", () => {
     }
   });
 
-  /** Wider than the whole view: shown, pinned, and clipped by the layer. */
   it("still places a label too big for the screen", () => {
     const requests = [request("a", "speech", 300, 400, { width: 900 })];
     expect(layoutLabels(requests, VIEW).get("a")?.left).toBe(2);

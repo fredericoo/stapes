@@ -8,14 +8,6 @@ import {
   shakeEnvelope,
 } from "./screenShake";
 
-/**
- * How hard the view shakes, and for how long.
- *
- * Which blows reach the shake at all — the viewer's own, once each — is the
- * renderer's; this is only what a blow of a given size does once it arrives.
- */
-
-/** The largest offset a shake reaches over its whole life, sampled per frame. */
 function peak(shake: ScreenShake, fromMs: number): number {
   let most = 0;
   for (let t = fromMs; t < fromMs + SHAKE_DURATION_MS; t += 16) {
@@ -27,9 +19,7 @@ function peak(shake: ScreenShake, fromMs: number): number {
 
 describe("how hard a blow shakes", () => {
   it("scales with the share of health it took, not the figure", () => {
-    // The same 5 is a scratch on a big body and most of a small one.
     expect(shakeAmplitude(5, 200)).toBeLessThan(shakeAmplitude(5, 20));
-    // And the same share is the same shake whatever the figures.
     expect(shakeAmplitude(10, 100)).toBeCloseTo(shakeAmplitude(3, 30));
   });
 
@@ -41,7 +31,6 @@ describe("how hard a blow shakes", () => {
   it("reaches the most it ever shakes at the full share, and stays there", () => {
     expect(shakeAmplitude(FULL_SHAKE_SHARE * 100, 100)).toBe(MAX_SHAKE_PX);
     expect(shakeAmplitude(100, 100)).toBe(MAX_SHAKE_PX);
-    // Overkill is still one shake's worth.
     expect(shakeAmplitude(500, 100)).toBe(MAX_SHAKE_PX);
   });
 

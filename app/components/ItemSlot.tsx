@@ -17,137 +17,22 @@ import { ItemCard } from "./ItemCard";
 import type { ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
 
-/**
- * One square that either holds a thing or does not.
- *
- * Shared by both panels because a weapon slot and a slot in a bag are the same
- * square with a different rule about what may go in it — and the rules live
- * where items move, not here. This draws, and reports what was pressed.
- *
- * Empty slots are drawn rather than omitted. A bag's capacity is a fact about
- * the bag, and a grid that only showed what was in it would make a four-slot bag
- * holding one thing indistinguishable from a one-slot bag that is full. It is
- * also what makes an empty slot a place to *drop* something, which a missing
- * square could not be.
- *
- * ## A full square is not the same as a working one
- *
- * **A hand takes anything you can carry**, on purpose — see `../game/equipment`'s
- * `handAccepts` — and the game reads almost none of it. A helmet in a fist
- * armours nothing, a loaf does nothing at all, and a stone sits in any square
- * and casts from none of them until its requirements are met. All three used to
- * look exactly like a sword in the same square, and a player reasonably
- * concluded the helmet was protecting them and the stone was a spell they had.
- *
- * So a square whose contents nothing reads is drawn with a fainter frame and no
- * fill, and says so to a screen reader. It is a quiet difference deliberately:
- * carrying a thing in your hand is a perfectly good reason to be holding it,
- * and the square is reporting that the game is not reading it rather than that
- * the player has made a mistake. What counts, square by square, is
- * `takesEffect` — and why, for this particular thing, is on the card below.
- *
- * ## A square describes itself when a pointer rests on it
- *
- * Resting is the whole gesture, on either device: a mouse hovers, and a finger
- * is held still for {@link DWELL_MS}. Both mean "this one, but wait", and
- * neither of them uses what is in the square — which is the point, because a
- * gesture that both eats your apple *and* tells you about it is no use for
- * looking at food you want to keep.
- *
- * It used to be a mode. The eye turned every square on the screen into a label
- * at once and took away their taps, which made the description reachable on a
- * phone at the cost of a mode nobody found. The held finger already did the
- * same job without one, so the mode is gone and the gesture is all that is
- * left — the same gesture, and the same delay, a trade offer already uses.
- *
- * Either pointer produces a whole card rather than three lines — see
- * `./ItemCard` — drawn through the shared `../ui/Tooltip` and rendered into a
- * portal. The portal matters: a span positioned inside this button is clipped by
- * the `overflow-y-auto` column the panels sit in on a phone, which makes
- * `overflow-x` non-visible as well, so a card anchored on the leftmost square
- * was cut off at the panel edge. Measuring and nudging fixed that horizontally
- * only. A portal has no clipping ancestor, and Base UI flips and shifts it into
- * whatever space exists on both axes.
- */
-
-/** Which sprite stands for a tile in a slot — the one facing the reader. */
 const FRONT = "s" as const;
 
-/**
- * What a surface that has not wired the catalogue gets.
- *
- * A shared frozen object rather than a `{}` default written at the parameter,
- * which builds a fresh one on every render — and the card below is memoised on
- * this, so a new identity per render would rebuild it on every tick of the world
- * for every square on screen.
- */
 const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
-/**
- * Big enough to read a 2×2 sprite at, small enough to sit four in a row.
- *
- * The **natural** size rather than the only one: a container works out how big
- * its squares should be from the column it was given — see `./ContainerPanel`'s
- * `containerSlotGrid` — because a bag on a phone gets half the width the same
- * bag gets in a desktop column and a square that ignored that is either cramped
- * or lost. This is what everything that has no opinion draws at, which is the
- * equipment panel and anything with a fixed row to fill.
- */
 export const ITEM_SLOT_SIZE_PX = 44;
 
-/**
- * How much of the square the sprite takes, leaving the rest as its mount.
- *
- * A share rather than a size, because the square is no longer one size. The
- * sprite itself stays chunky at any of them: `drawSprite` snaps to an integer
- * scale internally and centres what is left over, so a fluid number here buys
- * bigger art without ever buying interpolated art.
- */
 const SPRITE_SHARE = 32 / ITEM_SLOT_SIZE_PX;
 
-/** Smaller than a sprite, so a hint never reads as the thing itself. */
 const EMPTY_ICON_SHARE = 20 / ITEM_SLOT_SIZE_PX;
 
 const EMPTY_ICON_STROKE = 1.5;
 
-/**
- * What a locked square says out loud, in place of what pressing it would do.
- *
- * It replaces the press hint rather than joining it, because while a stone is
- * cooling the hint is not true: a press still *uses* the thing, but the move the
- * hint describes will not happen. Two sentences, one of them wrong, is worse
- * than one.
- *
- * Deliberately shorter than `../game/casting`'s `coolingNotice`, which is what
- * the world says when a move is actually attempted. This one is read aloud every
- * time a reader tabs past the square, and the long form there names the stone —
- * which the label has already said one clause earlier.
- */
 const LOCKED_NOTE = "Still cooling; it cannot be moved yet";
 
-/**
- * What a square whose contents are doing nothing says out loud.
- *
- * Beside the press hint rather than in place of it, unlike {@link LOCKED_NOTE}:
- * the hint is still true of a helmet in a fist — you can wear it from there,
- * which is exactly what a reader who has just been told it is doing nothing
- * wants offered next.
- *
- * It says that nothing is happening and not why, because the why differs by
- * thing and the card behind the gesture already gives it: a stone's
- * requirements are listed against the levels the reader has, and a loaf's card
- * says it is food. @see `../game/equipment`'s `takesEffect`
- */
 const IDLE_NOTE = "Doing nothing there";
 
-/**
- * What a press on this would do, in a sentence.
- *
- * Read off the same function the press itself runs through, so a slot cannot
- * promise something a tap would not do. Null where a tap does nothing — a sign
- * in your bag is not *for* anything yet, and a button that announced an action
- * it does not have would be worse than one that stays quiet about it.
- */
 function pressHintFor(
   instance: ItemInstance | null,
   slot: SlotRef,
@@ -160,61 +45,26 @@ function pressHintFor(
   if (!use) return null;
   if (use.type === "open") return open ? "Press to close it." : "Press to open it.";
   if (use.type === "consume") {
-    // The author's verb, in the middle of a sentence: "Eat" reads back as
-    // "Press to eat it", so the hint and the row in the world use one word.
     const def = tilesById[instance.tileId];
     const consumable = def ? resolveConsumable(def) : null;
     const verb = consumable ? consumeVerb(consumable) : null;
     return verb ? `Press to ${verb.toLocaleLowerCase()} it.` : null;
   }
-  // Named after the thing rather than after the square, on the same terms the
-  // world's row is — see `equipVerb`. "Press to wield it" over a backpack is
-  // what reading the destination instead used to produce.
   if (use.to.kind === "contents") return "Press to put it away.";
   const def = tilesById[instance.tileId];
   return def ? `Press to ${equipVerb(def).toLocaleLowerCase()} it.` : null;
 }
 
-/**
- * Which of the appearances a square wears. @see slotAppearance
- *
- * Exported because the order it is decided in is the whole of the decision, and
- * it is worth asserting without a browser — the same arrangement
- * `./SpellBar`'s `spellAppearance` is under.
- */
 export type SlotAppearance =
-  /** Under the pointer and legal. */
   | "landing"
-  /** Somewhere the thing in hand could go. */
   | "candidate"
-  /** Where the thing in hand came from. */
   | "source"
-  /** A container the player is looking into. */
   | "open"
-  /** Holding a stone that is still cooling, and so cannot be moved. */
   | "locked"
-  /** Holding something the game is reading none of. @see idle */
   | "idle"
-  /** Holding something. */
   | "filled"
-  /** Holding nothing. */
   | "empty";
 
-/**
- * What this square looks like right now.
- *
- * **The order is the argument.** A drag in progress is the loudest thing on the
- * screen, because it is the one answering "will it land here"; being open is
- * louder than merely being full, since it is a thing the player has just done;
- * and a cooling stone comes last of the states with a thing in them, because it
- * is a fact about the item rather than about the gesture.
- *
- * A table and a name rather than the chain of ternaries this was, which had
- * grown seven deep inside a `className` — each new state pushed the previous
- * ones further right and the reasons for the order were spread down the whole of
- * it. An appearance added to the union is now a missing key rather than a branch
- * somebody forgot.
- */
 export function slotAppearance({
   isOver,
   wouldTake,
@@ -241,45 +91,17 @@ export function slotAppearance({
   return filled ? "filled" : "empty";
 }
 
-/** How each appearance is drawn. @see SlotAppearance */
 const SLOT_APPEARANCE_CLASSES: Record<SlotAppearance, string> = {
-  // The strongest state on screen, because it is the one answering "will it
-  // land here".
   landing: "border-accent bg-accent/30",
   candidate: "border-accent/60 bg-accent/10",
-  // Where it came from, dimmed rather than emptied: the thing is still yours
-  // until you let go of it somewhere.
   source: "border-dashed border-paper/60 bg-paper/5 opacity-50",
-  // The one colour the game uses for a thing you have acted on.
   open: "border-interact bg-interact/20",
-  // Cooling, and so nailed down. Dimmed rather than dashed: dashed is what an
-  // *empty* square wears, and this one is conspicuously not empty — what it is
-  // saying is that the thing you can see is not currently yours to move.
   locked: "border-paper/25 bg-paper/5 opacity-60",
-  // Here, and doing nothing: a fainter frame and no fill behind the sprite,
-  // which is a difference a reader can see across seven squares at a glance
-  // without having to name it. The sprite itself keeps full strength — what is
-  // in the square is not in doubt, only whether it counts — so this stays
-  // distinct from `locked`, which dims the lot.
   idle: "border-paper/20 bg-transparent hover:border-paper/50",
   filled: "border-paper/60 bg-paper/10 hover:border-paper",
-  // A dashed empty slot reads as a place something goes, where a solid one
-  // reads as a thing that is simply blank.
   empty: "border-dashed border-paper/25 bg-transparent",
 };
 
-/**
- * What to call the thing in this square.
- *
- * **The inscription, then the tile's name.** A shelf of identical silhouettes
- * is sorted by what somebody wrote on them, so a sign in your bag is called
- * what it says rather than "Sign". What examining a thing tells you is
- * deliberately not in here: that is the card's business, and a square labelled
- * "Fangs by Wolf" would be naming a skull after how its owner died.
- *
- * An engraving outranks both, because it is the *name* differing per thing
- * rather than a note beside it.
- */
 function slotLabelFor(instance: ItemInstance, tile: TileDef | null): string {
   const name = engravedName(tile?.name ?? instance.tileId, instance.engraved);
   if (instance.engraved) return name;
@@ -302,103 +124,23 @@ export function ItemSlot({
   sizePx = ITEM_SLOT_SIZE_PX,
   spilledInto = null,
 }: {
-  /** Where this square is, in the terms a move is expressed in. */
   slot: SlotRef;
   instance: ItemInstance | null;
-  /**
-   * What is worn and held, which is half of what a press on this square does.
-   *
-   * Passed in rather than read off anything here: where a tap sends a thing
-   * depends on which squares are free — see `../game/itemUse`'s `itemUseFor` —
-   * and a hint worked out without it would promise a square the press does not
-   * use. Every surface that draws a square already holds the kit, because the
-   * drag it also passes is answered against the same fact.
-   */
   equipment: Equipment;
-  /**
-   * A thing in the *other* hand that has spoken for this one — a two-handed
-   * weapon, which occupies one square and claims its partner.
-   *
-   * **Drawn rather than held.** The square is genuinely empty in the model, and
-   * has to be: an instance stored in two slots would be two references to a
-   * thing there is one of. What this draws is a picture of where the weapon
-   * goes, faint enough that nobody reads it as a second sword, and the square
-   * stays untappable and undraggable because there is nothing in it to take.
-   *
-   * Null for every square that is not a hand, and for a hand nobody is reaching
-   * into. See `../game/equipment`'s `handClaimedByTwoHander`.
-   */
   spilledInto?: ItemInstance | null;
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
-  /**
-   * What this slot is, for anything reading the page aloud. A sighted reader
-   * gets it from position and sprite; a screen reader gets nothing without it,
-   * since an empty square has no text at all.
-   */
   label: string;
-  /** Shown in the tooltip of an empty slot — what belongs here. */
   emptyHint?: string;
-  /**
-   * Drawn faintly in this square while it is empty — a hand, a pack.
-   *
-   * **Only the slots on a body have one.** A square inside a bag is a square:
-   * anything goes in it, so an icon there would be picturing nothing. The three
-   * on your kit are each *for* something, and an empty one saying so is the
-   * difference between a panel you have to learn and one you can read.
-   *
-   * A component rather than a name, so nothing here has to hold a table of
-   * icons: the panel that knows what its slots are is the panel that names them.
-   */
   emptyIcon?: ComponentType<{ size?: number; stroke?: number; className?: string }>;
-  /**
-   * This thing is currently open, and the panel showing its insides is on
-   * screen.
-   *
-   * Yellow, and yellow is not decoration: it is the colour the outline in the
-   * world wears on a box you have opened, and a bag open in two places at once
-   * would be two colours for one state.
-   */
   open?: boolean | undefined;
-  /**
-   * The one drag in progress, page-wide.
-   *
-   * Passed in rather than owned here because a move has two ends: a square has
-   * to know what is in hand to say whether it would take it, and no square can
-   * know that on its own.
-   */
   drag: ItemDrag;
-  /**
-   * What the viewer has learnt, as raw experience — see `GameSnapshot`.
-   *
-   * Here because half of what a weapon has to say is about the hands holding it.
-   * Defaulted to nothing, on the same terms the panels default it: a body that
-   * has never fought is told it can barely handle the sword, which is true.
-   */
   masteryXp?: MasteryXp;
-  /**
-   * Every status the world has, by id — what a venom on a blade is *called*.
-   *
-   * Passed in rather than resolved here on the terms every other catalogue in
-   * this component is: a slot is handed the tiles it draws from and is handed
-   * these for the same reason. Defaulted to nothing, so a surface that has not
-   * wired it draws a card whose effects are simply absent rather than one
-   * naming ids at the player — the same silence a renamed status already gets
-   * everywhere else.
-   */
   statusDefs?: Record<string, StatusDef>;
-  /**
-   * How big to draw, where the caller has worked that out from the room it has.
-   * Defaults to the natural size — see {@link ITEM_SLOT_SIZE_PX}.
-   */
   sizePx?: number;
 }) {
   const tile = instance ? (tilesById[instance.tileId] ?? null) : null;
   const spilledTile = !instance && spilledInto ? (tilesById[spilledInto.tileId] ?? null) : null;
-  // What this square *is*, which for a hand a two-hander has reached into is
-  // "taken by that weapon" rather than "empty" — a screen reader hearing "empty"
-  // over a square nothing may go in would be told the opposite of what is true.
-  /** "×3" over a pile of three, or nothing at all over one of anything. */
   const tally = instance ? pileTally(instance) : null;
   const name = instance
     ? [slotLabelFor(instance, tile), tally].filter(Boolean).join(" ")
@@ -408,64 +150,13 @@ export function ItemSlot({
 
   const key = slotKey(slot);
   const { register, startDrag, tap } = drag;
-  // Keyed on the string rather than the slot object, which is rebuilt every
-  // render: a ref callback whose identity changed each time would be torn down
-  // and re-attached on every frame the panel drew.
-  const attach = useCallback(
-    (el: HTMLElement | null) => register(key, slot, el),
-    // `slot` is deliberately absent: the key is derived from it, so two slot
-    // objects with one key are the same slot and rebinding for the new object
-    // would be work with no answer attached to it.
-    [key, register],
-  );
+  const attach = useCallback((el: HTMLElement | null) => register(key, slot, el), [key, register]);
 
-  /**
-   * A mouse is resting on this square, or a keyboard has focused it.
-   *
-   * The fine pointer's half of the question the dwell below answers for a
-   * finger. Held here rather than lifted to the panel because only one square
-   * can be under a pointer at a time and nothing outside this one needs to know
-   * which.
-   *
-   * `pointerenter` fires for a landing finger too, which is why this is read
-   * only on a pointer that hovers: a card that appeared the instant a thumb
-   * touched down would flash on every tap that was only ever meant to use the
-   * thing.
-   */
-  // The one question the interface asks about the device, asked here because a
-  // held finger is a gesture a mouse does not make. See `../lib/useMediaQuery`.
   const coarse = useCoarsePointer();
   const [pointedAt, setPointedAt] = useState(false);
-  /**
-   * A finger has been resting on this square long enough to be asking about it.
-   *
-   * **The thumb's version of hovering**, and now the only way a phone reads a
-   * square without also using what is in it. A held finger is the gesture that
-   * already means "this one, but wait": it costs no mode, and it is the one
-   * press a player can make that unambiguously is not a tap.
-   *
-   * Only ever set on a coarse pointer. A mouse held down on a square is the
-   * start of a drag and nothing else, and it has hover for the asking.
-   */
   const [dwelling, setDwelling] = useState(false);
-  /**
-   * The same fact as {@link dwelling}, readable *now*.
-   *
-   * A state updater does not run when it is called — React defers it — so a
-   * handler that decided "was I dwelling?" inside `setDwelling` would be
-   * deciding after the event it was deciding about. That is not hypothetical:
-   * written that way, the flag below was raised after the click it existed to
-   * swallow, and went on to eat the next honest tap instead.
-   */
   const dwellingRef = useRef(false);
   const dwellTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /**
-   * The lift that ends a hold must not also use the thing.
-   *
-   * The whole point of the gesture is looking at food you want to keep, so once
-   * the square has answered, the click the browser synthesises behind the finger
-   * is swallowed rather than eaten.
-   */
   const swallowClick = useRef(false);
 
   const endDwell = useCallback(() => {
@@ -479,93 +170,30 @@ export function ItemSlot({
     setDwelling(false);
   }, []);
 
-  // A press that turned into a drag is not a question. `held` goes up six
-  // pixels into the gesture — see `./useItemDrag` — which is well before the
-  // dwell is up, so a thumb on its way somewhere never gets a tooltip.
   const dragging = drag.held != null;
   useEffect(() => {
     if (dragging) endDwell();
   }, [dragging, endDwell]);
 
-  // A square taken off the screen mid-hold — a bag closing under the finger —
-  // must not leave its timer running against a component that is gone.
   useEffect(() => endDwell, [endDwell]);
-  /**
-   * What looking at this square says, in the order the world already says it:
-   * what the thing is, what is written on it, and what it would be like to use.
-   *
-   * The tile's name heads it rather than {@link name}, which prefers whatever is
-   * written on the instance. That preference is right for a one-line tooltip and
-   * wrong here for the same reason `../render/GameRenderer`'s `lookLines` keeps
-   * the two apart: "Left here by someone" answers a different question from
-   * "Rusty Sword", and a look that swapped one for the other would leave a
-   * player unable to find out what they had picked up.
-   *
-   * Behind the gesture, because reading a weapon's block means parsing it and a
-   * panel redraws with the board — the same reason `pressHintFor` is the only
-   * other thing here that touches an item's interactions.
-   *
-   * Hover on a mouse, a held finger on a thumb. The device question is asked
-   * once, here, so everything below reads one answer.
-   */
-  /**
-   * The levels behind the experience, which is the unit a requirement is
-   * authored in — see `../lib/mastery`. Memoised because a panel redraws with
-   * the board, and every square would otherwise re-derive twelve of them a
-   * frame.
-   */
   const masteries = useMemo(() => masteriesFromXp(masteryXp), [masteryXp]);
 
   const asking = dwelling || (!coarse && pointedAt);
   const inspected = useMemo(() => {
     if (!asking || !tile) return null;
     const card = itemCard(tile, instance, masteryXp, statusDefs);
-    // Kept together because they are only ever used together and are always
-    // both present: the card is built from the tile, so one object saves every
-    // reader below a non-null assertion.
     return card ? { card, tile } : null;
   }, [asking, tile, instance, masteryXp, statusDefs]);
 
   const held = drag.held;
-  /** Being dragged out of this very square, so it is drawn as where it came from. */
   const isSource = held != null && slotKey(held.from) === key;
   const wouldTake = drag.targets.has(key) && !isSource;
   const isOver = drag.over === key;
-  /**
-   * The thing here cannot be taken out, and the square says so before you try.
-   *
-   * **A cooling stone was invisible.** Dropping one onto the floor answered with
-   * a sentence, and dragging one into a bag answered with nothing at all —
-   * because the drag is gated client-side, no square lit up, and a release that
-   * lands on no target is silent by design. So the one refusal in the item model
-   * that a player can plainly see was the one they got no word about, which
-   * reads as the panel being broken.
-   *
-   * Computed here rather than passed in, because both callers would compute the
-   * same thing from the same two arguments this component already holds — and a
-   * third caller would be a third chance to forget.
-   *
-   * @see `../game/equipment`'s `stoneLocked` for what the lock is protecting.
-   */
   const locked = stoneLocked(instance, tilesById);
-  /**
-   * There is something here and the game is reading none of it. @see ItemSlot
-   *
-   * The squares inside a container are never asked, because nothing in a bag is
-   * in effect: a panel drawn faintly throughout would be saying something true
-   * of every square in it, which is the same as saying nothing.
-   */
   const idle =
     instance != null && isBodySlot(slot) && !takesEffect(slot.kind, instance, tilesById, masteries);
-  // An empty square is not open and is not a toggle, whatever the panel beside
-  // it is doing: the state belongs to the *thing* in the slot, and a slot whose
-  // thing has been dropped has no state left to be in.
   const isOpen = instance ? open : undefined;
   const pressHint = pressHintFor(instance, slot, tilesById, equipment, isOpen);
-  // The same question {@link asking} answers, and it is asked twice rather than
-  // shared because they are not the same fact: that one decides whether the
-  // card is *built*, and a card that cannot be built for a square with nothing
-  // in it must not put an empty popup on the screen.
   const showTooltip = inspected != null && asking;
 
   const square = (
@@ -574,10 +202,6 @@ export function ItemSlot({
       ref={attach}
       onPointerDown={(event) => {
         if (instance) startDrag(event, slot, instance);
-        // Started alongside the drag rather than instead of it, because which
-        // gesture this is has not been decided yet: whichever of the two
-        // resolves first — six pixels of travel, or {@link DWELL_MS} of
-        // stillness — calls the other off.
         if (coarse && instance) {
           dwellTimer.current = setTimeout(() => {
             dwellTimer.current = null;
@@ -600,8 +224,6 @@ export function ItemSlot({
         setPointedAt(false);
         endDwell();
       }}
-      // A keyboard has no pointer to rest anywhere, and focus is the gesture it
-      // has instead — so tabbing through a bag reads it out.
       onFocus={() => setPointedAt(true)}
       onBlur={() => setPointedAt(false)}
       className={[
@@ -622,43 +244,20 @@ export function ItemSlot({
       style={{
         width: sizePx,
         height: sizePx,
-        // Without this a finger dragging off a slot scrolls the panel instead of
-        // moving the item, and the pointermove events stop arriving entirely.
         touchAction: "none",
       }}
-      // The browser's own tooltip is what a slot says before the card arrives,
-      // and it stands down once it has: two tooltips over one square would be
-      // the page answering a question twice.
       title={asking ? undefined : instance ? name : emptyHint}
-      // What is here, and what pressing it would do. The second half is the
-      // whole of the label's job now that a press uses a thing rather than
-      // moving it: "Rusty Sword" says what you are on, and only the hint says
-      // what happens if you commit to it.
-      //
-      // Once the card is up, what it says aloud takes the hint's place — the
-      // same swap the sighted reader gets, since the card is the longer answer
-      // to the same question.
       aria-label={
         inspected
           ? `${label}: ${inspected.card.speech}`
           : [
               `${label}: ${name}`,
-              // Before the hint rather than after it: a reader tabbing across
-              // the kit is asking what is working, and "doing nothing there"
-              // answers that where "press to wear it" answers what to do about
-              // it. A cooling stone says its own thing instead — what is
-              // refused there is moving it, and both notes at once would be one
-              // square talking over itself.
               idle && !locked ? IDLE_NOTE : null,
               locked ? LOCKED_NOTE : pressHint,
             ]
               .filter(Boolean)
               .join(". ")
       }
-      // Only where being pressed is a state the slot can be *in*. A bag is open
-      // or shut; wielding a sword is something you do, not somewhere it stays,
-      // and a weapon slot claiming a pressed state would be describing a toggle
-      // nobody can toggle back.
       aria-pressed={isOpen}
     >
       {tile ? (
@@ -672,10 +271,6 @@ export function ItemSlot({
           background={null}
         />
       ) : spilledTile ? (
-        // The other hand's two-hander reaching into this square. Faint, and
-        // above the empty icon in this chain, because a hand that is spoken for
-        // is not a hand you can put anything in — drawing the "nothing here yet"
-        // hint over it would be offering a square that is already taken.
         <span aria-hidden className="opacity-30">
           <TilePreview
             tile={spilledTile}
@@ -688,8 +283,6 @@ export function ItemSlot({
           />
         </span>
       ) : EmptyIcon ? (
-        // Faint enough to read as a hint rather than as contents: the square is
-        // empty, and an icon at full strength would be something in it.
         <EmptyIcon
           size={Math.round(sizePx * EMPTY_ICON_SHARE)}
           stroke={EMPTY_ICON_STROKE}
@@ -697,11 +290,6 @@ export function ItemSlot({
         />
       ) : null}
       {tally ? (
-        // Announced through the square's own label instead — it is part of the
-        // name up there, and a badge with its own text would read the count
-        // twice. Bottom right, over the corner of the sprite, which is where a
-        // count has been drawn on a stack of things since inventories had
-        // squares at all.
         <span
           aria-hidden
           className="pointer-events-none absolute right-0 bottom-0 px-0.5 text-[10px] leading-none font-bold text-paper [text-shadow:1px_1px_0_var(--color-ink),-1px_1px_0_var(--color-ink),1px_-1px_0_var(--color-ink),-1px_-1px_0_var(--color-ink)]"
@@ -712,10 +300,6 @@ export function ItemSlot({
     </button>
   );
 
-  // Wrapped whether or not there is anything to say. A square that gained and
-  // lost a parent as the pointer arrived would remount its button, and the
-  // button holds this slot's registration in the page-wide drag. A closed
-  // tooltip mounts no portal, so an idle square costs one context.
   return (
     <Tooltip
       content={
@@ -723,14 +307,8 @@ export function ItemSlot({
           <ItemCard card={inspected.card} tile={inspected.tile} tilesets={tilesets} />
         ) : null
       }
-      // Above the square: a bag is a grid, and a card hanging downward covers
-      // the row the reader is working along. It flips on its own when there is
-      // no room above — see `../ui/Tooltip`.
       side="top"
       open={showTooltip}
-      // Inert to the pointer, so it cannot come between a finger and the square
-      // it describes. That would take the pointer off the slot and dismiss the
-      // card that had just appeared.
       className="pointer-events-none"
     >
       {square}

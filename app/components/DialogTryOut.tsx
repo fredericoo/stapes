@@ -20,18 +20,6 @@ import { tilesByIdFromList } from "../lib/validation";
 import { Button, Input, Select } from "../ui";
 import { ConversationPanel } from "./ConversationPanel";
 
-/**
- * The dialog as a player will meet it, pressed through against a pretend
- * partner.
- *
- * The same `ConversationPanel` the game draws and the same interpreter the
- * server runs, with one substitution: the `PartnerView` answers out of a kit
- * the author fills in here rather than out of a body in the world. The kit
- * is a real `Equipment` — a worn bag of the largest wearable container the
- * catalogue has — so the trade preview's warnings are the trade module's own,
- * and a bag that is full here is full for the same reason it would be online.
- */
-
 const PRETEND_NAME = "you";
 
 type Props = {
@@ -44,7 +32,6 @@ type Props = {
 
 type Pretend = { equipment: Equipment; tags: Set<string>; statuses: Set<string> };
 
-/** The roomiest bag a world has to wear, or null for a world with none. */
 function biggestBag(tiles: TileDef[]): TileDef | null {
   let best: TileDef | null = null;
   for (const tile of tiles) {
@@ -81,7 +68,6 @@ function pretendPartner(
   };
 }
 
-/** One effect on the pretend partner, or false when it cannot be. */
 function applyEffect(
   partner: Pretend,
   effect: DialogEffectDef,
@@ -137,7 +123,6 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
     if (next) setConversation(next);
   };
 
-  /** Put one more of a thing in the pretend bag, on the trade's landing rule. */
   const addOne = (tileId: string) => {
     const next = planTrade(tilesById, pretend.equipment, [], [{ tileId, count: 1 }], mint);
     if (next) setPretend({ ...pretend, equipment: next });
@@ -234,7 +219,6 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
         ) : null}
       </div>
 
-      {/* The game's own colours, so the panel here is the panel there. */}
       <div className="flex min-h-40 flex-col gap-2 bg-ink p-2 text-paper">
         {conversation ? (
           <ConversationPanel
@@ -244,10 +228,6 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             tiles={tiles}
             tilesets={tilesets}
             equipment={pretend.equipment}
-            // The catalogue this panel already holds, so a card in the preview
-            // names what a blade inflicts exactly as the game's would. Masteries
-            // are deliberately left out: there is no player here to read a
-            // weapon in the hands of, so the preview shows a novice's figures.
             statusDefs={statusDefs}
             onTalk={talk}
           />

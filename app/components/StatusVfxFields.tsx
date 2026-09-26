@@ -11,23 +11,6 @@ import {
 import { ColorField, NumberField, ParticleFields, Row, UnitSlider } from "./ParticleFields";
 import { FieldLabel, Switch } from "../ui";
 
-/**
- * Authoring what a status looks like: a colour on the body, a light it casts,
- * and a plume over the tile it is standing on.
- *
- * The plume's own controls are `./ParticleFields`, because a status is no longer
- * the only thing that has one.
- *
- * ## Both halves are optional, and off by default
- *
- * A status with no effect authored is the state every status in the world is in,
- * so it has to be the resting state of this panel rather than something an
- * author has to zero out. Turning a half on fills it with a default that draws
- * something on the very first frame — an emitter of zeroes is a blank canvas
- * with fifteen fields beside it and no way to tell which one is the problem.
- */
-
-/** A toggle that turns half of an effect on, filled in with something visible. */
 function HalfToggle({
   label,
   info,
@@ -85,10 +68,6 @@ export function StatusVfxFields({
       <HalfToggle
         label="Tint"
         on={vfx.tint !== null}
-        // The default rather than a zeroed block, so turning this on shows
-        // something on the canvas immediately. Turning it off keeps nothing —
-        // an author who wanted it back gets the default again, which is a better
-        // answer than the half-finished thing they were rejecting.
         onToggle={(on) => setTint(on ? { ...DEFAULT_TINT } : null)}
       >
         {vfx.tint ? (

@@ -44,10 +44,8 @@ const BASE: CaveConfig = {
 
 const SHAPES: CaveShape[] = ["caverns", "veins", "tunnels"];
 
-/** A rectangle big enough to carve something with a shape to it. */
 const RECT: Rect = { x0: -4, y0: 6, x1: 25, y1: 33 };
 
-/** The edits one placement would make, against `on` or against nothing. */
 function asPlan(rect: Rect, config: Partial<CaveConfig> = {}, on: MapFile = emptyMap(), z = 0) {
   const plan = planCave(on, tilesById, rect, z, { ...BASE, ...config });
   if (!plan.ok) throw new Error(plan.reason);
@@ -72,7 +70,6 @@ function eachCell(rect: Rect, visit: (x: number, y: number) => void): void {
   }
 }
 
-/** Whether every open cell of `g` is part of some fully open 2x2 square. */
 function everyPassageTwoWide(g: CellGrid): boolean {
   for (let y = g.minY; y < g.minY + g.height; y++) {
     for (let x = g.minX; x < g.minX + g.width; x++) {
@@ -97,8 +94,6 @@ function everyPassageTwoWide(g: CellGrid): boolean {
 
 describe("carveCave", () => {
   it("never leaves a passage one cell wide, whatever it is asked for", () => {
-    // A one-cell passage is one the camera hides behind the wall in front of
-    // it. Every shape, every density, every seed.
     for (const shape of SHAPES) {
       for (const density of [0, 35, 70, 100]) {
         for (let seed = 0; seed < 6; seed++) {
@@ -177,8 +172,6 @@ describe("planCave", () => {
   });
 
   it("fills a level exactly with rock, on a floor, however the rock is made", () => {
-    // The floor goes under the rock as well as under the cave, so carving a
-    // wall away by hand later leaves ground rather than a hole.
     const halves = build(RECT, { wallTileId: "half-stone" });
     expect(ids(halves, RECT.x0, RECT.y0)).toEqual(["dirt", "half-stone", "half-stone"]);
     const whole = build(RECT, { wallTileId: "stone-wall" });
@@ -234,7 +227,6 @@ describe("planCave", () => {
     const map = build(RECT, { ledgeTileId: "half-stone", ledgeChance: 100 });
     const ledge = physicalHeight(tilesById["half-stone"]!);
     expect(ledge * 2).toBe(HEIGHT_PER_LEVEL);
-    // The ring is never a ledge, so this corner is full-height rock on a floor.
     expect(ids(map, RECT.x0, RECT.y0)).toHaveLength(3);
   });
 
@@ -276,8 +268,6 @@ describe("planCave", () => {
     const dryCave = carveCave(bounds, config);
     const wetCave = carveCave(bounds, config);
     erodeWithWater(wetCave, bounds, config);
-    // The rectangle the map ends up with has floor where the dry carve left
-    // rock: the streams took it out on their way through.
     const map = build(RECT, config);
     let eroded = 0;
     eachCell(RECT, (x, y) => {
@@ -332,8 +322,6 @@ describe("planCave", () => {
     eachCell(RECT, (x, y) => {
       if (!isOpen(grid, x, y)) return;
       const stack = ids(map, x, y);
-      // The base floor is under every one of them: the alternative is a
-      // covering laid over the ground, not a hole in it.
       expect(stack[0]).toBe("dirt");
       if (stack.includes("cobblestone")) covered++;
       else bare++;
@@ -362,22 +350,11 @@ describe("planCave", () => {
   });
 
   it("notches its shell where it lands on another cave's floor", () => {
-    // The workflow this is for: drag a second rectangle a couple of cells over
-    // the first, and walk from one cave into the other.
-    //
-    // **Two cells, not one.** A cave's shell is one cell of rock and the carve
-    // just inside it is nearly always rock too — the automaton counts what is
-    // off the grid as rock, which weights the outermost column solid. So a
-    // rectangle laid edge to edge with another sees rock, and one laid a single
-    // cell over sees the column behind it, which is also rock. Two cells in is
-    // the first place the neighbour's floor actually reaches.
     const west: Rect = { x0: 0, y0: 0, x1: 25, y1: 25 };
     const east: Rect = { x0: 24, y0: 0, x1: 49, y1: 25 };
     const first = setStacks(emptyMap(), asPlan(west, BASE));
     const both = setStacks(first, asPlan(east, BASE, first));
 
-    // Every floor cell of the pair is reachable from every other, across the
-    // wall that used to be two rectangles' shells back to back.
     const bounds = { minX: 0, maxX: 49, minY: 0, maxY: 25 };
     const grid = newGrid(bounds);
     let floors = 0;
@@ -406,8 +383,6 @@ describe("planCave", () => {
   });
 
   it("does not open on to ground of another kind", () => {
-    // Grass right up against the rectangle is not this cave's floor, so the
-    // shell stays shut rather than the cave opening on to the surface.
     const grass = setStacks(
       emptyMap(),
       Array.from({ length: 26 }, (_, i) => ({

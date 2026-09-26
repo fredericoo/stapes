@@ -11,234 +11,47 @@ import { MAX_PROJECTILE_SPEED, MIN_PROJECTILE_SPEED, type ProjectileBlock } from
 import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
-/**
- * How far up a pushed object can step. Descent is deliberately absent —
- * going down is physics: any step down is legal, and whether the object then
- * falls is already answered by {@link TileDef.affectedByGravity}.
- */
 export type ClimbAbility = "none" | "half" | "full";
 
 export const CLIMB_ABILITIES: ClimbAbility[] = ["none", "half", "full"];
 
-/** Max upward step in absolute height units, per ability. */
 export const CLIMB_HEIGHT_UNITS: Record<ClimbAbility, number> = {
   none: 0,
   half: HEIGHT_PER_LEVEL / 2,
   full: HEIGHT_PER_LEVEL,
 };
 
-/**
- * The player shoves this object one cell directly away from themselves. There
- * is no distance to author: a push is always exactly one cell, which is what
- * makes it legible without a pointer — you stand somewhere and the direction
- * follows from where you are.
- */
 export type PushInteraction = {
-  /** Max upward step. Descent is unconstrained — gravity resolves it. */
   climb: ClimbAbility;
-  /** When non-empty, the object may only come to rest on these tile ids. */
   moveOnTileIds: string[];
 };
 
-/**
- * Replace this placement with another tile when the player activates it.
- * Author the reverse on the target for a toggle (e.g. door open ↔ closed).
- */
 export type SwitchInteraction = {
   targetTileId: string;
-  /**
-   * What doing it is called — "Open", "Close", "Light", "Pull".
-   *
-   * Authored per tile because only the author knows: the two halves of a door
-   * are the same mechanism pointing at each other, and nothing derivable from
-   * the tiles says which one opens and which one shuts. Everything else the
-   * player can do has one honest verb ("Push", "Attack") that belongs to the
-   * *interaction*; a switch is the one whose verb belongs to the tile.
-   *
-   * Optional, and blank is legal: `data/tiles.json` predates the field, and a
-   * switch with nothing written here is still a switch. Whatever offers the
-   * action falls back to naming the kind.
-   */
   actionName?: string;
 };
 
-/**
- * Become another tile — or stop existing — once this one has been on the board
- * long enough.
- *
- * A {@link SwitchInteraction} whose input is time rather than a tap, and the
- * same one-way swap: blood dries to a stain because the blood tile says so, and
- * the stain fades because the stain tile says so in turn. Nothing here counts
- * down twice.
- *
- * The clock is the session's, not the wall's, and the deadline is held beside
- * the map rather than written onto the placement — see `../game/decay` for why
- * both of those matter.
- */
 export type DecayInteraction = {
-  /**
-   * Tile this becomes when its time is up. **Blank removes the placement**,
-   * which is the common case: there is no `air` tile to name, and a splash of
-   * blood that has finished drying is simply not there any more.
-   *
-   * Unlike every other block in here a blank target is therefore meaningful
-   * rather than malformed, so {@link afterMs} is what says whether a tile
-   * decays at all.
-   */
   tileId: string;
-  /**
-   * Shortest a placement of this tile can last, in milliseconds of simulated
-   * time.
-   *
-   * Simulated rather than real: it advances with the tick loop, so a world
-   * nobody is in does not quietly age. It is also what a decaying tile costs —
-   * pending decay keeps the world ticking (see `GameSession.isAtRest`), so this
-   * is a few seconds for blood, not an hour for a monument.
-   */
   fromMs: number;
-  /**
-   * Longest it can last. A lifetime is drawn from the range once, when the
-   * placement is first seen, and never redrawn.
-   *
-   * A range rather than a number because the motivating case spawns in bursts:
-   * every splash of blood from one fight would otherwise be placed within a few
-   * ticks of its neighbours and vanish with them, and a floor that clears itself
-   * all at once reads as a bug rather than as drying. Equal ends are legal and
-   * mean exactly what a single lifetime meant.
-   *
-   * Must be at least {@link fromMs}. An inverted range is malformed rather than
-   * silently swapped, on the same terms as every other block here: it reads as
-   * "does not decay".
-   */
   toMs: number;
 };
 
-/**
- * Come back once a placement of this tile is gone — the mirror of
- * {@link DecayInteraction}, with the arrow reversed: decay counts down while a
- * placement exists, respawn counts down while one is missing.
- *
- * Configured on the tile def, tracked per authored placement: each spot this
- * tile was placed at in the editor is its own spawn point, and each comes back
- * on its own clock. A creature is tracked by the identity it was adopted under
- * (see `../game/actors.residentOwnerId`), so one that wandered off is still
- * alive wherever it stands; an object is tracked by its authored cell, so one
- * carried away reads as gone and grows back — taking the sword is what makes
- * the sword worth authoring a respawn on.
- *
- * Unlike decay this clock is the wall's, not the session's: the deadline is
- * held by the server and survives the world going quiet, so a world nobody
- * visited for an hour comes back repopulated rather than owing an hour of
- * ticking. See `workers/GameServer` for the machinery.
- */
 export type RespawnInteraction = {
-  /** Shortest a spawn point can sit empty, in wall-clock milliseconds. */
   fromMs: number;
-  /**
-   * Longest it can sit empty. The wait is drawn from the range once per
-   * disappearance. A range for the same reason decay's lifetime is one: a camp
-   * cleared in one fight coming back all on the same second reads as a bug
-   * rather than as the world recovering. Equal ends are legal.
-   *
-   * Must be at least {@link fromMs}; an inverted range reads as "does not
-   * respawn", on the same terms as every other malformed block here.
-   */
   toMs: number;
 };
 
-/**
- * One status this tile can be worn down by, and what is left when it has been.
- *
- * The pair is the whole of it: naming a status here is what makes a tile
- * vulnerable to that status *and* what says how it ends. A tile is flammable
- * because it lists `burned`, not because anything flags it as flammable — see
- * {@link EndureInteraction} for why that is one fact rather than two.
- */
 export type Affliction = {
-  /**
-   * The status that spends {@link EndureInteraction.durability}, by id.
-   *
-   * An id the catalogue does not hold is an affliction that never happens, on
-   * exactly {@link AddStatusInteraction.statusId}'s terms: the catalogue is the
-   * session's and this is the tile's, loaded from different files by different
-   * owners, and renamed content should cost one effect rather than stop the
-   * world starting. A **blank** one is unauthored and refuses the whole block.
-   */
   statusId: string;
-  /**
-   * What the placement becomes once this has spent the last of it. **Blank
-   * removes the placement**, on exactly {@link DecayInteraction.tileId}'s terms
-   * and for the same reason: there is no `air` tile to name, and a tree that has
-   * burned down is simply not there any more.
-   *
-   * A blank target is therefore meaningful rather than malformed here too, which
-   * is why {@link EndureInteraction.durability} is what says whether a tile can
-   * be worn down at all.
-   */
   tileId: string;
 };
 
-/**
- * This tile can be worn down by statuses, and turns into another when it has
- * been — grass that burns to dirt, a tree that burns to nothing.
- *
- * **Hit points without a fight.** The pool is spent only by statuses running on
- * the placement; nothing can swing at it, and {@link TileDef.kind} stays `prop`
- * rather than becoming `battler`. That is the distinction worth keeping: a
- * battler is a body, with a brain's worth of machinery behind it, and a burning
- * bush is scenery on a clock. An axe spending the same pool later is a change to
- * what *reaches* this, not to the shape of it.
- *
- * **Flammability is not a flag.** A tile burns because {@link suffers} names
- * `burned` and stone does not because it does not, which is why
- * {@link TileDef.attributes} is still empty: a second source of truth about what
- * catches fire is exactly the trap that field was reserved to avoid.
- *
- * **Spread is not authored either**, and that is the design rather than an
- * omission. When a placement is consumed, whatever is left of the status that
- * consumed it is divided equally among the neighbours that suffer the same one —
- * see `../game/endure`'s `spreadShares`. Fuel is therefore conserved and never
- * created: eight seconds of burning split four ways is four two-second burns,
- * so a fire crosses a forest and dies out on its own rather than growing. A
- * `spreads` flag would be a fact about fire written down on grass.
- *
- * Nothing here says how the tile comes back, on exactly
- * {@link ExtractInteraction}'s terms: a burnt tree's cell is empty, and an empty
- * cell is what a {@link RespawnInteraction} already refills.
- */
 export type EndureInteraction = {
-  /**
-   * What a fresh placement can take before it turns, in hit points.
-   *
-   * The def's number is what every placement of it starts with. Unlike
-   * {@link ExtractInteraction.durability} nothing is written back onto the
-   * placement: what is left of a particular one lives beside the map in
-   * `../game/endure`'s `EndureIndex`, so a half-burnt tree costs the map format
-   * nothing, the wire nothing and the checkpoint nothing — and comes back whole
-   * if the world is evicted mid-fire, which is the same bargain decay deadlines,
-   * hit points and brain memory already take.
-   *
-   * At least one, on `extract`'s grounds: a tile with no points in it is one
-   * that turns on the first tick of the first status, which is authorable as
-   * `durability: 1`, and meaning it takes zero is not.
-   */
   durability: number;
-  /**
-   * The statuses that spend it, and what each leaves behind.
-   *
-   * A block with none of them is not vulnerable to anything — there is nothing
-   * that could spend the pool — so an empty list reads as unauthored and the
-   * resolver refuses it, exactly as an extract with no slots is refused.
-   *
-   * Several are legal and are read in order: the first affliction running on the
-   * placement when the pool empties is the one that decides what it becomes, so
-   * a tile authored to burn to dirt and freeze to ice does whichever finished
-   * it.
-   */
   suffers: Affliction[];
 };
 
-/** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
 export type PlateComparison = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 
 export const PLATE_COMPARISONS: PlateComparison[] = ["eq", "neq", "gt", "gte", "lt", "lte"];
@@ -252,726 +65,154 @@ const COMPARATORS: Record<PlateComparison, (load: number, height: number) => boo
   lte: (load, height) => load <= height,
 };
 
-/**
- * A plate that watches what is stacked on top of it and swaps itself out the
- * moment the comparison holds. Unlike push and switch this is not something
- * the player aims at — the board pressing on it is the whole input.
- *
- * One plate is only half a mechanism: the swap is one-way, and the behaviour
- * comes from what the target tile does in turn. Two plates pointing at each
- * other (`gte 1` → pressed, `lte 0` → unpressed) follow their load; a target
- * with no plate of its own stays pressed forever.
- */
 export type PressurePlateInteraction = {
-  /** Tile this becomes while the comparison holds. */
   tileId: string;
-  /** How {@link height} is compared against the load resting on the plate. */
   type: PlateComparison;
-  /**
-   * Load to compare against, in height units — a stool is 1, a half-height
-   * crate is 2 and a full level is {@link HEIGHT_PER_LEVEL}. Flat and
-   * intangible tiles weigh nothing, so `gte 1` reads as "something solid is
-   * standing here".
-   */
   height: number;
 };
 
-/** The two states a signal channel can be in. */
 export type SignalValue = "on" | "off";
 
 export const SIGNAL_VALUES: SignalValue[] = ["on", "off"];
 
-/**
- * While this tile is placed on a wired cell, it drives that cell's channel to
- * {@link value}.
- *
- * The tile def *is* the state — `torch_lit` emits on, `torch_unlit` emits off
- * — so nothing here says when to switch. That stays with whatever already
- * moves the tile between its two forms: a {@link SwitchInteraction} the player
- * taps, or a {@link PressurePlateInteraction} the board presses.
- *
- * Which channel is not authored here either. A tile def is placed many times
- * over and each copy answers to a different wire, so the channel lives on the
- * placement ({@link PlacedTile.channel}).
- */
 export type EmitInteraction = {
   value: SignalValue;
 };
 
-/** How a receiver reads a channel driven by more than one emitter. */
 export type SignalMode = "any" | "all";
 
 export const SIGNAL_MODES: SignalMode[] = ["any", "all"];
 
-/**
- * Swap this tile out for another while its cell's channel reads {@link when}.
- *
- * Deliberately the same shape as {@link PressurePlateInteraction} — a
- * condition and the tile to become — because it is the same mechanism with a
- * different sensor, and one authored half is likewise only half of it: a door
- * that opens on `on` needs its open form to close on `off`, or it opens once
- * and stays open.
- */
 export type ReceiveInteraction = {
-  /** Tile this becomes while the channel matches. */
   tileId: string;
-  /** Channel reading that triggers the swap. */
   when: SignalValue;
-  /** With several emitters on the channel: any of them on, or all of them. */
   mode: SignalMode;
 };
 
-/**
- * When an authored gesture fires — the three ways a tile can be set off.
- *
- * Shared rather than restated per interaction, because each answer is a rule
- * about the *gesture* and not about what happens afterwards: `step` has no
- * reach and no row, `interact` is the orthogonal square a switch takes, and
- * `interactOver` is your own cell. A portal and a fire that burns whoever
- * stands in it differ in what they do to you and in nothing at all about how
- * they are reached, so two copies of this union would be two places for those
- * reaches to drift apart.
- */
 export type ActivationTrigger = "step" | "interact" | "interactOver";
 
 export const ACTIVATION_TRIGGERS: ActivationTrigger[] = ["step", "interact", "interactOver"];
 
-/**
- * Where a teleport leads, and — the point of the union — *which half of the
- * authoring holds the answer*.
- *
- * A discriminated union rather than a kind beside optional numbers, on exactly
- * the terms {@link ItemDef} is one: an absolute teleport cannot have a delta and
- * a relative one cannot have a destination written on a placement, so neither
- * can be left behind when an author changes their mind.
- *
- * **The split is not arbitrary — it follows what actually varies.** A ladder is
- * the same ladder wherever it is: it takes you up one floor, and that is a fact
- * about what a ladder *is*, so every copy of the tile should already know it.
- * A portal is the opposite: one tile furnishes a whole map and each doorway
- * leads somewhere different, so the target has to belong to the slot. Putting
- * both on the placement made every ladder in the world need its `z + 1` typed
- * out again; putting both on the def would make every portal lead to one room.
- */
 export type TeleportDestination =
   | {
       kind: "relative";
-      /**
-       * Cells travelled, counted from the **placement's own cell** — never from
-       * wherever the traveller happened to be standing. A ladder is `z + 1` from
-       * the rungs however you approached them; measuring from the actor would
-       * make an adjacent portal land somewhere different for each of the four
-       * sides you could press it from.
-       */
       delta: Coord;
     }
   | {
       kind: "absolute";
-      /**
-       * No numbers here on purpose. Where each one leads is written on the
-       * placement ({@link PlacedTile.teleportTo}), which is what lets one portal
-       * tile be every doorway in the world.
-       */
     };
 
 export type TeleportDestinationKind = TeleportDestination["kind"];
 
-/**
- * Put whoever activates this somewhere else on the board.
- *
- * **The block is a marker, and where it goes is on the placement**
- * ({@link PlacedTile.teleportTo}) — exactly the split
- * {@link RewardInteraction} makes, and for the same argument: the tile says
- * *what kind of thing this is* — a portal you step into, a ladder you climb —
- * and the slot says which particular one. One `portal` tile therefore furnishes
- * a whole map, where coordinates on the def would make every portal in the
- * world lead to one room.
- *
- * Nothing here is per-player and nothing is spent: a teleport is the one
- * authored interaction with no state at all on either side of it. Walking back
- * onto the pad sends you through again, which is what a door is.
- */
 export type TeleportInteraction = {
-  /**
-   * What going through it is called — "Enter" on a portal, "Climb" on a ladder.
-   *
-   * Authored for the reason {@link SwitchInteraction.actionName} and
-   * {@link RewardInteraction.actionName} are: nothing derivable from a tile
-   * that moves you says whether you are stepping through it or hauling yourself
-   * up it. Optional, and blank reads as "Enter".
-   *
-   * Read only when the player has something to press. A {@link trigger} of
-   * `step` offers no row and never shows this.
-   */
   actionName?: string;
-  /**
-   * What sets it off.
-   *
-   * - `step` — landing on the cell does it, with nothing to press. A portal.
-   * - `interact` — pressing it from the next cell over, on exactly the reach a
-   *   {@link SwitchInteraction} takes: orthogonal and adjacent, because "the
-   *   thing you are squarely beside" is the only reading a doorway has.
-   * - `interactOver` — pressing it while standing in its cell. A ladder: you
-   *   walk onto the rungs and then climb, which is two acts and reads as two.
-   */
   trigger: ActivationTrigger;
-  /**
-   * Where it leads, and which half of the authoring says so. See
-   * {@link TeleportDestination}.
-   */
   destination: TeleportDestination;
 };
 
-/**
- * A teleport as it is actually offered: the tile's half and the slot's half,
- * read together.
- *
- * Joined once here for the reason {@link PlacedReward} is: neither half is a
- * teleport on its own — a portal tile with no destination written on this
- * placement leads nowhere, and coordinates on a placement of a tile that does
- * not teleport are a note nobody reads.
- *
- * {@link to} is the cell itself, with a delta already resolved against the
- * placement, so nothing downstream has to know which half was authored.
- */
 export type PlacedTeleport = {
   actionName?: string;
   trigger: ActivationTrigger;
-  /** Where the traveller ends up, absolute. */
   to: Coord;
 };
 
-/**
- * Put a status on whoever sets this off — a flame that burns you, a shrine that
- * blesses you.
- *
- * **Wholly on the tile, with no placement half at all**, on the terms
- * {@link CraftInteraction} has none: what standing in a fire does to a body
- * is a fact about fire, and every flame cut from the tile does it. There is
- * nothing left for a slot to vary.
- *
- * **How long it lasts is the status's own**, unlike an item's `StatusGrant`,
- * which may override the range. Bread and a berry are two helpings of one
- * condition and only the food knows which is the meal; a fire has no such
- * reading — being burned is being burned, and an author who wants a longer one
- * has authored a longer status.
- *
- * Nothing is spent and nothing is remembered, exactly as nothing is for a
- * teleport: walk back into the fire and it burns you again. What keeps that
- * from being unbounded is the status itself — a second application refreshes
- * rather than piles up unless its author said `stacks`, and even then it clamps
- * at `maxMs`. See `../game/statuses`'s `applyStatus`.
- */
 export type AddStatusInteraction = {
-  /**
-   * What doing it is called — "Touch" a brazier, "Pray" at a shrine.
-   *
-   * Authored for the reason every other verb in this file is: nothing derivable
-   * from a tile that leaves you burning says whether you reached into it or
-   * were blessed by it. Optional, and blank reads as "Touch".
-   *
-   * Read only where the player has something to press. A {@link trigger} of
-   * `step` offers no row and never shows this.
-   */
   actionName?: string;
-  /** What sets it off. See {@link ActivationTrigger}. */
   trigger: ActivationTrigger;
-  /**
-   * The status handed over, by id — see `./status`.
-   *
-   * An id the catalogue does not hold is an effect that does not happen, on the
-   * same terms a consumable naming a missing status is: renamed content should
-   * cost one effect rather than stop the world starting. A **blank** one is a
-   * different thing and reads as unauthored — {@link resolveAddStatus} refuses
-   * it, so a block somebody switched on and never filled in offers no row and
-   * outlines nothing.
-   */
   statusId: string;
-  /**
-   * Also put the status on the ground this tile stands in: every placement
-   * sharing its cell whose {@link EndureInteraction} suffers it — a flame that
-   * burns the grass under it as well as whoever steps in.
-   *
-   * **Independent of {@link trigger}**, which is about a body arriving or
-   * reaching; a tile does neither. The ground takes the status on contact and
-   * again every second the tile stays, the rhythm a body standing in it gets.
-   * See `GameSession.tickAfflictions` and `../game/endure`'s `EndureIndex.hold`.
-   *
-   * **Opt-in, and that is the point.** Off by default, so a tile that burns
-   * whoever touches it does not also start eating its own floor. Its own cell
-   * only: reaching further is what the spread is for.
-   */
   ground?: boolean;
 };
 
-/**
- * Take a status off whoever sets this off — water that puts out a fire, a
- * spring that washes a poison away.
- *
- * The inverse of {@link AddStatusInteraction}, and on its terms throughout:
- * wholly on the tile, nothing spent, nothing remembered, and set off by the
- * same three triggers. A `step` one is asked on arrival and again every second
- * a body stands in it, so a burn that lands while you are already in the water
- * is put out on the next second rather than lasting its full length.
- *
- * Only the named status is taken. A body under two conditions keeps the other.
- */
 export type RemoveStatusInteraction = {
-  /**
-   * What doing it is called — "Wash" in a basin, "Drink" from a spring.
-   * Optional, and blank reads as "Touch". Never shown for a `step` trigger,
-   * which offers no row.
-   */
   actionName?: string;
-  /** What sets it off. See {@link ActivationTrigger}. */
   trigger: ActivationTrigger;
-  /**
-   * The status taken away, by id — see `./status`. Blank is refused by
-   * {@link resolveRemoveStatus}, on {@link AddStatusInteraction.statusId}'s
-   * terms; an id the catalogue does not hold removes nothing.
-   */
   statusId: string;
 };
 
-/**
- * Move whoever sets this off to *come back* here — the shipped `respawn-point`
- * marker, or a bed you sleep in, or a shrine you claim.
- *
- * **Wholly on the tile, with no placement half at all**, on
- * {@link AddStatusInteraction}'s own terms: what a bed does to the person who
- * lies in it is a fact about beds, and every one cut from the tile does it.
- * There is nothing left for a slot to vary — least of all *where* it sends
- * them, which is the one thing about this that is never authored. See
- * {@link SetSpawnInteraction.trigger}.
- *
- * **The cell recorded is the tile's own.** The marker *is* the place — that is
- * the whole of what one is — so a marker two people press from two sides is one
- * place, and it is the place they can both see. Recording the presser's cell
- * instead would make a respawn point mean something slightly different for
- * everybody who used it, and a marker you cannot point at is not a landmark.
- *
- * Whether a body can stand in that cell is deliberately not asked. A marker may
- * be solid, and a rebirth resolves that the way a remembered position already
- * does — `findEntryCell` bubbles outward from the cell and takes the first that
- * has room. The rule that a mark is a *wish* rather than a promise is one the
- * `spawn:` row has always lived under, because the world keeps changing around
- * it either way.
- *
- * Nothing is spent and nothing is consumed, exactly as nothing is for a
- * teleport: press it again after anchoring elsewhere and it takes the mark
- * back. What keeps that from being noise is that setting the mark *to the
- * marker it is already on* does nothing at all — see `GameSession.markSpawn` —
- * so a `step` one you walk over twice says its line once, and the row on one
- * you are anchored to is drawn grey rather than offered.
- */
 export type SetSpawnInteraction = {
-  /**
-   * What doing it is called — "Set respawn point" on the shipped marker,
-   * "Sleep" in a bed, "Pray" at a shrine.
-   *
-   * Authored for the reason every other verb in this file is: nothing derivable
-   * from a tile that changes where you wake up says whether you lay down in it
-   * or knelt at it. Optional, and blank reads as "Mark".
-   *
-   * Read only where the player has something to press, and only while the press
-   * would *do* something: the row on the marker somebody is already anchored to
-   * is renamed — see `../game/interactionOptions`. A {@link trigger} of `step`
-   * offers no row and never shows this at all.
-   */
   actionName?: string;
-  /**
-   * What sets it off. See {@link ActivationTrigger}.
-   *
-   * There is no second field beside it, and that absence is the design: an
-   * author picks the *gesture*, and the cell is the placement's own. A
-   * destination here would let a marker point somewhere else, which is a
-   * teleport wearing this block's clothes — and the one thing a respawn point
-   * has to be is somewhere you can walk to and recognise.
-   */
   trigger: ActivationTrigger;
 };
 
-/**
- * This tile hands things over — a chest you open, a person you receive from.
- *
- * **The block is a marker, and almost everything about the reward is on the
- * placement** ({@link PlacedTile.rewardTag} and
- * {@link PlacedTile.rewardTileIds}). Exactly the split {@link EmitInteraction}
- * makes: the tile is the kind of thing, the slot is which particular one. One
- * `quest-chest` tile can furnish a whole map, and the three chests in a dungeon
- * differ by what is written on their placements rather than by being three tile
- * defs that happen to look alike.
- *
- * **The tile never changes, and that is the whole design.** Every other authored
- * swap in this file — switch, plate, receive — edits the board, which is what
- * makes it the same for everybody looking at it. "Once per player" cannot be
- * that: the chest has to still be there for the next person who walks in. So
- * what a reward changes is the *taker* ({@link ActorRuntime.tags}), exactly as
- * hit points and equipment are per-actor state that no cell patch carries, and
- * a chest somebody has emptied looks untouched to the room.
- *
- * **One tag, granted and gating.** Taking it writes the placement's tag onto the
- * player, and holding that tag is what stops them taking it — one field rather
- * than a granted/blocking pair, so a reward cannot be authored repeatable by
- * accident. Two placements sharing a tag are therefore a *choice*: give the left
- * chest and the right chest both `chest-42` and opening either closes the other.
- */
 export type RewardInteraction = {
-  /**
-   * What taking it is called — "Open" on a chest, "Receive" from a person.
-   *
-   * The one field that genuinely belongs to the tile rather than to the slot: it
-   * describes the *gesture*, which is a property of what the thing is. Every
-   * chest cut from one tile is opened; what is inside them differs.
-   *
-   * Authored for the same reason {@link SwitchInteraction.actionName} is —
-   * nothing derivable from a tile that hands over a sword says whether you are
-   * prising it out of a box or being given it. Optional, and blank reads as
-   * "Take".
-   */
   actionName?: string;
 };
 
-/**
- * A reward as it is actually offered: the tile's half and the slot's half, read
- * together.
- *
- * Nothing consumes the two separately, because neither is a reward on its own —
- * a chest tile with nothing written on this placement gives nothing, and a tag
- * on a placement of a tile that is not a giver is a note nobody reads. So the
- * halves are joined once, in {@link resolveReward}, and everything downstream
- * takes this.
- */
 export type PlacedReward = {
   actionName?: string;
   tag: string;
   itemTileIds: string[];
 };
 
-/**
- * One kind of thing a recipe spends, and how many of it.
- *
- * Counted, on a trade's terms: a price is a number and a number is what a pile
- * already is, so two cinders may be one pile or two squares and the recipe
- * peels across them. Two inputs naming *different* tiles are two entries.
- */
 export type CraftInput = {
   tileId: string;
   count: number;
 };
 
-/** A thing an `all` output may hand back, and its chance in percent. */
 export type CraftChanceItem = {
   tileId: string;
-  /** 1–{@link MAX_CRAFT_CHANCE}. Rolled on its own, whatever the others did. */
   chance: number;
 };
 
-/** A thing a `one` output may pick, and how heavily it leans that way. */
 export type CraftWeightedItem = {
   tileId: string;
-  /**
-   * Relative, not a percentage: weights 1, 3 and 2 are a sixth, a half and a
-   * third. What matters is the ratio, so an author adding a fourth option does
-   * not have to re-balance the other three to keep them summing to anything.
-   */
   weight: number;
 };
 
-/**
- * What a recipe hands back, and which of two kinds of luck decides it.
- *
- * - `all` — every item is rolled for on its own. The common case is one item at
- *   100%, which is a recipe with no luck in it at all; one item at 75% is a
- *   gamble where losing takes the inputs and gives **nothing**. Several items
- *   are a meal with a chance of leftovers.
- * - `one` — exactly one item comes back, picked by weight. A blank stone forged
- *   into one of five low stones. Never empty: a gamble on *which*, not *whether*.
- *
- * A discriminated union rather than one list with both numbers on every entry,
- * on {@link TeleportDestination}'s terms: a weight on an `all` item or a chance
- * on a `one` item is a number nothing reads, and the union is what stops one
- * being left behind when an author changes their mind.
- */
 export type CraftOutput =
   | { kind: "all"; items: CraftChanceItem[] }
   | { kind: "one"; items: CraftWeightedItem[] };
 
 export type CraftOutputKind = CraftOutput["kind"];
 
-/**
- * Spend these, and roll for those.
- *
- * **A recipe, not a trade of objects.** The inputs are destroyed and the outputs
- * are minted fresh, on exactly the terms {@link RewardInteraction} hands its
- * items over — so a fire that cooks meat is not moving a particular steak
- * around, it is answering "what does raw meat become here".
- *
- * Wholly on the tile, with no placement half at all: what a forge does to two
- * cinders is a fact about forges, and every forge cut from the tile does it.
- */
 export type CraftRecipe = {
-  /**
-   * What the recipe is called in the crafting window — "Forge a blank stone",
-   * "Cook meat". Per recipe, because the window lists several and the player
-   * is choosing between them. Blank reads as the tile's verb.
-   */
   name: string;
-  /** Everything spent, all at once. At least one. */
   inputs: CraftInput[];
   output: CraftOutput;
 };
 
-/**
- * This tile turns carried things into others — a forge you reforge stones at,
- * a fire you cook at.
- *
- * **Nothing on the board changes**, exactly as nothing changes when a reward is
- * taken: the forge has to still be a forge for the next person. What changes is
- * the kit of whoever used it. Unlike a reward it is *not* once per player and
- * carries no tag — a fire cooks the second steak too, and what limits it is
- * having something to spend.
- *
- * **One row, and a window behind it.** The tile offers a single row named by
- * {@link actionName}, and pressing it opens a list of the recipes the player
- * can afford right now — the same shape a conversation takes. A forge with ten
- * recipes would otherwise be ten rows crowding everything else in reach, and a
- * recipe you cannot afford is not on either list: the menu is what you could
- * make, not what forges can do.
- */
 export type CraftInteraction = {
-  /**
-   * What using it is called — "Forge", "Cook". The row's verb, and the
-   * window's title beside the tile's name. Optional, and blank reads as
-   * "Craft".
-   */
   actionName?: string;
   recipes: CraftRecipe[];
 };
 
-/**
- * Most things one recipe may hand back.
- *
- * {@link MAX_REWARD_ITEMS}' argument, because it is the same constraint: the
- * outputs may all arrive at once and all have to fit, so a recipe authored
- * bigger than any bag in the game is one nobody can ever run.
- */
 export const MAX_CRAFT_OUTPUTS = MAX_CONTAINER_SIZE;
 
-/**
- * Most kinds of thing one recipe may spend. A recipe that asks for more than
- * this is a shopping list, not a recipe, and the window has to draw every one.
- */
 export const MAX_CRAFT_INPUTS = 4;
 
-/**
- * Most of one thing a recipe may spend — a pile's largest size, so a price is
- * never more than the biggest pile anybody could be carrying in one square.
- */
 export const MAX_CRAFT_INPUT_COUNT = 99;
 
-/** A certain outcome, on {@link MAX_EXTRACT_CHANCE}'s terms. */
 export const MAX_CRAFT_CHANCE = 100;
 
-/**
- * Heaviest one option may lean. A bound for the file's sake rather than the
- * game's — the sum is walked once per craft — so a hand edit cannot ask for a
- * weight that overflows into nonsense.
- */
 export const MAX_CRAFT_WEIGHT = 1000;
 
-/**
- * Most recipes one tile may offer.
- *
- * A bound on a *list the player reads*: every affordable recipe is a row in the
- * crafting window, and a forge offering fifty has stopped being something you
- * can scan.
- */
 export const MAX_CRAFT_RECIPES = 16;
 
-/**
- * Most items one placement may hand over.
- *
- * The largest bag there is, because the taker needs room for *all* of them at
- * once — see `rewardFits`. A reward authored bigger than any container in the
- * game is not a generous reward, it is one nobody can ever take.
- */
 export const MAX_REWARD_ITEMS = MAX_CONTAINER_SIZE;
 
-/**
- * One thing this resource might yield, and how likely it is to.
- *
- * Deliberately the same shape and the same percent scale a `KitEntry` is drawn
- * on — see `./kit`, whose module note argues the whole of it — because it is the
- * same question asked of a different subject: a rat's kit is what killing it is
- * worth, and this is what working a bush is worth. An author who has written one
- * has written the other.
- *
- * **Every slot is drawn for, every time, independently.** There is no "pick
- * one": four slots at 50% is a handful of berries on a good pull and nothing at
- * all on a bad one, which is what makes a range authorable without a range
- * field. "One to three berries" is three berry slots at descending chances;
- * "nothing, or a shard" is one slot at whatever the shard is worth.
- */
 export type ExtractSlot = {
   tileId: string;
-  /** Percent. Floats allowed, on {@link KitEntry}'s argument for them. */
   chance: number;
 };
 
-/** Percent, both ends included. Nothing is ever more certain than certain. */
 export const MIN_EXTRACT_CHANCE = 0;
 export const MAX_EXTRACT_CHANCE = 100;
 
-/**
- * Most things one resource may be authored to yield.
- *
- * Four, and the number is doing two jobs. It bounds what a single pull can put
- * in a bag, which is what lets {@link extractFits} ask for room up front rather
- * than discovering halfway through that there is none. And it bounds what an
- * author can express: a table with twenty rows in it is a loot table, and a
- * bush is not a boss.
- */
 export const MAX_EXTRACT_SLOTS = 4;
 
-/**
- * Work this thing for what it is made of — mine a crystal, pick a bush.
- *
- * **The one authored interaction that is shared and spends the world.** A reward
- * is once per *player* and leaves the chest standing; a craft is as often as
- * you can pay for it and leaves the forge standing. This is the other arrangement,
- * and it is the one a resource wants: the crystal is the same crystal for
- * everybody who walks up to it, and what everybody takes out of it comes out of
- * one shared {@link durability}. Two people mining one vein race each other.
- *
- * That makes it the only interaction where **the act itself takes time and can
- * be taken away from you**, and that pairing is what the whole design rests on:
- *
- * - {@link durability} is the world's, spent by anybody, held on the placement
- *   ({@link PlacedTile.extractsLeft}) so every client and the checkpoint see the
- *   same number.
- * - {@link durationMs} is how long one pull takes to *make*. It runs while the
- *   player stands there, it hands nothing over until it finishes, and a step, a
- *   shove or a blow ends it with nothing to show for it.
- * - and for as long as it runs, the pull it is going to take is held out of the
- *   shared count ({@link PlacedTile.extractsReserved}), so two people can work
- *   one vein at once and three cannot take four pulls out of a three-pull vein.
- *
- * **Nothing here says how the resource comes back**, and that is deliberate:
- * {@link tileId} hands the placement to machinery that already exists. A bush
- * that becomes a picked bush comes back because *the picked bush* decays into a
- * bush ({@link DecayInteraction}); a crystal that becomes nothing comes back
- * because the crystal's own spawn point notices the empty cell
- * ({@link RespawnInteraction}). Authoring regrowth here would be a third
- * countdown competing with two that already work.
- */
 export type ExtractInteraction = {
-  /**
-   * What working it is called — "Mine" a crystal, "Pick" a bush, "Fell" a tree.
-   *
-   * Authored for the reason every other verb in this file is: nothing derivable
-   * from a tile that hands you a shard says whether you chipped it off or
-   * plucked it. Optional, and blank reads as "Gather".
-   */
   actionName?: string;
-  /**
-   * How many pulls this placement has in it before it turns into
-   * {@link tileId}.
-   *
-   * The def's number is what a *fresh* placement starts with; what is left of
-   * any particular one is on the placement. So an author says "a vein is worth
-   * three swings" once, and every vein in the world is worth three.
-   *
-   * At least one. A resource with no pulls in it is a resource that turns the
-   * first time anybody touches it, which is authorable — `durability: 1` — and
-   * meaning it takes zero is not.
-   */
   durability: number;
-  /**
-   * What this becomes once the last pull is taken. **Blank removes the
-   * placement**, on exactly {@link DecayInteraction.tileId}'s terms and for the
-   * same reason: there is no `air` tile to name, and a mined-out crystal is
-   * simply not there any more.
-   *
-   * A blank target is therefore meaningful rather than malformed here too, so
-   * {@link durability} is what says whether a tile can be worked at all.
-   */
   tileId: string;
-  /**
-   * How long one pull takes, in wall-clock milliseconds.
-   *
-   * The player stands there for the whole of it and gets nothing until it ends:
-   * a step, a shove or a blow cancels the pull, frees the reservation it was
-   * holding and leaves them with nothing. That is what makes a rich vein worth
-   * clearing a room for, and what makes mining one somebody else's problem to
-   * interrupt.
-   *
-   * Zero is legal and means what it says: the pull lands on the tap, and the
-   * only thing pacing the resource is its durability.
-   */
   durationMs: number;
-  /**
-   * What a pull might yield, in the order it is rolled. At most
-   * {@link MAX_EXTRACT_SLOTS}. See {@link ExtractSlot}.
-   *
-   * A block with none of them is not a resource — there is nothing to take out
-   * of it — so unlike a reward's empty block, an empty list here reads as
-   * unauthored and the resolver refuses it.
-   */
   slots: ExtractSlot[];
 };
 
-/** Ways a placed object can behave in play. Grows over time. */
 export type TileInteractions = {
-  /**
-   * What drives this body when nobody is connected to it. Only meaningful on a
-   * tile marked {@link TileDef.actor}; see `./brain`, which owns the shape and
-   * the parsing — it is large enough to be its own module rather than another
-   * block in here.
-   */
   brain?: BrainDef;
-  /**
-   * A conversation this body can hold — what it answers to, and with what.
-   * Makes the tile an actor exactly as a brain does. See `./dialog`, which owns
-   * the shape and the parsing on the brain's terms.
-   */
   dialog?: DialogDef;
-  /**
-   * Hit points and the numbers that spend them. See `./battler`, which owns the
-   * shape and the parsing.
-   *
-   * Independent of {@link brain} and of {@link TileDef.actor}: hit points are a
-   * property of a body, not of what drives one. The player is a battler with no
-   * brain, a deer is a battler with one, and a crate could be a battler with
-   * neither.
-   *
-   * Read only on a tile whose {@link TileDef.kind} is `battler` — see
-   * `resolveBattler`.
-   */
   battler?: BattlerDef;
-  /**
-   * What it takes to be carried. See `./item`, which owns the shape and the
-   * parsing.
-   *
-   * Mutually exclusive with {@link battler}, unlike every other pair in here,
-   * and the exclusivity is stated by {@link TileDef.kind} rather than by this
-   * block's presence: both resolvers refuse a tile whose kind is not theirs, so
-   * a stale block is inert rather than in charge.
-   */
   item?: ItemDef;
-  /**
-   * How fast it flies and what it does where it lands. See `./projectile`,
-   * which owns the shape and the parsing.
-   *
-   * Read only on a tile whose {@link TileDef.kind} is `projectile`, on exactly
-   * the terms {@link item} and {@link battler} are — and exclusive with both
-   * for a reason worth knowing: the arcane shard is the coin the shopkeeper
-   * trades in, so what a stone throws is a different tile that merely looks
-   * like one.
-   *
-   * The other two thirds of what a flight plays are the tile's own
-   * `TileDef.transitions`, which every tile has already.
-   */
   projectile?: ProjectileBlock;
   push?: PushInteraction;
   switch?: SwitchInteraction;
@@ -999,11 +240,6 @@ export const DEFAULT_REWARD: RewardInteraction = {
   actionName: "",
 };
 
-/**
- * One blank recipe, because a crafter with no recipes is not a crafter —
- * switching the block on has to leave the author with the row they came to
- * fill in, exactly as switching a switch on leaves them a target to pick.
- */
 export const DEFAULT_CRAFT_RECIPE: CraftRecipe = {
   name: "",
   inputs: [{ tileId: "", count: 1 }],
@@ -1015,22 +251,8 @@ export const DEFAULT_CRAFT: CraftInteraction = {
   recipes: [DEFAULT_CRAFT_RECIPE],
 };
 
-/**
- * Long enough that a pull is something you commit to and can be knocked off,
- * short enough that a bush is not a chore. Every authored resource sets its
- * own; this is only what a freshly switched-on block starts at.
- */
 const DEFAULT_EXTRACT_DURATION_MS = 3_000;
 
-/**
- * A bush, which is the shape this was authored for: three pulls, a handful of
- * something each time, and a moment spent standing there for each one.
- *
- * The yield is left blank on purpose, exactly as a status grant's id is: only
- * the author knows what this thing is made of, and a resolver that refused an
- * empty list is what makes switching the block on leave them the one row they
- * came to fill in.
- */
 export const DEFAULT_EXTRACT: ExtractInteraction = {
   actionName: "",
   durability: 3,
@@ -1039,48 +261,24 @@ export const DEFAULT_EXTRACT: ExtractInteraction = {
   slots: [{ tileId: "", chance: MAX_EXTRACT_CHANCE }],
 };
 
-/**
- * A ladder, which is the shape this was authored for: you stand on the rungs
- * and climb one floor. Relative rather than absolute because a default with
- * coordinates in it would be a default that points at a particular room.
- */
 export const DEFAULT_TELEPORT: TeleportInteraction = {
   actionName: "",
   trigger: "interactOver",
   destination: { kind: "relative", delta: { x: 0, y: 0, z: 1 } },
 };
 
-/**
- * A fire you walk into, which is the shape this was authored for: it happens
- * underfoot, and there is nothing to press.
- *
- * The status is left blank on purpose. Only the author knows which condition
- * this is, and a block naming none is refused rather than guessed at — so
- * switching it on leaves them the one field they came to fill in, exactly as
- * switching a switch on leaves them a target to pick.
- */
 export const DEFAULT_ADD_STATUS: AddStatusInteraction = {
   actionName: "",
   trigger: "step",
   statusId: "",
 };
 
-/**
- * Water you walk into, which is the shape this was authored for. The status is
- * blank for {@link DEFAULT_ADD_STATUS}'s reason.
- */
 export const DEFAULT_REMOVE_STATUS: RemoveStatusInteraction = {
   actionName: "",
   trigger: "step",
   statusId: "",
 };
 
-/**
- * Enough that a tile does not vanish the instant anything touches it, and low
- * enough that `burned`'s authored four-a-second gets through in a few seconds.
- * A number rather than a share of anything: there is no maximum for a tile to
- * take a fraction of, and every author tuning this wants seconds.
- */
 const DEFAULT_DURABILITY = 20;
 
 export const DEFAULT_AFFLICTION: Affliction = {
@@ -1093,29 +291,11 @@ export const DEFAULT_ENDURE: EndureInteraction = {
   suffers: [],
 };
 
-/**
- * How many statuses one tile may be authored to suffer.
- *
- * A bound rather than a judgement, on {@link MAX_CRAFT_RECIPES}' terms: the
- * list is walked per tick per afflicted placement, and a file that can ask for
- * a thousand is a file that can make the tick cost whatever it likes.
- */
 export const MAX_AFFLICTIONS = 4;
 
-/**
- * Long enough to read as an aftermath rather than a glitch, short enough that a
- * fight's worth of blood is gone before the next one starts — and spread wide
- * enough that a burst of it does not clear in one frame.
- */
 const DEFAULT_DECAY_FROM_MS = 20_000;
 const DEFAULT_DECAY_TO_MS = 40_000;
 
-/**
- * Adjacent rather than underfoot, unlike the flame {@link DEFAULT_ADD_STATUS}
- * is written for: the motivating tile is a thing you walk up to and press, and
- * a block that anchored somebody the instant it was switched on would be an
- * author's first click changing where every player in the world wakes up.
- */
 export const DEFAULT_SET_SPAWN: SetSpawnInteraction = {
   trigger: "interact",
   actionName: "",
@@ -1127,12 +307,6 @@ export const DEFAULT_DECAY: DecayInteraction = {
   toMs: DEFAULT_DECAY_TO_MS,
 };
 
-/**
- * Long enough that clearing a spot feels like it happened, short enough that a
- * player who came back for the creature does not find the world permanently
- * poorer — and spread so a cleared camp trickles back rather than reappearing
- * in one frame.
- */
 const DEFAULT_RESPAWN_FROM_MS = 30_000;
 const DEFAULT_RESPAWN_TO_MS = 60_000;
 
@@ -1162,7 +336,6 @@ export const DEFAULT_RECEIVE: ReceiveInteraction = {
   mode: "any",
 };
 
-/** Does the load resting on this plate satisfy its authored comparison? */
 export function plateTriggers(plate: PressurePlateInteraction, load: number): boolean {
   return COMPARATORS[plate.type](load, plate.height);
 }
@@ -1172,14 +345,6 @@ const pushSchema = v.object({
   moveOnTileIds: v.array(v.string()),
 });
 
-/**
- * Parsed push config per tile def. `data/tiles.json` is hand-editable, so the
- * shape is validated rather than trusted; a malformed block reads as "not
- * pushable" instead of throwing mid-frame.
- *
- * Memoised on def identity — {@link isInteractive} runs over every candidate
- * tile on each pointer move.
- */
 const pushCache = new WeakMap<TileDef, PushInteraction | null>();
 
 export function resolvePush(def: TileDef): PushInteraction | null {
@@ -1195,18 +360,11 @@ export function resolvePush(def: TileDef): PushInteraction | null {
 
 const switchSchema = v.object({
   targetTileId: v.pipe(v.string(), v.minLength(1)),
-  // Optional rather than required: every switch authored before this field
-  // existed is still a valid switch, and a stricter schema would silently
-  // demote all of them to "not switchable".
   actionName: v.optional(v.string()),
 });
 
 const switchCache = new WeakMap<TileDef, SwitchInteraction | null>();
 
-/**
- * Parsed switch config per tile def. Same trust model as {@link resolvePush}:
- * malformed or empty target → not switchable.
- */
 export function resolveSwitch(def: TileDef): SwitchInteraction | null {
   const cached = switchCache.get(def);
   if (cached !== undefined) return cached;
@@ -1224,14 +382,6 @@ const rewardSchema = v.object({
 
 const rewardCache = new WeakMap<TileDef, RewardInteraction | null>();
 
-/**
- * Parsed reward config for a tile def — whether this tile is a giver at all,
- * and what the gesture is called.
- *
- * Same trust model as {@link resolvePush}: malformed → not a giver. An *empty*
- * block is entirely valid and is the common case, because the block's presence
- * is the whole statement; what is given is on the placement.
- */
 export function resolveRewardDef(def: TileDef): RewardInteraction | null {
   const cached = rewardCache.get(def);
   if (cached !== undefined) return cached;
@@ -1243,24 +393,6 @@ export function resolveRewardDef(def: TileDef): RewardInteraction | null {
   return reward;
 }
 
-/**
- * What one placement of a giver tile actually hands over, or null when it hands
- * over nothing.
- *
- * Both halves are required and neither is repairable. A tagless reward could be
- * taken for ever, which is the one thing this exists to prevent; an empty one
- * offers a verb that does nothing. Either way the answer is null, which reads
- * downstream as "there is no reward here" — the same shape a malformed switch
- * takes, and it means a half-authored chest is scenery rather than a trap.
- *
- * Parsed rather than trusted, like every other block: `data/map.json` is
- * hand-editable, so these two fields arrive from a file somebody typed.
- *
- * Memoised on placement identity, on the same grounds the def resolvers are
- * memoised on def identity: the map is copy-on-write, so a placement object is
- * stable until that cell is edited, and this is asked per reachable cell on
- * every pointer move.
- */
 const placedRewardCache = new WeakMap<PlacedTile, PlacedReward | null>();
 
 export function resolveReward(placed: PlacedTile, def: TileDef | undefined): PlacedReward | null {
@@ -1325,26 +457,12 @@ const craftOutputSchema = v.variant("kind", [
   }),
 ]);
 
-/**
- * One recipe, as it is allowed to arrive from a hand-edited file.
- *
- * Every input must name something and so must every output, because either
- * half missing makes the recipe a button that does nothing — the same line
- * {@link readPlacedReward} draws, and it lands in the same place: a
- * half-authored recipe is dropped and the rest of the tile still works.
- */
 const craftRecipeSchema = v.object({
   name: v.fallback(v.pipe(v.string(), v.trim()), ""),
   inputs: v.pipe(v.array(craftInputSchema), v.minLength(1), v.maxLength(MAX_CRAFT_INPUTS)),
   output: craftOutputSchema,
 });
 
-/**
- * Malformed recipes are dropped one at a time rather than taking the block down
- * with them: a forge with ten recipes and a typo in the third should still
- * offer the other nine, and an author who broke one should see that one go
- * missing rather than the tile go inert.
- */
 const craftSchema = v.object({
   actionName: v.optional(v.string()),
   recipes: v.pipe(
@@ -1357,18 +475,6 @@ const craftSchema = v.object({
 
 const craftCache = new WeakMap<TileDef, CraftInteraction | null>();
 
-/**
- * Parsed crafting config for a tile def — every recipe it offers, in the order
- * the author wrote them.
- *
- * Same trust model as {@link resolvePush}, and one refusal of its own: a block
- * whose recipes all turned out to be malformed is *not* a crafter, so it offers
- * no row rather than an empty window.
- *
- * Memoised on def identity, on the same grounds every other resolver here is:
- * the interaction list asks this per reachable cell every time the board or the
- * player moves.
- */
 export function resolveCraft(def: TileDef): CraftInteraction | null {
   const cached = craftCache.get(def);
   if (cached !== undefined) return cached;
@@ -1380,13 +486,6 @@ export function resolveCraft(def: TileDef): CraftInteraction | null {
   return craft;
 }
 
-/**
- * One yield slot, as it is allowed to arrive from a hand-edited file.
- *
- * A slot naming nothing is dropped rather than taking the block down with it,
- * on exactly the terms a malformed recipe is: a bush that yields two things and
- * has a typo in the second should still yield the first.
- */
 const extractSlotSchema = v.object({
   tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
   chance: v.pipe(
@@ -1399,16 +498,8 @@ const extractSlotSchema = v.object({
 
 const extractSchema = v.object({
   actionName: v.optional(v.string()),
-  // The real gate, on `decaySchema`'s terms: a blank target is how a resource
-  // says it vanishes when it is spent, so the count is what says whether this
-  // can be worked at all. Zero pulls is a tile that turns before anybody
-  // touches it, which nobody means.
   durability: v.pipe(v.number(), v.integer(), v.minValue(1)),
-  // Permissive where every other target is `minLength(1)`, because blank is
-  // this block's "remove me" — a mined-out crystal is simply not there.
   tileId: v.string(),
-  // Zero is legal and means the pull lands on the tap, with nothing to
-  // interrupt.
   durationMs: v.pipe(v.number(), v.integer(), v.minValue(0)),
   slots: v.pipe(
     v.array(v.fallback(v.nullable(extractSlotSchema), null)),
@@ -1420,15 +511,6 @@ const extractSchema = v.object({
 
 const extractCache = new WeakMap<TileDef, ExtractInteraction | null>();
 
-/**
- * Parsed extract config per tile def. Same trust model as {@link resolvePush}:
- * malformed → cannot be worked.
- *
- * One refusal of its own, and it is `resolveCraft`'s: a block whose slots
- * all turned out to be malformed yields nothing, so it is not a resource. A
- * tile that offered a verb and handed back nothing would be a row that takes a
- * press and shrugs, and it would spend the world's durability doing it.
- */
 export function resolveExtract(def: TileDef): ExtractInteraction | null {
   const cached = extractCache.get(def);
   if (cached !== undefined) return cached;
@@ -1440,28 +522,8 @@ export function resolveExtract(def: TileDef): ExtractInteraction | null {
   return extract;
 }
 
-/**
- * What an unnamed resource reads as.
- *
- * A real word rather than the mechanism's own, on the same grounds "Take" and
- * "Enter" are real words: "Extract" is what the code calls it, and a player reading a row over a
- * bush should see something a person would say.
- */
 export const DEFAULT_EXTRACT_VERB = "Gather";
 
-/**
- * How many pulls this particular placement has left.
- *
- * The placement's own count where it has one, the def's where it does not — and
- * *not having one is the ordinary case*: a fresh placement carries no number at
- * all, so a map full of untouched bushes costs the file nothing and the wire
- * nothing. See {@link PlacedTile.extractsLeft}.
- *
- * Clamped to the authored durability, because the def is the authority on how
- * much a thing is worth: lowering `durability` in `tiles.json` should shorten
- * every vein in the world, including the ones somebody has already started on,
- * rather than leaving a handful of placements richer than any new one.
- */
 export function extractsLeft(placed: PlacedTile, extract: ExtractInteraction): number {
   const left = placed.extractsLeft;
   if (typeof left !== "number" || !Number.isFinite(left)) {
@@ -1470,43 +532,18 @@ export function extractsLeft(placed: PlacedTile, extract: ExtractInteraction): n
   return Math.max(0, Math.min(extract.durability, Math.floor(left)));
 }
 
-/**
- * How many of this placement's pulls somebody is part-way through taking.
- *
- * The other half of {@link extractsLeft}, and it is on the placement for the
- * same reason: everybody has to agree about it. A player who starts a pull
- * holds one of the vein's remaining pulls for as long as they are standing
- * there, so the person walking up behind them sees a vein with one fewer to
- * offer rather than discovering at the end of their own twelve seconds that
- * there was nothing left.
- *
- * Absent on everything nobody is working, which is every placement in an
- * authored map and every placement in a world at rest. Cleared when a world
- * loads — see `../game/extract`'s `clearExtractReservations` — because a
- * reservation is a fact about who is standing there *now*, and nobody is
- * standing anywhere in a checkpoint.
- */
 export function extractsReserved(placed: PlacedTile): number {
   const held = placed.extractsReserved;
   if (typeof held !== "number" || !Number.isFinite(held)) return 0;
   return Math.max(0, Math.floor(held));
 }
 
-/** What an unnamed crafter's row reads as. */
 export const DEFAULT_CRAFT_VERB = "Craft";
 
-/**
- * What a crafter's row is called, with the fallback applied.
- *
- * One place, because the list draws it, the window titles itself with it and
- * the tile editor previews it, and a verb that read as "Craft" in one and
- * blank in another would be two answers to a question the author asked once.
- */
 export function craftVerb(craft: CraftInteraction): string {
   return craft.actionName?.trim() || DEFAULT_CRAFT_VERB;
 }
 
-/** What a recipe is called in the window: its own name, else the tile's verb. */
 export function craftRecipeName(craft: CraftInteraction, recipe: CraftRecipe): string {
   return recipe.name.trim() || craftVerb(craft);
 }
@@ -1528,15 +565,6 @@ const teleportSchema = v.object({
 
 const teleportCache = new WeakMap<TileDef, TeleportInteraction | null>();
 
-/**
- * Parsed teleport config for a tile def — whether this tile moves anybody at
- * all, what the gesture is called, and how the placement's numbers read.
- *
- * Same trust model as {@link resolvePush}: malformed → does not teleport. The
- * block carries no coordinates, so unlike a switch there is no target to be
- * empty; a well-formed block on a placement nobody wrote a destination on is a
- * portal that leads nowhere, which {@link resolveTeleport} is what refuses.
- */
 export function resolveTeleportDef(def: TileDef): TeleportInteraction | null {
   const cached = teleportCache.get(def);
   if (cached !== undefined) return cached;
@@ -1552,24 +580,6 @@ const placedTeleportSchema = v.object({
   teleportTo: coordSchema,
 });
 
-/**
- * Where one placement of a teleporting tile actually sends somebody, or null
- * when it sends them nowhere.
- *
- * **The union decides which half is even consulted.** A relative teleport reads
- * its delta off the tile and never looks at the placement; an absolute one reads
- * the placement and the tile carries no numbers at all. So a ladder is authored
- * once and works everywhere it is dropped, and a portal is authored per doorway
- * — see {@link TeleportDestination} for why that is the split.
- *
- * Either way the answer is one absolute cell, and everything downstream takes it
- * without learning which half it came from.
- *
- * A destination off the ends of the world is refused rather than clamped, on
- * the same terms every other malformed block here is: a ladder authored `z + 1`
- * on the top floor leads nowhere, and pinning it to the floor it is already on
- * would be a teleport that silently does nothing while still offering its row.
- */
 export function resolveTeleport(
   placed: PlacedTile,
   def: TileDef | undefined,
@@ -1581,10 +591,6 @@ export function resolveTeleport(
   const to = destinationOf(gesture.destination, placed, at);
   if (!to) return null;
   if (to.z < MIN_LEVEL || to.z > MAX_LEVEL) return null;
-  // A teleport onto the cell it is authored in is not a teleport. Refused
-  // rather than left as a no-op move, because the row is offered from this same
-  // answer: a ladder whose delta is all zeroes should read as unauthored rather
-  // than as a rung that takes a press and does nothing.
   if (to.x === at.x && to.y === at.y && to.z === at.z) return null;
 
   return {
@@ -1606,15 +612,6 @@ function destinationOf(
   return authoredDestination(placed);
 }
 
-/**
- * The cell written on this placement, for the absolute case only.
- *
- * Memoised on placement identity — the map is copy-on-write, so a placement
- * object is stable until its cell is edited, and this is asked per reachable
- * cell on every pointer move. Safe to cache unlike a resolved *relative*
- * destination, which depends on where the placement is standing and so could go
- * stale the moment one moved.
- */
 const authoredTeleportCache = new WeakMap<PlacedTile, Coord | null>();
 
 function authoredDestination(placed: PlacedTile): Coord | null {
@@ -1630,31 +627,12 @@ function authoredDestination(placed: PlacedTile): Coord | null {
 const addStatusSchema = v.object({
   actionName: v.optional(v.string()),
   trigger: v.picklist(ACTIVATION_TRIGGERS),
-  // The one field with nothing to fall back on, so blank is refused where every
-  // other verb here treats it as "unnamed": a block naming no status is a block
-  // that could only do nothing, and it should read as unauthored rather than as
-  // a row that takes a press and shrugs.
   statusId: v.pipe(v.string(), v.trim(), v.minLength(1)),
   ground: v.optional(v.boolean()),
 });
 
 const addStatusCache = new WeakMap<TileDef, AddStatusInteraction | null>();
 
-/**
- * Parsed status-granting config for a tile def — whether this tile puts
- * anything on anybody, what the gesture is called, and how it is set off.
- *
- * Same trust model as {@link resolvePush}: malformed → grants nothing. The
- * whole of it is here, with no placement half to join, on the terms
- * {@link resolveCraft} is — so unlike a teleport there is no second
- * resolver that could refuse what this one allowed.
- *
- * Whether the named status *exists* is deliberately not asked. The catalogue is
- * the session's and this is the tile's, and the two are loaded from different
- * files by different owners; an id that has been renamed away is an effect that
- * does not happen, which is exactly what `GameSession.grantStatus` already does
- * with one.
- */
 export function resolveAddStatus(def: TileDef): AddStatusInteraction | null {
   const cached = addStatusCache.get(def);
   if (cached !== undefined) return cached;
@@ -1669,19 +647,11 @@ export function resolveAddStatus(def: TileDef): AddStatusInteraction | null {
 const removeStatusSchema = v.object({
   actionName: v.optional(v.string()),
   trigger: v.picklist(ACTIVATION_TRIGGERS),
-  // Blank is refused for the reason it is on `addStatusSchema`.
   statusId: v.pipe(v.string(), v.trim(), v.minLength(1)),
 });
 
 const removeStatusCache = new WeakMap<TileDef, RemoveStatusInteraction | null>();
 
-/**
- * Parsed status-removing config for a tile def — whether this tile takes a
- * status off anybody, what the gesture is called, and how it is set off.
- *
- * Same trust model as {@link resolveAddStatus}: malformed → removes nothing,
- * and whether the named status exists is not asked.
- */
 export function resolveRemoveStatus(def: TileDef): RemoveStatusInteraction | null {
   const cached = removeStatusCache.get(def);
   if (cached !== undefined) return cached;
@@ -1700,17 +670,6 @@ const setSpawnSchema = v.object({
 
 const setSpawnCache = new WeakMap<TileDef, SetSpawnInteraction | null>();
 
-/**
- * Parsed come-back-here config for a tile def — whether pressing this moves
- * where somebody is reborn, what the gesture is called, and how it is set off.
- *
- * Same trust model as {@link resolvePush}: malformed → moves nothing. The whole
- * of it is here with no placement half to join, on {@link resolveAddStatus}'s
- * terms — and with one field fewer than that, because the destination is never
- * authored. A block with nothing in it but a trigger is therefore always
- * complete: there is no half-filled state for this to refuse, which is why it
- * has no `minLength` gate where the status block has one.
- */
 export function resolveSetSpawn(def: TileDef): SetSpawnInteraction | null {
   const cached = setSpawnCache.get(def);
   if (cached !== undefined) return cached;
@@ -1724,30 +683,16 @@ export function resolveSetSpawn(def: TileDef): SetSpawnInteraction | null {
 
 const afflictionSchema = v.object({
   statusId: v.pipe(v.string(), v.minLength(1)),
-  // Permissive where the status id is not, and for `decay.tileId`'s reason:
-  // blank is how an affliction says the placement simply goes, and refusing it
-  // would make a tree that burns down unauthorable.
   tileId: v.string(),
 });
 
 const endureSchema = v.object({
-  // The real gate. A tile with no points in it is one that turns on the first
-  // tick of the first status it meets, so a half-authored block is inert rather
-  // than scenery that deletes itself.
   durability: v.pipe(v.number(), v.integer(), v.minValue(1)),
-  // Refused when empty, unlike a reward's list and exactly like an extract's:
-  // there is nothing that could spend the pool, so the block is not a
-  // vulnerability at all. Capped for the reason {@link MAX_AFFLICTIONS} exists.
   suffers: v.pipe(v.array(afflictionSchema), v.minLength(1), v.maxLength(MAX_AFFLICTIONS)),
 });
 
 const endureCache = new WeakMap<TileDef, EndureInteraction | null>();
 
-/**
- * Parsed endure config per tile def. Same trust model as {@link resolvePush}:
- * malformed, or with nothing to spend and nothing to spend it, → cannot be worn
- * down.
- */
 export function resolveEndure(def: TileDef): EndureInteraction | null {
   const cached = endureCache.get(def);
   if (cached !== undefined) return cached;
@@ -1759,44 +704,21 @@ export function resolveEndure(def: TileDef): EndureInteraction | null {
   return endure;
 }
 
-/**
- * What this tile turns into under `statusId`, or null when that status does
- * nothing to it.
- *
- * The one place "does this tile suffer this?" is answered, so the spread and the
- * affliction cannot come to disagree about what is flammable. A blank
- * {@link Affliction.tileId} is a real answer — the placement goes — which is why
- * this hands back the affliction rather than the target.
- */
 export function afflictionFor(endure: EndureInteraction, statusId: string): Affliction | null {
   return endure.suffers.find((one) => one.statusId === statusId) ?? null;
 }
 
 const decaySchema = v.pipe(
   v.object({
-    // Permissive where every other target is `minLength(1)`, because blank is
-    // this block's "remove me" and refusing it would make vanishing
-    // unauthorable.
     tileId: v.string(),
-    // The real gate. A tile with no positive lifetime does not decay, so a
-    // half-authored block is inert rather than a placement that disappears on
-    // the first tick.
     fromMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
     toMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
   }),
-  // Checked rather than repaired by swapping the two, because a range nobody
-  // meant should read as the inert block it is — silently reversing it would
-  // make a typo into a behaviour, and the editor keeps the pair ordered so
-  // nothing authored through it can land here.
   v.check((d) => d.toMs >= d.fromMs, "decay toMs must be at least fromMs"),
 );
 
 const decayCache = new WeakMap<TileDef, DecayInteraction | null>();
 
-/**
- * Parsed decay config per tile def. Same trust model as {@link resolvePush}:
- * malformed, or with no lifetime to count down, → does not decay.
- */
 export function resolveDecay(def: TileDef): DecayInteraction | null {
   const cached = decayCache.get(def);
   if (cached !== undefined) return cached;
@@ -1810,9 +732,6 @@ export function resolveDecay(def: TileDef): DecayInteraction | null {
 
 const respawnSchema = v.pipe(
   v.object({
-    // The same gate decay's lifetime is behind: no positive wait means no
-    // respawn, so a half-authored block is inert rather than a spawn point
-    // that refills the instant it empties.
     fromMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
     toMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
   }),
@@ -1821,10 +740,6 @@ const respawnSchema = v.pipe(
 
 const respawnCache = new WeakMap<TileDef, RespawnInteraction | null>();
 
-/**
- * Parsed respawn config per tile def. Same trust model as {@link resolvePush}:
- * malformed, or with no wait to count down, → does not respawn.
- */
 export function resolveRespawn(def: TileDef): RespawnInteraction | null {
   const cached = respawnCache.get(def);
   if (cached !== undefined) return cached;
@@ -1844,10 +759,6 @@ const pressurePlateSchema = v.object({
 
 const pressurePlateCache = new WeakMap<TileDef, PressurePlateInteraction | null>();
 
-/**
- * Parsed pressure plate config per tile def. Same trust model as
- * {@link resolvePush}: malformed or targetless → not a plate.
- */
 export function resolvePressurePlate(def: TileDef): PressurePlateInteraction | null {
   const cached = pressurePlateCache.get(def);
   if (cached !== undefined) return cached;
@@ -1865,10 +776,6 @@ const emitSchema = v.object({
 
 const emitCache = new WeakMap<TileDef, EmitInteraction | null>();
 
-/**
- * Parsed emit config per tile def. Same trust model as {@link resolvePush}:
- * malformed → does not drive anything.
- */
 export function resolveEmit(def: TileDef): EmitInteraction | null {
   const cached = emitCache.get(def);
   if (cached !== undefined) return cached;
@@ -1888,10 +795,6 @@ const receiveSchema = v.object({
 
 const receiveCache = new WeakMap<TileDef, ReceiveInteraction | null>();
 
-/**
- * Parsed receive config per tile def. Same trust model as {@link resolvePush}:
- * malformed or targetless → does not follow anything.
- */
 export function resolveReceive(def: TileDef): ReceiveInteraction | null {
   const cached = receiveCache.get(def);
   if (cached !== undefined) return cached;
@@ -1903,42 +806,10 @@ export function resolveReceive(def: TileDef): ReceiveInteraction | null {
   return receive;
 }
 
-/** Does the channel reading satisfy this receiver's authored condition? */
 export function receiveTriggers(receive: ReceiveInteraction, powered: boolean): boolean {
   return powered === (receive.when === "on");
 }
 
-/**
- * Kinds of interaction a tile offers the player, in the order the single
- * interact button tries them.
- *
- * Reward comes first, ahead of even a switch, because it is the only one of
- * these that can happen to a given player *once*. A chest authored to both hand
- * over its contents and swing open would otherwise spend its one chance on the
- * hinge. And it falls through cleanly: a reward already taken is not on offer at
- * all, so the second tap on that chest is the switch, with nothing here having
- * to know it is the second.
- *
- * Switch comes next: it is an explicit authored swap, and an author who put
- * one on a tile meant it to be what happens. A status follows the switch and
- * for its own reason: it is the only kind here that changes the *presser*
- * rather than the board, so a brazier authored to both light a room and burn
- * the hand that lit it lights the room first — the visible half of the tap is
- * the one the player was aiming at. Craft follows both and for the
- * same argument one step weaker — it is authored and explicit, but it is the
- * only kind here that can offer *several* rows on one tile, so it is named by
- * its row rather than reached by a bare tap. Pick-up comes after, because
- * lifting a thing is a better guess at what somebody wants from a sword on the
- * floor than shoving it further away. Push is last, the fallback "just move it"
- * behaviour that anything can fall through to.
- *
- * Three things are deliberately *not* here. Pressure plates and decay, because
- * nothing about either answers to a tap — listing one would outline a floor
- * tile the player cannot act on. And `open`, because opening a container is not
- * something the server does: its contents are already on the client, riding on
- * the placement, so looking inside is local panel state. It is an
- * `InteractionAction` without being one of these, exactly as `target` is.
- */
 export type InteractionKind =
   | "reward"
   | "teleport"
@@ -1951,133 +822,45 @@ export type InteractionKind =
   | "pickUp"
   | "push";
 
-/** Every player-activated interaction on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
   const kinds: InteractionKind[] = [];
-  // The def's half only. Whether *this placement* actually gives anything is a
-  // question about a slot, and `interactionKinds` is asked about tiles — see
-  // `resolveReward`, which is what the affordances ask.
   if (resolveRewardDef(def)) kinds.push("reward");
-  // The def's half only too, and with a second question folded in: a `step`
-  // teleport is not player-activated at all, so a portal you walk onto is no
-  // more tappable than a pressure plate is. Only the two triggers that wait for
-  // a press are ever a kind.
   if (pressable(resolveTeleportDef(def))) kinds.push("teleport");
   if (resolveSwitch(def)) kinds.push("switch");
-  // The same second question a teleport's asks, and for the same reason: a fire
-  // you walk into answers to no press, so listing it would outline a floor tile
-  // and offer a row for something that has already happened.
   if (pressable(resolveAddStatus(def))) kinds.push("addStatus");
-  // The same question, for the same reason: water you wade into is not a row.
   if (pressable(resolveRemoveStatus(def))) kinds.push("removeStatus");
-  // The same second question again, and this one has the sharpest version of
-  // it: a `step` block is the whole of "walking in here anchors you", which is
-  // a thing that happens to you rather than a thing you can press.
   if (pressable(resolveSetSpawn(def))) kinds.push("setSpawn");
-  // The def's half and the whole of it — a crafter carries no placement
-  // half at all. Whether the player has anything to spend is a question about
-  // *them*, which is the affordances', not this one's.
   if (resolveCraft(def)) kinds.push("craft");
-  // The def's half and the whole of it, on a crafter's terms — there is no
-  // placement half that could make a resource *not* one. Whether this
-  // particular bush has anything left in it, and whether this particular player
-  // has waited long enough, are questions about a placement and about a person;
-  // see `../game/extract`.
   if (resolveExtract(def)) kinds.push("extract");
   if (resolveItem(def)) kinds.push("pickUp");
   if (resolvePush(def)) kinds.push("push");
   return kinds;
 }
 
-/** Does this gesture wait for a press, rather than firing underfoot? */
 function pressable(gesture: { trigger: ActivationTrigger } | null): boolean {
   return gesture != null && gesture.trigger !== "step";
 }
 
-/**
- * Can this tile ever change cell during play?
- *
- * Derived rather than declared, because every way a tile can move is already
- * stated: gravity makes it fall, a push interaction makes it shovable. A flag
- * beside those would be a third thing to keep in sync, and the first tile
- * authored without it would be the one that breaks.
- *
- * Two subsystems key off this and both want the same answer. The renderer keeps
- * mobile tiles out of the merged geometry batch, so a step repositions one mesh
- * instead of rebuilding a floor. The light cache keeps them out of the static
- * bake, so a step does not dirty the chunks around it. Both used to ask "is
- * this the player", which was true, cheap, and wrong the moment a second thing
- * moved.
- *
- * Deliberately a property of the tile, not of whether it happens to be moving
- * this frame. A boulder at rest is still mobile: classifying per frame would
- * mean shuffling it between the batch and its own mesh every time it started
- * and stopped, and that rebuild is exactly the cost being removed.
- *
- * A body is mobile by definition, and saying so explicitly rather than leaning
- * on its gravity is what keeps a hovering one out of the trap: baked into the
- * floor geometry, and smearing across it the moment it moved.
- */
 export function isMobileTile(def: TileDef): boolean {
   return def.affectedByGravity === true || resolveActor(def) || resolvePush(def) !== null;
 }
 
-/**
- * The {@link SpriteState}s this tile could ever be in.
- *
- * Derived from predicates that already exist rather than authored, and one
- * function rather than two: the editor builds its state selector from this and
- * the resolver refuses a state absent from it, so what can be authored is
- * exactly what can ever be drawn. A flag beside these would be a second answer
- * that can disagree with the first.
- *
- * {@link isMobileTile} rather than "has a brain or is a battler", because it
- * already means *can this ever change cell* — gravity, a brain, or a push — and
- * already argues why that has to be a property of the tile rather than of
- * whether it happens to be moving this frame. A shoved crate sliding is
- * movement, and a tile that authors nothing for a state it is offered pays
- * nothing for being offered it.
- *
- * Only ever returns states a renderer actually draws — see {@link SpriteState},
- * which is the one place that list grows. Offering a state early would put a
- * control in the editor that does nothing when used.
- */
 export function availableStates(def: TileDef): SpriteState[] {
   const out: SpriteState[] = ["idle"];
   if (isMobileTile(def)) out.push("moving");
   return out;
 }
 
-/**
- * Whether this tile has any sprite authored beyond idle.
- *
- * What the renderers register a mesh by, so the per-frame state pass can reach
- * it. Being animated is not enough on its own and neither is replacing it: a
- * grazing deer stands on a single frame and is therefore *not* animated, yet it
- * becomes a four-frame walk the moment it steps — so the registry has to be
- * joined by anything that *could* change, before it has.
- *
- * Keyed on what the tile has authored, never on which state it is in right now,
- * for the reason {@link isMobileTile} gives about classifying per frame: a mesh
- * that joined and left the registry as it started and stopped moving would be
- * rebuilding geometry on exactly the frames that can least afford it.
- */
 export function hasSpriteStates(def: TileDef): boolean {
   const states = def.states;
   if (!states) return false;
   return Object.values(states).some((s) => s != null);
 }
 
-/** Whether the player can do anything at all with this tile. */
 export function isInteractive(def: TileDef): boolean {
   return interactionKinds(def).length > 0;
 }
 
-/**
- * Whether this tile does anything in play — passive behaviour included. Use
- * over {@link isInteractive} when the question is "is this tile inert?" rather
- * than "can the player act on it?".
- */
 export function hasAnyInteraction(interactions: TileInteractions | undefined): boolean {
   return Boolean(
     interactions?.brain ||
@@ -2102,7 +885,6 @@ export function hasAnyInteraction(interactions: TileInteractions | undefined): b
   );
 }
 
-/** Persist interactions; omit the field entirely when nothing is enabled. */
 export function interactionsForSave(
   interactions: TileInteractions | undefined,
 ): TileInteractions | undefined {
@@ -2115,9 +897,6 @@ export function interactionsForSave(
         moveOnTileIds: [...push.moveOnTileIds].sort(),
       }
     : undefined;
-  // A blank verb is dropped rather than written as `""`: the file is
-  // hand-edited, and an empty string that means "no name" is a second way of
-  // saying what an absent key already says.
   const switchActionName = sw?.actionName?.trim();
   const savedSwitch = sw?.targetTileId.trim()
     ? {
@@ -2128,33 +907,12 @@ export function interactionsForSave(
   const savedPlate = plate?.tileId.trim()
     ? { tileId: plate.tileId.trim(), type: plate.type, height: plate.height }
     : undefined;
-  // Kept even when it is empty, unlike every other block here, because an empty
-  // one is the whole point: `reward: {}` says "this tile is a giver", and what
-  // it gives is written on each placement. Dropping it for having no fields set
-  // would un-author the tile.
   const reward = interactions?.reward;
   const rewardActionName = reward?.actionName?.trim();
   const savedReward = reward
     ? { ...(rewardActionName ? { actionName: rewardActionName } : {}) }
     : undefined;
-  // Kept whatever is in it, on the same terms the reward block is: the presence
-  // of the block is the statement, and there is nothing here that could be blank
-  // enough to mean unauthored.
-  //
-  // The destination is rebuilt by its arm rather than copied, for the reason
-  // `itemForSave` rebuilds an item's: flipping the control from an offset to a
-  // cell and back leaves the editor's draft carrying both shapes, and only the
-  // arm knows which fields belong. A `delta` left behind on an absolute teleport
-  // would be inert *and* invisible — sitting in `data/tiles.json` waiting for
-  // somebody to flip the control back and find numbers they never authored.
   const savedCraft = interactions?.craft ? craftForSave(interactions.craft) : undefined;
-  // Rebuilt slot by slot and the blank ones dropped on the way out, exactly as
-  // a recipe's rows are: a slot somebody added and never filled in is one the
-  // resolver would refuse anyway, and writing it to `data/tiles.json` would
-  // leave the file claiming a yield the game does not have. A block left with
-  // nothing to give is not a resource, so it goes — which is what makes the
-  // slots the gate here rather than the target, since a blank target is how a
-  // resource says it vanishes when it is spent.
   const extract = interactions?.extract;
   const savedSlots = (extract?.slots ?? []).flatMap((slot) => {
     const tileId = slot.tileId.trim();
@@ -2191,10 +949,6 @@ export function interactionsForSave(
             : { kind: "absolute" as const },
       }
     : undefined;
-  // Gated on the status rather than on the block, unlike the reward and the
-  // teleport above: those two have a placement half that carries the answer, and
-  // this has none — a block naming nothing is a block that could only do
-  // nothing, and the resolver refuses it either way.
   const addStatus = interactions?.addStatus;
   const addStatusActionName = addStatus?.actionName?.trim();
   const savedAddStatus = addStatus?.statusId.trim()
@@ -2202,12 +956,9 @@ export function interactionsForSave(
         ...(addStatusActionName ? { actionName: addStatusActionName } : {}),
         trigger: addStatus.trigger,
         statusId: addStatus.statusId.trim(),
-        // Written only when on, so every tile that never burned its floor
-        // saves exactly as it did.
         ...(addStatus.ground ? { ground: true } : {}),
       }
     : undefined;
-  // Gated on the status, for the reason the block above is.
   const removeStatus = interactions?.removeStatus;
   const removeStatusActionName = removeStatus?.actionName?.trim();
   const savedRemoveStatus = removeStatus?.statusId.trim()
@@ -2217,10 +968,6 @@ export function interactionsForSave(
         statusId: removeStatus.statusId.trim(),
       }
     : undefined;
-  // Gated on the block's presence alone, on the terms the reward and the
-  // teleport are and unlike the status above: there is no second field that
-  // could be blank enough to mean unauthored, because the destination is never
-  // authored. Switching it on is the whole of authoring it.
   const setSpawn = interactions?.setSpawn;
   const setSpawnActionName = setSpawn?.actionName?.trim();
   const savedSetSpawn = setSpawn
@@ -2229,11 +976,6 @@ export function interactionsForSave(
         trigger: setSpawn.trigger,
       }
     : undefined;
-  // Gated on the durability *and* on there being something that spends it, which
-  // is what the resolver asks: a pool nothing can spend is not a vulnerability.
-  // Blank targets survive the trim for `decay.tileId`'s reason — vanishing is
-  // authored that way — but a blank status id is a row nobody filled in and is
-  // dropped, so a block left with only those saves as nothing at all.
   const endure = interactions?.endure;
   const endureDurability = endure ? Math.round(endure.durability) : 0;
   const savedSuffers = (endure?.suffers ?? [])
@@ -2244,9 +986,6 @@ export function interactionsForSave(
     endureDurability > 0 && savedSuffers.length > 0
       ? { durability: endureDurability, suffers: savedSuffers }
       : undefined;
-  // Gated on the lifetime rather than on the target, unlike every other block
-  // here: a blank target is how a tile says it vanishes, and dropping the block
-  // for it would silently un-author exactly the case blood is.
   const decay = interactions?.decay;
   const decayFromMs = decay ? Math.round(decay.fromMs) : 0;
   const decayToMs = decay ? Math.round(decay.toMs) : 0;
@@ -2258,8 +997,6 @@ export function interactionsForSave(
           toMs: decayToMs,
         }
       : undefined;
-  // Same gate as decay's, minus the target it does not have: a respawn with no
-  // positive wait was never authored, whatever else is in the block.
   const respawn = interactions?.respawn;
   const respawnFromMs = respawn ? Math.round(respawn.fromMs) : 0;
   const respawnToMs = respawn ? Math.round(respawn.toMs) : 0;
@@ -2277,45 +1014,11 @@ export function interactionsForSave(
         mode: receive.mode,
       }
     : undefined;
-  // Passed through rather than rebuilt field by field, unlike everything else
-  // here: there is no brain editor yet, so the only way one survives a trip
-  // through the tile dialog is untouched. Rebuilding it would also mean this
-  // function knowing the whole state-machine shape, which is `./brain`'s job.
   const savedBrain = interactions?.brain;
-  // Passed through on the brain's terms and for the same reason: the tree is
-  // `./dialog`'s to know, and until the editor has a tab for it the only way
-  // one survives the tile dialog is untouched.
   const savedDialog = interactions?.dialog;
-  // Rebuilt field by field, unlike the brain: the shape is a short list of
-  // stats and naming them here is what keeps a stray key an editor draft
-  // carried in from ever reaching the file.
-  //
-  // Every field the resolver knows about has to appear, and that is the standing
-  // cost of the approach: a stat added to `BattlerDef` and forgotten here is
-  // silently dropped the next time anybody saves the tile. `sight` is copied
-  // rather than spread so the saved file never shares a reference with the
-  // draft the editor is still holding.
   const battler = interactions?.battler;
-  // `range` and `sight` were authored after the first creatures, so a tile
-  // sitting in `data/` (or an editor draft loaded from one) can still omit
-  // them. The schema fills the same defaults at parse time; writing them here
-  // is what stops a save from crashing on `.sight.up` of nothing.
-  //
-  // The masteries are copied key by key for the reason the block as a whole is
-  // rebuilt: a draft that has been through the editor carries whatever the last
-  // shape left behind, and a sparse record is the easiest place for a stray key
-  // to hide. `naturalWeapon` goes through `weaponForSave` because a bite is a
-  // weapon like any other, and there is one place that knows how to write one.
-  //
-  // Zeroes are dropped along with the absent keys, because `masteryLevel` reads
-  // them as the same thing: writing one would claim the author considered a
-  // question they did not, and it would grow every creature's block by five
-  // lines saying nothing.
   const savedKit = kitForSave(battler?.kit);
   const savedImmunities = (battler?.immuneTo ?? []).map((id) => id.trim()).filter(Boolean);
-  // A spell with no name is one nothing could ever point at — a row somebody
-  // started and did not finish — so it is dropped rather than written out to
-  // fail the schema on the way back in.
   const savedSpells = (battler?.spells ?? []).flatMap((spell) => {
     const name = spell.name?.trim();
     return name
@@ -2330,9 +1033,6 @@ export function interactionsForSave(
   });
   const savedBattler = battler
     ? {
-        // Written unconditionally, and never dropped when it matches the
-        // editor's default: it is a required field on the way back in, so a
-        // block saved without one would not parse as a battler at all.
         baseHp: battler.baseHp ?? DEFAULT_BATTLER.baseHp,
         masteries: Object.fromEntries(
           MASTERIES.filter((mastery) => (battler.masteries?.[mastery] ?? 0) > 0).map((mastery) => [
@@ -2345,52 +1045,18 @@ export function interactionsForSave(
           up: battler.sight?.up ?? DEFAULT_BATTLER.sight.up,
           down: battler.sight?.down ?? DEFAULT_BATTLER.sight.down,
         },
-        // Omitted entirely when nothing is authored, unlike `sight`: that has a
-        // default worth writing down, where a body that
-        // carries nothing is the overwhelming majority and `kit: []` on every
-        // creature in the file would be a line saying nothing. `kitForSave`
-        // rebuilds it entry by entry for the reason the block around it is
-        // rebuilt — an editor draft carries whatever the last shape left behind.
         ...(savedKit ? { kit: savedKit } : {}),
-        // Omitted when the body is neutral, which is almost every creature —
-        // and ordered off `ELEMENTS` rather than as ticked, so two authors who
-        // chose the same two produce the same file.
         ...(battler.elements?.length
           ? {
               elements: ELEMENTS.filter((element) => battler.elements?.includes(element)),
             }
           : {}),
-        // Trimmed entry by entry, and the block dropped when none survive.
-        // It was missing here, which meant opening the wolf's tile dialog and
-        // pressing save made it catchable by carrion again — with the toggles
-        // on screen still showing the immunity about to be dropped.
         ...(savedImmunities.length ? { immuneTo: savedImmunities } : {}),
-        // Trimmed and dropped when it survives to nothing, on the terms every
-        // authored string here is written: a field somebody opened and cleared
-        // is a body that leaves nothing, which is what its absence says.
         ...(battler.remains?.trim() ? { remains: battler.remains.trim() } : {}),
-        // Rebuilt spell by spell through the module that owns a stone's fields,
-        // for the reason `naturalWeapon` goes through `weaponForSave`: a draft
-        // that has been through the editor carries whatever the last effect arm
-        // left behind. Dropped when it comes to nothing, on `kit`'s terms — a
-        // body that casts nothing is the overwhelming majority.
         ...(savedSpells.length ? { spells: savedSpells } : {}),
       }
     : undefined;
-  // Rebuilt field by field too, by the module that owns the union's arms —
-  // switching a weapon to a container and back leaves the draft carrying both
-  // sets of fields, and only `itemForSave` knows which ones belong.
   const savedItem = itemForSave(interactions?.item);
-  // Written on the block's presence, on the terms the reward and teleport
-  // blocks are: a projectile has nothing that could be blank enough to mean
-  // unauthored, because the tab seeds a speed the moment the kind is chosen.
-  //
-  // Missing entirely until now, which meant every save through the tile dialog
-  // dropped the block and left a `kind: "projectile"` tile that `resolveProjectile`
-  // refuses — a tile the pickers still offer, and that fires nothing when it is
-  // named. The speed is clamped rather than trusted because the field is the
-  // only thing enforcing the range, and a number outside it is a block that
-  // will not parse on the way back in.
   const projectile = interactions?.projectile;
   const savedProjectile = projectile
     ? {
@@ -2398,8 +1064,6 @@ export function interactionsForSave(
           MAX_PROJECTILE_SPEED,
           Math.max(MIN_PROJECTILE_SPEED, projectile.cellsPerSecond),
         ),
-        // Passed through rather than rebuilt, exactly as a tile's own
-        // transitions are: the shape is `./tileTransition`'s to know.
         ...(projectile.hit ? { hit: projectile.hit } : {}),
       }
     : undefined;
@@ -2451,20 +1115,6 @@ export function interactionsForSave(
   };
 }
 
-/**
- * A crafting block as it goes to `data/tiles.json`, or undefined when nothing
- * in it would survive being read back.
- *
- * Rebuilt recipe by recipe, and the half-authored ones dropped on the way out
- * rather than only on the way in: a row an author added and never filled in is
- * a row the resolver would refuse anyway, and writing it would leave the file
- * claiming a recipe the game does not have. A block left with nothing in it is
- * not a crafter, so it goes.
- *
- * The output is rebuilt by its arm, for the reason a teleport's destination
- * is: flipping the control between "all of" and "one of" leaves the editor's
- * draft carrying both numbers, and only the arm knows which one it reads.
- */
 function craftForSave(craft: CraftInteraction): CraftInteraction | undefined {
   const recipes = craft.recipes.flatMap((recipe) => {
     const saved = craftRecipeForSave(recipe);
@@ -2472,9 +1122,6 @@ function craftForSave(craft: CraftInteraction): CraftInteraction | undefined {
   });
   if (recipes.length === 0) return undefined;
   const actionName = craft.actionName?.trim();
-  // A blank verb is dropped rather than written as `""`, exactly as a
-  // switch's is: an empty string meaning "no name" is a second way of saying
-  // what an absent key already says.
   return { ...(actionName ? { actionName } : {}), recipes };
 }
 

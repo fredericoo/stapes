@@ -123,11 +123,6 @@ function loadStoredProject(): VoxelProject | null {
   }
 }
 
-/**
- * The role, and nothing else: this page loads no authored content, so there is
- * nothing here to fetch and nothing that would have failed on its own.
- * @see ../../lib/auth's requireAdmin
- */
 export async function clientLoader() {
   await requireAdmin();
   return null;
@@ -811,11 +806,8 @@ function buildTileDef(project: VoxelProject, tilesetId: string, tileHeight: stri
     name: project.name,
     height: Number(tileHeight) as TileHeight,
     type: sheet.type,
-    // The voxel editor makes art, not behaviour: whatever it exports is scenery
-    // until somebody opens it in the tile editor and says otherwise.
     kind: "prop",
     attributes: {},
-    // An exported sheet holds one block starting at its own corner.
     anchor: { tilesetId, x: 0, y: 0 },
     sprite: sheet.sprite,
     sprites: sheet.sprites,

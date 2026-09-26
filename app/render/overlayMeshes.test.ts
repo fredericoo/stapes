@@ -11,14 +11,6 @@ import {
   pulseAlphaAt,
 } from "./overlayMeshes";
 
-/**
- * How a chosen outline breathes.
- *
- * Asserted rather than eyeballed because both ends of the curve are decisions
- * with reasons: it never goes out, so a target is never briefly indistinguishable
- * from nothing, and it comes all the way back up, so the outline reads as one
- * breath rather than as a light that dimmed and stayed dim.
- */
 describe("pulseAlphaAt", () => {
   it("never goes out", () => {
     for (let ms = 0; ms < PULSE_PERIOD_MS * 3; ms += 17) {
@@ -36,7 +28,6 @@ describe("pulseAlphaAt", () => {
     expect(Math.min(...samples)).toBeLessThan(0.5);
   });
 
-  /** One cycle, repeating: an outline rebuilt mid-walk resumes where it was. */
   it("repeats", () => {
     const intoTheCycleMs = 350;
     expect(pulseAlphaAt(PULSE_PERIOD_MS + intoTheCycleMs)).toBeCloseTo(
@@ -50,16 +41,6 @@ describe("pulseAlphaAt", () => {
   });
 });
 
-/**
- * What keeps an outline on the frame the player is actually looking at.
- *
- * The bug this pins is one the tests could not see and a screenshot could: a
- * silhouette cut from its own copy of the art froze on whichever frame was up
- * when a creature started moving, so a walking snake wore a coiled outline. The
- * fix is that there is no second copy — the outline reads the same quad the
- * world draws — and "same quad" is the assertion, since nothing downstream can
- * reintroduce the drift while it holds.
- */
 describe("makeFollowingSpriteOutline", () => {
   const TILESET_PX = 256;
   const SPRITE_PX = 16;
@@ -92,7 +73,6 @@ describe("makeFollowingSpriteOutline", () => {
     expect(outline.matrixWorld.elements).toEqual(source.matrixWorld.elements);
   });
 
-  /** One texel, worked out from the quad rather than handed in. */
   it("reads the atlas scale off the mesh", () => {
     const outline = makeFollowingSpriteOutline(sourceMesh(), 0xffffff, materials)!;
     const px = (outline.material as THREE.ShaderMaterial).uniforms.uPx!.value;
@@ -100,16 +80,6 @@ describe("makeFollowingSpriteOutline", () => {
     expect(px.y).toBeCloseTo(1 / TILESET_PX, 6);
   });
 
-  /**
-   * The claim the identity above is *for*, made end to end.
-   *
-   * A frame flip is `writeFrameUvs` rewriting the four uvs of the sprite's own
-   * buffer in place — see `WorldRenderer` — so this does the same to the
-   * source and asks the outline what it reads. Identity alone would survive a
-   * refactor that handed the outline a clone of the buffer, and a clone is
-   * exactly the bug: the outline freezes on whichever frame was up when the
-   * creature started moving, and a walking snake wears a coiled silhouette.
-   */
   it("reads the frame the sprite is on, however many times it flips", () => {
     const source = sourceMesh();
     const outline = makeFollowingSpriteOutline(source, 0xffffff, materials)!;
@@ -128,11 +98,6 @@ describe("makeFollowingSpriteOutline", () => {
     expect(seen).toEqual([0.25, 0.5, 0.75]);
   });
 
-  /**
-   * The pooling guard for the branch above: a borrowed material must still be
-   * pointed at the art of the mesh it is now around, not at whatever it was
-   * around last time. See {@link OutlineMaterials}.
-   */
   it("points a reused material at the sprite it is now following", () => {
     const first = sourceMesh();
     const group = new THREE.Group();
@@ -156,34 +121,17 @@ describe("makeFollowingSpriteOutline", () => {
     const group = new THREE.Group();
     group.add(makeFollowingSpriteOutline(source, 0xffffff, materials)!);
     disposeGroupChildren(group, materials);
-    // A disposed buffer is one the tile underneath would stop drawing with.
     expect(source.geometry.attributes.position).toBeDefined();
     expect(group.children).toHaveLength(0);
   });
 });
 
-/**
- * What keeps the outline shader compiled.
- *
- * Three refcounts a compiled program by the materials using it, and the outline
- * shader is the one program in the game whose only users are in the chrome
- * layer. So freeing those materials freed the program, and the next outline
- * compiled and linked it again from source — inside `render`, on the frame it
- * was wanted, which is why it read as the *draw* phase having got slower rather
- * than as anything to do with the chrome.
- *
- * The assertions are about disposal rather than about timing, because disposal
- * is the thing that can regress and the milliseconds are the driver's business:
- * a material the pool still owns must never be freed, and one handed back must
- * come out fit for its next outline.
- */
 describe("OutlineMaterials", () => {
   const art = () => ({
     texture: new THREE.Texture(),
     uvPerPx: new THREE.Vector2(1 / 256, 1 / 256),
   });
 
-  /** Disposal is an event, and the only way to watch for one from outside. */
   function watchDispose(material: THREE.Material): () => boolean {
     let freed = false;
     material.addEventListener("dispose", () => {
@@ -215,11 +163,6 @@ describe("OutlineMaterials", () => {
     expect(materials.take(art(), 0xff0000, [])).toBe(first);
   });
 
-  /**
-   * The one uniform something else writes. A pulsing outline has its alpha
-   * driven down sixty times a second, and the material it leaves behind would
-   * start the next steady outline part-lit if taking it back did not undo that.
-   */
   it("puts the alpha back, so a reused material is not left part-lit", () => {
     const materials = new OutlineMaterials();
     const pulsing = materials.take(art(), 0xffffff, []);
@@ -233,7 +176,6 @@ describe("OutlineMaterials", () => {
     expect(steady.uniforms[OUTLINE_ALPHA_UNIFORM]!.value).toBe(1);
   });
 
-  /** A ghost's material is the pool's business only in that it is not. */
   it("frees a material it never lent", () => {
     const materials = new OutlineMaterials();
     const ghost = new THREE.MeshBasicMaterial();
@@ -262,15 +204,6 @@ describe("OutlineMaterials", () => {
   });
 });
 
-/**
- * What a ring around a heap is told, and it is all uniforms.
- *
- * The shader stands in for a sibling by sampling its own alpha one peer offset
- * away — the sprites of a pile are one piece of art drawn several times —
- * so `uPeerCount` and `uPeer` are the whole of "there are others, and they
- * are over there". `pileRings` decides what they say; this is the wire between
- * them, and it is the wire that pooling put at risk.
- */
 describe("makeSpriteOutline, around a heap", () => {
   const quad = () => ({
     x: 0,
@@ -303,14 +236,6 @@ describe("makeSpriteOutline, around a heap", () => {
     expect(uniformsOf(outline).uPeerCount!.value).toBe(0);
   });
 
-  /**
-   * The pooling guard, and the reason `dressOutline` writes every slot rather
-   * than the ones it has values for. A material coming back from a heap of
-   * twelve is carrying eleven peer offsets; lend it to a lone crate without
-   * clearing them and `uPeerCount` says zero while the array still describes a
-   * pile — one `uPeerCount` bug away from a crate outlined as if berries were
-   * scattered through it.
-   */
   it("clears a borrowed material's peers when the next has none", () => {
     const materials = new OutlineMaterials();
     const group = new THREE.Group();
@@ -325,7 +250,6 @@ describe("makeSpriteOutline, around a heap", () => {
     expect((u.uPeer!.value as THREE.Vector2[]).every((v) => v.x === 0 && v.y === 0)).toBe(true);
   });
 
-  /** Two rings of one heap are two materials, or they would share a colour. */
   it("never lends one material to two rings of the same heap", () => {
     const materials = new OutlineMaterials();
     const rings = pileRings(6);

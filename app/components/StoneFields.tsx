@@ -41,22 +41,6 @@ import {
   describeReachMin,
 } from "./WeaponFields";
 
-/**
- * What an arcane stone is, in the editor.
- *
- * A component of its own rather than a branch inside `./ItemTab`, on the terms
- * `./WeaponFields` is one: a stone carries three blocks — an effect, a cost and
- * a gate — and each of them has something to explain, where every other arm of
- * the item union is one or two numbers with a caption.
- *
- * ## The effect is a picker, not a set of boxes
- *
- * Three kinds, closed, and switching between them replaces the block wholesale.
- * A draft that carried a tile id beside an amount of health would be a stone the
- * schema refuses and the editor renders wrong, which is exactly the trap the
- * item type select above it already avoids.
- */
-
 const EFFECT_OPTIONS: Array<{ value: StoneEffectKind; label: string }> = [
   { value: "bolt", label: "Bolt" },
   { value: "conjure", label: "Conjure" },
@@ -67,41 +51,17 @@ const SUBJECT_OPTIONS: Array<{ value: StoneSubject; label: string }> = [
   { value: "target", label: "Target" },
 ];
 
-/**
- * What each effect opens on when somebody picks it.
- *
- * Complete and inert: a fresh status arm names nothing, which the picker below
- * says out loud rather than guessing at a status from the catalogue — a stone
- * that silently applied whatever happened to be first in the file would be an
- * author's mistake wearing somebody else's authoring.
- */
 const BLANK_EFFECTS: Record<StoneEffectKind, StoneEffect> = {
-  // Negative and at the caster, on the terms `DEFAULT_STONE` opens that way: the
-  // first press of a stone somebody is still writing should be safe to make
-  // standing alone in a room.
   bolt: { kind: "bolt", damage: -10, on: "caster" },
   conjure: { kind: "conjure", tileId: "" },
 };
 
-/**
- * What a status added to a bolt opens at.
- *
- * A hundred, unlike a weapon's, and the difference is the cadence. A brand on a
- * sword is rolled thirty times a fight and wants a percentage; a stone is
- * pressed once every minute or two, and an author reaching for a status on one
- * almost always means "and it burns them" rather than "and it sometimes burns
- * them". They can type a smaller number; opening at one makes the common case
- * no typing at all.
- */
 const DEFAULT_STONE_STATUS_CHANCE = 100;
 
-/** A cooldown reads far better in seconds than in five digits of milliseconds. */
 const MS_PER_SECOND = 1000;
 
-/** The step a cast time is typed in, and so the grain its box reads back at. */
 const HALF_SECOND_MS = MS_PER_SECOND / 2;
 
-/** And past a minute it reads better still in minutes, which is where the shipped stones live. */
 const SECONDS_PER_MINUTE = 60;
 
 const EFFECT_INFO: Record<StoneEffectKind, string> = {
@@ -118,46 +78,20 @@ export function StoneFields({
 }: {
   stone: ArcaneStoneItem;
   onChange: (fields: Partial<ArcaneStoneItem>) => void;
-  /**
-   * The whole library, so a conjure can be pointed at the tile it places.
-   * Handed in rather than looked up, on the terms the projectile picker's is:
-   * this component resolves nothing about the world.
-   */
   tiles: TileDef[];
-  /**
-   * The status catalogue, so what a stone starts can be picked by name rather
-   * than by an id somebody has to remember. Empty where nothing is authored, in
-   * which case the section says so instead of offering an empty dropdown.
-   */
   statusDefs?: Record<string, StatusDef>;
 }) {
   const effect = stone.effect;
-  // Read through `reachOf` for the reason a weapon's is: the draft is the
-  // authored block and the schema's default has not run on it, so a stone that
-  // has never had a reach written on it reads as `undefined` here.
   const reach = reachOf(stone);
   const patchReach = (fields: Partial<Reach>) => onChange({ reach: { ...reach, ...fields } });
 
-  // **Every tile in the catalogue, unfiltered.** There is no property that makes
-  // one conjurable — a flame, a wall, a puddle of blood are all placements, and
-  // what a conjured tile *does* is whatever that tile does. Narrowing the list
-  // would be this picker inventing a rule the simulation does not have.
   const conjureOptions = tiles.map((tile) => ({
     value: tile.id,
     label: tile.name,
   }));
 
-  // Narrowed where the conjure list is not, and the asymmetry is the rule rather
-  // than an inconsistency: anything can be placed on the board, and only an
-  // 8-way tile can point where it is going. The one already picked is kept
-  // whatever it is, so a tile that has since changed type is not silently
-  // dropped out from under an author — the same tolerance `WeaponFields` shows.
   const boltProjectile = stone.effect.kind === "bolt" ? stone.effect.projectile : undefined;
   const thrown = resolveProjectile(tiles.find((tile) => tile.id === boltProjectile));
-  // Every projectile tile, plus whatever this stone already names even if the
-  // catalogue has since changed its mind about it — an id silently dropped from
-  // the picker is an author being told their bolt does not exist while it sits
-  // in the file doing nothing.
   const projectileOptions = [
     ...projectileTiles(tiles).map((tile) => ({
       value: tile.id,
@@ -177,10 +111,6 @@ export function StoneFields({
             value={effect.kind}
             onChange={(kind) => {
               if (kind === effect.kind) return;
-              // Whole-block replacement rather than a patch, so the draft never
-              // holds a tile id beside an amount of health. `itemForSave` would
-              // drop the stray field on the way to disk anyway, but a draft that
-              // is briefly both is a draft the editor renders wrong.
               onChange({ effect: { ...BLANK_EFFECTS[kind] } });
             }}
             options={EFFECT_OPTIONS}
@@ -200,9 +130,6 @@ export function StoneFields({
               min={-MAX_SPELL_DAMAGE}
               max={MAX_SPELL_DAMAGE}
               onChange={(damage) =>
-                // Zero is a real answer and is stored as *absent*: a bolt that
-                // only leaves a status behind moves no health, and a zero
-                // written to disk would claim somebody decided the number.
                 onChange({
                   effect: { ...effect, damage: damage || undefined },
                 })
@@ -312,16 +239,10 @@ export function StoneFields({
         <StatField
           label="Cast (s)"
           info="How long the caster stands there before anything happens, at exactly the requirements below. Every point past them is time off — 110% of what it asks casts in 90% of this, and double casts instantly. Zero is instant. A blow breaks a cast; nothing is spent until it lands."
-          // To the half-second the box steps in, so a stone authored at 2.5s
-          // reads as 2.5 rather than as a 3 that overwrites it on the next edit.
           value={Math.round((stone.castTimeMs ?? 0) / HALF_SECOND_MS) / 2}
           min={0}
           max={MAX_CAST_TIME_MS / MS_PER_SECOND}
           step={HALF_SECOND_MS / MS_PER_SECOND}
-          // Zero clears the field rather than writing one, because absent is
-          // what an instant stone says — see `../lib/item`'s `castTimeMs`. The
-          // floor below it is the schema's, so a half-second typed into a box
-          // that steps in halves cannot come out as a stone that will not parse.
           onChange={(seconds) =>
             onChange({
               castTimeMs:
@@ -375,9 +296,6 @@ export function StoneFields({
         </label>
       </div>
 
-      {/* Only for a stone that takes time, because it is an answer to a
-          question an instant one never raises: there is no window to be knocked
-          out of. */}
       {stone.castTimeMs ? (
         <SwitchField
           checked={stone.uninterruptible === true}
@@ -419,30 +337,11 @@ export function StoneFields({
   );
 }
 
-/**
- * Which way a bolt runs, in the words the panel would use for it.
- *
- * **The sign is the whole of the difference and a minus is one pixel wide**,
- * which is exactly why it is said in a word underneath. An author sweeping a
- * slider from a curse into a blessing should be told they have crossed over,
- * not left to notice a dash.
- *
- * Zero is neither, and says so: a bolt that moves no health is a real spell now
- * that a status can ride one, and the line points at the half that is doing the
- * work instead.
- */
 function describeBolt(damage: number | undefined): string {
   if (!damage) return "Moves no health — only what it leaves.";
   return damage < 0 ? `Mends ${-damage} health.` : `Harms for ${damage}, before armour.`;
 }
 
-/**
- * What a cooldown reads as, in the units somebody would say it in.
- *
- * Minutes past a minute, because a stone may be authored there even though the
- * shipped ladder is not — a two-minute cooldown reads as "2m" and not as
- * "120s", and a reader skimming the file should not have to divide.
- */
 function describeCooldown(cooldownMs: number): string {
   const seconds = Math.round(cooldownMs / MS_PER_SECOND);
   if (seconds < SECONDS_PER_MINUTE) return `Ready again after ${seconds}s.`;
@@ -451,26 +350,12 @@ function describeCooldown(cooldownMs: number): string {
   return `Ready again after ${minutes}m${rest ? ` ${rest}s` : ""}.`;
 }
 
-/**
- * What a cast time reads as, and what it says about growing out of it.
- *
- * The second sentence is the whole reason the field is worth a readout: the
- * number typed in the box is what it costs *today*, at exactly the requirement,
- * and an author who does not know that will author for the wrong player.
- */
 function describeCastTime(castTimeMs: number | undefined): string {
   if (!castTimeMs) return "Cast lands at once.";
   const seconds = Math.round(castTimeMs / HALF_SECOND_MS) / 2;
   return `${seconds}s at exactly the requirements, and nothing at double them.`;
 }
 
-/**
- * What a requirement row is *for*, in the two cases where it is not obvious.
- *
- * Arcane and the elements are the masteries casting pays into, and a number
- * typed against one of them is doing two jobs at once — see the tooltip on the
- * grid. Everything else here is an ordinary gate and needs no caption.
- */
 function masteryHint(mastery: Mastery): string | undefined {
   if (mastery === "arcane") return "Trained by casting.";
   if ((ELEMENTS as Mastery[]).includes(mastery)) {
@@ -479,34 +364,7 @@ function masteryHint(mastery: Mastery): string | undefined {
   return undefined;
 }
 
-/**
- * What the elements typed above come to, in a line.
- *
- * **The wheel is arithmetic nobody should have to do in their head.** An author
- * setting Fire on a stone has decided two things at once — what it demands and
- * what it is good and bad against — and the second of those is invisible in a
- * grid of numbers. So it is said out loud.
- *
- * Absent entirely for a spell made of nothing, which is most of them: a stone of
- * light is magic that is not made of anything, and a line saying so would be a
- * caption on every stone in the world.
- */
-function ElementReading({
-  elements,
-  /**
-   * Whether this spell can hurt anybody, which is the only thing the wheel
-   * touches.
-   *
-   * **A mend is elemental and is never weighed**, because there is no second
-   * body in the exchange for an element to be good against — so what its
-   * elements buy is what it trains and how deep it runs, and saying otherwise
-   * here would be the panel promising something the session does not do.
-   */
-  harms,
-}: {
-  elements: Element[];
-  harms: boolean;
-}) {
+function ElementReading({ elements, harms }: { elements: Element[]; harms: boolean }) {
   if (elements.length === 0) return null;
 
   const strong = ELEMENTS.filter((against) => elements.some((element) => beats(element, against)));

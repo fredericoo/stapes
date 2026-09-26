@@ -6,21 +6,6 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { openDatabase } from "./db";
 import { openWorldDatabaseExclusively } from "./lock";
 
-/**
- * The single-writer guarantee.
- *
- * This is the one thing the Durable Object provided that a virtual machine does
- * not, and its absence does not announce itself: two processes both simulating
- * one world write a board blended from two timelines, which then persists
- * because the checkpoint is preferred over the authored map on load.
- *
- * **These tests spawn real processes, and they have to.** POSIX advisory locks
- * are held per *process*, so a second connection opened inside this one does
- * not conflict with the first — an in-process test would report a guarantee
- * that does not exist. The failure mode being guarded is two containers, so the
- * test is two processes.
- */
-
 const temporaries: string[] = [];
 const children: ChildProcess[] = [];
 
@@ -30,12 +15,6 @@ async function scratchDir(): Promise<string> {
   return dir;
 }
 
-/**
- * A separate process holding the database open, exclusively.
- *
- * Resolves once it reports that it has the lock, so the assertions that follow
- * are not racing its startup.
- */
 function holdInSubprocess(path: string): Promise<ChildProcess> {
   const source = `
     const { openWorldDatabaseExclusively } = await import(${JSON.stringify(
@@ -83,12 +62,6 @@ describe("exclusive world database", () => {
   }, 30_000);
 
   it("takes the lock at open, not at the first write", async () => {
-    // The failure this guards was real while writing this code: the pragma only
-    // takes effect on a connection's first write, so on an already-migrated
-    // database two processes would both boot, both load a world, and only
-    // diverge visibly at the first checkpoint two seconds later. Migrating
-    // first, so the holder has no migration write to take the lock for, is
-    // exactly that case.
     const path = join(await scratchDir(), "stapes.db");
     const migrated = await openDatabase(path);
     await migrated.close?.();
@@ -101,8 +74,6 @@ describe("exclusive world database", () => {
   }, 30_000);
 
   it("lets a successor in once the holder has gone", async () => {
-    // A deploy is exactly this, and a lock that outlived its process would wedge
-    // every future one.
     const path = join(await scratchDir(), "stapes.db");
     const holder = await holdInSubprocess(path);
 
@@ -119,8 +90,6 @@ describe("exclusive world database", () => {
 
     const started = Date.now();
     await expect(openWorldDatabaseExclusively(path)).rejects.toThrow();
-    // Retrying a corrupt file for the full window turns a clear error into a
-    // slow one, and the message that would have explained it arrives last.
     expect(Date.now() - started).toBeLessThan(3_000);
   });
 });

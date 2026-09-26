@@ -1,11 +1,3 @@
-/**
- * The off-thread refresh path.
- *
- * Driven through a hand-controlled {@link ChunkBaker} rather than a real
- * worker, so the interesting moments — a result landing late, an edit arriving
- * while one is in flight — are things a test can sit in the middle of instead
- * of things it has to race.
- */
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { getStack, replaceStack } from "./mapData";
@@ -27,30 +19,13 @@ const tilesById = Object.fromEntries((tilesJson as TileDef[]).map((t) => [t.id, 
 const omit = new Set([PLAYER_TILE_ID]);
 const base = fixtureTown();
 
-/** A window well inside the fixture town's content. */
 const WINDOW: WorldRect = { x0: -8, y0: -8, x1: 8, y1: 8 };
 
-/**
- * A cave floor cell inside that window, on the fixture town's dark level.
- *
- * Every one of these tests turns on a torch being *visible* once its bake
- * lands, so the cell has to be one where the torch's light is what moves the
- * pixels. On the ground plane it is not: the town square is sky-lit past what
- * a torch adds, and the only byte an edit there ever moved was the torch's own
- * cell, back when the tile was not light-passing and occluded itself. The cave
- * under the square sees no sky, so an emitter down here is the only light
- * there is.
- *
- * Off the cave's own torch grid and off its walls, so the light being measured
- * is the one the test placed.
- */
 const EDIT = { x: 4, y: 4, z: -1 };
 
-/** A baker whose results only land when the test says so. */
 class ManualBaker implements ChunkBaker {
   readonly asked: WorldRect[] = [];
   private queue: Array<() => void> = [];
-  /** Map each queued bake reads from — set before the bake is released. */
   map: MapFile = base;
 
   bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>> {
@@ -64,14 +39,6 @@ class ManualBaker implements ChunkBaker {
     return this.queue.length;
   }
 
-  /**
-   * Release everything queued and let the promise callbacks run to the end.
-   *
-   * A macrotask, not a couple of microtasks. The cache hangs its bookkeeping off
-   * `.then().catch().finally()`, so the slot it counts requests against is only
-   * given back on the third tick — awaiting two left it permanently held, and
-   * every later refresh was silently declined for want of it.
-   */
   async flush() {
     const queued = this.queue;
     this.queue = [];
@@ -89,12 +56,6 @@ function planeOf(grid: { levels: Map<number, { rgba: Uint8Array }> }) {
   return Array.from(grid.levels.get(EDIT.z)!.rgba);
 }
 
-/**
- * Two clock readings the fixture torch shows different light at. Its frames run
- * 180ms each and differ only in intensity, so these are its bright half and its
- * dim one — a real flicker rather than a synthetic one, which matters because
- * the phase key is built from the tile's own frames.
- */
 const BRIGHT_MS = 0;
 const DIM_MS = 200;
 
@@ -109,8 +70,6 @@ describe("off-thread chunk refresh", () => {
     baker.asked.length = 0;
     await baker.flush();
 
-    // The edit lands. Nothing may be baked on this thread for it, and what is
-    // on screen must not change until the refresh arrives.
     const lit = putTorch(base);
     baker.map = lit;
     lighting.syncTo(base, lit);
@@ -145,7 +104,6 @@ describe("off-thread chunk refresh", () => {
     async_.syncTo(base, lit);
     async_.packedGridFor(lit, WINDOW);
     await baker.flush();
-    // Drain the prefetch the settled window then asks for.
     async_.packedGridFor(lit, WINDOW);
     await baker.flush();
 
@@ -170,8 +128,6 @@ describe("off-thread chunk refresh", () => {
     lighting.packedGridFor(lit, WINDOW);
     expect(baker.inFlight).toBe(1);
 
-    // A second edit while the first bake is still out. Its result is about to
-    // arrive computed against a map that no longer exists.
     const relit = replaceStack(lit, EDIT.x, EDIT.y, EDIT.z, [
       ...(getStack(lit, EDIT.x, EDIT.y, EDIT.z) ?? []),
       { tileId: "torch" },
@@ -180,8 +136,6 @@ describe("off-thread chunk refresh", () => {
     baker.map = relit;
     await baker.flush();
 
-    // Landing must not have marked the chunk clean — the edit it missed is
-    // still unaccounted for.
     expect(lighting.staleChunks).toBeGreaterThan(0);
     lighting.packedGridFor(relit, WINDOW);
     await baker.flush();
@@ -193,7 +147,6 @@ describe("off-thread chunk refresh", () => {
     const lighting = new ChunkedLighting(tilesById, omit);
     lighting.setBaker(baker);
 
-    // Nothing cached anywhere, so waiting would mean drawing a hole.
     lighting.syncTo(null, base);
     lighting.packedGridFor(base, WINDOW);
     expect(lighting.bakedLastCall).toBeGreaterThan(0);
@@ -215,7 +168,6 @@ describe("off-thread chunk refresh", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Stale light, not missing light, and the chunk is still asking.
     expect(planeOf(lighting.packedGridFor(lit, WINDOW))).toEqual(cold);
     expect(lighting.staleChunks).toBeGreaterThan(0);
   });
@@ -229,8 +181,6 @@ describe("off-thread chunk refresh", () => {
     lighting.syncTo(base, lit);
     lighting.packedGridFor(lit, WINDOW);
 
-    // The synchronous path is unchanged: an edit is baked in the frame that
-    // asks, and nothing is ever left stale.
     expect(lighting.bakedLastCall).toBeGreaterThan(0);
     expect(lighting.staleChunks).toBe(0);
   });
@@ -248,18 +198,14 @@ describe("off-thread refresh and the animation clock", () => {
     const bright = planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS));
     await baker.flush();
 
-    // The clock moves to the torch's other frame. That phase has never been
-    // baked, and baking it here is exactly what the worker exists to avoid.
     const first = lighting.packedGridFor(lit, WINDOW, DIM_MS);
     expect(lighting.bakedLastCall).toBe(0);
-    // Drawn from the phase it does have, so the chunk is lit rather than black.
     expect(planeOf(first)).toEqual(bright);
 
     await baker.flush();
 
     const settled = planeOf(lighting.packedGridFor(lit, WINDOW, DIM_MS));
     expect(settled).not.toEqual(bright);
-    // And the phase it fell back to is still there to return to.
     expect(planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS))).toEqual(bright);
   });
 
@@ -274,9 +220,6 @@ describe("off-thread refresh and the animation clock", () => {
     const sync = new ChunkedLighting(tilesById, omit);
     sync.syncTo(null, lit);
 
-    // Turn the cycle a few times. Each pass asks for one phase and lands the
-    // one asked for last, which is exactly how it warms up in a running frame
-    // loop — a phase is a bake behind until its turn comes round again.
     for (let turn = 0; turn < 3; turn++) {
       for (const timeMs of [BRIGHT_MS, DIM_MS]) {
         async_.packedGridFor(lit, WINDOW, timeMs);
@@ -306,13 +249,8 @@ describe("off-thread refresh and the animation clock", () => {
       }
     }
     const beforeEdit = planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS));
-    // Reading a phase kicks off a speculative prefetch; let it land so the edit
-    // below is not queued behind it.
     await baker.flush();
 
-    // A second torch goes up nearby. Both phases are wrong now, not just the
-    // one the clock happens to be at, so the other must not survive to be drawn
-    // when the flicker comes back round to it.
     const brighter = replaceStack(lit, EDIT.x + 2, EDIT.y, EDIT.z, [{ tileId: "torch" }]);
     baker.map = brighter;
     lighting.syncTo(lit, brighter);

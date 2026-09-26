@@ -33,60 +33,14 @@ import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
 
-/** Nobody is under anything, which is almost everybody almost always. */
 const NO_STATUSES: ActiveStatus[] = [];
 
-/** No catalogue wired, so no item card can name what it would inflict. */
 const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
-/**
- * Nobody is carrying a stone, which is almost everybody almost always. Shared,
- * so the default costs no allocation and the row's absence is one comparison.
- */
 const NO_SPELLS: SpellButton[] = [];
 
-/**
- * The game as a fixed square, letterboxed into whatever space it is given.
- *
- * Everyone sees the same amount of world (see `../render/viewport`), so the
- * pane only decides how big it is drawn: on a phone the square sits at the top
- * with the arrows beneath it, on a desktop it grows until it hits the shorter
- * edge and the rest is ink.
- *
- * Chrome added below the square takes its height from the game rather than
- * covering it, and needs no sizing work to do so: the canvas is `100cqmin` of a
- * box that is square by ratio and allowed to shrink, so anything in the flow
- * underneath simply leaves it less to be the smaller edge of. Chrome added
- * *beside* it — the interaction list on a desktop — works the same way round,
- * narrowing the column the square measures itself against. That is the lever to
- * keep pulling as more UI arrives.
- */
-
-/**
- * Room for the interaction list beside the game, on a pointer that has hover.
- *
- * Fixed rather than fluid, and always present even while empty: it comes out of
- * the square's width, so a column that appeared and vanished with its contents
- * would resize the canvas every time the player walked past a crate.
- */
 const INTERACTION_PANEL_WIDTH_PX = 224;
 
-/**
- * Narrowest the reading column may get on a phone — the list of what is in
- * reach, or whichever panel is standing in for it.
- *
- * **A floor that is no longer reached on any phone, and kept for the one that
- * might be.** The two used to bid against each other for the row: the pad was
- * fluid, it asked for 176px, and the column was left with whatever that did not
- * take — which on a 375px screen was exactly this number and not a pixel more.
- * The pad is one fixed square now (@see PAD_SIZE_PX), so the column simply gets
- * the rest, and the rest is comfortably over this everywhere.
- *
- * It still states the width below which the column stops working, which is what
- * a floor is for: the panels live in here beside the arrows and a slot is 44px,
- * so below about this a row of them holds two, and "Nothing in reach." wraps
- * onto two lines.
- */
 const INTERACTION_LIST_MIN_WIDTH_PX = 168;
 
 export function GameViewport({
@@ -125,163 +79,43 @@ export function GameViewport({
   tilesets = [],
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  /**
-   * Where in-world text is drawn — names and speech, over the canvas but not in
-   * it. See `../render/textLabels` for why that text is DOM rather than pixels
-   * in the drawing buffer.
-   */
   labelRef?: React.RefObject<HTMLDivElement | null>;
   onDirectionPress: (direction: Direction) => void;
   onDirectionRelease: (direction: Direction) => void;
-  /** Given only by a route with somebody to talk to; the bar is absent without it. */
   onSay?: (text: string) => void;
-  /**
-   * Move the switch that says whether this player is in the fighting, or
-   * nothing for a route with nobody to fight. @see `../game/pvp`
-   *
-   * Given only by the online route, on {@link onSay}'s terms: the state is
-   * carried by every session, and a control about other people is chrome a
-   * world with no other people in it should not grow.
-   */
   onPvp?: (on: boolean) => void;
   onTypingChange?: (typing: boolean) => void;
-  /**
-   * What the world says about itself — the hour, and on a connected world
-   * whether the connection is up.
-   *
-   * Given by the page rather than read here, because the page is what knows the
-   * time; drawn here rather than in the header because the header is gone on a
-   * phone, and because a reading about the *world* belongs beside the world
-   * rather than beside the navigation. It sits with the statuses on a desktop
-   * and in the far corner under the arrows on a phone.
-   */
   readouts?: React.ReactNode;
-  /**
-   * What is within reach right now, worked out by whoever owns the session —
-   * see `../game/interactionOptions`. Empty by default so a route that has not
-   * wired it up shows the panel saying so rather than crashing.
-   */
   interactions?: InteractionOption[];
   onInteract?: (option: InteractionOption) => void;
-  /**
-   * Where the viewer is in a conversation, or null. When set, the panel takes
-   * the list's place: a conversation *is* what is in reach, said longer.
-   */
   conversation?: Conversation | null;
   onTalk?: (action: TalkAction) => void;
-  /**
-   * The crafting window open on a forge or a fire, or null. When set it takes
-   * the list's place on a conversation's terms — see `./CraftPanel`.
-   */
   crafting?: CraftingWindow | null;
-  /** Run the recipe at this position on the open crafter. */
   onCraft?: (ref: ObjectRef, recipeIndex: number) => void;
   onCloseCrafting?: () => void;
-  /**
-   * The row being pointed at, so the world can outline its subject. Wired only
-   * where there is a pointer that hovers — see the call site.
-   */
   onHoverInteraction?: (optionId: string | null) => void;
-  /**
-   * What the viewer is carrying — theirs alone; see `GameSnapshot.equipment`.
-   * Defaulted so a route that has not wired it up draws empty slots rather than
-   * crashing, exactly as `interactions` does.
-   */
   equipment?: Equipment;
-  /**
-   * What the viewer has learnt — theirs alone, beside the kit and for the same
-   * reason. Defaulted so a route that has not wired it up draws a panel saying
-   * nothing is practised yet rather than crashing.
-   */
   masteryXp?: MasteryXp;
-  /**
-   * What the viewer's own body can take, and its ⭐. Defaulted to a body with no
-   * stats, which the panel says plainly rather than crashing over.
-   */
   vitals?: Vitals;
-  /**
-   * What is currently running on the viewer's own body.
-   *
-   * Theirs alone, and deliberately not everybody's: nothing draws another body's
-   * statuses, so nothing needs telling about them. See `./StatusStrip`.
-   */
   statuses?: ActiveStatus[];
-  /**
-   * Every status the world has, by id — the catalogue, not what is running.
-   *
-   * Beside {@link statuses} rather than derived from it, because they answer
-   * different questions: that is what is on *you*, and this is what a venom on a
-   * blade in your bag would be called if it ever landed. An item's card names
-   * the second — see `./ItemSlot`.
-   */
   statusDefs?: Record<string, StatusDef>;
-  /**
-   * The container on the floor currently being looked into, resolved off the
-   * live board by whoever owns the renderer.
-   *
-   * The instance rather than a reference, and read fresh rather than remembered,
-   * because a chest's contents ride on its placement: anything holding a copy
-   * would go stale the moment somebody took something out of it. Null also means
-   * "no longer open" — walked away from, emptied, or picked up out from under
-   * the panel — so closing needs no separate rule.
-   */
   openedContainer?: OpenedContainer | null;
-  /** Look into a container on the floor, or stop. */
   onOpenContainer?: (ref: ObjectRef | null) => void;
-  /**
-   * Whether a move would be honoured, asked of whoever owns the session.
-   *
-   * Answered from the same rules the server validates with, which is what lets
-   * a slot light up before anything has been sent — see `../game/itemMoves`.
-   * Defaults to refusing everything, so a route that has not wired it up simply
-   * has no drop targets rather than offering moves nothing will carry out.
-   */
   canMoveItem?: (from: SlotRef, to: SlotRef) => boolean;
-  /** Move a carried thing from one slot to another. */
   onMoveItem?: (from: SlotRef, to: SlotRef) => void;
-  /** Eat or drink the consumable in this slot. */
   onConsumeItem?: (slot: SlotRef) => void;
-  /**
-   * A drag is out over the world, carrying this — or null, for no longer.
-   *
-   * Only the pointer position travels, because which *cell* that is depends on
-   * the camera and this component has no view of it. Whoever owns the renderer
-   * resolves it, and draws the ghost.
-   */
   onDragOverWorld?: (drag: { from: SlotRef; tileId: string; x: number; y: number } | null) => void;
-  /** A drag was let go over the world at this point. */
   onDropOnWorld?: (from: SlotRef, point: { x: number; y: number }) => void;
-  /**
-   * The arcane stones this body could press, in square order, with why each can
-   * or cannot be cast right now — see `../game/casting`.
-   *
-   * Empty by default, which draws no row at all rather than an empty one: a
-   * route that has not wired casting up looks exactly like a player who has
-   * never picked a stone up, which is the overwhelming majority of both.
-   */
   spells?: SpellButton[];
-  /** Cast the stone in this square. Absent on a route with no session to ask. */
   onCast?: (slot: CastSlot) => void;
-  /** Stop the cast being made, by pressing its stone again. @see `./SpellBar` */
   onStopCast?: () => void;
-  /** Catalogue behind the list's sprites. */
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
 }) {
   const coarse = useCoarsePointer();
-  // Zooming a fixed-square world only crops the controls off the screen. Held
-  // to the game rather than declared for the whole site, so the editor keeps
-  // the magnifying glass it has a real use for. See `./useNoZoom`.
   useNoZoom(coarse);
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
 
-  /**
-   * The one move in progress, page-wide.
-   *
-   * Here rather than in either panel because a move has two ends and they are in
-   * different panels: taking a sword out of a chest and putting it in your bag
-   * is one gesture crossing a boundary neither component can see across.
-   */
   const move = useCallback((from: SlotRef, to: SlotRef) => onMoveItem?.(from, to), [onMoveItem]);
   const cast = useCallback((slot: CastSlot) => onCast?.(slot), [onCast]);
   const stopCast = useCallback(() => onStopCast?.(), [onStopCast]);
@@ -308,60 +142,21 @@ export function GameViewport({
     }),
     [onDragOverWorld, onDropOnWorld],
   );
-  /**
-   * Whether each panel is open, or null while nobody has said.
-   *
-   * Null rather than a boolean seeded from the device, because the device is not
-   * known on the server: {@link useCoarsePointer} answers false until hydration,
-   * so a phone seeded at construction would come up with both panels open and
-   * stay that way. Left null, the default *follows* the pointer until the player
-   * expresses a preference, and from then on it is theirs.
-   *
-   * Open by default with a mouse, closed with a thumb: a desktop has room beside
-   * the game and a phone does not, where an open panel costs the arrows.
-   */
   const [equipmentOpen, setEquipmentOpen] = useState<boolean | null>(null);
   const [bagOpen, setBagOpen] = useState<boolean | null>(null);
-  /**
-   * Closed until asked for, on both devices and unlike the two above.
-   *
-   * They are things you are *doing* — a hand and a bag you move items between —
-   * and this is a thing you check. Opening it by default on a desktop would put
-   * a wall of numbers beside the game for a question nobody asked yet.
-   */
   const [statsOpen, setStatsOpen] = useState(false);
-  /**
-   * Which hand is holding a container the player has open, if either is.
-   *
-   * A third thing that can be open, and unlike the other two it belongs to the
-   * *item* rather than to the panel: put the pack down and there is nothing left
-   * to be looking into, which is what the effect below enforces.
-   */
   const [openHand, setOpenHand] = useState<"weapon" | "offhand" | null>(null);
   const showEquipment = equipmentOpen ?? !coarse;
   const showBag = bagOpen ?? !coarse;
   const showStats = statsOpen;
-  /** The pack in that hand, or null once it is no longer a pack in that hand. */
   const heldContainer = openHand ? (equipment[openHand] ?? null) : null;
 
-  /**
-   * On a phone a conversation or a forge takes the column the panels open in,
-   * and wins it — a panel opened under one is never seen. So there a press on
-   * any panel button while one is up shuts it and *opens* the panel, whatever
-   * the button's own state: a bag left open before the talk shows as pressed,
-   * and toggling it shut would be the opposite of what the press was for.
-   */
   const panelsHidden = coarse && (conversation != null || crafting != null);
   const shutWhatHidesPanels = () => {
     if (conversation) onTalk?.({ kind: "close" });
     if (crafting) onCloseCrafting?.();
   };
 
-  /**
-   * On a phone the two panels want the same space, so opening one closes the
-   * other. With a mouse they stack in the column beside the game and are
-   * genuinely independent.
-   */
   const openEquipment = (pressed: boolean) => {
     const open = pressed || panelsHidden;
     setEquipmentOpen(open);
@@ -390,35 +185,15 @@ export function GameViewport({
     }
   };
 
-  /**
-   * A tap on a slot, which uses what is in it.
-   *
-   * Here rather than in a panel because the two things a use can be land in two
-   * different places: opening a bag is this component's own state, and wielding
-   * a sword is a move that goes all the way to the server. What each item is
-   * *for* is neither of those — it is `../game/itemUse`, asked once, so a tap and
-   * the label describing that tap cannot come to disagree.
-   */
   const runItemUse = (slot: SlotRef, instance: ItemInstance) => {
     const use = itemUseFor(instance, slot, tilesById, equipment);
     if (!use) return;
-    // Shut it if it is open: the same press, both ways, because a bag is
-    // somewhere you look into rather than something you switch on.
     if (use.type === "open") {
-      // Whichever container was pressed. Shut it if it is already open: the
-      // same press, both ways, because a bag is somewhere you look into rather
-      // than something you switch on.
       if (slot.kind === "bag") openBag(!showBag);
       else if (slot.kind === "weapon" || slot.kind === "offhand") {
         setOpenHand(openHand === slot.kind ? null : slot.kind);
       }
-    }
-    // All the way to the server, like a move: what it does to your hit points
-    // and to the thing itself are both the session's answers.
-    else if (use.type === "consume") onConsumeItem?.(slot);
-    // Refused moves simply do nothing — your hand is full, or your bag is — and
-    // the rules that refuse them are the ones the drag asks. There is no second
-    // opinion here to drift from them.
+    } else if (use.type === "consume") onConsumeItem?.(slot);
     else move(slot, use.to);
   };
 
@@ -429,28 +204,10 @@ export function GameViewport({
     world,
   });
 
-  /**
-   * A panel is a thing you opened, and a hand you have emptied is not one.
-   *
-   * The same rule the bag panel follows by asking `equipment.bag` before it
-   * draws — written as an effect here because the *reference* has to go too, or
-   * the next thing put in that hand would open by itself.
-   */
   useEffect(() => {
     if (openHand && !equipment[openHand]) setOpenHand(null);
   }, [openHand, equipment]);
 
-  /**
-   * A panel is standing in for the list of what is in reach. Only on a phone.
-   *
-   * **It takes the list's column and nothing else.** It used to take the whole
-   * main area, arrows included, which made checking your bag a decision to stop
-   * walking — and people said so: a panel opened to compare two swords is a panel
-   * you want open *while* backing away from the thing you are about to use them
-   * on. The arrows keep their column at every width; what a panel replaces is the
-   * one thing it is genuinely an alternative to, which is the other reading
-   * surface beside them.
-   */
   const panelCoversList =
     coarse &&
     (showEquipment || showBag || showStats || heldContainer != null || openedContainer != null);
@@ -472,9 +229,6 @@ export function GameViewport({
     />
   ) : null;
 
-  // A conversation wins over a forge, which can only happen when somebody talks
-  // to a crafter's neighbour with the window still open — and the words are
-  // the half that needs answering.
   const craftPanel = crafting ? (
     <CraftPanel
       crafting={crafting}
@@ -494,44 +248,20 @@ export function GameViewport({
       tiles={tiles}
       tilesets={tilesets}
       onAct={(option) => {
-        // Opening is the one row that never reaches the session: a container's
-        // contents are already here, riding on its placement, so looking inside
-        // is a panel and not a request. Everything else is the board's business.
-        //
-        // One row, both ways: it says "Close" and reads as lit while that box is
-        // the open one, so pressing it again is what shuts it.
         if (option.action === "open") {
           onOpenContainer?.(option.active ? null : option.ref);
           return;
         }
         onInteract?.(option);
       }}
-      // Not on a finger. A touch browser synthesises a mouse-enter on tap and
-      // never sends the matching leave, so the outline it lit would stay lit
-      // over whatever the player did next.
       onHover={coarse ? undefined : onHoverInteraction}
       hotkeys
-      // The padding is inert in the desktop column — there is no inset to
-      // speak of on a machine with no toolbar over the page — so one list
-      // still serves both layouts. See `.scrolls-past-toolbar` in `../app.css`.
       className="scrolls-past-toolbar min-h-0 w-full flex-1"
     />
   );
 
-  /**
-   * What you can open, in whichever size the hand reaching for them wants.
-   *
-   * The row used to have a second half — a switch saying what a tap on the world
-   * meant — and the switch is gone: a tap means what the thing under it offers,
-   * and reading rather than acting is a held shift or a held finger. What is
-   * left is only the panels, in one order on both devices, so what you learned
-   * on a phone is where you left it on a desktop.
-   */
   const panelButtons = (size: ActionButtonSize) => (
     <>
-      {/* First and ruled off from the rest, because it is the one control in
-          this row that changes something out in the world rather than opening a
-          panel — the same rule the chat button takes on a phone. */}
       {onPvp ? (
         <>
           <PvpToggle
@@ -560,22 +290,10 @@ export function GameViewport({
         drag={drag}
         size={size}
       />
-      {/* Last, and only ever drawn where the shell has given up its header —
-          see {@link AppMenuButton}. Everything about the page rather than about
-          the world, which is why it sits with the things that only open
-          something rather than beside the game itself. */}
       <AppMenuButton size={size} />
     </>
   );
 
-  /**
-   * The panels, stacked in whatever space the device gives them.
-   *
-   * One definition for both layouts: on a desktop this sits in the column beside
-   * the game, on a phone it takes the main area over. Drawing them twice and
-   * hiding one copy would put two "Bag" headings in the page, which is a lie to
-   * anything reading it aloud.
-   */
   const panels = (
     <>
       {showStats ? (
@@ -584,9 +302,6 @@ export function GameViewport({
           masteryXp={masteryXp}
           statuses={statuses}
           tilesets={tilesets}
-          // Capped and scrolling in the desktop column, which is the one that
-          // runs out of height; left to grow on a phone, where the column it
-          // sits in already scrolls as one. See `./StatsPanel`'s `scrolls`.
           scrolls={!coarse}
         />
       ) : null}
@@ -602,10 +317,6 @@ export function GameViewport({
           drag={drag}
         />
       ) : null}
-      {/* A panel is a thing you opened, and a bag you are not wearing is not one:
-          drop it and the window goes with it, rather than staying up to say it
-          has nothing in it. The same rule the strip's button already followed by
-          being disabled. */}
       {showBag && equipment.bag ? (
         <ContainerPanel
           container={equipment.bag}
@@ -620,8 +331,6 @@ export function GameViewport({
           statusDefs={statusDefs}
         />
       ) : null}
-      {/* A pack in a hand, between the one on your back and whatever is on the
-          floor — the order they sit in on the body. */}
       {heldContainer && openHand ? (
         <ContainerPanel
           container={heldContainer}
@@ -636,10 +345,6 @@ export function GameViewport({
           statusDefs={statusDefs}
         />
       ) : null}
-      {/* Whatever is on the floor, under whatever is on your back, so the two
-          read in the order you would move things between them. Titled by the
-          tile rather than "Container", because "Chest" and "Basic Bag" is the
-          only thing on screen saying which one you opened. */}
       {openedContainer ? (
         <ContainerPanel
           container={openedContainer.instance}
@@ -661,38 +366,14 @@ export function GameViewport({
     <div className="flex h-full w-full bg-ink">
       <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
       <div
-        // `pan-y` rather than `manipulation`: both drop the double-tap zoom, and
-        // this one also takes the column out of pinch-zoom. That matters for
-        // more than the stray gesture — a second finger landing somewhere that
-        // *might* still become a pinch is a finger the engine holds in reserve,
-        // and holding it is what stops the press behind it from ever being
-        // reported. Vertical panning survives, because the list of what is in
-        // reach and the panels both scroll.
         className="flex h-full min-w-0 flex-1 touch-pan-y flex-col items-center select-none"
         style={{
-          // A double-tap on a control is a double-tap-to-select gesture as far as
-          // the browser is concerned, and dragging from it extends the selection.
-          // With nothing selectable under the finger it reaches for the nearest
-          // text that is — the chrome above — so the whole surface has to opt out,
-          // not just the buttons: the gaps between them are where a fast thumb
-          // actually lands.
           WebkitTouchCallout: "none",
           WebkitTapHighlightColor: "transparent",
         }}
       >
         <div
-          // Square by ratio and allowed to shrink, rather than taking every
-          // pixel of free height. Both halves are what hands the leftover to
-          // the controls underneath: on a phone the game is bound by the *width*
-          // and everything below the square used to be dead space inside this
-          // box, which is precisely the room the interaction list wants. Shrink
-          // is what keeps a rotated phone honest — the box gives height back
-          // when there is not enough to be square in, and `100cqmin` letterboxes
-          // the game inside whatever is left.
           className="flex w-full min-h-0 shrink aspect-square items-center justify-center overflow-hidden"
-          // Sized container so the square below can be stated in terms of the
-          // box's shorter edge. The ratio alone cannot do this: it is the box
-          // that is square, and a shrunk box is not.
           style={{ containerType: "size" }}
         >
           <div className="relative" style={{ width: "100cqmin", height: "100cqmin" }}>
@@ -701,23 +382,15 @@ export function GameViewport({
               className="block h-full w-full touch-none"
               style={{ imageRendering: "pixelated" }}
             />
-            {/* Sized and positioned by app.css; the render loop writes into it. */}
             <div ref={labelRef} className="world-label-layer" />
           </div>
         </div>
 
         {coarse ? (
-          // One row directly under the world: what you can say, and what you can
-          // open. The field itself hides behind the button — it was a permanent
-          // row for something used in bursts, and on a phone that row is the
-          // game's.
           <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">
             {onSay ? (
               <>
                 <ChatButton onSay={onSay} onTypingChange={noteTyping} />
-                {/* Ruled off from the panels beside it, because they are a
-                    different kind of button: this one puts words into the world
-                    and those only open something. */}
                 <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
               </>
             ) : null}
@@ -728,15 +401,6 @@ export function GameViewport({
         ) : null}
 
         {coarse ? (
-          // Reading hand on the left, walking thumb on the right. The arrows go
-          // to the side most thumbs are, and the list of what is in reach — the
-          // thing you *read* before acting — sits on the other, out from under
-          // the hand that is steering.
-          // No bottom padding on the row, because the reading column is meant to
-          // reach the physical bottom of the screen — see
-          // `.scrolls-past-toolbar` in `../app.css`. The arrows take their own
-          // gap back below, since they are the half that must not go under the
-          // toolbar.
           <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3">
             <div
               className="flex min-h-0 flex-1 flex-col items-start gap-2"
@@ -744,10 +408,6 @@ export function GameViewport({
             >
               {replacesList ??
                 (panelCoversList ? (
-                  // Scrolls on its own rather than growing the row: a bag with
-                  // thirty things in it must not be able to push the arrows off
-                  // the bottom of the screen, which is the whole reason they are
-                  // still here.
                   <div className="scrolls-past-toolbar flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
                     {panels}
                   </div>
@@ -755,88 +415,27 @@ export function GameViewport({
                   list
                 ))}
             </div>
-            {/* The lane sits *above* the pad rather than beside it, and that is
-                what buys the pad its size back: a column on the screen edge cost
-                the row its own width plus a gap, where a line stacked on top of
-                the pad costs nothing horizontal at all. The two are one cluster,
-                so they share a column and the lane is exactly the pad's width.
-
-                Shrinks rather than holding its size — see
-                {@link INTERACTION_LIST_MIN_WIDTH_PX}. */}
             <div
               className="flex min-w-0 shrink flex-col items-center pb-3"
               style={{
-                // A basis rather than letting it size to its contents: the pad
-                // is `w-full` of this box, so a shrink-to-fit parent would be
-                // asking the child how wide to be and getting `min-width` back —
-                // the pad sat pinned at its floor with free space beside it.
-                // Stating the ideal here is what gives flexbox something to
-                // shrink *from*.
                 flexBasis: PAD_SIZE_PX,
-                // **Only this column comes up out of the toolbar's band.** The
-                // row runs to the bottom edge of the screen so the list beside
-                // this can use that height, and the arrows are the one thing
-                // there that cannot: a control half under the browser's toolbar
-                // is a control you cannot press, and there is no scrolling it
-                // clear. A margin rather than padding, so the column *ends*
-                // above the toolbar rather than merely holding its contents off
-                // it — the pad is `mt-auto`'d against that end.
-                //
-                // Two things to clear and only one of them at a time, so the
-                // larger wins. `100lvh - 100dvh` is however much of the screen
-                // the browser's toolbars are covering *right now* — it is zero
-                // once they retract, and it tracks them as they go — and the
-                // inset is the home indicator, which is what is left to avoid
-                // when they have. Taking the sum instead would push the arrows
-                // a toolbar's height up a screen that has no toolbar showing.
                 marginBottom: "max(env(safe-area-inset-bottom), calc(100lvh - 100dvh))",
               }}
             >
-              {/* Rendered whether or not anything is running: a lane that
-                  appeared on the first berry would push the pad down out from
-                  under the thumb steering with it. */}
               <StatusStrip statuses={statuses} interactive={false} tilesets={tilesets} />
-              {/* Shoved to the far end of the column rather than sat under the
-                  lane, so the two are as far apart as the space allows. They are
-                  one cluster to *read* and must not be one to *hit*: a thumb
-                  reaching for north lands where the top of the pad is, and a row
-                  of decorations an inch above it is a stray press waiting to
-                  happen — see `interactive={false}`, which is the other half of
-                  the same worry. */}
-              {/* Takes whatever the lane above leaves, so the arrows end up at
-                  the far end of the column — `flex-1` rather than `mt-auto`,
-                  because the box below has to be told how tall it is and an
-                  auto margin says nothing. */}
               <div className="flex w-full min-h-0 flex-1 flex-col gap-2">
-                {/* Directly above the arrows and exactly their width, because
-                    the two are one cluster: the hand steering is on this side of
-                    the screen, and the hand that is free is the one that casts.
-                    Absent entirely for a body carrying no stones, which is what
-                    keeps the pad where a returning player's thumb left it — see
-                    `./SpellBar`, which draws nothing rather than an empty row. */}
                 <SpellBar
                   spells={spells}
                   onCast={cast}
                   onStopCast={stopCast}
                   tilesById={tilesById}
                   tilesets={tilesets}
-                  // Centred on the pad below it, because the two are one
-                  // cluster: a single stone hugging the pad's western edge
-                  // reads as a control that has come loose from it.
                   className="justify-center"
                 />
-                {/* Pushed to the far end of the column, which is as near the
-                    bottom of the screen as the arrows are allowed to get. One
-                    fixed square, so there is nothing here to measure or shrink —
-                    @see PAD_SIZE_PX. */}
                 <div className="mt-auto flex w-full justify-center">
                   <DirectionPad onPress={press} onRelease={release} />
                 </div>
               </div>
-              {/* The far corner, under the arrows, which is the one place on a
-                  phone that is never on the way to anything: the thumb steering
-                  arrives from above and the row of controls is a screen away. A
-                  reading is worth exactly that much room and no more. */}
               {readouts ? (
                 <div className="flex w-full shrink-0 items-center justify-end gap-2 pt-1">
                   {readouts}
@@ -852,39 +451,15 @@ export function GameViewport({
           className="flex h-full shrink-0 flex-col gap-2 border-l-2 border-paper/20 p-2"
           style={{ width: INTERACTION_PANEL_WIDTH_PX }}
         >
-          {/* Above the modes and ruled off from them, so the column reads top to
-              bottom as: what you are under, what a tap means, what you have,
-              what is in reach. Always present, so nothing below it moves when a
-              status lands.
-
-              The hour sits on its own line *above* the strip, out of the header
-              it used to be in: both are the world reporting on itself rather
-              than anything you can press, which is why they share a block, and
-              stacking is what keeps them in the column. Beside the strip they
-              could not fit — the lane is `w-full shrink-0`, so it claimed the
-              row's whole width and shoved the reading out past the panel's
-              right edge, where seeing the time meant scrolling the page
-              sideways. */}
           <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
             {readouts ? (
-              // Wraps rather than overflows, because this line holds whatever a
-              // route hands it: `../routes/game` puts a connection chip beside
-              // the hour, and two readings in a narrow column want a second row
-              // rather than a horizontal scrollbar.
               <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
             ) : null}
             <StatusStrip statuses={statuses} interactive tilesets={tilesets} />
           </div>
-          {/* What you can open, above the list and ruled off from it. */}
           <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
             {panelButtons("compact")}
           </div>
-          {/* The same row of stones a phone gets, with the same order and the
-              same buttons — a desktop simply also has `Q`, `E` and `F` for them.
-              Below the panels rather than above, because those only open
-              something and this is a thing you do to the world; and absent for
-              anybody carrying no stones, so a column that has never seen magic
-              is unchanged. */}
           {spells.length > 0 ? (
             <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
               <SpellBar
@@ -897,19 +472,11 @@ export function GameViewport({
               />
             </div>
           ) : null}
-          {/* Under the buttons that open them and above the list, so the column
-              reads top to bottom as: what a tap means, what you have, what is
-              in reach. `shrink-0` because the list below is the thing that
-              should give up room when the window is short — a panel that
-              squashed would lose slots off the bottom with nothing saying so. */}
           {showEquipment || showBag ? (
             <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
               {panels}
             </div>
           ) : null}
-          {/* The panel takes the list's place rather than a place of its own: a
-              conversation is what is in reach, said longer, and the aside is
-              already the column for that. */}
           {replacesList ?? list}
         </aside>
       )}

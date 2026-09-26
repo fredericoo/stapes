@@ -1,21 +1,3 @@
-/**
- * Derives the "inner" companion block for a half-inset autotile.
- * Run: bun run generate:complement
- *
- * The floor autotiles in `floors.png` are drawn inset: an edge cell paints only
- * the half of itself facing the material, so the run of tiles stops short of its
- * own boundary and the floor reads as tucked *inside* whatever is drawn around
- * it. That inset is unconditional, though, and an 8-neighbour mask cannot tell
- * the outside of a house from a stair well cut through its floor — so the well
- * gets the same polite retreat, and its corners round off.
- *
- * The companion block is each cell's complement: exactly the pixels the inset
- * cell declines to paint. Stacked on a placement, the two halves add back up to
- * a full cell, so an author closes the tiles they want closed and leaves the
- * rest inset. It is generated rather than drawn because it is not a drawing
- * decision — the complement is pinned by the base art, and any hand-drawn
- * version is either identical to this or a seam.
- */
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
@@ -24,21 +6,14 @@ import { CELL_SIZE } from "../app/lib/types";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const TILESETS = path.join(ROOT, "data", "tilesets");
 
-/** Blocks are the 4x4 arrangement every floor autotile in this sheet uses. */
 const BLOCK_COLS = 4;
 const BLOCK_ROWS = 4;
 
-/**
- * The block-relative cell holding the fully covered tile — the one an interior
- * placement draws. It is the whole material, so it is what every other cell in
- * the block is a subset of, and therefore what they get complemented against.
- */
 const FULL_CELL = { x: 0, y: 0 };
 
 type Block = { x: number; y: number };
 
 const JOBS: { file: string; source: Block; dest: Block }[] = [
-  // Wooden floor: block at cols 0-3 / rows 4-7, complement at the same rows, x+8.
   { file: "floors.png", source: { x: 0, y: 4 }, dest: { x: 8, y: 4 } },
 ];
 
@@ -61,10 +36,6 @@ function clearPixel(png: PNG, x: number, y: number) {
   for (let k = 0; k < 4; k++) png.data[i + k] = 0;
 }
 
-/**
- * Writes `dest` as the per-pixel complement of `source`, taking its colour from
- * the block's full cell so the plank pattern stays continuous across the seam.
- */
 function complementBlock(png: PNG, source: Block, dest: Block): number {
   const fullX = (source.x + FULL_CELL.x) * CELL_SIZE;
   const fullY = (source.y + FULL_CELL.y) * CELL_SIZE;
@@ -79,13 +50,10 @@ function complementBlock(png: PNG, source: Block, dest: Block): number {
           const dx = (dest.x + col) * CELL_SIZE + px;
           const dy = (dest.y + row) * CELL_SIZE + py;
 
-          // Covered by the base cell → the complement owes nothing here.
           if (alphaAt(png, sx, sy) > 0) {
             clearPixel(png, dx, dy);
             continue;
           }
-          // Uncovered, but outside the material entirely (the full cell is
-          // transparent here too) → still nothing to add back.
           if (alphaAt(png, fullX + px, fullY + py) === 0) {
             clearPixel(png, dx, dy);
             continue;

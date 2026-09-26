@@ -2,23 +2,10 @@ import { useState } from "react";
 import { DoorButton, DoorError, DoorField } from "./door";
 import { signIn } from "../lib/auth";
 
-/**
- * A username, a password, and the press that signs you in.
- *
- * A component rather than a route's own markup because there are two doors that
- * want it: the game's at `/sign-in`, and the editors' at `/admin/sign-in`. They
- * differ in what they say around the form and where they go afterwards, which
- * is exactly the part they each keep.
- *
- * **It does not ask for the email.** That is given once, when the account is
- * made, and then only stored — see `server/auth.ts`. A second identifier on the
- * screen people see most often is a field to get wrong.
- */
 export function SignInForm({
   onSignedIn,
   submitLabel = "Sign in",
 }: {
-  /** Called once the cookie is set. Each door decides where that leads. */
   onSignedIn: () => void;
   submitLabel?: string;
 }) {
@@ -54,8 +41,6 @@ export function SignInForm({
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          // The browser fills both fields together, and telling it which pair
-          // it is looking at is what stops one form being offered the other's.
           autoComplete="username"
           value={username}
           disabled={busy}

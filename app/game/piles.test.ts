@@ -8,15 +8,6 @@ import { GameSession } from "./GameSession";
 import type { SlotRef } from "./itemMoves";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * Several of one thing, as the session moves them about.
- *
- * The arithmetic is `../lib/piles`' own file; this is about the four verbs that
- * meet it — taking a pile off the board, putting one down, spending one of it,
- * and dragging the lot from square to square.
- */
-
-/** A pile of at most `pile`, which is the whole of what makes it food. */
 function food(id: string, pile: number): TileDef {
   return tile({
     id,
@@ -27,7 +18,6 @@ function food(id: string, pile: number): TileDef {
 }
 
 const BAG_TILE_ID = "basic-bag";
-/** Two squares, so "the bag is full" is one line of setup rather than four. */
 const BAG_SIZE = 2;
 
 const tiles: TileDef[] = [
@@ -82,23 +72,13 @@ const tiles: TileDef[] = [
   }),
 ];
 
-/** Where the bearer stands, and the tile they can reach. */
 const HERE: Coord = { x: 0, y: 0, z: 0 };
 const BESIDE: Coord = { x: 1, y: 0, z: 0 };
-/** Whose kit these tests are about — never the map's own idle player. */
 const WHO = "bearer";
 const BAG_SLOT: SlotRef = { kind: "contents", index: 0 };
 const SECOND_BAG_SLOT: SlotRef = { kind: "contents", index: 1 };
 const OFFHAND: SlotRef = { kind: "offhand" };
 
-/**
- * Open grass, with the map's own player parked well out of the way.
- *
- * The bearer is spawned into it rather than being that player, because a body
- * already on the board keeps whatever kit it arrived with — `spawn` is how a
- * *new* actor is given one, and it does nothing for an id the session already
- * holds. Every test here is about a kit somebody was handed.
- */
 function field(): MapFile {
   let map = emptyMap();
   for (let x = -2; x <= 4; x++) {
@@ -109,7 +89,6 @@ function field(): MapFile {
   return replaceStack(map, 4, 2, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
 }
 
-/** A world with `placed` on the grass beside the player. */
 function beside(placed: PlacedTile): MapFile {
   return replaceStack(field(), BESIDE.x, BESIDE.y, BESIDE.z, [{ tileId: "grass" }, placed]);
 }
@@ -122,7 +101,6 @@ function carrying(contents: ItemInstance[], slots: Partial<Equipment> = {}) {
   };
 }
 
-/** A session with the bearer carrying `kit`, and `placed` on the next tile. */
 function world(kit: Equipment, placed?: PlacedTile): GameSession {
   const session = new GameSession(placed ? beside(placed) : field(), tiles);
   session.spawn(WHO, { at: { ...HERE, direction: "e" }, carrying: kit });
@@ -143,7 +121,6 @@ function asideStack(session: GameSession): PlacedTile[] {
   return getStack(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z);
 }
 
-/** The thing lying beside the player, as something to act on. */
 const ASIDE = { ...BESIDE, stackIndex: 1 };
 
 describe("picking a pile up", () => {
@@ -178,8 +155,6 @@ describe("picking a pile up", () => {
       { tileId: "berry", itemId: "itm_b" },
     );
 
-    // Two squares, both taken — and the berry still goes in, because the row is
-    // offered on whether it *lands*, not on whether a square is free.
     expect(session.canPickUp(ASIDE, WHO)).toBe(true);
     expect(session.pickUp(ASIDE, WHO)).toBe(true);
     expect(bag(session)).toEqual([
@@ -210,8 +185,6 @@ describe("picking a pile up", () => {
       { tileId: "berry", itemId: "itm_b", count: 2 },
     );
 
-    // A hand would take it — that is the row the pickup falls through to — so
-    // this asserts only that the bag did not, which is the pile rule.
     expect(session.pickUp(ASIDE, WHO)).toBe(true);
     expect(bag(session)).toHaveLength(2);
     expect(kitOf(session).offhand).toEqual({
@@ -241,8 +214,6 @@ describe("putting a pile down", () => {
     });
 
     expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
-    // Two berries on a tile are two berries in the same tile, not two things
-    // standing on each other.
     expect(asideStack(session)).toEqual([
       { tileId: "grass" },
       { tileId: "berry", itemId: "itm_b", count: 2 },
@@ -358,8 +329,6 @@ describe("dragging a pile between squares", () => {
 
     expect(session.canMoveItem(BAG_SLOT, OFFHAND, WHO)).toBe(true);
     expect(session.moveItem(BAG_SLOT, OFFHAND, WHO)).toBe(true);
-    // The square that received keeps its identity; the one that arrived is gone
-    // as surely as if it had been drunk.
     expect(kitOf(session).offhand).toEqual({
       id: "itm_b",
       tileId: "berry",
@@ -368,11 +337,6 @@ describe("dragging a pile between squares", () => {
     expect(bag(session)).toEqual([]);
   });
 
-  /**
-   * Two different things in one square is a trade rather than a pour — see
-   * `./itemMoves`' `swapInto`. The pile does not join the bread; it takes the
-   * bread's place, and the bread goes back where the pile came from.
-   */
   it("trades with a hand holding something the pile cannot join", () => {
     const session = world(
       carrying([{ id: "itm_a", tileId: "berry" }], {
@@ -390,10 +354,6 @@ describe("dragging a pile between squares", () => {
       }),
     );
 
-    // Two and two is four against a ceiling of three. One would fit and that is
-    // not on offer: a move lands whole or is refused. Nor is it rescued by the
-    // trade a full square otherwise gets — two of one thing is not a trade, and
-    // exchanging the piles would leave you holding the number you were adding to.
     expect(session.canMoveItem(BAG_SLOT, OFFHAND, WHO)).toBe(false);
   });
 
