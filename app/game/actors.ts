@@ -1,4 +1,12 @@
-import { appendTile, getStack, listCoords, removeTileAt, replaceStack } from "../lib/mapData";
+import {
+  appendTile,
+  getStack,
+  listCoords,
+  removeTileAt,
+  replaceStack,
+  setStacks,
+  type StackEdit,
+} from "../lib/mapData";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, levelKey, parseCoordKey, resolveActor } from "../lib/types";
 import { PLAYER_TILE_ID } from "./constants";
@@ -177,6 +185,39 @@ export function despawnActor(map: MapFile, ownerId: string): MapFile {
   const loc = findActorAnywhere(map, ownerId);
   if (!loc) return map;
   return removeTileAt(map, loc.x, loc.y, loc.z, loc.stackIndex);
+}
+
+/**
+ * Removes the first body of each owner `doomed` picks, which is the one
+ * `despawnActor` would remove, in one walk of the board.
+ */
+export function despawnActors(map: MapFile, doomed: (ownerId: string) => boolean): MapFile {
+  const gone = new Set<string>();
+  const edits: StackEdit[] = [];
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    const level = map.levels[levelKey(z)];
+    if (!level) continue;
+    for (const chunk of Object.values(level)) {
+      for (const key in chunk) {
+        const stack = chunk[key]!;
+        let kept: PlacedTile[] | null = null;
+        for (let i = 0; i < stack.length; i++) {
+          const owner = stack[i]!.owner;
+          if (owner && !gone.has(owner) && doomed(owner)) {
+            gone.add(owner);
+            kept ??= stack.slice(0, i);
+          } else {
+            kept?.push(stack[i]!);
+          }
+        }
+        if (kept) {
+          const { x, y } = parseCoordKey(key);
+          edits.push({ x, y, z, stack: kept });
+        }
+      }
+    }
+  }
+  return setStacks(map, edits);
 }
 
 export function actorDirection(loc: ActorLocation): Direction {

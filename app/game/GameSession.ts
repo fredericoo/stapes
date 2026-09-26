@@ -64,8 +64,8 @@ import {
   residentOwnerId,
   actorStillAt,
   despawnActor,
+  despawnActors,
   findActorAnywhere,
-  listActorOwners,
   locateActor,
   removeAuthoredPlayer,
   spawnActor,
@@ -989,10 +989,7 @@ export class GameSession implements PlaySession {
         .map((body) => body.placed.owner)
         .filter((owner): owner is string => owner != null),
     );
-    for (const owner of listActorOwners(this.map)) {
-      if (live.has(owner) || residents.has(owner)) continue;
-      this.map = despawnActor(this.map, owner);
-    }
+    this.map = despawnActors(this.map, (owner) => !live.has(owner) && !residents.has(owner));
   }
 
   despawn(id: string) {

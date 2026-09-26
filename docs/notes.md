@@ -880,7 +880,10 @@ single-actor API still defaults to, and the tests are what call it.
   an actor on the body they have rather than minting a second — `despawn` only
   ever removes one, so a duplicate would linger forever. Actors in a resumed map
   with no live connection are reaped (`reapAbsentActors`); nothing else would
-  ever remove them.
+  ever remove them. The reap is one walk of the board (`despawnActors`), not a
+  `despawnActor` sweep per body: the last checkpoint before a restart holds
+  everybody who was online, and the load after it reaps every one of them but
+  the player whose join started it.
 - **A map that has been run cannot be resumed without its spawn point.**
   Starting a session *consumes* the authored `player` marker — adopted or
   removed — so there is no tile left to read it from. `getSpawnPoint` exists so
