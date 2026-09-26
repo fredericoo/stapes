@@ -6,7 +6,14 @@ import { isRanged, resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
-import { MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
+import {
+  MAX_ATTACK_TICKS,
+  MIN_ATTACK_TICKS,
+  rollAttack,
+  SLOWEST_ATTACK_TICKS,
+  swingIntervalMs,
+  swingWindupMs,
+} from "./combat";
 import { TICK_MS } from "./constants";
 import { Duel, type DuelEvent, type DuelResult, MAX_DUEL_TICKS, runDuel, type Side } from "./duel";
 import { Rng } from "./rng";
@@ -69,6 +76,14 @@ function damagePerSecond(attacker: FightingStats, fights = 400): number {
   }
 
   return total / fights / seconds;
+}
+
+function swingTicksBy(duel: Duel, side: Side, count: number): number[] {
+  const swung: number[] = [];
+  for (let tick = 1; swung.length < count && tick <= MAX_DUEL_TICKS; tick++) {
+    if (duel.tick().some((event) => event.kind === "swing" && event.by === side)) swung.push(tick);
+  }
+  return swung;
 }
 
 function tickUntilSwing(duel: Duel): readonly DuelEvent[] {
@@ -511,5 +526,26 @@ describe("the duel loop", () => {
     });
     expect(result.winner).toBeNull();
     expect(result.ticks).toBe(500);
+  });
+
+  it("swings on the tick its windup runs out, and then once every interval, at every pace", () => {
+    const target = dummy({ damage: 0, maxHp: Number.MAX_SAFE_INTEGER });
+    const offPace: number[] = [];
+    for (let ticks = MIN_ATTACK_TICKS; ticks <= SLOWEST_ATTACK_TICKS; ticks++) {
+      /**
+       * Speed 0 is `MAX_ATTACK_TICKS` and haste divides it, so this walks every
+       * interval `attackIntervalMs` can return.
+       */
+      const swinger = dummy({ spd: 0, haste: MAX_ATTACK_TICKS / ticks });
+      const interval = Math.round(swingIntervalMs(swinger) / TICK_MS);
+      const windup = Math.round(swingWindupMs(swinger) / TICK_MS);
+      const duel = new Duel({ swings: [swinger] }, { swings: [target] }, new Rng(1));
+
+      const swung = swingTicksBy(duel, "a", 3);
+
+      const due = [windup, windup + interval, windup + interval * 2];
+      if (swung.some((tick, i) => tick !== due[i])) offPace.push(interval);
+    }
+    expect(offPace).toEqual([]);
   });
 });

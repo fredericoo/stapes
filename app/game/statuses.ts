@@ -6,6 +6,7 @@ import { COMBAT_DURATION_MS, COMBAT_STATUS_ID, MODIFIER_KEYS, type StatusDef } f
 import type { Blame } from "./blame";
 import { TICK_MS } from "./constants";
 import type { Rng } from "./rng";
+import { reached, TICK_SLACK_MS } from "./ticks";
 
 export type StatusInstance = {
   defId: string;
@@ -30,24 +31,15 @@ export const UNKNOWN_REMAINING_MS = Number.POSITIVE_INFINITY;
 export function snapToTick(everyMs: number): number {
   if (everyMs <= 0) return 0;
   /**
-   * Nudged by the epsilon before the ceiling: `1000 / TICK_MS` computes to
+   * Nudged by the slack before the ceiling: `1000 / TICK_MS` computes to
    * 30.000000000000004, so an honest `ceil` would round a cadence of exactly
    * 1000ms up to 31 ticks and make every authored cadence a tick late.
    */
-  return Math.max(1, Math.ceil(everyMs / TICK_MS - TICK_EPSILON_MS)) * TICK_MS;
+  return Math.max(1, Math.ceil(everyMs / TICK_MS - TICK_SLACK_MS)) * TICK_MS;
 }
 
-/**
- * Slack for comparing accumulated millisecond counts. `TICK_MS` is not
- * exactly representable, so a count built up from many ticks drifts a few
- * times 1e-15 off the exact value, which is enough to fail a comparison
- * against an exact boundary. Far smaller than anything the simulation
- * observes, and far larger than the drift it absorbs.
- */
-const TICK_EPSILON_MS = 1e-6;
-
 export function secondsLeft(remainingMs: number): number {
-  return Math.max(0, Math.ceil(remainingMs / 1000 - TICK_EPSILON_MS));
+  return Math.max(0, Math.ceil(remainingMs / 1000 - TICK_SLACK_MS));
 }
 
 export function statusReading(statuses: readonly StatusInstance[]): string {
@@ -169,7 +161,7 @@ export function advanceStatuses(
        * one call, so a status whose cadence is shorter than the catch-up owes
        * one payout per period it accumulated, not just the last.
        */
-      while (everyMs > 0 && sinceEffectMs + TICK_EPSILON_MS >= everyMs) {
+      while (everyMs > 0 && reached(sinceEffectMs, everyMs)) {
         sinceEffectMs -= everyMs;
         hpChanges.push({
           amount: def.effects.hp.evaluate(scope),
@@ -180,7 +172,7 @@ export function advanceStatuses(
       }
     }
 
-    if (remainingMs <= TICK_EPSILON_MS) {
+    if (remainingMs <= TICK_SLACK_MS) {
       expired = true;
       continue;
     }

@@ -209,6 +209,16 @@ function swingsOver(session: GameSession, ms: number): number {
   return swings;
 }
 
+function swingTicks(session: GameSession, count: number): number[] {
+  const me = self(session).id;
+  const swung: number[] = [];
+  for (let tick = 1; swung.length < count && tick * TICK_MS < LONG_ENOUGH_TO_KILL_MS; tick++) {
+    session.tick(TICK_MS);
+    if (session.drainSwings().includes(me)) swung.push(tick);
+  }
+  return swung;
+}
+
 function bodyOf(session: GameSession, tileId: string) {
   return session.actorSnapshots().find((actor) => actor.tileId === tileId);
 }
@@ -286,8 +296,9 @@ describe("swinging at a target", () => {
     expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
   });
 
-  it("swings no faster than its speed allows", () => {
-    const slowPlayer = tiles.map((t) =>
+  it("swings on the tick its windup runs out, and then once every interval", () => {
+    const spd = 74;
+    const paced = tiles.map((t) =>
       t.id === "player"
         ? tile({
             ...t,
@@ -295,18 +306,23 @@ describe("swinging at a target", () => {
               battler: {
                 baseHp: FIXTURE_BASE_HP,
                 masteries: { toughness: PLAYER_TOUGHNESS },
-                naturalWeapon: claws({ damage: 1, accuracy: 100 }),
+                naturalWeapon: claws({ damage: 1, accuracy: 100, spd }),
               },
             },
           })
         : t,
     );
-    const session = new GameSession(withBody(field(), 1, 0, "dummy"), slowPlayer);
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), paced);
+    const intervalTicks = Math.round(attackIntervalMs(spd) / TICK_MS);
+    const windupTicks = Math.round(intervalTicks * SWING_WINDUP_SHARE);
 
-    const interval = attackIntervalMs(0);
-    fight(session, bodyOf(session, "dummy")!.id, interval * SWING_WINDUP_SHARE);
-    expect(swingsOver(session, interval - TICK_MS)).toBe(1);
-    expect(swingsOver(session, TICK_MS * 2)).toBe(1);
+    fight(session, bodyOf(session, "dummy")!.id, TICK_MS);
+
+    expect(swingTicks(session, 3)).toEqual([
+      windupTicks,
+      windupTicks + intervalTicks,
+      windupTicks + intervalTicks * 2,
+    ]);
   });
 
   describe("getting into the first blow", () => {

@@ -6,6 +6,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
+import { TICK_MS } from "./constants";
 import { emptyEquipment, type Equipment } from "./equipment";
 import {
   canBeginExtract,
@@ -33,6 +34,8 @@ function tile(partial: Record<string, unknown>): TileDef {
 }
 
 const EXTRACT_MS = 4_000;
+
+const QUICK_PULL_MS = 2_000;
 
 const WILT_MS = 1_000;
 
@@ -72,6 +75,19 @@ const tiles = [
         durability: 2,
         tileId: "picked-bush",
         durationMs: EXTRACT_MS,
+        slots: [{ tileId: "berry", chance: 100 }],
+      },
+    },
+  }),
+  tile({
+    id: "quick-bush",
+    height: 2,
+    interactions: {
+      extract: {
+        actionName: "Pick",
+        durability: 2,
+        tileId: "picked-bush",
+        durationMs: QUICK_PULL_MS,
         slots: [{ tileId: "berry", chance: 100 }],
       },
     },
@@ -439,6 +455,18 @@ describe("making a pull", () => {
     session.tick(EXTRACT_MS - 100);
 
     expect(bagTileIds(session)).toEqual([]);
+  });
+
+  it("pays out on the tick its time runs out", () => {
+    const session = new GameSession(board("quick-bush"), tiles);
+    session.interact(BUSH);
+    const ticks = Math.ceil(QUICK_PULL_MS / TICK_MS);
+
+    for (let tick = 1; tick < ticks; tick++) session.tick(TICK_MS);
+    expect(bagTileIds(session)).toEqual([]);
+
+    session.tick(TICK_MS);
+    expect(bagTileIds(session)).toEqual(["berry"]);
   });
 
   it("pours what came up into a pile already there", () => {
