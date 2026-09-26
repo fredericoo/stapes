@@ -1,5 +1,5 @@
 import { MAP_FILE_VERSION } from "../../lib/types";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { fetchMapText, fetchTiles, fetchTilesets, saveMapText } from "../../lib/api";
 import { parseMap, serializeMap } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
@@ -18,8 +18,9 @@ import { LightingToggle } from "../../components/LightingToggle";
 import { MapPanels } from "../../editor/panels/MapPanels";
 import { useEditorStore, ZOOM_LEVELS, snapZoom } from "../../editor/store";
 import { formatClock, MINUTES_PER_DAY } from "../../lib/clock";
-import type { MapFile } from "../../lib/types";
+import type { MapFile, TileDef } from "../../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../../lib/types";
+import type { RemovedPlacement } from "../../lib/validation";
 import { Button, Input, Toggle, Tooltip, useToast } from "../../ui";
 
 export async function clientLoader() {
@@ -40,14 +41,33 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
     if (map.version !== MAP_FILE_VERSION) {
       return { ok: false, error: "Unsupported map version" };
     }
-    await saveMapText(serializeMap(map));
-    return { ok: true };
+    const removed = await saveMapText(serializeMap(map));
+    return { ok: true, removed };
   } catch (err) {
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Failed to save",
     };
   }
+}
+
+const LISTED_REMOVALS = 4;
+
+function removalNotice(
+  removed: readonly RemovedPlacement[],
+  tilesById: Record<string, TileDef>,
+): [title: string, description: string] {
+  const listed = removed
+    .slice(0, LISTED_REMOVALS)
+    .map(
+      ({ x, y, z, tileId }) => `${tilesById[tileId]?.name ?? tileId} at ${x},${y} on level ${z}`,
+    );
+  if (removed.length > listed.length) listed.push(`and ${removed.length - listed.length} more`);
+  const title =
+    removed.length === 1
+      ? "Removed 1 tile that did not fit"
+      : `Removed ${removed.length} tiles that did not fit`;
+  return [title, listed.join("\n")];
 }
 
 export default function MapPage() {
@@ -68,6 +88,25 @@ export default function MapPage() {
 
   const [levelDraft, setLevelDraft] = useState(String(currentLevel));
   const handledSaveData = useRef<unknown>(null);
+
+  const save = useCallback(() => {
+    const store = useEditorStore.getState();
+    let removed: RemovedPlacement[];
+    try {
+      removed = store.removeUnfit();
+    } catch (err) {
+      showToast("Save failed", err instanceof Error ? err.message : "Failed to save", {
+        untilDismissed: true,
+      });
+      return;
+    }
+    if (removed.length > 0) {
+      showToast(...removalNotice(removed, store.tilesById), { untilDismissed: true });
+    }
+    const fd = new FormData();
+    fd.set("map", JSON.stringify(useEditorStore.getState().map));
+    fetcher.submit(fd, { method: "post" });
+  }, [fetcher, showToast]);
 
   useLayoutEffect(() => {
     useEditorStore.getState().hydrate(data.map, data.tiles);
@@ -102,9 +141,7 @@ export default function MapPage() {
       const key = e.key.toLowerCase();
       if (key === "s") {
         e.preventDefault();
-        const fd = new FormData();
-        fd.set("map", JSON.stringify(useEditorStore.getState().map));
-        fetcher.submit(fd, { method: "post" });
+        save();
         return;
       }
 
@@ -128,24 +165,28 @@ export default function MapPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fetcher]);
+  }, [save]);
 
   useEffect(() => {
     if (!fetcher.data || handledSaveData.current === fetcher.data) return;
     handledSaveData.current = fetcher.data;
-    if (fetcher.data.ok) {
-      useEditorStore.getState().markSaved();
-      showToast("Map saved");
-    } else {
+    if (!fetcher.data.ok) {
       showToast("Save failed", fetcher.data.error);
+      return;
+    }
+    const store = useEditorStore.getState();
+    store.markSaved();
+    showToast("Map saved");
+    /**
+     * Empty unless the server's tile catalogue changed after this page loaded,
+     * since `save` already removed what did not fit by the editor's own. The
+     * loader runs again after the save, and `hydrate` takes the saved map.
+     */
+    const removed = fetcher.data.removed ?? [];
+    if (removed.length > 0) {
+      showToast(...removalNotice(removed, store.tilesById), { untilDismissed: true });
     }
   }, [fetcher.data, showToast]);
-
-  const save = () => {
-    const fd = new FormData();
-    fd.set("map", JSON.stringify(useEditorStore.getState().map));
-    fetcher.submit(fd, { method: "post" });
-  };
 
   return (
     <AdminShell

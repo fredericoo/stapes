@@ -4,6 +4,7 @@
 - `ClientBundle.stored()` (`server/clientBundle.ts`) orders build ids by write time. They are commit shas, so an alphabetical sort would make `collectGarbage` delete arbitrary builds, including one about to be activated.
 - `World.drain` (`server/world.ts`) closes every socket with code 1012 before exit, because Bun exits without sending close frames (oven-sh/bun#25722) and clients would otherwise wait for their own timeout.
 - `POST /api/account` (`server/api.ts`) catches Better Auth's `APIError` and returns `status(400, …)`. `APIError.status` is a name such as `"UNPROCESSABLE_ENTITY"`, which Elysia cannot read, so uncaught it reaches the browser as a 200.
+- `POST /api/map` (`server/api.ts`) does not write the map. `GameServer.replaceWorld` writes it after a `GameSession` has been built from it, so a map that cannot start a world is refused with the stored one untouched; a write in the handler would persist it first.
 - `MIN_PASSWORD_LENGTH` (`app/lib/account.ts`) is a length floor only. An account's email is stored and nothing is sent to it, so there is no password reset.
 
 ## Wire
