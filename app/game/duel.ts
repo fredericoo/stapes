@@ -19,6 +19,7 @@ import {
   type StatusInstance,
   withStatusModifiers,
 } from "./statuses";
+import { countDown } from "./ticks";
 
 export type Side = "a" | "b";
 
@@ -164,7 +165,7 @@ export class Duel {
   private advanceCooldown(side: Side) {
     const fighter = this.fighter(side);
     if (fighter.cooldownMs > 0) {
-      fighter.cooldownMs = Math.max(0, fighter.cooldownMs - TICK_MS);
+      fighter.cooldownMs = countDown(fighter.cooldownMs, TICK_MS);
     }
   }
 

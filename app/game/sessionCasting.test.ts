@@ -56,6 +56,8 @@ const CAST_MS = 3_000;
 
 const CAST_TICKS = Math.ceil(CAST_MS / TICK_MS);
 
+const QUICK_CAST_MS = 1_500;
+
 const ADEPT_LEVEL = 10;
 
 const WARD_COOLDOWN_MS = 30_000;
@@ -350,6 +352,11 @@ const props: TileDef[] = [
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
     cooldownMs: MEND_COOLDOWN_MS,
     castTimeMs: CAST_MS,
+  }),
+  stoneTile("quick-mend-stone", {
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
+    cooldownMs: MEND_COOLDOWN_MS,
+    castTimeMs: QUICK_CAST_MS,
   }),
   stoneTile("steady-mend-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
@@ -1539,13 +1546,17 @@ describe("what a mend floats", () => {
 describe("a cast that takes time", () => {
   const HURT_HP = 10;
 
-  it("does nothing at all until the bar fills", () => {
-    const play = session({ charm: "slow-mend-stone" });
+  it.each([
+    ["slow-mend-stone", CAST_MS],
+    ["quick-mend-stone", QUICK_CAST_MS],
+  ])("does nothing at all until the bar fills: %s", (stone, castMs) => {
+    const play = session({ charm: stone });
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
+    const castTicks = Math.ceil(castMs / TICK_MS);
 
     expect(play.cast(squareSlot("charm"))).toBe(true);
-    run(play, CAST_TICKS - 1);
+    run(play, castTicks - 1);
     expect(hpOf(play)).toBe(HURT_HP);
 
     run(play, 1);

@@ -231,6 +231,7 @@ import {
   type SpellButton,
 } from "./casting";
 import { type Progress, windProgress } from "./progress";
+import { countDown, reached, TICK_SLACK_MS } from "./ticks";
 import { type Attributes, attributesOf } from "./attributes";
 import { equipmentForBody } from "./battlerKit";
 import {
@@ -670,14 +671,6 @@ type ActorRuntime = {
     chunk: ChunkCells | undefined;
   } | null;
 };
-
-/**
- * Slack for comparing accumulated ticks against a step size. `TICK_MS` is
- * 1000/30, which is not exactly representable, so thirty ticks of it sum to
- * 1000.0000000000005, and a plain comparison against the round number would
- * read a step late about half the time.
- */
-const COOLDOWN_EPSILON_MS = 1e-6;
 
 const STANDING_STATUS_EVERY_MS = 1000;
 
@@ -1874,10 +1867,10 @@ export class GameSession implements PlaySession {
   private advanceCooldowns(tickMs: number) {
     for (const actor of this.actors.values()) {
       if (actor.attackCooldownMs > 0) {
-        actor.attackCooldownMs = Math.max(0, actor.attackCooldownMs - tickMs);
+        actor.attackCooldownMs = countDown(actor.attackCooldownMs, tickMs);
       }
       if (actor.attackRecoveryMs > 0) {
-        actor.attackRecoveryMs = Math.max(0, actor.attackRecoveryMs - tickMs);
+        actor.attackRecoveryMs = countDown(actor.attackRecoveryMs, tickMs);
       }
       if (actor.nextBlow) windProgress(actor.nextBlow, tickMs);
       const windup = actor.windup;
@@ -1888,7 +1881,7 @@ export class GameSession implements PlaySession {
         continue;
       }
       if (windup.inReach && windup.msLeft > 0) {
-        windup.msLeft = Math.max(0, windup.msLeft - tickMs);
+        windup.msLeft = countDown(windup.msLeft, tickMs);
       }
     }
   }
@@ -1908,9 +1901,8 @@ export class GameSession implements PlaySession {
       return;
     }
 
-    run.progress.remainingMs -= tickMs;
+    run.progress.remainingMs = countDown(run.progress.remainingMs, tickMs);
     if (run.progress.remainingMs > 0) return;
-    run.progress.remainingMs = 0;
     this.finishExtraction(actor, run);
   }
 
@@ -1952,9 +1944,9 @@ export class GameSession implements PlaySession {
 
   private advanceStoneCooldowns(tickMs: number) {
     this.stoneClockMs += tickMs;
-    if (this.stoneClockMs + COOLDOWN_EPSILON_MS < COOLDOWN_STEP_MS) return;
+    if (!reached(this.stoneClockMs, COOLDOWN_STEP_MS)) return;
 
-    const steps = Math.floor((this.stoneClockMs + COOLDOWN_EPSILON_MS) / COOLDOWN_STEP_MS);
+    const steps = Math.floor((this.stoneClockMs + TICK_SLACK_MS) / COOLDOWN_STEP_MS);
     this.stoneClockMs -= steps * COOLDOWN_STEP_MS;
     const spent = steps * COOLDOWN_STEP_MS;
 
@@ -2413,7 +2405,7 @@ export class GameSession implements PlaySession {
       const onMe = actor.assailants;
       if (!onMe) continue;
       for (const [attackerId, remainingMs] of onMe) {
-        const left = remainingMs - tickMs;
+        const left = countDown(remainingMs, tickMs);
         if (left > 0) onMe.set(attackerId, left);
         else onMe.delete(attackerId);
       }
@@ -2580,7 +2572,7 @@ export class GameSession implements PlaySession {
     const waiting: BlowInFlight[] = [];
     const arrived: BlowInFlight[] = [];
     for (const blow of this.blowsInFlight) {
-      blow.remainingMs -= tickMs;
+      blow.remainingMs = countDown(blow.remainingMs, tickMs);
       (blow.remainingMs <= 0 ? arrived : waiting).push(blow);
     }
     /**
@@ -2877,9 +2869,8 @@ export class GameSession implements PlaySession {
       run.progress = targetId ? { ...rest, targetId } : rest;
     }
 
-    run.progress.remainingMs -= tickMs;
+    run.progress.remainingMs = countDown(run.progress.remainingMs, tickMs);
     if (run.progress.remainingMs > 0) return;
-    run.progress.remainingMs = 0;
     this.finishCasting(actor, run);
   }
 
@@ -4795,8 +4786,7 @@ export class GameSession implements PlaySession {
     for (const actor of this.actors.values()) {
       if (actor.fall) continue;
       actor.standingStatusMs += tickMs;
-      const stoodMs = actor.standingStatusMs + COOLDOWN_EPSILON_MS;
-      if (stoodMs < STANDING_STATUS_EVERY_MS) continue;
+      if (!reached(actor.standingStatusMs, STANDING_STATUS_EVERY_MS)) continue;
       actor.standingStatusMs -= STANDING_STATUS_EVERY_MS;
       this.clearStandingStatus(actor);
       this.grantStandingStatus(actor);
@@ -4898,7 +4888,7 @@ export class GameSession implements PlaySession {
 
     if (actor.walk) {
       actor.walk.elapsedMs += tickMs;
-      if (actor.walk.elapsedMs >= actor.walk.durationMs) {
+      if (reached(actor.walk.elapsedMs, actor.walk.durationMs)) {
         this.commitWalk(actor);
       } else {
         return;

@@ -770,7 +770,7 @@ describe("GameSession walk", () => {
     expect(getStack(snap.map, 0, 0, 0).some((p) => p.tileId === "player")).toBe(false);
   });
 
-  it("walks a slowed body at the slowed pace", () => {
+  it("walks a slowed body at the slowed pace, arriving on the tick the step runs out", () => {
     const mired = resolveStatus({
       id: "mired",
       name: "Mired",
@@ -787,12 +787,13 @@ describe("GameSession walk", () => {
     });
     session.runCommand("/status mired");
     session.setInput({ directions: ["e"] });
+    const stepTicks = Math.ceil((WALK_DURATION_MS * 2) / TICK_MS);
 
     session.tick(TICK_MS);
-    advance(session, WALK_DURATION_MS);
+    for (let tick = 1; tick < stepTicks; tick++) session.tick(TICK_MS);
     expect(session.getSnapshot().self.x).toBe(0);
 
-    advance(session, WALK_DURATION_MS + TICK_MS * 2);
+    session.tick(TICK_MS);
     expect(session.getSnapshot().self.x).toBe(1);
   });
 
