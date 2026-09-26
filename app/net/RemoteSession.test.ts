@@ -356,6 +356,16 @@ describe("RemoteSession clock", () => {
   });
 });
 
+describe("RemoteSession invisibility", () => {
+  it("marks its own body hidden while the server says it is", () => {
+    const { socket, session } = connected();
+    socket.deliver({ type: "hidden", on: true });
+    expect(session.getSnapshot().self.hidden).toBe(true);
+    socket.deliver({ type: "hidden", on: false });
+    expect(session.getSnapshot().self.hidden).toBe(false);
+  });
+});
+
 describe("RemoteSession chat", () => {
   const said = {
     type: "chat",

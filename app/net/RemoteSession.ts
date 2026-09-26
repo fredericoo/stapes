@@ -1171,7 +1171,7 @@ export class RemoteSession implements PlaySession {
       extracting: id === this.selfId ? this.extracting : (this.extractionsById.get(id) ?? null),
       casting: this.castingsById.get(id) ?? null,
       pvp: this.pvpOn.has(id),
-      hidden: false,
+      hidden: id === this.selfId && this.hidden,
     };
   }
 
