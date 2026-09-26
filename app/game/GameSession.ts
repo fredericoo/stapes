@@ -1884,9 +1884,8 @@ export class GameSession implements PlaySession {
       return;
     }
 
-    run.progress.remainingMs -= tickMs;
+    run.progress.remainingMs = countDown(run.progress.remainingMs, tickMs);
     if (run.progress.remainingMs > 0) return;
-    run.progress.remainingMs = 0;
     this.finishExtraction(actor, run);
   }
 
@@ -2850,9 +2849,8 @@ export class GameSession implements PlaySession {
       run.progress = targetId ? { ...rest, targetId } : rest;
     }
 
-    run.progress.remainingMs -= tickMs;
+    run.progress.remainingMs = countDown(run.progress.remainingMs, tickMs);
     if (run.progress.remainingMs > 0) return;
-    run.progress.remainingMs = 0;
     this.finishCasting(actor, run);
   }
 

@@ -5880,6 +5880,10 @@ on. The only timers it moves are the ones that were a tick late.
 - `forgetSpentAssailants` counts an attacker's interval plus
   `ASSAILANT_GRACE_MS` through it, and `landArrivedBlows` counts a projectile's
   flight, which is a whole number of ticks at some distances.
+- `advanceExtraction` and `advanceCasting` count a pull's and a cast's
+  progress through it. Every shipped pull and cast time is a whole number of
+  ticks, and the 500ms, 1500ms and 2000ms casts and the 2000ms and 6000ms pulls
+  each finished a tick after their authored time.
 
 **It is a balance change.** At their authored pace every shipped weapon and
 creature gets a tick back somewhere. The rusty sword, iron sword, simple hammer,
