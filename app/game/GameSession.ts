@@ -230,6 +230,7 @@ import {
   type SpellButton,
 } from "./casting";
 import { type Progress, windProgress } from "./progress";
+import { countDown } from "./ticks";
 import { type Attributes, attributesOf } from "./attributes";
 import { equipmentForBody } from "./battlerKit";
 import {
@@ -1849,10 +1850,10 @@ export class GameSession implements PlaySession {
   private advanceCooldowns(tickMs: number) {
     for (const actor of this.actors.values()) {
       if (actor.attackCooldownMs > 0) {
-        actor.attackCooldownMs = Math.max(0, actor.attackCooldownMs - tickMs);
+        actor.attackCooldownMs = countDown(actor.attackCooldownMs, tickMs);
       }
       if (actor.attackRecoveryMs > 0) {
-        actor.attackRecoveryMs = Math.max(0, actor.attackRecoveryMs - tickMs);
+        actor.attackRecoveryMs = countDown(actor.attackRecoveryMs, tickMs);
       }
       if (actor.nextBlow) windProgress(actor.nextBlow, tickMs);
       const windup = actor.windup;
@@ -1863,7 +1864,7 @@ export class GameSession implements PlaySession {
         continue;
       }
       if (windup.inReach && windup.msLeft > 0) {
-        windup.msLeft = Math.max(0, windup.msLeft - tickMs);
+        windup.msLeft = countDown(windup.msLeft, tickMs);
       }
     }
   }
@@ -2383,7 +2384,7 @@ export class GameSession implements PlaySession {
       const onMe = actor.assailants;
       if (!onMe) continue;
       for (const [attackerId, remainingMs] of onMe) {
-        const left = remainingMs - tickMs;
+        const left = countDown(remainingMs, tickMs);
         if (left > 0) onMe.set(attackerId, left);
         else onMe.delete(attackerId);
       }
@@ -2550,7 +2551,7 @@ export class GameSession implements PlaySession {
     const waiting: BlowInFlight[] = [];
     const arrived: BlowInFlight[] = [];
     for (const blow of this.blowsInFlight) {
-      blow.remainingMs -= tickMs;
+      blow.remainingMs = countDown(blow.remainingMs, tickMs);
       (blow.remainingMs <= 0 ? arrived : waiting).push(blow);
     }
     /**

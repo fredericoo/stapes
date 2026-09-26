@@ -5853,6 +5853,64 @@ the frame is drawn from for 320ms, by up to 6 world pixels.
   is built. The shake carries nothing the health bar and the red number do not
   also show.
 
+## A clock counted in ticks runs out on its last tick
+
+`TICK_MS` is `1000 / 30`, which a double cannot hold: it is
+33.333333333333336. Counting a duration down by subtracting it once a tick
+drifts, by up to 2e-9ms for anything under a minute, and when the remainder
+after the last tick is a hair above zero, a `> 0` check waits one more tick.
+Swing intervals are whole ticks by construction, because `attackIntervalMs`
+rounds to them, and 791 of the 1195 intervals it can return ran one tick long
+this way; the windup ran long at 420 of those paces. A rat authored at 20 ticks
+(667ms) bit every 21 (700ms) in the Arena and for any body swinging every tick
+in the world, while `combatMetrics` showed 667ms.
+
+**`app/game/ticks.ts` holds the rule once.** `countDown(remainingMs, elapsedMs)`
+returns exactly 0 once the remainder is within `TICK_SLACK_MS` of zero, so a
+`> 0` check and an `=== 0` check both read it as run out. The slack is 1e-6ms:
+hundreds of times the drift, and far below the third of a millisecond that
+separates a whole-millisecond duration from a tick boundary it does not fall
+on. The only timers it moves are the ones that were a tick late.
+
+- `GameSession.advanceCooldowns` counts the swing cooldown, the windup and the
+  strike recovery through it, and `Duel.advanceCooldown` counts the Arena's
+  cooldown through it. They were the same subtraction written twice; sharing
+  one function is what stops the Arena measuring a pace the world does not
+  play.
+- `forgetSpentAssailants` counts an attacker's interval plus
+  `ASSAILANT_GRACE_MS` through it, and `landArrivedBlows` counts a projectile's
+  flight, which is a whole number of ticks at some distances.
+
+**It is a balance change.** At their authored pace every shipped weapon and
+creature gets a tick back somewhere. The rusty sword, iron sword, simple hammer,
+battleaxe and war maul, and the rat, snake, wolf, bog imp, deer, rabbit and
+cyclops swing a tick sooner every time; the rest open a fight a tick sooner,
+because their windup was the one running long. The largest share is the rat's,
+which does both and bites 5% more often. A creature's swing in the world waits
+for its brain's round (every six ticks), so there the tick shows only where it
+crossed a round: the snake's 55 ticks became 54, nine rounds instead of ten.
+
+**Checked and left as they are.** The brain round, a fall's height steps, the
+charm and the defensive recovery carry their remainder into the next period
+and measured on time. The push slide, the damage-number lifetime, the shipped
+projectile effects and the windup lapse (`sinceSeenMs > WINDUP_LAPSE_MS`) land
+on their tick, and the strike lean is not a whole number of ticks. A noise's
+2000ms lifetime runs a tick long, which only keeps it a tick longer in the
+snapshot's `noises`. The decay index runs one clock that never resets, so
+its drift grows (about 1e-3ms after a day of ticks); a slack cannot absorb
+that, and it can only move a lifetime that is a whole number of ticks, by one
+tick in minutes. Status cadences and expiry, the standing-status clock, the
+stone clock and an endured status each compare against a 1e-6ms slack of their
+own.
+
+**`damagePerSecond` in `duel.test.ts` still counts the old way.** It keeps a
+private cooldown loop. Counting it with `countDown` gives the iron sword at the
+player's 54 ticks a twelfth swing in its 20-second window where it had eleven,
+and that turns two ladder assertions: the knight's sword stops being worth
+picking up at sharp 13 (4.99 damage a second against the iron sword's 5.24),
+and the simple axe prices at 0.899 of the iron sword against a floor of 0.9.
+Whether to retune the weapons or the measurement is a content decision.
+
 ## Balancing happens in the Arena, not in the world
 
 `/admin/arena` is a fight with the world taken out of it: two bodies, a cell apart, on
