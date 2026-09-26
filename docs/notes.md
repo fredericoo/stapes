@@ -1526,9 +1526,10 @@ surface is not intersecting it.
 authoring.** `PX_PER_HEIGHT` is `CELL_SIZE / HEIGHT_PER_LEVEL`, so one unit is
 2px. Anything a three-high body stands on *under a roof* has to be a single
 unit — 2px of apparent lift. That is the whole indoor furniture vocabulary:
-`chair` and `stool` are 1, and `table`, `barrel` and the crates stayed at 2
-(half a level) and are deliberately still things you walk around indoors rather
-than onto. Outdoors, with nothing overhead, any height climbs as before.
+`chair` and `stool` are 1, `table` and the crates stayed at 2 (half a level),
+and `barrel` is 3. They are deliberately things you walk around indoors rather
+than onto, and two barrels stacked are six units, which overflows into the
+level above. Outdoors, with nothing overhead, any height climbs as before.
 
 **Nothing stored had to be migrated.** A map holds tile ids and stack order,
 never elevations — every height in the world is derived from `data/tiles.json`
@@ -1721,6 +1722,13 @@ slope: from the floor above you step into it, land on the ramp two units down �
 an ordinary walk, not a drop — and carry on down. The animal den's mouth is the
 same three cells with the surface as its upper level, which is why walking off
 the road into it feels like walking into a cave rather than like using a door.
+
+It is also easy to tidy up by accident, because nothing in the editor marks
+it: a floor painted across the den covers it like any other gap. Five of the
+den's ramps lost their holes that way in two commits of hand edits made on the
+same day. Two were turned into plain floor afterwards, and three stayed as
+ramps nobody could stand on until the holes were emptied again. `bun run
+carve:caves --verify` reports such a ramp as one that "climbs nowhere".
 
 **The facing is the opposite of the way you climb.** `climbFrom` on both tiles
 reads "from a ramp facing *n*, you may climb north-**wards**… no": variant `n`
@@ -2011,6 +2019,39 @@ lighting one:
 The check that catches all three is the last thing `scripts/carve-caves.ts`
 does: bake the map it just wrote and assert no carved cell has any sky in it
 away from the mouth. Everything above was found by that assertion failing.
+
+The mouth is not the only way daylight is meant to get in any more. Two holes
+were drawn in the surface by hand with the `hole` tile: a shaft at (-2, 31)
+with a ladder beside it, and a hole in the floor of a roofless house at
+(55, -12) over its cellar. Both are listed in `AUTHORED_HOLES`, and the check
+treats them as it treats the mouth. A new hole is a line there; anything else
+that lets the sky in is still reported.
+
+## `carve:caves --verify` walks the underground the way a player gets around it
+
+Straight after a carve, the script checks only the cells it carved. With
+`--verify` it checks every dirt cell on levels -1 to -3, and a good part of
+those were built by hand: the tutorial rooms around the spawn, the cellars
+under houses, rooms behind doors, a floor reached only by ladder. A walk that
+started at the mouth and only took `canWalk` steps reached none of them: it
+reported 355 cells nobody could walk to, and a bat walled in behind a door.
+
+The walk now starts at the `player` marker as well as at the mouth, because
+that is where everybody enters the world, and the tutorial's only way out is a
+one-way portal. It treats every door as open, since anybody who reaches one
+can open it: a tile whose `switch` turns it into an intangible tile is
+switched before the walk. And from every cell it reaches it takes the ladders
+and portals in that cell's stack, asking `canTeleportFrom` and `teleportFits`,
+the same questions the game asks before it moves a body. A ladder whose top is
+covered by something is still refused, as it is in the game.
+
+A dirt cell only has to be reached if a body could stand in it: a walkable
+surface on that level with room for `player` above it. The check used to
+excuse only cells holding a `walkable: false` tile, so the `stone-wall` ring
+of the forge room on level -3 and every barrel, crate and bottle in a cellar
+counted as cells nobody could walk to. A wall fills its cell up to the level
+above, and a barrel, crate or bottle under a floor leaves no room on top of it
+for a three-unit body, so nobody can stand in any of those cells.
 
 ## A chase is a route, and it stops being one
 
@@ -9541,6 +9582,12 @@ been erased in the editor persisted the unstartable map and destroyed the only
 startable copy left. The session is now built first, from the incoming map, and
 storage is untouched until it exists.
 
+The move from Durable Objects to Bun reintroduced the bug in the HTTP handler:
+`POST /api/map` wrote the map itself and then called `replaceWorld`, so a save
+of a map with no marker still replaced the stored map before the session
+refused it. The handler now only parses the body and hands it to
+`replaceWorld`, which is the one place the map is written.
+
 **Never read the world you are replacing.** `replaceWorld` used to open with
 `ensureLoaded()`. Once the stored map could not start, that threw — so the
 editor could no longer save the very fix that would have repaired it. Putting
@@ -9555,13 +9602,46 @@ once goes on failing long after the cause is fixed.
 The editor gives no warning before you erase the marker — it is an ordinary
 tile in the stack. The server refusing the save is the whole of the safety net.
 
+### A save removes what does not fit, and never the marker
+
+`removeUnfitPlacements` (`app/lib/validation.ts`) runs over every map that is
+saved: in the editor before it sends the map, and in `replaceWorld` before the
+session is built, so a placement that does not fit is never written. A
+placement does not fit when `fitsTile` would refuse to put it where it stands,
+on the placements under it in its own stack: on a stack that already reaches
+the next level, overflowing into a level that holds anything, or making the
+stack taller than two levels. The refusal `fitsTile` gives the cell *above* an
+overflowing stack is left out. It is the same conflict seen from the other
+side, and taking the overflowing placements off the stack below settles it
+without touching the cell above.
+
+It exists because a height can change under placements that were legal when
+they were made. When `barrel` went from 2 to 3 units, four cells of
+`data/map.json` holding two barrels — exactly a level until then — overflowed
+into the rock, wall or floor above them. Nothing reported it: the editor checks
+a placement when it is made, and nothing checked the map again.
+
+Two things are left alone on purpose. A placement whose tile is missing from
+the catalogue has no height to judge, and removing it would let a renamed tile
+delete every placement of itself on the next save. The `player` marker is
+never removed: a marker that does not fit refuses the save with a message
+naming its cell, the way a map with no marker is refused, because a map
+without it cannot start.
+
+The editor applies its removal through `commitMap`, so it is one undo step, and
+lists what it removed in a notice that stays until it is dismissed. The server
+finds more to remove only when its tile catalogue changed after the editor
+loaded. The route's loader runs again after every save, and `hydrate` replaces
+the editor's map with the saved one when the two differ.
+
 ## Map mutations must be undoable
 
-Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
+Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeUnfit`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
 
 - Do **not** assign `map` via `setState`, mutate stacks in place, or call `mapData` helpers and write the result into the store yourself.
 - Discrete edits (backspace/delete, stack panel trash/reorder/direction, tile picker append, shape stamp) use plain `commitMap(next)` so each gets its own undo entry.
 - Paint drags use `beginStroke` → `commitMap(next, { coalesceInStroke: true })` → `endStroke` so the whole drag is one undo step.
+- Saving calls `removeUnfit` before the map is sent, so taking off the placements that do not fit is one undo step of its own.
 - If you add a new map-editing path, wire it through `commitMap` and confirm ⌘Z undoes it before considering the work done.
 
 ### The bucket fills blank cells, bounded by the level's own extent

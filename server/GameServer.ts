@@ -53,7 +53,11 @@ import {
   mapFromChunks,
 } from "../app/lib/mapData";
 import type { DataStore } from "../app/lib/dataStore";
-import { tilesByIdFromList } from "../app/lib/validation";
+import {
+  removeUnfitPlacements,
+  tilesByIdFromList,
+  type RemovedPlacement,
+} from "../app/lib/validation";
 import { type StatusDef, statusesById } from "../app/lib/status";
 import type { StatusInstance } from "../app/game/statuses";
 import type {
@@ -2005,12 +2009,16 @@ export class GameServer {
     return ids;
   }
 
-  async replaceWorld(flat: FlatMapFile, options: { keepPositions?: boolean } = {}): Promise<void> {
+  async replaceWorld(
+    flat: FlatMapFile,
+    options: { keepPositions?: boolean } = {},
+  ): Promise<{ removed: RemovedPlacement[] }> {
     const store = this.store();
     const tiles = await store.readTiles();
+    const tilesById = tilesByIdFromList(tiles);
     const statusDefs = statusesById(await store.readStatuses());
 
-    const map = chunkifyMap(flat);
+    const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
     const session = new GameSession(map, tiles, {
       actorIds: [],
       statuses: statusDefs,
@@ -2051,7 +2059,7 @@ export class GameServer {
     this.tiles = tiles;
     this.session = session;
     this.broadcastMap = this.session.getMap();
-    this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesByIdFromList(tiles)));
+    this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesById));
     this.respawnPending.clear();
     this.persistRespawnPoints();
     this.persistRespawnPending();
@@ -2070,7 +2078,6 @@ export class GameServer {
     this.queuedIntents.clear();
     this.events = [];
 
-    const tilesById = tilesByIdFromList(tiles);
     for (const actorId of present) {
       const kit = carried.get(actorId);
       this.session.spawn(
@@ -2091,6 +2098,7 @@ export class GameServer {
     }
     for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
     this.wake();
+    return { removed };
   }
 
   async reloadContent(): Promise<void> {

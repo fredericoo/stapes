@@ -2,6 +2,7 @@ import { treaty } from "@elysiajs/eden";
 import type { Api } from "../../server/api";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { TileDef, TilesetDef } from "./types";
+import type { RemovedPlacement } from "./validation";
 
 /**
  * Uses `window.location.origin`, not the bare host: Eden prefixes a bare
@@ -56,8 +57,8 @@ export async function saveStatuses(statuses: unknown[]): Promise<void> {
   unwrap(await client.api.statuses.post({ statuses }));
 }
 
-export async function saveMapText(map: string): Promise<void> {
-  unwrap(await client.api.map.post({ map }));
+export async function saveMapText(map: string): Promise<RemovedPlacement[]> {
+  return unwrap(await client.api.map.post({ map })).removed;
 }
 
 export async function saveTilesets(tilesets: TilesetDef[]): Promise<void> {

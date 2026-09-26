@@ -24,7 +24,14 @@ import {
   updatePlacedFoot,
   updatePlacedVariant,
 } from "../lib/mapData";
-import { canPlace, canReplaceStack, fitsFoot, tilesByIdFromList } from "../lib/validation";
+import {
+  canPlace,
+  canReplaceStack,
+  fitsFoot,
+  removeUnfitPlacements,
+  tilesByIdFromList,
+  type RemovedPlacement,
+} from "../lib/validation";
 import type { Rect } from "./generator";
 import { activeConfig, planProcedural, type ProceduralSettings } from "./procedural";
 import {
@@ -136,6 +143,7 @@ export type EditorStore = {
   stampMany: (coords: Array<{ x: number; y: number }>) => { skipped: number; reason?: string };
   appendArmed: () => { ok: boolean; reason?: string };
   placeProcedural: (rect: Rect) => { ok: boolean; reason?: string };
+  removeUnfit: () => RemovedPlacement[];
   removeFromStack: (stackIndex: number) => void;
   reorderSelectedStack: (from: number, to: number) => void;
   setStackDirection: (stackIndex: number, direction: Direction) => void;
@@ -458,6 +466,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!plan.ok) return { ok: false, reason: plan.reason };
     get().commitMap(setStacks(map, plan.edits));
     return { ok: true };
+  },
+
+  removeUnfit: () => {
+    const { map, tilesById } = get();
+    const { map: next, removed } = removeUnfitPlacements(map, tilesById);
+    get().commitMap(next);
+    return removed;
   },
 
   removeFromStack: (stackIndex) => {

@@ -4,10 +4,14 @@ import {
   getStack as getMapStack,
   listCoords,
   parseMap,
+  removeTileAt,
   replaceStack,
   serializeMap,
 } from "../app/lib/mapData";
+import { canTeleportFrom, teleportFits } from "../app/game/affordances";
 import { canWalk, listStandingSurfaces } from "../app/game/movement";
+import { findPlayers } from "../app/game/player";
+import { resolveSwitch, resolveTeleport } from "../app/lib/interactions";
 import { mulberry32 } from "../app/editor/generator";
 import { isSkyExposed, stackOcclusion } from "../app/lib/lighting";
 import { computeLightingFlood } from "../app/lib/lightingFlood";
@@ -19,6 +23,7 @@ import {
   MIN_LEVEL,
   coordKey,
   normalizeTileDef,
+  resolveIntangible,
 } from "../app/lib/types";
 import type { Direction, PlacedTile, TileDef } from "../app/lib/types";
 
@@ -46,6 +51,16 @@ const SYSTEM = {
 
   cellsPerCrystal: 190,
 } as const;
+
+/**
+ * Holes in the surface drawn with the `hole` tile: a shaft beside a ladder, and
+ * a hole in a house floor over its cellar. Daylight through them is meant, as it
+ * is through the mouth, so the sky checks treat them as openings too.
+ */
+const AUTHORED_HOLES = [
+  { x: -2, y: 31 },
+  { x: 55, y: -12 },
+] as const;
 
 const ROCK: Placed[] = [{ tileId: "half-stone" }, { tileId: "half-stone" }];
 const CAVE_FLOOR: Placed[] = [{ tileId: "dirt" }];
@@ -839,7 +854,6 @@ function checkWritten(carved?: Carved): string[] {
     : null;
 
   const denCells = new Set<string>();
-  const props = new Set<string>();
   const bodies: Array<{ x: number; y: number; z: number; def: TileDef }> = [];
   for (const z of SYSTEM.levels) {
     for (const { x, y, stack } of listCoords(live, z)) {
@@ -851,7 +865,6 @@ function checkWritten(carved?: Carved): string[] {
         const def = tilesById[placed.tileId];
         if (!def) continue;
         if (def.kind === "battler") bodies.push({ x, y, z, def });
-        else if (def.walkable === false) props.add(`${x},${y},${z}`);
       }
     }
   }
@@ -862,10 +875,11 @@ function checkWritten(carved?: Carved): string[] {
       occlusion.set(`${z}:${coordKey(x, y)}`, stackOcclusion(stack, tilesById));
     }
   }
+  const openings: readonly Cell[] = [SYSTEM.mouth, ...AUTHORED_HOLES];
   for (const cell of denCells) {
     const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
     if (!isSkyExposed(x, y, z, occlusion)) continue;
-    if (x === SYSTEM.mouth.x && y === SYSTEM.mouth.y) continue;
+    if (openings.some((o) => o.x === x && o.y === y)) continue;
     problems.push(`open sky over ${x},${y} on L${z}`);
   }
 
@@ -874,8 +888,7 @@ function checkWritten(carved?: Carved): string[] {
   let worst = { sky: 0, at: "" };
   for (const cell of denCells) {
     const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
-    const fromMouth = Math.max(Math.abs(x - SYSTEM.mouth.x), Math.abs(y - SYSTEM.mouth.y));
-    if (fromMouth <= MAX_LIGHT_LEVEL) continue;
+    if (openings.some((o) => chebyshev(o, { x, y }) <= MAX_LIGHT_LEVEL)) continue;
     const lv = flood.levels.get(z);
     if (!lv) continue;
     const lx = x - lv.x0;
@@ -888,7 +901,7 @@ function checkWritten(carved?: Carved): string[] {
   }
   if (daylit > 0) {
     console.log(
-      `${daylit} carved cells catch some daylight away from the mouth,` +
+      `${daylit} carved cells catch some daylight away from the openings,` +
         ` the brightest ${worst.sky}/255 at ${worst.at}`,
     );
   }
@@ -913,11 +926,34 @@ function checkWritten(carved?: Carved): string[] {
     }
   }
 
+  const spawns = findPlayers(live);
+  for (const spawn of spawns) {
+    live = removeTileAt(live, spawn.x, spawn.y, spawn.z, spawn.stackIndex);
+  }
+
   for (const z of SYSTEM.levels) {
     for (const { x, y, stack } of listCoords(live, z)) {
       const kept = stack.filter((p) => tilesById[p.tileId]?.kind !== "battler");
       if (kept.length === stack.length) continue;
       live = replaceStack(live, x, y, z, kept);
+    }
+  }
+
+  /**
+   * Whoever walks up to a closed door can open it, so the walk sees every
+   * switch that turns its tile into an intangible one as already thrown.
+   */
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const { x, y, stack } of listCoords(live, z)) {
+      let opened = false;
+      const next = stack.map((placed) => {
+        const def = tilesById[placed.tileId];
+        const target = def && tilesById[resolveSwitch(def)?.targetTileId ?? ""];
+        if (!target || !resolveIntangible(target)) return placed;
+        opened = true;
+        return { ...placed, tileId: target.id };
+      });
+      if (opened) live = replaceStack(live, x, y, z, next);
     }
   }
 
@@ -942,27 +978,59 @@ function checkWritten(carved?: Carved): string[] {
     return problems;
   }
 
-  const seen = new Set([`${approach.x},${approach.y},${start.z}`]);
-  const queue = [{ x: approach.x, y: approach.y, z: start.z }];
+  const seen = new Set<string>();
+  const queue: Array<{ x: number; y: number; z: number }> = [];
+  const arrive = (x: number, y: number, z: number) => {
+    const landed = settle(x, y, feetAt(x, y, z));
+    if (!landed || seen.has(`${x},${y},${landed.z}`)) return;
+    seen.add(`${x},${y},${landed.z}`);
+    queue.push({ x, y, z: landed.z });
+  };
+  arrive(approach.x, approach.y, start.z);
+  for (const spawn of spawns) arrive(spawn.x, spawn.y, spawn.z);
+
   for (let head = 0; head < queue.length; head++) {
     const from = queue[head]!;
-    const stackIndex = getMapStack(live, from.x, from.y, from.z).length;
+    const stack = getMapStack(live, from.x, from.y, from.z);
     for (const direction of DIRS) {
-      const step = canWalk(live, { ...from, stackIndex }, direction, playerDef, tilesById);
-      if (!step.ok) continue;
-      const landed = settle(step.to.x, step.to.y, feetAt(step.to.x, step.to.y, step.to.z));
-      if (!landed) continue;
-      const key = `${step.to.x},${step.to.y},${landed.z}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      queue.push({ x: step.to.x, y: step.to.y, z: landed.z });
+      const step = canWalk(
+        live,
+        { ...from, stackIndex: stack.length },
+        direction,
+        playerDef,
+        tilesById,
+      );
+      if (step.ok) arrive(step.to.x, step.to.y, step.to.z);
     }
+    stack.forEach((placed, stackIndex) => {
+      const teleport = resolveTeleport(placed, tilesById[placed.tileId], from);
+      if (!teleport) return;
+      const usable =
+        teleport.trigger === "step"
+          ? teleportFits(live, tilesById, playerDef, teleport.to)
+          : canTeleportFrom(live, tilesById, from, { ...from, stackIndex }, playerDef);
+      if (usable) arrive(teleport.to.x, teleport.to.y, teleport.to.z);
+    });
   }
 
+  /**
+   * Only a cell a body can stand in has to be reachable. A wall, or a barrel
+   * or crate under a floor, is a dirt cell nobody stands in, not one nobody
+   * can reach.
+   */
+  const standable = (x: number, y: number, z: number) =>
+    listStandingSurfaces(live, x, y, tilesById).some(
+      (s) =>
+        s.z === z &&
+        fitsHeightAtElevation(live, x, y, s.abs, playerDef.height, tilesById, {
+          throughPlayers: true,
+        }).ok,
+    );
   let stranded = 0;
   for (const cell of denCells) {
-    if (seen.has(cell) || props.has(cell)) continue;
-    stranded++;
+    if (seen.has(cell)) continue;
+    const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
+    if (standable(x, y, z)) stranded++;
   }
   if (stranded > 0) problems.push(`${stranded} carved cells cannot be walked to`);
 
