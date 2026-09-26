@@ -841,9 +841,19 @@ export class GameSession implements PlaySession {
         this.map = adoptBodyAt(this.map, body, owner);
       }
       if (!this.actors.has(owner)) {
-        this.addActor(owner, { resident: true, bodyTileId: body.placed.tileId });
+        this.addResident(owner, body.placed.tileId, body);
       }
     }
+  }
+
+  /**
+   * An actor with no remembered cell is found by sweeping the whole board, so
+   * a world that adopts thousands of creatures would sweep it once for each.
+   */
+  private addResident(id: string, bodyTileId: string, body: Coord & { stackIndex: number }) {
+    const actor = this.addActor(id, { resident: true, bodyTileId });
+    const at = actorStillAt(this.map, id, body);
+    if (at) this.remember(actor, at);
   }
 
   private addActor(
@@ -1023,10 +1033,7 @@ export class GameSession implements PlaySession {
     this.map = mintItemIds(this.map, this.tilesById);
     this.noteTransition("appear", def.id, point.cell, stackIndex);
     if (point.ownerId && !this.actors.has(point.ownerId)) {
-      this.addActor(point.ownerId, {
-        resident: true,
-        bodyTileId: point.placed.tileId,
-      });
+      this.addResident(point.ownerId, point.placed.tileId, { x, y, z, stackIndex });
     }
     this.reindexCells([point.cell]);
     return { kind: "done", ...(itemId ? { itemId } : {}) };
@@ -4462,8 +4469,10 @@ export class GameSession implements PlaySession {
     }
 
     this.map = candidate;
+    const summoned = getStack(this.map, at.x, at.y, at.z);
     for (const owner of owners) {
-      this.addActor(owner, { resident: true, bodyTileId: def.id });
+      const stackIndex = summoned.findIndex((placed) => placed.owner === owner);
+      this.addResident(owner, def.id, { ...at, stackIndex });
     }
     for (const stackIndex of formed) {
       this.noteTransition("appear", def.id, at, stackIndex);

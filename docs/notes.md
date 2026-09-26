@@ -852,6 +852,12 @@ single-actor API still defaults to, and the tests are what call it.
   cheapest-first discipline the single-player memo had, and for the same reason:
   a tick rewrites the map several times and almost none of those edits move
   anybody.
+- **An actor is added with its body's cell remembered.** An actor with no last
+  cell goes straight to the board sweep, so `spawn` remembers where it put a
+  player's body and `addResident` where a creature's is — adopted at load,
+  grown back by `respawnAt`, or summoned by `/tile`. Before `addResident`, a
+  world with two thousand creatures swept the board two thousand times on its
+  first `hello`.
 - **Per-actor vs per-board state.** Input, walk, fall, slide, hover and the
   location memo belong to the actor. The map, the plate and wire indexes, and
   `settledMap` belong to the session — a plate does not care who stepped on it,
