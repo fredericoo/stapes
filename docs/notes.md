@@ -857,7 +857,7 @@ single-actor API still defaults to, and the tests are what call it.
   player's body and `addResident` where a creature's is — adopted at load,
   grown back by `respawnAt`, or summoned by `/tile`. Before `addResident`, a
   world with two thousand creatures swept the board two thousand times on its
-  first `hello`.
+  first `hello`. See "Loading a large world, profiled".
 - **Per-actor vs per-board state.** Input, walk, fall, slide, hover and the
   location memo belong to the actor. The map, the plate and wire indexes, and
   `settledMap` belong to the session — a plate does not care who stepped on it,
@@ -2831,6 +2831,58 @@ one part of what is left is most of it:
   container at 512MB by default, which a thousand players exceed before this
   work and after, so a world meant to hold a thousand needs `MEM_LIMIT`
   raised.
+
+## Loading a large world, profiled
+
+Loading a world used to sweep the whole board once or more for every creature
+in it. The shipped map hides that: it has 222 creatures on about ninety
+thousand cells, a sweep there takes 3–7ms, and the whole load took under two
+seconds. On a 512×512 field with two thousand creatures the first join took
+37 seconds.
+
+**How it was measured.** A script outside the repository builds a square grass
+field in code, scatters creatures over it from a fixed seed, and loads it with
+the real `GameServer` on the in-memory store the tab uses
+(`LocalStore(memoryCheckpoints())`), timing one administrator's join and the
+phases inside it.
+
+**Three sweeps ran once per actor:**
+
+- **Each creature's first lookup.** A resident was added with no remembered
+  cell, so the first `tryLocate` for it was `findActorAnywhere`. On the server
+  the first `hello` paid it, because a `hello` snapshots every actor to decide
+  who is in reach; a bare `GameSession` paid it on its first tick.
+  `addResident` remembers the cell instead.
+- **Each creature's spawn point.** `loadRespawnState` asked `isSpawnFilled`
+  about every point, and for a creature that is `findActorAnywhere`. It now
+  builds `listActorOwners` once and passes the set in.
+- **Each absent player's body.** `reapAbsentActors` removed them one
+  `despawnActor` at a time. The last checkpoint before a restart holds
+  everyone who was online, up to `MAX_ONLINE_PLAYERS`, so this one grows with
+  players rather than creatures. `despawnActors` removes them all in one walk.
+
+| | before | after |
+|---|---|---|
+| 512×512, 2,000 creatures: first join | 37s | 2.8s |
+| 512×512, 500 creatures: first join | 10.7s | 2.7s |
+| 1024×1024, 100 creatures: first join | 21.0s | 10.6s |
+| shipped map: first join | 1.8s | 1.0s |
+| `GameSession` alone, 512×512, 2,000 creatures: first tick | 17.1s | 8ms |
+| 250 absent players reaped, 512×512 with 500 creatures | 2.3s | 0.1s |
+
+**What is left runs once per load, not once per actor**, and at 1024×1024 it
+is nearly all of the ten seconds. Parsing the map takes 1.5s and constructing
+the `GameSession` 7.7s, almost all of it in separate passes over every cell:
+`structuredClone` (1.8s), each of the five `find…Cells` indexes (0.75–0.9s),
+`requireSinglePlayer` twice, and `listResidentBodies`, `mintItemIds` and
+`clearExtractReservations` (about 0.3s each). Most of those passes go through
+`listCoords`, which builds an object for every cell of a level.
+
+**Three sweeps remain that run per event rather than per load**: a respawn
+(see "Known remaining costs"), `spawn` on every join (see "A thousand players,
+profiled"), and a body moved by `moveThrough` — a step teleport, `/goto` or
+`/move` — whose memo still names the cell it left, so its next lookup sweeps
+the board once.
 
 ## A joiner is sent the chunks its view can reach
 
@@ -11471,5 +11523,16 @@ Not yet fixed, and worth knowing before you profile something else:
   transition, which every shipped brain has; the structural one would be
   remembering the failure for a few ticks, which is the only piece of route
   state worth keeping and has not been needed yet.
+- **A respawn sweeps the whole board, and a creature's respawn sweeps it
+  twice.** `respawnAt` mints item ids with `mintItemIds` over the whole board
+  rather than in the cell it grew: about 26ms on the shipped map and 70ms on a
+  512×512 field. A creature's point also asks `isSpawnFilled`, which is
+  `findActorAnywhere` and misses, because a creature whose respawn is due is
+  not on the board: another 6.5ms and 18ms. Every tree that grows back pays
+  the first, and a restart pays both, in one tick, for every respawn that fell
+  due while the world was down. Minting in the one cell is not a drop-in
+  change: a decay or a wear that turns a non-item into an item leaves it with
+  no id (no shipped tile does either), and at the moment the next respawn
+  anywhere on the board is what gives it one.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.
