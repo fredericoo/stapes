@@ -8,10 +8,6 @@ import {
   type VoxelProject,
 } from "../../lib/voxel";
 
-/**
- * Animated preview of one direction, rendered in the game projection.
- * Frames advance on each frame's own durationMs, like in-game playback.
- */
 export function DirectionPreview({
   project,
   direction,

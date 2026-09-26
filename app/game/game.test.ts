@@ -19,7 +19,6 @@ import { canWalk, findLandingAbs, groundWalkSpeedPercent, standingAbs } from "./
 import { findPlayers, requireSinglePlayer } from "./player";
 import { tile } from "../lib/testTile";
 
-/** Run a session for `ms`, a tick at a time, the way a server does. */
 function advance(session: GameSession, ms: number) {
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
 }
@@ -27,7 +26,6 @@ function advance(session: GameSession, ms: number) {
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "dirt", height: 0 }),
-  /** Ground that is half the speed to walk on. @see TileDef.walkSpeedPercent */
   tile({ id: "mud", height: 0, walkSpeedPercent: -50 }),
   tile({ id: "slab", height: 2 }),
   tile({ id: "plaster", height: 2 }),
@@ -83,9 +81,6 @@ const tiles: TileDef[] = [
     },
   }),
   tile({ id: "dwarf", height: 2, affectedByGravity: true }),
-  // A body that is not a person. Full height and non-walkable exactly as the
-  // player tile is, so a test that distinguishes the two is distinguishing who
-  // they are rather than what shape they are.
   tile({
     id: "deer",
     height: 4,
@@ -96,12 +91,8 @@ const tiles: TileDef[] = [
   tile({ id: "tree", height: 4, walkable: false }),
   tile({ id: "bush", height: 2, walkable: false }),
   tile({ id: "fence", height: 2, walkable: false }),
-  // Height 0 and non-walkable: the pair that no rule reading
-  // elevations alone can tell apart from the ground under it.
   tile({ id: "water", height: 0, walkable: false }),
   tile({ id: "wooden-floor", height: 0 }),
-  // A dropped item: no volume of its own, so it tops out wherever it
-  // lands. Walkable, like every tile that does not say otherwise.
   tile({ id: "berry", height: 0 }),
   tile({
     id: "crate",
@@ -142,7 +133,6 @@ const tiles: TileDef[] = [
     id: "ramp",
     height: 2,
     directional: true,
-    // Tall end is opposite facing (south-facing → climb north).
     climbFrom: {
       n: { n: false, e: false, s: true, w: false },
       e: { n: false, e: false, s: false, w: true },
@@ -255,19 +245,12 @@ describe("fitsTile", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);
     const dwarf = tilesById.dwarf!;
-    // slab(1)+dwarf(1)=2 → ok under roof
     expect(fitsTile(map, 0, 0, 0, dwarf, tilesById).ok).toBe(true);
-    // player(2)+slab(1)=3 → needs empty above, roof blocks
     expect(fitsTile(map, 0, 0, 0, tilesById.player!, tilesById).ok).toBe(false);
   });
 });
 
-/**
- * The rule in one place: a body is terrain to nobody, and a cell it is in is
- * closed to everything except another person. @see docs/notes.md
- */
 describe("a body is not terrain", () => {
-  /** The grass strip with `owner`'s body standing on the cell at `x`. */
   function withBodyAt(x: number, tileId = "player", owner = "a"): MapFile {
     let map = emptyMap();
     for (let i = 0; i < 3; i++) {
@@ -282,8 +265,6 @@ describe("a body is not terrain", () => {
   });
 
   it("still weighs its full height as an authored marker", () => {
-    // No owner: the `player` tile in a map an author saved is a spawn marker,
-    // and an editor that let things stack through it would be lying.
     const map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "s" },
@@ -298,7 +279,6 @@ describe("a body is not terrain", () => {
       direction: "s",
       owner: "b",
     });
-    // Both feet on the grass, not one pair on the other's head.
     expect(standingAbs(map, 0, 0, 0, 1, tilesById)).toBe(0);
     expect(standingAbs(map, 0, 0, 0, 2, tilesById)).toBe(0);
   });
@@ -310,8 +290,6 @@ describe("a body is not terrain", () => {
       direction: "s",
       owner: "b",
     });
-    // Nothing under either of them: the second must fall with the first rather
-    // than treating the first as a floor.
     expect(isSupported(map, 0, 0, 1, 1, tilesById)).toBe(false);
   });
 
@@ -347,25 +325,18 @@ describe("a body is not terrain", () => {
 
   it("stops an object being placed in the cell it is standing in", () => {
     const map = withBodyAt(0);
-    // The editor's brush, a shoved crate and a dropped item all ask this.
     expect(fitsTile(map, 0, 0, 0, tilesById.crate!, tilesById).ok).toBe(false);
     expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(false);
   });
 
   it("lets a flat tile be laid under it", () => {
-    // No volume, nothing to clash with — a rug still goes down under a person.
     const map = withBodyAt(0);
     expect(fitsTile(map, 0, 0, 0, tilesById.roof!, tilesById).ok).toBe(true);
   });
 
   it("does not occupy the level it overflows into", () => {
-    // A body standing head-and-shoulders into the level above used to read as
-    // "level above is occupied", which refused the person joining them on the
-    // slab below for a reason nothing on screen could explain.
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s", owner: "a" }]);
-    // slab(1) + player(2) = 3, which needs the level above to be free of
-    // anything an author put there — and a body is not that.
     expect(
       fitsTile(map, 0, 0, 0, tilesById.player!, tilesById, {
         throughPlayers: true,
@@ -376,14 +347,10 @@ describe("a body is not terrain", () => {
   it("still stops an object being built through its legs", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s", owner: "a" }]);
-    // The same overflow, asked by something that is not a person.
     expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(false);
   });
 
   it("draws the second body at the first one's feet, not on its head", () => {
-    // The symptom this rule exists to prevent, at the number every renderer
-    // reads: `elevationAt` is what decides where a placement's sprite sits, and
-    // a body that counted would put the second person's feet one whole level up.
     const stack = [
       { tileId: "grass" },
       { tileId: "player", direction: "s" as const, owner: "a" },
@@ -394,7 +361,6 @@ describe("a body is not terrain", () => {
   });
 
   it("does not lift the scenery drawn above it either", () => {
-    // A running total that stopped at a body would raise everything after it.
     const stack = [
       { tileId: "slab" },
       { tileId: "player", direction: "s" as const, owner: "a" },
@@ -404,7 +370,6 @@ describe("a body is not terrain", () => {
   });
 
   it("weighs nothing as a single placement", () => {
-    // The one definition every elevation walk in the codebase now goes through.
     const marker = { tileId: "player", direction: "s" as const };
     const body = { tileId: "player", direction: "s" as const, owner: "a" };
     expect(terrainHeight(marker, tilesById)).toBe(4);
@@ -414,8 +379,6 @@ describe("a body is not terrain", () => {
   it("is nothing to land on", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s", owner: "a" }]);
-    // Falling from level 2, the only floor is the grass — not the head of the
-    // person standing a level below it.
     expect(findLandingAbs(map, 0, 0, 4, tilesById)).toBe(0);
   });
 });
@@ -442,11 +405,6 @@ describe("canReplaceStack", () => {
     ).toBe(false);
   });
 
-  /**
-   * The one measurement a body is part of: this asks what a tile may *become*
-   * under whoever is standing on it, not what may walk in. @see the doc on
-   * `canReplaceStack` itself.
-   */
   describe("with bodies in the stack", () => {
     const body = (owner: string) => ({
       tileId: "player",
@@ -492,10 +450,6 @@ describe("canReplaceStack", () => {
     });
 
     it("lets a flat tile swap under a crowd", () => {
-      // A plate pressing, a signal firing, something decaying: the scenery is
-      // the same height afterwards, and two people standing on it are side by
-      // side rather than one on the other's shoulders. Summing them would put
-      // four units of person in a two-unit level and jam the plate.
       const map = replaceStack(emptyMap(), 0, 0, 0, [
         { tileId: "grass" },
         body("a"),
@@ -515,8 +469,6 @@ describe("canReplaceStack", () => {
     });
 
     it("still measures the one body against the scenery under it", () => {
-      // slab(1) + player(2) = 3, which overflows and needs the level above
-      // free — the same answer a lone body has always got here.
       let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, body("a")]);
       map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);
       expect(canReplaceStack(map, 0, 0, 0, [{ tileId: "slab" }, body("a")], tilesById).ok).toBe(
@@ -585,19 +537,7 @@ describe("canWalk climb", () => {
     expect(check.ok).toBe(false);
   });
 
-  /**
-   * Why a level is four units rather than two.
-   *
-   * An interior is exactly one storey tall, so a body as tall as a storey has
-   * its head in the floor above the moment anything raises it — which is what
-   * made every chair and stool in every building unclimbable. A person shorter
-   * than the storey has room for one unit under their feet, and exactly one:
-   * the seat is the whole indoor vocabulary, and a half-level crate is still
-   * something you walk around.
-   */
   it("stands on a seat under a roof, but not on a half-level crate", () => {
-    // The numbers are the point, so they are written out: a storey is four, a
-    // body is one short of it, and a seat is what fits in the difference.
     expect(HEIGHT_PER_LEVEL).toBe(4);
     const person = tile({ id: "person", height: 3 });
     const seat = tile({ id: "seat", height: 1 });
@@ -608,7 +548,6 @@ describe("canWalk climb", () => {
       let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
       map = appendTile(map, 0, 0, 0, { tileId: "person" });
       map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: furniture }]);
-      // The floor of the storey above — the ceiling of this one.
       map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);
       return replaceStack(map, 1, 0, 1, [{ tileId: "roof" }]);
     };
@@ -625,8 +564,6 @@ describe("canWalk climb", () => {
     expect(stepEast(room("seat")).ok).toBe(true);
     expect(stepEast(room("crate"))).toMatchObject({ ok: false });
 
-    // And the mechanism, rather than the outcome: a body as tall as the storey
-    // cannot stand on the seat either. That was every body in the game.
     const giant = tile({ id: "giant", height: HEIGHT_PER_LEVEL });
     expect(
       canWalk(
@@ -640,7 +577,6 @@ describe("canWalk climb", () => {
   });
 
   it("steps down a level within climb height without targeting void", () => {
-    // Player on z=1 floor (abs 4); dest column has slab top at abs 2 on z=0.
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "slab" }]);
@@ -661,8 +597,6 @@ describe("canWalk climb", () => {
   });
 
   it("walks onto grass above a full lower level without dropping to that level", () => {
-    // Mimics map (2,1): dirt + 2× half-height fillers on z=-1, grass on z=0.
-    // Both surfaces share abs 0; the upper level must own the plane.
     let map = mapWithPlayer({ x: 0, y: 0 });
     map = replaceStack(map, 1, 0, -1, [{ tileId: "dirt" }, { tileId: "slab" }, { tileId: "slab" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
@@ -682,7 +616,6 @@ describe("canWalk climb", () => {
   });
 
   it("climbs ground → ramp → half+ramp (elev 0 → 1 → 2)", () => {
-    // Default south-facing ramp: tall end is north. Staircase climbs north.
     let map = replaceStack(emptyMap(), 0, 1, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "n" },
@@ -704,7 +637,6 @@ describe("canWalk climb", () => {
     if (!ontoRamp.ok) return;
     expect(ontoRamp.to).toEqual({ x: 0, y: 0, z: 0 });
 
-    // On the first ramp, climb onto half + ramp (abs 2 → 4).
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 0, [
       { tileId: "ramp", direction: "s" },
@@ -722,12 +654,10 @@ describe("canWalk climb", () => {
     );
     expect(ontoHalfRamp.ok).toBe(true);
     if (!ontoHalfRamp.ok) return;
-    // Full-height stack seals z=0; standing surface is owned by z=1 floor.
     expect(ontoHalfRamp.to).toEqual({ x: 0, y: -1, z: 1 });
   });
 
   it("climbs a plaster ladder onto overflowing stacks (height 4 → 6)", () => {
-    // Tops at abs 2, 4, 6 with half-height plaster.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "plaster" },
@@ -824,13 +754,11 @@ describe("GameSession walk", () => {
     const session = new GameSession(map, tiles);
     session.setInput({ directions: ["e"] });
 
-    // Start walk
     session.tick(1000 / 30);
     let snap = session.getSnapshot();
     expect(snap.self.walk).not.toBeNull();
     expect(snap.self.x).toBe(0);
 
-    // Finish walk
     let elapsed = 1000 / 30;
     while (elapsed < WALK_DURATION_MS + 50) {
       session.tick(1000 / 30);
@@ -842,12 +770,6 @@ describe("GameSession walk", () => {
     expect(getStack(snap.map, 0, 0, 0).some((p) => p.tileId === "player")).toBe(false);
   });
 
-  /**
-   * A status that says the bearer is slower, from one end of the feature to the
-   * other: the catalogue, the command that puts it on, and the step it times.
-   * The unit tests underneath assert the arithmetic; this asserts that the pace
-   * a body actually walks at reads it.
-   */
   it("walks a slowed body at the slowed pace", () => {
     const mired = resolveStatus({
       id: "mired",
@@ -867,8 +789,6 @@ describe("GameSession walk", () => {
     session.setInput({ directions: ["e"] });
 
     session.tick(TICK_MS);
-    // Half the speed, so twice the milliseconds — and still walking at the
-    // moment an unslowed body would have arrived.
     advance(session, WALK_DURATION_MS);
     expect(session.getSnapshot().self.x).toBe(0);
 
@@ -876,11 +796,6 @@ describe("GameSession walk", () => {
     expect(session.getSnapshot().self.x).toBe(1);
   });
 
-  /**
-   * The ground's half of the same figure. The mud is the cell being *left*,
-   * because that is the surface under the feet when a step starts and the one
-   * both sides of the wire can agree about.
-   */
   it("walks a body out of slow ground at the slow pace", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "mud" },
@@ -898,11 +813,6 @@ describe("GameSession walk", () => {
     expect(session.getSnapshot().self.x).toBe(1);
   });
 
-  /**
-   * The two sources are one figure: a chilled body wading through mud is
-   * slower than either alone, because the percentages sum before anything is
-   * divided rather than multiplying one another.
-   */
   it("adds what a body is under to what it is standing on", () => {
     const mired = resolveStatus({
       id: "mired",
@@ -922,8 +832,6 @@ describe("GameSession walk", () => {
     session.runCommand("/status mired");
     session.setInput({ directions: ["e"] });
 
-    // -75 in total: four times the milliseconds, so three walks' worth of time
-    // still leaves the body where it started.
     session.tick(TICK_MS);
     advance(session, WALK_DURATION_MS * 3);
     expect(session.getSnapshot().self.x).toBe(0);
@@ -963,11 +871,6 @@ describe("the ground's say in a pace", () => {
     expect(groundWalkSpeedPercent(map, at(0, 0, 0, 0), by)).toBe(0);
   });
 
-  /**
-   * A body is not its own ground. Without the exclusion, a slow tile that is
-   * also a body would read its own figure and a raft would slow whatever is
-   * standing on it *and* itself, twice.
-   */
   it("never reads the walking body's own tile", () => {
     const boggy = [...tiles, tile({ id: "slug", height: 2, actor: true, walkSpeedPercent: -90 })];
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "slug" }]);
@@ -981,7 +884,6 @@ describe("GameSession fall", () => {
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
     const session = new GameSession(map, tiles);
 
-    // Kick gravity
     session.tick(1000 / 30);
     let snap = session.getSnapshot();
     expect(snap.self.fall).not.toBeNull();
@@ -1003,9 +905,6 @@ describe("GameSession fall", () => {
   });
 
   it("lands on a floor sealed over a full-height non-walkable tile", () => {
-    // The landing check reads the tile that owns the plane. Reading the buried
-    // tree instead made the meadow an unwalkable hole, and a lander dropped
-    // through it into the cave.
     let map = replaceStack(emptyMap(), 0, 0, -1, [{ tileId: "dirt" }, { tileId: "tree" }]);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 1, 0, [{ tileId: "wall" }]);
@@ -1043,8 +942,6 @@ describe("walkable surfaces", () => {
   });
 
   it("does not treat a full-height non-walkable as a floor above", () => {
-    // Player on slab (abs 1) next to a tree (h=2) — must not walk onto the
-    // fake floor at abs 2 formed by “full level below”.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "slab" },
       { tileId: "player", direction: "e" },
@@ -1063,8 +960,6 @@ describe("walkable surfaces", () => {
   });
 
   it("walks onto a floored cell sealed over a full-height non-walkable tile", () => {
-    // A crystal underground is not a hole in the meadow: the grass plate at L0
-    // is the floor, and the tree below it is buried rather than underfoot.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
@@ -1083,8 +978,6 @@ describe("walkable surfaces", () => {
   });
 
   it("walks onto the floor a full walkable level below forms", () => {
-    // Every cave in the world is roofed this way — nothing at L0, and the
-    // level below sums to exactly HEIGHT_PER_LEVEL.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
@@ -1101,15 +994,6 @@ describe("walkable surfaces", () => {
     expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
   });
 
-  /**
-   * Water over grass, with neither tile any taller than the other.
-   *
-   * Both are `height: 0`, so nothing but stack order says which is underfoot.
-   * Reading the highest walkable top found the grass and let a body walk into
-   * the pond; giving water a height of 1 closed it, but only by making the
-   * water stand proud of its own bank and putting every bridge deck built on
-   * it out of climbing reach.
-   */
   it("does not let walkable ground under water make the water walkable", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "water" }]);
@@ -1125,16 +1009,6 @@ describe("walkable surfaces", () => {
     ).toBe(false);
   });
 
-  /**
-   * The same pond, roofing a cave.
-   *
-   * Water is `height: 0`, so a stack holding nothing else has no standing
-   * surface and says nothing about the plane it lies in. A full walkable level
-   * below then claims that plane twice — as the top of its own stack, and as
-   * the floor it forms above itself — and both claims went unopposed, so a pond
-   * over anything full-height was dry ground. What lies in a plane is what a
-   * body's feet would be in, whoever else claims it.
-   */
   it("does not let a full level below make water over it walkable", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
     map = replaceStack(map, 1, 0, -1, [{ tileId: "slab" }, { tileId: "slab" }]);
@@ -1151,11 +1025,6 @@ describe("walkable surfaces", () => {
     ).toBe(false);
   });
 
-  /**
-   * A plank over a fence over water. The fence is both the thing that would
-   * refuse the cell if anything but the top were consulted, and the thing
-   * holding the deck up at a height a body can climb to from the bank.
-   */
   it("walks onto a bridge deck laid over something non-walkable", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
     map = replaceStack(map, 1, 0, 0, [
@@ -1229,7 +1098,6 @@ describe("walkable surfaces", () => {
 
 describe("climb-from", () => {
   it("allows climb up only toward the tall end for that facing", () => {
-    // Ramp facing south: tall end is north. Upper floor north of ramp.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "ramp", direction: "s" },
       { tileId: "player", direction: "n" },
@@ -1258,7 +1126,6 @@ describe("climb-from", () => {
   });
 
   it("uses the climb-from set for the placed facing (no rotation)", () => {
-    // Facing east: tall end is west — not the same as facing direction.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "ramp", direction: "e" },
       { tileId: "player", direction: "w" },
@@ -1289,7 +1156,6 @@ describe("climb-from", () => {
   it("allows step-down from the ramp regardless of climb-from", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
-    // Ramp south of the upper floor; south-facing tall end is north (back toward floor).
     map = replaceStack(map, 0, 1, 0, [{ tileId: "ramp", direction: "s" }]);
 
     const loc = requireSinglePlayer(map);
@@ -1306,7 +1172,6 @@ describe("climb-from", () => {
 
 describe("preferDescend", () => {
   it("picks the lowest surface in the climb band when set", () => {
-    // Player on slab (abs 1). Dest has grass at abs 0 (z=0) and grass at abs 2 (z=1).
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "slab" },
       { tileId: "player", direction: "e" },
@@ -1352,15 +1217,7 @@ describe("GameSession faceOnly", () => {
   });
 });
 
-/**
- * A step whose fall ends on a top nobody can stand on is refused, however far
- * down that top is. The reported case: on top of a full-level block, stepping
- * toward a fence on the ground beside it. The fence is inside the climb band,
- * so this used to be a walk into open air, a settle onto the fence, and then a
- * walk on in the facing direction that the client never predicted.
- */
 describe("canWalk onto a fall", () => {
-  /** A player on a wall at (0,0), facing east, and `east` in the cell east. */
   function ledge(east: { z: number; stack: string[] }): MapFile {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "e" }]);
@@ -1414,8 +1271,6 @@ describe("canWalk onto a fall", () => {
 
 describe("GameSession landing", () => {
   it("lands on a non-walkable top when the board drops a body onto one", () => {
-    // Tree at (0,0), top at abs 4. Player starts in the air above it facing
-    // east, with grass east of the tree that it used to be walked onto.
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "tree" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 2, [{ tileId: "player", direction: "e" }]);
@@ -1432,7 +1287,6 @@ describe("GameSession landing", () => {
   });
 });
 
-/** Grass rows y=0 and y=1, player at (0,0) facing east, crate at (crateX,0). */
 function mapWithCrate(crateX: number, width = 5): MapFile {
   let map = emptyMap();
   for (let x = 0; x < width; x++) {
@@ -1444,14 +1298,6 @@ function mapWithCrate(crateX: number, width = 5): MapFile {
   return map;
 }
 
-/**
- * Whether a tap on an object would do anything, and what "reachable" means.
- *
- * These used to go through a hover the session held: the renderer reported what
- * the pointer was over and this re-validated it on read. The hover moved into
- * the renderer — where the pointer is — and what was always being tested here is
- * the rule underneath it, so they ask it directly now.
- */
 describe("GameSession canInteract", () => {
   const crateRef = (x: number) => ({ x, y: 0, z: 0, stackIndex: 1 });
 
@@ -1494,11 +1340,6 @@ describe("GameSession canInteract", () => {
     expect(session.canInteract({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(true);
   });
 
-  /**
-   * The floor of slack is not a hole in the floor. Asked of the session rather
-   * than of the list because this is the half that has to hold: a client that
-   * offered the row anyway must still be refused when it acts on it.
-   */
   it("ignores a switch a floor below the ground it is standing on", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "door-closed" }]);
@@ -1542,11 +1383,6 @@ describe("GameSession canInteract", () => {
     expect(session.canInteract(crateRef(1))).toBe(true);
   });
 
-  /**
-   * Asked afresh every time rather than answered once. The pointer does not
-   * move when the player walks, so an answer cached on the way in would keep an
-   * outline alive around something now out of reach.
-   */
   it("says no once the player has walked away", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
     expect(session.canInteract(crateRef(1))).toBe(true);
@@ -1571,7 +1407,6 @@ describe("GameSession canInteract", () => {
 describe("GameSession push", () => {
   const crateRef = (x: number) => ({ x, y: 0, z: 0, stackIndex: 1 });
 
-  /** Drive fixed ticks until a pushed object has finished travelling. */
   function runSlide(session: GameSession) {
     let elapsed = 0;
     const budget = PUSH_STEP_MS + 80;
@@ -1592,7 +1427,6 @@ describe("GameSession push", () => {
   });
 
   it("pushes away from the player, whichever side they stand on", () => {
-    // Player east of the crate this time — it should travel west, not east.
     let map = mapWithCrate(1);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "w" }]);
@@ -1608,7 +1442,6 @@ describe("GameSession push", () => {
 
   it("turns the player toward the object they shove", () => {
     let map = mapWithCrate(3);
-    // Crate south of the player, who starts facing east.
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 0, 2, 0, [{ tileId: "grass" }]);
     const session = new GameSession(map, tiles);
@@ -1651,10 +1484,6 @@ describe("GameSession push", () => {
     expect(session.push({ x: 1, y: 0, z: 2, stackIndex: 1 })).toBe(false);
   });
 
-  /**
-   * A shove moves the column, so the thing riding the crate arrives with it
-   * rather than being left hanging where the crate used to be.
-   */
   it("carries whatever is stacked on the object it shoves", () => {
     let map = mapWithCrate(1);
     map = replaceStack(map, 1, 0, 0, [
@@ -1668,17 +1497,10 @@ describe("GameSession push", () => {
     const snap = session.getSnapshot();
     expect(getStack(snap.map, 1, 0, 0).map((p) => p.tileId)).toEqual(["grass"]);
     expect(getStack(snap.map, 2, 0, 0).map((p) => p.tileId)).toEqual(["grass", "crate", "slab"]);
-    // Both travelling tiles are named, so the sprite for the rider slides with
-    // the crate rather than snapping to the new cell.
     expect(snap.self.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
     expect(snap.self.slide?.count).toBe(2);
   });
 
-  /**
-   * The room asked for is the whole column's, not the crate's: a crate alone
-   * clears the gap under the floor above, and the same crate with a wall on it
-   * does not.
-   */
   it("refuses a column too tall for where it is going", () => {
     let map = mapWithCrate(1);
     map = replaceStack(map, 2, 0, 1, [{ tileId: "grass" }]);
@@ -1706,7 +1528,6 @@ describe("GameSession push", () => {
 
   it("pushes an object over a ledge down to the floor below", () => {
     let map = mapWithCrate(1);
-    // Remove the ground east of the crate; leave a floor two levels down.
     map = replaceStack(map, 2, 0, 0, []);
     map = replaceStack(map, 2, 0, -1, [{ tileId: "grass" }]);
     const session = new GameSession(map, tiles);
@@ -1722,8 +1543,6 @@ describe("GameSession push", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
     session.push(crateRef(1));
 
-    // The board is already settled on the frame the push starts; only the
-    // animation is outstanding.
     const snap = session.getSnapshot();
     expect(getStack(snap.map, 1, 0, 0).map((p) => p.tileId)).toEqual(["grass"]);
     expect(getStack(snap.map, 2, 0, 0).map((p) => p.tileId)).toEqual(["grass", "crate"]);
@@ -1737,13 +1556,6 @@ describe("GameSession push", () => {
     expect(session.getSnapshot().self.slide).toBeNull();
   });
 
-  /**
-   * The game server tells a continuing shove from a fresh one by identity, the
-   * same way it does for a walk and a fall — so a slide rebuilt on every read
-   * reads as a new push every tick, and every client redraws it from the start.
-   * Progress lives beside the slide rather than inside it for exactly this
-   * reason; putting it back is what this catches.
-   */
   it("hands back the same slide while it runs", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
     session.push(crateRef(1));
@@ -1753,16 +1565,10 @@ describe("GameSession push", () => {
     const second = session.getSnapshot().self.slide;
 
     expect(second).toBe(first);
-    // And it is still advancing, so this is one live slide rather than a frozen
-    // object that happens to compare equal.
     expect(session.getSnapshot().self.slideProgress).toBeGreaterThan(0);
   });
 
   it("lets the player follow straight into the cell the object left", () => {
-    // Two stacked crates put the top of (1,0) out of climbing range; shoving
-    // the upper one off drops it back within reach. A deferred commit swallows
-    // the follow-up step for the whole slide even though the crate has visibly
-    // gone, which is the stickiness this guards against.
     let map = mapWithCrate(1);
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
@@ -1791,7 +1597,6 @@ describe("GameSession push", () => {
     session.push(crateRef(1));
     runSlide(session);
 
-    // Two cells away now — nothing a tap could do to it from here.
     expect(session.canInteract(crateRef(1))).toBe(false);
   });
 
@@ -1808,7 +1613,6 @@ describe("GameSession push", () => {
 });
 
 describe("GameSession switch", () => {
-  /** Grass row, player at (0,0), switchable tile at (1,0). */
   function mapWithSwitchable(tileId: string): MapFile {
     let map = emptyMap();
     for (let x = 0; x < 3; x++) {
@@ -1855,7 +1659,6 @@ describe("GameSession switch", () => {
   });
 
   it("refuses when the taller target would not fit", () => {
-    // slab(1)+switch(1)=2 → swapping in door-tall(2) overflows (3); roof above blocks.
     let map = mapWithSwitchable("switch-to-tall");
     map = replaceStack(map, 1, 0, 0, [{ tileId: "slab" }, { tileId: "switch-to-tall" }]);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "roof" }]);
@@ -1881,7 +1684,6 @@ describe("GameSession switch", () => {
   it("refuses out of reach", () => {
     let map = mapWithSwitchable("door-closed");
     map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "door-closed" }]);
-    // Move the adjacent door away — only the far one remains switchable.
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
     const session = new GameSession(map, tiles);
     expect(session.activateSwitch({ x: 2, y: 0, z: 0, stackIndex: 1 })).toBe(false);
@@ -1908,16 +1710,6 @@ describe("GameSession switch", () => {
   });
 });
 
-/**
- * A step never crosses a sealed floor plane.
- *
- * The climb band alone could not tell a staircase from a ceiling: a lone
- * half-block under a bare floor is two units below it, which is exactly a
- * climb, so a rat on the block walked up through the ground and a snake on the
- * grass walked down through it. Den rats surfaced two levels up and then homed
- * to the plan position of a burrow three floors down — the spawn room — and a
- * snake blinked in and out of the level below the field it lived on.
- */
 describe("a step never crosses a sealed floor plane", () => {
   const body = tilesById.dwarf!;
   const person = tilesById.player!;
@@ -1943,8 +1735,6 @@ describe("a step never crosses a sealed floor plane", () => {
     expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: -1 } });
   });
 
-  // The ramp shape: the same half-block with nothing over it climbs out onto
-  // the floor beside the hole, exactly as the den mouth is authored.
   it("climbs out of a hole whose column is open above", () => {
     let map = halfBlockUnderFloor();
     map = replaceStack(map, 0, 0, 0, []);
@@ -1960,7 +1750,6 @@ describe("a step never crosses a sealed floor plane", () => {
     const at = { x: 0, y: 0, z: 0, stackIndex: 1 };
     expect(canWalk(map, at, "e", body, tilesById).ok).toBe(false);
 
-    // Take the floor away and it is a hole: the drop is an ordinary step.
     map = replaceStack(map, 1, 0, 0, []);
     expect(canWalk(map, at, "e", body, tilesById)).toEqual({
       ok: true,
@@ -1968,9 +1757,6 @@ describe("a step never crosses a sealed floor plane", () => {
     });
   });
 
-  // A crate under an upper floor is a step *down* onto it only through the
-  // floor, which is how a rat in a loft kept dropping onto a barrel in the
-  // room below and climbing back.
   it("refuses to drop through an upper floor onto what stands under it", () => {
     let map = emptyMap();
     map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }, { tileId: "dwarf" }]);
@@ -2001,8 +1787,6 @@ describe("the snapshots of the actors a filter keeps", () => {
     });
     const keep = (id: string, at: { x: number; y: number }) => id === "c" || at.x > 0;
 
-    // Everybody's first, which is also what fills in hit points the first
-    // time anybody asks: the filtered call must not be the one that does.
     const everybody = session.actorSnapshots();
     const kept = session.actorSnapshotsWhere(keep);
     expect(kept).toEqual(everybody.filter((snapshot) => keep(snapshot.id, snapshot)));

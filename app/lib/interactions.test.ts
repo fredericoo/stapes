@@ -305,23 +305,12 @@ describe("interactionsForSave", () => {
     });
   });
 
-  /**
-   * The base is what makes a boss a boss rather than a wolf that has practised,
-   * so it is the one field on the block a save losing would be felt in the
-   * fight rather than in a diff. Asserted at a figure nothing else in here uses,
-   * so a default leaking through would read as a failure rather than as a pass.
-   */
   it("carries a base far off the default through a save", () => {
     expect(
       interactionsForSave({ battler: { ...DEFAULT_BATTLER, baseHp: 400 } })?.battler?.baseHp,
     ).toBe(400);
   });
 
-  /**
-   * A draft loaded from a file authored before the field existed carries none,
-   * and `baseHp` is required on the way back in — so a save that omitted it
-   * would write a block that no longer parses as a battler at all.
-   */
   it("writes a base for a draft that predates the field", () => {
     const { baseHp: _dropped, ...old } = DEFAULT_BATTLER;
     expect(interactionsForSave({ battler: old as BattlerDef })?.battler?.baseHp).toBe(
@@ -329,11 +318,6 @@ describe("interactionsForSave", () => {
     );
   });
 
-  /**
-   * The standing cost of rebuilding the block field by field is that a field
-   * forgotten here is silently dropped the next time anybody saves the tile —
-   * which for a kit would mean opening the tile dialog on a rat disarmed it.
-   */
   it("carries a kit through a save, blank rows and all dropped", () => {
     expect(
       interactionsForSave({
@@ -348,11 +332,6 @@ describe("interactionsForSave", () => {
     ).toEqual([{ slot: "bag", tileId: "basic-bag", chance: 100 }]);
   });
 
-  /**
-   * The same standing cost again, and the sharpest case of it: a save that
-   * dropped these would open the troll's dialog, press save, and take its fire
-   * away — with the Spells tab on screen still showing the spell.
-   */
   it("carries a body's own spells through a save", () => {
     const saved = interactionsForSave({
       battler: {
@@ -376,7 +355,6 @@ describe("interactionsForSave", () => {
     })?.battler?.spells;
 
     expect(saved).toHaveLength(1);
-    // Trimmed, on the terms every authored string here is written.
     expect(saved?.[0]?.name).toBe("Ember breath");
     expect(saved?.[0]?.effect).toEqual({
       kind: "bolt",
@@ -387,11 +365,6 @@ describe("interactionsForSave", () => {
     expect(saved?.[0]?.icon?.tilesetId).toBe("animals");
   });
 
-  /**
-   * A spell with no name is a row somebody started and did not finish — and a
-   * blank one would fail the schema on the way back in, taking the whole
-   * battler block with it.
-   */
   it("drops a spell nobody has named", () => {
     expect(
       interactionsForSave({
@@ -410,22 +383,12 @@ describe("interactionsForSave", () => {
     ).not.toHaveProperty("spells");
   });
 
-  /**
-   * Unlike `range` and `sight`, which have a default worth writing down: an
-   * empty kit on every creature in the file would be a line saying nothing.
-   */
   it("omits an empty kit rather than writing it out", () => {
     expect(
       interactionsForSave({ battler: { ...DEFAULT_BATTLER, kit: [] } })?.battler,
     ).not.toHaveProperty("kit");
   });
 
-  /**
-   * The same standing cost, and this one had already been paid: `immuneTo` was
-   * missing here, so opening the wolf's tile dialog and pressing save made it
-   * catchable by carrion again — silently, with the toggles on screen showing
-   * the immunity it was about to drop.
-   */
   it("carries immunities through a save", () => {
     expect(
       interactionsForSave({
@@ -440,7 +403,6 @@ describe("interactionsForSave", () => {
     );
   });
 
-  /** Same standing cost as the kit: forgotten here, dropped on the next save. */
   it("carries what a body leaves behind through a save", () => {
     expect(
       interactionsForSave({
@@ -449,7 +411,6 @@ describe("interactionsForSave", () => {
     ).toBe("skull-player");
   });
 
-  /** A field somebody opened and cleared is a body that leaves nothing. */
   it("omits remains nobody authored", () => {
     expect(
       interactionsForSave({ battler: { ...DEFAULT_BATTLER, remains: "  " } })?.battler,
@@ -459,11 +420,6 @@ describe("interactionsForSave", () => {
     );
   });
 
-  /**
-   * A mastery nobody has trained reads the same as one nobody wrote, so writing
-   * it would grow every creature's block by five lines saying nothing — and it
-   * would claim the author considered a question they did not.
-   */
   it("drops masteries left at zero rather than writing them out", () => {
     expect(
       interactionsForSave({

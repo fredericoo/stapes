@@ -3,7 +3,6 @@ import type { AutotileSlice } from "../lib/types";
 
 type Props = {
   slice: AutotileSlice;
-  /** Outer size in CSS px. */
   size?: number;
   className?: string;
 };
@@ -22,11 +21,6 @@ const CELLS: Cell[] = [
   { bit: SE, col: 2, row: 2 },
 ];
 
-/**
- * Mini terrain silhouette for one blob-autotile slice.
- * Reads as a 3×3 neighborhood: green center = this tile, teal = matching
- * neighbors. Empty cells are gaps the autotile must leave open.
- */
 export function AutotileSlicePreview({ slice, size = 32, className = "" }: Props) {
   const mask = sliceRepresentativeMask(slice);
   const cell = size / 3;

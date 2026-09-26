@@ -11,67 +11,17 @@ import { emptyEquipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
- * here like every other tile id in this file: what a body carries is authored
- * content now, so there is no constant in the engine left to import.
- */
 const BAG_TILE_ID = "basic-bag";
 
-/**
- * What an actor is carrying, as the session sees it.
- *
- * The arithmetic has its own file; this is about the wiring — who gets a kit,
- * who does not, and whether a weapon in a hand actually reaches the blow.
- */
-
-/** Certain to hit, certain to hurt, and as fast as the rules allow. */
 const CERTAIN = { accuracy: 100, variance: 0, spd: 100 };
 
-/**
- * The bodies these tests measure blows between.
- *
- * **Toughness buys defence as well as hit points now** — see `../lib/battler`'s
- * `defFrom` — so a punching bag bred for a long life quietly grew twenty points
- * of armour and swallowed every blow in the file whole. Rather than soften the
- * bag, every weapon here is authored as *what should land* plus what the bag
- * turns aside, so the figures the tests assert are the figures they always
- * asserted and the arithmetic in between is the game's.
- */
 const PLAYER_TOUGHNESS = 92;
 const DUMMY_TOUGHNESS = 100;
 const DUMMY_DEF = defFrom(DUMMY_TOUGHNESS);
 
-/**
- * How much wider than its floor a blow through the dummy's guard can be.
- *
- * Every weapon below is authored at `worth + DUMMY_DEF` so that `worth` is what
- * survives the dummy's armour. That was exact while armour was a subtraction; it
- * is now a *draw* — see `./combat`'s {@link MIN_GUARD_SHARE} — so what survives
- * is a band whose floor is still `worth` and whose ceiling is this much above
- * it. Read off `guardBand` rather than worked out here, so the day the share
- * moves these tests move with it.
- */
 const DUMMY_GUARD = guardBand({ def: DUMMY_DEF, resist: {} }, { mastery: "fist" });
 const GUARD_SPREAD = DUMMY_GUARD.highest - DUMMY_GUARD.lowest;
 
-/**
- * A blow authored to be worth `floor` through the dummy, asserted as the band it
- * actually lands in.
- *
- * The floor is the claim in every one of these — what the weapon is worth — and
- * the ceiling is only there to catch a blow that got through more than the
- * dummy's whole guard, which would mean the armour was not consulted at all.
- */
-/**
- * What the first blow of a fight took off, however long the approach was.
- *
- * Stops on the tick the damage lands, so it is one blow by construction —
- * which is what a window of three ticks bought back when a fight opened with a
- * swing. A fight now opens with an approach half the weapon's own interval
- * long (see `./combat`'s {@link SWING_WINDUP_SHARE}), and a fixed window would
- * have to be re-derived for every weapon these tests arm.
- */
 function firstBlow(session: GameSession): number {
   const hp = () => session.actorSnapshots().find((a) => a.tileId === "dummy")!.hp!;
   const before = hp();
@@ -83,10 +33,6 @@ function firstBlow(session: GameSession): number {
   throw new Error("nothing landed");
 }
 
-/**
- * Long enough for any weapon in these fixtures to get a blow out, and short
- * enough that a weapon that cannot fails as a test rather than as a hang.
- */
 const A_WHOLE_FIGHT_MS = 30_000;
 
 function expectWorth(dealt: number, floor: number): void {
@@ -94,17 +40,12 @@ function expectWorth(dealt: number, floor: number): void {
   expect(dealt).toBeLessThanOrEqual(floor + GUARD_SPREAD);
 }
 
-/** What a bare-handed blow should come to once the bag has had its share. */
 const BARE_DAMAGE = 5;
-/** What the light sword should come to — twice bare hands, as it always was. */
 const SWORD_DAMAGE = 10;
-/** Deliberately not {@link SWORD_DAMAGE}, so a blow says which hand threw it. */
 const OFF_SWORD_DAMAGE = 6;
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
-  // Something with volume, which is what it takes to bury a thing: a flat tile
-  // lying on top of another one hides nothing.
   tile({ id: "crate", height: 2 }),
   tile({
     id: "player",
@@ -116,11 +57,6 @@ const tiles: TileDef[] = [
     interactions: {
       battler: {
         baseHp: 8,
-        // Toughness alone, since nothing here is ever dodged at or measured for
-        // speed as a defender. No Fist either: a weapon that asks nothing is at
-        // full handling for anybody, so the mastery would buy only the flat
-        // skill bonus — and these tests assert exact damage numbers, which is
-        // the one thing that bonus makes unreadable.
         masteries: { toughness: PLAYER_TOUGHNESS },
         naturalWeapon: {
           type: "weapon",
@@ -129,7 +65,6 @@ const tiles: TileDef[] = [
           ...CERTAIN,
           mastery: "fist",
         },
-        // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
       },
     },
@@ -141,9 +76,6 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      // As much of a punching bag as the mastery scale allows, and it never
-      // swings back. Its Toughness now buys armour as well as health — see
-      // {@link DUMMY_DEF}, which every blow in this file is written to clear.
       battler: {
         baseHp: 8,
         masteries: { toughness: DUMMY_TOUGHNESS },
@@ -159,9 +91,6 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // A creature born holding something, which is the whole of a kit: it is on the
-  // board because the map put it there, and it is armed because its tile says
-  // so. No brain, so it stands where it is put.
   tile({
     id: "packrat",
     height: 2,
@@ -185,7 +114,6 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // A creature with a mind of its own — a resident, and nobody's player.
   tile({
     id: "deer",
     height: 2,
@@ -214,9 +142,6 @@ const tiles: TileDef[] = [
     intangible: true,
     interactions: { item: { ...DEFAULT_CONTAINER } },
   }),
-  // Shifts nothing but attack, so it can be used to assert an exact number of
-  // hit points: a weapon that lowered accuracy would widen the damage band and
-  // make the blow a range rather than a number.
   tile({
     id: "light-sword",
     kind: "item",
@@ -241,8 +166,6 @@ const tiles: TileDef[] = [
       item: { ...DEFAULT_CONTAINER, size: 2, equippable: false },
     },
   }),
-  // A weapon that is really a light. It fights like bare hands on purpose: the
-  // only thing being asserted with it is that carrying it lights the room.
   tile({
     id: "lantern",
     kind: "item",
@@ -260,15 +183,12 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // Something that belongs nowhere in particular, so a hand is the first place
-  // a pickup with a full bag reaches for.
   tile({
     id: "cherry",
     kind: "item",
     intangible: true,
     interactions: { item: { type: "consumable", label: "Eat", hp: 5 } },
   }),
-  // The one thing in here authored for the other hand.
   tile({
     id: "torch",
     kind: "item",
@@ -278,9 +198,6 @@ const tiles: TileDef[] = [
       item: { ...DEFAULT_ARTIFACT },
     },
   }),
-  // Slow and clumsy in the two ways a weapon can now be told to be.
-  // A second exact weapon, worth a different amount at the same speed: what
-  // makes an alternating pair readable off the damage numbers alone.
   tile({
     id: "off-sword",
     kind: "item",
@@ -302,11 +219,6 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      // **Variance is stated so the band lands where the test reads it.** Flat
-      // defence amplifies a relative spread: 20% of variance on a 30-damage
-      // weapon is a 24–30 blow, which the bag's twenty points turn into a 4–10
-      // one. The weapon is narrow and what gets through is wide, which is the
-      // honest behaviour of subtracting armour rather than scaling it.
       item: {
         type: "weapon",
         damage: SWORD_DAMAGE + DUMMY_DEF,
@@ -320,7 +232,6 @@ const tiles: TileDef[] = [
   }),
 ];
 
-/** Open grass with the spawn marker at the origin. */
 function field(half = 3): MapFile {
   let map = emptyMap();
   for (let x = -half; x <= half; x++) {
@@ -368,12 +279,6 @@ describe("the starting kit", () => {
     expect(a).not.toBe(b);
   });
 
-  /**
-   * Nothing rather than a bag, and the difference from the player is entirely in
-   * the tile: a deer authors no kit, so it is born with empty hands. Handing
-   * every creature in the world a backpack it will never open would be a bag per
-   * body to seat and carry around for nothing.
-   */
   it("gives a resident creature with no kit nothing", () => {
     const session = new GameSession(withBody(field(), 1, 0, "deer"), tiles);
     const deer = session.actorSnapshots().find((actor) => actor.tileId === "deer")!;
@@ -383,11 +288,6 @@ describe("the starting kit", () => {
     expect(kit.bag).toBeNull();
   });
 
-  /**
-   * The other half of the same rule, and the reason a player is not a special
-   * case any more: a creature whose tile *does* author a kit is born holding it,
-   * on the same path and out of the same function.
-   */
   it("gives a resident creature what its kit rolled", () => {
     const session = new GameSession(withBody(field(), 1, 0, "packrat"), tiles);
     const rat = session.actorSnapshots().find((actor) => actor.tileId === "packrat")!;
@@ -411,21 +311,11 @@ describe("the starting kit", () => {
 });
 
 describe("a weapon reaches the blow", () => {
-  /**
-   * Equipment is written straight onto the runtime here because Phase 2 has no
-   * way to equip anything — the point of the test is that `battlerOf` counts
-   * what is in the slot, not how it got there.
-   */
   function arm(session: GameSession, tileId: string) {
     const kit = session.equipmentOf(selfId(session))!;
     kit.weapon = { id: "itm_test", tileId };
   }
 
-  /**
-   * How many blows landed, counted off the damage numbers rather than off hit
-   * points — two weapons are worth different amounts per swing, so hit points
-   * cannot be compared across them but swings can.
-   */
   function swingsOver(session: GameSession, ms: number): number {
     let swings = 0;
     let seen = 0;
@@ -448,15 +338,6 @@ describe("a weapon reaches the blow", () => {
     return session;
   }
 
-  /**
-   * **Replacement, not addition** — the rule the whole mastery model rests on.
-   *
-   * The old arithmetic would have made this `5 + 10`, and the difference
-   * between the two answers is the entire change: a body brings what it is good
-   * at, and the weapon brings what it is. Both are certain to hit for
-   * everything, so the number is exact on both sides and nothing but the weapon
-   * moved.
-   */
   it("replaces the body's own damage rather than adding to it", () => {
     const bare = fightingSession();
     const armed = fightingSession();
@@ -466,15 +347,6 @@ describe("a weapon reaches the blow", () => {
     expectWorth(firstBlow(armed), SWORD_DAMAGE);
   });
 
-  /**
-   * Accuracy widens the damage band downward, so an inaccurate weapon is worth
-   * *less* than its damage says — which is the whole reason a weapon can be
-   * authored to cost it.
-   *
-   * The band is the claim, so the band is what is asserted: at accuracy 40 a
-   * blow worth 10 lands somewhere in 4–10, where the light sword's identical
-   * damage always lands exactly.
-   */
   it("blunts its own damage by being inaccurate", () => {
     const heavy = fightingSession();
     arm(heavy, "heavy-sword");
@@ -490,9 +362,6 @@ describe("a weapon reaches the blow", () => {
     arm(light, "light-sword");
     arm(heavy, "heavy-sword");
 
-    // Long enough for many swings, so this is about *rate* rather than about
-    // one blow landing on a tick boundary. Counted in swings rather than hit
-    // points, since the two weapons are worth different amounts per blow.
     const lightSwings = swingsOver(light, 4000);
     const heavySwings = swingsOver(heavy, 4000);
     expect(heavySwings).toBeLessThan(lightSwings);
@@ -503,38 +372,18 @@ describe("a weapon reaches the blow", () => {
     expectWorth(firstBlow(session), BARE_DAMAGE);
   });
 
-  /**
-   * Both hands, in a real fight rather than in the arithmetic.
-   *
-   * `../game/equipment`'s unit tests pin what a hand is worth; these pin that
-   * the session actually takes turns — that the rotation advances on a swing,
-   * survives the cooldown being spent, and pays the right mastery.
-   */
   describe("with a weapon in each hand", () => {
-    /** Straight onto the runtime, on the terms {@link arm} is. */
     function armBoth(session: GameSession, weapon: string, offhand: string) {
       const kit = session.equipmentOf(selfId(session))!;
       kit.weapon = { id: "itm_main", tileId: weapon };
       kit.offhand = { id: "itm_off", tileId: offhand };
     }
 
-    /**
-     * What each blow *this body threw* was worth, in the order they landed.
-     *
-     * Filtered to the dummy, because the dummy hits back: an unfiltered read
-     * interleaves both sides' numbers and an alternating pair is exactly the
-     * thing that would look like noise.
-     */
     function blowsOver(session: GameSession, ms: number): number[] {
       const dummyId = session.actorSnapshots().find((a) => a.tileId === "dummy")!.id;
       const blows: number[] = [];
       for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
         session.tick(TICK_MS);
-        // `drainDamage` rather than the snapshot's `damage`, which is what a
-        // viewer should still be able to see rather than what just happened:
-        // its numbers outlive the tick that made them, so reading it back is
-        // not the order the blows were thrown in. This is the drain the server
-        // itself calls right after `tick`.
         for (const number of session.drainDamage()) {
           if (number.targetId === dummyId) blows.push(number.amount);
         }
@@ -542,17 +391,6 @@ describe("a weapon reaches the blow", () => {
       return blows;
     }
 
-    /**
-     * **The property the whole design rests on.** Two of the same weapon throws
-     * the same blows as one of them — same worth, same rate. If this ever fails,
-     * dual wielding has become a damage increase by accident, which is exactly
-     * what alternating rather than adding exists to avoid.
-     *
-     * About the blows and nothing else: a second copy of a weapon that guards
-     * still guards, which is `./equipment.test`'s to pin and is not visible from
-     * here. `light-sword` is authored `def: 0`, so this session is measuring
-     * only what it claims to.
-     */
     it("throws the same blows with two of a weapon as with one", () => {
       const one = fightingSession();
       arm(one, "light-sword");
@@ -562,21 +400,6 @@ describe("a weapon reaches the blow", () => {
       expect(blowsOver(two, 2000)).toEqual(blowsOver(one, 2000));
     });
 
-    /**
-     * Each blow is worth the hand that threw it.
-     *
-     * **The two streams rather than their order.** A body alternating a blade
-     * and a hammer produces blows in two bands — what each weapon is worth in
-     * these hands — and both bands are present. That is the whole claim, and it
-     * is asserted this way on purpose: the order damage *numbers* surface in is
-     * a fact about the viewer's list rather than about the fight, and a test
-     * that pinned it would be pinning the wrong thing. The rotation's own order
-     * is pinned where it lives, against `handToSwing` in `./equipment.test`.
-     *
-     * The bands cannot overlap here: both weapons are certain to hit for exactly
-     * what they are worth, and the two figures are far enough apart that the
-     * mastery each hand earns as the fight runs cannot close the gap.
-     */
     it("throws blows worth each of its two hands", () => {
       const session = fightingSession();
       armBoth(session, "light-sword", "off-sword");
@@ -586,22 +409,13 @@ describe("a weapon reaches the blow", () => {
 
       const main = blows.filter((blow) => blow >= SWORD_DAMAGE);
       const off = blows.filter((blow) => blow < SWORD_DAMAGE);
-      // Both hands landed, and nothing landed worth neither of them.
       expect(main.length).toBeGreaterThan(0);
       expect(off.length).toBeGreaterThan(0);
       expect(main.length + off.length).toBe(blows.length);
-      // The off hand is worth its own weapon and not the main hand's — the
-      // failure this whole change exists to fix, where a second weapon was
-      // inert and every blow came out of one hand.
       expect(Math.max(...off)).toBeLessThan(Math.min(...main));
       expect(Math.max(...off)).toBeGreaterThanOrEqual(OFF_SWORD_DAMAGE);
     });
 
-    /**
-     * A hand holding something it will not swing takes no turn, so the other
-     * hand fights on alone — the case that would otherwise halve your output for
-     * picking up a torch.
-     */
     it("does not take turns with a hand that cannot swing", () => {
       const alone = fightingSession();
       arm(alone, "light-sword");
@@ -611,7 +425,6 @@ describe("a weapon reaches the blow", () => {
       expect(blowsOver(shielded, 2000)).toEqual(blowsOver(alone, 2000));
     });
 
-    /** Each hand teaches its own mastery, because each hand threw its own blow. */
     it("pays the mastery of the hand that swung", () => {
       const session = fightingSession();
       armBoth(session, "light-sword", "off-sword");
@@ -627,7 +440,6 @@ describe("a weapon reaches the blow", () => {
 describe("picking things up", () => {
   const SWORD = "light-sword";
 
-  /** Grass everywhere, the player at the origin, and one item beside them. */
   function withItem(x: number, y: number, tileId: string): GameSession {
     const map = replaceStack(field(), x, y, 0, [{ tileId: "grass" }, { tileId }]);
     return new GameSession(map, tiles);
@@ -685,7 +497,6 @@ describe("picking things up", () => {
 
   it("refuses once the bag is full", () => {
     let map = field();
-    // Five items around the player, for a bag that holds four.
     const cells: Array<[number, number]> = [
       [1, 0],
       [0, 1],
@@ -703,11 +514,6 @@ describe("picking things up", () => {
     expect(bagOf(session).contents).toHaveLength(4);
   });
 
-  /**
-   * Containers do not nest, so a second bag never goes *inside* the one you are
-   * wearing. A hand will carry it, which is a choice the game has no business
-   * refusing — and with both hands full there is nowhere left at all.
-   */
   it("carries a second bag in hand, and refuses it once they are full", () => {
     const session = withItem(1, 0, BAG_TILE_ID);
     expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
@@ -732,7 +538,6 @@ describe("picking things up", () => {
       },
     ]);
     const session = new GameSession(map, tiles);
-    // Take the starting bag off first — there is no other way to bare a back.
     session.equipmentOf(selfId(session))!.bag = null;
 
     expect(session.equip(refAt(session, 1, 0))).toBe(true);
@@ -741,12 +546,7 @@ describe("picking things up", () => {
     expect(bag.contents).toEqual([{ id: "itm_loot", tileId: SWORD }]);
   });
 
-  /**
-   * A full bag is not the end of it. You have hands, and the spare one goes
-   * first so a pickup never rewrites what you are fighting with.
-   */
   describe("with nowhere left to put it", () => {
-    /** Bag full to the brim, so only the hands are left. */
     function stuffed(tileId: string): GameSession {
       const session = withItem(1, 0, tileId);
       const kit = session.equipmentOf(selfId(session))!;
@@ -789,11 +589,6 @@ describe("picking things up", () => {
     });
   });
 
-  /**
-   * Arming yourself off the floor — the trip a pickup makes, into a slot on the
-   * body rather than into a bag. It is the only thing somebody carrying nothing
-   * at all can do with a sword.
-   */
   describe("equipping where it lies", () => {
     function bare(x: number, y: number, tileId: string): GameSession {
       const session = withItem(x, y, tileId);
@@ -823,8 +618,6 @@ describe("picking things up", () => {
       expect(kitOf(session).offhand).toBeNull();
     });
 
-    // The accessory square is where a light goes first and not the only place it
-    // goes: a hand holds one too, and the row in the world has to reach it.
     it("falls back to the other hand once the accessory square is taken", () => {
       const session = bare(1, 0, "torch");
       session.equipmentOf(selfId(session))!.charm = {
@@ -837,7 +630,6 @@ describe("picking things up", () => {
       expect(kitOf(session).weapon).toBeNull();
     });
 
-    /** Never a swap: what you are already holding stays where it is. */
     it("refuses once the slot it names is full", () => {
       const session = bare(1, 0, SWORD);
       session.equipmentOf(selfId(session))!.weapon = {
@@ -855,7 +647,6 @@ describe("picking things up", () => {
       expect(session.equip(refAt(session, 1, 0))).toBe(false);
     });
 
-    /** A tap arms you when it can — see `ACTION_ORDER`. */
     it("is what a plain interact runs, ahead of stowing it", () => {
       const session = withItem(1, 0, SWORD);
 
@@ -882,11 +673,6 @@ describe("picking things up", () => {
     expect(getStack(session.getMap(), 1, 0, 0)).toHaveLength(2);
   });
 
-  /**
-   * The player tile stands *in* the cell it occupies, so an item on the floor
-   * beneath somebody is covered by their own body — and the round reach takes
-   * that cell in on purpose.
-   */
   it("takes the thing under its own feet", () => {
     const map = replaceStack(field(), 0, 0, 0, [
       { tileId: "grass" },
@@ -897,7 +683,6 @@ describe("picking things up", () => {
 
     expect(session.pickUp({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     expect(bagOf(session).contents).toHaveLength(1);
-    // And the body it was under is still standing there, one slot lower.
     expect(getStack(session.getMap(), 0, 0, 0).map((p) => p.tileId)).toEqual(["grass", "player"]);
   });
 
@@ -909,10 +694,6 @@ describe("picking things up", () => {
     expect(session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
   });
 
-  /**
-   * Two swords in one cell are two swords, and a player who could only ever
-   * take the one on top would have no way at all to reach the other.
-   */
   it("takes either of two things lying on each other", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: SWORD }, { tileId: SWORD }]);
@@ -929,11 +710,6 @@ describe("picking things up", () => {
     expect(session.pickUp(refAt(session, 1, 0))).toBe(false);
   });
 
-  /**
-   * The renderer hands equipment to React only when the object identity
-   * changes, so a kit edited in place would leave the panels showing what the
-   * player was carrying a moment ago.
-   */
   it("replaces the kit rather than mutating it", () => {
     const session = withItem(1, 0, SWORD);
     const before = session.getSnapshot().equipment;
@@ -950,7 +726,6 @@ describe("picking things up", () => {
 
     session.pickUp(refAt(session, 1, 0));
     expect(session.drainEquipmentChanges()).toEqual([me]);
-    // Drained, so a second flush has nothing left to send.
     expect(session.drainEquipmentChanges()).toEqual([]);
   });
 
@@ -975,7 +750,6 @@ describe("moving things between slots", () => {
     return session.getSnapshot().equipment;
   }
 
-  /** A player carrying one sword, and a chest beside them holding another. */
   function stocked(chestAt: [number, number] = [1, 0]): GameSession {
     let map = replaceStack(field(), 1, 1, 0, [{ tileId: "grass" }, { tileId: SWORD }]);
     map = replaceStack(map, chestAt[0], chestAt[1], 0, [
@@ -1014,9 +788,6 @@ describe("moving things between slots", () => {
     const dummy = session.actorSnapshots().find((a) => a.tileId === "dummy")!;
     session.setTarget(dummy.id);
     session.setAttackMode(true);
-    // The sword's damage, not the sword's on top of the body's: drawing a
-    // weapon out of the bag has to reach the blow by the same replacement every
-    // other path uses.
     expectWorth(firstBlow(session), SWORD_DAMAGE);
   });
 
@@ -1037,20 +808,6 @@ describe("moving things between slots", () => {
     expect(getStack(session.getMap(), 1, 0, 0)[1].contents).toEqual([]);
   });
 
-  /**
-   * The shape a map file actually arrives in, which is not the shape the tests
-   * above build. `serializeMap` strips a content's `id` on the way to disk, so
-   * an authored chest holds `{ tileId }` and nothing else — and every test here
-   * that wrote `itm_loot` by hand was quietly testing a world that had already
-   * been minted.
-   *
-   * What it cost: the sword came out of the crate with no identity, went into
-   * the bag, and the `equipment` frame announcing it failed its own schema on
-   * the way out. The client dropped the message, so the sword was gone from the
-   * chest and absent from the bag at once — and the `hello` on the next refresh
-   * carried the same kit and was dropped the same way, which is a player who
-   * can never finish joining again.
-   */
   it("loots a chest authored with no ids in it, and the kit still crosses the wire", () => {
     let map = replaceStack(field(), 1, 0, 0, [
       { tileId: "grass" },
@@ -1068,22 +825,11 @@ describe("moving things between slots", () => {
     expect(parseServerMessage(JSON.stringify({ type: "equipment", equipment }))).not.toBeNull();
   });
 
-  /**
-   * The general shape of the bug the authored chest was one instance of, and
-   * the one that reaches items nobody authored into a container at all.
-   *
-   * `serializeMap` strips a content's id every time the editor saves. So *any*
-   * item that is inside *any* container when the map is saved — a torch stashed
-   * in a crate, a bag full of things put down on the floor — comes back
-   * anonymous on the next load, and unusable the moment somebody takes it out.
-   * Which container, and whether a human authored it, makes no difference.
-   */
   it("survives a map save while it is inside a container on the floor", () => {
     let map = replaceStack(field(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "chest", itemId: "itm_chest", contents: [{ id: "itm_loot", tileId: "lantern" }] },
     ]);
-    // The editor's save button, and the load that follows it.
     const saved = new GameSession(parseMap(serializeMap(map)), tiles);
     const chest = refAt(saved, 1, 0);
 
@@ -1097,13 +843,6 @@ describe("moving things between slots", () => {
     expect(parseServerMessage(JSON.stringify({ type: "equipment", equipment }))).not.toBeNull();
   });
 
-  /**
-   * The counterpart, and the reason this was so hard to place: a bare item on
-   * the floor was never affected. It is minted by the same pass that always
-   * worked, so a torch lying in the open picks up and travels fine — which is
-   * why "it happened with a torch too" pointed away from containers rather than
-   * at them.
-   */
   it("was never a problem for a bare item lying on the floor", () => {
     const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "lantern" }]);
     const session = new GameSession(parseMap(serializeMap(map)), tiles);
@@ -1155,8 +894,6 @@ describe("moving things between slots", () => {
     session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
     expect(session.drainEquipmentChanges()).toEqual([me]);
 
-    // A refused move is nobody's kit changing, and neither is one that only
-    // rearranged a box on the floor.
     session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
     expect(session.drainEquipmentChanges()).toEqual([]);
   });
@@ -1186,7 +923,6 @@ describe("putting things down", () => {
     return { x, y, z: 0, stackIndex: stack.length - 1 };
   }
 
-  /** A player at the origin carrying one sword, taken off the floor beside them. */
   function armed(board: MapFile = field()): GameSession {
     const map = replaceStack(board, 1, 1, 0, [{ tileId: "grass" }, { tileId: SWORD }]);
     const session = new GameSession(map, tiles);
@@ -1194,7 +930,6 @@ describe("putting things down", () => {
     return session;
   }
 
-  /** The same, with a chest standing two cells east of the player. */
   function armedFacingChest(contents: ItemInstance[] = []): GameSession {
     return armed(
       replaceStack(field(), 2, 0, 0, [
@@ -1232,10 +967,6 @@ describe("putting things down", () => {
     expect(far.getSnapshot().equipment.bag?.contents).toHaveLength(1);
   });
 
-  /**
-   * The whole reason the bag is a slot: taking it off is dropping it, and what
-   * is inside comes with it because contents ride on the placement.
-   */
   it("drops the bag off your back, contents and all", () => {
     const session = armed();
     const bagId = session.getSnapshot().equipment.bag!.id;
@@ -1260,10 +991,6 @@ describe("putting things down", () => {
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
   });
 
-  /**
-   * Aimed at a box, it goes in the box — the whole of "drop it in there" without
-   * having to open a panel first.
-   */
   it("throws a thing into the container it lands on", () => {
     const session = armedFacingChest();
 
@@ -1310,15 +1037,6 @@ describe("putting things down", () => {
   });
 });
 
-/**
- * What everybody else can see of a kit.
- *
- * The rest of an inventory is private and changes nothing observable; a lantern
- * lights the room for whoever is standing in it, so it is world state and it is
- * broadcast. What is asserted here is that the projection follows the kit —
- * because it is cached on the runtime, and a cache that can go stale would leave
- * somebody walking around lit by a torch they put down.
- */
 describe("carried lights", () => {
   const LANTERN = "lantern";
 
@@ -1340,8 +1058,6 @@ describe("carried lights", () => {
     expect(lightsOf(new GameSession(field(), tiles))).toEqual([]);
   });
 
-  // Picking a lantern up puts it in the bag, and a bag is not a slot: it lights
-  // nothing until it is in your hand.
   it("stays dark while the lantern is in the bag, and lights up when wielded", () => {
     const session = withLantern(1, 0);
     expect(lightsOf(session)).toEqual([]);
@@ -1356,8 +1072,6 @@ describe("carried lights", () => {
     expect(lightsOf(session)).toEqual([]);
   });
 
-  // The inverse, and worth its own case: the cache is written beside the kit, so
-  // a move that *removes* a light has to re-derive as surely as one that adds it.
   it("goes out again when the lantern is put back in the bag", () => {
     const session = withLantern(1, 0);
     session.pickUp(refAt(session, 1, 0));
@@ -1369,8 +1083,6 @@ describe("carried lights", () => {
     expect(lightsOf(session)).toEqual([]);
   });
 
-  // A second one in the pack adds nothing, which is what makes the slot the
-  // thing being spent rather than the carrying.
   it("counts the one in hand and not the spare in the bag", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: LANTERN }]);
@@ -1385,21 +1097,9 @@ describe("carried lights", () => {
   });
 });
 
-/**
- * What a body is carrying when it stops being a body.
- *
- * The kit lives on the runtime and the runtime is deleted by the killing blow,
- * so "what happens to it" is not a detail — it is the difference between a
- * sword changing hands and a sword leaving the world. See `GameSession.kill`.
- */
 describe("dying with something on you", () => {
   const SWORD = "light-sword";
 
-  /**
-   * Long enough to finish somebody off, with room for the swings that come to
-   * nothing: every chance in a fight is held inside a band, so even a perfect
-   * attacker whiffs now and then.
-   */
   const LONG_ENOUGH_TO_KILL_MS = 30_000;
 
   const KILLER = "killer";
@@ -1413,18 +1113,8 @@ describe("dying with something on you", () => {
     return getStack(session.getMap(), x, y, 0).map((p) => p.tileId);
   }
 
-  /**
-   * A player at the origin with a sword in hand and a bag on their back, and
-   * somebody beside them swinging until they stop.
-   *
-   * A second *player* rather than a creature with a brain: what is under test is
-   * the death, and a mind that also decides where to stand would make every
-   * assertion about which cell the kit landed in a coin toss.
-   */
   function doomed(): GameSession {
     let map = replaceStack(field(), 1, 1, 0, [{ tileId: "grass" }, { tileId: SWORD }]);
-    // Something to put *in* the bag, for the test about what spilling leaves
-    // behind. Left where it lies by every other case here.
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "cherry" }]);
     const session = new GameSession(map, tiles);
     session.pickUp(refAt(session, 1, 1));
@@ -1433,8 +1123,6 @@ describe("dying with something on you", () => {
     session.spawn(KILLER, { at: { x: 1, y: 0, z: 0, direction: "w" } });
     session.setTarget(selfId(session), KILLER);
     session.setAttackMode(true, KILLER);
-    // Both switches on, because two players do not fight until both have asked
-    // to. @see ./pvp
     session.setPvp(true, KILLER);
     session.setPvp(true, selfId(session));
     return session;
@@ -1446,8 +1134,6 @@ describe("dying with something on you", () => {
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(session.actorIds()).not.toContain(LOCAL_ACTOR_ID);
-    // The bag is gone rather than lying there: what was in it is what is worth
-    // walking over to, and dropping the pack whole made a killing one tap.
     expect(tilesAt(session, 0, 0)).toEqual(["grass", SWORD]);
   });
 
@@ -1457,7 +1143,6 @@ describe("dying with something on you", () => {
 
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
-    // The cherry was in the bag and is on the floor; the bag it was in is not.
     expect(tilesAt(session, 0, 0)).toEqual(["grass", SWORD, "cherry"]);
   });
 
@@ -1471,11 +1156,6 @@ describe("dying with something on you", () => {
     expect(dropped?.itemId).toBe(swordId);
   });
 
-  /**
-   * The one fact the server writes down. An empty kit beside a board holding the
-   * pile is the pair agreeing; anything else is an item existing twice or not at
-   * all.
-   */
   it("hands the death over empty-handed", () => {
     const session = doomed();
     const playerId = selfId(session);
@@ -1486,11 +1166,6 @@ describe("dying with something on you", () => {
     expect(death?.equipment).toEqual(emptyEquipment());
   });
 
-  /**
-   * The same drop the player's death takes, which is the point of it being one
-   * function: a rat is a battler with a kit, and `kill` has no idea it is not a
-   * person.
-   */
   it("leaves a creature's kit on the floor exactly as it does a player's", () => {
     const session = new GameSession(withBody(field(), 1, 0, "packrat"), tiles);
     const rat = session.actorSnapshots().find((actor) => actor.tileId === "packrat")!;
@@ -1502,10 +1177,6 @@ describe("dying with something on you", () => {
     expect(tilesAt(session, 1, 0)).toEqual(["grass", SWORD]);
   });
 
-  /**
-   * A creature carries nothing, so its death must not put an empty placement
-   * anywhere — the cell it stood in is left exactly as bare as it was.
-   */
   it("leaves nothing behind for a body that was carrying nothing", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     const dummyId = session.actorSnapshots().find((actor) => actor.tileId === "dummy")!.id;

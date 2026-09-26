@@ -12,14 +12,6 @@ import {
 } from "./tileTransition";
 import { normalizeTileDef } from "./types";
 
-/**
- * What an author may write, and what survives the trip into the renderer.
- *
- * The standard is the one a plume is held to: a block that does not parse is
- * dropped and the tile loads without it, so every case here is either "this is
- * kept as written" or "this side is gone and the other is untouched".
- */
-
 const DURATION_MS = 700;
 
 const flameAppear = {
@@ -106,7 +98,6 @@ describe("parseTileTransitions", () => {
   });
 
   it("caps what one burst may spend over its whole duration", () => {
-    // A rate every plume may have, so only the duration decides the total.
     const RATE_PER_SECOND = 100;
     const MS_AT_THE_CAP = (MAX_BURST_PARTICLES / RATE_PER_SECOND) * 1000;
     const burstFor = (durationMs: number) =>

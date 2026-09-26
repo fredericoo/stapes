@@ -18,14 +18,6 @@ export default defineConfig({
     baseURL: BASE,
     trace: "on-first-retry",
   },
-  /**
-   * Both halves, because `/admin/map` is not a static page: the editor reads the
-   * world over `/api`, which Vite proxies through to the Bun server beside it.
-   *
-   * The ports are pinned rather than picked. `scripts/dev.ts` asks the OS for
-   * free ones by default — right for a person running several worktrees at
-   * once, useless here, where the URL has to be known before the server exists.
-   */
   webServer: {
     command: "bun run scripts/dev.ts",
     env: {

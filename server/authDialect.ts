@@ -14,28 +14,6 @@ import {
 } from "kysely";
 import type { Database } from "./db";
 
-/**
- * Kysely, speaking to the connection the world already holds.
- *
- * Better Auth reaches its tables through Kysely, and Kysely reaches a database
- * through a dialect. Every dialect it ships opens a connection of its own,
- * which is the one thing this process may not do: `server/lock.ts` takes the
- * database with `PRAGMA locking_mode = EXCLUSIVE`, so a second handle on the
- * file — even from inside this process — fails on its first write. Hence a
- * dialect over the handle in hand rather than a second database for accounts.
- *
- * It is about sixty lines because Turso's driver is already the shape Kysely
- * wants: prepare, then `all` or `run`. What is left is telling Kysely which of
- * the two a statement is, and that is what `reader` answers.
- *
- * **Transactions are deliberately not wired up.** `beginTransaction` throws,
- * and Better Auth is configured with `transaction: false` so it never asks.
- * A `BEGIN` issued here would not own the connection — `WorldStore.flush`
- * commits the tick's board writes through `db.batch(…, "IMMEDIATE")` on the
- * same handle — so a checkpoint landing mid-signup would be committed by the
- * signup's `COMMIT`, or rolled back with its failure. Sign-ups are single
- * statements; a checkpoint is the whole board.
- */
 export class TursoDialect implements Dialect {
   constructor(private readonly db: Database) {}
 
@@ -65,12 +43,6 @@ class TursoDriver implements Driver {
 
   async init(): Promise<void> {}
 
-  /**
-   * One connection, handed to everybody.
-   *
-   * There is no pool to acquire from: the process has exactly one handle on
-   * the database by design, and Turso serializes statements on it internally.
-   */
   async acquireConnection(): Promise<DatabaseConnection> {
     return this.connection;
   }
@@ -89,11 +61,6 @@ class TursoDriver implements Driver {
 
   async releaseConnection(): Promise<void> {}
 
-  /**
-   * Nothing to destroy. The database outlives Kysely — the world is still
-   * using it — so closing it here would take the world down with the auth
-   * layer. `World.drain` is what closes it.
-   */
   async destroy(): Promise<void> {}
 }
 
@@ -103,10 +70,6 @@ class TursoConnection implements DatabaseConnection {
   async executeQuery<R>(compiled: CompiledQuery): Promise<QueryResult<R>> {
     const statement = await this.db.prepare(compiled.sql);
     const parameters = [...compiled.parameters];
-    // `reader` is the driver's own answer to "does this statement return
-    // rows", taken from the prepared statement rather than guessed from the
-    // SQL. Guessing would have to cope with `INSERT … RETURNING`, which Better
-    // Auth uses on every create.
     if (statement.reader) {
       return { rows: (await statement.all(parameters)) as R[] };
     }
@@ -118,43 +81,22 @@ class TursoConnection implements DatabaseConnection {
     };
   }
 
-  /**
-   * Streaming is refused rather than faked by buffering.
-   *
-   * Nothing in Better Auth streams, and a `streamQuery` that quietly read the
-   * whole result into memory would be a table scan wearing a cursor's clothes
-   * the first time something did.
-   */
-  // oxlint-disable-next-line require-yield -- it exists to refuse, see above
+  // oxlint-disable-next-line require-yield
   async *streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
     throw new Error("The auth dialect does not stream — see TursoDialect");
   }
 }
 
 /**
- * Kysely's `SqliteIntrospector`, without the one query Turso cannot survive.
- *
- * **Kysely's reads every table's columns through `pragma_table_info(name)`, the
- * table-valued function, and on Turso 0.7 that loses every autocommit write
- * made on the connection afterwards.** They are visible in the process that
- * made them and are gone when the file is next opened. Writes inside an
- * explicit transaction still land, which is why the world's checkpoints —
- * `WorldStore.flush` commits a batch — came back after a restart while
- * accounts, sessions and characters did not. Better Auth introspects the
- * schema on its first query, which is `seedAdmin` at boot, so every account
- * made after that was lost at the next restart; the visible sign was the
- * administrator being seeded again on every boot. The `PRAGMA table_info(…)`
- * statement reads the same columns without this, so this asks one table at a
- * time.
- *
- * Otherwise a transcription of Kysely 0.29's: the same tables, the same
- * exclusions and the same guess at which column autoincrements.
+ * Kysely's `SqliteIntrospector` with `PRAGMA table_info(…)` per table in place of
+ * the `pragma_table_info(name)` table-valued function. On Turso 0.7 that function
+ * makes every later autocommit write on the connection vanish at the next open,
+ * which lost every account made after boot.
  */
 class TursoIntrospector implements DatabaseIntrospector {
   constructor(private readonly db: Database) {}
 
   async getSchemas(): Promise<SchemaMetadata[]> {
-    // SQLite has no schemas.
     return [];
   }
 
@@ -166,7 +108,6 @@ class TursoIntrospector implements DatabaseIntrospector {
         "WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name",
     );
     const tables = (await listing.all([])) as { name: string; sql: string | null; type: string }[];
-    // Kysely's own migration tables, which it leaves out unless asked.
     const internal = new Set(["kysely_migration", "kysely_migration_lock"]);
 
     const result: TableMetadata[] = [];
@@ -181,9 +122,6 @@ class TursoIntrospector implements DatabaseIntrospector {
         pk: number;
       }[];
 
-      // The column named beside AUTOINCREMENT in the table's own SQL, or else
-      // a lone INTEGER PRIMARY KEY, which is a rowid alias. @see
-      // https://www.sqlite.org/autoinc.html
       let autoIncrementing = sql
         ?.split(/[(),]/)
         .find((part) => part.toLowerCase().includes("autoincrement"))

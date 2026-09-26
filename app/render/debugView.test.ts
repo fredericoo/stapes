@@ -30,10 +30,6 @@ describe("the switch", () => {
 });
 
 describe("the debug camera", () => {
-  /**
-   * The point of the whole view: what is drawn is a whole number of play
-   * squares, so the render scale stays whole and the art stays on its grid.
-   */
   it("spans whole play squares", () => {
     for (const zoom of [1, 2, 3, DEBUG_MAX_ZOOM_OUT]) {
       expect(debugSpanPx(zoom) % VIEW_PX).toBe(0);
@@ -42,7 +38,6 @@ describe("the debug camera", () => {
   });
 
   it("keeps the play square in the middle of the frame", () => {
-    // Centred on the player the way `GameRenderer.cameraFor` centres it.
     const player = { x: 400, y: 320 };
     for (const zoom of [1, DEBUG_ZOOM_OUT, DEBUG_MAX_ZOOM_OUT]) {
       const half = debugSpanPx(zoom) / 2;
@@ -64,7 +59,6 @@ describe("the debug camera", () => {
 
 describe("what gets outlined", () => {
   it("covers a window's last cell, not its last corner", () => {
-    // A window of cells 0..1 is two cells wide, not one.
     expect(rectPx({ x0: 0, y0: 0, x1: 1, y1: 1 })).toEqual({
       x: 0,
       y: 0,
@@ -83,7 +77,6 @@ describe("what gets outlined", () => {
     });
   });
 
-  /** Seventeen levels of one column is one rectangle on screen. */
   it("reads built chunk addresses as columns", () => {
     const columns = builtChunkColumns(["0:1,1", "-3:1,1", "4:2,1"]);
     expect(new Set(columns)).toEqual(new Set(["1,1", "2,1"]));
@@ -91,17 +84,11 @@ describe("what gets outlined", () => {
 });
 
 describe("culling to the drawn frame", () => {
-  /**
-   * In single player the whole map counts as "sent", so without this the view
-   * would add a rectangle per chunk of the world and the draw-call number it
-   * exists to report would be mostly itself.
-   */
   const frame = { x0: 0, y0: 0, x1: 31, y1: 31 };
 
   it("keeps a column the frame overlaps at all", () => {
     expect(columnTouches("0,0", frame)).toBe(true);
     expect(columnTouches("1,1", frame)).toBe(true);
-    // Cells 32..47 — the frame reaches 31, so this one is one cell outside.
     expect(columnTouches("2,0", frame)).toBe(false);
   });
 
@@ -120,7 +107,6 @@ describe("the subscription, read off the map", () => {
   it("names every column the map holds anything in, on any level", () => {
     let map = emptyMap();
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
-    // A cell far away and several levels down — still a column we hold.
     map = replaceStack(map, 40, 8, -3, [{ tileId: "grass" }]);
     expect(new Set(heldChunkColumns(map))).toEqual(new Set(["0,0", "2,0"]));
   });
@@ -141,10 +127,6 @@ describe("the subscription, read off the map", () => {
 });
 
 describe("reach past the play square", () => {
-  /**
-   * The number the panel exists to show: how much world is paid for that
-   * nobody in the game can see.
-   */
   it("is zero for a window that is exactly the view", () => {
     const play = { x: 0, y: 0 };
     const cells = VIEW_PX / CELL_SIZE;

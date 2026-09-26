@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { slotAppearance } from "./ItemSlot";
 
-/**
- * What a square looks like, which is a question about precedence and nothing
- * else: every state below is true of some square at some point, and several are
- * true at once all the time. Everything above it in the component is React;
- * this is the decision — the same arrangement `./SpellBar`'s `spellAppearance`
- * is asserted under.
- */
 const NOTHING_HAPPENING = {
   isOver: false,
   wouldTake: false,
@@ -32,12 +25,6 @@ describe("slotAppearance", () => {
     expect(slotAppearance({ ...NOTHING_HAPPENING, filled: true, locked: true })).toBe("locked");
   });
 
-  /**
-   * The precedence that matters: a drag in progress answers "will it land
-   * here", and a square that went on advertising a cooling stone or an open bag
-   * while something hovered over it would be answering a question nobody is
-   * asking.
-   */
   it("lets a drag speak over everything a square is otherwise", () => {
     const busy = {
       ...NOTHING_HAPPENING,
@@ -51,12 +38,6 @@ describe("slotAppearance", () => {
     expect(slotAppearance({ ...busy, isSource: true })).toBe("source");
   });
 
-  /**
-   * The quiet one, and the reason it sits this low: a square that is doing
-   * nothing is still a square you might be about to drop something on, or one
-   * holding a stone that cannot be moved, and both of those are what a player
-   * is asking about at the moment they are true.
-   */
   it("draws a square whose contents nothing reads as idle", () => {
     expect(slotAppearance({ ...NOTHING_HAPPENING, filled: true, idle: true })).toBe("idle");
     expect(

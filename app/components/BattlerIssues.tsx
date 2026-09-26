@@ -1,11 +1,3 @@
-/**
- * Why this body's battler block would not load, when it would not.
- *
- * Shown at the top of Battle and Spells, which are the two tabs that write the
- * block. Both tabs draw from the raw draft rather than from a parse, so without
- * this they look fine while the world reads the creature as having no hit
- * points and no spells — see `../lib/battler`'s `battlerIssues`.
- */
 export function BattlerIssues({ issues }: { issues: readonly string[] }) {
   if (issues.length === 0) return null;
   return (

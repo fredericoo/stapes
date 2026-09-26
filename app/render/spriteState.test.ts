@@ -1,13 +1,3 @@
-/**
- * The claim the `moving` sprite rests on: a body that is crossing a cell reads as
- * moving for exactly as long as it is doing so, and everything else reads as
- * idle.
- *
- * Driven by a real {@link GameSession} rather than by hand-built snapshots,
- * because the fact being read is one the simulation owns: `walk` is set when a
- * step commits and cleared when it lands, and a test that fabricated those would
- * pass while the renderer showed a deer skating along in its grazing pose.
- */
 import { describe, expect, it } from "vitest";
 import { GameSession } from "../game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../game/constants";
@@ -31,7 +21,6 @@ const tiles: TileDef[] = [
 
 const FLOOR_SIZE = 8;
 
-/** Flat grass with the player in a corner, free to walk east. */
 function floor(): MapFile {
   let map = emptyMap();
   for (let x = 0; x < FLOOR_SIZE; x++) {
@@ -50,8 +39,6 @@ describe("spriteStatesFor", () => {
   it("says nothing at all when nobody is moving", () => {
     const session = new GameSession(floor(), tiles);
     session.update(TICK_MS);
-    // Undefined rather than an empty map: the renderer short-circuits on the
-    // absence, and this is the shape of almost every frame.
     expect(spriteStatesFor(session.getSnapshot().actors)).toBeUndefined();
   });
 
@@ -68,13 +55,10 @@ describe("spriteStatesFor", () => {
     expect(states, "the player never started walking").toBeDefined();
     const self = session.getSnapshot().self;
     expect(states!.get(tileInstanceKey(self))).toBe("moving");
-    // Only the mover. Nothing else in an 8x8 grass floor is doing anything.
     expect(states!.size).toBe(1);
   });
 
   it("leaves a falling body idle, walk cycle and all", () => {
-    // A ledge with nothing under it: the player is dropped a level above the
-    // grass and gravity takes it from there.
     let map = floor();
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "e" } as PlacedTile]);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" } as PlacedTile]);
@@ -87,7 +71,6 @@ describe("spriteStatesFor", () => {
     }
 
     expect(falling, "the player never started falling").toBe(true);
-    // The `moving` sprite is a walk cycle. Mid-air legs are not a fall.
     expect(spriteStatesFor(session.getSnapshot().actors)).toBeUndefined();
   });
 
@@ -102,7 +85,6 @@ describe("spriteStatesFor", () => {
     }
     expect(started, "the player never started walking").toBe(true);
 
-    // Let go, and give the walk in flight more than its own duration to land.
     session.setInput({ directions: [] });
     const ticks = Math.ceil(WALK_DURATION_MS / TICK_MS) + 4;
     for (let i = 0; i < ticks; i++) session.update(TICK_MS);

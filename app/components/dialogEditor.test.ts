@@ -19,12 +19,6 @@ import {
   updateCommandAt,
 } from "./DialogEditor";
 
-/**
- * The moves the dialog editor owns — every edit is a rewrite of the script
- * by path, and these are the rewrites. Rendering is not tested here; there is
- * no harness for it, and the components are the thin part.
- */
-
 const say = (text: string): DialogCommand => ({ kind: "say", text });
 
 const tree: DialogDef = {
@@ -95,7 +89,6 @@ describe("moving a command", () => {
   });
 
   it("re-reads a destination after the removal shifted it", () => {
-    // Moving A (index 0) into the choices at 1: once A is gone, they are at 0.
     const next = moveCommand(tree, [0], [1, 1], 0);
     expect(texts(next, [0, 1])).toEqual(["A", "B1a", "B1b"]);
   });

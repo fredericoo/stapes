@@ -1,86 +1,37 @@
-/**
- * The map the unit suite runs against.
- *
- * `data/map.json` is the world being authored: somebody moves a shopkeeper,
- * roofs a building, or plants a hedge, and any test that read a coordinate out
- * of it fails on a change that had nothing to do with the code. Those failures
- * taught nobody anything, so the suite builds its own town instead and leaves
- * the shipped map to the e2e run, which is the one that is actually about it.
- *
- * What is deliberately *not* faked is the tile catalogue. `data/tiles.json` is
- * the real thing here, because the heights, the light-passing flags and the
- * per-frame emitter radii are what most of these subsystems are reasoning
- * about — a fixture tile with a made-up radius would test the fixture.
- *
- * The shape is a walled town on a road grid: a ground plane, houses with
- * walls, roofs and lit interiors, a lamplit street grid, a forest outside the
- * wall and a cave beneath the square. That mix exists so the map exercises
- * every case the lighting and geometry paths split on — sky-exposed cells,
- * roofed ones, emitters at several levels, half-height occluders — and so its
- * scale stands still while `data/map.json` grows.
- */
 import { chunkifyMap } from "./mapData";
 import { MAP_FILE_VERSION, coordKey, levelKey } from "./types";
 import type { FlatMapFile, MapFile, PlacedTile } from "./types";
 
 /**
- * Half-width of the ground plane, in cells.
- *
  * Sized so the town lands within a few percent of the shipped map's cell and
- * quad counts. The lighting bake budget in `app/editor/perf.ts` is a wall-clock
- * number measured against a map of roughly this size, so shrinking this makes
- * that budget pass for the wrong reason. `app/lib/mapData.test.ts` pins the
- * resulting scale.
+ * quad counts. The lighting bake budget in `app/editor/perf.ts` is measured
+ * against a map of roughly this size, so shrinking this makes that budget
+ * pass for the wrong reason.
  */
 const TOWN_HALF_SPAN = 56;
 
-/** Pitch of the street grid. Also the size of one town block. */
 const BLOCK_SIZE = 16;
 
-/** Inset of a house from the streets bounding its block. */
 const HOUSE_MARGIN = 3;
 
-/** Levels a house wall occupies above its floor: z = 1 and z = 2. */
 const HOUSE_WALL_LEVELS = 2;
 
-/** Level the roof sits on, directly above the top of the walls. */
 const ROOF_LEVEL = HOUSE_WALL_LEVELS + 1;
 
-/** Half-width of the cave carved under the town square. */
 const CAVE_HALF_SPAN = 18;
 
-/** Level the cave sits on. */
 const CAVE_LEVEL = -1;
 
-/**
- * How far the forest reaches past the clearance ring.
- *
- * Kept narrow because forest cells are one quad each: a wide ring inflates the
- * cell count — which is what the sky flood is paid per — without adding any of
- * the stacked geometry the rest of the map is here to provide.
- */
 const FOREST_DEPTH = 4;
 
-/** Only every Nth house gets a torch, so emitters stay near the shipped count. */
 const TORCH_EVERY_NTH_HOUSE = 3;
 
-/** Cells between the town wall and the first trees. */
 const FOREST_CLEARANCE = 4;
 
-/** One tree per N×N patch of forest, so trunks do not form a solid block. */
 const TREE_SPACING = 2;
 
-/** Half-width of the town square, which is kept clear for the spawn. */
 const SQUARE_HALF_SPAN = BLOCK_SIZE / 2;
 
-/**
- * Creatures near the spawn.
- *
- * Named rather than scattered, because `app/render/lightingSteadiness.test.ts`
- * is about bodies moving inside the lighting window and needs to know they are
- * there. A deer grazes and a cat roams, which are the two brains that used to
- * dirty the light cache every tick.
- */
 const SPAWN_CREATURES: ReadonlyArray<{ x: number; y: number; tileId: string }> = [
   { x: 4, y: 2, tileId: "deer" },
   { x: -5, y: 3, tileId: "deer" },
@@ -107,7 +58,6 @@ function put(levels: Map<number, Cells>, x: number, y: number, z: number, tile: 
   else level.set(key, [tile]);
 }
 
-/** True on a street cell — the grid lines the blocks are laid out between. */
 function isStreet(x: number, y: number): boolean {
   return mod(x, BLOCK_SIZE) === 0 || mod(y, BLOCK_SIZE) === 0;
 }
@@ -116,7 +66,6 @@ function mod(a: number, n: number): number {
   return ((a % n) + n) % n;
 }
 
-/** The block a cell belongs to, identified by the corner street it sits past. */
 function blockOf(v: number): number {
   return Math.floor(v / BLOCK_SIZE);
 }
@@ -130,19 +79,6 @@ const SQUARE: Rect = {
   y1: SQUARE_HALF_SPAN,
 };
 
-/**
- * The block the pond fills, two blocks out from the square.
- *
- * The pond is here so the renderer budgets in `app/editor/perf.ts` are measured
- * against **animated terrain**, which is the one thing the fixture had none of.
- * Torches animate, and a map has a few dozen of them; water animates and a map
- * has hundreds of it, so it is the only tile whose animation can plausibly move
- * a draw-call count. Without a pond here the budgets pass on a fixture that
- * cannot fail them, while the shipped map goes over.
- *
- * Kept clear of the streets that bound its block, so the grid the rest of the
- * town is laid out on still runs past it.
- */
 const POND: Rect = {
   x0: -BLOCK_SIZE * 2 + 1,
   y0: BLOCK_SIZE + 1,
@@ -158,14 +94,6 @@ function overlaps(a: Rect, b: Rect): boolean {
   return a.x0 <= b.x1 && a.x1 >= b.x0 && a.y0 <= b.y1 && a.y1 >= b.y0;
 }
 
-/**
- * The house footprint of a block, or null where no house is built.
- *
- * Nothing is built over the square: the spawn, the creatures around it and the
- * lighting window `app/render/lightingSteadiness.test.ts` watches all live
- * there, and a wall dropped on one of them would leave that test passing for
- * want of anything that moves.
- */
 function houseAt(bx: number, by: number): Rect | null {
   const house: Rect = {
     x0: bx * BLOCK_SIZE + HOUSE_MARGIN,
@@ -199,13 +127,6 @@ function layGround(levels: Map<number, Cells>) {
   }
 }
 
-/**
- * The wall around the town, in half-height stone.
- *
- * Half-height on purpose: a half-block occludes sight but still takes part in
- * the sky flood, and that split is the one the chunked baker gets wrong most
- * easily. A wall of full-height stone would never take the branch.
- */
 function layTownWall(levels: Map<number, Cells>) {
   for (let v = -TOWN_HALF_SPAN; v <= TOWN_HALF_SPAN; v++) {
     for (const [x, y] of [
@@ -246,8 +167,6 @@ function layHouse(levels: Map<number, Cells>, house: Rect, lit: boolean) {
         put(levels, x, y, 0, { tileId: "door-closed" });
         continue;
       }
-      // Windows halfway along each wall, so some of the interior is lit
-      // through an opening rather than only by its own torch.
       const isWindow = x === doorX && y === house.y0;
       put(levels, x, y, 0, { tileId: isWindow ? "window-1" : "stone-wall" });
       for (let z = 1; z <= HOUSE_WALL_LEVELS; z++) {
@@ -266,7 +185,6 @@ function layHouse(levels: Map<number, Cells>, house: Rect, lit: boolean) {
   put(levels, house.x1 - 1, house.y1 - 1, 0, { tileId: "barrel" });
 }
 
-/** A lamppost on every street intersection but the square's own. */
 function layStreetLamps(levels: Map<number, Cells>) {
   const first = -Math.floor(TOWN_HALF_SPAN / BLOCK_SIZE) * BLOCK_SIZE;
   for (let y = first; y <= TOWN_HALF_SPAN; y += BLOCK_SIZE) {
@@ -291,13 +209,6 @@ function layForest(levels: Map<number, Cells>) {
   }
 }
 
-/**
- * A chamber under the square, walled and torchlit.
- *
- * Below the ground plane rather than beside it, so the map has a level that
- * sees no sky at all. Every emitter down here is the only light there is,
- * which is what makes a dropped chunk visible rather than merely dimmer.
- */
 function layCave(levels: Map<number, Cells>) {
   for (let y = -CAVE_HALF_SPAN; y <= CAVE_HALF_SPAN; y++) {
     for (let x = -CAVE_HALF_SPAN; x <= CAVE_HALF_SPAN; x++) {
@@ -312,11 +223,8 @@ function layCave(levels: Map<number, Cells>) {
 }
 
 /**
- * A pond filling one block, in water over a dirt bed.
- *
- * An ellipse rather than the block, because a rectangle of water would sit
- * entirely inside one lighting chunk boundary and one autotile neighbourhood,
- * and the interesting cells are the ones on a curve.
+ * Gives the fixture town animated terrain, so the renderer budgets in
+ * `app/editor/perf.ts` have something to measure.
  */
 function layPond(levels: Map<number, Cells>) {
   const cx = (POND.x0 + POND.x1) / 2;
@@ -362,13 +270,6 @@ function build(): FlatMapFile {
 
 let cached: FlatMapFile | null = null;
 
-/**
- * The town, in the runtime shape.
- *
- * A fresh copy per call. Callers hand it to a `GameSession`, which owns and
- * mutates whatever it is given, so a shared instance would let one test's
- * pushed crate turn up in the next.
- */
 export function fixtureTown(): MapFile {
   cached ??= build();
   return chunkifyMap(structuredClone(cached));

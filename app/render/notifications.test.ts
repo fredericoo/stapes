@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_NOTICES, NOTICE_LIFETIME_MS, NoticeQueue } from "./notifications";
 
-/**
- * How many lines are up, and for how long.
- *
- * The queue is the whole of the behaviour — the layer below it only turns this
- * list into elements — so everything worth asserting is here.
- */
-
 const textsOf = (queue: NoticeQueue, nowMs: number) =>
   queue.live(nowMs).map((notice) => notice.text);
 
@@ -44,7 +37,6 @@ describe("what is on screen", () => {
     queue.push("second", 10);
     queue.push("third", 20);
 
-    // "first" went at 20 and does not come back when "second" expires.
     expect(textsOf(queue, 10 + NOTICE_LIFETIME_MS)).toEqual(["third"]);
   });
 
@@ -54,7 +46,6 @@ describe("what is on screen", () => {
     queue.push("You cannot fit there", 1_000);
 
     expect(textsOf(queue, 1_000)).toEqual(["You cannot fit there"]);
-    // Still up a full lifetime after the *second* press, not the first.
     expect(textsOf(queue, 1_000 + NOTICE_LIFETIME_MS - 1)).toEqual(["You cannot fit there"]);
   });
 

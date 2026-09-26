@@ -5,13 +5,6 @@ import { FieldLabel, NumberInput, SwitchField } from "../ui";
 
 const MS_PER_SECOND = 1000;
 
-/**
- * Authored in seconds and stored in milliseconds, like decay — but with a far
- * higher ceiling, because the two clocks cost differently: a decay keeps the
- * world ticking for its whole lifetime, while a respawn sleeps on a Durable
- * Object alarm and costs nothing until it fires. A day is room enough for
- * "the dragon comes back tomorrow".
- */
 const MAX_RESPAWN_SECONDS = 86_400;
 
 type Props = {
@@ -19,7 +12,6 @@ type Props = {
   onChange: (next: TileDef) => void;
 };
 
-/** Whether — and how soon — a placement of this tile grows back once gone. */
 export function RespawnTab({ draft, onChange }: Props) {
   const respawn = draft.interactions?.respawn;
 
@@ -33,12 +25,6 @@ export function RespawnTab({ draft, onChange }: Props) {
     });
   };
 
-  /**
-   * Move one end of the wait range, carrying the other with it rather than
-   * letting it be crossed — the same guard the decay editor keeps, for the
-   * same reason: an inverted range parses as "does not respawn", which would
-   * be invisible with both numbers still sitting there.
-   */
   const patchBound = (end: "fromMs" | "toMs", seconds: number) => {
     if (!respawn) return;
     const ms = Math.round(Math.min(MAX_RESPAWN_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND);

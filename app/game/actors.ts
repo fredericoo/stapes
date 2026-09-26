@@ -4,41 +4,23 @@ import { MAX_LEVEL, MIN_LEVEL, levelKey, parseCoordKey, resolveActor } from "../
 import { PLAYER_TILE_ID } from "./constants";
 import { requireSinglePlayer } from "./player";
 
-/** A placed player tile plus who drives it. */
 export type ActorLocation = Coord & {
   stackIndex: number;
   placed: PlacedTile;
 };
 
-/** Facing a freshly spawned actor takes, matching the authored default. */
 export const DEFAULT_FACING: Direction = "s";
 
 /**
- * Cells searched around a last-known location before falling back to a sweep.
- * A commit moves an actor one cell, or one level when falling — never across
- * the map.
+ * 1 is enough because a single map edit moves an actor at most one cell, or
+ * one level when falling — never across the map.
  */
 const ACTOR_SEARCH_RADIUS = 1;
 
-/**
- * An actor is any placement carrying an owner — the tile it happens to be is
- * not part of the test.
- *
- * This used to insist on the `player` tile, which was true while a socket was
- * the only thing that could drive a body. An owner now means "something is
- * driving this", whether that something is a connection or an authored brain,
- * so the tile id has no bearing on it.
- */
 function isActor(placed: PlacedTile | undefined, ownerId: string): boolean {
   return placed?.owner === ownerId;
 }
 
-/**
- * Re-read an actor at a location it was last seen, or null if it moved.
- *
- * Most map edits do not move anyone — a plate pressing underfoot, a door
- * elsewhere — so checking the one cell beats rediscovering them.
- */
 export function actorStillAt(
   map: MapFile,
   ownerId: string,
@@ -49,7 +31,6 @@ export function actorStillAt(
   return { x: at.x, y: at.y, z: at.z, stackIndex: at.stackIndex, placed };
 }
 
-/** Find an actor near where they were last seen, or null to force a sweep. */
 export function findActorNear(map: MapFile, ownerId: string, near: Coord): ActorLocation | null {
   const r = ACTOR_SEARCH_RADIUS;
   for (let z = near.z - r; z <= near.z + r; z++) {
@@ -65,18 +46,13 @@ export function findActorNear(map: MapFile, ownerId: string, near: Coord): Actor
   return null;
 }
 
-/**
- * Sweep every level for an actor. The fallback of last resort — see
- * {@link locateActor}, which reaches this only when someone has genuinely been
- * relocated across the map.
- */
 export function findActorAnywhere(map: MapFile, ownerId: string): ActorLocation | null {
-  // Walked over the chunk records directly rather than through `listCoords`,
-  // which builds an object and parses a key for every cell on a level. This is
-  // asked on every spawn and every departure — including every new arrival,
-  // which is on the board nowhere and so costs the whole sweep — and the
-  // allocating version took about 40ms on the shipped map: a stalled tick for
-  // everybody each time somebody joined, left or came back from the dead.
+  /**
+   * Walks the chunk records directly instead of going through `listCoords`,
+   * which allocates an object and parses a key for every cell on a level. This
+   * runs on every spawn and departure, so the allocating version cost about
+   * 40ms on the shipped map.
+   */
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const level = map.levels[levelKey(z)];
     if (!level) continue;
@@ -94,14 +70,6 @@ export function findActorAnywhere(map: MapFile, ownerId: string): ActorLocation 
   return null;
 }
 
-/**
- * Locate an actor, cheapest test first: the cell they were in, then the
- * neighbourhood, then the whole board.
- *
- * A single tick can rewrite the map several times — commit a step, then settle
- * a plate under it — and nearly all of those edits leave everyone exactly where
- * they were. Sweeping for each would put an O(map) pass on the busiest frames.
- */
 export function locateActor(
   map: MapFile,
   ownerId: string,
@@ -116,12 +84,6 @@ export function locateActor(
   return findActorAnywhere(map, ownerId);
 }
 
-/**
- * Where actors enter the world: the cell holding the authored `player` tile.
- *
- * An authored map carries exactly one, and it is a spawn marker rather than a
- * participant — every actor starts there.
- */
 export function spawnPoint(map: MapFile): Coord & { stackIndex: number } {
   const authored = requireSinglePlayer(map);
   return {
@@ -132,24 +94,10 @@ export function spawnPoint(map: MapFile): Coord & { stackIndex: number } {
   };
 }
 
-/**
- * Tag the authored `player` tile as belonging to `ownerId`, in place.
- *
- * Adoption rather than remove-and-respawn so the tile keeps its slot in the
- * stack: re-appending would move it to the top, changing its stackIndex and
- * with it the elevation it stands at.
- */
 export function adoptAuthoredPlayer(map: MapFile, ownerId: string): MapFile {
   return adoptBodyAt(map, requireSinglePlayer(map), ownerId);
 }
 
-/**
- * Every actor with a tile on the board.
- *
- * A resumed world can hold actors nobody is driving any more — a connection
- * that died while the object was evicted leaves its body behind — so the server
- * needs to know who is present before deciding who belongs.
- */
 export function listActorOwners(map: MapFile): string[] {
   const owners = new Set<string>();
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
@@ -162,19 +110,6 @@ export function listActorOwners(map: MapFile): string[] {
   return [...owners];
 }
 
-/**
- * Bodies that live in the map rather than arriving on a socket.
- *
- * Every placement of a tile marked {@link TileDef.actor}, minus the authored
- * `player` tile — which wears the same flag because it *is* a body, but is a
- * spawn marker the session consumes rather than a resident of the world. A
- * connected player's body is excluded by the same test, which is correct: they
- * are driven by their connection, and this is the list of everyone who is not.
- *
- * Returned with owners intact where they have them. A resumed world already
- * carries the owners minted the first time it loaded, and re-minting would hand
- * the same deer a second identity.
- */
 export function listResidentBodies(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -193,44 +128,12 @@ export function listResidentBodies(
   return found;
 }
 
-/**
- * The identity a resident body takes when it is first adopted.
- *
- * Derived from where it was authored, because that reads in a log in a way a
- * counter does not, and because it is stable across reloads of the same map.
- * The stack slot is part of it so that two bodies in one cell — a cat asleep on
- * a crate — do not collide. It stops describing where they *are* the moment they
- * move: it is a name, and the address inside it is the one the author gave them,
- * not the one they are standing at. @see residentHome
- */
 export function residentOwnerId(at: Coord & { stackIndex: number }): string {
   return `${RESIDENT_ID_PREFIX}${at.x},${at.y},${at.z},${at.stackIndex}`;
 }
 
 const RESIDENT_ID_PREFIX = "npc:";
 
-/**
- * The cell a resident was authored on, read back out of the name it was given
- * there.
- *
- * The exact inverse of {@link residentOwnerId}, and it lives against it so the
- * two cannot drift — a change to the format is a change to both, three lines
- * apart, rather than a decoder somewhere else that quietly stops matching.
- *
- * This is the whole of how a creature knows where it belongs, and the reason it
- * needs no storage of its own is that the answer was already being written down.
- * An owner id is minted once, from the authored placement, and then persists on
- * that placement through every checkpoint — so it survives the reload that a
- * "where did I start" recorded at adoption could not, because a resumed world
- * adopts a body wherever it had already wandered to. A respawned body is handed
- * the same id back (see `SpawnPoint.ownerId`), so what grows back knows the same
- * home the original did.
- *
- * Null for any name this did not mint — a player's cookie, an owner some future
- * path invents. Those are bodies with no authored cell rather than bodies whose
- * cell failed to parse, and a brain asking about home gets the same "nowhere"
- * either way.
- */
 export function residentHome(ownerId: string): Coord | null {
   if (!ownerId.startsWith(RESIDENT_ID_PREFIX)) return null;
   const parts = ownerId.slice(RESIDENT_ID_PREFIX.length).split(",");
@@ -240,7 +143,6 @@ export function residentHome(ownerId: string): Coord | null {
   return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? { x, y, z } : null;
 }
 
-/** Tag a placement as belonging to `ownerId`, keeping its slot in the stack. */
 export function adoptBodyAt(
   map: MapFile,
   at: Coord & { stackIndex: number },
@@ -253,22 +155,11 @@ export function adoptBodyAt(
   return replaceStack(map, at.x, at.y, at.z, next);
 }
 
-/**
- * Take the authored `player` tile off the board, keeping its cell as the spawn
- * point. For a session that starts empty: the tile is only a marker, and
- * leaving it would draw an avatar nobody is driving.
- */
 export function removeAuthoredPlayer(map: MapFile): MapFile {
   const at = requireSinglePlayer(map);
   return removeTileAt(map, at.x, at.y, at.z, at.stackIndex);
 }
 
-/**
- * Put a new actor on top of the stack at `at`.
- *
- * `direction` is carried for a returning player, whose facing is part of where
- * they were; a genuinely new actor takes the authored default.
- */
 export function spawnActor(
   map: MapFile,
   ownerId: string,
@@ -282,7 +173,6 @@ export function spawnActor(
   });
 }
 
-/** Take an actor's tile off the board. A no-op when they are not on it. */
 export function despawnActor(map: MapFile, ownerId: string): MapFile {
   const loc = findActorAnywhere(map, ownerId);
   if (!loc) return map;

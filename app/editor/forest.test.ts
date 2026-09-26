@@ -57,7 +57,6 @@ function eachCell(rect: Rect, visit: (x: number, y: number) => void): void {
   }
 }
 
-/** Whether every cell you can walk on is part of some fully clear 2x2 square. */
 function everyGapTwoWide(g: CellGrid): boolean {
   for (let y = g.minY; y < g.minY + g.height; y++) {
     for (let x = g.minX; x < g.minX + g.width; x++) {
@@ -80,7 +79,6 @@ function everyGapTwoWide(g: CellGrid): boolean {
   return true;
 }
 
-/** Mean share of cells holding a tree within `band` of the rectangle's edge. */
 function treeShare(g: CellGrid, keep: (x: number, y: number) => boolean): number {
   let cells = 0;
   let trees = 0;
@@ -95,7 +93,6 @@ function treeShare(g: CellGrid, keep: (x: number, y: number) => boolean): number
 }
 
 describe("growForest", () => {
-  /** Cells from every cell to the nearest path cell, by orthogonal steps. */
   function pathDistance(grid: CellGrid, path: ReadonlySet<number>): Int32Array {
     const distance = new Int32Array(grid.cells.length).fill(-1);
     const queue = [...path];
@@ -141,9 +138,6 @@ describe("growForest", () => {
   });
 
   it("varies how thick the wood is from place to place, not just by the edges", () => {
-    // Measured only where the path is far enough away to have stopped mattering,
-    // so what is left is the thicket and clump fields. A wood whose density is
-    // one number plus a border term comes out flat here.
     for (const seed of [1, 2, 3, 4]) {
       const { grid, path } = growForest(BOUNDS, { ...BASE, seed });
       const distance = pathDistance(grid, path);
@@ -167,9 +161,6 @@ describe("growForest", () => {
   });
 
   it("does not run every path the same way", () => {
-    // A path plotted as an offset from a straight crossing always makes
-    // monotone progress along one axis, which is a wood with a stripe through
-    // it. Over a spread of seeds both axes have to turn up.
     const axes = new Set<string>();
     for (let seed = 0; seed < 8; seed++) {
       const { grid, path } = growForest(BOUNDS, { ...BASE, seed });
@@ -200,9 +191,6 @@ describe("growForest", () => {
   });
 
   it("cuts a track to every glade big enough to be worth one", () => {
-    // Smaller ones are left unreachable on purpose: a hollow in a thicket you
-    // cannot quite get into is a thicket, and planting them over is what turned
-    // the far half of a dense wood into one solid block.
     for (const paths of [1, 2, 3]) {
       for (let seed = 0; seed < 6; seed++) {
         const { grid, path } = growForest(BOUNDS, { ...BASE, paths, seed });
@@ -215,9 +203,6 @@ describe("growForest", () => {
   });
 
   it("dithers the trees out at the edge rather than stopping them dead", () => {
-    // Thinner at the very edge than a few cells in, but not bare: a ring of
-    // empty ground is the rectangle showing through as plainly as a wall of
-    // trees would.
     const { grid } = growForest(BOUNDS, { ...BASE, density: 80 });
     const ring = (lo: number, hi: number) => (x: number, y: number) => {
       const d = Math.min(x - BOUNDS.minX, BOUNDS.maxX - x, y - BOUNDS.minY, BOUNDS.maxY - y);
@@ -235,7 +220,6 @@ describe("growForest", () => {
       const y = Math.floor(i / grid.width) + grid.minY;
       return x === BOUNDS.minX || x === BOUNDS.maxX || y === BOUNDS.minY || y === BOUNDS.maxY;
     });
-    // Both ends, so there is a way in and a way out.
     expect(onEdge.length).toBeGreaterThanOrEqual(2 * BASE.pathWidth);
   });
 
@@ -312,7 +296,6 @@ describe("planForest", () => {
   });
 
   it("refuses a tree too tall to stand on the ground and its path", () => {
-    // A four-unit tree on a two-unit floor is six units into a level of four.
     const plan = planForest(emptyMap(), tilesById, RECT, 0, {
       ...BASE,
       groundTileId: "half-stone",
@@ -348,8 +331,6 @@ describe("planForest", () => {
         grid.cells[i] = stack.includes("tree") ? 0 : 1;
         walkable[i] = stack.includes("tree") || stack.includes("water") ? 0 : 1;
       });
-      // The wood keeps its unreachable hollows, so what has to hold is that
-      // everything the path could reach before the streams it can still reach.
       const reached = regionsOf(grid, walkable).filter((region) => region.some((i) => path.has(i)));
       expect(reached).toHaveLength(1);
       expect(reached[0]!.length).toBeGreaterThan(100);
@@ -380,8 +361,6 @@ describe("planForest", () => {
   });
 
   it("joins on to the wood next door, laid edge to edge", () => {
-    // A wood's edge is ground you can walk on, so unlike a cave — whose shell
-    // is rock — two forests need no overlap to meet.
     const west: Rect = { x0: 0, y0: 0, x1: 25, y1: 25 };
     const east: Rect = { x0: 26, y0: 0, x1: 51, y1: 25 };
     const first = planForest(emptyMap(), tilesById, west, 0, BASE);
@@ -399,8 +378,6 @@ describe("planForest", () => {
         grid.cells[gridIndex(grid, x, y)] = stack.length > 0 && !stack.includes("tree") ? 1 : 0;
       }
     }
-    // The wood keeps its unreachable hollows, so what has to hold is that the
-    // main body of it runs from one rectangle into the other.
     const biggest = regionsOf(grid)[0]!;
     const columns = biggest.map((i) => (i % grid.width) + grid.minX);
     expect(Math.min(...columns)).toBeLessThan(6);

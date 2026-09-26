@@ -26,7 +26,6 @@ import {
 import { DEFAULT_BATTLER, fightingStats } from "../lib/battler";
 import { DEFAULT_WEAPON } from "../lib/item";
 
-/** Authored the way `data/statuses.json` is, so the schema is under test too. */
 function status(over: Record<string, unknown> = {}): StatusDef {
   const def = resolveStatus({
     id: "fed",
@@ -50,12 +49,10 @@ function catalogue(...defs: StatusDef[]): Record<string, StatusDef> {
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
 
-/** In a fight, which is Fed's slower cadence. */
 const IN_COMBAT = [{ defId: COMBAT_STATUS_ID }];
 
 const BEARER = { hp: 8, maxHp: 16, statuses: IN_COMBAT };
 
-/** Run whole seconds of ticks, threading the list through. */
 function runSeconds(
   statuses: readonly StatusInstance[],
   seconds: number,
@@ -73,11 +70,6 @@ function runSeconds(
 }
 
 describe("rolling a duration", () => {
-  /**
-   * Exactly one draw whatever the range, on the same terms a swing's three are:
-   * a draw count that varied with what an author typed would change what every
-   * creature in the world rolled after it.
-   */
   it("costs one draw even when both ends are equal", () => {
     const fixed = status({ fromMs: 5_000, toMs: 5_000 });
     const a = new Rng(1);
@@ -112,12 +104,10 @@ describe("applying and stacking", () => {
     let held = applyStatus([], def, rng);
     held = applyStatus(held, def, rng);
     expect(held[0]!.remainingMs).toBe(50_000);
-    // And it stays there rather than creeping past.
     held = applyStatus(held, def, rng);
     expect(held[0]!.remainingMs).toBe(50_000);
   });
 
-  /** A bad roll must never shorten something you already have. */
   it("refreshes to the longer of the two when it does not stack", () => {
     const long = status({ stacks: false, fromMs: 30_000, toMs: 30_000 });
     const short = status({ stacks: false, fromMs: 5_000, toMs: 5_000 });
@@ -139,12 +129,10 @@ describe("cadence", () => {
   it("snaps a cadence up to a whole number of ticks", () => {
     expect(snapToTick(1_000)).toBeCloseTo(1_000);
     expect(snapToTick(0)).toBe(0);
-    // 1010ms is 30.3 ticks, so it becomes 31 — never 30, which would fire early.
     expect(snapToTick(1_010)).toBeCloseTo(31 * TICK_MS);
     expect(snapToTick(1_010) % TICK_MS).toBeCloseTo(0);
   });
 
-  /** Thirty seconds at a one-second cadence owes thirty payouts, not twenty-nine. */
   it("pays out once per period for the whole life of a status", () => {
     const def = status({ fromMs: 30_000, toMs: 30_000, everyMs: 1_000 });
     const held = applyStatus([], def, new Rng(1));
@@ -156,7 +144,6 @@ describe("cadence", () => {
   it("owes every period a catch-up tick skipped over", () => {
     const def = status({ fromMs: 30_000, toMs: 30_000, everyMs: 1_000 });
     const held = applyStatus([], def, new Rng(1));
-    // One ten-second tick, the shape `update`'s catch-up produces.
     const tick = advanceStatuses(held, 10_000, BEARER, catalogue(def));
     expect(tick.hpChanges).toHaveLength(10);
   });
@@ -183,7 +170,6 @@ describe("the effect itself", () => {
   });
 });
 
-/** A scope for a cadence that reads nothing. */
 const ANY_SCOPE = {
   DURATION_SEC: 0,
   REMAINING_SEC: 0,
@@ -193,15 +179,7 @@ const ANY_SCOPE = {
   statuses: [],
 };
 
-/**
- * A cadence is a formula over the body — see `StatusDef.everyMs`. Fed pays a
- * whole point a period and sets the period from the maximum, so a full heal
- * takes three hundred seconds on every body: a small body's ticks are further
- * apart rather than smaller, since a hit point cannot be.
- */
 describe("a cadence set by the body", () => {
-  // Longer than the full heal, so the last period of a body whose share does
-  // not divide the tick lands inside the status rather than a tick after it.
   const fed = status({ fromMs: 320_000, toMs: 320_000 });
 
   it("heals one every three seconds on a hundred-point body", () => {
@@ -221,25 +199,17 @@ describe("a cadence set by the body", () => {
     const bearer = { hp: 10, maxHp: 50, statuses: IN_COMBAT };
     const after = runSeconds(held, 12, catalogue(fed), bearer);
     expect(after.hpChanges).toEqual([1, 1]);
-    // And nothing between: the period is longer, not the point smaller.
     expect(runSeconds(held, 5, catalogue(fed), bearer).hpChanges).toEqual([]);
   });
 
   it("owes every period a catch-up tick skipped over, at the body's cadence", () => {
     const held = applyStatus([], fed, new Rng(1));
     const bearer = { hp: 10, maxHp: 50, statuses: IN_COMBAT };
-    // One fourteen-second tick: two six-second periods and change.
     const tick = advanceStatuses(held, 14_000, bearer, catalogue(fed));
     expect(tick.hpChanges.map((change) => change.amount)).toEqual([1, 1]);
     expect(tick.statuses[0]!.sinceEffectMs).toBeCloseTo(2_000);
   });
 
-  /**
-   * The whole point of the rule, on bodies of every size. Full between 290
-   * and 305 seconds rather than at 300 exactly, because a period is snapped up
-   * to whole ticks and a body whose share does not divide it is paid one share
-   * over at the end — both of which the clamp absorbs.
-   */
   it("heals any body in full in about three hundred seconds", () => {
     for (const maxHp of [7, 16, 50, 70, 100, 150, 185, 300]) {
       const bearer = { hp: 0, maxHp, statuses: IN_COMBAT };
@@ -253,7 +223,6 @@ describe("a cadence set by the body", () => {
     }
   });
 
-  /** Out of a fight the same body is paid twice as often. */
   it("halves the period out of combat", () => {
     const held = applyStatus([], fed, new Rng(1));
     const calm = { hp: 10, maxHp: 100, statuses: [] };
@@ -262,10 +231,6 @@ describe("a cadence set by the body", () => {
     expect(runSeconds(held, 6, catalogue(fed), fighting).hpChanges).toEqual([1, 1]);
   });
 
-  /**
-   * The list a formula reads is the bearer's, not the one being advanced: a
-   * duel advances one instance at a time, and the flag is beside it.
-   */
   it("reads the combat flag off the bearer, not the list being advanced", () => {
     const [instance] = applyStatus([], fed, new Rng(1));
     const bearer = { hp: 10, maxHp: 100, statuses: IN_COMBAT };
@@ -300,24 +265,12 @@ describe("a cadence set by the body", () => {
   });
 });
 
-/**
- * The authored poison, or a named failure rather than a null two lines later.
- *
- * A function rather than a `const` and a guard beside it, because a guard only
- * narrows the scope it stands in: the helpers below close over the result, and
- * a closure does not inherit what was proved outside it. A declared return type
- * is what carries the proof across that boundary.
- */
 function authoredPoison(): StatusDef {
   const def = resolveStatus(statusesJson.find((entry) => entry.id === "poison"));
   if (!def) throw new Error("authored poison did not resolve");
   return def;
 }
 
-/**
- * Poison as it sits in `data/statuses.json`: remaining time is the dose, five
- * at the ten-minute ceiling and one as it runs out, paid every five seconds.
- */
 describe("poison, as authored", () => {
   const def = authoredPoison();
 
@@ -367,11 +320,6 @@ describe("expiry", () => {
     expect(tick.expired).toBe(true);
   });
 
-  /**
-   * The countdown is the point, and an identity optimisation on a "nothing
-   * notable happened" tick throws it away — which is exactly what the first
-   * version of this did, silently, until the payout tests went to zero.
-   */
   it("advances the clock on a tick where nothing else happened", () => {
     const def = status({ everyMs: 0, fromMs: 10_000, toMs: 10_000 });
     const held = applyStatus([], def, new Rng(1));
@@ -416,11 +364,6 @@ describe("modifiers", () => {
     expect(withStatusModifiers(base, held, catalogue(def), 8).maxHp).toBe(1);
   });
 
-  /**
-   * `MAX_HP` is the figure *before* any status touched it. Reading the running
-   * total would let a status that raises the maximum and heals a share of it
-   * compound against itself.
-   */
   it("reads MAX_HP unmodified even while modifying it", () => {
     const def = status({
       id: "hardy",
@@ -449,21 +392,12 @@ describe("walking pace", () => {
     expect(walkSpeedPercentFrom(held, catalogue(a, b))).toBe(-60);
   });
 
-  /**
-   * On the terms every other reference to a catalogue is under: content moved
-   * on, and a body under something nobody authors any more walks normally
-   * rather than not at all.
-   */
   it("reads a status the catalogue no longer holds as no change", () => {
     const def = status({ id: "gone", effects: {}, walkSpeedPercent: -50 });
     const held = applyStatus([], def, new Rng(1));
     expect(walkSpeedPercentFrom(held, {})).toBe(0);
   });
 
-  /**
-   * The sum is left unclamped here on purpose — the ground has not had its say
-   * yet. @see `../lib/walkSpeed`
-   */
   it("hands the raw total on, out of band and all", () => {
     const tar = status({ id: "tar", effects: {}, walkSpeedPercent: -90 });
     const chill = status({ id: "chill", effects: {}, walkSpeedPercent: -90 });

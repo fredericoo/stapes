@@ -35,7 +35,6 @@ import {
 
 export type ToolId = "select" | "erase" | "pencil" | "rect" | "circle" | "bucket" | "procedural";
 
-/** Discrete map zoom steps (canvas px per world px). */
 export const ZOOM_LEVELS = [1, 2, 4, 8] as const;
 export type ZoomLevel = (typeof ZOOM_LEVELS)[number];
 
@@ -53,14 +52,7 @@ export function snapZoom(z: number): ZoomLevel {
 }
 
 export type LightingSettings = {
-  /** Minutes past midnight (0…1439). */
   minutesOfDay: MinutesOfDay;
-  /**
-   * When false the renderer draws everything unlit and skips the bake
-   * entirely — see `EditorRenderer.applyLightingEnabled`. An authoring aid:
-   * the editor's lighting path is unchunked, so a dark map is both hard to
-   * paint into and the most expensive thing on the frame.
-   */
   enabled: boolean;
 };
 
@@ -77,44 +69,19 @@ export type EditorStore = {
   tiles: TileDef[];
   tilesById: Record<string, TileDef>;
   dirty: boolean;
-  /** Bumps whenever map contents change — used by renderer to rebuild. */
   mapVersion: number;
   currentLevel: number;
   showOtherLevels: boolean;
-  /**
-   * Every level solid — negative ones included — and no grid or selection
-   * chrome: the same draw play makes, so it can be trusted to test against.
-   */
   previewMode: boolean;
   lighting: LightingSettings;
   tool: ToolId;
   selected: { x: number; y: number } | null;
   hover: { x: number; y: number } | null;
   armedTileId: string | null;
-  /**
-   * Which face the armed tile is laid down wearing, when it is a `variant`
-   * tile. Absent → the tile's first authored face.
-   *
-   * On the store rather than on the tile because it is a brush setting, not a
-   * fact about the catalogue: an author paints a run of holes in planks, then
-   * switches to sand and paints another run, and neither the tile nor any
-   * placement already down should notice.
-   */
   armedVariant: string | null;
-  /**
-   * What the procedural tool would build, and a counter that changes whenever
-   * it does.
-   *
-   * The counter is what the renderer's overlay signature reads: a generator's
-   * ghost is derived from the settings as much as from the rectangle, and
-   * without it changing the roof colour mid-drag would leave the old ghost on
-   * screen.
-   */
   proceduralSettings: ProceduralSettings;
   proceduralSettingsVersion: number;
-  /** Always one of {@link ZOOM_LEVELS}: `setZoom` snaps whatever it is given. */
   zoom: ZoomLevel;
-  /** Camera top-left in world pixels. */
   camera: { x: number; y: number };
   shapePreview: {
     kind: "rect" | "circle" | "procedural";
@@ -127,9 +94,7 @@ export type EditorStore = {
 
   past: HistoryEntry[];
   future: HistoryEntry[];
-  /** Snapshot taken at the start of a paint stroke; null when not painting. */
   strokeBase: HistoryEntry | null;
-  /** Map reference as of the last hydrate/save — used for dirty checks. */
   savedMap: MapFile;
 
   hydrate: (map: MapFile, tiles: TileDef[]) => void;
@@ -155,9 +120,9 @@ export type EditorStore = {
   clearToast: () => void;
 
   /**
-   * Apply a map mutation and record undo history.
-   * All map data changes must go through this (or a store method that calls it).
-   * Pass `{ coalesceInStroke: true }` only for per-cell steps inside beginStroke/endStroke.
+   * All map data changes must go through this (or a store method that calls
+   * it), so undo history stays complete. Pass `{ coalesceInStroke: true }`
+   * only for per-cell steps inside beginStroke/endStroke.
    */
   commitMap: (next: MapFile, opts?: { coalesceInStroke?: boolean }) => void;
   beginStroke: () => void;
@@ -170,44 +135,21 @@ export type EditorStore = {
   stampAt: (x: number, y: number) => { skipped: boolean; reason?: string };
   stampMany: (coords: Array<{ x: number; y: number }>) => { skipped: number; reason?: string };
   appendArmed: () => { ok: boolean; reason?: string };
-  /**
-   * Run the armed generator over `rect` on the current level, as one undoable
-   * edit.
-   *
-   * All or nothing: a plan that does not fit writes no cell at all, which is
-   * what makes dragging one over a roof safe to try.
-   */
   placeProcedural: (rect: Rect) => { ok: boolean; reason?: string };
   removeFromStack: (stackIndex: number) => void;
   reorderSelectedStack: (from: number, to: number) => void;
   setStackDirection: (stackIndex: number, direction: Direction) => void;
   setStackVariant: (stackIndex: number, variant: string) => void;
-  /**
-   * Lift one placement clear of what it is resting on; `null` sets it back down.
-   * A foot the stack cannot take is refused and nothing is written.
-   */
   setStackFoot: (stackIndex: number, foot: number | null) => { ok: boolean; reason?: string };
   setStackChannel: (stackIndex: number, channel: string) => void;
-  /** What is written on one placement, for anybody who walks up to it. */
   setStackInscription: (stackIndex: number, inscription: string) => void;
-  /** What examining one placement says, for whoever picks it up. */
   setStackDescription: (stackIndex: number, description: string) => void;
-  /** Whose one placement is, for a tile whose name has a hole in it. */
   setStackEngraving: (stackIndex: number, engraved: string) => void;
   setStackReward: (stackIndex: number, tag: string, tileIds: readonly string[]) => void;
-  /** Where one placement sends people; `null` clears it. */
   setStackTeleport: (stackIndex: number, to: Coord | null) => void;
-  /** What one container placement holds; an empty list clears it. */
   setStackContents: (stackIndex: number, contents: readonly ItemInstance[]) => void;
 };
 
-/**
- * A fresh placement of `def`, wearing whatever the brush is set to.
- *
- * The two axes a *placement* carries — which way it faces, which face it wears
- * — and nothing else, so the three paints below cannot drift apart. They had
- * this expression three times over and it already only knew about one of them.
- */
 function armedPlacement(def: TileDef, variant: string | null): PlacedTile {
   const placed: PlacedTile = { tileId: def.id };
   if (isDirectional(def)) placed.direction = "s";
@@ -245,13 +187,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   hydrate: (map, tiles) => {
     const state = get();
     const tilesById = tilesByIdFromList(tiles);
-    // The saved generator settings are read here rather than at module load:
-    // there is no `localStorage` on the server, and the catalogue they have to
-    // be checked against only exists once tiles have arrived.
     const proceduralSettings = loadProceduralSettings((id: string) => id in tilesById);
-    // Revalidation after save produces a new map identity with the same
-    // contents — keep history and the current map reference so dirty checks
-    // against savedMap stay meaningful.
     if (serializeMap(map) === serializeMap(state.map)) {
       set({
         tiles,
@@ -300,9 +236,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!prev && !h) return;
     set({ hover: h });
   },
-  // Arming a different tile drops the face with it: a face name belongs to one
-  // tile's catalogue, and carrying "planks" over to another variant tile would
-  // silently place its first face while the picker said otherwise.
+  /**
+   * Arming a different tile drops the face with it: a face name belongs to
+   * one tile's catalogue, and carrying it over to another variant tile would
+   * silently place that tile's first face while the picker said otherwise.
+   */
   setArmedTileId: (id) =>
     set(id === get().armedTileId ? { armedTileId: id } : { armedTileId: id, armedVariant: null }),
   setArmedVariant: (variant) => set({ armedVariant: variant }),
@@ -341,7 +279,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   commitMap: (next, opts) => {
     if (next === get().map) return;
 
-    // Per-cell drag steps coalesce into one undo entry via endStroke.
     if (opts?.coalesceInStroke && get().strokeBase) {
       const { mapVersion, savedMap } = get();
       set({
@@ -353,9 +290,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return;
     }
 
-    // Discrete edits (backspace, stack panel, stampMany, …) must always be
-    // undoable on their own — close any open stroke first so they aren't
-    // swallowed / undo isn't blocked by a stuck strokeBase.
     if (get().strokeBase) {
       get().endStroke();
     }
@@ -430,8 +364,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   stampAt: (x, y) => {
     const { map, selected, currentLevel, tilesById, armedTileId, armedVariant } = get();
 
-    // With a coordinate selected: copy that cell’s full stack onto the target.
-    // Without one: append the armed tile picker tile instead.
     if (selected) {
       const source = getStack(map, selected.x, selected.y, currentLevel);
       const clone: PlacedTile[] = source.map((p) => ({ ...p }));
@@ -468,7 +400,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (selected) {
       const source = getStack(map, selected.x, selected.y, currentLevel);
       for (const { x, y } of coords) {
-        // Fresh clone per cell so stacks don't share identity across coords.
         const clone: PlacedTile[] = source.map((p) => ({ ...p }));
         const check = canReplaceStack(map, x, y, currentLevel, clone, tilesById);
         if (!check.ok) {
@@ -525,7 +456,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       activeConfig(proceduralSettings),
     );
     if (!plan.ok) return { ok: false, reason: plan.reason };
-    // One `setStacks`, so the whole thing is one entry in the undo stack.
     get().commitMap(setStacks(map, plan.edits));
     return { ok: true };
   },

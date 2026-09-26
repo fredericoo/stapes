@@ -70,8 +70,6 @@ describe("resolveItem", () => {
     expect(isItem(def)).toBe(true);
   });
 
-  // Poison is the same block with the sign flipped, so the floor of the range
-  // is as legal as the ceiling.
   it("reads a consumable that harms", () => {
     const poison = { type: "consumable", label: "Eat", hp: -10 };
     expect(resolveConsumable(tile("item", { item: poison }))).toEqual(poison);
@@ -82,8 +80,6 @@ describe("resolveItem", () => {
     expect(resolveConsumable(tile("item", { item: berry }))).toEqual(berry);
   });
 
-  // Silence is a legal consumable, and the commonest one before anybody thinks
-  // to author a noise.
   it("reads one that makes no noise at all", () => {
     const quiet = { type: "consumable", hp: 1 };
     const parsed = resolveConsumable(tile("item", { item: quiet }));
@@ -100,7 +96,6 @@ describe("resolveItem", () => {
 
   it("answers the authored verb where there is one", () => {
     expect(consumeVerb({ type: "consumable", label: "Drink", hp: 1 })).toBe("Drink");
-    // Whitespace is not a verb.
     expect(consumeVerb({ type: "consumable", label: "  ", hp: 1 })).toBe(CONSUME_FALLBACK_VERB);
   });
 
@@ -109,8 +104,6 @@ describe("resolveItem", () => {
     expect(isItem(tile("prop"))).toBe(false);
   });
 
-  // The gate is the whole reason `kind` is stored rather than derived: without
-  // it, a block left behind by a hand-edit would quietly still be in charge.
   it("refuses a block on a tile that is not an item", () => {
     const stale = tile("prop", { item: { ...DEFAULT_WEAPON } });
     expect(resolveItem(stale)).toBeNull();
@@ -181,8 +174,6 @@ describe("resolveItem", () => {
           statuses: [{ id: "poison", chance: 10, fromMs: 2000, toMs: 1000 }],
         },
       ],
-      // A floor above the ceiling is a weapon that can never reach anything,
-      // which is a malformed block rather than a design. @see `Reach.min`
       [
         "a minimum reach beyond the maximum",
         { ...DEFAULT_WEAPON, reach: { cells: 4, min: 5, height: 2 } },
@@ -200,9 +191,6 @@ describe("resolveItem", () => {
     }
   });
 
-  // A stray key is ignored rather than fatal, matching every other resolver in
-  // `./interactions`: the file is hand-edited, and a leftover field from an
-  // earlier shape should not be the difference between a sword and a rock.
   it("strips fields belonging to the other arm rather than refusing", () => {
     const def = tile("item", { item: { ...DEFAULT_WEAPON, size: 4 } });
     expect(resolveItem(def)).toEqual(DEFAULT_WEAPON);
@@ -218,12 +206,6 @@ describe("resolveBattler's kind gate", () => {
   };
 
   it("reads stats on a battler", () => {
-    // Floors of interest, the kit and the spells are optional, so a block
-    // without them parses to minding its own floor, carrying nothing and
-    // casting nothing. That fallback is the compatibility promise, so it is
-    // asserted here. Reach is no longer among them: it moved onto the weapon,
-    // and the natural weapon in `stats` already carries it.
-    // @see `./item`'s `Reach`
     expect(resolveBattler(tile("battler", { battler: stats }))).toEqual({
       ...stats,
       sight: { up: 0, down: 0 },
@@ -232,22 +214,11 @@ describe("resolveBattler's kind gate", () => {
     });
   });
 
-  /**
-   * A body with no masteries and no weapon has no numbers at all, and there is
-   * nothing sensible to invent for it — so it reads as not-a-battler, which is
-   * also what every tile authored before masteries existed now reads as.
-   */
   it("refuses a block from before masteries existed", () => {
     const old = { maxHp: 10, atk: 1, def: 0, acc: 50, flee: 0, spd: 50 };
     expect(resolveBattler(tile("battler", { battler: old }))).toBeNull();
   });
 
-  /**
-   * `baseHp` is required on exactly the terms the masteries and the weapon are:
-   * how big a body is has no sensible default, and a block that never said
-   * would silently keep whatever the constant happened to be. Every creature in
-   * `data/` was migrated onto the field rather than defaulted.
-   */
   it("refuses a block with no base hit points", () => {
     const { baseHp: _dropped, ...noBase } = stats;
     expect(resolveBattler(tile("battler", { battler: noBase }))).toBeNull();
@@ -262,12 +233,6 @@ describe("resolveBattler's kind gate", () => {
   });
 });
 
-/**
- * The one answer to "what does this draft reach", shared by the fields that
- * draw it and the save that writes it. Both used to read `weapon.reach`
- * straight off the draft, and both threw for every weapon in `tiles.json` that
- * predates the field — which is all of them but the bow.
- */
 describe("reachOf", () => {
   it("is an arm's length for a weapon that never named one", () => {
     const { reach: _absent, ...noReach } = DEFAULT_WEAPON;
@@ -281,17 +246,11 @@ describe("reachOf", () => {
     });
   });
 
-  /**
-   * A fresh object every call. Handing back the constant would let one weapon's
-   * edit reach through into every other that took the default — the bug
-   * `DEFAULT_WEAPON` spreads `MELEE_REACH` to avoid.
-   */
   it("never hands back the shared constant", () => {
     const { reach: _absent, ...noReach } = DEFAULT_WEAPON;
     expect(reachOf(noReach as never)).not.toBe(MELEE_REACH);
   });
 
-  /** Half a reach in the draft still comes back whole. */
   it("fills in the half an unfinished draft is missing", () => {
     expect(reachOf({ reach: { cells: 4 } as never })).toEqual({
       cells: 4,
@@ -302,19 +261,11 @@ describe("reachOf", () => {
 
 describe("itemForSave", () => {
   it("drops fields belonging to the other arm of the union", () => {
-    // What an editor draft looks like after a weapon → container → weapon trip.
     const draft = { ...DEFAULT_WEAPON, size: 4, equippable: true } as never;
     expect(itemForSave(draft)).toEqual(DEFAULT_WEAPON);
     expect(itemForSave(draft)).not.toHaveProperty("size");
   });
 
-  /**
-   * The draft an editor hands back is the *authored* block, never the parsed
-   * one, so the schema's default for `reach` has not run on it. Every weapon in
-   * `tiles.json` but the bow predates reach moving off the body and omits the
-   * key, so assuming it threw on the way to disk for all of them — and for every
-   * natural weapon, which is saved through the same function.
-   */
   it("writes an arm's length for a weapon that never named a reach", () => {
     const { reach: _absent, ...noReach } = DEFAULT_WEAPON;
     expect(itemForSave(noReach as never)).toEqual(DEFAULT_WEAPON);
@@ -330,19 +281,12 @@ describe("itemForSave", () => {
     expect(weaponForSave(bow).reach).toEqual({ cells: 8, min: 2, height: 4 });
   });
 
-  /**
-   * A floor of zero is not a floor, and the editor's number field has no way to
-   * say "none" other than a zero. `min: 0` on every sword in `tiles.json` would
-   * be a key that says exactly what its absence says. @see `reachForSave`
-   */
   it("drops a minimum of nothing rather than writing it on every weapon", () => {
     const sword = { ...DEFAULT_WEAPON, reach: { cells: 1.5, min: 0, height: 2 } };
     expect(weaponForSave(sword).reach).not.toHaveProperty("min");
   });
 
   it("keeps armour's defence, and drops the resistances that say nothing", () => {
-    // What a draft looks like after somebody has touched one of the five fields:
-    // the editor writes a key per mastery, and zero is not a resistance.
     const draft = {
       type: "armor",
       def: 3,
@@ -361,11 +305,6 @@ describe("itemForSave", () => {
     expect(itemForSave(draft)).not.toHaveProperty("resist");
   });
 
-  /**
-   * Absent already says "worn on the chest" — see `DEFAULT_ARMOR_SLOT` — so
-   * writing it would rewrite every armour in the file to say what it said
-   * before, on the terms a zeroed resistance is dropped.
-   */
   it("writes an armour's square only when it is not the body", () => {
     expect(itemForSave({ type: "armor", def: 2, slot: "armor" })).toEqual({
       type: "armor",
@@ -384,8 +323,6 @@ describe("itemForSave", () => {
   });
 
   it("writes an artifact as the bare type, whatever the draft carried", () => {
-    // A torch was a weapon until this type existed, so this is the exact draft
-    // an author produces by switching the arm on the tile it was authored on.
     const draft = { ...DEFAULT_ARTIFACT, damage: 1, def: 3 } as never;
     expect(itemForSave(draft)).toEqual({ type: "artifact" });
     expect(itemForSave(draft)).not.toHaveProperty("damage");
@@ -396,8 +333,6 @@ describe("itemForSave", () => {
       type: "artifact",
       pile: 99,
     });
-    // One is what an absent pile already means of an artifact, so writing it
-    // would be a second spelling of the default in the file.
     expect(itemForSave({ type: "artifact", pile: 1 })).toEqual({
       type: "artifact",
     });
@@ -419,7 +354,6 @@ describe("itemForSave", () => {
       hp: -2,
       pile: DEFAULT_PILE,
     });
-    // A blank verb is an absent key, not an empty string in the file.
     expect(itemForSave({ type: "consumable", label: "  ", hp: 2 })).toEqual({
       type: "consumable",
       hp: 2,
@@ -451,7 +385,6 @@ describe("itemForSave", () => {
     };
     expect(itemForSave(withStatus)).toEqual({
       ...withStatus,
-      // Written whatever it says, like a weapon's reach — see `pileOf`.
       pile: DEFAULT_PILE,
     });
     expect(
@@ -490,11 +423,6 @@ describe("itemForSave", () => {
     );
   });
 
-  /**
-   * A draft that had an override switched off still carries the two ends, and
-   * writing them would be writing half of one — which is the shape the schema
-   * refuses, so it would come back as a weapon that inflicts nothing.
-   */
   it("drops half a duration override a draft was still holding", () => {
     const saved = itemForSave({
       ...DEFAULT_WEAPON,
@@ -520,13 +448,6 @@ describe("itemForSave", () => {
     });
   });
 
-  /**
-   * A bolt's two optionals say nothing when they are absent, so writing them out
-   * would claim an author decided something they never thought about — the same
-   * rule a zeroed resistance and an armour's default square are under. A
-   * `variance: 0` is a spell somebody decided is reliable; absent is a spell that
-   * simply does what it says.
-   */
   it("drops a bolt's variance and projectile when they say nothing", () => {
     const draft = {
       type: "stone",
@@ -575,12 +496,6 @@ describe("itemForSave", () => {
     expect(resolveItem(tile("item", { item: saved }))).toEqual(saved);
   });
 
-  /**
-   * **A bolt of zero is a field somebody typed in and emptied**, which is not
-   * the same as one they left alone: absent damage is a spell that only leaves
-   * a status behind, and that is a real spell. The sign either side of zero is
-   * the whole vocabulary, so both are real and only the middle is refused.
-   */
   it("refuses a bolt of zero and takes either sign", () => {
     const bolt = (damage: number) => ({
       type: "stone" as const,
@@ -592,12 +507,6 @@ describe("itemForSave", () => {
     expect(resolveItem(tile("item", { item: bolt(-5) }))).toEqual(bolt(-5));
   });
 
-  /**
-   * **One of the two halves, and a bolt with neither does nothing at all.**
-   * That is the rule that lets the status arm be folded in: a pure ward is a
-   * bolt with a status and no damage, a pure mend is a bolt with damage and no
-   * status, and a stone with neither is a draft somebody opened and left.
-   */
   it("takes a bolt that only leaves a status, and refuses one that does neither", () => {
     const ward = {
       type: "stone" as const,
@@ -616,13 +525,11 @@ describe("itemForSave", () => {
       cooldownMs: 10_000,
     };
     expect(resolveItem(tile("item", { item: empty }))).toBeNull();
-    // And an empty *list* says exactly what no key says, so it is refused too.
     expect(
       resolveItem(tile("item", { item: { ...empty, effect: { ...empty.effect, statuses: [] } } })),
     ).toBeNull();
   });
 
-  /** A brand: it burns, and it sets you alight. */
   it("round-trips a bolt that does both halves", () => {
     const draft: ItemDef = {
       type: "stone",
@@ -639,11 +546,6 @@ describe("itemForSave", () => {
     expect(resolveItem(tile("item", { item: saved }))).toEqual(draft);
   });
 
-  /**
-   * **Absent is instant and absent is interruptible**, which is what every stone
-   * in the world says and what a zero and a `false` would say at length. The
-   * same rule every other optional on the arm is saved under.
-   */
   it("drops a cast time of nothing and an uninterruptible of false", () => {
     const saved = itemForSave({
       type: "stone",
@@ -685,7 +587,6 @@ describe("itemForSave", () => {
     expect(resolveItem(tile("item", { item: saved }))).toEqual(draft);
   });
 
-  /** Blank is silent, and silent is what an absent key already says. */
   it("drops a stone's blank noise", () => {
     const saved = itemForSave({
       type: "stone",
@@ -696,11 +597,6 @@ describe("itemForSave", () => {
     expect(saved).not.toHaveProperty("sound");
   });
 
-  /**
-   * The floor is a design bound rather than a sanity one — see
-   * {@link MIN_CAST_TIME_MS} — so a stone authored below it is a file that will
-   * not parse rather than one that quietly casts on the next tick.
-   */
   it("refuses a cast time shorter than a bar is worth drawing", () => {
     const flicker = {
       type: "stone" as const,
@@ -711,7 +607,6 @@ describe("itemForSave", () => {
     expect(resolveItem(tile("item", { item: flicker }))).toBeNull();
   });
 
-  /** A row somebody added and never named drops, on a weapon's own terms. */
   it("drops a bolt's unnamed status rows", () => {
     const saved = itemForSave({
       type: "stone",
@@ -775,20 +670,11 @@ describe("normalizeTileDef and kind", () => {
   });
 });
 
-/**
- * Armour, as a kind of item.
- *
- * The parsing claims, kept beside the other three arms of the union: an armour
- * block that does not parse reads as "not an item" exactly as a malformed weapon
- * does, and the resistances are optional because most armour is the same against
- * everything.
- */
 describe("resolveArmor", () => {
   it("reads an armour block", () => {
     const def = tile("item", { item: { ...DEFAULT_ARMOR } });
     expect(resolveArmor(def)).toEqual(DEFAULT_ARMOR);
     expect(isItem(def)).toBe(true);
-    // The other resolvers say no, which is what the union is for.
     expect(resolveWeapon(def)).toBeNull();
     expect(resolveContainer(def)).toBeNull();
     expect(resolveConsumable(def)).toBeNull();
@@ -801,19 +687,11 @@ describe("resolveArmor", () => {
     expect(resolveArmor(def)?.resist).toEqual({ sharp: 4, arcane: 1 });
   });
 
-  /** An empty block says what no block says, and a round trip must survive it. */
   it("takes an empty resist block rather than refusing it", () => {
     const def = tile("item", { item: { type: "armor", def: 2, resist: {} } });
     expect(resolveArmor(def)).toEqual({ type: "armor", def: 2, resist: {} });
   });
 
-  /**
-   * Stripped rather than fatal, matching every other resolver here: the file is
-   * hand-edited, and a kind of blow that does not exist should cost the armour
-   * that line and not the tile. Toughness and Agility are the interesting case —
-   * they are real masteries, and they are what a body *is* rather than something
-   * anybody swings.
-   */
   it("drops a resistance against something no weapon strikes with", () => {
     const def = tile("item", {
       item: { type: "armor", def: 2, resist: { sharp: 4, toughness: 9, sonic: 9 } },
@@ -827,29 +705,17 @@ describe("resolveArmor", () => {
   });
 });
 
-/**
- * The arm with nothing on it. What it is worth is entirely what it is *not*: a
- * torch was a `weapon` block with numbers nobody wanted, and the point of this
- * type is that no combat resolver can see it at all.
- */
 describe("resolveItem, for an artifact", () => {
   it("reads a bare block, and every other resolver refuses it", () => {
     const def = tile("item", { item: { ...DEFAULT_ARTIFACT } });
     expect(resolveItem(def)).toEqual(DEFAULT_ARTIFACT);
     expect(isItem(def)).toBe(true);
-    // The whole reason the type exists: a body holding one has, as far as a
-    // fight is concerned, an empty hand.
     expect(resolveWeapon(def)).toBeNull();
     expect(resolveArmor(def)).toBeNull();
     expect(resolveContainer(def)).toBeNull();
     expect(resolveConsumable(def)).toBeNull();
   });
 
-  /**
-   * The block a torch is left holding when somebody flips the arm in the editor
-   * and saves before the rebuild drops the rest. Parsing it as an artifact is
-   * what stops the leftovers meaning anything.
-   */
   it("ignores what a block it used to be left behind", () => {
     const def = tile("item", {
       item: { type: "artifact", damage: 9, mastery: "sharp" },
@@ -862,18 +728,12 @@ describe("resolveItem, for an artifact", () => {
   });
 });
 
-/**
- * The word the interface uses, read off the thing and never off the square —
- * "Press to wield it" over a backpack is what reading the destination produced.
- */
 describe("equipVerb", () => {
   it("wears armour, wields a sword, holds a torch, puts on a pack", () => {
     expect(equipVerb(tile("item", { item: { ...DEFAULT_ARMOR } }))).toBe("Wear");
     expect(equipVerb(tile("item", { item: { ...DEFAULT_WEAPON } }))).toBe("Wield");
     expect(equipVerb(tile("item", { item: { ...DEFAULT_SHIELD } }))).toBe("Hold");
     expect(equipVerb(tile("item", { item: { ...DEFAULT_CONTAINER } }))).toBe("Put on");
-    // The same word an off-hand weapon gets, from the other direction: an
-    // artifact is nothing *but* a thing you hold.
     expect(equipVerb(tile("item", { item: { ...DEFAULT_ARTIFACT } }))).toBe("Hold");
   });
 });

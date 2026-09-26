@@ -12,31 +12,8 @@ import {
 } from "../lib/conditions";
 import { Button, Segmented, Switch } from "../ui";
 
-/**
- * An `if`, however deep it goes — for any vocabulary of leaves.
- *
- * `../lib/conditions` owns composition and nothing else, and this is the same
- * split drawn: the tree knows how to add, nest, invert and remove, and the
- * caller brings the one row that knows what a leaf *is*. The brain hands over
- * its condition picker; a dialog hands over its own. Two vocabularies, one
- * editor, and no way for either to grow a different idea of "and".
- *
- * Two shapes, and which one is on screen is the authored shape rather than a
- * normalisation: a bare condition draws as one row with nothing around it, and
- * only somebody reaching for "and" turns it into a box. Nearly every condition
- * ever written asks one question, and wrapping all of them in a group with a
- * combinator nobody chose would put a decision on screen the author never made.
- *
- * The tree is edited by *path* rather than by handing each row a callback that
- * closes over its own copy. A row is a copy React already rendered; what has to
- * change is the tree it came from, and naming the position is the only way a
- * nested row can say which node it means.
- */
-
-/** What a vocabulary brings: how to draw one leaf, and what a new one says. */
 export type LeafEditor<Leaf extends object> = {
   render: (leaf: Leaf, onChange: (next: Leaf) => void) => ReactNode;
-  /** What a newly added row asks until the author says otherwise. */
   fresh: () => Leaf;
 };
 
@@ -64,14 +41,6 @@ export function ConditionTreeEditor<Leaf extends object>({
   );
 }
 
-/**
- * One group and everything under it.
- *
- * Carries the whole tree plus its own path rather than just its own subtree,
- * because every edit it makes is a rewrite of the root: there is no way to hand
- * a nested group a setter for itself without threading one through every level
- * above it, and the path already says everything such a setter would know.
- */
 function GroupBox<Leaf extends object>({
   root,
   path,
@@ -87,9 +56,6 @@ function GroupBox<Leaf extends object>({
 }) {
   const set = (next: ConditionGroup<Leaf>) => onChange(replaceAt(root, path, next));
 
-  // A tree of one leaf has nothing to delete down to: a condition with no
-  // question has nothing to answer, so the button is simply not offered rather
-  // than offered and refused.
   const prune = (at: ConditionPath) => {
     const next = removeAt(root, at);
     if (next !== null) onChange(next);

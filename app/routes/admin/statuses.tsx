@@ -15,23 +15,8 @@ import {
 } from "../../lib/status";
 import { Button, useToast } from "../../ui";
 
-/**
- * Authoring the status catalogue.
- *
- * A mirror of `/tiles` down to the shape of its action, because it is the same
- * job on a different blob: read the file, edit one entry, write the file back.
- *
- * The one thing it does that the tile editor does not is **show what a formula
- * is worth**. Nothing else in `data/` is a language, and a field where a typo
- * reads as "no effect" rather than as an error is one an author needs told
- * about — see `StatusEditorDialog`.
- */
-
 export async function clientLoader() {
   await requireAdmin();
-  // The tiles are here for the effects preview, which draws on any of them —
-  // see `VfxPreview`. Fetched beside the rest rather than lazily, because
-  // the dialog is the only thing on this page and it needs all three.
   const [statuses, tilesets, tiles] = await Promise.all([
     fetchStatuses(),
     fetchTilesets(),
@@ -47,10 +32,6 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
   if (intent === "save-status") {
     const raw = String(form.get("status") ?? "");
     const status = JSON.parse(raw) as StatusSource;
-    // Refused here as well as in the dialog, because the dialog is not the only
-    // way in: this is a form post, and a status that does not resolve would be
-    // written to a file every world reads and then silently dropped from every
-    // catalogue built from it.
     if (!resolveStatus(status)) {
       return { ok: false, error: "That is not a valid status" };
     }
@@ -107,9 +88,6 @@ export default function StatusesPage() {
         ) : (
           <ul className="flex flex-col gap-1">
             {statuses.map((status) => {
-              // Resolved for the list rather than trusted, so an entry that has
-              // stopped being a status says so where somebody can fix it — a
-              // catalogue silently one shorter is the failure this avoids.
               const valid = resolveStatus(status) !== null;
               return (
                 <li

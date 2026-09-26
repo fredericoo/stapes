@@ -20,17 +20,8 @@ import { describeInterval, WeaponFields } from "./WeaponFields";
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
-  /** The whole library — the kit table picks carryable tiles out of it. */
   tiles: TileDef[];
-  /**
-   * The status catalogue, for what this body's bite leaves behind. A natural
-   * weapon is a weapon in every sense, venom included — see `./WeaponFields`.
-   */
   statusDefs?: Record<string, StatusDef>;
-  /**
-   * Why the block, as Save would write it, would not load — worked out once in
-   * the dialog, since Save is gated on the same answer. See `./BattlerIssues`.
-   */
   battlerIssues: readonly string[];
 };
 
@@ -42,89 +33,24 @@ const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint?: string }> 
   { mastery: "blunt", label: "Blunt" },
   { mastery: "ranged", label: "Ranged" },
   { mastery: "arcane", label: "Arcane" },
-  // The elements, which are what this body can *cast* and emphatically not what
-  // it is made of — see the Elements control below, which is the other question.
-  // Here because the `player` tile's starting point in each of them is the
-  // element half of what the bottom rung of every element asks — the other half
-  // is Arcane, and it is deliberately out of a new player's reach — and a number
-  // nobody can see is a number nobody can tune.
   { mastery: "fire", label: "Fire", hint: "Casting only." },
   { mastery: "water", label: "Water", hint: "Casting only." },
   { mastery: "nature", label: "Nature", hint: "Casting only." },
 ];
 
-/**
- * What this evasion is worth against something slow and against something
- * quick. Read out of the contest itself, since a logistic is not something
- * anybody can eyeball from a number in a box.
- *
- * **The other side of the contest is a body, not a weapon.** It used to be quoted
- * against two weapon accuracies, which stopped being the question the day the
- * dodge became Agility against Agility — see `../game/combat`'s `dodgeChance`.
- * The two brackets are evasions rather than accuracies now, and they are the
- * ones the world is actually authored between: a cave troll at the bottom and a
- * bat at the top.
- */
 function describeDodge(flee: number): string {
   const versusSlow = Math.round(dodgeChance(flee, SLUGGISH_REFLEX) * 100);
   const versusQuick = Math.round(dodgeChance(flee, QUICK_REFLEX) * 100);
   return `Dodges ${versusSlow}% of a slow body's blows, ${versusQuick}% of a quick one's.`;
 }
 
-/**
- * The two ends the readout above brackets, in `flee` rather than in Agility.
- *
- * Authored numbers rather than derived ones on purpose: they are a *scale* for
- * reading the figure beside them, and a scale that moved every time somebody
- * re-authored the troll would make two readouts taken a week apart
- * incomparable. The cave troll sits at 26 and the bat at 65, so these are the
- * world as it stands, rounded to numbers a person can hold.
- */
 const SLUGGISH_REFLEX = 25;
 const QUICK_REFLEX = 65;
 
-/**
- * What this body is good at, and what it fights with.
- *
- * A tab of its own rather than another section on Interactive, because being a
- * battler is not something the player *does* to a tile — it is something the
- * tile is. The brain earned its own tab on the same grounds.
- *
- * There is no switch in here. Whether a tile is a battler is the Kind select's
- * answer, and this tab is only shown when that answer is yes. `battler` can
- * still read as absent for one render while a draft is being rebuilt, which is
- * the only reason for the fallback.
- *
- * ## Why there are no stats to edit here any more
- *
- * There used to be six boxes — max HP, attack, defence, accuracy, flee, speed.
- * They are all still real and only one of them is authored: flee comes off the
- * masteries, four are the natural weapon's, and hit points are the masteries'
- * plus the one number an author still types. Base HP is that number, and it is
- * here because how big a body is does not fall out of what it has practised —
- * see `../lib/battler`'s {@link BattlerDef.baseHp}. The readout at the bottom is
- * the same derivation the simulation runs, which is the only honest way to show
- * numbers nobody types — a readout that could disagree with the formula would be
- * worse than none.
- */
-/**
- * The option standing for "leaves nothing".
- *
- * The empty string rather than a word, because a tile id is never empty — every
- * schema that takes one demands a character — so this can never collide with
- * something an author could name. The placeholder is set to the same label, so
- * a select holding it reads as the answer it is rather than as a question
- * nobody got to yet: leaving nothing behind is what every body in the world
- * does.
- */
 const NOTHING_LEFT = "";
 
 export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssues }: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
-  // A draft loaded from a file authored before `baseHp` existed carries none,
-  // and this tab is shown on the Kind select's answer rather than on a
-  // successful parse — so the box needs something to render while the author
-  // fixes what `resolveBattler` is meanwhile reading as "not a battler".
   const baseHp = battler.baseHp ?? DEFAULT_BATTLER.baseHp;
 
   const setBattler = (next: BattlerDef) => {
@@ -140,9 +66,6 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssu
   const setMastery = (mastery: Mastery, level: number) => {
     setBattler({
       ...battler,
-      // Written even at zero rather than deleted, so a level typed back down to
-      // nothing does not make the field jump to whatever a blank input renders
-      // as mid-edit. `interactionsForSave` drops the zeroes on the way to disk.
       masteries: { ...battler.masteries, [mastery]: level },
     });
   };
@@ -151,8 +74,6 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssu
 
   const setElements = (elements: Element[]) => setBattler({ ...battler, elements });
 
-  // Absent rather than an empty array, on the terms every other optional field
-  // on this block is written: a body that takes everything carries no key.
   const setImmuneTo = (immuneTo: string[]) =>
     setBattler({ ...battler, immuneTo: immuneTo.length ? immuneTo : undefined });
 
@@ -163,8 +84,6 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssu
     });
   };
 
-  // The carryable half of the library, once for the panel: what a body leaves
-  // behind is a thing somebody picks up, on `./KitEditor`'s own terms.
   const remainsOptions = useMemo(
     () => [
       { value: NOTHING_LEFT, label: "Nothing" },
@@ -306,14 +225,6 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssu
   );
 }
 
-/**
- * Which statuses are ticked, as one toggle apiece.
- *
- * A row of switches rather than the searchable panel a tile picker uses, because
- * the status catalogue is a handful of authored conditions rather than a library
- * of hundreds — every one of them fits on screen, and a list you can see is
- * quicker to answer "what is this immune to" from than one you have to search.
- */
 function StatusToggles({
   statusDefs,
   picked,

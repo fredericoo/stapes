@@ -29,12 +29,6 @@ import {
   type TransitionIntake,
 } from "./tileTransitions";
 
-/**
- * Which transitions a renderer takes on, how far along each is, and what the
- * shader is told — everything about playing one that is arithmetic rather than
- * pixels.
- */
-
 const DURATION_MS = 700;
 
 function sideOf(raw: unknown): Transition {
@@ -163,7 +157,6 @@ describe("transitionUniforms", () => {
     expect(u.uFxEnabled.value).toBe(1);
     expect(u.uFxOriginPx.value.x).toBe(100 - CELL_SIZE);
     expect(u.uFxOriginPx.value.y).toBe(200 - CELL_SIZE);
-    // The far corner is down-right: a cell plus half a sprite on each axis.
     const reach = CELL_SIZE + sprite.w / 2;
     expect(u.uFxSpanPx.value).toBeCloseTo(Math.hypot(reach, reach), 6);
     expect(u.uFxSweepAppear.value).toBe(1);
@@ -245,8 +238,6 @@ describe("struckRemainsSlot", () => {
   });
 
   it("leaves an appear that is not a hit to be dropped as before", () => {
-    // A flame that could not be found forming has no business sparking in the
-    // cell it used to be in.
     expect(struckRemainsSlot(hit(), placed("grass", "rat"))).toBeUndefined();
   });
 
@@ -276,7 +267,6 @@ describe("transitionPose", () => {
 });
 
 describe("pixelSnappedQuad", () => {
-  // A 16×16 sprite whose base cell is its lower-right one, like the flame.
   const quad = { centreX: 100, centreY: 200, pivotX: 104, pivotY: 204, w: 16, h: 16 };
 
   it("leaves a whole quad exactly where it was", () => {

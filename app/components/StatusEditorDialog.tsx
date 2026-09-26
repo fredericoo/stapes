@@ -26,39 +26,15 @@ import { StatusVfxFields } from "./StatusVfxFields";
 import { VfxPreview } from "./VfxPreview";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
 
-/**
- * Authoring one status.
- *
- * **The formulas are what makes this more than a form.** Everywhere else in the
- * editor a bad value is a number out of range and the schema says so; here a bad
- * value is a language error, and the failure mode is the quietest one in the
- * codebase — a formula that does not parse makes the whole status vanish from
- * every catalogue built from the file, with nothing on screen saying why.
- *
- * So every formula field is evaluated as it is typed, against a sample body, and
- * shown its own answer. That is the same argument `BattleTab` makes for its
- * derived stats: a readout that could disagree with the formula would be worse
- * than none, so it is run through the very function the simulation runs.
- */
-
-/**
- * The body a formula is previewed against.
- *
- * Middling and stated rather than read off anything: what an author wants to know
- * is "what does this come to", and a preview that moved with whatever tile
- * happened to be selected would answer a different question each time.
- */
 const SAMPLE_SCOPE: FormulaScope = {
   DURATION_SEC: 30,
   REMAINING_SEC: 20,
   ELAPSED_SEC: 10,
   MAX_HP: 16,
   HP: 9,
-  // Under nothing, so `has_status('combat')` previews as out of a fight.
   statuses: [],
 };
 
-/** What a formula is worth against {@link SAMPLE_SCOPE}, or why it is not one. */
 function previewOf(source: string): { ok: boolean; text: string } {
   if (!source.trim()) return { ok: true, text: "—" };
   const formula = parseFormula(source);
@@ -128,7 +104,6 @@ export function StatusEditorDialog({
   onSave,
 }: {
   draft: StatusSource;
-  /** The catalogue the preview's subject is picked from. @see VfxPreview */
   tiles: TileDef[];
   tilesets: TilesetDef[];
   onCancel: () => void;
@@ -138,15 +113,6 @@ export function StatusEditorDialog({
   const patch = (fields: Partial<StatusSource>) =>
     setStatus((current) => ({ ...current, ...fields }));
 
-  /**
-   * The effect as the preview and the fields both want it.
-   *
-   * The stored shape allows an absent block; both consumers want the two nulls
-   * spelled out, so the widening happens once here rather than as a `?? null` at
-   * every field. `useMemo` because it is the dependency of an effect that pushes
-   * into the renderer — a fresh object every keystroke would push on keystrokes
-   * that changed nothing about the effect.
-   */
   const vfx = useMemo<StatusVfx>(
     () => ({
       tint: status.vfx?.tint ?? null,
@@ -160,34 +126,14 @@ export function StatusEditorDialog({
   const icon = completeSprite(status.icon);
   const iconTileset = tilesets.find((t) => t.id === icon?.tilesetId) ?? null;
 
-  /**
-   * Keep the base cell inside the rectangle it belongs to.
-   *
-   * `SpriteSelector` hands back both together, but the tileset *select* only
-   * changes the sheet — and a base left over from a wider rectangle on the last
-   * sheet is out of bounds on this one.
-   */
   const setIcon = (next: AnchoredSprite) =>
     patch({ icon: { ...next, base: next.base ?? defaultBase(next.rect) } });
 
-  /**
-   * A rectangle picked off the sheet, with the sheet it was picked from.
-   *
-   * `SpriteSelector` deals only in cells of the picture in front of it — see its
-   * `value` — and an icon is the one sprite that carries its own sheet, so this
-   * is where the two are put back together.
-   */
   const setIconRect = (next: SpriteRef) => {
     if (!iconTileset) return;
     setIcon({ ...next, tilesetId: iconTileset.id });
   };
-  // The same function every catalogue is built with, so what this button is
-  // gated on and what the world will accept cannot come apart.
   const valid = resolveStatus(status) !== null;
-  // A cadence is a formula and may read the body, so it is previewed against
-  // the same sample body the effect is. Authored milliseconds are not what the
-  // loop runs: a cadence that did not divide the tick rate would drift, so it
-  // is snapped up — and an author is told rather than left to find out.
   const cadenceSource = String(status.everyMs ?? 0);
   const cadenceMs = parseFormula(cadenceSource)?.evaluate(SAMPLE_SCOPE);
   const snapped = snapToTick(cadenceMs ?? 0);
@@ -242,9 +188,6 @@ export function StatusEditorDialog({
             maxLength={MAX_STATUS_DESCRIPTION_LENGTH}
             onChange={(e) => patch({ description: e.target.value })}
           />
-          {/* The only place a status is ever explained — it is the tooltip on a
-              panel row and on a strip icon, and the second half of every icon's
-              accessible name. */}
           <span className="text-[11px] text-muted">
             Tooltip on the status, and its accessible name. One line.
           </span>
@@ -263,9 +206,6 @@ export function StatusEditorDialog({
                 value={icon?.tilesetId || null}
                 onValueChange={(id) => {
                   if (!id) return;
-                  // The rectangle is kept and the base recomputed: switching
-                  // sheets to find the same shape elsewhere is the common move,
-                  // and starting from 1×1 every time would undo it.
                   const rect = icon?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
                   setIcon({ tilesetId: id, rect, base: defaultBase(rect) });
                 }}
@@ -276,9 +216,6 @@ export function StatusEditorDialog({
           </div>
           <div className="flex flex-col items-center gap-1">
             <span className="text-[11px] font-bold uppercase text-muted">In the lane</span>
-            {/* At the size it is actually drawn at, not a big preview: the whole
-                question an author has here is whether it reads at 18px beside a
-                countdown, and a 96px version answers a different one. */}
             <SpritePreview sprite={icon} tilesets={tilesets} size={TITLE_SPRITE_SIZE_PX} />
           </div>
         </div>

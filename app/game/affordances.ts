@@ -30,54 +30,12 @@ import { PLAYER_TILE_ID } from "./constants";
 import { handAccepts, handHasRoomFor, wornAccepts, type Equipment } from "./equipment";
 import { pushDestination } from "./push";
 
-/** A specific placed tile in the map — cell plus slot in its stack. */
 export type ObjectRef = Coord & { stackIndex: number };
 
-/** The part of an actor these questions need: where they are standing. */
 export type Actor = Coord;
 
-/** Floors above/below an actor that still count for hover and interaction. */
 export const INTERACT_LEVEL_SLACK = 1;
 
-/**
- * What an actor can do to an object, as plain functions of the board.
- *
- * Kept out of the session because both ends of the wire ask: the server to
- * validate an interaction it is told about, and the client to decide whether to
- * draw an affordance under the cursor. A client that had to ask the server
- * whether a crate is pushable would light up a round trip late, so it answers
- * locally from the same rules — and because they are the same rules, it cannot
- * disagree with the server about what it offered.
- *
- * Nothing here reads or writes motion state. "Is this actor busy" is a session
- * question and gates these separately; see `GameSession.idle`.
- */
-
-/**
- * Is the object on a floor this actor can get at from where they stand?
- *
- * The half of reaching that has nothing to do with plan distance, split out
- * because the gestures disagree about the plan and agree about this. Taking a
- * thing reaches the round {@link REACH_CELLS}; a shove, a switch and a doorway
- * take push's orthogonal step. All of them mean the same thing by "a floor up
- * or down, if there is a way through".
- *
- * {@link INTERACT_LEVEL_SLACK} on its own is what lets you crouch at the lip of
- * a ledge and work the lever below it; on its own it also let you shut a door in
- * the cellar while standing on the ground above it, which reads as reaching
- * through solid earth because that is exactly what it was.
- *
- * {@link hasLineOfSight} answers the "way through" half, rather than a fresh
- * test for a floor in between, because it is the same question
- * {@link dropDestinationAt} already asks of the same slack: a cell you can lob a
- * torch into is one you could have touched had it been nearer. Sharing the
- * question means a reach, a throw and a shove can never disagree about which
- * floors are joined.
- *
- * **Reaching sideways is untouched.** A look never tests its own endpoints
- * sideways — see `./sight` — so the door beside you is still the door beside
- * you, and only crossing a floor can be refused here.
- */
 function reachesAcrossFloors(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -88,14 +46,6 @@ function reachesAcrossFloors(
   return hasLineOfSight(map, tilesById, actor, to);
 }
 
-/**
- * Interactive object at a stack slot, if the actor could be looking at it.
- *
- * Buried under something solid is out, read through {@link coveredBySomething}
- * — the same rule pick-up takes, so a lever with a sword lying across it is
- * still a lever and one under a crate is not. Pushing does *not* come through
- * here; see {@link pushableDefAt} for why reaching under is fine there.
- */
 export function interactiveDefAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -112,22 +62,6 @@ export function interactiveDefAt(
   return def;
 }
 
-/**
- * Pushable object at a stack slot, if the actor could shove it.
- *
- * **The one action that reaches under a lid**, and it does so because nothing
- * is left behind: a shove takes the whole {@link pushedColumn} with it, so the
- * crate on top of the crate you leant on arrives in the next cell too. Asking
- * "is it buried" here would refuse exactly the shove a player expects to work —
- * a stack of two boxes is two boxes you can push.
- *
- * A **body riding on top refuses the shove**, and that is the one thing a
- * column cannot carry. Somebody standing on a crate has their own motion and
- * their own idea of where they are walking to; sliding the ground out from
- * under them mid-step would commit that walk from a cell they are no longer in.
- * A body is not a lid — it does not hide what is beneath it — but it is not
- * cargo either.
- */
 export function pushableDefAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -138,6 +72,11 @@ export function pushableDefAt(
   const stack = getStack(map, ref.x, ref.y, ref.z);
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
+  /**
+   * A body standing on top refuses the push: it has its own motion, and
+   * sliding the ground out from under it mid-step would commit that walk from
+   * a cell it is no longer in.
+   */
   for (let above = ref.stackIndex + 1; above < stack.length; above++) {
     if (stack[above]?.owner) return null;
   }
@@ -146,13 +85,6 @@ export function pushableDefAt(
   return def;
 }
 
-/**
- * Direction the actor would shove this object, or null when they are not
- * standing next to it. Orthogonal only: a diagonal push has no unambiguous
- * "one cell further away" cell, and reading it off the board is guesswork.
- * Floors are not part of the test — reaching one level up or down is fine
- * (see {@link INTERACT_LEVEL_SLACK}); it is the plan view that must touch.
- */
 export function pushDirectionFrom(actor: Actor, ref: ObjectRef): Direction | null {
   const dx = ref.x - actor.x;
   const dy = ref.y - actor.y;
@@ -162,7 +94,6 @@ export function pushDirectionFrom(actor: Actor, ref: ObjectRef): Direction | nul
   return dy === 1 ? "s" : "n";
 }
 
-/** Where this object would land if pushed, or null when it cannot be. */
 export function pushTargetFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -180,7 +111,6 @@ export function pushTargetFrom(
   return check.ok ? check.to : null;
 }
 
-/** Would the switch target fit in this stack slot? */
 export function switchWouldFit(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -194,10 +124,6 @@ export function switchWouldFit(
   return canReplaceStack(map, ref.x, ref.y, ref.z, next, tilesById).ok;
 }
 
-/**
- * Can this actor switch the object? Same reach as push, plus the target tile
- * having somewhere to go.
- */
 export function canSwitchFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -210,7 +136,6 @@ export function canSwitchFrom(
   return switchWouldFit(map, tilesById, ref, sw.targetTileId);
 }
 
-/** Can this actor push the object, ignoring whether they are mid-motion? */
 export function canPushFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -220,31 +145,10 @@ export function canPushFrom(
   return pushTargetFrom(map, tilesById, actor, ref) != null;
 }
 
-/**
- * How far an actor can reach to touch something, in cells.
- *
- * **Round, and deliberately not push's rule.** A shove needs an unambiguous
- * "one cell further away", so it is orthogonal and adjacent; reaching out to
- * pick a thing up or look inside it has no such constraint, and a player who
- * could not take the sword lying diagonally at their feet would read that as a
- * bug rather than as a rule.
- *
- * 1.5 squares to `dx² + dy² ≤ 2.25`, which is the eight neighbours plus the
- * cell you are standing in and nothing else — a diagonal is 2, and two cells
- * out is 4.
- */
 export const REACH_CELLS = 1.5;
 
 const REACH_CELLS_SQUARED = REACH_CELLS * REACH_CELLS;
 
-/**
- * Can this actor actually put a hand on the object?
- *
- * {@link REACH_CELLS} of plan distance and then the floors question every other
- * gesture asks — see {@link reachesAcrossFloors}, which owns the slack and the
- * "is there a way through" half. The plan test comes first because it is two
- * multiplications and rules out most of what is ever asked about.
- */
 export function withinReach(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -257,39 +161,12 @@ export function withinReach(
   return reachesAcrossFloors(map, tilesById, actor, ref);
 }
 
-/**
- * How far a conversation carries: three and a half cells of plan distance.
- *
- * Wider than an arm's {@link REACH_CELLS}, because talking is not touching —
- * a counter between you and the salesman is the ordinary case — and narrower
- * than a shout, so that a panel does not stay open across a room. Squared to
- * `12.25`: three cells straight on, or two and a diagonal.
- */
 export const TALK_REACH_CELLS = 3.5;
 
 const TALK_REACH_CELLS_SQUARED = TALK_REACH_CELLS * TALK_REACH_CELLS;
 
-/**
- * How far apart two bodies may stand in height and still talk, in the units a
- * tile's `height` is in: three quarters of a level.
- *
- * Elevation rather than level, unlike every other gesture's
- * {@link INTERACT_LEVEL_SLACK}: a stall on a half-height step is the case
- * this exists for, and a whole level up is somebody on a balcony.
- */
 export const TALK_HEIGHT_SLACK = 3;
 
-/**
- * Could this actor talk to the body at this slot?
- *
- * Its own rule rather than {@link withinReach}, on the three counts above:
- * further, measured in elevation, and always through a clear line of sight
- * because a conversation through a wall is a conversation with a wall. Asked
- * of a body, so the slot is a body's and the def has to hold a dialog —
- * `resolveDialog` is memoised, so the list may ask this of every body in view
- * on every frame. Re-asked by the session every tick a conversation is open,
- * which is what closes the panel when somebody walks off.
- */
 export function canTalkFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -308,12 +185,6 @@ export function canTalkFrom(
   return hasLineOfSight(map, tilesById, self, ref);
 }
 
-/**
- * The absolute elevation of what a body at this slot is standing on.
- *
- * The stack *below* the slot, so a body's own height is not in its own
- * footing — the same reading `sight.ts` takes of a looker's eyes.
- */
 function standingElevationUnder(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -323,41 +194,13 @@ function standingElevationUnder(
   return absoluteStandingElevation(at.z, stack.slice(0, at.stackIndex), tilesById);
 }
 
-/**
- * Does this placement hide what is underneath it?
- *
- * **Height is the whole rule, and a body never counts.** A sword, a coin, a
- * berry are flat — they add no volume to the stack, they are drawn beside what
- * they are lying on rather than over it, and a player looking at two of them in
- * one cell sees two things they could pick up. A crate is a metre of wood and
- * genuinely in the way. So the line is `physicalHeight > 0`, which is the same
- * line the stacking model already draws between things that take up room and
- * things that merely rest somewhere.
- *
- * The body exception is older and separate: standing on a sword does not bury
- * it, and a chest with somebody on top is a chest you can still open. Any body,
- * not only your own — two people standing over one sword either both reach it or
- * neither does, and "whoever stepped on it owns it" is a rule nothing else in
- * the game plays by. Without it the round pick-up radius would contradict
- * itself, since it takes in the cell you are standing in on purpose.
- */
+/** A body never counts as a lid, so standing on a sword does not bury it. */
 function isLid(placed: PlacedTile | undefined, tilesById: Record<string, TileDef>): boolean {
   if (!placed || placed.owner) return false;
   const def = tilesById[placed.tileId];
   return def != null && physicalHeight(def) > 0;
 }
 
-/**
- * Is anything actually lying on top of this slot?
- *
- * "Anything" is {@link isLid} — something with volume and nobody in it. Two
- * swords in one cell therefore cover neither: they are both reachable, and the
- * list of things to do offers both.
- *
- * Exported for `../render/nearbyInscriptions`, which asks the same question of
- * the same radius: a sign under a crate has nothing to say, and a sign you are
- * standing on still does.
- */
 export function coveredBySomething(
   stack: readonly PlacedTile[],
   index: number,
@@ -369,14 +212,6 @@ export function coveredBySomething(
   return false;
 }
 
-/**
- * The slot a thing thrown at this cell would land on — the topmost placement
- * that is not a body, or -1 for a cell holding nothing but bodies.
- *
- * A body is not a lid here either: a chest with somebody standing on it is
- * still the thing at the top of that cell, and a sword tossed at it should go
- * in the chest rather than land on their head.
- */
 function topmostThingIn(stack: readonly PlacedTile[]): number {
   for (let i = stack.length - 1; i >= 0; i--) {
     if (!stack[i]?.owner) return i;
@@ -384,15 +219,6 @@ function topmostThingIn(stack: readonly PlacedTile[]): number {
   return -1;
 }
 
-/**
- * The item at a stack slot, if it is one and the actor could reach it.
- *
- * Deliberately not routed through {@link interactiveDefAt}: that one gates on
- * `isInteractive`, which asks whether the *tile* offers push or switch, and an
- * item offers neither. What it does share is the spirit of the top-of-stack
- * rule — something under a crate is not something you can pick up — but read
- * through {@link coveredBySomething}, which does not count a body as cover.
- */
 export function reachableItemDefAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -409,103 +235,24 @@ export function reachableItemDefAt(
   return def;
 }
 
-/**
- * The squares on a body this thing belongs in, best first.
- *
- * **Where a thing belongs is a fact about the thing**, and for all but one kind
- * it is a single square: a sword is for the hand you swing with, a shield for
- * the other one (`ShieldItem`), a piece of armour for whichever worn square it
- * names (`ArmorItem.slot` — a mail shirt for your body, a helm for your head,
- * boots for your feet, a ring for your charm), a backpack for your back
- * (`ContainerItem.equippable`). Everything else — a berry, a chest, a rock — has
- * no square at all and can only be carried in a bag.
- *
- * **An `ArtifactItem` is the one kind with two, and the accessory square comes
- * first.** A torch on a belt loop and a torch in your fist light the same room —
- * `carriedLightTileIds` reads every worn square alike — so the off hand is the
- * more expensive of the two places to put one, and the cheaper should be the one
- * reached for when nobody has said. The hand stays on the list below it, because
- * a lamp you are holding up is still a way to carry one and the accessory square
- * has only the one opening.
- *
- * The accessory square is offered only for an artifact it will actually have,
- * which is `wornAccepts`' business rather than a second reading of it here: the
- * square takes a light and refuses a key. An artifact nothing glows on — a
- * shard, a signpost — is a hand's and nothing else's, exactly as it was.
- *
- * A list rather than "every square that would take it": a hand takes anything
- * you can carry, so the generous answer would offer to Wield *and* Hold the same
- * sword and make a player decide which fist every time they picked one up. What
- * is here is the ranking, and nothing is on it that is not a place the thing
- * belongs.
- *
- * It is not the same question as "may this square hold this" — `itemMoves`'
- * `slotAccepts` is looser and stays looser, because a drag is somebody saying
- * exactly what they want. This is what happens when they do not say. **Armour is
- * the one thing the two agree about**, since its square takes nothing else.
- *
- * Re-exported from `../lib/kit` rather than spelled out here, which it was: a
- * second list of the slots is a second list to forget a slot from, and this one
- * had already been written before the body square existed.
- */
 export type { EquipSlot };
 
 export function equipSlotsFor(def: TileDef): readonly EquipSlot[] {
   const item = resolveItem(def);
   if (!item) return [];
 
-  // Never into a bag: containers do not nest, so the only place one can go is
-  // a back. A chest or a corpse is looted where it lies — that is what `open`
-  // is for — and has no slot at all.
   if (item.type === "container") return item.equippable ? ["bag"] : [];
-  // The armour's own square, which is the whole of what separates a helmet from
-  // a breastplate — see `../lib/item`'s `ArmorItem.slot`.
   if (item.type === "armor") return [armorSlotOf(item)];
-  // Needs no flag of its own to say which hand, where a weapon does: an artifact
-  // has no fight in it, and the hand you swing with is the square whose contents
-  // stand in for your natural weapon. See `../lib/item`'s `ArtifactItem`.
   if (item.type === "artifact") {
     return wornAccepts("charm", def) ? ["charm", "offhand"] : ["offhand"];
   }
-  // A shield is held and never swung — see `../lib/item`'s `ShieldItem` — so it
-  // goes where the things you merely hold go. Both hands would take it and both
-  // hands swing, so this is a default rather than a rule: put it in your right
-  // if you would rather, and you have simply chosen to fight one-handed.
   if (item.type === "shield") return ["offhand"];
-  // An arcane stone is held and never swung, on exactly the terms a shield is —
-  // so the hand you do not fight with is where it goes when nobody has said
-  // otherwise, and putting it in the other one is choosing to cast instead of
-  // swinging with that fist. Every stone now, where an automatic one used to go
-  // round the neck instead.
   if (item.type === "stone") return ["offhand"];
-  // A charm has exactly one square, and `handAccepts` refuses it a hand — so
-  // offering anything else here would be a "Hold" row the move rules decline.
   if (item.type === "charm") return ["charm"];
   if (item.type === "weapon") return ["weapon"];
   return [];
 }
 
-/**
- * Which of this actor's slots is empty and waiting for the thing at `ref`.
- *
- * **Equipping off the floor is not picking up**, which is the whole reason this
- * is a question of its own: a sword goes into your hand, and a hand is not a
- * pocket. It is what lets somebody with no bag at all arm themselves — the case
- * that used to be reachable only for a backpack, since that was the one thing
- * with somewhere to go.
- *
- * The slot has to be **empty**, and this is the one place that rule still holds
- * outright. A drag names a square, so landing on a taken one trades what is in
- * it — see `./itemMoves`' `swapInto`. A row in the world names nothing: it is
- * offered by the interface rather than aimed at, and one that quietly put your
- * sword on the floor to make room for a worse one is the kind of thing you
- * notice a fight later. Taking the second sword is what the bag is for.
- *
- * Every square the thing belongs in is tried, in {@link equipSlotsFor}'s order,
- * so a torch whose accessory square is taken is still offered the hand below it
- * rather than nothing at all. Only the first *free* one is ever the answer, so
- * the rule above is untouched by there being two.
- */
 export function equipSlotFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -517,9 +264,6 @@ export function equipSlotFrom(
   if (!def) return null;
   for (const slot of equipSlotsFor(def)) {
     if (equipment[slot]) continue;
-    // And, for a hand, what the other hand is doing — a greatsword has nowhere
-    // to go while you are holding a dagger, even though the square it wants is
-    // free. See `./equipment`'s `handHasRoomFor`.
     if (slot === "weapon" || slot === "offhand") {
       if (!handHasRoomFor(equipment, tilesById, slot, def)) continue;
     }
@@ -528,7 +272,6 @@ export function equipSlotFrom(
   return null;
 }
 
-/** Could this actor equip the thing where it lies? @see equipSlotFrom */
 export function canEquipFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -539,34 +282,6 @@ export function canEquipFrom(
   return equipSlotFrom(map, tilesById, actor, ref, equipment) != null;
 }
 
-/**
- * Where a thing would go if this actor simply took it.
- *
- * - `"contents"` — into the bag, which is where anything you are merely
- *   carrying belongs.
- * - a hand — because a full bag should not be the end of the conversation. You
- *   have hands; a thing you can hold is a thing you can pick up, and the
- *   alternative is standing over a sword you cannot have.
- *
- * **A hand is the last place this looks, and never one the equip row is already
- * offering.** Where a thing *belongs* is `equipSlotFrom`'s answer and it has a
- * row of its own with its own verb; a pickup that also reached for that slot
- * would put "Wield" and "Pick up" beside each other meaning the same thing. So
- * the hands come up only once the bag is out of room *and* the thing has no free
- * slot of its own — which is exactly when there is nowhere else at all. It
- * follows that the two rows can never name one outcome, and neither has to ask
- * about the other.
- *
- * The off hand before the weapon hand, though it no longer matters which: both
- * hands swing, so neither is the one with consequences and a thing picked up
- * into either joins the rotation. It stays in this order because a stable
- * answer is worth more than an arbitrary one, and because the other hand is
- * where `equipSlotsFor` sends a thing that *belongs* in one — leaving it free
- * keeps the two rows out of each other's way.
- *
- * A container never goes in the bag, wearable or not: nothing nests. A wearable
- * one can still end up in a hand, since a hand takes anything you can carry.
- */
 export type PickUpDestination = { kind: "contents" } | { kind: "slot"; slot: "weapon" | "offhand" };
 
 export function pickUpDestination(
@@ -579,10 +294,6 @@ export function pickUpDestination(
   const def = reachableItemDefAt(map, tilesById, actor, ref);
   if (!def) return null;
 
-  // The placement rather than the tile, for the one thing the tile cannot say:
-  // how many of it this is. A pile of three goes in the bag when a pile of two
-  // already in there has room for three, and does not when it has room for one —
-  // a question `bagTakes` cannot be asked without the number.
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return null;
 
@@ -590,16 +301,9 @@ export function pickUpDestination(
     return { kind: "contents" };
   }
 
-  // Where the thing belongs has its own row with its own verb, so a pickup that
-  // reached for that slot too would put "Wield" and "Pick up" side by side
-  // meaning one thing. The hands come up only once nowhere else will have it —
-  // which for a torch means both of the squares it belongs in are taken, not
-  // only the first.
   if (equipSlotsFor(def).some((slot) => !equipment[slot])) return null;
 
   if (!handAccepts(def)) return null;
-  // A free square is not enough for a hand: the other one may have spoken for
-  // it, or may be too full to spare for a two-handed weapon.
   for (const hand of ["offhand", "weapon"] as const) {
     if (equipment[hand]) continue;
     if (handHasRoomFor(equipment, tilesById, hand, def)) {
@@ -609,7 +313,6 @@ export function pickUpDestination(
   return null;
 }
 
-/** Could this actor take the thing at all? @see pickUpDestination */
 export function canPickUpFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -620,14 +323,6 @@ export function canPickUpFrom(
   return pickUpDestination(map, tilesById, actor, ref, equipment) != null;
 }
 
-/**
- * Is there anywhere inside the bag on this actor's back for this thing?
- *
- * A free square, *or* a pile in there that will take all of it — which is the
- * whole of "piles fuse when you pick one up" as far as the offer is concerned. A
- * bag with no empty square still takes a berry when it is holding berries, and
- * the row in the world says so before anybody presses it.
- */
 function bagTakes(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
@@ -640,50 +335,10 @@ function bagTakes(
   return stowFits(bag.contents ?? [], incoming, size, tilesById);
 }
 
-/**
- * How far an actor can throw something down, in cells.
- *
- * Deliberately much further than {@link REACH_CELLS}, and the difference is the
- * point: taking a thing requires touching it, while putting one down is an
- * underarm toss at somewhere you can see. Five cells is far enough to place a
- * torch across a room and near enough that you are still furnishing the space
- * you are standing in.
- */
 export const DROP_CELLS = 5;
 
 const DROP_CELLS_SQUARED = DROP_CELLS * DROP_CELLS;
 
-/**
- * Where a thing thrown at a cell actually ends up.
- *
- * - `"stack"` — on the floor of that cell, on top of whatever is there.
- * - `"contents"` — inside the container it landed on, which is the slot named.
- *
- * **A box catches what you throw at it.** Dropping a sword onto a chest and
- * watching it land *beside* the chest is the kind of thing a player does once,
- * shrugs at, and then works around for the rest of the game by opening the
- * panel — so the box takes it when the box has room, and the floor takes it when
- * it does not. Nothing is refused for being aimed at a full chest; it simply
- * lands on top, which is what the throw would have done anyway.
- *
- * Only the top thing catches, and a body is not one — see
- * {@link topmostThingIn}. A chest under a crate is a chest with a lid on it.
- *
- * Containers never go inside containers, so a bag thrown at a chest lands on it.
- * That rule lives in one place for moves (`itemMoves`' `slotAccepts`) and this
- * is the board's half of it.
- *
- * Three questions gate the throw itself, and each rules out a different way of
- * cheating. **Range**, because a drop is a throw and not a teleport. **Line of
- * sight**, because the range is long enough to reach through a wall otherwise —
- * the one rule pick-up has no need of, since everything within arm's length is
- * already in the open. And **room**, either in the box or in the stack, the
- * latter asked through `canReplaceStack`: the same question the editor asks when
- * it places a tile.
- *
- * The tile rather than the instance, because none of this depends on which
- * particular sword it is — only on how tall it is and what it is made of.
- */
 export type DropDestination = { kind: "stack" } | { kind: "contents"; ref: ObjectRef };
 
 export function dropDestinationAt(
@@ -699,10 +354,6 @@ export function dropDestinationAt(
   if (Math.abs(to.z - actor.z) > INTERACT_LEVEL_SLACK) return null;
   if (!hasLineOfSight(map, tilesById, actor, to)) return null;
 
-  // Something has to be there already. An empty cell is not "room" — it is a
-  // hole in the world, and a sword thrown into one is a sword nobody gets back.
-  // Every playable cell has at least a floor, so this reads as "somewhere that
-  // exists" rather than as a rule anybody has to think about.
   const stack = getStack(map, to.x, to.y, to.z);
   if (stack.length === 0) return null;
 
@@ -719,12 +370,6 @@ export function dropDestinationAt(
     return { kind: "contents", ref: { ...to, stackIndex } };
   }
 
-  // Nothing is laid on top of something that cannot be stood on. The topmost
-  // tile decides a stack's walkability, so without this a berry dropped on a
-  // bush becomes the top of it and opens a way through — which is how anybody
-  // carrying food used to get past any hedge in the world. Asked here rather
-  // than in `canReplaceStack` on purpose: the editor asks that one too, and an
-  // author stacking a plank on a fence is building a bridge, not cheating.
   if (walkableElevInStack(stack, tilesById) == null) return null;
 
   const next = [...stack, { tileId: def.id }];
@@ -732,7 +377,6 @@ export function dropDestinationAt(
   return { kind: "stack" };
 }
 
-/** Can this actor put a thing down at this cell? @see dropDestinationAt */
 export function canDropAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -743,14 +387,6 @@ export function canDropAt(
   return dropDestinationAt(map, tilesById, actor, to, def) != null;
 }
 
-/**
- * Could this actor eat or drink the thing where it lies?
- *
- * The same reach a pickup has and nothing more: nothing about the actor's own
- * kit is consulted, because a consumable used from the floor never enters it —
- * a full bag is exactly when eating the cherry off the ground is the thing you
- * want.
- */
 export function canConsumeFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -761,24 +397,6 @@ export function canConsumeFrom(
   return def != null && resolveConsumable(def) != null;
 }
 
-/**
- * The reward at a stack slot, if there is one and the actor could reach it.
- *
- * Read off the *placement* and the tile together — see `resolveReward`, which
- * owns that join. The tile says whether this kind of thing gives anything at
- * all; the slot says what and under which tag, so the same chest tile can be a
- * dozen different rewards across a map.
- *
- * Reach is the round {@link REACH_CELLS} rather than push's orthogonal step, on
- * the same grounds pick-up and open take it: being handed a thing needs no
- * unambiguous "one cell further away", and an NPC standing diagonally who could
- * not give you the sword would read as a bug.
- *
- * Routed through the same cover rule pick-up uses — a chest under a crate is out
- * of reach, a chest with somebody standing on it is not. Which matters more here
- * than anywhere: the giver is very often a *body*, and every body has somebody
- * in it.
- */
 export function reachableRewardAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -793,21 +411,6 @@ export function reachableRewardAt(
   return resolveReward(placed, tilesById[placed.tileId]);
 }
 
-/**
- * Is there room for every last thing in this reward?
- *
- * **All or nothing**, and that is the rule the whole affordance rests on: a
- * reward is taken once, so half of one is half of it lost for ever. A player
- * with one free slot standing at a two-item chest is told no and can go and make
- * room, which is the only outcome that leaves the sword still in the box.
- *
- * Containers are refused outright rather than routed to the bag slot. A
- * container cannot go in a bag — nothing nests — so its only home is a back that
- * is bare, and a reward that quietly meant "and also I am taking your backpack
- * off" is not something an author can see themselves writing. A reward tile id
- * that names a container, or a wall, or nothing at all, therefore makes the
- * whole reward untakeable and visibly so.
- */
 export function rewardFits(
   reward: PlacedReward,
   tilesById: Record<string, TileDef>,
@@ -827,18 +430,6 @@ export function rewardFits(
   });
 }
 
-/**
- * Could this actor take the reward right now?
- *
- * Three refusals, and they are deliberately not distinguished: already taken, no
- * room, badly authored. Whichever it is, there is no row and no outline — a
- * reward is either on offer or it is not there, which is what makes an emptied
- * chest read as scenery rather than as something withholding.
- *
- * @param tags what this actor has already been marked with. Holding the
- *   reward's own tag is what closes it, and that is the whole of "once per
- *   player" — see {@link RewardInteraction.tag}.
- */
 export function canRewardFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -853,26 +444,6 @@ export function canRewardFrom(
   return rewardFits(reward, tilesById, equipment);
 }
 
-/**
- * The crafting block at a stack slot, if this actor could reach whatever is
- * offering it.
- *
- * The tile's half and all of it — a crafter has no placement half to join,
- * unlike a reward or a teleport, because what a forge does to two cinders is a
- * fact about forges. So this is `resolveCraft` plus the reach every other
- * reaching affordance takes.
- *
- * Reach is the round {@link REACH_CELLS} rather than push's orthogonal step, on
- * the same grounds a reward's is: standing diagonally at a forge and being
- * refused would read as a bug.
- *
- * Cover is the rule everything else takes — a fire under a crate is out — and a
- * body is not cover, which matters here for the reason it matters to a reward:
- * a crafter worth authoring may be a person.
- *
- * Says nothing about whether the actor has anything to spend. That is a
- * question about their kit and it is `../game/craft`'s.
- */
 export function reachableCraftAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -888,31 +459,6 @@ export function reachableCraftAt(
   return def ? resolveCraft(def) : null;
 }
 
-/**
- * The teleport at a stack slot, if there is one and this actor could set it off
- * by pressing it.
- *
- * Read off the *placement* and the tile together — see `resolveTeleport`, which
- * owns that join and resolves a relative destination against the cell. The tile
- * says whether this kind of thing moves anybody at all and how; the slot says
- * where to, so the same portal tile can be a dozen different doors across a map.
- *
- * **Two reaches, because there are two gestures.** An `interact` teleport takes
- * push's orthogonal step, exactly as a switch does: a doorway is the thing you
- * are squarely beside, and a diagonal has no such reading. An `interactOver` one
- * takes no reach at all — you must be standing in its cell — because that is the
- * whole difference between the two, and a ladder you could climb from the next
- * square over would not be a ladder.
- *
- * A `step` teleport is never here. Nothing about it answers to a press, so
- * offering it would outline a floor tile and put a row on screen for something
- * that has already happened by the time you could read it. See
- * `../game/GameSession.teleportOnLanding`, which is what fires those.
- *
- * Cover is the same rule everything else takes — a portal under a crate is out —
- * and it is `interactiveDefAt` that asks. Bodies are not lids, which is what
- * makes `interactOver` possible at all: you are standing on the rungs.
- */
 export function reachableTeleportAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -937,23 +483,6 @@ export function reachableTeleportAt(
   return null;
 }
 
-/**
- * Is there room at the far end for the body making the trip?
- *
- * The "if they fit" half of a teleport, and it is asked of the *traveller's own
- * tile* rather than of the player's — a deer that walks onto a portal is a
- * different height from the person who authored it, and the cell that holds one
- * need not hold the other.
- *
- * {@link fitsTile} is the same predicate the editor places against and the one
- * an entering player is put down by (see `./entry`), which is the point of
- * reusing it: a destination the editor would refuse is one nobody can arrive at.
- * Somebody already standing at the far end is not such a destination when the
- * traveller is a person: one player at the top of a ladder must not be a lid on
- * it. A deer is stopped by them, on the terms everything but a person is.
- * What is *below* the feet is left to gravity, exactly as it is for an arrival —
- * this decides where the traveller lands, not where they end up.
- */
 export function teleportFits(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -965,14 +494,6 @@ export function teleportFits(
   }).ok;
 }
 
-/**
- * Could this actor go through right now?
- *
- * Two refusals and they are deliberately not distinguished, on the same terms a
- * reward's are: nothing authored here, or nowhere to stand at the far end.
- * Either way there is no row and no outline, so a blocked portal reads as
- * scenery rather than as a door being unhelpful.
- */
 export function canTeleportFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -985,26 +506,6 @@ export function canTeleportFrom(
   return teleportFits(map, tilesById, travellerDef, teleport.to);
 }
 
-/**
- * The status-granting gesture at a stack slot, if this actor could set it off by
- * pressing it.
- *
- * The tile's half and all of it — there is no placement to join, on the terms
- * {@link reachableCraftAt} has none. So this is `resolveAddStatus` plus the
- * reach, and the reach is the *teleport's* rather than the reward's: the two
- * pressed triggers mean the same two things here as they do there, and a
- * brazier you could touch diagonally while a doorway one square further round
- * refused would be two readings of one gesture.
- *
- * A `step` one is never here, for the reason a `step` teleport is not: nothing
- * about it answers to a press, so offering it would put a row on screen for
- * something that has already happened. See `../game/GameSession.statusOnArrival`,
- * which is what fires those.
- *
- * Says nothing about whether the presser has hit points to lose. That is a
- * question about a *body* and it is the session's — see `GameSession.addStatus`,
- * which is where the catalogue lives too.
- */
 export function reachableAddStatusAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -1027,13 +528,6 @@ export function reachableAddStatusAt(
   return null;
 }
 
-/**
- * Could this actor take the condition on right now?
- *
- * Nothing beyond the gesture being reachable, unlike a teleport's far end or a
- * reward's room in the bag: a status has nowhere to fit and nothing to be
- * already holding, so there is no second question to ask of the board.
- */
 export function canAddStatusFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -1043,11 +537,6 @@ export function canAddStatusFrom(
   return reachableAddStatusAt(map, tilesById, actor, ref) != null;
 }
 
-/**
- * The status-removing gesture at a stack slot, if this actor could set it off
- * by pressing it. {@link reachableAddStatusAt}'s reach, for the same reasons;
- * a `step` one is fired by `GameSession.statusOnArrival` instead.
- */
 export function reachableRemoveStatusAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -1070,13 +559,6 @@ export function reachableRemoveStatusAt(
   return null;
 }
 
-/**
- * Could this actor press the status-removing gesture right now?
- *
- * Offered whether or not they are under the status, on the terms a brazier is
- * offered to somebody already burning: the row is about the tile, and a press
- * that finds nothing to remove does nothing.
- */
 export function canRemoveStatusFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -1086,24 +568,6 @@ export function canRemoveStatusFrom(
   return reachableRemoveStatusAt(map, tilesById, actor, ref) != null;
 }
 
-/**
- * The come-back-here gesture at a stack slot, if this actor could set it off by
- * pressing it.
- *
- * The tile's half and all of it, on {@link reachableAddStatusAt}'s terms —
- * there is no placement to join and no destination to resolve, so this is
- * `resolveSetSpawn` plus the reach, and the reach is the same one every pressed
- * gesture in this file takes.
- *
- * A `step` one is never here, for the reason a `step` teleport and a `step`
- * flame are not: nothing about it answers to a press. See
- * `../game/GameSession.spawnMarkOnArrival`, which is what fires those.
- *
- * Says nothing about whether the presser is somebody who comes back at all.
- * That is a question about a *body* — a creature has a world spawn point rather
- * than a door of its own — and it is the session's; see
- * `GameSession.activateSetSpawn`.
- */
 export function reachableSetSpawnAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -1126,15 +590,6 @@ export function reachableSetSpawnAt(
   return null;
 }
 
-/**
- * Could this actor move where they come back to, right now?
- *
- * Nothing beyond the gesture being reachable, on {@link canAddStatusFrom}'s own
- * grounds: the cell it would record is the one the presser is already standing
- * in, so there is nothing about the *board* left to ask. Whether it would
- * actually change anything — pressing the same bed twice — is a fact about the
- * person and not about where they are.
- */
 export function canSetSpawnFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -1144,16 +599,6 @@ export function canSetSpawnFrom(
   return reachableSetSpawnAt(map, tilesById, actor, ref) != null;
 }
 
-/**
- * Could this actor look inside the thing?
- *
- * Every container in reach, whether or not it could be carried — a chest that
- * can never leave the floor is precisely the one worth opening, and a backpack
- * you have no room for is still worth rummaging in.
- *
- * Nothing about the actor's own kit is consulted, which is why this takes no
- * equipment: opening is looking, and looking costs nothing.
- */
 export function canOpenFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,

@@ -2,20 +2,6 @@ import { useEffect, useState, type ComponentProps, type KeyboardEvent } from "re
 import { Input } from "./Input";
 import { parseNumberInput, type NumberRule } from "./numberParse";
 
-/**
- * A number box that is validated when the author is done with it.
- *
- * While it has focus it holds whatever has been typed, including nothing at
- * all, and the value it was given is left alone. On blur or Enter the text is
- * read against the rule: a good number is committed and the box is rewritten
- * in canonical form; a bad one stays in the box with the reason underneath,
- * and nothing is committed. Escape puts the last committed value back.
- *
- * That last point is a choice: a box showing "99999" in red beside a Save
- * button will save the *previous* number. The alternative was clamping, which
- * silently writes a number the author did not type, and was the behaviour this
- * replaced.
- */
 type SharedProps = Omit<
   ComponentProps<typeof Input>,
   "value" | "onChange" | "type" | "min" | "max" | "step"
@@ -25,7 +11,6 @@ type SharedProps = Omit<
   step?: number;
 };
 
-/** What the box shows for a committed value. */
 function textOf(value: number | null | undefined): string {
   return value == null ? "" : String(value);
 }
@@ -43,9 +28,6 @@ function useDraft({
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
 
-  // A value that changed under the box — another field carried it, the draft
-  // was reset — is shown, but only once the author is not in the middle of
-  // typing into it.
   useEffect(() => {
     if (focused) return;
     setText(textOf(value));
@@ -124,7 +106,6 @@ function DraftInput({
   );
 }
 
-/** A number that is always there. */
 export function NumberInput({
   value,
   onChange,
@@ -140,15 +121,11 @@ export function NumberInput({
   const draft = useDraft({
     value,
     rule,
-    // Never null: `allowBlank` is off, so a blank box is refused before this.
     onCommit: (next) => onChange(next ?? value),
   });
   return <DraftInput draft={draft} rule={rule} {...props} />;
 }
 
-/**
- * A number that may be left out, with the placeholder saying what that means.
- */
 export function OptionalNumberInput({
   value,
   onChange,

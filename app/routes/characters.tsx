@@ -6,26 +6,6 @@ import { fetchMe, signOut } from "../lib/auth";
 import { forgetCharacter, rememberCharacter } from "../lib/playing";
 import type { Character } from "../../server/characters";
 
-/**
- * Which body to be, for an account that may hold three.
- *
- * **The second door, and the one the world opens behind.** Signing in proves
- * who the account is; this decides which of its characters the world is about
- * to seat. Pressing a row writes the choice down and navigates to `/` — the id
- * rides the socket from there, checked against the session, never trusted.
- * @see `../lib/playing` and `server/index.ts`
- *
- * **It is also the account's own screen.** Sign out and Change password are
- * reachable from here and from nowhere else: you sign in and out of an
- * *account*, and a *character* enters and leaves the world, so the game's menu
- * offers only the second. Keeping the two vocabularies on two screens is what
- * stops them collapsing into one word.
- * @see `docs/notes.md`, "An account signs in; a character enters"
- *
- * Making one is its own route. This screen's job is to get somebody into the
- * world, and a form sitting under the list is paperwork in front of the button
- * they came for.
- */
 export async function clientLoader() {
   const me = await fetchMe();
   if (!me.user) throw redirect("/sign-in");
@@ -39,22 +19,8 @@ export async function clientLoader() {
 
 export default function CharactersPage() {
   const { username, characters, maintenance, admin } = useLoaderData<typeof clientLoader>();
-  /**
-   * The world is closed, and this account is not one it lets in.
-   *
-   * Said here rather than left to the socket, which would refuse the press a
-   * moment later from behind a loading screen. An administrator is let in, so
-   * their rows stay live. @see `server/maintenance.ts`
-   */
   const closed = maintenance !== null && !admin;
   const navigate = useNavigate();
-  /**
-   * Which row was pressed.
-   *
-   * The press starts a navigation, and a navigation is not instant: the world's
-   * own loader has to answer first. Saying so on the row that was pressed is
-   * what stops the screen looking like it ignored the press.
-   */
   const [entering, setEntering] = useState<string | null>(null);
 
   const enter = (character: Character) => {
@@ -64,8 +30,6 @@ export default function CharactersPage() {
   };
 
   const leave = () => {
-    // Before the request, so a tab that is signed out cannot navigate back into
-    // a body it no longer has an account for.
     forgetCharacter();
     void signOut().then(() => void navigate("/sign-in"));
   };
@@ -111,9 +75,6 @@ export default function CharactersPage() {
         </DoorLink>
       )}
 
-      {/* The account's own two controls, and the only two anywhere. Set apart
-          from the link above them, which is about characters: three identical
-          links in a row would read as one list of unrelated things. */}
       <div className="mt-3 flex flex-col items-center gap-3">
         <DoorLink to="/account/password" disabled={entering !== null}>
           Change password
@@ -132,14 +93,6 @@ export default function CharactersPage() {
   );
 }
 
-/**
- * A quiet link in the door's voice.
- *
- * `aria-disabled` and a swallowed press rather than not rendering it: the three
- * of these are the only things on this screen while a character is entering,
- * and a screen that lost half its content on a press would read as having
- * navigated somewhere.
- */
 function DoorLink({ to, disabled, children }: { to: string; disabled: boolean; children: string }) {
   return (
     <Link

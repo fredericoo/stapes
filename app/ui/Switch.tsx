@@ -5,7 +5,6 @@ type Props = {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   ariaLabel: string;
-  /** Rendered inside the thumb (e.g. an icon). */
   thumb?: ReactNode;
   className?: string;
 } & Omit<
@@ -26,8 +25,6 @@ export function Switch({
       checked={checked}
       onCheckedChange={onCheckedChange}
       aria-label={ariaLabel}
-      // Button height (32px): a switch carrying an icon is read at a glance the
-      // same way a toolbar button is, and at half the size the icon was a smudge.
       className={[
         "relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center",
         "border-2 border-border bg-paper shadow-hard",
@@ -41,8 +38,6 @@ export function Switch({
         .join(" ")}
       {...props}
     >
-      {/* Travel is the track's inner width less the thumb and both insets:
-          (56 - 4 border) - 24 thumb - 2 inset = 26px. */}
       <BaseSwitch.Thumb
         className={[
           "pointer-events-none flex size-6 items-center justify-center",

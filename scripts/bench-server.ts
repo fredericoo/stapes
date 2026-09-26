@@ -1,24 +1,3 @@
-/**
- * How much a tick of the world costs, and how much of the board it moves.
- *
- * Runs the server's simulation headless — no sockets, no database — against
- * whatever `data/map.json` is, with a handful of players standing where the
- * scenario puts them, and reports the two numbers the server's loop is made
- * of: how long `GameSession.tick` takes, and how many bytes the patch it
- * produces would put on every socket. The diff and the serialization mirror
- * `GameServer.tick` (`changedCellsOnLevel` per level, then one
- * `JSON.stringify`), because measuring anything else has already sent one
- * round of this work the wrong way: the checkpoint's chunk diff reads 43x
- * worse than the wire's cell diff and is not what a client is sent.
- *
- *   bun scripts/bench-server.ts                 # every scenario, 30s each
- *   bun scripts/bench-server.ts --scenario den  # one of them
- *   bun scripts/bench-server.ts --seconds 10    # shorter
- *
- * Players stand still. The cost being chased is what the world does *on its
- * own* — creatures deciding and walking — as a function of where people are,
- * and a walking player would mix their own two cells a step into it.
- */
 import { GameSession } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
 import type { ActorSnapshot } from "../app/game/GameSession";
@@ -33,31 +12,14 @@ const MAP_PATH = "data/map.json";
 const TILES_PATH = "data/tiles.json";
 const STATUSES_PATH = "data/statuses.json";
 
-/** Simulated seconds per scenario unless `--seconds` says otherwise. */
 const DEFAULT_SECONDS = 30;
 
-/**
- * Where a player stands in each scenario, as the *authored* cell of a resident
- * near the spot — a creature's cell is a floor with room beside it, so
- * `spawn` lands the player next to it without anybody guessing coordinates.
- * `null` is the map's own spawn point.
- *
- * The den positions are one rat's authored cell on each cave floor and the
- * troll's, read off `data/map.json` when this was written. If the carve is
- * re-run they move; the scenario is still "a player on that floor".
- */
 const SCENARIOS: Record<string, ReadonlyArray<Coord | null>> = {
-  /** Nobody connected: brains frozen, the world at rest. The floor. */
   empty: [],
-  /** One player at the authored spawn, on the surface. */
   town: [null],
-  /** One player at the mouth of the den, on the road. */
   mouth: [{ x: 10, y: 20, z: 0 }],
-  /** One player on the top cave floor. */
   den1: [{ x: -10, y: 23, z: -1 }],
-  /** One player on the bottom cave floor, among the rats and well away from the troll. */
   den3: [{ x: -10, y: 19, z: -3 }],
-  /** Six players spread over every floor of the world. */
   spread: [
     null,
     { x: 10, y: 20, z: 0 },
@@ -79,7 +41,6 @@ function percentile(sorted: readonly number[], p: number): number {
   return sorted[at]!;
 }
 
-/** Exactly `GameServer.diffCells`, which is the point. */
 function diffCells(prev: MapFile, next: MapFile): CellPatch[] {
   if (prev === next) return [];
   const out: CellPatch[] = [];
@@ -106,7 +67,6 @@ type Report = {
   scenario: string;
   players: number;
   residents: number;
-  /** How many times a rat got the better of a bench player. */
   deaths: number;
   tickP50: number;
   tickP95: number;
@@ -132,9 +92,6 @@ function runScenario(
   });
   const residents = session.actorSnapshots().length - positions.length;
 
-  // Let the world open — plates settle, residents take their first decision —
-  // before anything is counted, the way a real world has been running for a
-  // while before anybody measures it.
   const warmupTicks = Math.round(2000 / TICK_MS);
   for (let i = 0; i < warmupTicks; i++) session.tick(TICK_MS);
 
@@ -143,10 +100,6 @@ function runScenario(
   let deaths = 0;
   let broadcastMap = session.getMap();
   for (let i = 0; i < ticks; i++) {
-    // A player the rats have killed comes straight back where they stood, the
-    // way a rebirth would, so the scenario keeps measuring what it says it
-    // does rather than a world nobody is watching. Hit points are clamped to
-    // the body's maximum on read, so there is no making them unkillable.
     positions.forEach((at, index) => {
       const id = `bench:${index}`;
       if (session.actorSnapshots().some((actor) => actor.id === id)) return;
@@ -216,7 +169,6 @@ async function main() {
   const tiles: TileDef[] = (JSON.parse(await Bun.file(TILES_PATH).text()) as unknown[]).map((raw) =>
     normalizeTileDef(raw),
   );
-  // Resolved for the same reason the server resolves it once per load.
   tilesByIdFromList(tiles);
   const statuses = statusesById(JSON.parse(await Bun.file(STATUSES_PATH).text()) as unknown[]);
 

@@ -4,27 +4,8 @@ import type { StatusDef } from "../lib/status";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
 
-/**
- * What a charm is, in the editor.
- *
- * A component of its own on the terms `./StoneFields` and `./WeaponFields` are
- * ones: a charm is small, but both of its halves need a sentence about *when*
- * they happen, and a branch inside `./ItemTab` carrying that would be the third
- * arm in that file with prose in it.
- *
- * ## Neither half is required, and that is not a hole
- *
- * A charm with no health and no statuses does nothing, and nothing refuses it —
- * it is a trinket somebody is part-way through writing, which is the state every
- * draft in this editor passes through. The interval is the one required field,
- * because it is the whole of what a charm costs and there is no defensible
- * number to guess on an author's behalf.
- */
-
-/** An interval reads far better in seconds than in five digits of milliseconds. */
 const MS_PER_SECOND = 1000;
 
-/** And past a minute it reads better still in minutes. */
 const SECONDS_PER_MINUTE = 60;
 
 export function CharmFields({
@@ -72,7 +53,6 @@ export function CharmFields({
   );
 }
 
-/** What an interval reads as, in the units somebody would say it in. */
 function describeInterval(everyMs: number): string {
   const seconds = Math.round(everyMs / MS_PER_SECOND);
   if (seconds < SECONDS_PER_MINUTE) return `Acts every ${seconds}s.`;
@@ -81,14 +61,6 @@ function describeInterval(everyMs: number): string {
   return rest === 0 ? `Acts every ${minutes}m.` : `Acts every ${minutes}m ${rest}s.`;
 }
 
-/**
- * What the mend comes to over a minute, which is the figure worth comparing.
- *
- * The per-tick number alone says nothing about whether a charm is worth its
- * square: one point every two seconds and five every thirty are the same field
- * with a thirtyfold difference between them. A rate is the thing an author is
- * actually choosing.
- */
 function describeMend(hp: number | undefined, everyMs: number): string {
   if (!hp) return "Mends nothing; a charm of statuses alone.";
   const perMinute = Math.round((hp * SECONDS_PER_MINUTE * MS_PER_SECOND) / everyMs);

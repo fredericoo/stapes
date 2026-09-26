@@ -17,14 +17,6 @@ import type { ItemInstance } from "./itemInstance";
 import type { PlacedTile, TileDef } from "./types";
 import { tile } from "./testTile";
 
-/**
- * The arithmetic of several-of-one-thing.
- *
- * Everything here is about `count` and nothing is about slots: whether a thing
- * may be somewhere at all belongs to `../game/itemMoves`, and the session tests
- * are where the two meet.
- */
-
 function food(id: string, pile?: number): TileDef {
   return tile({
     id,
@@ -94,8 +86,6 @@ describe("what piles", () => {
   });
 
   it("is not an artifact nobody counted — a torch is one torch", () => {
-    // The opposite default from food's, on purpose: every artifact in the file
-    // predates the field and none of them was ever meant to heap.
     expect(pileMax(torch)).toBe(1);
   });
 
@@ -154,8 +144,6 @@ describe("fusing", () => {
   });
 
   it("refuses all of it or none, never half", () => {
-    // Ten and three is thirteen, and a berry pile stops at twelve. Two would
-    // fit; the rule is that a move lands whole or is refused.
     expect(fuses({ tileId: "berry", count: 10 }, { tileId: "berry", count: 3 }, tilesById)).toBe(
       false,
     );
@@ -176,8 +164,6 @@ describe("fusing", () => {
   });
 
   it("refuses anything carrying a field a pile has no room for", () => {
-    // The allow-list at work: a placement that is somebody's body, or is wired,
-    // is not one of a heap however food-like its tile.
     const driven: PlacedTile = { tileId: "berry", owner: "npc:1" };
     const wired: PlacedTile = { tileId: "berry", channel: "door" };
     expect(fuses({ tileId: "berry" }, driven, tilesById)).toBe(false);
@@ -199,7 +185,6 @@ describe("fusing", () => {
       { tileId: "berry", count: 3 },
       tilesById,
     );
-    // The first has room for one, not three, so the second takes it whole.
     expect(poured).toEqual([
       { tileId: "berry", count: 11 },
       { tileId: "berry", count: 5 },
@@ -236,8 +221,6 @@ describe("stowing into a container", () => {
   });
 
   it("refuses a pile the last square could not hold whole", () => {
-    // Room in the pile for one and a pile of three arriving: no square left, and
-    // the pour is all-or-nothing, so the bag is closed to it.
     const full = [{ tileId: "berry", count: 11 }, { tileId: "bread" }];
     expect(stowFits(full, { tileId: "berry", count: 3 }, 2, tilesById)).toBe(false);
   });
@@ -271,8 +254,6 @@ describe("landing on a cell", () => {
 
   it("leaves the pile where it was in the stack", () => {
     const stack = [{ tileId: "grass" }, { tileId: "berry" }, { tileId: "bread" }];
-    // Second, where it started — a pour adds no height, so there is nothing for
-    // it to be on top of.
     expect(stackWithItem(stack, { tileId: "berry" }, tilesById)[1]).toEqual({
       tileId: "berry",
       count: 2,

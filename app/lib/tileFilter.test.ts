@@ -4,13 +4,6 @@ import { filterTiles, matchesTileFilter, matchesTileQuery } from "./tileFilter";
 import { normalizeTileDef, type TileDef, type TileKind } from "./types";
 import { FRAME } from "./testTile";
 
-/**
- * The catalogue grew past the point where scrolling finds anything, so the page
- * asks two questions of every tile. Both are pure, and both are here rather than
- * in the route because a filter that quietly drops a tile is invisible in a grid
- * of a hundred cards.
- */
-
 const wanderBrain: BrainDef = {
   initial: "idle",
   states: { idle: { do: [{ action: "hold" }] } },
@@ -46,11 +39,6 @@ describe("the kind filter", () => {
     expect(matchesTileFilter(crate, "npc")).toBe(false);
   });
 
-  /**
-   * The one case that would be wrong if the buckets were exclusive. A creature
-   * with hit points *and* behaviour has to appear under both, or half the
-   * bestiary goes missing from whichever bucket lost the coin toss.
-   */
   it("lists a thinking battler under both battler and NPC", () => {
     const troll = tile({
       id: "troll",
@@ -63,10 +51,6 @@ describe("the kind filter", () => {
     expect(matchesTileFilter(troll, "item")).toBe(false);
   });
 
-  /**
-   * An unparseable brain leaves an inert body, and the catalogue has to agree
-   * with the world about that rather than promising an NPC that never moves.
-   */
   it("does not call a tile with a malformed brain an NPC", () => {
     const broken = normalizeTileDef({
       id: "broken",
@@ -76,8 +60,6 @@ describe("the kind filter", () => {
       kind: "prop",
       sprite: { frames: [FRAME] },
       attributes: {},
-      // Points at a state that does not exist, which is exactly what a rename
-      // leaves behind.
       interactions: {
         brain: { initial: "nowhere", states: {}, transitions: [] },
       },

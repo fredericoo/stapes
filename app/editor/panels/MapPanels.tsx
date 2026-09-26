@@ -31,11 +31,6 @@ import {
   saveLayout,
 } from "./layout";
 
-/**
- * `minSize` / `maxSize` are percentages of the parent split. The map's bounds
- * are what stop the sidebar collapsing to nothing or swallowing the canvas —
- * the sidebar itself is a split, and splitkit only reads constraints off panels.
- */
 const registry: TabRegistry = {
   [TAB_TILE_PICKER]: {
     tabType: TAB_TILE_PICKER,
@@ -66,18 +61,12 @@ const COLLAPSIBLE_TAB_TYPES = new Set([TAB_TILE_PICKER, TAB_SELECTION]);
 
 const DEFAULT_LAYOUT = createDefaultLayout();
 
-/** Panels manage their own scrolling, so override the library's `overflow: auto`. */
 const PANEL_CONTENT_STYLE = {
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
 } as const;
 
-/**
- * A collapsed panel is only tall enough for its title bar. Hiding rather than
- * unmounting keeps panel state (search text, scroll position) while also
- * taking the offscreen controls out of the tab order.
- */
 const COLLAPSED_CONTENT_STYLE = {
   ...PANEL_CONTENT_STYLE,
   display: "none",
@@ -97,7 +86,6 @@ function PanelTitleBar({ panel }: { panel: PanelNode }) {
     <div
       className={[
         "flex items-center border-b-2 border-border bg-ink",
-        // Fill the collapsed strip so it reads as a single title bar.
         collapsed ? "flex-1" : "shrink-0",
       ].join(" ")}
     >
@@ -140,10 +128,6 @@ function PanelTitleBar({ panel }: { panel: PanelNode }) {
   );
 }
 
-/**
- * Called as a plain function by `LayoutRoot`, not rendered as a component —
- * anything needing hooks has to live in a child component like PanelTitleBar.
- */
 function renderPanelChrome({ panel, style }: RenderPanelProps) {
   return (
     <div style={style} className="overflow-hidden bg-panel">
@@ -156,7 +140,6 @@ function renderPanelChrome({ panel, style }: RenderPanelProps) {
   );
 }
 
-/** The 4px handle doubles as the border between panels. */
 function renderResizer({ splitId, index }: RenderResizerProps) {
   return (
     <Resizer
@@ -167,10 +150,6 @@ function renderResizer({ splitId, index }: RenderResizerProps) {
   );
 }
 
-/**
- * LayoutProvider snapshots `initialLayout` on mount and the server has no
- * localStorage, so a saved tree is applied just after hydration instead.
- */
 function RestoreSavedLayout() {
   const { dispatch } = useLayout();
 
@@ -192,7 +171,6 @@ export function MapPanels({ tiles, tilesets }: { tiles: TileDef[]; tilesets: Til
     if (layout) saveLayout(layout);
   }, []);
 
-  // Dragging a resizer dispatches on every pointer move; batch the writes.
   const handleLayoutChange = useCallback(
     (layout: LayoutNode) => {
       pending.current = layout;
@@ -221,8 +199,6 @@ export function MapPanels({ tiles, tilesets }: { tiles: TileDef[]; tilesets: Til
         onChange={handleLayoutChange}
       >
         <RestoreSavedLayout />
-        {/* Maximizing overlays a second copy of the panel, which would mean a
-            second WebGL canvas, so keep it out of this layout. */}
         <LayoutRoot
           renderPanel={renderPanelChrome}
           renderResizer={renderResizer}

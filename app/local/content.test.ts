@@ -2,16 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DataStore } from "../lib/dataStore";
 import { ApiBlobs } from "./content";
 
-/**
- * Where the world in a tab reads the map from.
- *
- * The keys are `DataStore`'s and the endpoints are the ones every other page
- * already uses, so what is worth proving is the join between them: that a key
- * arrives at the right request, that the map comes back as the *text* the
- * server stores rather than a re-encoding of it, and that a write is refused
- * rather than dropped.
- */
-
 const ORIGIN = "http://world.test";
 
 function serving(routes: Record<string, unknown>) {
@@ -72,11 +62,6 @@ describe("ApiBlobs", () => {
     );
   });
 
-  /**
-   * A world that accepted a write would appear to author content and lose it on
-   * the next reload, which is worse than not offering it: the editor would look
-   * like it had saved.
-   */
   it("refuses to author content", async () => {
     await expect(new ApiBlobs(ORIGIN).put()).rejects.toThrow("does not author content");
   });

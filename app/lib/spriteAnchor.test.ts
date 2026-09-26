@@ -15,7 +15,6 @@ function sprite(x: number, y: number, frames = 1): TileSprite {
   };
 }
 
-/** A four-way character with a second state, which is the case this is for. */
 function villager(anchor = { tilesetId: "chars", x: 0, y: 0 }): TileDef {
   return {
     id: "villager",
@@ -42,7 +41,6 @@ function villager(anchor = { tilesetId: "chars", x: 0, y: 0 }): TileDef {
   };
 }
 
-/** 8 cells across, 16 down. The villager's block is 2 wide and 8 tall. */
 const CHARS: TilesetDef = {
   id: "chars",
   name: "Characters",
@@ -63,14 +61,11 @@ describe("whether an anchor fits the sheet", () => {
   });
 
   it("refuses one that would run past the far edge, naming the sheet", () => {
-    // The lowest sprite starts at y 6 and is 2 cells tall; the sheet is 16.
     const anchor = { tilesetId: "chars", x: 0, y: 9 };
     expect(anchorFits(villager(), anchor, [CHARS])).toMatch(/Characters/);
   });
 
   it("counts the block from the anchor, not from the sheet's corner", () => {
-    // Sprites to the *left* of the anchor are art the author meant, so the far
-    // edge is measured from the anchor and the near edge is checked too.
     const reachingBack: TileDef = {
       ...villager({ tilesetId: "chars", x: 1, y: 0 }),
       sprites: { n: sprite(-2, 0) },

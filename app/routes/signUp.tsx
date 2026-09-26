@@ -12,19 +12,6 @@ import {
 import { MIN_PASSWORD_LENGTH } from "../lib/account";
 import { fetchMe, signUp } from "../lib/auth";
 
-/**
- * Make an account: a username, an email and a password.
- *
- * **The email is asked for once, here, and then only stored.** Nothing sends to
- * it, nothing verifies it, and there is no reset behind it — which is why the
- * note under the form says a forgotten password is a lost account before
- * anybody has typed one. What the address buys is a way to reach somebody about
- * their account at all, which a game with no other contact detail had none of.
- * @see `server/auth.ts`
- *
- * It signs you in as it creates you, so what follows is the chooser rather than
- * the door you just came through.
- */
 export async function clientLoader() {
   const me = await fetchMe();
   if (me.user) throw redirect("/characters");

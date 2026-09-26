@@ -3,67 +3,28 @@ import type { Side } from "../game/duel";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { TilePreview } from "./TilePreview";
 
-/**
- * Two bodies and what is happening to them, and nothing else.
- *
- * **Deliberately not the world renderer.** A fight in the Arena has no floor, no
- * light and no camera, because none of those are things a balance question is
- * asked about — and reaching for `WorldRenderer` would mean a map, a level bake
- * and a WebGL context in service of drawing two sprites facing each other. What
- * a tuner needs to see is which body swung, which one got out of the way, and
- * what came off whom, so that is exactly what is drawn.
- *
- * The three motions here are the session's own, on the session's own clock:
- * a swing throws the attacker forward, a dodge throws the defender back, and a
- * number floats off whoever it happened to. They are read straight off the
- * shared constants rather than picked to look right, so a fight watched here
- * lasts as long as the same fight in the world.
- */
-
-/** One number on its way up off somebody's head. */
 export type Floater = {
   id: number;
   side: Side;
   text: string;
-  /** Which of the four things a swing can come to, for the colour. */
   tone: "damage" | "miss" | "ailment" | "heal";
-  /** On the simulation's clock, so slow motion slows the numbers too. */
   bornAtMs: number;
 };
 
-/** What one side looks like at this instant. */
 export type StageSide = {
   tile: TileDef | null;
   name: string;
   hp: number;
   maxHp: number;
-  /** Names of what is running on this body, for the strip under the bar. */
   ailments: string[];
-  /**
-   * When this body last threw itself somewhere, and which way.
-   *
-   * A moment rather than a progress, on the terms `ActorRuntime.strike` is split
-   * from `strikeProgress`: the lean is a fact about when, and how far through it
-   * is falls out of the clock.
-   */
   leanAtMs: number | null;
   leanKind: "swing" | "dodge";
 };
 
-/** How far a body throws itself, in pixels of this stage rather than of a map. */
 const LEAN_PX = 18;
 
-/** How far a number climbs over its life. */
 const FLOAT_RISE_PX = 34;
 
-/**
- * Big enough to read the sprite's shape at, on a page that is mostly numbers,
- * and small enough that two of them plus their bars fit a phone side by side.
- *
- * Fixed rather than measured: the alternative is a media query, and the server
- * answers every one of those with false — so a phone would draw the desktop size
- * and jump on hydration, for a sprite that is legible at either.
- */
 const SPRITE_PX = 96;
 
 const TONE_CLASS: Record<Floater["tone"], string> = {
@@ -85,7 +46,6 @@ export function ArenaStage({
   b: StageSide;
   tilesets: TilesetDef[];
   floaters: readonly Floater[];
-  /** The simulation's clock, which every motion here is measured against. */
   elapsedMs: number;
   winner: Side | null;
 }) {
@@ -135,11 +95,6 @@ function Fighter({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
-      {/* Centred by the flex row rather than by `left: 50%` and a −50%
-          translate: the lean is an inline transform, and the two arrangements
-          cannot share one `transform` property without one of them silently
-          winning. Flex owns the position, the inline transform owns the motion,
-          and neither has an opinion about the other. */}
       <div className="relative flex h-32 w-full items-end justify-center overflow-hidden">
         <div
           style={{
@@ -152,10 +107,6 @@ function Fighter({
             tile={state.tile}
             tilesets={tilesets}
             size={SPRITE_PX}
-            // Turned to face the other one, rather than cycling: which way a
-            // body is looking is the one thing that says who this fight is
-            // between, and a sprite spinning through four bearings while it
-            // fights reads as a bug.
             direction={side === "a" ? "e" : "w"}
             background={null}
             chrome={false}
@@ -221,21 +172,11 @@ function FloatingNumber({ floater, elapsedMs }: { floater: Floater; elapsedMs: n
   );
 }
 
-/** Health as a share of the bar, floored at nothing rather than at a sliver. */
 function healthWidth(state: StageSide): number {
   if (state.maxHp <= 0) return 0;
   return Math.max(0, Math.min(100, (state.hp / state.maxHp) * 100));
 }
 
-/**
- * How far this body is from where it stands, right now.
- *
- * Out and back on a half sine over {@link STRIKE_DURATION_MS}, so a body is home
- * before it can swing again — the same bargain `../game/constants` strikes
- * between the lean and the floor on an attack interval. A swing goes towards the
- * other one and a dodge goes away, which is the whole of what the two motions
- * say.
- */
 function leanOffsetPx(state: StageSide, elapsedMs: number, side: Side): number {
   if (state.leanAtMs === null) return 0;
   const progress = (elapsedMs - state.leanAtMs) / STRIKE_DURATION_MS;

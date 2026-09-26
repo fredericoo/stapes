@@ -18,14 +18,6 @@ import {
 import { GameSession } from "./GameSession";
 import { listInteractionOptions, topInteractionAt } from "./interactionOptions";
 
-/**
- * A resource is the one interaction you are *part-way through*, and nearly
- * every test here is about that: a pull is bought with a place at the vein and
- * paid for in seconds of standing still, it hands nothing over until it
- * finishes, and anything that moves or hurts the player takes it off them and
- * gives the vein its pull back.
- */
-
 const BAG_TILE_ID = "basic-bag";
 
 function tile(partial: Record<string, unknown>): TileDef {
@@ -42,7 +34,6 @@ function tile(partial: Record<string, unknown>): TileDef {
 
 const EXTRACT_MS = 4_000;
 
-/** Shorter than a pull, so a wilting bush always turns mid-pull. */
 const WILT_MS = 1_000;
 
 const tiles = [
@@ -61,9 +52,6 @@ const tiles = [
       },
     },
   }),
-  // A consumable rather than an artifact, because only food piles — see
-  // `../lib/item`'s `pileMax` — and a bush yielding berries is exactly the case
-  // pouring exists for.
   tile({
     id: "berry",
     kind: "item",
@@ -75,9 +63,6 @@ const tiles = [
     kind: "item",
     interactions: { item: { ...DEFAULT_CONTAINER, size: 4 } },
   }),
-  // Two pulls, one certain berry each, and it turns into the picked bush when
-  // it is spent — the whole of the bush arrangement, minus the decay that grows
-  // it back, which is the picked bush's own business.
   tile({
     id: "bush",
     height: 2,
@@ -92,9 +77,6 @@ const tiles = [
     },
   }),
   tile({ id: "picked-bush", height: 2 }),
-  // A bush with a second clock on it, for the one case a pull has to notice:
-  // the thing being worked turning into something else while it is being
-  // worked. Its lifetime is shorter than a pull, so the swap always wins.
   tile({
     id: "wilting-bush",
     height: 2,
@@ -109,8 +91,6 @@ const tiles = [
       decay: { tileId: "picked-bush", fromMs: WILT_MS, toMs: WILT_MS },
     },
   }),
-  // The other arrangement: one pull, sometimes nothing, and gone when it is
-  // spent. No target at all, which is how a tile says it vanishes.
   tile({
     id: "crystal",
     height: 4,
@@ -130,12 +110,10 @@ const ME = { x: 0, y: 0, z: 0 };
 const BUSH: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const NOTHING_EXTRACTING: Extraction | null = null;
 
-/** One pull in progress, as its owner holds it. */
 function pulling(key: string, remainingMs = 2_000, durationMs = EXTRACT_MS): Extraction {
   return { key, remainingMs, durationMs };
 }
 
-/** Somewhere to stand, with something to work beside it. */
 function board(resource = "bush"): MapFile {
   let map = emptyMap();
   for (const [x, y] of [
@@ -149,7 +127,6 @@ function board(resource = "bush"): MapFile {
   return map;
 }
 
-/** The same board with one pull left in the bush, and nothing free once taken. */
 function lastPullBoard(): MapFile {
   return replaceStack(board(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "bush", extractsLeft: 1 }]);
 }
@@ -160,8 +137,6 @@ function bagWith(count: number): Equipment {
     bag: {
       id: "itm_bag",
       tileId: BAG_TILE_ID,
-      // Shards rather than berries: this means "n squares are taken", and a
-      // filler that poured would take one square however many there were.
       contents: Array.from({ length: count }, (_, i) => ({
         id: `itm_filler_${i}`,
         tileId: "shard",
@@ -277,7 +252,6 @@ describe("whether a pull is on offer", () => {
     let map = board();
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
-      // Two pulls in the def, both spoken for.
       { tileId: "bush", extractsReserved: 2 },
     ]);
 
@@ -302,8 +276,6 @@ describe("whether a pull is on offer", () => {
   });
 
   it("pours into a pile already in the bag rather than asking for a square", () => {
-    // Three squares of four are taken, and a pull could yield three berries —
-    // but the fourth square holds berries already, so they all pour into it.
     const bag: Equipment = {
       ...emptyEquipment(),
       bag: {
@@ -322,8 +294,6 @@ describe("whether a pull is on offer", () => {
   });
 
   it("is no when the pile it would pour into is already full", () => {
-    // A berry's default pile is eight, so a full one takes no more — and with
-    // every other square spoken for there is nowhere else for one to go.
     const bag: Equipment = {
       ...emptyEquipment(),
       bag: {
@@ -342,7 +312,6 @@ describe("whether a pull is on offer", () => {
   });
 
   it("is no with no room for everything the pull could hand back", () => {
-    // Four squares, three of them full, and a resource that could yield two.
     const generous = resolveExtract(
       tile({
         id: "generous",
@@ -415,8 +384,6 @@ describe("rolling a pull", () => {
       return 0.5;
     });
 
-    // Three draws for three slots, and the same three whatever the dice say —
-    // a skipped draw would change what the next creature in the world rolled.
     expect(draws).toHaveLength(3);
     expect(yielded).toEqual(["berry", "shard"]);
   });
@@ -429,11 +396,6 @@ describe("rolling a pull", () => {
 });
 
 describe("making a pull", () => {
-  /**
-   * The whole of the redesign in one assertion: the tap buys a place at the
-   * vein and nothing else. A player who taps and walks away has spent nothing
-   * and has nothing.
-   */
   it("hands nothing over on the tap", () => {
     const session = new GameSession(board(), tiles);
 
@@ -442,8 +404,6 @@ describe("making a pull", () => {
     expect(bagTileIds(session)).toEqual([]);
     expect(stackAt(session.getMap(), 1, 0)[1]).toMatchObject({
       tileId: "bush",
-      // The pull is held rather than spent: what is left in the vein has not
-      // moved, and what somebody may still start has.
       extractsReserved: 1,
     });
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsLeft).toBeUndefined();
@@ -460,10 +420,6 @@ describe("making a pull", () => {
     expect(placed.extractsReserved).toBeUndefined();
   });
 
-  /**
-   * On the body as well as on the viewer's own channel, because a pull is a
-   * thing other people can watch somebody doing.
-   */
   it("shows the pull on the body making it, until it lands", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
@@ -485,12 +441,6 @@ describe("making a pull", () => {
     expect(bagTileIds(session)).toEqual([]);
   });
 
-  /**
-   * The check and the run are the same function, which is what this is really
-   * asserting: a pull that was allowed because it could pour has to actually
-   * pour, or the two halves disagree and the kit ends up somewhere the row never
-   * promised.
-   */
   it("pours what came up into a pile already there", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
@@ -501,7 +451,6 @@ describe("making a pull", () => {
     const contents = session.getSnapshot().equipment.bag?.contents ?? [];
     expect(contents).toHaveLength(1);
     expect(contents[0].tileId).toBe("berry");
-    // Two pulls of one certain berry each, in one square rather than two.
     expect(contents[0].count).toBe(2);
   });
 
@@ -514,8 +463,6 @@ describe("making a pull", () => {
 
     const placed = stackAt(session.getMap(), 1, 0)[1]!;
     expect(placed.tileId).toBe("picked-bush");
-    // The count goes with the tile it was counting: what this is now has a
-    // durability of its own or none at all.
     expect(placed.extractsLeft).toBeUndefined();
     expect(placed.extractsReserved).toBeUndefined();
     expect(bagTileIds(session)).toEqual(["berry"]);
@@ -529,10 +476,6 @@ describe("making a pull", () => {
     expect(stackAt(session.getMap(), 1, 0).map((p) => p.tileId)).toEqual(["grass"]);
   });
 
-  /**
-   * A resource authored at zero has nothing to interrupt, so it lands on the
-   * tap and holds nothing while it does. The crystal fixture is the one.
-   */
   it("lands on the tap where the author asked for no time at all", () => {
     const session = new GameSession(board("crystal"), tiles);
     session.interact(BUSH);
@@ -546,8 +489,6 @@ describe("making a pull", () => {
 
     expect(session.canExtract(BUSH)).toBe(false);
     expect(session.interact(BUSH)).toBe(false);
-    // And the pull it already had is untouched — a refused tap must not
-    // restart the clock.
     expect(session.getSnapshot().extracting?.remainingMs).toBe(EXTRACT_MS);
   });
 
@@ -576,7 +517,6 @@ describe("making a pull", () => {
                 durability: 2,
                 tileId: "",
                 durationMs: EXTRACT_MS,
-                // Never comes up, so every pull is a swing at nothing.
                 slots: [{ tileId: "shard", chance: 0 }],
               },
             },
@@ -589,7 +529,6 @@ describe("making a pull", () => {
     session.tick(EXTRACT_MS);
 
     expect(bagTileIds(session)).toEqual([]);
-    // The seconds went into the swing rather than into what came out of it.
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsLeft).toBe(1);
   });
 
@@ -598,13 +537,10 @@ describe("making a pull", () => {
       actorIds: ["a", "b", "c"],
     });
 
-    // Two pulls in the bush, and the first two takers hold one each.
     expect(session.interact(BUSH, "a")).toBe(true);
     expect(session.interact(BUSH, "b")).toBe(true);
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsReserved).toBe(2);
 
-    // The third finds a bush that is standing there with nothing left to
-    // promise — which is exactly what the greyed row says.
     expect(session.canExtract(BUSH, "c")).toBe(false);
   });
 
@@ -616,7 +552,6 @@ describe("making a pull", () => {
 
     expect(session.getSnapshot("a").equipment.bag?.contents).toHaveLength(1);
     expect(session.getSnapshot("b").equipment.bag?.contents).toHaveLength(1);
-    // Both pulls landed, so the bush is spent and has become what it becomes.
     expect(stackAt(session.getMap(), 1, 0)[1]?.tileId).toBe("picked-bush");
   });
 });
@@ -635,17 +570,10 @@ describe("losing a pull", () => {
     expect(bagTileIds(session)).toEqual([]);
   });
 
-  /**
-   * Standing still is the whole rule, and it is one rule rather than a list of
-   * the ways a body can move: a step towards the bush ends the pull exactly as
-   * a step away from it does. Anything else would be a list with a gap in it
-   * the next time a way of moving is added.
-   */
   it("ends on any step at all, not only one out of reach", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
 
-    // South, which keeps the bush a diagonal away and well within reach.
     session.setInput({ directions: ["s"] });
     session.tick(16);
 
@@ -662,13 +590,10 @@ describe("losing a pull", () => {
 
     expect(session.getSnapshot().extracting).toBeNull();
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsReserved).toBeUndefined();
-    // Said rather than left to the bar disappearing, which is what a pull that
-    // paid out nothing also looks like.
     expect(session.drainNotices()).toContain("You are interrupted");
   });
 
   it("frees it for the person who was refused a moment ago", () => {
-    // One pull left in the bush and one taker, so there is nothing free.
     const session = new GameSession(lastPullBoard(), tiles, {
       actorIds: ["a", "b"],
     });
@@ -683,10 +608,6 @@ describe("losing a pull", () => {
   });
 
   it("gives it back when the thing being worked becomes something else", () => {
-    // The wilting bush is the same bush with a second clock on it: `a` starts a
-    // pull, the tile turns under them a second later, and what they were
-    // working is not there any more. Somebody else's last pull, an editor save
-    // and a decay all look exactly like this.
     const session = new GameSession(board("wilting-bush"), tiles);
     const key = extractKey(BUSH, "wilting-bush");
     session.interact(BUSH);
@@ -695,16 +616,10 @@ describe("losing a pull", () => {
     session.tick(WILT_MS);
 
     expect(stackAt(session.getMap(), 1, 0)[1]?.tileId).toBe("picked-bush");
-    // Same tick: the pull is wound after decay has turned whatever it turns.
     expect(session.getSnapshot().extracting).toBeNull();
     expect(bagTileIds(session)).toEqual([]);
   });
 
-  /**
-   * A player who taps a second crystal has said which one they want. Making
-   * them walk away to say so would be a refusal with nothing on screen
-   * explaining it.
-   */
   it("is abandoned, hold and all, by a tap on a different vein", () => {
     let map = board();
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "bush" }]);
@@ -730,23 +645,15 @@ describe("losing a pull", () => {
 });
 
 describe("what it says afterwards", () => {
-  /**
-   * The line and the button have to agree, and this is what holds them
-   * together: an author writes one verb, and a player who pressed "Mine" being
-   * told they *worked* the crystal has been given two names for one act.
-   */
   it("uses the author's verb, the same one the row is named for", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
     session.tick(EXTRACT_MS);
 
-    // The names are the fixture's ids — see `tile` above, which defaults one.
     expect(session.drainNotices()).toEqual(["You pick bush and take 1 berry"]);
   });
 
   it("falls back to the row's own fallback, lowercased", () => {
-    // The crystal names no verb, so its row reads "Gather" and its line has to
-    // read "gather" rather than some third word.
     const session = new GameSession(board("crystal"), tiles);
     session.interact(BUSH);
 
@@ -786,8 +693,6 @@ describe("what it says afterwards", () => {
     session.interact(BUSH);
     session.tick(EXTRACT_MS);
 
-    // The second berry pours into the first, and the line is about what this
-    // pull gave rather than about what the bag now holds.
     expect(session.drainNotices()).toEqual(["You pick bush and take 1 berry"]);
   });
 });
@@ -826,12 +731,6 @@ describe("the row it offers", () => {
     expect(rowsFor(session).map((o) => o.label)).toEqual(["Gather"]);
   });
 
-  /**
-   * The row stays and goes grey rather than disappearing, and this is the whole
-   * argument for the `blocked` field: a player who did nothing and watched a
-   * row vanish has been told nothing, where one looking at a greyed row with a
-   * bar across it can see how much longer.
-   */
   it("stays while this player is pulling at it, carrying the pull", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
@@ -868,20 +767,12 @@ describe("the row it offers", () => {
     expect(rowsFor(session)[0].blocked).toBeNull();
   });
 
-  /**
-   * A crystal standing there that somebody else is mining is still a crystal,
-   * so the row stays and says who has it rather than vanishing under a player
-   * who did nothing.
-   */
   it("stays while somebody else holds every pull, saying it is in use", () => {
     const session = new GameSession(board(), tiles, { actorIds: ["a", "b"] });
     session.interact(BUSH, "a");
     session.interact(BUSH, "b");
 
     const snap = session.getSnapshot("b");
-    // A third pair of eyes: `b` holds one of the two, so what they see on the
-    // row is their own pull. The list built for somebody holding neither is
-    // what says "in use".
     const rows = listInteractionOptions(
       snap.map,
       tilesById,
@@ -899,12 +790,6 @@ describe("the row it offers", () => {
     expect(rows[0].blocked).toEqual({ kind: "taken" });
   });
 
-  /**
-   * The same argument as the pull, for the refusal that used to be silent. A
-   * player with a full bag walked up to a bush and found no row on it at all,
-   * which reads as a broken bush — the one thing they cannot do anything about
-   * — rather than as a full bag, which they can.
-   */
   it("stays with a full bag, saying that is what is in the way", () => {
     const session = new GameSession(board(), tiles);
 
@@ -927,10 +812,6 @@ describe("the row it offers", () => {
     expect(rowsFor(session, bagWith(3))[0].blocked).toBeNull();
   });
 
-  /**
-   * The pull in progress is what the row is drawing, and everything else about
-   * it is beside the point while it runs.
-   */
   it("names the pull ahead of the bag when both are true", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
@@ -940,10 +821,6 @@ describe("the row it offers", () => {
     });
   });
 
-  /**
-   * Presentation, never permission: the row is drawn and the pull is still
-   * refused by the session — and by the server behind it.
-   */
   it("is offered without the pull being allowed", () => {
     const session = new GameSession(board(), tiles);
 
@@ -959,11 +836,6 @@ describe("the row it offers", () => {
     expect(topInteractionAt(optionsFor(session, bagWith(4)), BUSH)).toBeNull();
   });
 
-  /**
-   * The pointer and the list are one list, so a row nothing can press must not
-   * be the row a tap on the world runs — otherwise the outline lights up over a
-   * bush and clicking it does nothing.
-   */
   it("is passed over by the tap while the pull is being made", () => {
     const session = new GameSession(board(), tiles);
     expect(topInteractionAt(optionsFor(session), BUSH)?.action).toBe("extract");
@@ -982,19 +854,10 @@ describe("the row it offers", () => {
     const first = session.getSnapshot().extracting;
     session.tick(100);
 
-    // The renderer gates its whole interaction list on this identity, so a
-    // fresh object per tick would rebuild the list thirty times a second to
-    // redraw a bar CSS is already animating. It is wound in place.
     expect(session.getSnapshot().extracting).toBe(first);
     expect(first?.remainingMs).toBe(EXTRACT_MS - 100);
   });
 
-  /**
-   * The pull is wound by the tick loop and by nothing else, so a world that
-   * fell asleep under one would leave the bar frozen and the vein's hold with
-   * it. Exactly the clause a cooling stone has, and sharper: somebody is
-   * standing there waiting to be paid.
-   */
   it("holds the world awake until the pull lands", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
@@ -1063,8 +926,6 @@ describe("what a map remembers", () => {
     session.interact(BUSH);
     session.tick(EXTRACT_MS);
 
-    // The map is what the checkpoint stores and what a patch carries, so this
-    // is the whole of "everybody sees the same vein".
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsLeft).toBe(1);
   });
 
@@ -1072,8 +933,6 @@ describe("what a map remembers", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
 
-    // A reservation nobody else could see would be a vein that refused the
-    // second person with nothing on screen saying why.
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsReserved).toBe(1);
   });
 
@@ -1083,19 +942,11 @@ describe("what a map remembers", () => {
     session.tick(EXTRACT_MS);
     session.interact(BUSH);
 
-    // A state of play, not something anybody typed: a map saved after an
-    // afternoon of picking must not arrive claiming the author meant those
-    // bushes to be half picked, still less that somebody is standing at one.
     const saved = serializeMap(session.getMap());
     expect(saved).not.toContain("extractsLeft");
     expect(saved).not.toContain("extractsReserved");
   });
 
-  /**
-   * A checkpoint can only have been written while somebody was mid-pull, and
-   * there is nobody mid-anything in a world that is only now starting. Left in,
-   * those holds would be held by nobody until the vein respawned.
-   */
   it("drops every hold as a world loads", () => {
     let map = board();
     map = replaceStack(map, 1, 0, 0, [
@@ -1109,8 +960,6 @@ describe("what a map remembers", () => {
       extractsLeft: 2,
     });
 
-    // And a session built on that map offers the row, rather than refusing it
-    // on behalf of people who left.
     expect(new GameSession(map, tiles).canExtract(BUSH)).toBe(true);
   });
 

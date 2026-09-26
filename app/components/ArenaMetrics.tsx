@@ -1,25 +1,8 @@
 import type { SwingOdds } from "../game/combatMetrics";
 
-/**
- * What the match-up comes to, before anybody swings.
- *
- * **Every cell is a function of the stat blocks and nothing else.** There were
- * tooltips here explaining what each row meant — what a dodge is contested
- * against, why speed is geometric, what "absorbed" stands in for — and they are
- * gone on purpose. Prose describing a formula is a second copy of that formula
- * written in English, and the English one does not fail a test when the
- * arithmetic moves. The numbers are the documentation; `../game/combatMetrics`
- * is where the reasoning lives, next to the code that has to stay true to it.
- *
- * Read as two columns because a fight is not symmetric: what the rat's bite is
- * worth against your armour and what your sword is worth against its hide are
- * different questions with different answers.
- */
-
 type Row = {
   label: string;
   value: (odds: SwingOdds) => string;
-  /** Sets this row apart as a headline rather than a component of one. */
   emphasis?: boolean;
 };
 
@@ -70,9 +53,7 @@ export function ArenaMetrics({
 }: {
   aName: string;
   bName: string;
-  /** A swinging at B. */
   aToB: SwingOdds | null;
-  /** B swinging at A. */
   bToA: SwingOdds | null;
 }) {
   if (!aToB || !bToA) {
@@ -121,13 +102,6 @@ export function ArenaMetrics({
   );
 }
 
-/**
- * What a swing leaves behind, quoted at the rate it actually takes.
- *
- * Its own row because it is the one figure with a variable number of entries —
- * most weapons inflict nothing, and a row of dashes for every one of them would
- * be a table mostly about a thing that does not happen.
- */
 function StatusRow({ aToB, bToA }: { aToB: SwingOdds; bToA: SwingOdds }) {
   if (aToB.statuses.length === 0 && bToA.statuses.length === 0) return null;
 

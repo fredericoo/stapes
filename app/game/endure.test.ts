@@ -12,14 +12,6 @@ import { EndureIndex, applyConsumed, neighboursOf, spreadShares } from "./endure
 import { GameSession } from "./GameSession";
 import { Rng } from "./rng";
 
-/**
- * A tile worn down by a status, and what happens to what is left when it goes.
- *
- * The two halves that are the feature: the pool, which is arithmetic over an
- * index and asserted without a world, and the spread, whose whole point is that
- * a fire divides its fuel rather than copying it.
- */
-
 const frame = {
   sprite: {
     tilesetId: "basic",
@@ -41,13 +33,9 @@ function tile(partial: Record<string, unknown>): TileDef {
   });
 }
 
-/** Fixed ends, so a roll is a constant and every sum below is exact. */
 const BURN_MS = 8_000;
-/** What `burned` takes off anything with a small enough maximum. */
 const BURN_PER_SECOND = 4;
-/** Three seconds of fire, so grass goes with five to spare. */
 const GRASS_DURABILITY = 12;
-/** Longer than one whole burn, so a tree needs two of them or a lucky share. */
 const TREE_DURABILITY = 40;
 
 const catalogue = statusesById([
@@ -95,8 +83,6 @@ const tiles: TileDef[] = [
     lightPassing: true,
     interactions: { addStatus: { trigger: "step", statusId: "burned", ground: true } },
   }),
-  // A source naming a status nothing in the catalogue holds, and one naming
-  // nothing at all.
   tile({
     id: "haunt",
     height: 2,
@@ -149,7 +135,6 @@ function stackIds(map: MapFile, x: number, y: number, z = 0): string[] {
   return getStack(map, x, y, z).map((placed) => placed.tileId);
 }
 
-/** A board of the given tiles, plus a player parked well out of the way. */
 function world(cells: { at: Coord; stack: string[] }[]): MapFile {
   let map = emptyMap();
   for (const { at, stack } of cells) {
@@ -276,7 +261,6 @@ describe("EndureIndex", () => {
       expect(hold(endure)).toBe(true);
       expect(endure.statusesAt(ORIGIN, "grass")[0]?.remainingMs).toBe(BURN_MS);
 
-      // Thirty ticks is a second. The twenty-nine before it roll nothing.
       const ticksPerSecond = Math.round(EVERY_MS / TICK_MS);
       for (let i = 1; i < ticksPerSecond; i++) expect(hold(endure)).toBe(false);
       expect(hold(endure)).toBe(true);
@@ -306,7 +290,6 @@ describe("EndureIndex", () => {
     const endure = index();
     endure.afflict(ORIGIN, "grass", grassEndure(), BURNED);
 
-    // Two seconds in: two payouts of four, and eight of twelve left.
     for (let i = 0; i < Math.round(2_000 / TICK_MS); i++) {
       expect(endure.advance(TICK_MS, catalogue)).toEqual([]);
     }
@@ -326,8 +309,6 @@ describe("EndureIndex", () => {
     expect(consumed).toHaveLength(1);
     expect(consumed[0]?.becomes).toBe("dirt");
     expect(consumed[0]?.statusId).toBe("burned");
-    // Whatever the burn had left at that instant — three seconds of fire spent
-    // out of eight, so five to hand on, and never more than it started with.
     expect(consumed[0]?.remainingMs).toBeGreaterThan(0);
     expect(consumed[0]?.remainingMs).toBeLessThanOrEqual(BURN_MS - secondsToBurn * 1_000 + TICK_MS);
     expect(endure.pending()).toBe(false);
@@ -347,14 +328,12 @@ describe("EndureIndex", () => {
     const endure = index();
     endure.afflict(ORIGIN, "tree", resolveEndure(tilesById.tree!)!, BURNED);
 
-    // A whole burn: eight seconds of four, against a durability of forty.
     for (let ms = 0; ms < BURN_MS + TICK_MS; ms += TICK_MS) {
       endure.advance(TICK_MS, catalogue);
     }
     const pool = [...endure.afflicted()][0];
     expect(pool?.statuses).toHaveLength(0);
     expect(pool?.hp).toBe(TREE_DURABILITY - BURN_PER_SECOND * (BURN_MS / 1_000));
-    // Still held, so a flame that sets it alight again finds it scorched.
     expect(endure.pending()).toBe(true);
   });
 });
@@ -377,10 +356,6 @@ describe("what is reported as alight", () => {
     expect(index().afflictedPlacements()).toEqual([]);
   });
 
-  /**
-   * The distinction the whole thing turns on: a pool outlives its statuses so a
-   * scorched tree stays scorched, and a scorched tree is not a burning one.
-   */
   it("drops a tree that is damaged but no longer burning", () => {
     const endure = index();
     endure.afflict(ORIGIN, "tree", resolveEndure(tilesById.tree!)!, BURNED);
@@ -388,7 +363,6 @@ describe("what is reported as alight", () => {
       endure.advance(TICK_MS, catalogue);
     }
 
-    // Still held, and still damaged — but nothing is running on it.
     expect(endure.pending()).toBe(true);
     expect(endure.afflictedPlacements()).toEqual([]);
   });
@@ -402,7 +376,6 @@ describe("what is reported as alight", () => {
       { x: 0, y: 0, z: 0, tileId: "grass", defIds: ["burned"] },
     ]);
 
-    // Once the grass is dirt there is nothing left in the cell to burn.
     run(play, Math.ceil(((GRASS_DURABILITY / BURN_PER_SECOND) * 1_000) / TICK_MS) + 2);
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
     expect(play.getSnapshot("local").afflicted).toEqual([]);
@@ -428,7 +401,6 @@ describe("spreadShares", () => {
 
     expect(shares).toHaveLength(2);
     expect(shares.every((share) => share.shareMs === 2_000)).toBe(true);
-    // The whole point: what goes out is never more than what came in.
     const total = shares.reduce((sum, share) => sum + share.shareMs, 0);
     expect(total).toBeLessThanOrEqual(consumed.remainingMs);
   });
@@ -442,8 +414,6 @@ describe("spreadShares", () => {
     const shares = spreadShares(map, consumed, tilesById);
 
     expect(shares).toHaveLength(1);
-    // Divided by what catches, not by what is there: a fire at the edge of a
-    // wood must not lose half its fuel to the stone beside it.
     expect(shares[0]?.shareMs).toBe(consumed.remainingMs);
   });
 
@@ -561,8 +531,6 @@ describe("a flame in a world", () => {
 
   it("keeps burning, so an eternal flame eventually gets through a tree", () => {
     const play = session(world([{ at: ORIGIN, stack: ["dirt", "tree", "flame"] }]));
-    // Longer than one burn, which alone is not enough for a tree — the second
-    // application is the thing under test.
     run(play, Math.ceil((BURN_MS * 3) / TICK_MS));
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
   });
@@ -576,18 +544,11 @@ describe("a flame in a world", () => {
     );
     run(play, Math.ceil(((GRASS_DURABILITY / BURN_PER_SECOND) * 1_000) / TICK_MS) + 2);
 
-    // The first cell has gone, and the second is now alight from what was left.
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
     run(play, Math.ceil(BURN_MS / TICK_MS));
     expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt"]);
   });
 
-  /**
-   * The flame stacks `burned` on the grass under it once a second, so by the
-   * time the grass goes it is carrying close to the status's ceiling rather
-   * than what was left of a single burn. A single burn's remainder is five
-   * seconds — twenty of the tree's forty — and would leave it standing.
-   */
   it("stacks the burn under a flame, so the grass hands on enough to fell a tree", () => {
     const play = session(
       world([
@@ -614,16 +575,6 @@ describe("a flame in a world", () => {
   });
 });
 
-/**
- * The authored numbers, against the authored statuses.
- *
- * Everything above runs on a catalogue this file wrote, which is what makes the
- * arithmetic assertable — and is exactly why it cannot catch the failure that
- * actually matters here: `burned` deals `ceil(MAX_HP / 100)` every 250 ms, so a
- * durability raised past what one burn can spend leaves a tile that catches
- * fire, smoulders and never goes. That is a drift between two files neither of
- * which is wrong on its own, and this is the only test in a position to see it.
- */
 describe("the content in data/", () => {
   const authoredTiles = (tilesJson as unknown[]).map((raw) =>
     normalizeTileDef(raw as Record<string, unknown>),
@@ -676,7 +627,6 @@ describe("the content in data/", () => {
   it("leaves cobblestone alone, because nothing in it burns", () => {
     const play = burn([{ at: ORIGIN, stack: ["cobblestone", "flame"] }], 30_000);
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["cobblestone", "flame"]);
-    // And the world settles again rather than smouldering forever.
     expect(play.isAtRest()).toBe(true);
   });
 });

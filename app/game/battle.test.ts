@@ -20,27 +20,6 @@ import { GameSession } from "./GameSession";
 import type { TileTransitionNote, Transition } from "../lib/tileTransition";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
-/**
- * Fighting, on a board.
- *
- * The formulas have their own file; this is about everything around them — who
- * may swing at whom, how often, what a blow does to the world, and what happens
- * to a body that runs out of hit points.
- */
-
-/**
- * A tile for a fight.
- *
- * Stats imply the kind here, which is the one place that inference is allowed:
- * `resolveBattler` gates on `kind` so the production path can never read a block
- * the select did not authorise, but a fixture that hands this function six stats
- * has said what it is as plainly as a fixture can. Spelling `kind: "battler"`
- * beside every `interactions.battler` in this file would be ceremony, not
- * coverage — the gate itself is asserted in `battler.test.ts`.
- *
- * Still overridable: a test that wants a stat block the kind refuses passes its
- * own `kind` and gets exactly that.
- */
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
   return baseTile({
@@ -49,13 +28,6 @@ function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">)
   });
 }
 
-/**
- * A creature that swings at whoever hit it and never stops.
- *
- * Deliberately without the movement half of the real cat's brain: what is being
- * tested is the `attacked` condition and the `attack` action, and a creature
- * that also wanders would make every assertion about position a coin toss.
- */
 const brawlerBrain = {
   initial: "idle",
   states: {
@@ -74,42 +46,8 @@ const brawlerBrain = {
   ],
 };
 
-/**
- * Certain to hit, certain to hurt, and as fast as the rules allow.
- *
- * The key was `acc` until the field was renamed to `accuracy`, and a stale one
- * is silently dropped by the schema — so this spread nothing and every fixture
- * claiming to be certain was landing half its blows. Nothing failed, because
- * every assertion downstream was about *eventually* doing damage.
- */
 const CERTAIN = { accuracy: 100, spd: 100 };
 
-/**
- * A natural weapon, spelled out once.
- *
- * Every body has one now, and most of these fixtures only care about two of its
- * numbers — so the rest are defaulted here rather than repeated five times.
- */
-/**
- * The Toughness these fixtures buy their hit points with, and what it now costs
- * them.
- *
- * **Toughness is no longer a pure hit-point dial** — see `../lib/battler`'s
- * `defFrom`, which gives every body a share of defence on the same curve. These
- * tests are about reach, targeting and the plumbing of a blow, so what they need
- * is a body with a lot of health that a swing still visibly dents; a fixture
- * that quietly grew eighteen points of armour turned every one of them into an
- * assertion about mitigation instead.
- *
- * So the figures are *derived* rather than typed. A hundred hit points was
- * written as `92` and read as `100` in six places, and the day the curve moved,
- * all six were wrong in a way that read as a broken swing.
- */
-/**
- * What every body in here is worth before Toughness adds any — see
- * `../lib/battler`'s `baseHp`. One figure for all of them, so a comparison
- * between two of these fixtures is a comparison of their masteries.
- */
 const FIXTURE_BASE_HP = 8;
 
 const PLAYER_TOUGHNESS = 92;
@@ -117,13 +55,6 @@ const PLAYER_MAX_HP = maxHpFrom(FIXTURE_BASE_HP, PLAYER_TOUGHNESS);
 const DUMMY_TOUGHNESS = 42;
 const BRAWLER_TOUGHNESS = 22;
 
-/**
- * A blow that is felt through whatever armour the target's Toughness grants.
- *
- * Stated as "the target's defence, and then some" rather than as a number, so
- * these tests keep asserting what they were written to assert — that a swing
- * lands — rather than re-deriving the defence curve every time it is tuned.
- */
 const feltBy = (toughness: number) => defFrom(toughness) + 5;
 
 const claws = (fields: Record<string, unknown>) => ({
@@ -144,9 +75,6 @@ const tiles: TileDef[] = [
     height: 4,
     directional: true,
     walkable: false,
-    // Like every authored body: a thing that blocks light would shadow itself,
-    // and would stand on its own shoulders when working out what it can see
-    // over. @see ./sight
     lightPassing: true,
     variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
@@ -157,7 +85,6 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // Hit points, no mind. What a target that cannot fight back looks like.
   tile({
     id: "dummy",
     height: 2,
@@ -171,19 +98,12 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // Armoured past anything the player can do to it. That takes four times the
-  // defence it used to: armour is drawn rather than subtracted, so what has to
-  // outweigh the blow is {@link MIN_GUARD_SHARE} of this and not the whole of
-  // it.
   tile({
     id: "anvil",
     height: 2,
     actor: true,
     walkable: false,
     interactions: {
-      // Defence is the weapon's here: nothing is worn, and what a held thing
-      // turns aside is its own `def`. Armour is the other source — see
-      // `./equipment`'s `wornDefence`.
       battler: {
         baseHp: FIXTURE_BASE_HP,
         masteries: { toughness: 2 },
@@ -205,10 +125,7 @@ const tiles: TileDef[] = [
       brain: brawlerBrain,
     },
   }),
-  // A body with no battler block at all: swinging at it must fail, not throw.
   tile({ id: "statue", height: 2, actor: true, walkable: false }),
-  // A bite that certainly poisons, so what is asserted below is the plumbing
-  // rather than the odds — `./combat.test` owns the percentage itself.
   tile({
     id: "viper",
     height: 2,
@@ -219,8 +136,6 @@ const tiles: TileDef[] = [
         baseHp: FIXTURE_BASE_HP,
         masteries: { toughness: BRAWLER_TOUGHNESS },
         naturalWeapon: claws({
-          // Enough to be felt, because a venom that only ever landed on a blow
-          // armour swallowed would assert the plumbing by accident.
           damage: feltBy(PLAYER_TOUGHNESS),
           ...CERTAIN,
           statuses: [{ id: "venom", chance: 100, fromMs: 30_000, toMs: 60_000 }],
@@ -229,8 +144,6 @@ const tiles: TileDef[] = [
       brain: brawlerBrain,
     },
   }),
-  // The same venom in something a player can pick up, which is the case that
-  // comes free from routing a weapon's statuses through `FightingStats`.
   tile({
     id: "venom-fang",
     height: 0,
@@ -251,7 +164,6 @@ const tiles: TileDef[] = [
   }),
 ];
 
-/** Open grass with the spawn marker at the origin. */
 function field(half = 3): MapFile {
   let map = emptyMap();
   for (let x = -half; x <= half; x++) {
@@ -267,17 +179,10 @@ function withBody(map: MapFile, x: number, y: number, tileId: string): MapFile {
   return replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId }]);
 }
 
-/** The same body, one floor up, on a one-cell plinth so gravity leaves it there. */
 function perched(map: MapFile, x: number, y: number, tileId: string): MapFile {
   return replaceStack(map, x, y, 1, [{ tileId: "grass" }, { tileId }]);
 }
 
-/**
- * Tick until something is true, or give up loudly.
- *
- * The bound is what makes this a test rather than a hang: a condition that never
- * arrives fails here instead of taking the run with it.
- */
 function advanceUntil(session: GameSession, done: () => boolean) {
   for (let elapsed = 0; elapsed < LONG_ENOUGH_TO_KILL_MS; elapsed += TICK_MS) {
     if (done()) return;
@@ -292,22 +197,6 @@ function advance(session: GameSession, ms: number) {
   }
 }
 
-/**
- * How many times the viewer swung, counted tick by tick.
- *
- * Per tick because a lean is aged and dropped as the world runs — a single look
- * at the end would see at most the last one.
- *
- * **The lean rather than the receipt, and it used to be the receipt.** A swing no
- * longer reliably produces one: a dodged blow is now a movement on the defender
- * and nothing floating at all, so a rate counted in receipts would come up short
- * one swing in twenty and fail on the unlucky run. Every swing thrown inside
- * arm's reach leans, which is what makes this the honest measure of *rate* — and
- * everything here fights at arm's reach.
- *
- * Identity, exactly as the wire counts them: the state is mutated in place as it
- * ages, so a new object is a new swing and nothing else is.
- */
 function swingsOver(session: GameSession, ms: number): number {
   let swings = 0;
   let last = null;
@@ -320,7 +209,6 @@ function swingsOver(session: GameSession, ms: number): number {
   return swings;
 }
 
-/** The one actor standing in a body of this tile, if it is still on the board. */
 function bodyOf(session: GameSession, tileId: string) {
   return session.actorSnapshots().find((actor) => actor.tileId === tileId);
 }
@@ -329,21 +217,6 @@ function self(session: GameSession) {
   return session.getSnapshot().self;
 }
 
-/**
- * Pick a fight: point at somebody, mean it, and stand there long enough to
- * throw the first blow.
- *
- * Three things rather than one because they are three decisions — a target
- * alone is somebody being watched, attack mode is what turns it into blows, and
- * a body may not swing until it has been in reach for half its own interval.
- * Nearly every test below wants all three, and the ones that deliberately do not
- * say so. @see `./combat`'s {@link SWING_WINDUP_SHARE}
- *
- * The wait is spent here rather than counted by each test because almost nothing
- * below is a test about the approach: a blow that turns a body, plants it, or
- * knocks a crate over is the same blow whenever it lands. The ones that *are*
- * about the approach set their own target and do their own ticking.
- */
 function fight(session: GameSession, actorId: string | null, windupMs = CERTAIN_WINDUP_MS) {
   session.setTarget(actorId);
   session.setAttackMode(true);
@@ -352,15 +225,6 @@ function fight(session: GameSession, actorId: string | null, windupMs = CERTAIN_
   }
 }
 
-/**
- * How long a body swinging at {@link CERTAIN} speed spends getting into its
- * first blow.
- *
- * The default because it is what nearly every fixture here swings at — three
- * ticks, which is short enough that a test counting a window of swings can
- * ignore it. A fixture authored slower says how long its own approach is; the
- * figure is half the interval, whatever the interval is.
- */
 const CERTAIN_WINDUP_MS = attackIntervalMs(CERTAIN.spd) * SWING_WINDUP_SHARE;
 
 describe("hit points", () => {
@@ -373,33 +237,15 @@ describe("hit points", () => {
     expect(self(session).hp).toBe(PLAYER_MAX_HP);
     expect(self(session).maxHp).toBe(PLAYER_MAX_HP);
     expect(bodyOf(session, "dummy")?.hp).toBe(DUMMY_MAX_HP);
-    // Not zero: zero means dead, and this body cannot be either.
     expect(bodyOf(session, "statue")?.hp).toBeNull();
     expect(bodyOf(session, "statue")?.maxHp).toBeNull();
   });
 });
 
-/**
- * How long to swing for before a blow is certain enough to assert on.
- *
- * **Nothing in a fight is certain any more** — every probability is held inside
- * a band with a floor and a ceiling, so even a perfect attacker whiffs one swing
- * in twenty. These tests are about *reach and targeting*, not about the odds, so
- * they swing several times and assert that hit points moved. The arithmetic of a
- * single blow is `./combat.test`'s subject, where the stats can be forced.
- */
 const ENOUGH_SWINGS_MS = TICK_MS * MIN_ATTACK_TICKS * 6;
 
-/** What the punching bag starts at, so "it took damage" is one comparison. */
 const DUMMY_MAX_HP = maxHpFrom(FIXTURE_BASE_HP, DUMMY_TOUGHNESS);
 
-/**
- * Long enough to finish it off, with room for the swings that come to nothing.
- *
- * Generous rather than tight: the alternative is a test that fails once in a
- * while on an unlucky run of misses, which is worse than a test that takes an
- * extra simulated second.
- */
 const LONG_ENOUGH_TO_KILL_MS = 8000;
 
 describe("swinging at a target", () => {
@@ -412,10 +258,6 @@ describe("swinging at a target", () => {
     expect(bodyOf(session, "dummy")!.hp!).toBeLessThan(DUMMY_MAX_HP);
   });
 
-  /**
-   * Diagonals are in reach. Excluding them would mean a creature on your
-   * shoulder corner cannot be hit, which no player will read as a rule.
-   */
   it("reaches a foe standing on the corner", () => {
     const session = new GameSession(withBody(field(), 1, 1, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -434,13 +276,6 @@ describe("swinging at a target", () => {
     expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
   });
 
-  /**
-   * The one case the plan alone cannot answer. A body on the plinth next door is
-   * one cell away on the plan and is drawn a hand's width from the player's
-   * shoulder — and is a whole level up, which at melee reach is out. See
-   * `./distance`: reach is a disc *and* a lid, and melee's lid is half a level,
-   * so a whole storey clears it however close the plan says the body is.
-   */
   it("does nothing to somebody standing a floor up", () => {
     const session = new GameSession(perched(field(), 1, 0, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -451,7 +286,6 @@ describe("swinging at a target", () => {
     expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
   });
 
-  /** The rate is the stat's, not the tick loop's or the client's. */
   it("swings no faster than its speed allows", () => {
     const slowPlayer = tiles.map((t) =>
       t.id === "player"
@@ -470,34 +304,15 @@ describe("swinging at a target", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), slowPlayer);
 
     const interval = attackIntervalMs(0);
-    // The approach is half the interval and the first blow lands at the end of
-    // it, so the window that holds exactly one swing starts there rather than at
-    // the target. @see `./combat`'s {@link SWING_WINDUP_SHARE}
     fight(session, bodyOf(session, "dummy")!.id, interval * SWING_WINDUP_SHARE);
     expect(swingsOver(session, interval - TICK_MS)).toBe(1);
     expect(swingsOver(session, TICK_MS * 2)).toBe(1);
   });
 
-  /**
-   * The approach, which is the one thing a fight costs before it costs anything
-   * else.
-   *
-   * Reach alone used to decide the opening blow: a body that touched something
-   * swung on the tick it arrived. That made an approach free, made it *equally*
-   * free whatever was being swung — a greatsword landed as instantly as a dagger
-   * — and made withdrawing for exactly one cooldown strictly better than staying,
-   * since the wait ran wherever you went. Half an interval of standing there is
-   * the price of the first blow now. @see `./combat`'s {@link SWING_WINDUP_SHARE}
-   *
-   * Written against the slow player throughout, because the claim is about a
-   * length of time and at {@link CERTAIN}'s speed the whole approach is three
-   * ticks — a window too narrow to tell an approach from an off-by-one.
-   */
   describe("getting into the first blow", () => {
     const INTERVAL_MS = attackIntervalMs(0);
     const APPROACH_MS = INTERVAL_MS * SWING_WINDUP_SHARE;
 
-    /** A player who swings once every twenty seconds, and always connects. */
     const slow = tiles.map((t) =>
       t.id === "player"
         ? tile({
@@ -513,11 +328,6 @@ describe("swinging at a target", () => {
         : t,
     );
 
-    /**
-     * A fight picked but not yet stood through, with a second body beside the
-     * first — the anvil, because the only test that turns on it wants something
-     * that cannot be killed part-way through.
-     */
     function approaching() {
       const board = withBody(withBody(field(), 1, 0, "dummy"), 0, 1, "anvil");
       const session = new GameSession(board, slow);
@@ -533,41 +343,24 @@ describe("swinging at a target", () => {
       expect(swingsOver(session, TICK_MS * 2)).toBe(1);
     });
 
-    /**
-     * The approach is time owed in reach, and time spent out of it neither pays
-     * it nor throws it away. Resetting it on every exit is what let a faster
-     * body kite a slower one to death: the slow one started from zero on each
-     * arrival and never finished a single windup.
-     */
     it("keeps the approach it had wound up through a walk out of reach", () => {
       const session = approaching();
       advance(session, APPROACH_MS - WALK_DURATION_MS * 3);
 
-      // Out to the far side of the cell it came from and straight back, which
-      // is two whole steps spent nowhere near the dummy.
       session.setInput({ directions: ["w"] });
       advanceUntil(session, () => self(session).x === -1);
       session.setInput({ directions: ["e"] });
       advanceUntil(session, () => self(session).x === 0);
       session.setInput({ directions: [] });
 
-      // Nothing yet, because the walk did not count towards the approach...
       expect(swingsOver(session, TICK_MS)).toBe(0);
-      // ...and the rest of it, not the whole of it again.
       expect(swingsOver(session, WALK_DURATION_MS * 4)).toBe(1);
     });
 
-    /**
-     * The reason a kept approach does not reopen the older withdrawal. The
-     * cooldown runs wherever you go, so if the approach were paid once per
-     * fight, "touch, swing, leave for an interval, come back" would find the
-     * next blow already waiting.
-     */
     it("owes a whole approach again after every blow", () => {
       const session = approaching();
       expect(swingsOver(session, APPROACH_MS + TICK_MS)).toBe(1);
 
-      // Away for longer than the cooldown, so only the approach can hold it.
       session.setInput({ directions: ["w"] });
       advanceUntil(session, () => self(session).x === -1);
       session.setInput({ directions: [] });
@@ -576,19 +369,11 @@ describe("swinging at a target", () => {
       advanceUntil(session, () => self(session).x === 0);
       session.setInput({ directions: [] });
 
-      // Less the steps the blow planted it for and the step out, which it spent
-      // in reach and which count. @see `./combat`'s {@link STRIKE_RECOVERY_STEPS}
       const IN_REACH_MS = WALK_DURATION_MS * (STRIKE_RECOVERY_STEPS + 1);
       expect(swingsOver(session, APPROACH_MS - IN_REACH_MS - WALK_DURATION_MS)).toBe(0);
       expect(swingsOver(session, WALK_DURATION_MS * 3)).toBe(1);
     });
 
-    /**
-     * A body that turns on somebody else has arrived at somebody else. Without
-     * this, killing one of a pair and turning to the other would swing on the
-     * tick the target changed — the free opening blow, taken at the only moment
-     * nobody had to walk anywhere for it.
-     */
     it("makes a second target a second approach", () => {
       const session = approaching();
       advance(session, APPROACH_MS - TICK_MS);
@@ -599,18 +384,7 @@ describe("swinging at a target", () => {
       expect(swingsOver(session, TICK_MS * 2)).toBe(1);
     });
 
-    /**
-     * What the fight outline is drawn from — see `../render/blowReadiness`.
-     *
-     * A reading rather than a rule: nothing above changes because of it, and the
-     * tests here are about it saying the same thing the swings do. It exists
-     * because neither clock alone answers *when do I hit next*: the windup is
-     * what arriving costs and is spent the moment you stand still, the cooldown
-     * is what a blow costs and says nothing about arriving, and a fighter
-     * watching only one of them would be told nothing for half of every fight.
-     */
     describe("the wait it reports", () => {
-      /** How long until the next blow, or null for a body not in a fight. */
       function waitMs(session: GameSession) {
         return session.getSnapshot().nextBlow?.remainingMs ?? null;
       }
@@ -624,49 +398,30 @@ describe("swinging at a target", () => {
 
       it("counts the approach down to the first blow", () => {
         const session = approaching();
-        // One tick, which is what it takes to notice the dummy is in reach.
         advance(session, TICK_MS);
 
         const wait = session.getSnapshot().nextBlow!;
         expect(wait.remainingMs).toBeCloseTo(APPROACH_MS, 6);
-        // Against the interval rather than against the approach, so the ring is
-        // half full when a fight opens rather than empty. @see nextBlow
         expect(wait.durationMs).toBe(INTERVAL_MS);
 
-        // And the figure is the truth: nothing swings inside it, and the blow
-        // comes on the tick it runs out.
         expect(swingsOver(session, wait.remainingMs - TICK_MS)).toBe(0);
         expect(swingsOver(session, TICK_MS)).toBe(1);
       });
 
-      /**
-       * And then the *whole* interval, not the half: what gates the second blow
-       * is the cooldown, and a reading that went on tracking the windup would sit
-       * at "any moment now" for the rest of the fight.
-       */
       it("counts the cooldown down to every blow after it", () => {
         const session = approaching();
         advance(session, TICK_MS);
         expect(swingsOver(session, APPROACH_MS)).toBe(1);
 
-        // The interval, twice the approach that came before it.
         const wait = session.getSnapshot().nextBlow!;
         expect(wait.remainingMs).toBe(INTERVAL_MS);
         expect(wait.durationMs).toBe(INTERVAL_MS);
 
-        // And winding down with the cooldown rather than sitting where the
-        // spent windup left it. A fraction rather than a figure, because the
-        // tick does not divide the interval and an exact one would be a test
-        // about rounding.
         advance(session, INTERVAL_MS / 2);
         const left = session.getSnapshot().nextBlow!.remainingMs;
         expect(left / INTERVAL_MS).toBeCloseTo(0.5, 2);
       });
 
-      /**
-       * Dropped with the windup it was armed beside, so the outline round
-       * something you have stepped away from stops promising a blow.
-       */
       it("says nothing once the body has left reach", () => {
         const session = approaching();
         advance(session, TICK_MS);
@@ -691,10 +446,6 @@ describe("swinging at a target", () => {
     expect(self(session).direction).toBe("n");
   });
 
-  /**
-   * "Attempt to attack anything, and fail graciously." Every one of these is a
-   * lookup that comes back empty rather than a case anybody had to write.
-   */
   it.each([
     ["a body with no hit points", "statue"],
     ["armour it cannot get through", "anvil"],
@@ -721,11 +472,6 @@ describe("swinging at a target", () => {
   });
 });
 
-/**
- * A target is who; attack mode is whether. Pointing at a creature is how a
- * player asks about one — its name, its health — and before these were separate
- * the only way to look that closely was to start a fight.
- */
 describe("targeting without attacking", () => {
   it("keeps the target and never swings", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
@@ -738,12 +484,6 @@ describe("targeting without attacking", () => {
     expect(session.getSnapshot().targetId).toBe(dummyId);
   });
 
-  /**
-   * And it costs the world nothing. A target used to hold the tick loop open on
-   * its own, because a fight is a cooldown counting down; standing there
-   * watching a deer must not keep a Durable Object awake for as long as you look
-   * at it.
-   */
   it("leaves an idle world idle", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     session.setTarget(bodyOf(session, "dummy")!.id);
@@ -771,8 +511,6 @@ describe("targeting without attacking", () => {
     fight(session, dummyId);
     advance(session, ENOUGH_SWINGS_MS);
 
-    // Whatever the swinging came to, it stops here — asserted as "nothing moved
-    // after", since what a run of swings took off is now a matter of luck.
     const settled = bodyOf(session, "dummy")!.hp!;
     session.setAttackMode(false);
     advance(session, 1000);
@@ -781,7 +519,6 @@ describe("targeting without attacking", () => {
     expect(session.getSnapshot().targetId).toBe(dummyId);
   });
 
-  /** What the outline colour is read from, and the world's answer rather than the page's. */
   it("says which of the two it is in the snapshot", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     expect(session.getSnapshot().attacking).toBe(false);
@@ -797,9 +534,6 @@ describe("damage numbers", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
-    // A receipt per swing, including the ones that came to nothing — that is
-    // what makes a miss visible at all. Collected tick by tick, since each tick
-    // starts with an empty page.
     const dealt: ReturnType<typeof session.drainDamage> = [];
     for (let elapsed = 0; elapsed < ENOUGH_SWINGS_MS; elapsed += TICK_MS) {
       session.tick(TICK_MS);
@@ -809,12 +543,8 @@ describe("damage numbers", () => {
     const hits = dealt.filter((number) => number.outcome === "hit");
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0]).toMatchObject({ x: 1, y: 0, z: 0 });
-    // At least what `feltBy` promises, and no more than the whole blow: defence
-    // is drawn rather than subtracted whole, so the amount is a band and only
-    // its floor is a fact this test can state.
     expect(hits[0]!.amount).toBeGreaterThanOrEqual(5);
     expect(hits[0]!.amount).toBeLessThanOrEqual(feltBy(DUMMY_TOUGHNESS));
-    // Drained means gone: a second reader would otherwise broadcast it twice.
     expect(session.drainDamage()).toHaveLength(0);
   });
 
@@ -822,9 +552,6 @@ describe("damage numbers", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
-    // Until something actually floats, rather than for one tick: a dodged blow
-    // is a movement now and produces no receipt, so the first swing is not
-    // guaranteed to make one.
     advanceUntil(session, () => session.getSnapshot().damage.length > 0);
     session.drainDamage();
     session.tick(TICK_MS);
@@ -855,11 +582,6 @@ describe("running out of hit points", () => {
     expect(session.getSnapshot().targetId).toBeNull();
   });
 
-  /**
-   * A dead actor is gone from the session entirely, which is what leaves a dead
-   * player unable to do anything until they reload — the server drops every
-   * message from an id it has no actor for.
-   */
   it("leaves nothing behind to drive", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     const dummyId = bodyOf(session, "dummy")!.id;
@@ -871,11 +593,6 @@ describe("running out of hit points", () => {
   });
 });
 
-/**
- * Ticks until a lean would have to be over, with a tick of slack: a strike that
- * outlived this would still be up when its owner's fastest possible next blow
- * lands, which is the one thing {@link STRIKE_DURATION_MS} is chosen to prevent.
- */
 const STRIKE_OVER_MS = STRIKE_DURATION_MS + TICK_MS;
 
 describe("throwing yourself at somebody", () => {
@@ -897,10 +614,6 @@ describe("throwing yourself at somebody", () => {
     expect(self(session).strike).toMatchObject({ dx: 1, dy: 1 });
   });
 
-  /**
-   * The lean is a drawing and nothing else: the body it belongs to is standing
-   * exactly where it stood, and is home again before it may swing a second time.
-   */
   it("comes home without ever having moved", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     const before = self(session);
@@ -913,13 +626,6 @@ describe("throwing yourself at somebody", () => {
     expect([after.x, after.y, after.z]).toEqual([before.x, before.y, before.z]);
   });
 
-  /**
-   * Every swing shows exactly one thing, and between them the two kinds of
-   * showing account for all of it: a number floats, or the defender hops. The
-   * anvil is armoured past anything the player can do to it and has no brain to
-   * swing back with, so every lean on *it* is a dodge and every blow that got
-   * through took nothing.
-   */
   it("shows something for every swing, whatever it came to", () => {
     const session = new GameSession(withBody(field(), 1, 0, "anvil"), tiles);
     const anvil = bodyOf(session, "anvil")!;
@@ -933,8 +639,6 @@ describe("throwing yourself at somebody", () => {
     for (let elapsed = 0; elapsed < ENOUGH_SWINGS_MS; elapsed += TICK_MS) {
       session.tick(TICK_MS);
       receipts += session.drainDamage().length;
-      // Identity, exactly as the wire counts them: the state is mutated in
-      // place as it ages, so a new object is a new blow and nothing else is.
       const mine = self(session).strike;
       if (mine && mine !== lastMine) lunges++;
       lastMine = mine;
@@ -954,7 +658,6 @@ describe("throwing yourself at somebody", () => {
 
     advanceUntil(session, () => bodyOf(session, "anvil")?.strike != null);
 
-    // East of the player, so away is further east.
     expect(bodyOf(session, "anvil")!.strike).toMatchObject({
       kind: "dodge",
       dx: 1,
@@ -968,8 +671,6 @@ describe("a creature that fights back", () => {
     const session = new GameSession(withBody(field(), 1, 0, "brawler"), tiles);
     fight(session, bodyOf(session, "brawler")!.id);
 
-    // Long enough for the blow to land, the brain to notice on its slower clock,
-    // and the answer to come back.
     advance(session, 1000);
 
     expect(self(session).hp!).toBeLessThan(PLAYER_MAX_HP);
@@ -992,7 +693,6 @@ describe("the authored creatures", () => {
     expect(resolveBattler(byId[id]!)).not.toBeNull();
   });
 
-  /** A deer that runs away is a deer with nothing to hit you with. */
   it("leaves the deer unable to deal damage at all", () => {
     expect(resolveBattler(byId.deer!)!.naturalWeapon.damage).toBe(0);
     const brain = resolveBrain(byId.deer!);
@@ -1019,12 +719,6 @@ describe("the authored creatures", () => {
     });
   });
 
-  /**
-   * The cyclops is a boss, and a boss that can be burned, chilled, poisoned or
-   * held down is one a stack of cheap stones takes apart. A new stone that
-   * leaves a new status fails here until somebody decides whether the cyclops
-   * shrugs it off too.
-   */
   it("leaves the cyclops immune to every status a stone can leave", () => {
     const left = new Set<string>();
     for (const def of authored) {
@@ -1051,14 +745,6 @@ describe("the authored creatures", () => {
   });
 });
 
-/**
- * A body that shoots rather than swings.
- *
- * The reach is the interesting half — six cells across the floor and a level
- * either way — and it is on the *weapon*, which is the whole of what moved when
- * ranged weapons arrived. The projectile beside it is what makes it ranged;
- * there is no flag saying so. @see `../lib/item`'s `isRanged`
- */
 const bow = claws({
   damage: feltBy(DUMMY_TOUGHNESS),
   ...CERTAIN,
@@ -1067,14 +753,6 @@ const bow = claws({
   projectile: "arrow",
 });
 
-/**
- * The catalogue every archer here fires out of.
- *
- * Built by hand rather than read off `data/tiles.json`, on the terms
- * every other fixture in this file is built: what is being tested is that a
- * shot names an entry and plays its sides, not what the shipped arrow happens
- * to be authored as. @see `../lib/projectile`
- */
 const SPARK: Transition = {
   durationMs: 150,
   particles: {
@@ -1100,13 +778,6 @@ const SPARK: Transition = {
   },
 };
 
-/**
- * The arrow every archer here fires, as a `projectile` tile.
- *
- * Built by hand rather than read off `data/tiles.json`, on the terms every
- * other fixture in this file is: what is tested is that a shot names a
- * projectile and plays its sides, not what the shipped arrow is authored as.
- */
 function arrowTile(hit?: Transition, cellsPerSecond = 20): TileDef {
   return tile({
     id: "arrow",
@@ -1120,27 +791,10 @@ function arrowTile(hit?: Transition, cellsPerSecond = 20): TileDef {
   });
 }
 
-/**
- * Two speeds far enough apart that the difference between them is ticks rather
- * than rounding.
- *
- * Both are inside {@link MIN_PROJECTILE_SPEED}..{@link MAX_PROJECTILE_SPEED}, and
- * the fast one is deliberately *not* the ceiling: a shot that crosses the yard
- * inside one tick has no travel left to be shorter than.
- */
 const SLOW_ARROW_CELLS_PER_SECOND = 2;
-/** So a wait can be asserted as a real one rather than as a tick count. */
 const TICKS_IN_A_SECOND = Math.ceil(1000 / TICK_MS);
 const FAST_ARROW_CELLS_PER_SECOND = 40;
 
-/**
- * The catalogue with the player holding this bow, and the arrow it fires in it.
- *
- * The arrow is a tile like any other now, so it has to be *in* the list the
- * session is built from — a weapon naming one the catalogue does not hold
- * looses nothing, which is the behaviour and would make every assertion here
- * pass by never happening.
- */
 function archerTilesArmedWith(
   weapon: typeof bow,
   hit?: Transition,
@@ -1153,11 +807,6 @@ function archerTilesArmedWith(
           interactions: {
             battler: {
               baseHp: FIXTURE_BASE_HP,
-              // No Ranged mastery, deliberately: the bow asks for none, so the
-              // level would buy nothing but the flat skill bonus — and these
-              // tests are about reach and arrows, not about how hard an archer
-              // hits. With it, the dummy died mid-test and the assertions
-              // started reading a body that was no longer there.
               masteries: { toughness: PLAYER_TOUGHNESS },
               naturalWeapon: weapon,
             },
@@ -1169,20 +818,10 @@ function archerTilesArmedWith(
 
 const archerTiles: TileDef[] = archerTilesArmedWith(bow);
 
-/** The same archer, firing an arrow authored at a speed the test picked. */
 function archerTilesFiring(cellsPerSecond: number): TileDef[] {
   return archerTilesArmedWith(bow, undefined, cellsPerSecond);
 }
 
-/**
- * The same bow, deliberately unreliable where every other fixture here is
- * {@link CERTAIN}.
- *
- * Which side a landing plays is the one thing about a shot that differs between
- * connecting and not, so a weapon that lands everything can only ever assert
- * half the rule. Fifty accuracy gets both outcomes inside one fight; the swing
- * rate stays at the cap so that fight is short.
- */
 const unreliableBow = claws({
   damage: feltBy(DUMMY_TOUGHNESS),
   accuracy: 50,
@@ -1192,37 +831,16 @@ const unreliableBow = claws({
   projectile: "arrow",
 });
 
-/**
- * Long enough that both outcomes turn up, at the cap's one swing per
- * {@link MIN_ATTACK_TICKS}.
- *
- * Far longer than {@link ENOUGH_SWINGS_MS}, which is sized for "hit points
- * moved at all": this one needs a run in which a fifty-accuracy bow both lands
- * and misses, and six swings can be six of either.
- */
 const ENOUGH_SHOTS_MS = TICK_MS * MIN_ATTACK_TICKS * 40;
 
-/** A wall that stops a look, and therefore a shot. Full height, opaque. */
 const WALL = "wall";
 const archerTilesWithWall: TileDef[] = [
   ...archerTiles,
   tile({ id: WALL, height: HEIGHT_PER_LEVEL, walkable: false }),
 ];
 
-/** The flights the viewer can see, however far along they are. */
-/**
- * Run until a shot has been loosed *and* has arrived.
- *
- * The one thing every ranged assertion about hit points needs, and the reason
- * it is a helper: a blow now waits out the flight of the arrow that depicts it
- * (see `./projectile`), so stopping the clock the moment an arrow appears reads
- * a health bar the shot has not reached yet.
- */
 function advanceUntilShotLands(session: GameSession) {
   advanceUntil(session, () => arrows(session).length > 0);
-  // The first arrow by id, not "no arrows left": an archer at this cadence has
-  // the next one in the air before the last has arrived, so waiting for an
-  // empty sky waits for the fight to be over.
   const shot = arrows(session)[0]!.id;
   advanceUntil(session, () => !arrows(session).some((f) => f.id === shot));
 }
@@ -1232,10 +850,6 @@ function arrows(session: GameSession) {
 }
 
 describe("shooting at somebody", () => {
-  /**
-   * The point of a reach that is not an arm's length. Four cells is well past
-   * anything melee can touch, and the blow lands anyway.
-   */
   it("lands a blow far past arm's reach", () => {
     const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -1245,11 +859,6 @@ describe("shooting at somebody", () => {
     expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
   });
 
-  /**
-   * **The half-tile lean is a melee thing, and this is the case that says so.**
-   * The target is the neighbouring cell — squarely inside the melee box — so a
-   * gate written on distance alone would lean here. What decides is the weapon.
-   */
   it("never leans, even at point-blank range", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), archerTiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -1260,7 +869,6 @@ describe("shooting at somebody", () => {
     expect(swingsOver(session, 1000)).toBe(0);
   });
 
-  /** What a shot puts in the air, aimed from where the shooter is to where they are. */
   it("puts an arrow in the air, from the bow to the target", () => {
     const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -1274,21 +882,12 @@ describe("shooting at somebody", () => {
     expect(flight!.durationMs).toBeGreaterThan(0);
   });
 
-  /**
-   * **The dice are read when the shot is loosed; the hit points come off when
-   * the arrow arrives.** The two used to be the same tick, which meant a health
-   * bar dropped while the arrow that explained it was still halfway across the
-   * yard. What travels now is the blow itself, held behind its own flight — see
-   * `GameSession.blowsInFlight`, and `./projectile` for why the *outcome* still
-   * cannot wait for a picture two clients draw on two different clocks.
-   */
   it("takes no hit points until the arrow arrives", () => {
     const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
     advanceUntil(session, () => arrows(session).length > 0);
 
-    // Mid-flight: the shot is a fact, and the target has felt nothing.
     const shot = arrows(session)[0]!;
     expect(shot.elapsedMs).toBeLessThan(shot.durationMs);
     expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
@@ -1298,15 +897,6 @@ describe("shooting at somebody", () => {
     expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
   });
 
-  /**
-   * **The number and the arrow are one moment**, which is the whole of what this
-   * is for. The tick the flight leaves the sky is the tick the receipt is
-   * drained — not a tick before it, and not one after.
-   *
-   * Read off the session's own flight list rather than off a countdown the test
-   * keeps, so it is the two clocks agreeing rather than the test agreeing with
-   * itself.
-   */
   it("floats the receipt on the tick the arrow arrives", () => {
     const session = new GameSession(
       withBody(field(6), 4, 0, "dummy"),
@@ -1324,7 +914,6 @@ describe("shooting at somebody", () => {
       const stillFlying = arrows(session).some((f) => f.id === shot);
       const receipts = session.drainDamage();
       if (stillFlying) {
-        // Every tick the arrow is still in the air is a tick nothing is said.
         expect(receipts).toHaveLength(0);
         ticksWithNoReceipt++;
         continue;
@@ -1334,21 +923,9 @@ describe("shooting at somebody", () => {
       break;
     }
 
-    // And the wait was a real one, or the assertion above held over no ticks at
-    // all: two cells a second across four cells is most of two seconds.
     expect(ticksWithNoReceipt).toBeGreaterThan(TICKS_IN_A_SECOND);
   });
 
-  /**
-   * **A blow may not take more than the target has left by the time it gets
-   * there.** The trim used to happen beside the dice, which was the same tick
-   * the blow landed on and so could not be wrong. It can be wrong now: an arrow
-   * crossing a yard gives everything else in the world time to take that health
-   * first, and a figure capped against what the target had when the bow was
-   * drawn is a receipt for hit points somebody else already collected — and,
-   * worse, an experience payout for them. Two archers on one dying wolf would
-   * both have been paid for killing it.
-   */
   it("never takes more than the target has left when it finally lands", () => {
     const session = new GameSession(
       withBody(field(6), 4, 0, "dummy"),
@@ -1359,13 +936,8 @@ describe("shooting at somebody", () => {
 
     advanceUntil(session, () => arrows(session).length > 0);
     const shot = arrows(session)[0]!;
-    // One shot only, so the receipt drained below belongs to this arrow and to
-    // nothing else the archer got out in the two seconds it is in the air.
     session.setAttackMode(false);
 
-    // And in the meantime, something else takes the dummy down to its last
-    // point. Drained, so the receipt that floated for *that* is not counted as
-    // this shot's.
     session.runCommand(`/health 1 ${dummy}`);
     session.drainDamage();
 
@@ -1376,11 +948,6 @@ describe("shooting at somebody", () => {
     expect(receipts[0]!.amount).toBe(1);
   });
 
-  /**
-   * And a blow that arrives at nobody does nothing at all. The arrow was loosed
-   * and finishes its flight — see `./projectile` — but there is no longer a
-   * body at the far end of it, and the world keeps running.
-   */
   it("lands on a body that died mid-flight without saying anything", () => {
     const session = new GameSession(
       withBody(field(6), 4, 0, "dummy"),
@@ -1402,12 +969,6 @@ describe("shooting at somebody", () => {
     expect(session.drainDamage()).toHaveLength(0);
   });
 
-  /**
-   * And the delay is the *flight's*, not a constant: a slow projectile takes
-   * its target's health later than a fast one over the same distance. This is
-   * the whole of what the feature buys, so it is asserted against the clock
-   * rather than inferred from the arrow having gone.
-   */
   it("makes a slower arrow take its hit points later", () => {
     const shotLandsAfter = (cellsPerSecond: number) => {
       const session = new GameSession(
@@ -1431,32 +992,6 @@ describe("shooting at somebody", () => {
     );
   });
 
-  /**
-   * **Which side a landing plays is the one claim a flight makes about the
-   * fight**, so it may not outrun the dice. The arrow is drawn whatever the
-   * blow came to — a shot that missed is a shot somebody saw taken — and only a
-   * shot that connected plays the `hit`.
-   *
-   * Asserted as an invariant over a whole fight rather than as one arranged
-   * shot, because nothing in a fight is certain: hit chance is clamped at both
-   * ends, so even a weapon of perfect accuracy misses now and then. The bow is
-   * the unreliable one so that both outcomes turn up, the seed is what makes
-   * the run repeatable, and the anvil is what lets it run to the end — it is
-   * armoured past anything the player can do to it.
-   *
-   * The pairing is per tick and the archer swings alone, so exactly one thing is
-   * drained against each shot: a `hit` receipt for a blow that landed —
-   * including one armour ate entirely — a `miss` receipt for a shot that went
-   * wide, and nothing at all for a dodge, which says what it has to say by
-   * hopping.
-   *
-   * **The receipt is drained against the tick the arrow arrives on**, which is
-   * the tick the blow now lands on — so each shot is held here for its own
-   * `durationMs` before it is paired, on the same countdown
-   * `GameSession.blowsInFlight` holds it on. Pairing it against the tick it was
-   * *loosed* on is what this test used to do, and it is exactly the behaviour
-   * that changed.
-   */
   it("marks a shot hit only when the blow connected", () => {
     const session = new GameSession(
       withBody(field(6), 4, 0, "anvil"),
@@ -1481,8 +1016,6 @@ describe("shooting at somebody", () => {
       inTheAir = stillFlying;
       for (const shot of arriving) expect(shot.hit).toBe(landed);
 
-      // Drained after the countdown, so a shot loosed on this tick starts its
-      // flight on the next one — the order the session itself winds them on.
       for (const flight of session.drainProjectiles()) {
         if (flight.hit) connected++;
         else missedOrDodged++;
@@ -1490,22 +1023,10 @@ describe("shooting at somebody", () => {
       }
     }
 
-    // Neither count may be zero, or the assertion above held vacuously over a
-    // fight in which only one thing ever happened.
     expect(connected).toBeGreaterThan(0);
     expect(missedOrDodged).toBeGreaterThan(0);
   });
 
-  /**
-   * And what that mark buys: the `hit` side plays on the body a shot that
-   * connected struck, and nothing plays where one that did not does.
-   *
-   * **Read off the transitions rather than the flight effects**, because a hit
-   * is done to whatever was hit: it is raised on that body's placement by
-   * `GameSession.strikeBody`, naming the arrow it came off — see
-   * `../lib/tileTransition`'s `TileTransitionNote.struckBy`. The arrow's own
-   * `disappear` is the one that stays a flight effect.
-   */
   it("plays the hit on the body only where a shot that connected landed", () => {
     const session = new GameSession(
       withBody(field(6), 4, 0, "anvil"),
@@ -1523,24 +1044,13 @@ describe("shooting at somebody", () => {
       struck.push(...session.drainTransitions().filter((n) => n.struckBy));
     }
 
-    // Every one of them came off the arrow and landed on the body that was
-    // being shot at, and there are fewer of them than there were shots: the
-    // misses in between played nothing at all.
     expect(struck.length).toBeGreaterThan(0);
     expect(struck.every((note) => note.struckBy === "arrow")).toBe(true);
     expect(struck.every((note) => note.tileId === "anvil")).toBe(true);
-    // Always the side that climbs back to whole: a struck body stays on the
-    // board and has to end up drawn as itself.
     expect(struck.every((note) => note.side === "appear")).toBe(true);
     expect(struck.length).toBeLessThan(shots);
   });
 
-  /**
-   * **A wall does not stop you pointing, only shooting.** The target stays
-   * targeted — its name and its health bar are readable through a window you
-   * cannot shoot through — and no blow lands and no arrow flies while the line
-   * is broken. @see `./combat`'s `canReach`
-   */
   it("holds the target through a wall and fires nothing at it", () => {
     let map = withBody(field(6), 4, 0, "dummy");
     map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: WALL }]);
@@ -1555,11 +1065,6 @@ describe("shooting at somebody", () => {
     expect(arrows(session)).toHaveLength(0);
   });
 
-  /**
-   * The lid on the reach, which is the half a single radius could never express:
-   * six cells across the floor, and a body two storeys up is out however close
-   * it is on the plan.
-   */
   it("cannot shoot past the height its reach allows", () => {
     let map = field(6);
     map = replaceStack(map, 1, 0, 2, [{ tileId: "grass" }, { tileId: "dummy" }]);
@@ -1573,26 +1078,11 @@ describe("shooting at somebody", () => {
   });
 });
 
-/**
- * A bow in one hand and a knife in the other.
- *
- * **The rotation is a question about the fight, not only about the kit.** A hand
- * can hold a weapon that has no answer to where the target is standing — a bow
- * inside its `Reach.min` — and until it could see that, the rotation offered
- * that hand, failed the reach check, and offered it again next tick, forever:
- * the turn only advances on a swing that is actually spent. So a body with a bow
- * and a knife stood on top of its target doing nothing at all.
- *
- * @see `./equipment`'s `handToSwing`, which is where the skip lives
- */
 describe("a bow and a knife", () => {
-  /** A one-handed bow with a hole in the middle of its reach. */
   const BOW = "belt-bow";
-  /** And what fills the hole: an ordinary blade, at an arm's length. */
   const KNIFE = "belt-knife";
 
   const duellistTiles: TileDef[] = [
-    // The belt bow fires this, so it has to be in the catalogue beside it.
     arrowTile(),
     ...tiles.map((t) =>
       t.id === "player"
@@ -1602,9 +1092,6 @@ describe("a bow and a knife", () => {
               battler: {
                 baseHp: FIXTURE_BASE_HP,
                 masteries: { toughness: PLAYER_TOUGHNESS },
-                // Enough to kill on its own, so "did anything happen" cannot be
-                // answered by the body's fists where a held weapon should have
-                // answered. @see the point-blank bow case below.
                 naturalWeapon: claws({
                   damage: feltBy(DUMMY_TOUGHNESS),
                   ...CERTAIN,
@@ -1656,7 +1143,6 @@ describe("a bow and a knife", () => {
     }),
   ];
 
-  /** The same body carrying only the bow, which is what a minimum costs. */
   const bowOnlyTiles: TileDef[] = duellistTiles.map((t) =>
     t.id === "player"
       ? tile({
@@ -1685,12 +1171,6 @@ describe("a bow and a knife", () => {
     expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
   });
 
-  /**
-   * **The case the whole change is for.** The bow is in the hand whose turn it
-   * is and cannot be fired from here, so the knife takes the turn — and the
-   * absence of arrows is what says the bow was skipped rather than merely
-   * missing.
-   */
   it("uses the knife on something in its face, and fires nothing", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), duellistTiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -1701,11 +1181,6 @@ describe("a bow and a knife", () => {
     expect(arrows(session)).toHaveLength(0);
   });
 
-  /**
-   * **And it keeps doing it**, which is the regression the stall would have been.
-   * A rotation that offered the bow, failed, and never advanced would land the
-   * first blow only if the knife happened to be up first.
-   */
   it("keeps swinging the knife rather than stalling on the bow's turn", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), duellistTiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -1713,12 +1188,6 @@ describe("a bow and a knife", () => {
     expect(swingsOver(session, 1000)).toBeGreaterThan(1);
   });
 
-  /**
-   * **A held weapon replaces the natural one, minimum or no minimum.** An archer
-   * who has let something get too close does not start punching: the fallback to
-   * a body's own claws is for a body with nothing in either fist, and reading a
-   * skipped hand as an empty one would give every archer a free melee weapon.
-   */
   it("does not fall back to its fists when the only weapon is out of range", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), bowOnlyTiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -1729,7 +1198,6 @@ describe("a bow and a knife", () => {
     expect(arrows(session)).toHaveLength(0);
   });
 
-  /** And the same body, backed off, shoots exactly as it always did. */
   it("shoots once it has the room", () => {
     const session = new GameSession(withBody(field(6), 4, 0, "dummy"), bowOnlyTiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -1740,20 +1208,7 @@ describe("a bow and a knife", () => {
   });
 });
 
-/**
- * What a bite leaves behind once the hit points have moved.
- *
- * The odds are `./combat.test`'s subject; this is the plumbing around them — that
- * an inflicted status reaches the body that was bitten, that it is rolled inside
- * the range the weapon asked for rather than the status's own, and that a weapon
- * somebody picked up poisons exactly as the jaws it came out of did.
- */
 describe("venom", () => {
-  /**
-   * A ten-second condition that does nothing, because nothing here is about what
-   * a status *does*: `./statuses` owns cadence and expiry, and a venom that also
-   * ticked damage would make every assertion below race the dying.
-   */
   const catalogue = statusesById([
     {
       id: "venom",
@@ -1765,13 +1220,8 @@ describe("venom", () => {
     },
   ]);
 
-  /** The venom's own range, so an override is visible as a different number. */
   const OWN_MS = 10_000;
 
-  /**
-   * What a fight left on a body, leaving out the combat flag: every side of a
-   * swing carries that, and these tests are about the venom.
-   */
   function statusesOn(session: GameSession, tileId: string) {
     const id = bodyOf(session, tileId)?.id;
     return (id ? (session.statusesOf(id) ?? []) : []).filter(
@@ -1783,12 +1233,8 @@ describe("venom", () => {
     const session = new GameSession(withBody(field(), 1, 0, "viper"), tiles, {
       statuses: catalogue,
     });
-    // The viper only fights back, so the player starts it — which is also what
-    // makes the player the one carrying the venom at the end.
     fight(session, bodyOf(session, "viper")!.id);
 
-    // For the venom by name: the first swing puts the player in combat, which
-    // is a status too, and waiting for "anything" stopped there.
     advanceUntil(session, () =>
       (session.statusesOf("local") ?? []).some((s) => s.defId === "venom"),
     );
@@ -1797,7 +1243,6 @@ describe("venom", () => {
       (status) => status.defId !== COMBAT_STATUS_ID,
     );
     expect(held.map((status) => status.defId)).toEqual(["venom"]);
-    // The weapon's range, not the status's ten seconds — see `StatusGrant`.
     expect(held[0]!.durationMs).toBeGreaterThanOrEqual(30_000);
     expect(held[0]!.durationMs).toBeLessThanOrEqual(60_000);
   });
@@ -1808,8 +1253,6 @@ describe("venom", () => {
     });
     fight(session, bodyOf(session, "viper")!.id);
 
-    // For the venom by name: the first swing puts the player in combat, which
-    // is a status too, and waiting for "anything" stopped there.
     advanceUntil(session, () =>
       (session.statusesOf("local") ?? []).some((s) => s.defId === "venom"),
     );
@@ -1817,11 +1260,6 @@ describe("venom", () => {
     expect(statusesOn(session, "viper")).toEqual([]);
   });
 
-  /**
-   * The whole argument for carrying this on `FightingStats` rather than reading
-   * it off the creature at the point of the swing: a fang taken off a snake is
-   * as venomous in a hand as it was in a jaw, and nobody had to wire that up.
-   */
   it("comes with the weapon, not with the body swinging it", () => {
     const armedPlayer = tiles.map((t) =>
       t.id === "player"
@@ -1847,17 +1285,9 @@ describe("venom", () => {
 
     const held = statusesOn(session, "dummy");
     expect(held.map((status) => status.defId)).toEqual(["venom"]);
-    // No override on the fang, so it runs for exactly what the status says.
     expect(held[0]!.durationMs).toBe(OWN_MS);
   });
 
-  /**
-   * The authored snake, against the authored catalogue.
-   *
-   * The two files are edited independently and nothing but this notices when
-   * they stop agreeing: a renamed status leaves the bite reading as an effect
-   * that never happens, which is the correct behaviour and an invisible one.
-   */
   it("is what the snake in data/tiles.json actually bites with", () => {
     const snake = normalizeTiles(tilesJson as unknown[]).find((t) => t.id === "snake");
     const bite = resolveBattler(snake!)!.naturalWeapon;
@@ -1865,7 +1295,6 @@ describe("venom", () => {
     expect(statusesById(statusesJson as unknown[])).toHaveProperty("poison");
   });
 
-  /** Bare hands inflict nothing, which is every weapon in the world but a few. */
   it("leaves an ordinary weapon leaving nothing", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles, {
       statuses: catalogue,
@@ -1879,42 +1308,11 @@ describe("venom", () => {
   });
 });
 
-/**
- * What a blow costs the body that threw it, in footwork.
- *
- * A fight used to be winnable by holding a movement key: the swinging is
- * automatic and cost nothing, so the strictly better way to fight was to never
- * stand still. Every blow now plants its thrower for two of that body's steps —
- * read off the tile rather than from a constant, so a creature authored to walk
- * slowly is not punished twice for it, and off the tile rather than off Agility,
- * so it is the one thing in a fight nobody can train away.
- *
- * Two rather than one, because one was very nearly free: a retreat that swung on
- * the way out gave up a fraction of a step per blow and there was no decision in
- * it. The plant holds the aim as well as the feet, which is the other half of
- * the same rule — see the turning tests below.
- */
 describe("what a swing costs in footwork", () => {
-  /**
-   * A body whose walking is slow enough to watch.
-   *
-   * Three steps' worth, and the length is what makes these readable rather than
-   * a race with the tick: a recovery of one ordinary step is over in six ticks,
-   * the same order as the lean and the cooldown it sits between.
-   */
   const PLODDER_WALK_MS = WALK_DURATION_MS * 3;
 
-  /** What a blow plants a body for, as the rule states it. */
   const recoveryOf = (walkMs: number) => walkMs * STRIKE_RECOVERY_STEPS;
 
-  /**
-   * A player who swings once and then not again for twenty seconds.
-   *
-   * Deliberately not {@link CERTAIN}'s speed. At 100 the blows come every
-   * 200ms, which is a walk — so the second swing lands on the very tick the
-   * first recovery expires and resets it, and what is under test here is one
-   * recovery rather than the pile-up. That pile-up has a test of its own below.
-   */
   function ponderous(walkDurationMs?: number): TileDef[] {
     return tiles.map((t) =>
       t.id === "player"
@@ -1933,20 +1331,6 @@ describe("what a swing costs in footwork", () => {
     );
   }
 
-  /**
-   * A slow walker holding a quick weapon.
-   *
-   * The one shape that can throw a blow during a step, now that getting into one
-   * costs half an interval. A step may not *start* while a recovery runs, so a
-   * blow thrown mid-step has to be thrown during a walk that was already in
-   * flight — and for anything as slow as {@link ponderous} the approach alone is
-   * longer than the whole step it would have to fit inside. At {@link CERTAIN}'s
-   * speed the approach is three ticks and the step is eighteen.
-   *
-   * Rooted from the first blow onwards, since these blows come round five times
-   * faster than this body walks. That is the extreme the test below is about and
-   * is not this one's problem: what is under test here is over by then.
-   */
   function quickHanded(walkDurationMs: number): TileDef[] {
     return tiles.map((t) =>
       t.id === "player"
@@ -1965,18 +1349,8 @@ describe("what a swing costs in footwork", () => {
     );
   }
 
-  /**
-   * A fight against something nothing can get through.
-   *
-   * The anvil rather than the dummy, because these run for whole seconds and a
-   * punching bag that died half way through would release the body under test:
-   * a target that has left the world stops the swinging, and with it the thing
-   * being measured.
-   */
   function planted(defs: TileDef[]) {
     const session = new GameSession(withBody(field(), 1, 0, "anvil"), defs);
-    // The approach is half of *this* body's interval, and this body is
-    // deliberately the slowest in the file — see {@link ponderous}.
     fight(session, bodyOf(session, "anvil")!.id, PONDEROUS_WINDUP_MS);
     return session;
   }
@@ -2005,11 +1379,6 @@ describe("what a swing costs in footwork", () => {
     expect(self(session).walk).not.toBeNull();
   });
 
-  /**
-   * The second step is the whole of what this change bought, so it is asserted
-   * on its own: at one step the body would already be walking here, and the
-   * distance a retreat gives up per blow is the difference.
-   */
   it("holds the step past the first of the two steps it costs", () => {
     const session = planted(ponderous(PLODDER_WALK_MS));
     session.setInput({ directions: ["n"] });
@@ -2021,11 +1390,6 @@ describe("what a swing costs in footwork", () => {
     expect(self(session).y).toBe(0);
   });
 
-  /**
-   * The recovery is the body's own step, not a constant. A slow walker planted
-   * for a quick walker's step would be planted for a fraction of what a step
-   * costs it, which is the fairness the whole rule turns on.
-   */
   it("plants a slow walker for longer than a quick one", () => {
     const quick = planted(ponderous());
     quick.setInput({ directions: ["n"] });
@@ -2041,11 +1405,6 @@ describe("what a swing costs in footwork", () => {
     expect(self(slow).walk).toBeNull();
   });
 
-  /**
-   * A blow plants the aim with the feet, which is what makes the turn into a
-   * target worth making at all: a turn a held movement key undoes on the next
-   * frame is a turn nobody watching the fight ever sees.
-   */
   it("holds a planted body facing what it struck", () => {
     const session = planted(ponderous(PLODDER_WALK_MS));
     session.tick(TICK_MS);
@@ -2058,11 +1417,6 @@ describe("what a swing costs in footwork", () => {
     expect(self(session).walk).toBeNull();
   });
 
-  /**
-   * And gives the aim back with the footwork. The fought corner the old rule
-   * worried about is still aimable — the plant runs out between blows for every
-   * weapon anybody has authored — it is simply not aimable *during* a blow.
-   */
   it("turns again the moment the recovery is spent", () => {
     const session = planted(ponderous(PLODDER_WALK_MS));
     session.tick(TICK_MS);
@@ -2074,11 +1428,6 @@ describe("what a swing costs in footwork", () => {
     expect(self(session).direction).toBe("n");
   });
 
-  /**
-   * Only the *start* of a step is gated. A body cannot be stopped mid-cell
-   * without leaving it standing between two of them, so a walk in flight when
-   * the blow goes out finishes.
-   */
   it("never interrupts a walk already in flight", () => {
     const session = new GameSession(withBody(field(), 1, 0, "anvil"), ponderous(PLODDER_WALK_MS));
     session.setInput({ directions: ["n"] });
@@ -2091,14 +1440,6 @@ describe("what a swing costs in footwork", () => {
     expect(self(session).y).toBe(-1);
   });
 
-  /**
-   * The turn a blow makes has to outlive the step it was thrown during, which is
-   * the whole case this rule exists for: somebody swinging on their way out of a
-   * fight. `commitWalk` writes the walk's own direction onto the body when it
-   * lands, so a turn written only onto the board was undone a few ticks later by
-   * the step that was already in flight — and the body finished its retreat
-   * facing away from the thing it had just hit.
-   */
   it("keeps facing what it struck when the step it swung on lands", () => {
     const session = new GameSession(withBody(field(), 1, 0, "anvil"), quickHanded(PLODDER_WALK_MS));
     session.setInput({ directions: ["w"] });
@@ -2115,16 +1456,6 @@ describe("what a swing costs in footwork", () => {
     expect(self(session).direction).toBe("e");
   });
 
-  /**
-   * The end of the curve, stated so nobody has to rediscover it: a weapon whose
-   * blows come round faster than its holder walks roots them for as long as
-   * they keep swinging, because each recovery is reset before it runs out.
-   *
-   * Nothing authored is anywhere near it — the quickest natural weapon in
-   * `data/tiles.json` is the rat's, at a blow every 867ms against a 150ms step
-   * — and that gap is the room the rule leaves for footwork. Standing perfectly
-   * still is what the *extreme* costs, not what a fight costs.
-   */
   it("roots a fighter whose blows come round faster than it walks", () => {
     const session = planted(tiles);
     session.setInput({ directions: ["n"] });
@@ -2135,23 +1466,13 @@ describe("what a swing costs in footwork", () => {
     expect(self(session).walk).toBeNull();
   });
 
-  /**
-   * The recovery is a clock this loop is the only thing winding, exactly as the
-   * lean beside it is — and unlike the lean, it is holding a step somebody has
-   * already asked for. A world that fell asleep under one would plant the body
-   * until the next time anything happened to move.
-   */
   it("keeps the world awake for as long as somebody is planted", () => {
     const session = planted(ponderous(PLODDER_WALK_MS));
     session.tick(TICK_MS);
     session.setAttackMode(false);
     session.setTarget(null);
-    // The swing put them in combat, which holds the loop open for a minute of
-    // its own. Cleared, so the recovery is measured alone.
     session.runCommand("/status clear");
 
-    // Past the lean and past the blow's own paperwork, so what is left holding
-    // the loop open is the recovery and nothing else.
     advance(session, STRIKE_DURATION_MS + TICK_MS * 2);
     expect(self(session).strike).toBeNull();
     expect(session.isAtRest()).toBe(false);
@@ -2161,23 +1482,6 @@ describe("what a swing costs in footwork", () => {
   });
 });
 
-/**
- * A crowd, on a board.
- *
- * Every one of these swings a blow the target's armour all but stops in a duel —
- * `feltBy(DUMMY_TOUGHNESS)` against a player wearing `PLAYER_TOUGHNESS` — so
- * almost nothing lands here until the crowd itself is what makes it land. That
- * is the exact fight this rule was written for: eight rats gnawing a
- * well-armoured ankle.
- *
- * **The control is a comparison rather than a zero**, and it has to be: armour
- * is drawn rather than subtracted, so a body would need four times this
- * fixture's defence before a lone attacker were stopped dead every time — more
- * than `MAX_MASTERY` Toughness can buy. What `guardShare` claims is a *rate*,
- * and a rate is only ever measured against another one. The claim that a blow
- * can be stopped dead alone and land in a crowd is `./combat.test.ts`'s, where
- * the defence can be written deep enough for it.
- */
 const SURROUNDING_CELLS = [
   [1, 0],
   [-1, 0],
@@ -2189,23 +1493,13 @@ const SURROUNDING_CELLS = [
   [-1, -1],
 ] as const;
 
-/** One exchange of blows at the fastest the rules allow. */
 const ONE_ROUND_MS = MIN_ATTACK_TICKS * TICK_MS;
 
-/**
- * The player, and this many bodies stood around them already swinging.
- *
- * Actors rather than creatures, so who is attacking whom is set here and stays
- * set: a brain would put the assertions at the mercy of a state machine, and
- * what is being measured is the crowd rather than the decision to be part of one.
- */
 function surrounded(count: number) {
   const session = new GameSession(field(), tiles, {
     actorIds: ["me"],
     seed: 1,
   });
-  // Everybody's switch on, because two players do not fight until both have
-  // asked to — and a crowd of players is exactly that. @see ./pvp
   session.setPvp(true, "me");
   const crowd = SURROUNDING_CELLS.slice(0, count).map(([x, y], index) => {
     const id = `mob-${index}`;
@@ -2222,11 +1516,6 @@ const hpOfMe = (session: GameSession) =>
   session.actorSnapshots().find((actor) => actor.id === "me")?.hp ?? 0;
 
 describe("being outnumbered", () => {
-  /**
-   * The control, and the reason the fixture is armoured: eight of these take
-   * more off in one round than one of them takes off in eight, which no amount
-   * of counting swings can explain.
-   */
   it("costs a body more per attacker the more of them there are", () => {
     const alone = surrounded(1);
     advance(alone.session, ONE_ROUND_MS * SURROUNDING_CELLS.length);
@@ -2240,7 +1529,6 @@ describe("being outnumbered", () => {
     expect(mauled).toBeGreaterThan(chipped);
   });
 
-  /** The reported fight: eight of the same thing is not one thing, eight times. */
   it("opens a body up once a crowd is on it", () => {
     const { session } = surrounded(SURROUNDING_CELLS.length);
 
@@ -2250,12 +1538,6 @@ describe("being outnumbered", () => {
     expect(hp).toBeGreaterThan(0);
   });
 
-  /**
-   * And the crowd has to *disperse*, or one bad moment would follow a body for
-   * the rest of its life. What counts is who is still swinging — see
-   * `./combat`'s `ASSAILANT_GRACE_MS`, which is how long after its last blow a
-   * body is still one of them.
-   */
   it("gives the guard back once the crowd stops swinging", () => {
     const { session, crowd } = surrounded(SURROUNDING_CELLS.length);
 
@@ -2264,8 +1546,6 @@ describe("being outnumbered", () => {
     advance(session, ONE_ROUND_MS + ASSAILANT_GRACE_MS);
     const settled = hpOfMe(session);
 
-    // The one left swinging is back to being a lone attacker, and what it takes
-    // off over four rounds is a fraction of what the crowd took in one.
     advance(session, ONE_ROUND_MS * 4);
     const chipped = settled - hpOfMe(session);
     expect(settled).toBeGreaterThan(0);
@@ -2273,13 +1553,6 @@ describe("being outnumbered", () => {
   });
 });
 
-/**
- * A minute since you last swung, or were swung at or hurt.
- *
- * What the flag is for is `server/GameServer`'s — a body that stays on the
- * board after its player closes the tab. These are the half of it a session
- * decides: when it starts, who carries it, and when it ends.
- */
 describe("being in combat", () => {
   const ONE_SECOND_MS = 1000;
 
@@ -2295,8 +1568,6 @@ describe("being in combat", () => {
     advanceUntil(session, () => session.inCombat("local"));
 
     expect(combatOn(session, "local")).toBe(true);
-    // The creature too: nothing closes its socket, but a status on it can
-    // read `has_status('combat')`, and a fed deer under attack heals slower.
     expect(combatOn(session, dummy)).toBe(true);
   });
 

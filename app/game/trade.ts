@@ -12,39 +12,10 @@ import {
 } from "./equipment";
 import { capacityOf } from "./itemMoves";
 
-/**
- * Spending what a body carries and handing it something back, as one move.
- *
- * A dialog's `trade` effect — fourteen shards for a potion, a bottle for two
- * shards — and a craft's kit arithmetic, which is this with a roll in front
- * (see `./craft`).
- *
- * - **Several things on each side, counted.** A price is a number, and a number
- *   is what a pile already is. Fourteen shards may be one pile or three, and
- *   this peels across them.
- * - **Every square a body has, bags in hands included.** Asked to pay, you
- *   meant everything on you.
- * - **The plan is the kit.** There is no separate run: finding room for every
- *   last thing *is* the check, and having found it there is nothing left to
- *   decide, so what this returns is the kit as it will be. Ids are minted on
- *   the way and a refused plan simply drops them, which a random id makes free.
- *
- * What is shared is the rule that matters: **all or nothing, and nothing ever
- * reaches the floor.** A trade short on either side leaves the kit exactly as
- * it was, and the dialog says so.
- */
-
-/** A square on a body a trade may take from or give to. */
 type Place = { holder: Hand } | { holder: "weapon" | "offhand" | "bag"; index: number };
 
 const HAND_HOLDERS: readonly Hand[] = ["weapon", "offhand"];
 
-/**
- * How many of a tile the body carries, piles summed, containers excluded.
- *
- * Containers excluded because a pack is not a thing a trade may take, so
- * counting one would let `carries` say yes to a trade that then refuses.
- */
 export function carriedCount(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
@@ -59,14 +30,6 @@ export function carriedCount(
   return total;
 }
 
-/**
- * The kit after taking `take` and receiving `give`, or null when it cannot be
- * done — short on anything taken, or nowhere for anything given.
- *
- * Takes first, so the squares the payment vacated are squares the goods can
- * land in: a potion bought with the last of a pile of shards goes where the
- * shards were.
- */
 export function planTrade(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
@@ -88,7 +51,6 @@ export function planTrade(
   return kit;
 }
 
-/** Is there room on this body for so many of a tile? `room_for` reads this. */
 export function hasRoomFor(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
@@ -98,17 +60,14 @@ export function hasRoomFor(
   return planTrade(tilesById, equipment, [], [side], mintId) !== null;
 }
 
-/**
- * Everywhere a thing may be taken from, in the order it is looked for.
- *
- * Hands first — what you are holding out is what you meant — then the worn bag, then bags in either hand. Within a container the
- * squares are walked last to first so that emptying one never shifts an index
- * still to be read.
- */
 function sources(equipment: Equipment): Place[] {
   const places: Place[] = HAND_HOLDERS.map((holder) => ({ holder }));
   for (const holder of ["bag", "weapon", "offhand"] as const) {
     const contents = equipment[holder]?.contents ?? [];
+    /**
+     * Last to first, so emptying one square as it is taken from never shifts
+     * the index of a square still to be read.
+     */
     for (let index = contents.length - 1; index >= 0; index--) {
       places.push({ holder, index });
     }
@@ -136,11 +95,6 @@ function takeUnits(
   return remaining === 0 ? kit : null;
 }
 
-/**
- * Everywhere one thing may land, best first: the worn bag, then a bag in
- * either hand, then the off hand, then the weapon hand — `pickUpDestination`'s
- * order, with the hand-held bags where a pickup would not look.
- */
 function giveUnit(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
@@ -159,7 +113,6 @@ function giveUnit(
   return null;
 }
 
-/** The container in this slot with the unit poured or appended, or null. */
 function stowIn(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
@@ -178,7 +131,6 @@ function stowIn(
   return { ...equipment, [holder]: { ...container, contents } };
 }
 
-/** This hand holding the unit — poured onto its pile, or taken up empty. */
 function holdIn(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,

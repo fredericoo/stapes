@@ -24,11 +24,6 @@ import {
   type TransitionUniforms,
 } from "./tileTransitions";
 
-/**
- * One tile sprite: a screen-space rectangle of texture, plus the solid box it
- * depicts. Draw order comes from the box (per-pixel, in the shader), not from
- * the quad's position — see {@link injectWorldShader}.
- */
 export type Quad = {
   x: number;
   y: number;
@@ -39,18 +34,8 @@ export type Quad = {
   u1: number;
   v1: number;
   box: DepthBox;
-  /** Breaks ties between coplanar surfaces; normally the tile's stack index. */
   stackBias: number;
-  /**
-   * Row in the level's {@link AnimationTable}, or absent for a quad that does
-   * not animate — which is almost all of them, and is why this is optional
-   * rather than a number every caller has to think about.
-   *
-   * Only the merged path can use it. A quad with a mesh of its own is rebuilt
-   * wherever it moves to, so it rewrites its own UVs and never asks the table.
-   */
   animRow?: number;
-  /** Where in the cycle this placement starts — see `types.cellPhaseMs`. */
   animPhaseMs?: number;
   lightX0: number;
   lightY0: number;
@@ -64,45 +49,16 @@ export type LevelLightUniforms = {
   uLightOrigin: { value: THREE.Vector2 };
   uLightSize: { value: THREE.Vector2 };
   uLightingEnabled: { value: number };
-  /**
-   * Time-of-day tint, multiplied into the sky factor per fragment. Keeping this
-   * a uniform is what lets the clock move without re-tinting and re-uploading
-   * every light texture — see the alpha convention on `uLightMap`.
-   */
   uAmbient: { value: THREE.Vector3 };
 };
 
-/**
- * The roof-cut, as a per-level mask the fragment shader reads.
- *
- * A cut is a set of *cells* now rather than a level threshold (see
- * `lib/levelVisibility`), and level geometry is merged into one draw call per
- * texture — so there is no object to hide. This is the same road the light map
- * already travels: a small texture in cell space, sampled at the quad's own
- * cell, and a fragment whose cell is cut is discarded.
- *
- * Uploaded when the cut changes rather than per frame, and it is the bounding
- * box of that level's cut cells plus an apron, so a lifted roof is a few
- * hundred bytes whatever the size of the world.
- */
 export type LevelCutUniforms = {
-  /** Red channel: nonzero where the cell is cut away. */
   uCutMask: { value: THREE.Texture };
-  /** Cell coordinate of the mask's first texel. */
   uCutOrigin: { value: THREE.Vector2 };
-  /** Mask size in cells, which is also its size in texels. */
   uCutSize: { value: THREE.Vector2 };
   uCutEnabled: { value: number };
 };
 
-/**
- * A cut that takes nothing, for a renderer that has none.
- *
- * Takes a texture rather than making one because the sampler is bound whatever
- * the branch does with it, and a null sampler is a warning per frame per
- * material. Any 1×1 texture will do — the shader never reads it while
- * `uCutEnabled` is 0.
- */
 export function noCutUniforms(placeholder: THREE.Texture): LevelCutUniforms {
   return {
     uCutMask: { value: placeholder },
@@ -112,35 +68,13 @@ export function noCutUniforms(placeholder: THREE.Texture): LevelCutUniforms {
   };
 }
 
-/**
- * The level's animations, as a table the *vertex* shader reads.
- *
- * Vertex rather than fragment because a frame is constant across a quad: this
- * costs four lookups per animated quad and leaves the fragment stage — which is
- * where the depth and lighting work is — untouched.
- *
- * `uAnimClockMs` is the only one that moves, and it moves once per level per
- * frame. Everything else changes when the level is rebuilt. See
- * `./animTable` for the encoding.
- */
 export type LevelAnimUniforms = {
   uAnimTable: { value: THREE.Texture };
-  /** Table size in texels: frames across, animations down. */
   uAnimSize: { value: THREE.Vector2 };
   uAnimClockMs: { value: number };
   uAnimEnabled: { value: number };
 };
 
-/**
- * No animations, for a renderer whose quads never carry a row.
- *
- * Same reason {@link noCutUniforms} takes a placeholder: the sampler is bound
- * whatever the branch does, and a null one is a warning per frame per material.
- * The particle and preview layers share this shader without sharing its
- * geometry, so their quads have no `aAnim` at all — an absent attribute reads
- * as zero, and zero is a valid row, which is exactly why the branch is on a
- * uniform and not on the attribute alone.
- */
 export function noAnimUniforms(placeholder: THREE.Texture): LevelAnimUniforms {
   return {
     uAnimTable: { value: placeholder },
@@ -154,29 +88,18 @@ const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 const WADE_COMPONENTS = 2;
 
-/**
- * How opaque the see-through edge of a wading body is, past its first pixel.
- *
- * The first pixel — the bottom row and the right column of the figure — is not
- * drawn at all. The rest of the edge is blended rather than dithered, so it
- * reads as water over the body rather than as a hole in it. Blending is
- * order-dependent, which is why a wading mesh is drawn after the level it
- * stands in — see `WorldRenderer`'s `WADING_RENDER_ORDER`.
- */
 const WADE_ALPHA = 0.5;
 
-/** Both renderers must agree, or the same tile sorts differently in each. */
+/**
+ * Bump the version suffix whenever this shader's source changes, or three.js
+ * reuses the stale compiled program from its cache.
+ */
 export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v12";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
 }
 
-/**
- * Light-map cells covered per world pixel of this quad — the gradient of
- * `aLightUv` across it. Constant per quad, so the shader can re-evaluate the
- * light coordinate at any point on the quad from any other.
- */
 function lightCellsPerPixel(
   q: Pick<Quad, "w" | "h" | "lightX0" | "lightY0" | "lightX1" | "lightY1">,
 ): [number, number] {
@@ -204,10 +127,6 @@ function writeQuadBox(
   }
 }
 
-/**
- * Merge many quads into one draw call. Vertex Z is 0 for every quad — depth is
- * written per fragment — so merging never costs correctness.
- */
 export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const n = quads.length;
   const positions = new Float32Array(n * VERTS_PER_QUAD * 3);
@@ -227,11 +146,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     const x1 = q.x + q.w;
     const y1 = q.y + q.h;
     const pb = i * 12;
-    // Match PlaneGeometry + Y-down UV mapping (see buildSingleQuadGeometry).
-    // vert0 (local +Y / screen-bottom): (x0, y1) uv (u0, v0)
-    // vert1: (x1, y1) uv (u1, v0)
-    // vert2 (local -Y / screen-top): (x0, y0) uv (u0, v1)
-    // vert3: (x1, y0) uv (u1, v1)
     positions[pb] = x0;
     positions[pb + 1] = y1;
     positions[pb + 3] = x1;
@@ -251,7 +165,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     uvs[ub + 6] = q.u1;
     uvs[ub + 7] = q.v1;
 
-    // Same vert order as UVs — cell-space corners for the light map.
     lightUvs[ub] = q.lightX0;
     lightUvs[ub + 1] = q.lightY1;
     lightUvs[ub + 2] = q.lightX1;
@@ -282,7 +195,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
 
     const base = i * VERTS_PER_QUAD;
     const ib = i * 6;
-    // PlaneGeometry winding: 0,2,1 / 2,3,1
     indices[ib] = base;
     indices[ib + 1] = base + 2;
     indices[ib + 2] = base + 1;
@@ -304,11 +216,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   return geo;
 }
 
-/**
- * One quad centred on its own origin, for sprites that need their own mesh
- * (animated, or moving and therefore offset every frame). The caller positions
- * the mesh; the shader reads world position back off the model matrix.
- */
 export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferGeometry {
   const hw = q.w / 2;
   const hh = q.h / 2;
@@ -331,9 +238,6 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   writeQuadBox(boxes, stacks, 0, q.box, q.stackBias);
   const [lsx, lsy] = lightCellsPerPixel(q);
   const lightScales = new Float32Array([lsx, lsy, lsx, lsy, lsx, lsy, lsx, lsy]);
-  // Never the table's: a quad with its own mesh rewrites its own UVs. The
-  // attribute is still written, because an absent one reads as zero and zero is
-  // a valid row.
   const anims = new Float32Array(VERTS_PER_QUAD * 2);
   for (let v = 0; v < VERTS_PER_QUAD; v++) anims[v * 2] = NO_ANIMATION;
 
@@ -345,9 +249,6 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
-  // Dry until `writeWadeAttr` says otherwise. Only a quad with a mesh of its own
-  // carries this: a merged batch has no attribute, which reads as zero, which
-  // is dry — and nothing merged can be a body.
   geo.setAttribute(
     "aWade",
     new THREE.BufferAttribute(new Float32Array(VERTS_PER_QUAD * WADE_COMPONENTS), WADE_COMPONENTS),
@@ -356,18 +257,6 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   return geo;
 }
 
-/**
- * Retarget a single-quad mesh's light sample. A quad that moves across cells
- * has to take the light of wherever it is now, or it wears the lighting of the
- * cell it was built in for as long as it travels.
- *
- * Only the origin moves; the *span* is a fixed cell either way, so `aLightScale`
- * is written once at build time and never touched again.
- *
- * A walking tile does not need this — its mesh is rebuilt at the cell it lands
- * in, and a step is one cell and 200ms. Something that crosses several cells
- * without ever committing to one does: see `./projectileMotion`.
- */
 export function writeLightUvAttr(
   geo: THREE.BufferGeometry,
   lightX0: number,
@@ -388,17 +277,6 @@ export function writeLightUvAttr(
   attr.needsUpdate = true;
 }
 
-/**
- * Say how deep a single-quad mesh is standing in a `wade` tile.
- *
- * `sinkPx` is how far the caller has moved the sprite down-right, which the
- * shader needs because the see-through edge is measured from the sunk feet
- * and the depth box does not sink. `edgePx` is how many pixels of the bottom
- * and right are see-through; zero is dry. Returns whether anything changed, so
- * a caller writing this every frame uploads only on the frame it moves.
- *
- * @see TileDef.wade
- */
 export function writeWadeAttr(geo: THREE.BufferGeometry, sinkPx: number, edgePx: number): boolean {
   const attr = geo.getAttribute("aWade") as THREE.BufferAttribute | undefined;
   if (!attr) return false;
@@ -412,11 +290,6 @@ export function writeWadeAttr(geo: THREE.BufferGeometry, sinkPx: number, edgePx:
   return true;
 }
 
-/**
- * Retarget a single-quad mesh's depth box. A moving tile straddles cells, so
- * its box travels with it — call this whenever its position changes, from the
- * same motion snapshot, or the sprite and its depth disagree for a frame.
- */
 export function writeBoxAttr(geo: THREE.BufferGeometry, box: DepthBox, stackBias: number) {
   const boxAttr = geo.getAttribute("aBox") as THREE.BufferAttribute;
   const stackAttr = geo.getAttribute("aStack") as THREE.BufferAttribute;
@@ -426,25 +299,9 @@ export function writeBoxAttr(geo: THREE.BufferGeometry, box: DepthBox, stackBias
 }
 
 /**
- * Tile shading and depth, patched into MeshBasicMaterial.
- *
- * Depth: each fragment resolves which face of its tile's box it depicts and
- * writes that point's ray depth, so a sprite is not forced to sit wholly in
- * front of or behind another. This is what lets a character mid-step be behind
- * the wall beside it while standing on the floor tile in front of it — two
- * orderings no single per-sprite depth can satisfy at once. Fragments whose ray
- * misses the box — art drawn outside its own silhouette — fall back to the
- * entry plane, which sorts them with the cell they hang over.
- *
- * Lighting: per-level light map sampled in cell space.
- *
- * Tint: an optional OKLab wash worn by whatever is carrying a status, applied to
- * the sampled texel before the light reaches it. Free on the materials that do
- * not have one — see `./spriteTint`.
- *
- * Transition: an optional dissolve worn by a tile that is forming or going,
- * on the same terms — a material of its own, and a skipped branch everywhere
- * else. See `./tileTransitions`.
+ * The animated-frame offset is added straight onto `vMapUv`, which is correct only
+ * while the world material has no texture transform. If one is set, the offset
+ * must go through `mapTransform`.
  */
 export function injectWorldShader(
   shader: { vertexShader: string; fragmentShader: string; uniforms: object },
@@ -458,7 +315,7 @@ export function injectWorldShader(
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
-      /* glsl */ `#include <common>
+      `#include <common>
 attribute vec2 aLightUv;
 attribute float aUnlit;
 attribute vec4 aBox;
@@ -479,13 +336,9 @@ varying vec2 vLightScale;
 varying vec2 vWade;
 ${TRANSITION_GLSL_VERTEX_COMMON}
 
-// Where this row's frame at clockMs sits, relative to frame 0, in UV space.
-//
-// The walk stops at the live frame, so its cost is the frame's index rather
-// than the cycle's length — and the loop's bound is a constant only because
-// GLSL needs one, never because a row is expected to be that long. The last
-// column always holds the cycle length in its z channel (rows are padded with
-// copies of their final frame), so the modulo needs no separate lookup.
+// Walks the row until the texel's z (that frame's cumulative end time)
+// passes the clock; the last column repeats the cycle length so the loop
+// always stops before reading past the row's real frames.
 vec2 animFrameOffset(float row, float clockMs) {
   float v = (row + 0.5) / uAnimSize.y;
   float total = texture2D(uAnimTable, vec2(1.0 - 0.5 / uAnimSize.x, v)).z;
@@ -502,7 +355,7 @@ vec2 animFrameOffset(float row, float clockMs) {
     )
     .replace(
       "#include <uv_vertex>",
-      /* glsl */ `#include <uv_vertex>
+      `#include <uv_vertex>
 vLightUv = aLightUv;
 vUnlit = aUnlit;
 vBox = aBox;
@@ -513,9 +366,6 @@ vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
 ${TRANSITION_GLSL_VERTEX}
 #ifdef USE_MAP
 if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
-  // Straight onto the map coordinate, which is sound because nothing here sets
-  // a texture transform, so mapTransform is the identity and UV space and
-  // atlas space are the same space.
   vMapUv += animFrameOffset(aAnim.x, uAnimClockMs + aAnim.y);
 }
 #endif`,
@@ -524,7 +374,7 @@ if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
   shader.fragmentShader = shader.fragmentShader
     .replace(
       "#include <common>",
-      /* glsl */ `#include <common>
+      `#include <common>
 uniform sampler2D uLightMap;
 uniform vec2 uLightOrigin;
 uniform vec2 uLightSize;
@@ -546,14 +396,10 @@ ${TRANSITION_GLSL_COMMON}`,
     )
     .replace(
       "#include <map_fragment>",
-      /* glsl */ `#include <map_fragment>
+      `#include <map_fragment>
 ${TRANSITION_GLSL_SNAP}
-// The roof cut, first, because a discarded fragment is not worth shading.
-//
-// vBox.xy are this quad's own base cell — the unshifted east and south edges in
-// world pixels — so the cell is constant across the quad however tall the
-// sprite is. A wall two levels high is cut with the cell it stands on, which is
-// the cell the fill claimed.
+// vBox.xy is this quad's unshifted base cell, constant across the quad
+// however tall the sprite is, so a tall wall is cut with the cell it stands on.
 if (uCutEnabled > 0.5) {
   vec2 cutCell = vBox.xy / ${glsl(CELL_SIZE)} - 0.5;
   vec2 cutUv = (cutCell - uCutOrigin) / uCutSize;
@@ -561,50 +407,40 @@ if (uCutEnabled > 0.5) {
 }
 ${TRANSITION_GLSL_DISCARD}
 ${TINT_GLSL_FRAGMENT}
-// Everything below samples at the centre of the art pixel this fragment falls
-// in, not at the fragment itself. A fragment is smaller than a texel once
-// zoomed (16 of them per texel at 4x), so sampling per fragment lets a value
-// vary *inside* a pixel — which is how a smooth diagonal seam or a smooth
-// light gradient ends up drawn across art that should be flat per pixel.
+// Sample at the art pixel's centre rather than the fragment: a fragment is
+// smaller than a texel once zoomed, so sampling per fragment would smear a
+// gradient across art that should read flat per pixel.
 vec2 depthPx = floor(vWorldPx) + 0.5;
 if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
-  // vLightUv and vWorldPx are both affine across the quad, so stepping from the
-  // fragment to the pixel centre is just the constant per-quad gradient.
+  // vLightUv and vWorldPx are both affine across the quad, so stepping from
+  // the fragment to the pixel centre is just the constant per-quad gradient.
   vec2 lightCell = vLightUv + (depthPx - vWorldPx) * vLightScale;
   vec2 lightUv = (lightCell - uLightOrigin) / uLightSize;
-  // RGB is block light, alpha is the sky factor, so the tint happens here
-  // rather than on the CPU. Alpha 0 means "already composed" — a caller that
-  // tints its own texture uploads it that way and this reduces to a passthrough.
   vec4 lightTexel = texture2D(uLightMap, lightUv);
+  // RGB is block light, alpha is the sky factor, so the ambient tint is
+  // applied here rather than baked into the map.
   vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + lightTexel.rgb);
   diffuseColor.rgb *= light;
 }
 ${TRANSITION_GLSL_EDGE}
-// Depth, at that same pixel centre, so a crossing between two sprites can only
-// ever land on a texel boundary.
-// Where the ray leaves the box: each visible (south/east/top) face caps how far
-// it climbs before getting out, so the highest point inside is the min.
+// A ray cast from this pixel: each visible (south/east/top) face caps how far
+// it climbs before leaving the box, so the exit point is the lowest of them.
 float eastFace = (vBox.x - depthPx.x) / ${glsl(PX_PER_HEIGHT)};
 float southFace = (vBox.y - depthPx.y) / ${glsl(PX_PER_HEIGHT)};
 float exitElev = min(min(eastFace, southFace), vBox.w);
-// The far (north/west) faces, one cell of ray climb behind the near ones.
+// The far (north/west) faces, one cell of climb behind the near ones.
 float farFaceElev =
   max(eastFace, southFace) - ${glsl(HEIGHT_PER_LEVEL)};
-// A surface above the exit means no face was crossed: art drawn outside its own
-// silhouette, landing on a fallback plane — the far face when it hangs up-left
-// over the cells behind it, the foot when it hangs down-right over the cells in
-// front. Either plane is where a neighbour's own face already is, so the nudge
-// settles that tie for the art. The foot case needs the box to have volume: a
-// flat tile's art past its own foot is more floor, and coplanar floors keep
-// painter order. See boxSurface.
+// A surface above the exit point means the ray left without crossing a face —
+// art drawn outside its own silhouette — so it falls back to whichever
+// neighbouring plane already owns that space.
 float surfaceElev = max(max(exitElev, farFaceElev), vBox.z);
 float overhangBias =
   surfaceElev > exitElev && (farFaceElev > exitElev || vBox.w > vBox.z)
     ? ${glsl(DEPTH_OVERHANG_BIAS)}
     : 0.0;
-// vBox.xy are the unshifted east/south edges of the base cell. When two flat
-// overhanging sprites share a pixel at the same elev, this restores S-then-E
-// painter order (merge draw order alone is not stable).
+// Breaks ties between two flat overhanging sprites at the same elevation,
+// restoring south-then-east painter order.
 float planeBias =
   (vBox.y + vBox.x * ${glsl(DEPTH_PLANE_EAST_WEIGHT)}) *
   ${glsl(DEPTH_PLANE_BIAS)};
@@ -622,27 +458,13 @@ gl_FragDepth = clamp(
     )
     .replace(
       "#include <alphatest_fragment>",
-      /* glsl */ `#include <alphatest_fragment>
-// A body standing in shallow water: the bottom and right of the figure, below
-// the waterline, let the water show through. The first pixel in from the line
-// is gone, and the rest of the edge is thinned. After the cutoff, so a thinned
-// pixel is not then discarded for being thin. vWade.y is zero on everything
-// else.
-//
-// Anything past the line — art hanging beyond the feet, a wolf's head — counts
-// as the first pixel, since it is further under the water than that.
-//
-// The line is measured from where the figure's feet are drawn, which is the
-// middle of the cell it stands on — vBox.xy is that cell's far corner, less the
-// elevation shift — and moved by the same sink the caller gave the sprite,
-// since the box itself stays on the surface. Measuring from the sprite's own
-// edge would miss: a body's slot is two cells square, and the corner of it is
-// empty.
+      `#include <alphatest_fragment>
+// Feet measured from the sprite's own sunk position, not its box, since a
+// body's slot is two cells square and the box corner is empty.
 if (vWade.y > 0.0) {
   vec2 sunkFeet =
     vBox.xy - ${glsl(CELL_SIZE / 2)} - vBox.z * ${glsl(PX_PER_HEIGHT)} + vWade.x;
   vec2 fromFeet = sunkFeet - depthPx;
-  // A pixel centre, so the first pixel in from the line is at half a pixel.
   float fromLine = min(fromFeet.x, fromFeet.y);
   if (fromLine < 1.0) discard;
   if (fromLine < vWade.y) diffuseColor.a *= ${glsl(WADE_ALPHA)};

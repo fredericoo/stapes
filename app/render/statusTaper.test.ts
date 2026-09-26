@@ -1,15 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 
-/**
- * Carrying a countdown between the moments anybody says what it is.
- *
- * The case that matters is the online one: the wire speaks about once a second,
- * and a fade driven straight off it is a staircase. Everything here is about the
- * carry — that it happens, that a new figure wins, and that it cannot run twice
- * in a frame.
- */
-
 describe("smoothing what the wire says", () => {
   it("returns what it was told, the first time it is told", () => {
     const clocks = new SmoothedRemaining();
@@ -26,8 +17,6 @@ describe("smoothing what the wire says", () => {
     clocks.read(key, 4_000);
     clocks.endFrame();
 
-    // Three frames of silence from the server: the same stale 4000 arrives, and
-    // the local figure has to keep moving or the fade is a staircase.
     for (let i = 0; i < 3; i++) {
       clocks.beginFrame(100);
       clocks.read(key, 4_000);
@@ -49,15 +38,12 @@ describe("smoothing what the wire says", () => {
     clocks.read(key, 4_000);
     clocks.endFrame();
 
-    // The server speaks. Whatever local time thought, this is the answer.
     clocks.beginFrame(0);
     expect(clocks.read(key, 3_000)).toBe(3_000);
     clocks.endFrame();
   });
 
   it("compares against the last snapshot, not against the carried value", () => {
-    // The trap: the carried value drifts away by design, so comparing the
-    // snapshot to *it* would re-anchor every frame and smooth nothing.
     const clocks = new SmoothedRemaining();
     const key = taperKey("me", "burn");
 
@@ -75,8 +61,6 @@ describe("smoothing what the wire says", () => {
   });
 
   it("ages a status once a frame however often it is read", () => {
-    // Two readers per frame: the tint and plume pass, then the light pass. A
-    // clock aged by each would run the fade at double speed.
     const clocks = new SmoothedRemaining();
     const key = taperKey("me", "burn");
 
@@ -110,7 +94,6 @@ describe("smoothing what the wire says", () => {
     clocks.endFrame();
     expect(clocks.size).toBe(2);
 
-    // The rat died, or wore it off. Its clock goes with it.
     clocks.beginFrame(16);
     clocks.read(taperKey("me", "poison"), 1_000);
     clocks.endFrame();

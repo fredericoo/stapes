@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { progressFraction, windProgress } from "./progress";
 
-/** Long enough that a quarter of it is a round number to read. */
 const WHOLE_MS = 4_000;
 
-/** Past the end or before the start, as two unsynchronised clocks leave it. */
 const OVERSHOOT_MS = 100;
 
 describe("how far through something is", () => {

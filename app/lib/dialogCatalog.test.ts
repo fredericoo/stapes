@@ -19,12 +19,6 @@ function tileWith(dialog: unknown) {
 
 const defaults = { tileId: "shard", statusId: "luminous" };
 
-/**
- * The one test that matters for a catalog: everything the editor can put on
- * the page is something the parser accepts, so a fresh command is never a
- * refused save. `tag` is the deliberate exception — a blank tag is refused
- * until the author types one, and the lint says so.
- */
 describe("the dialog catalog", () => {
   it("names every command the interpreter runs, once", () => {
     expect([...DIALOG_COMMAND_KINDS].sort()).toEqual([

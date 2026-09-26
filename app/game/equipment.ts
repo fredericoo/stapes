@@ -29,227 +29,54 @@ import { type Masteries, meetsRequirements, WEAPON_MASTERIES } from "../lib/mast
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 
-/**
- * What carrying things does to a fight.
- *
- * Pure, and in `app/game/` beside `combat.ts` rather than in `app/lib/`, because
- * this is a rule of a fight rather than a shape on disk. Both ends read it: the
- * simulation to roll with, and the Item tab to say what a weapon is worth
- * without re-deriving the arithmetic beside it.
- */
-
-/**
- * What an actor is carrying.
- *
- * On the runtime rather than on the placement, on exactly the terms hit points
- * are: `PlacedTile` changes broadcast themselves through cell patches, and a
- * cell patch invalidates light chunks and rebuilds level geometry. Equipping a
- * sword would dirty every chunk around the player for a change nothing in the
- * world can see.
- *
- * The bag slot holds an instance like any other, and **the inventory is that
- * instance's `contents`** — not a second array beside it. One thing in one
- * place, whether it is on somebody's back or lying on the floor, which is what
- * makes dropping a full bag drop what is in it without anything having to
- * arrange that.
- */
 export type Equipment = {
   weapon: ItemInstance | null;
-  /**
-   * The other hand, and it is the same hand — see {@link HANDS}.
-   *
-   * **It exists because the weapon slot was the only hand there was**, and a
-   * lantern authored as a weapon meant fighting at a twentieth of your bare
-   * hands to see in the dark. A second square fixed that and left a worse thing
-   * behind: this one did not swing, so a second sword was inert and a shield
-   * dragged into the *other* square silently replaced what you fought with.
-   *
-   * It swings now. A body with a weapon in each hand takes turns between them —
-   * see {@link handToSwing} — so both squares reach a fight the same way, and
-   * light and defence come off either. What separates them is nothing except
-   * which one is up next.
-   */
   offhand: ItemInstance | null;
-  /**
-   * What is worn on the body — a tunic, a mail shirt, a breastplate.
-   *
-   * The first of the four squares that take exactly one kind of thing, and the
-   * strictness is the point. Both hands are deliberately generous because a hand
-   * *is* generous — you can hold a backpack if you would rather — but there is
-   * no honest reading of a body under which a sword or a loaf of bread is what
-   * you are wearing. So `slotTakes` refuses everything that is not an
-   * {@link ArmorItem} *for this square* here, and that refusal is what makes it
-   * legible: whatever is in it is protecting you, and the number it is worth is
-   * the whole of what it does.
-   *
-   * It adds to whatever is in either hand rather than replacing it — see
-   * {@link wornDefence}. A shield and a mail shirt are two different answers to
-   * being hit, and a body with both should get both.
-   */
   armor: ItemInstance | null;
-  /**
-   * What is on the head — a cap, a helm, a crown.
-   *
-   * One of the four squares that take {@link ArmorItem} and nothing else, and
-   * the one that decides which is the armour's own `slot` — see `../lib/item`'s
-   * {@link ARMOR_SLOTS}. Everything the body square does, this does: it adds to
-   * whatever else is worn rather than replacing it, and its `def` and `resist`
-   * reach a fight through {@link wornDefence} and {@link armorResistances}.
-   */
   head: ItemInstance | null;
-  /**
-   * What is round the neck, on a finger or on a belt loop — a ring, an amulet, a
-   * charm, an arcane stone, a torch. **"Accessory" on screen**, and `charm` here
-   * and on the wire because a charm was the only thing that went in it when it
-   * was named; see `../lib/kit`'s {@link SLOT_LABELS} for why the key does not
-   * move.
-   *
-   * Armour, on the same terms a helmet is, and the fact that it is not obviously
-   * *armour* is the point of having a square for it: a thing that turns a blow
-   * aside without being a plate is how an author writes a warding trinket, and
-   * the alternative — a fifth kind of item with its own arithmetic — would be a
-   * second answer to the question `def` already answers.
-   *
-   * **The one worn square that takes more than armour**, and what else it takes
-   * is {@link wornAccepts} rather than anything here.
-   */
   charm: ItemInstance | null;
-  /**
-   * What is on the feet — boots, shoes, sabatons.
-   *
-   * The last of the worn squares, and it does exactly what the other three do.
-   * There is deliberately nothing about *movement* here: how fast a body gets
-   * about is a fact about the body, and a boot that changed it would be a second
-   * stat block arguing with the weapon's, which is the thing the whole item
-   * model exists to avoid.
-   */
   footwear: ItemInstance | null;
-  /** An equippable container. Its `contents` is the inventory. */
   bag: ItemInstance | null;
 };
 
-/**
- * The two squares that hold something, rather than wear it.
- *
- * **They are the same square twice, and that is the whole of ambidexterity.**
- * One of them used to be the hand that fought and the other the hand that did
- * not: `weaponInHand` read `weapon` and nothing else, so a second sword was a
- * shield that happened to look like a sword, and a shield dragged into the main
- * hand silently replaced what you fought with. Neither of those was a rule
- * anybody wrote down — they fell out of one field being read where two existed.
- *
- * The order is the order the turns are taken in when nobody has swung yet. It
- * is otherwise not a ranking: see {@link handToSwing}.
- */
 export const HANDS = ["weapon", "offhand"] as const;
 
-/** One of the two hands. */
 export type Hand = (typeof HANDS)[number];
 
-/**
- * Just the two hands, which is all the two-handed rule ever reads.
- *
- * Narrower than {@link Equipment} on purpose: `restoredEquipment` has to ask
- * "does this pair break the rule" while it is still assembling the rest of the
- * kit, and a signature demanding a whole body would make it invent squares it
- * has not decided yet. Every `Equipment` is one of these.
- */
 export type Hands = Pick<Equipment, Hand>;
 
-/**
- * The hand a body takes its turn with after this one.
- *
- * A pair, so the rotation is a lookup rather than a conditional at every site
- * that has to advance it. With more than two hands this would be an index; with
- * two it is this.
- */
 export function otherHand(hand: Hand): Hand {
   return hand === "weapon" ? "offhand" : "weapon";
 }
 
-/**
- * Which slot a thing is worn in.
- *
- * Named in `../lib/kit` rather than here, because an authored kit has to say
- * one and `lib` may not reach into `game`. {@link EQUIPMENT_SLOTS} below is what
- * holds the two shapes together.
- */
 export type { EquipSlot };
 
-/**
- * Carrying nothing at all — a body that was never given a kit.
- *
- * Built from {@link EQUIPMENT_SLOTS} rather than written out, so a square added
- * to the game arrives here empty on its own. A hand-written literal is how a
- * body would come to be born missing a slot it has.
- */
 export function emptyEquipment(): Equipment {
   return Object.fromEntries(EQUIPMENT_SLOTS.map((slot) => [slot, null])) as Equipment;
 }
 
-/**
- * A kit handed back by the world's memory, checked against the world as it is
- * now.
- *
- * The same terms a remembered *position* is honoured on: it is a wish, and the
- * board decides. A position is offered to `findEntryCell`, which declines it if
- * somebody has built there since; a kit is offered here, and every part of it
- * that the tile catalogue no longer agrees with is dropped.
- *
- * What can have changed while somebody was away is the authored content: a tile
- * renamed, a sword made into a prop, a bag shrunk. None of those are corruption
- * and none should refuse a returning player their world — they are simply facts
- * the memory is out of date about.
- *
- * Never a throw and never a null: the worst case is somebody comes back with
- * nothing, which is where they started.
- */
 export function restoredEquipment(saved: Equipment, tilesById: Record<string, TileDef>): Equipment {
-  // Both hands asked the same question, because both hands *are* the same
-  // question now — see {@link handAccepts}.
   const weaponDef = saved.weapon ? tilesById[saved.weapon.tileId] : undefined;
   const weapon =
     saved.weapon && weaponDef && handAccepts(weaponDef)
       ? restoredInstance(saved.weapon, weaponDef)
       : null;
 
-  // Absent on a kit saved before this slot existed, which reads as an empty
-  // hand — the same answer the rest of this function gives to anything the world
-  // no longer agrees with.
   const offhandDef = saved.offhand ? tilesById[saved.offhand.tileId] : undefined;
   const offhandHeld =
     saved.offhand && offhandDef && handAccepts(offhandDef)
       ? restoredInstance(saved.offhand, offhandDef)
       : null;
 
-  // **A weapon an author made two-handed while somebody was away.** Both hands
-  // were legally full when this kit was saved and cannot both be now, so one has
-  // to go — on exactly the terms a sword that became armour comes off a chest.
-  // The two-hander stays and its partner is dropped: it is the thing that is
-  // still in a square it belongs in, where the other now has nowhere to be. Two
-  // of them is the same answer read in `HANDS` order, so the main hand keeps its
-  // weapon and the other is emptied.
   const hands = { weapon, offhand: offhandHeld };
   const claimed = handClaimedByTwoHander(hands, tilesById);
   const offhand = claimed === "offhand" ? null : offhandHeld;
   if (claimed === "weapon") hands.weapon = null;
 
-  // Held to what the *square* takes rather than to what a hand takes, because
-  // these are the strict ones — a sword that was armour while somebody was away
-  // comes back off their chest rather than staying on it, and a helm an author
-  // moved to the feet comes off the head rather than staying above it.
   const worn = {} as Record<ArmorSlot, ItemInstance | null>;
   for (const slot of ARMOR_SLOTS) {
-    // Absent on a kit saved before this square existed, which reads as an empty
-    // one — the same answer the rest of this function gives to anything the
-    // world no longer agrees with.
     const instance = saved[slot];
     const def = instance ? tilesById[instance.tileId] : undefined;
-    // Through `wornAccepts` rather than `armorForSlot`, so a stone on somebody's
-    // charm comes back the way a jade amulet does: the charm is the one worn
-    // square that takes two kinds of thing, and reading it two ways here and in
-    // the move rules is how a kit that could be saved and not re-equipped
-    // happens.
     worn[slot] = instance && def && wornAccepts(slot, def) ? restoredInstance(instance, def) : null;
   }
 
@@ -259,14 +86,9 @@ export function restoredEquipment(saved: Equipment, tilesById: Record<string, Ti
     return { ...worn, weapon: hands.weapon, offhand, bag: null };
   }
 
-  // Truncated to what the bag holds *now*, because an author who shrank it did
-  // so knowing what was in the world — and a bag reporting 6/4 is a state no
-  // capacity check downstream has an answer for.
   const contents = (saved.bag.contents ?? [])
     .filter((instance) => {
       const def = tilesById[instance.tileId];
-      // Not a container, on the nesting rule: a chest that became equippable
-      // while somebody was away must not come back inside their backpack.
       return def != null && resolveItem(def) != null && !resolveContainer(def);
     })
     .slice(0, container.size)
@@ -280,43 +102,10 @@ export function restoredEquipment(saved: Equipment, tilesById: Record<string, Ti
   };
 }
 
-/**
- * The same thing, certain to have a name to be called by.
- *
- * A repair rather than a rule, and it exists because a kit outlives the code
- * that wrote it. An instance with no id is a thing the wire cannot describe —
- * `id` is required in the protocol's schema, so one saved kit carrying an
- * anonymous item is a `hello` that fails to parse and a player who can never
- * finish joining again. Storage is the one place a shape from an older build
- * arrives from, so it is the one place worth being suspicious in.
- *
- * Minted rather than dropped, on the terms the rest of this function restores
- * on: what is wrong here is the bookkeeping, not the sword, and somebody coming
- * back should find their sword.
- */
 function identified(instance: ItemInstance): ItemInstance {
   return instance.id ? instance : { ...instance, id: mintItemId() };
 }
 
-/**
- * The same thing, named, and not cooling for longer than its stone now says.
- *
- * The one piece of an instance that can be out of date rather than merely
- * absent. A cooldown is remembered across a disconnection on purpose — see
- * `../lib/itemInstance`'s {@link ItemInstance.cooldownMs}, and story-wise
- * because reconnecting must not be the cheapest spell in the game — which means
- * it survives an author shortening the stone while somebody was away, and a
- * stone remembering two minutes of a thirty-second cooldown would be cooling for
- * longer than any press of it could ever cost.
- *
- * Clamped rather than cleared, on the terms the rest of this function restores
- * on: the fact is out of date, not corrupt, and somebody who cast a moment ago
- * should still be waiting.
- *
- * A cooldown left over on something that has stopped being a stone is dropped
- * outright. It is not a lock on anything — see {@link stoneLocked}, which asks
- * the same question — and leaving it would be a field nothing ever winds down.
- */
 function restoredInstance(instance: ItemInstance, def: TileDef): ItemInstance {
   const named = identified(instance);
   if (!named.cooldownMs) return named;
@@ -329,85 +118,27 @@ function restoredInstance(instance: ItemInstance, def: TileDef): ItemInstance {
   return cooldownMs === named.cooldownMs ? named : { ...named, cooldownMs };
 }
 
-/**
- * Every slot on a body, in the order they are reached for.
- *
- * Written down once, because "the fields of `Equipment`" is a list two separate
- * passes had already got out of step with each other — the off hand was the
- * first slot added and the second one to be forgotten somewhere. It is now the
- * *authored* list — an author names a slot in a kit, so `../lib/kit` had to own
- * the names — and this is where the runtime shape is held to it.
- */
 export const EQUIPMENT_SLOTS: readonly (keyof Equipment)[] = EQUIP_SLOTS;
 
-/**
- * A slot added to {@link Equipment} and not to `EQUIP_SLOTS` would be a thing
- * carried that nothing here can see — no light read off it, no id minted for
- * what is inside it, nothing dropped when its owner dies. This is what makes
- * that a type error rather than a bug found a fortnight later: the record is
- * satisfiable by `{}` only while there is no such slot.
- */
 const _everySlotIsListed: Record<Exclude<keyof Equipment, EquipSlot>, never> = {};
 
-/** Everything worn or carried, slots and their contents alike, in a flat list. */
 export function carriedInstances(equipment: Equipment): ItemInstance[] {
   const out: ItemInstance[] = [];
-  // Every slot, and what is inside whatever is in it. A hand takes a spare pack
-  // now, so the bag on your back is no longer the only thing on a body with
-  // things inside it — and something missed here is something the id minting
-  // pass never reaches, which is a thing the wire cannot describe.
   for (const slot of EQUIPMENT_SLOTS) {
     const instance = equipment[slot];
     if (!instance) continue;
     out.push(instance);
-    // One level, never recursive: a container may not hold a container, so
-    // there is nothing below this to walk.
     if (instance.contents) out.push(...instance.contents);
   }
   return out;
 }
 
-/**
- * Everything worn in a slot — what a light is read off, and what a death puts
- * on the floor.
- *
- * Deliberately *not* {@link carriedInstances}: what is in the bag is in the bag,
- * and it goes down with the bag rather than beside it.
- *
- * The list is over the slots rather than over the fields by name — the off hand
- * was the first of the "more of them" this comment anticipated, and adding it
- * was one entry here rather than a hunt through everything that lights a room.
- * `GameSession.dropKit` and the server's what-do-they-still-own test read it for
- * exactly that reason: both were a hand-written `[weapon, offhand, bag]`, which
- * is the shape the off hand has already been left out of once.
- */
 export function wornInstances(equipment: Equipment): ItemInstance[] {
   return EQUIPMENT_SLOTS.map((slot) => equipment[slot]).filter(
     (instance): instance is ItemInstance => instance != null,
   );
 }
 
-/**
- * What a dead body leaves on the floor: everything it wore, and everything that
- * was in its bag — but not the bag.
- *
- * **The bag is destroyed and its contents are spilled.** Dropping it whole was
- * the simpler rule and it made a killing a single pickup: one bag on the ground,
- * everything inside it, gone in one gesture and never sorted through. Spilling
- * puts the contents on the floor as things, so what a fight was worth is what is
- * lying there — and it costs the winner the walk over it rather than a tap.
- *
- * **The bag slot alone**, though a hand may hold a container too. That slot is
- * not a place a container happens to be, it *is* the inventory — see
- * {@link Equipment.bag} — and a pack carried in a hand is a thing you are
- * holding on exactly the terms a crate is. Widening this to every container
- * would mean a player who died carrying a chest lost the chest, which is a rule
- * about death nobody asked for.
- *
- * The contents come out in bag order, so a pile lands in the order the panel
- * showed it. Nothing nests — a container's only home is a bare back — so one
- * level of spilling is the whole of it.
- */
 export function spilled(equipment: Equipment, tilesById: Record<string, TileDef>): ItemInstance[] {
   const out: ItemInstance[] = [];
   for (const slot of EQUIPMENT_SLOTS) {
@@ -423,31 +154,6 @@ export function spilled(equipment: Equipment, tilesById: Record<string, TileDef>
   return out;
 }
 
-/**
- * The tiles of the things this actor is *wearing* that give off light.
- *
- * A projection of {@link Equipment} rather than a second thing to keep in step,
- * and tile ids rather than `LightDef`s because every client already holds the
- * tile catalogue — sending the resolved lights would be sending what the
- * receiver can already look up.
- *
- * **Slots only, and the bag's contents are not slots.** A lantern lights the
- * room when you are holding it and not when it is buried in your pack, which is
- * both what a player expects and what makes a lantern worth a slot at all: with
- * a bag counting, carrying one cost nothing and there was no decision in it. The
- * bag *itself* counts, because it is worn — a glowing pack glows.
- *
- * Why this exists at all: an actor's own light never enters the static bake —
- * `GameRenderer` paints it as a dynamic emitter every frame, which is precisely
- * what stops a walking player from dirtying the chunks they cross. A carried
- * torch is the same problem and takes the same path, so equipping one costs a
- * dynamic paint rather than a rebake. Summing is the cast's own business: N
- * lights at one position is N emitters, and `castEmitter` already accumulates.
- *
- * Nothing consumes this yet. It is written and asserted now because it is a
- * pure function of the equipment shape, and getting that shape wrong is the
- * expensive half to discover later.
- */
 export function carriedLightTileIds(
   equipment: Equipment,
   tilesById: Record<string, TileDef>,
@@ -463,27 +169,6 @@ export function carriedLightTileIds(
   return out;
 }
 
-/**
- * The weapon a body will actually swing: what is in its hand, or what it was
- * born with.
- *
- * **A held weapon replaces the natural one rather than adding to it**, and that
- * replacement is the whole rule. It used to be a sum — a sword was `+3 atk,
- * -10 spd` on top of whatever the tile already said — and the sum had to go for
- * masteries to work at all. If a body carries a full stat block of its own, a
- * mastery can only be a third modifier stacked on the other two, and the
- * authored numbers and the earned ones end up arguing over the same ground. Now
- * the body contributes what it is *good at* and the weapon contributes what it
- * *is*, and neither has an opinion about the other's job.
- *
- * Falling back to the natural weapon rather than to nothing is what makes the
- * empty hand an ordinary case instead of a special one: bare hands are a weapon,
- * a bite is a weapon, and nothing downstream has to ask which it got.
- *
- * A tile that has been renamed or turned into a prop while somebody was holding
- * it reads as an empty hand, on the terms {@link restoredEquipment} restores on:
- * the fact is out of date, not corrupt.
- */
 export function weaponInHand(
   base: BattlerDef,
   equipment: Equipment | null,
@@ -496,22 +181,6 @@ export function weaponInHand(
   return (def ? resolveWeapon(def) : null) ?? base.naturalWeapon;
 }
 
-/**
- * The weapon this hand would swing, or null for a hand that takes no turn.
- *
- * **Null is the interesting answer**, and there are three ways to get it: an
- * empty hand, a hand holding something that is not a weapon at all — a torch, a
- * bag, a loaf of bread — and a hand holding a {@link ShieldItem}, which is a
- * `def` with a handle and was made a kind of its own precisely so that this
- * function could refuse it. While only one hand fought, a shield could be
- * authored as a `damage: 0` weapon and the off hand's contents were never
- * swung anyway; the moment both hands take turns, that arrangement is half your
- * blows landing for nothing.
- *
- * Not given the body, unlike {@link weaponInHand}: what is in a hand is a fact
- * about the hand, and the natural weapon is what happens when *no* hand has an
- * answer — which is {@link handToSwing}'s business rather than this one's.
- */
 export function weaponSwungBy(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
@@ -523,48 +192,6 @@ export function weaponSwungBy(
   return def ? resolveWeapon(def) : null;
 }
 
-/**
- * The hand this body's next blow comes from, or null for a body swinging what
- * it was born with.
- *
- * **The rotation skips hands that have nothing to swing**, and that is the rule
- * that makes one sword no worse than it was. A body alternating between a sword
- * and an empty fist would land half the blows it used to for holding exactly
- * what it held before — so an empty hand is not a turn, it is an absence.
- *
- * It follows that **two of the same weapon swing exactly as one of them does**:
- * same damage, same speed, same mastery, whichever hand is up. That is the
- * property worth checking any change here against, and note what it does *not*
- * say — a second sword still guards, because {@link heldDefence} counts what is
- * in both hands and a blade held up is a blade in the way. Two parrying swords
- * are twice the parry and exactly one sword's worth of swing. Nothing
- * special-cases this; it falls out of alternating rather than adding, which is
- * the whole reason the rotation is worth having.
- *
- * `preferred` is whose turn it is, and it is honoured only if that hand has
- * something to swing. A body that drops the sword it was about to use swings the
- * other one rather than punching, and a body with one weapon swings it every
- * time whatever the counter says — so nothing has to reset the rotation when
- * equipment moves, which is the entire reason the state can be a single hand
- * rather than a history.
- *
- * **`usable` is the same skip, asked of the fight rather than of the kit.** A
- * weapon can be held and still have no answer to where the target is standing —
- * a bow inside its {@link Reach.min}, a dagger across a courtyard — and a
- * rotation that could not see that would offer the wrong hand and stop there.
- * Given one, this is "the next hand with a weapon that works here" instead of
- * "the next hand with a weapon", and the fallthrough is the same fallthrough:
- * a body with a bow and a knife swings the knife when the bow is useless,
- * because the bow's turn is skipped exactly as an empty fist's is.
- *
- * Null when neither hand answers, which is bare hands, two torches, a body that
- * never had hands to speak of — **and, with a `usable`, an armed body whose
- * weapons all fall short**. Those last two are not the same case and the caller
- * has to tell them apart, because a held weapon *replaces* the natural one:
- * {@link weaponInHand} reads null as "swing what you were born with", which is
- * right for empty hands and wrong for a bow you cannot fire. Ask
- * {@link fightsWithAHand}, which is the unfiltered half of this question.
- */
 export function handToSwing(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
@@ -578,19 +205,6 @@ export function handToSwing(
   return null;
 }
 
-/**
- * Whether either hand holds something this body would swing at all.
- *
- * **The unfiltered half of {@link handToSwing}**, and it exists because that
- * function's null has two meanings once a `usable` is given: nothing held, or
- * nothing held that works here. A held weapon replaces the natural one, so only
- * the first of those may fall back to a fist — an archer standing too close
- * does not start punching, they simply do not swing.
- *
- * Also what {@link natureDefence} asks, which is the same question in its
- * original clothing: a body swinging something of its own is a body whose claws
- * are not in the fight.
- */
 export function fightsWithAHand(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
@@ -598,20 +212,6 @@ export function fightsWithAHand(
   return HANDS.some((hand) => weaponSwungBy(equipment, tilesById, hand));
 }
 
-/**
- * The hand holding a weapon that needs both, or null when neither is.
- *
- * **Where the "one square claims the other" rule is read from.** A two-handed
- * weapon sits in whichever hand took it and leaves its partner genuinely empty
- * — see `../lib/item`'s {@link WeaponItem.twoHanded} for why it is not stored
- * twice — so everything that has to know about the arrangement has to find it,
- * and this is the one place that looks.
- *
- * Either hand may be the one holding it, because both hands are the same square
- * and refusing the left would be reintroducing the asymmetry ambidexterity just
- * removed. It follows that the *empty* hand is the one a panel draws a ghost in,
- * which is why this answers with a hand rather than a boolean.
- */
 export function twoHandedHand(
   equipment: Hands | null,
   tilesById: Record<string, TileDef>,
@@ -625,15 +225,6 @@ export function twoHandedHand(
   return null;
 }
 
-/**
- * The hand a two-handed weapon is *claiming* rather than sitting in, if there is
- * one.
- *
- * Empty in the model and spoken for in the fiction, which is exactly the state a
- * panel has to draw and the move rules have to refuse. Null when no two-handed
- * weapon is held — including when a hand simply happens to be empty, which is
- * an ordinary free square and not this.
- */
 export function handClaimedByTwoHander(
   equipment: Hands | null,
   tilesById: Record<string, TileDef>,
@@ -642,22 +233,6 @@ export function handClaimedByTwoHander(
   return holding ? otherHand(holding) : null;
 }
 
-/**
- * The numbers a body fights with, given what it is wearing and which hand is
- * taking this turn.
- *
- * The one entry point the simulation uses, so there is a single place where
- * "these are the numbers" is answered — see `GameSession.battlerOf`, which
- * funnels the swing, the cooldown and the health bar's maximum through it.
- *
- * **The hand changes the blow and never the body.** `maxHp` comes off Toughness
- * and `flee` off Agility; neither has ever read the weapon, which is why
- * alternating hands did not need this function split in two. What moves with the
- * hand is damage, accuracy, speed, mastery, reach, what it throws and what it
- * inflicts — the swing — and what does not is everything a health bar draws. A
- * caller with no particular hand in mind passes null and gets the body's own
- * weapon, which is what an Arena row and a duel preview want.
- */
 export function effectiveBattler(
   base: BattlerDef,
   equipment: Equipment | null,
@@ -665,14 +240,6 @@ export function effectiveBattler(
   hand: Hand | null,
 ): FightingStats {
   const stats = fightingStats(base, weaponInHand(base, equipment, tilesById, hand));
-  // Assigned rather than added to what `fightingStats` worked out, because
-  // {@link wornDefence} has already counted the hands. Adding here is exactly
-  // the double count that splitting defence across two functions used to
-  // invite — and did.
-  // Everything worn, plus what the body turns aside on its own — see
-  // `../lib/battler`'s {@link bodyDefence}. Toughness's share is the one part of
-  // defence `wornDefence` does not count, so it is the one part that has to
-  // survive the assignment below.
   const guard = wornDefence(base, equipment, tilesById) + bodyDefence(base);
   const resist = armorResistances(equipment, tilesById);
   if (guard === stats.def && resist === NO_RESISTANCES) return stats;
@@ -680,29 +247,14 @@ export function effectiveBattler(
 }
 
 /**
- * What everything worn on this body turns aside *extra*, kind by kind.
- *
- * **Summed across the armour squares, exactly as the flat half is**, and it did
- * not use to be: when the chest was the only place armour went, "one armour, one
- * table" was the same sentence as "the armour's table". It is not any more, and
- * a helm that shrugs off hammers beside a shirt that shrugs off blades should
- * do both — the alternative is one square silently deciding what the other three
- * are worth.
- *
- * Neither hand is counted, and that stays true: what a shield stops is a `def`,
- * and it has no opinion about what *kind* of blow it stopped. See
- * {@link wornDefence}, which is where the flat halves meet.
- *
- * Shared-empty for a bare body and for the overwhelmingly common armour that
- * says nothing — see {@link NO_RESISTANCES} — so `effectiveBattler` can tell
- * "nothing to add" by identity and hand back the stats it was given.
+ * Indexed rather than `for...of`, here and in `armorDefence` and `requirementShortfall`:
+ * Bun's JIT deoptimises a `for...of` whose body did not run while it was being compiled.
  */
 export function armorResistances(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): WeaponResistances {
   let summed: WeaponResistances | null = null;
-  // Indexed rather than `for...of`, for the reason in {@link armorDefence}.
   const worn = wornArmor(equipment, tilesById);
   for (let i = 0; i < worn.length; i++) {
     const armor = worn[i]!;
@@ -717,29 +269,6 @@ export function armorResistances(
   return summed ?? NO_RESISTANCES;
 }
 
-/**
- * What this body counts as, for anything elemental thrown at it.
- *
- * **Two authored sources and they union: what the body *is*, and what it has
- * on.** A cave troll is fire because its battler says so; a player is nothing
- * until they put on a tunic of flames, and is fire for exactly as long as they
- * wear it. Neither half is derived from anything — see `../lib/battler`'s
- * {@link BattlerDef.elements} for why a body's masteries deliberately have no
- * say in this.
- *
- * **Worn and held squares only, never the bag.** A tunic of flames in your pack
- * is a tunic in a pack — the same line {@link wornInstances} already draws for
- * light and for what a death leaves on the floor, and the reason this walks that
- * list rather than {@link carriedInstances}.
- *
- * Unioned rather than summed, because an element is a fact and not a quantity:
- * two flaming rings are not more fire than one. Returned in {@link ELEMENTS}'
- * own order so the answer is stable whatever order the squares came in — a body
- * that is fire and water must not be a different thing for having swapped hands.
- *
- * Shared-empty for the overwhelmingly common neutral body, so the walk that
- * happens once per elemental tick allocates nothing when the answer is nothing.
- */
 export function bodyElements(
   base: BattlerDef,
   equipment: Equipment | null,
@@ -749,8 +278,6 @@ export function bodyElements(
   if (equipment) {
     for (const instance of wornInstances(equipment)) {
       const def = tilesById[instance.tileId];
-      // Silent about anything the catalogue has lost, on the terms every other
-      // walk over the squares here is.
       if (def) sources.push(itemElements(def));
     }
   }
@@ -759,37 +286,6 @@ export function bodyElements(
   return ELEMENTS.filter((element) => sources.some((elements) => elements.includes(element)));
 }
 
-/**
- * Everything this body has between it and a blow, added up.
- *
- * **Three sources and they sum**: both hands, what this body turns aside with
- * its own, and what it has on — the last of which is itself the sum of the four
- * worn squares, see {@link armorDefence}. A sword with a `def` is a parrying
- * sword and a shield in your fist is a shield, so the two hands count on exactly
- * the same terms as each other — a body with a shield in each hand is protected
- * twice, and one wearing a helm and mail behind them twice more. There is
- * deliberately no cap and no diminishing return: the numbers an author writes
- * are the numbers, on the terms a weapon's damage is, and a ceiling imposed here
- * would be balance hiding in a helper.
- *
- * **Arming yourself replaces your claws rather than adding to them**, and it is
- * the hands *together* that decide it now — see {@link natureDefence}. Taking up
- * anything you swing trades what your own hands turned aside for what the thing
- * does; taking up a shield does not, because a shield is not what you are
- * fighting with. That is the same replacement rule the swing itself is under.
- *
- * **This was already the arithmetic; it was not in one place, and half of it was
- * secretly about one hand.** The main hand's `def` reached a fight through
- * `fightingStats`, which resolves the weapon, while the other hand was summed
- * here — so "how protected is this body" had two answers, neither function's
- * name admitted it, and the natural weapon's share appeared or vanished
- * depending on which fist a sword was in. It is one function now, over squares
- * that are the same as each other, and `effectiveBattler` *assigns* what this
- * returns rather than adding to it.
- *
- * Takes the body because bare hands are a weapon, and what an empty fist turns
- * aside is a fact about whose fist it is.
- */
 export function wornDefence(
   base: BattlerDef,
   equipment: Equipment | null,
@@ -802,28 +298,6 @@ export function wornDefence(
   );
 }
 
-/**
- * What this body turns aside with its own hands, when its own hands are what it
- * is fighting with.
- *
- * **Once, and only for a body neither of whose hands swings.** Claws that turn a
- * blow aside are a fact about a body fighting bare; the moment it takes up
- * anything it swings, it is that thing in the way instead — the same replacement
- * rule the *swing* is under, and the reason it is a replacement rather than a
- * bonus is that otherwise arming yourself would be free defence.
- *
- * Counting it once rather than per empty hand is what keeps a shield honest: a
- * body holding only a shield still has its claws, and a body holding a shield
- * and a sword has the sword instead. Per-hand, the shield-only case would pay
- * for the empty fist twice.
- *
- * This is the one place the old asymmetry actually lived. `weaponInHand` used to
- * answer the main hand and fall back to the natural weapon, so the natural
- * `def` appeared exactly when the main hand was empty — which meant a sword in
- * your off hand and nothing in your right was claws-plus-sword, and the same
- * sword one square over was sword alone. Nobody wrote that rule; it fell out of
- * reading one field.
- */
 function natureDefence(
   base: BattlerDef,
   equipment: Equipment | null,
@@ -832,49 +306,16 @@ function natureDefence(
   return fightsWithAHand(equipment, tilesById) ? 0 : base.naturalWeapon.def;
 }
 
-/**
- * What everything worn on this body turns aside, added up.
- *
- * The four armour squares and nothing else — a head, a chest, a charm and a
- * pair of boots. Each takes armour and nothing else, and only armour *for that
- * square* — see {@link armorForSlot} — so unlike the off hand there is no "and
- * anything else with an opinion about defence" to allow for: whatever is in a
- * square is armour, and its `def` is the entirety of what it does.
- *
- * **They sum, with no cap and no diminishing return**, on exactly the terms the
- * three sources in {@link wornDefence} do. A body in a helm, mail and boots is
- * protected by all three, which is the whole reason to have squares for them;
- * the numbers an author writes are the numbers, and a ceiling imposed here would
- * be balance hiding in a helper.
- *
- * Zero for a bare body and for a tile the catalogue has lost, on the terms every
- * other lookup here answers a missing tile: the fact is out of date, and a fight
- * is not worth refusing over it.
- */
 export function armorDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): number {
-  // Indexed rather than `for...of`, and so are the loops in `armorResistances`
-  // and `../lib/mastery`'s `requirementShortfall`. Bun compiled each of those
-  // `for...of` loops, when its body had not yet run (nobody wearing armour, no
-  // weapon with requirements), without the body; and every time the body did
-  // run, the code dropped out of the optimized tier at that point — through ten
-  // recompilations, about 850,000 times in 45 seconds with a thousand players.
   const worn = wornArmor(equipment, tilesById);
   let total = 0;
   for (let i = 0; i < worn.length; i++) total += worn[i]!.def;
   return total;
 }
 
-/**
- * The armour blocks this body is actually wearing, square by square.
- *
- * One walk of {@link ARMOR_SLOTS} shared by the two things that read them, so
- * "which squares are armour, and what counts as armour in one" has a single
- * answer rather than one per arithmetic. Silent about anything the catalogue has
- * lost or no longer agrees belongs in the square it is sitting in.
- */
 function wornArmor(equipment: Equipment | null, tilesById: Record<string, TileDef>): ArmorItem[] {
   if (!equipment) return [];
   const out: ArmorItem[] = [];
@@ -888,49 +329,11 @@ function wornArmor(equipment: Equipment | null, tilesById: Record<string, TileDe
   return out;
 }
 
-/**
- * This tile's armour block, if it is armour *and* it belongs in this square.
- *
- * **The one place "which square does this go in" is asked of a tile**, which is
- * what stops a helmet being wearable as boots: `./itemMoves`' `slotTakes` asks
- * it of a drag, `restoredEquipment` asks it of a kit coming back from storage,
- * and the two would otherwise be two readings of `ArmorItem.slot` to keep in
- * step.
- *
- * Here rather than beside `slotTakes` because it is a fact about the slot, and
- * the slots are defined by this module — the same reason {@link handAccepts}
- * lives here.
- */
 export function armorForSlot(slot: ArmorSlot, def: TileDef): ArmorItem | null {
   const armor = resolveArmor(def);
   return armor && armorSlotOf(armor) === slot ? armor : null;
 }
 
-/**
- * What the off hand turns aside, if it is holding something that turns anything
- * aside.
- *
- * **The one thing the off hand adds to a fight, and it is deliberately not
- * damage.** Two hands swinging is a whole design — timing, which one lands,
- * what a mastery means when you hold two things — and none of it is needed to
- * answer the question this slot exists for: a torch or a shield. Light comes out
- * of {@link carriedLightTileIds} and defence comes out of here, so both halves
- * of that choice work and neither invents a second attack.
- *
- * Read off a weapon's `def` rather than off {@link ArmorItem}, and it stays that
- * way now that armour has a slot of its own: a shield is a thing you *hold*, and
- * making it armour would put it in the square a breastplate belongs in and let a
- * body wear one instead of the other. Two kinds, two squares, and
- * {@link wornDefence} adds them.
- *
- * **This is the off hand's contribution alone.** The main hand's rides on
- * {@link weaponInHand}, because a held weapon replaces the natural one and its
- * `def` goes along with the rest of it. {@link wornDefence} is where the two
- * meet, and is what any caller asking "how protected is this body" should ask.
- *
- * Zero for an empty hand, a tile the catalogue has lost, and anything with no
- * opinion about defence.
- */
 export function heldDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
@@ -941,42 +344,11 @@ export function heldDefence(
     if (!held) continue;
     const def = tilesById[held.tileId];
     if (!def) continue;
-    // A weapon's `def` or a shield's, which are the same field under two names
-    // — a parrying sword and a buckler are both things you put in the way. A
-    // torch has neither and adds nothing, which is what an artifact is.
     total += resolveWeapon(def)?.def ?? resolveShield(def)?.def ?? 0;
   }
   return total;
 }
 
-/**
- * Whether this hand can take this thing, given what the *other* hand is doing.
- *
- * **The one rule in the game where a square's answer depends on its neighbour**,
- * and the only reason it is worth the exception: a two-handed weapon occupies
- * one square and claims the other — see `../lib/item`'s
- * {@link WeaponItem.twoHanded} — so without this a body could wield a pike and
- * a shield, which nothing about a pike can be read to allow.
- *
- * Two refusals, and they are the same rule read from either end. A hand whose
- * partner is holding a two-hander is already spoken for, so nothing may go in
- * it; and a two-hander may not go into a hand whose partner is occupied, because
- * there would be no second hand to give it. Everything else about a hand stays
- * exactly as generous as it was — see {@link handAccepts}, which is the separate
- * question of what a hand will take at all.
- *
- * **Never the *other* hand.** Dropping a thing on a square does trade with what
- * is in that square — see `./itemMoves`' `swapInto` — because somebody aimed at
- * it. Nobody aimed at the neighbour, so arriving with a greatsword does not put
- * down the dagger in your other fist; it is refused instead, and putting the
- * dagger away first is the deliberate act that makes room.
- *
- * Here rather than in `./itemMoves` for the reason {@link handAccepts} is: it is
- * a fact about the squares, and the squares are defined by this module. The move
- * rules ask it of a drag, `./battlerKit` asks it of a kit being rolled, and
- * `./affordances` asks it of a thing on the floor — three callers who must not
- * be allowed to disagree.
- */
 export function handHasRoomFor(
   equipment: Hands | null,
   tilesById: Record<string, TileDef>,
@@ -989,93 +361,20 @@ export function handHasRoomFor(
   return true;
 }
 
-/**
- * Whether either hand could hold this.
- *
- * **A hand takes anything you can carry**, which is the honest reading of what a
- * hand is: if you would rather hold a second pack than a shield, that is a
- * choice the game has no business refusing. What a thing is *for* is a separate
- * question, answered by `equipSlotsFor` — which is what decides where a thing goes
- * when you have not said, and what `WeaponItem.offhand` exists to inform.
- *
- * The one refusal is a container nobody may carry: `equippable: false` is an
- * author saying "this is a chest, it is opened where it lies", and a chest in a
- * fist would be that flag meaning nothing. Armour is *not* a refusal — you can
- * carry a breastplate in your hands, you simply are not wearing it while you do.
- *
- * Here rather than in `./itemMoves` because it is a fact about the slot, and the
- * slot is defined by this module. `restoredEquipment` and the move rules both
- * ask it, and two answers would be a kit that could be saved and not re-equipped.
- */
 export function handAccepts(def: TileDef): boolean {
   const item = resolveItem(def);
   if (!item) return false;
-  // A **charm** belongs round your neck and nowhere else — see `../lib/item`'s
-  // {@link CharmItem}. A hand is a thing you act *with*, and a hand that acted
-  // by itself would be a body doing things nobody asked it to. This used to
-  // refuse an automatic *stone* on the same grounds; splitting the passive out
-  // into its own kind is what left every stone welcome in either fist, on
-  // exactly the terms a shield is: held, and never swung at anybody.
   if (resolveCharm(def)) return false;
   return item.type !== "container" || item.equippable;
 }
 
-/**
- * Whether this worn square can take this thing.
- *
- * **The accessory square is the one that takes four kinds**, and this is where
- * that is written down. Everywhere else a worn square asks
- * {@link armorForSlot} and nothing else — a helm on a head, boots on feet — but
- * this one is already the square for "a thing round your neck that is not a
- * plate", and an arcane stone on a strap, a {@link CharmItem} and a torch on a
- * belt loop are all exactly that. Giving any of them a square of its own would
- * have been an eighth slot that one profession fills. It is `charm` in the
- * model and "Accessory" on screen — see `../lib/kit`'s `SLOT_LABELS`.
- *
- * The three are here for different reasons, which is worth saying because it is
- * the whole of what the square is now for:
- *
- * - A **stone** is welcome because a stone is welcome everywhere — every square
- *   casts the same spell at the same range, and this is simply the one that
- *   costs no swing.
- * - A **charm** is here because this is the only square that will have it:
- *   {@link handAccepts} refuses one, since a hand is a thing you act *with*.
- * - A **light** is here because the square already lit things and nothing said
- *   so. {@link carriedLightTileIds} reads every worn square alike, so a torch
- *   dropped in here would have worked the day the square existed; the refusal
- *   was the only thing in the way. What it buys is a hand — the choice used to
- *   be "see in the dark or hold a shield", and an off hand is worth more than
- *   that. Read off the light rather than off {@link ArtifactItem}, because a
- *   lamp that is also an amulet is still a lamp, and it is the same question
- *   {@link takesEffect} asks of a square to decide whether it is doing anything.
- *
- * Here rather than in `./itemMoves` for the reason {@link handAccepts} is: it is
- * a fact about the squares, and the squares are defined by this module. The move
- * rules ask it of a drag and `restoredEquipment` asks it of a kit coming back
- * from storage, and two answers would be a kit that could be saved and not
- * re-equipped.
- */
 export function wornAccepts(slot: ArmorSlot, def: TileDef): boolean {
   if (armorForSlot(slot, def)) return true;
   if (slot !== "charm") return false;
   if (resolveStone(def) != null || resolveCharm(def) != null) return true;
-  // No direction to give it, because there is no placement yet — a drag is
-  // somebody asking whether the square will have it at all. A directional tile
-  // answers for its south face, which is what every other question asked of a
-  // tile without a placement gets. @see resolveTileSprite
   return resolveLight(def) != null;
 }
 
-/**
- * The stone in this square, or null when there is not one there.
- *
- * A lookup through the tile catalogue rather than a field on the kit, on the
- * terms every other question about what is held is answered: an instance is an
- * id and a tile, and what that tile *is* is the catalogue's business. A tile
- * that has been renamed or turned into a prop while somebody was holding it
- * reads as an empty square, which is the same answer {@link weaponSwungBy}
- * gives.
- */
 export function stoneIn(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
@@ -1087,30 +386,6 @@ export function stoneIn(
   return def ? resolveStone(def) : null;
 }
 
-/**
- * Whether the thing in this square is a stone that is still cooling, and so
- * cannot be moved out of it.
- *
- * **The second cross-cutting square rule in the game**, and it sits beside the
- * first for that reason: {@link handHasRoomFor} is a square refusing because of
- * what its neighbour is doing, and this is a square refusing because of what the
- * thing in it has recently been asked to do. Both are facts about the squares,
- * both are asked by the move rules and by whatever puts things on the floor, and
- * both would be wrong in a different way in each caller if they were written
- * twice.
- *
- * What it stops is the whole reason cooldowns are per stone: without it a caster
- * carries six stones in a bag, presses one, swaps it out and presses the next,
- * and the cooldown decides nothing at all.
- *
- * **Player-initiated moves only.** A death drops the entire kit through
- * `GameSession.dropKit`, which does not come through here — a cooling stone
- * clinging to a corpse would be the rule outliving the body it was a rule about.
- *
- * Reads the instance rather than the def for the cooldown and the def for
- * whether it is a stone at all: a leftover cooldown on something that has since
- * stopped being a stone is stale bookkeeping, not a lock.
- */
 export function stoneLocked(
   instance: ItemInstance | null,
   tilesById: Record<string, TileDef>,
@@ -1120,45 +395,6 @@ export function stoneLocked(
   return def != null && resolveStone(def) != null;
 }
 
-/**
- * Whether the thing in this square is doing anything while it sits there.
- *
- * **A square takes anything, and the game reads almost none of it.** A hand
- * holds a breastplate, a loaf, a spare helmet — see {@link handAccepts}, which
- * refuses nothing you could carry, and deliberately: what you would rather hold
- * is your business. The cost of that generosity is that a full square looks
- * exactly like a working one. A player with a helm in one fist is wearing no
- * more armour than a player with an empty fist, and nothing on the panel said
- * so.
- *
- * The same trap with a second lock on it is the stone whose requirements the
- * caster has not met. It is a stone, it is in a square stones go in, and it does
- * nothing at all until the levels arrive — and since the row of spell buttons
- * leaves it out entirely, the kit panel is the only place it appears.
- *
- * **What counts is what some rule elsewhere actually reads**, and each arm below
- * names the one that does:
- *
- * - Elements and light are read off every worn square alike — see
- *   {@link bodyElements} and {@link carriedLightTileIds} — so a robe of nature
- *   in your fist is doing something even though it is not armouring you.
- * - A stone casts from any square at the same range, and only once its
- *   requirements are met. @see `./casting`'s `castability`
- * - A hand contributes a swing or a guard: {@link weaponSwungBy},
- *   {@link heldDefence}. A held pack contributes the things in it, which is why
- *   a hand takes one — see `./itemUse`.
- * - A worn square contributes armour authored for *that* square
- *   ({@link armorForSlot}), and the charm additionally takes a {@link CharmItem},
- *   which ticks on its wearer.
- *
- * Everything else is inert where it is: food, a key, a coin, a helmet in a fist.
- * None of it is wasted — it is carried, and carrying is what a bag is for — so
- * what this supports is a square drawn quietly rather than one drawn as wrong.
- *
- * False for an empty square, on the terms every other question here answers it,
- * and for a tile the catalogue has lost — a thing the game can no longer read is
- * a thing doing nothing.
- */
 export function takesEffect(
   slot: EquipSlot,
   instance: ItemInstance | null,
@@ -1169,9 +405,6 @@ export function takesEffect(
   const def = tilesById[instance.tileId];
   if (!def) return false;
 
-  // Before the kind of the thing, because these two are read off the square
-  // regardless of what is in it: an elemental trinket and a lantern work in a
-  // fist exactly as they work round a neck.
   if (itemElements(def).length > 0) return true;
   if (resolveLight(def, { direction: instance.direction })) return true;
 

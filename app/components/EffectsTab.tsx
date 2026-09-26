@@ -21,33 +21,15 @@ import { Button, FieldLabel, Segmented, Switch, SwitchField } from "../ui";
 import { ColorField, NumberField, ParticleFields, Row } from "./ParticleFields";
 import { VfxPreview, type TransitionPlay } from "./VfxPreview";
 
-/**
- * How a tile arrives and how it leaves, authored beside a preview that plays it.
- *
- * Its own tab rather than more of the Tile tab, which already carries the art,
- * the light and the plume: this is two small forms that most tiles never open,
- * and the dot on the tab says whether this one has. See `../lib/tileTransition`
- * for what each field means to the shader.
- *
- * Every number is held to the schema's own range here, because the schema's
- * answer to an out-of-range value is to drop the whole side on load — which
- * would read as the effect silently vanishing, with no field saying why.
- */
-
 type Dissolve = NonNullable<Transition["dissolve"]>;
 
 const DEFAULT_DURATION_MS = 700;
 const DURATION_STEP_MS = 50;
 const DEFAULT_EDGE_WIDTH = 0.15;
 const EDGE_WIDTH_STEP = 0.05;
-/** Half-cell steps, so a sweep can start from an edge as well as a corner. */
 const SWEEP_ORIGIN_STEP = 0.5;
 const DEFAULT_SWEEP_FROM = { x: -1, y: -1 };
 
-/**
- * A cold edge coming in and an ember going out — the pair the arcane flame was
- * authored with, and a starting point that already reads as a direction.
- */
 const DEFAULT_EDGE_COLOR: Record<TransitionSide, string> = {
   appear: "#8ce6ff",
   disappear: "#ff9e40",
@@ -83,17 +65,11 @@ function defaultDissolve(side: TransitionSide): Dissolve {
 
 const DEFAULT_DROP_LEVELS = 2;
 
-/** How many particles a burst spends over the whole transition. */
 function burstCost(burst: ParticleEmitterDef, durationMs: number): number {
   return burstParticleCount(burst.ratePerSecond, durationMs);
 }
 
-/**
- * The default plume as a burst, slowed if need be to fit the budget over this
- * duration — so switching one on never authors a side the schema would drop.
- */
 function defaultBurst(durationMs: number): ParticleEmitterDef {
-  // What one particle a second costs over this duration, into the budget.
   const affordable = Math.floor(MAX_BURST_PARTICLES / burstParticleCount(1, durationMs));
   return {
     ...DEFAULT_PARTICLES,
@@ -110,9 +86,7 @@ type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
   tilesets: TilesetDef[];
-  /** The dialog's steady copy of the draft's art. @see TileEditorDialog */
   previewSubject: TileDef;
-  /** The tile's own plume, so a flame is previewed smoking as it does in play. */
   previewVfx: StatusVfx;
 };
 
@@ -313,7 +287,6 @@ function DissolveFields({
   onChange,
 }: {
   side: TransitionSide;
-  /** The side's heading, so every switch in it is named the same way. */
   title: string;
   dissolve: Dissolve | undefined;
   onChange: (next: Dissolve | undefined) => void;
@@ -344,8 +317,6 @@ function DissolveFields({
               onChange({
                 ...dissolve,
                 pattern,
-                // A sweep cannot be saved without somewhere to start, so one is
-                // filled in the moment it is picked rather than left to fail.
                 from: pattern === "sweep" ? from : dissolve.from,
               })
             }

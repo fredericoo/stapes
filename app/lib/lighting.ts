@@ -13,10 +13,8 @@ import { resolveLight } from "./tileResolve";
 
 export { MAX_LIGHT_LEVEL };
 
-/** 1 level of Z equals 1 cell of XY for spherical distance. */
 export const VERTICAL_FALLOFF = 1;
 
-/** Below this transmission, treat the ray as fully blocked. */
 const TRANSMISSION_EPSILON = 1e-3;
 
 export type LevelLightMap = {
@@ -24,7 +22,6 @@ export type LevelLightMap = {
   y0: number;
   w: number;
   h: number;
-  /** RGB triples, length = w * h * 3, row-major from (x0,y0). */
   rgb: Uint8Array;
 };
 
@@ -32,56 +29,32 @@ export type LightGrid = {
   levels: Map<number, LevelLightMap>;
 };
 
-/**
- * Ambient-free bake: sky factor + block light. Tint with
- * {@link composeLightGrid} so time of day can change without rebaking.
- */
 export type RawLevelLight = {
   x0: number;
   y0: number;
   w: number;
   h: number;
-  /** Sky factor 0–255 per cell, length w * h. */
   sky: Uint8Array;
-  /** Block light RGB 0–255, length w * h * 3. */
   block: Uint8Array;
 };
 
-/**
- * An emitter in a bake whose light follows the animation clock, and the cells
- * it can reach at any point in its cycle.
- *
- * Reported by the bake because the bake is already walking past it. A cache can
- * then work out which of its results depend on the clock and — far more
- * usefully — which do not, so a flicker in one corner of the map does not
- * expire the light everywhere else.
- */
 export type AnimatedEmitter = {
   tileId: string;
   x: number;
   y: number;
-  /** Widest radius over the tile's whole cycle, so reach holds at every phase. */
   radius: number;
 };
 
 export type RawLightGrid = {
   levels: Map<number, RawLevelLight>;
-  /** Empty unless the bake passed a tile whose emission varies per frame. */
   animated: AnimatedEmitter[];
 };
 
-/**
- * A level's light in the exact byte layout the GPU wants: interleaved RGBA with
- * block light in RGB and the sky factor in alpha. Uploaded verbatim, and tinted
- * in the fragment shader against `uAmbient`, so moving the clock costs neither
- * a re-tint nor a re-upload.
- */
 export type PackedLevelLight = {
   x0: number;
   y0: number;
   w: number;
   h: number;
-  /** Length w * h * 4. */
   rgba: Uint8Array;
 };
 
@@ -97,25 +70,14 @@ export function clonePackedLightGrid(grid: PackedLightGrid): PackedLightGrid {
   return { levels };
 }
 
-/**
- * The clear colour behind the world, 0xRRGGBB.
- *
- * What shows through where no tile is drawn is a cell with nothing at or below
- * it — the void the bake leaves black (see `computeLightingFlood`) — so the
- * canvas is cleared to the same black. It used to be a sky tint that followed
- * the hour, which read as a lit floor plane under every level and changed
- * colour at night as though it were one.
- */
 export const VOID_BACKGROUND = 0x000000;
 
-/** Named presets kept for tests — samples from the clock keyframes. */
 export const AMBIENT_PRESETS = {
   day: [1, 1, 1] as [number, number, number],
   dusk: [0.55, 0.4, 0.3] as [number, number, number],
   night: [0.04, 0.05, 0.1] as [number, number, number],
 };
 
-/** Write `sky * ambient + block` into `rgb` (length sky.length * 3). */
 export function composeAmbientRgb(
   sky: Uint8Array,
   block: Uint8Array,
@@ -148,38 +110,10 @@ export function composeLightGrid(raw: RawLightGrid, ambient: [number, number, nu
 }
 
 export type CellOcclusion = {
-  /**
-   * How much of this cell you can see *past*, sideways: 0 = open, 1 = solid.
-   * Half-height blockers are 0.5 (`blockH / HEIGHT_PER_LEVEL`); rays crossing
-   * horizontally multiply transmission by `(1 - opacity)`.
-   *
-   * Horizontal only. A sign is half a level tall, so half a wall's worth of
-   * light gets over it — and none of that says anything about whether light
-   * may travel *down* through the cell. That is {@link sealsLevel}'s question,
-   * and asking it of this number instead is what let daylight into every
-   * sealed room with a bush on the ground above it.
-   */
   opacity: number;
-  /**
-   * Non-light-passing tiles present: this cell has a lid.
-   *
-   * Independent of {@link opacity}, and deliberately so. Whatever its height, a
-   * solid tile covers its cell's whole footprint at the level's floor plane, so
-   * light travelling vertically has to cross it and does not get through.
-   * Height-0 floors are the case that makes the two facts come apart — they
-   * score no opacity at all — but the rule is the same for a floor, a sign
-   * standing on that floor, and a wall.
-   *
-   * False for an empty cell and for light-passing tiles (water, glass, a
-   * ladder-top), which is what keeps an authored skylight a skylight.
-   */
   sealsLevel: boolean;
 };
 
-/**
- * Relocate a map-cell emitter to a fractional cell-space position (walk/fall lerp).
- * `x,y,z` is the logical cell still on the map; `fx,fy,fz` is where light emits from.
- */
 export type EmitterOverride = {
   x: number;
   y: number;
@@ -187,28 +121,13 @@ export type EmitterOverride = {
   fx: number;
   fy: number;
   fz: number;
-  /**
-   * Lights to cast from here. Absent means "read the stack at `x,y,z`", which is
-   * how a body's own light has always been found.
-   *
-   * Present for the one kind of emitter that is *not* on the board: a torch in
-   * somebody's bag. Carried things are off the map by construction — that is the
-   * whole item model — so there is no cell to look them up in and the override
-   * has to carry them.
-   *
-   * Several at once, because carrying two lanterns is a thing a player may do
-   * and there is no blending rule to invent: each is pushed as its own emitter
-   * at the same position, and the cast already accumulates.
-   */
   lights?: readonly LightDef[];
 };
 
 type Emitter = {
-  /** Fractional emit position (cell space). */
   x: number;
   y: number;
   z: number;
-  /** Logical map cell — self-lit / emitterCells. */
   lx: number;
   ly: number;
   lz: number;
@@ -223,10 +142,6 @@ function cellKey(x: number, y: number, z: number): string {
   return `${z}:${coordKey(x, y)}`;
 }
 
-/**
- * True when nothing above `(x,y,z)` seals the vertical shaft to the sky.
- * The cell itself may hold a floor — sunlight lands on it.
- */
 export function isSkyExposed(
   x: number,
   y: number,
@@ -241,14 +156,6 @@ export function isSkyExposed(
   return true;
 }
 
-/**
- * How much a stack occludes light, as two independent facts.
- * - Light-passing tiles (water) ignored by both.
- * - Blocking height maps to opacity as `min(1, blockH / HEIGHT_PER_LEVEL)` —
- *   half-blocks decay light crossing them sideways by half, full blocks seal.
- * - Anything solid at all sets `sealsLevel`, and that alone decides vertical
- *   passage. @see CellOcclusion
- */
 export function stackOcclusion(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
@@ -257,9 +164,6 @@ export function stackOcclusion(
   let blockH = 0;
   let sealsLevel = false;
   for (const placed of stack) {
-    // The gap under a raised placement is solid, whatever the placement itself
-    // lets through — see `PlacedTile.foot`. A window lifted two units up is two
-    // units of wall and then a window.
     const foot = footElevation(elev, placed);
     if (foot > elev) {
       blockH += foot - elev;
@@ -279,28 +183,10 @@ export function stackOcclusion(
   };
 }
 
-/**
- * How tall the solid part of a stack stands, in height units.
- *
- * The same sum {@link stackOcclusion} makes, handed over uncapped — which is the
- * whole reason it is a separate function. Opacity saturates at a full level
- * because light does not care how far past that a wall goes, and that cap
- * destroys exactly the information a *look* needs: whether the thing in the way
- * is taller than whoever is looking over it. A crate and a crate on a plinth
- * are one number to a lamp and two different questions to a rat.
- *
- * Light-passing tiles are skipped here on the same terms, so a window is still
- * glass and a pond is still see-across. @see ../game/sight
- */
 export function stackBlockHeight(stack: PlacedTile[], tilesById: Record<string, TileDef>): number {
   let elev = 0;
   let blockH = 0;
   for (const placed of stack) {
-    // As in {@link stackOcclusion}: the gap a raised foot leaves is solid. It
-    // matters more here than there, because this is also what measures where a
-    // creature's own eyes are — a rat on a floor raised two units looks out
-    // from two units up, and measuring it from the level base would leave it
-    // staring at the inside of everything around it.
     const foot = footElevation(elev, placed);
     blockH += foot - elev;
     elev = foot + terrainHeight(placed, tilesById);
@@ -312,10 +198,6 @@ export function stackBlockHeight(stack: PlacedTile[], tilesById: Record<string, 
   return blockH;
 }
 
-/**
- * Fractional cell-space emit position for a lit tile: XY at the cell centre,
- * Z at the tile's vertical centre (stack base elevation + half its height).
- */
 export function emitterCenter(
   x: number,
   y: number,
@@ -334,10 +216,6 @@ export function emitterCenter(
   };
 }
 
-/**
- * Amanatides & Woo 3D DDA. Returns remaining transmission after intermediate
- * cells (endpoints excluded). Each cell multiplies by (1 - opacity).
- */
 export function rayTransmission(
   x0: number,
   y0: number,
@@ -374,8 +252,6 @@ export function rayTransmission(
   let transmission = 1;
   const maxSteps = absDx + absDy + absDz;
   for (let i = 0; i < maxSteps; i++) {
-    // Track which axis actually advanced this step — stepZ alone is nonzero for
-    // any vertical ray, including during its horizontal DDA moves.
     let movedZ = false;
     if (tMaxX < tMaxY) {
       if (tMaxX < tMaxZ) {
@@ -395,18 +271,12 @@ export function rayTransmission(
       movedZ = true;
     }
 
-    // Anything solid hard-seals vertical *passage* past it, however short.
-    // Opacity is the sideways question and takes no part in this one.
-    //
-    // **The lid belongs to the upper of the two cells**, because a tile sits on
-    // its own level's floor plane: climbing into z crosses z's lid, and dropping
-    // out of z crosses that same lid. Reading the cell the step *arrived* in
-    // both times checked the right lid going up and the one a storey too low
-    // coming down, so the first floor under a light never blocked it — a torch
-    // lit the cave below the one it was standing in.
-    //
-    // Asked before the arrival break, or the last crossing of a descent is the
-    // one that goes unchecked.
+    /**
+     * A tile sits on its own level's floor plane, so the lid between two
+     * cells belongs to the upper of them. Reading the cell the step arrived
+     * in instead checks the wrong lid on the way down, and a torch lights
+     * the cave below the one it stands in.
+     */
     if (movedZ) {
       const lid = occlusion.get(cellKey(x, y, stepZ > 0 ? z : z + 1));
       if (lid?.sealsLevel) return 0;
@@ -447,11 +317,6 @@ function accumulateAt(
   floats[i + 2]! += b;
 }
 
-/**
- * Cast one emitter into `floatsByZ` (player overlay / dynamic lights).
- * A sealing cell accepts light from above but refuses light climbing from
- * below. Solids stay dark except the emitter's own cell.
- */
 function castEmitter(
   e: Emitter,
   occlusion: DenseOcclusion,
@@ -472,13 +337,12 @@ function castEmitter(
   const xLo = Math.floor(e.x) - rCells;
   const xHi = Math.ceil(e.x) + rCells;
 
-  // The emitter's own cell must not shadow itself *sideways*; restored below.
-  //
-  // Its seal is deliberately left alone. That seal is the floor the emitter is
-  // standing on, and a floor is exactly what should stop the light reaching the
-  // storey below — clearing it is what let a lantern in a cave light the cave
-  // under it. Every authored emitter is `lightPassing`, so the tile itself
-  // never contributes the seal it would then be blocked by.
+  /**
+   * The emitter's own cell must not shadow it sideways, so its opacity is
+   * cleared for the cast and restored below. Its seal is left alone: that
+   * seal is the floor the emitter stands on, and clearing it too would let
+   * the light through to the storey underneath.
+   */
   const selfIndex = denseIndex(occlusion, e.lx, e.ly, e.lz);
   const savedSelfOpacity = selfIndex < 0 ? 0 : occlusion.opacity[selfIndex]!;
   if (selfIndex >= 0) occlusion.opacity[selfIndex] = 0;
@@ -502,9 +366,7 @@ function castEmitter(
 
         if (!isSelf) {
           if (targetOpacity >= 1) continue;
-          // Nothing lands in the void, though the ray still crosses it.
           if (targetVoid) continue;
-          // A cell with a lid refuses light climbing from below.
           if (tz > sz && targetSeals) continue;
         }
 
@@ -526,14 +388,6 @@ function castEmitter(
   if (selfIndex >= 0) occlusion.opacity[selfIndex] = savedSelfOpacity;
 }
 
-/**
- * Build a per-level RGB light grid via Minecraft-style sky + block flood fill.
- * Pure / deterministic — no Three.js.
- *
- * `ambient` is the sky colour (time of day) multiplied by the discrete sky level.
- * Optional `overrides` relocate emitters; `omitLightTileIds` skips their bake
- * so a moving player can be overlaid cheaply.
- */
 export function computeLighting(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -547,10 +401,6 @@ export function computeLighting(
   );
 }
 
-/**
- * Deep-copy a light grid (new `rgb` buffers). Used so dynamic paint can mutate
- * a snapshot of the static bake without ruining the cache.
- */
 export function cloneLightGrid(grid: LightGrid): LightGrid {
   const levels = new Map<number, LevelLightMap>();
   for (const [z, level] of grid.levels) {
@@ -565,7 +415,6 @@ export function cloneLightGrid(grid: LightGrid): LightGrid {
   return { levels };
 }
 
-/** Cells an emitter set can reach: a rect plus the levels it spans. */
 type Reach = { x0: number; y0: number; x1: number; y1: number; z0: number; z1: number };
 
 function emitterReach(emitters: readonly Emitter[]): Reach {
@@ -589,15 +438,6 @@ function emitterReach(emitters: readonly Emitter[]): Reach {
   return r;
 }
 
-/**
- * Emitters at the override cells, found by looking those cells up rather than
- * sweeping the map for them. There is one override per actor in practice, so the
- * old sweep read every cell in the world to find a single tile.
- *
- * An override that carries its own {@link EmitterOverride.lights} skips the
- * lookup entirely — there is nothing at that cell to find, because what is being
- * lit from there is in somebody's bag.
- */
 function collectOverrideEmitters(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -634,7 +474,6 @@ function collectOverrideEmitters(
   return emitters;
 }
 
-/** One light cast from an override's position, whatever it was found by. */
 function pushEmitter(emitters: Emitter[], ov: EmitterOverride, light: LightDef) {
   const [cr, cg, cb] = parseHexColor(light.color);
   emitters.push({
@@ -652,31 +491,16 @@ function pushEmitter(emitters: Emitter[], ov: EmitterOverride, light: LightDef) 
   });
 }
 
-/**
- * Occluders inside `reach`, as flat arrays indexed off the box.
- *
- * The cast probes a cell per ray step, millions of times a second, and a
- * string-keyed Map turns each of those into a key build plus a hash lookup.
- * Indexing arithmetic on a typed array is the same trick that took the sky
- * flood from ~95ms to ~13ms.
- */
 export type DenseOcclusion = {
   reach: Reach;
   w: number;
   h: number;
   d: number;
-  /** 0 open, 1 sealed; matches {@link CellOcclusion.opacity}. */
   opacity: Float32Array;
-  /** 1 where {@link CellOcclusion.sealsLevel}. */
   seals: Uint8Array;
-  /**
-   * 1 where nothing is at or below the cell in its column — the bake's void
-   * (see `computeLightingFlood`). Light crosses it and never lands in it.
-   */
   voids: Uint8Array;
 };
 
-/** A column's lowest tile level when the column holds no tile in reach. */
 const NO_TILE_IN_REACH = MAX_LEVEL + 1;
 
 function denseIndex(o: DenseOcclusion, x: number, y: number, z: number): number {
@@ -714,17 +538,6 @@ function denseOcclusionIn(
   return dense;
 }
 
-/**
- * Mark the void inside `reach`: cells with nothing at or below them, by the
- * same rule as the bake. A carried torch at the edge of a drop must not paint
- * the drop, or the overlay would relight what the bake left black.
- *
- * Scoped to the reach like everything else here, with the one exception the
- * rule forces: whether a cell is void depends on levels *under* the reach. A
- * column with room below its lowest tile in reach is probed downward until a
- * tile turns up — a level the map does not have costs one lookup for every
- * column, and a level it does have is usually the one with the tile in it.
- */
 function fillDenseVoids(dense: DenseOcclusion, map: MapFile, lowestTileZ: Int32Array) {
   const { reach, w, h } = dense;
   const levelsBelow: number[] = [];
@@ -750,7 +563,6 @@ function columnHasTileAt(map: MapFile, x: number, y: number, levels: readonly nu
   return false;
 }
 
-/** Void from the reach's floor up to and including `zTop`. */
 function markVoidColumn(dense: DenseOcclusion, x: number, y: number, zTop: number) {
   for (let z = dense.reach.z0; z <= zTop; z++) {
     dense.voids[denseIndex(dense, x, y, z)] = 1;
@@ -781,7 +593,6 @@ function fillDenseLevel(
   }
 }
 
-/** {@link rayTransmission} against a {@link DenseOcclusion}. Same maths, no hashing. */
 function denseRayTransmission(
   o: DenseOcclusion,
   x0: number,
@@ -832,9 +643,7 @@ function denseRayTransmission(
       movedZ = true;
     }
 
-    // The lid of the upper cell of the pair, and asked before the arrival
-    // break. See {@link rayTransmission} for why it is that cell and not this
-    // one.
+    /** The lid of the upper cell of the pair — see {@link rayTransmission}. */
     if (movedZ) {
       const lidIndex = denseIndex(o, x, y, stepZ > 0 ? z : z + 1);
       if (lidIndex >= 0 && o.seals[lidIndex]!) return 0;
@@ -853,10 +662,6 @@ function denseRayTransmission(
   return transmission;
 }
 
-/**
- * A level's colour bytes viewed generically, so the same overlay maths serves
- * both a composed RGB grid and a packed RGBA one whose RGB half is block light.
- */
 type ChannelView = {
   x0: number;
   y0: number;
@@ -866,7 +671,6 @@ type ChannelView = {
   stride: number;
 };
 
-/** Lift the reach rect out of a level into float accumulators. */
 function readReachFloats(level: ChannelView, reach: Reach, w: number, h: number) {
   const floats = new Float32Array(w * h * 3);
   for (let ly = 0; ly < h; ly++) {
@@ -916,13 +720,6 @@ function blockView(level: PackedLevelLight): ChannelView {
   return { ...level, data: level.rgba, stride: 4 };
 }
 
-/**
- * Paint dynamic emitters into the block channel of a packed grid.
- *
- * The identical cast to {@link overlayEmitterOverrides}, aimed at block light
- * rather than an already-tinted RGB. A dynamic light *is* block light, so this
- * is where it belongs once ambient moved to the shader.
- */
 export function overlayEmitterOverridesPacked(
   base: PackedLightGrid,
   map: MapFile,
@@ -960,14 +757,6 @@ export function overlayEmitterOverridesPacked(
   return out;
 }
 
-/**
- * Add-only overlay for emitters that were omitted from the static bake
- * (e.g. the player). No subtract — `base` must not already include them.
- *
- * Everything here is scoped to the emitters' reach. This runs on every frame a
- * dynamic light moves, so touching anything proportional to the map — or even
- * to the whole window — shows up directly as frame time.
- */
 export function overlayEmitterOverrides(
   base: LightGrid,
   map: MapFile,
@@ -1019,25 +808,8 @@ export function sampleLevelLight(
   return [level.rgb[i]! / 255, level.rgb[i + 1]! / 255, level.rgb[i + 2]! / 255];
 }
 
-/**
- * Below this, on every channel, a lit sprite is indistinguishable from the
- * black the canvas is cleared to. @see isPitchBlack
- */
 export const PITCH_BLACK_LIGHT = 0.02;
 
-/**
- * Would a sprite standing in this cell be drawn black?
- *
- * Asked of the grid the GPU was given, tinted by the same ambient the shader
- * applies, so it agrees with the picture rather than with a separate estimate of
- * it. The eight neighbours are read as well as the cell because the light
- * texture is sampled with linear filtering: a body standing one cell from a lit
- * one has the half of its sprite nearest the light drawn lit, and is visible.
- *
- * A level the grid holds nothing for is uploaded dark (`uploadDarkLevel`), so it
- * is pitch black here too; a cell outside a level's rectangle reads as unlit for
- * the same reason.
- */
 export function isPitchBlack(
   grid: PackedLightGrid,
   ambient: readonly [number, number, number],

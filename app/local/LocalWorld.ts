@@ -1,11 +1,5 @@
 import { GameServer } from "../../server/GameServer";
 
-/**
- * What the one body in a local world is called.
- *
- * Creatures are still named after their tiles — `nameOf` is only asked about
- * actors — so this is the player and nothing else.
- */
 const LOCAL_PLAYER_NAME = "Tester";
 import { GameSocket, SocketHub, type WorldContext } from "../../server/sockets";
 import { DataStore } from "../lib/dataStore";
@@ -14,21 +8,6 @@ import { ApiBlobs } from "./content";
 import { idbCheckpoints, type Checkpoints } from "./checkpoints";
 import { LocalStore } from "./LocalStore";
 
-/**
- * The world, in a tab.
- *
- * `server/world.ts` is everything the platform used to do around `GameServer`
- * — the checkpoint loop, the alarm timer, the keepalive and the lifecycle —
- * and this is the same two hundred lines for a runtime that has no filesystem,
- * no signals and no second process. **`GameServer` itself is imported, not
- * reimplemented**, which is the whole point: `/admin/play` runs the world, so a
- * change to the simulation cannot be true there and false here.
- *
- * What is missing from the server's version is missing because it is about
- * being a server: there is no drain (a tab closing takes the world with it and
- * the checkpoint before it is two seconds old at worst), no snapshot (nothing
- * else can open this store anyway), and no re-seed (nothing deploys here).
- */
 export class LocalWorld {
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
@@ -42,15 +21,6 @@ export class LocalWorld {
     private readonly checkpointIntervalMs: number,
   ) {}
 
-  /**
-   * Open the world.
-   *
-   * No lock, and nothing to enforce one with — which is the one place the
-   * "exactly one process may hold the database" rule does not reach, and does
-   * not need to. Each tab has its own worker, its own store and its own world;
-   * two of them are two worlds rather than two writers, so there is no board
-   * blended from two timelines to prevent.
-   */
   static async open({
     dataStore = new DataStore(new ApiBlobs()),
     checkpoints = idbCheckpoints(LOCAL_WORLD_DATABASE),
@@ -61,9 +31,6 @@ export class LocalWorld {
     checkpointIntervalMs?: number;
   } = {}): Promise<LocalWorld> {
     const store = new LocalStore(checkpoints);
-    // Before anything reads it: the world prefers its own checkpoint to the
-    // authored map, and a load that ran against an empty store would put
-    // everybody back at spawn on every reload.
     await store.restore();
 
     const hub = new SocketHub();
@@ -75,12 +42,6 @@ export class LocalWorld {
 
     const server = new GameServer(context, {
       dataStore,
-      // A fixed name for whoever is in this world, because there is nobody to
-      // ask. Online, `nameOf` reads the character table — see
-      // `server/characters.ts` — and a name is what somebody typed when they
-      // made the character. There are no characters here and no account to hold
-      // one, and a body labelled `Nobody` on the route people open to check the
-      // game still works is a worse answer than saying what this page is.
       nameOf: async () => LOCAL_PLAYER_NAME,
     });
     const world = new LocalWorld(server, store, hub, checkpointIntervalMs);
@@ -92,13 +53,6 @@ export class LocalWorld {
     return world;
   }
 
-  /**
-   * Commit whatever the tick has buffered, on a fixed cadence.
-   *
-   * The same two seconds the server uses, and it bounds the same loss: a tab
-   * that is closed, crashes or is discarded gives no warning, so whatever has
-   * not been written down by then is gone.
-   */
   private startCheckpointing() {
     this.checkpointTimer = setInterval(() => {
       if (!this.store.dirty) return;
@@ -108,14 +62,6 @@ export class LocalWorld {
     }, this.checkpointIntervalMs);
   }
 
-  /**
-   * Say nothing, out loud, on a fixed cadence.
-   *
-   * Nothing between these two halves is going to time a connection out, so this
-   * is not load-bearing here — it is parity. The client's message handler has a
-   * branch for a keepalive and it ought to be exercised by the path everybody
-   * is about to start testing on, rather than only by the one in production.
-   */
   private startKeepalive() {
     const frame = JSON.stringify({ type: "keepalive" });
     this.keepaliveTimer = setInterval(() => {
@@ -124,13 +70,6 @@ export class LocalWorld {
     }, KEEPALIVE_INTERVAL_MS);
   }
 
-  /**
-   * Point a timer at the next alarm.
-   *
-   * Clamped at zero rather than skipped when the deadline has already passed,
-   * exactly as the server does it — and it matters more here, because a tab
-   * that was closed overnight comes back with every respawn overdue.
-   */
   private rearmAlarm(atMs: number | null) {
     if (this.alarmTimer) clearTimeout(this.alarmTimer);
     this.alarmTimer = null;
@@ -147,20 +86,6 @@ export class LocalWorld {
     );
   }
 
-  /**
-   * Seat the one body in this world, as an administrator.
-   *
-   * Not a hole in the gate the online world grew: there is nothing on this side
-   * to keep anybody out of. The world is this tab's IndexedDB, the only body in
-   * it is the person looking at the screen, and `/admin/play` exists to try
-   * `/tile`, `/goto` and `/health` against the real simulation — a local world
-   * that refused them would refuse the reason it was built.
-   *
-   * The route is behind `ADMIN` in the client either way, which here is the
-   * courtesy it has always been rather than a check: static files, no server
-   * rendering, nothing to enforce. @see `server/api.ts`, where the same
-   * sentence is about a check that *is* load-bearing.
-   */
   async join(socket: GameSocket, actorId: string): Promise<void> {
     await this.server.join(socket, actorId, { admin: true });
   }
@@ -174,24 +99,10 @@ export class LocalWorld {
     await this.server.webSocketClose(socket);
   }
 
-  /**
-   * Destroy every position, kit, reward and mastery, and start again on the
-   * authored map.
-   *
-   * `POST /api/reset` without the secret, because there is nobody to keep it
-   * from: the world is this tab's and nobody else is standing in it. It is the
-   * one control the local world needs that the online one hides — a testing
-   * path whose only way back to a known state is clearing site data is a
-   * testing path people stop using.
-   *
-   * Nobody is disconnected: `resetWorld` sends every connected socket a fresh
-   * `hello`, so the page redraws into the new world without noticing a gap.
-   */
   async reset(): Promise<void> {
     await this.server.resetWorld();
   }
 
-  /** Stop the timers. The world goes with the tab; this is for tests. */
   async stop(): Promise<void> {
     if (this.stopped) return;
     this.stopped = true;
@@ -205,8 +116,6 @@ export class LocalWorld {
   }
 }
 
-/** The IndexedDB database the world is written down in. */
 export const LOCAL_WORLD_DATABASE = "stapes-local-world";
 
-/** Milliseconds between checkpoints. The server's `CHECKPOINT_INTERVAL_MS`. */
 const CHECKPOINT_INTERVAL_MS = 2000;

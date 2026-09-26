@@ -1,41 +1,20 @@
-/**
- * Where the world in this tab is written down between visits.
- *
- * The server checkpoints into SQLite; this is the same idea with the same
- * shape, against the only durable store a tab has. It is deliberately a
- * key/value blob store and nothing cleverer: `LocalStore` already holds the
- * whole world in memory, so all this has to do is survive a reload.
- *
- * **Every failure here is survivable and none of them stop the world.** A
- * private window, a blocked origin or a full quota all end in the same place —
- * the world runs in memory and is gone when the tab is — and that is a
- * perfectly good `/admin/play`. A page that refused to start because it could
- * not save would be strictly worse than one that forgets.
- */
-
-/** The world as it was last written down. */
 export type StoredWorld = {
-  /** Values by key, as the JSON text `LocalStore` keeps them in. */
   values: Map<string, string>;
   alarmAtMs: number | null;
 };
 
-/** One checkpoint: what changed since the last one. */
 export type CheckpointBatch = {
   writes: [string, string][];
   deletions: string[];
-  /** Absent when the alarm did not move; `null` when it was cleared. */
   alarmAtMs?: number | null;
 };
 
 export interface Checkpoints {
   load(): Promise<StoredWorld>;
   commit(batch: CheckpointBatch): Promise<void>;
-  /** Forget everything. The local half of `POST /api/reset`. */
   clear(): Promise<void>;
 }
 
-/** A world that is only ever in memory. Used where IndexedDB is not. */
 export function memoryCheckpoints(): Checkpoints {
   return {
     load: () => Promise.resolve({ values: new Map(), alarmAtMs: null }),
@@ -48,17 +27,6 @@ const VALUES_STORE = "kv";
 const META_STORE = "meta";
 const ALARM_KEY = "alarm";
 
-/**
- * The world in IndexedDB.
- *
- * Two object stores rather than one with a reserved key: the alarm is not a
- * world key, and giving it a key in the same space means `list({ prefix: "" })`
- * would one day hand `GameServer` something that is not a checkpoint.
- *
- * Opened lazily and re-opened never. If the open fails — and it does, in a
- * private window — every call falls back to the in-memory behaviour above
- * rather than rejecting, so the caller has nothing to handle.
- */
 export function idbCheckpoints(databaseName: string): Checkpoints {
   let opening: Promise<IDBDatabase | null> | null = null;
 
@@ -82,8 +50,6 @@ export function idbCheckpoints(databaseName: string): Checkpoints {
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => resolve(null);
-      // A second tab holding an older version open. Nothing is waited for: the
-      // world runs in memory instead.
       request.onblocked = () => resolve(null);
     });
     return opening;
@@ -143,11 +109,9 @@ export function idbCheckpoints(databaseName: string): Checkpoints {
 }
 
 /**
- * Run one write transaction across both stores, and swallow what goes wrong.
- *
- * One transaction because a checkpoint is one: a reload that found the board of
- * one tick and the alarm of another would wake the world to refill a spawn
- * point that had already been refilled.
+ * One transaction because a checkpoint is one: a reload that found the board
+ * of one tick and the alarm of another would wake the world to refill a
+ * spawn point that had already been refilled.
  */
 function write(db: IDBDatabase, body: (transaction: IDBTransaction) => void): Promise<void> {
   return new Promise((resolve) => {
@@ -172,7 +136,6 @@ function write(db: IDBDatabase, body: (transaction: IDBTransaction) => void): Pr
   });
 }
 
-/** An `IDBRequest` as a promise. Rejects, so the caller above can report once. */
 function request<T>(source: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     source.onsuccess = () => resolve(source.result);

@@ -19,15 +19,6 @@ import {
   wearsFlightTransition,
 } from "./projectileMotion";
 
-/**
- * Which of the eight ways an arrow points, and where it is while it does.
- *
- * The bearing is the assertion worth having: it is one `atan2` and a rounding,
- * and every way of getting it wrong produces arrows that still fly and still
- * look like arrows — sideways, mirrored, or rotated by one eighth for the whole
- * game. None of that fails anything except the eye.
- */
-
 function shot(dx: number, dy: number, dElev = 0): ProjectileFlight {
   return {
     id: "shot-1",
@@ -40,7 +31,6 @@ function shot(dx: number, dy: number, dElev = 0): ProjectileFlight {
   };
 }
 
-/** The one tile every flight here names. @see `../lib/projectile` */
 const CATALOGUE: Record<string, TileDef> = {
   arrow: normalizeTileDef({
     id: "arrow",
@@ -52,18 +42,6 @@ const CATALOGUE: Record<string, TileDef> = {
   }),
 };
 
-/**
- * The shipped projectiles, which is a claim about content and is allowed to be
- * on the terms `CLAUDE.md` sets: `data/tiles.json` is the tile catalogue and
- * stays real. What is asserted is a shape every projectile has to have, not a
- * number anybody authored.
- */
-/**
- * A shot follows the body it was aimed at, because the blow it depicts waits
- * out the flight — see `../game/projectile`'s `ProjectileFlight.targetId`. The
- * dice were read when the string was let go, so nothing about the fight turns
- * on where the picture goes.
- */
 describe("a shot that follows its target", () => {
   const shot = (over: Partial<ProjectileFlight> = {}): ProjectileFlight => ({
     id: "shot-1",
@@ -83,11 +61,6 @@ describe("a shot that follows its target", () => {
     expect(aimedAt(shot(), () => moved)).toBe(moved);
   });
 
-  /**
-   * **A shot at somebody who died mid-flight keeps the end it started with**,
-   * which is what makes "the arrow still finishes its flight" true rather than
-   * merely tolerated: it arrives where they were standing, and at nobody.
-   */
   it("keeps the end it was loosed at when the body has gone", () => {
     const flight = shot();
 
@@ -105,16 +78,10 @@ describe("a shot that follows its target", () => {
   it("draws the arrow part way to where the body is now", () => {
     const [view] = projectileViews([shot()], CATALOGUE, () => moved);
 
-    // Half way along, so half of the *live* line rather than the loosed one.
     expect(view!.x).toBe(2);
     expect(view!.y).toBe(3);
   });
 
-  /**
-   * A flight's bearing used to be fixed because both its ends were. One
-   * chasing a body that steps sideways turns as it goes, so the renderer
-   * re-reads it rather than resolving the frames once.
-   */
   it("turns as the body it is chasing moves", () => {
     const flight = shot();
 
@@ -158,22 +125,16 @@ describe("the light a flight casts", () => {
     ...over,
   });
 
-  /**
-   * The case this exists for: nothing lights an arrow's path, because the bake
-   * walks placements and an arrow is never in a stack.
-   */
   it("casts the tile's own light from where the arrow is", () => {
     const cast = flightLight(flight(), lit());
 
     expect(cast?.lights).toEqual([GLOW]);
-    // Half way along a four-cell shot, at the centre of the cell it is over.
     expect(cast?.fx).toBe(2.5);
     expect(cast?.fy).toBe(0.5);
     expect(cast?.x).toBe(2);
     expect(cast?.y).toBe(0);
   });
 
-  /** In levels, fractional — the unit an override's height is in. */
   it("hangs it at the arrow's own height, in levels", () => {
     expect(flightLight(flight(), lit())?.fz).toBe(2 / HEIGHT_PER_LEVEL);
   });
@@ -201,11 +162,6 @@ describe("the light a flight casts", () => {
     expect(flightLight(flight(), undefined)).toBeNull();
   });
 
-  /**
-   * A flight outlives its arrival by its landing side, and the light has to go
-   * out with the picture — a sprite dissolving to nothing under a light still
-   * at full strength is the two telling different stories.
-   */
   it("fades with the landing it is playing", () => {
     const def = lit({
       transitions: {
@@ -226,18 +182,9 @@ describe("the light a flight casts", () => {
     expect(at(400)).toBe(1);
     expect(at(600)).toBeLessThan(1);
     expect(at(600)).toBeGreaterThan(0);
-    // Read at the last grid line, so it steps down rather than sliding — and so
-    // the last step is still lit when the flight's lifetime ends and it leaves
-    // the list. A dissolving tile's light goes out on exactly the same terms;
-    // see `./tileTransitions`'s `fadingLightScale`.
     expect(at(750)).toBeLessThan(at(600)!);
   });
 
-  /**
-   * Whole while it crosses, whatever the animation is doing: the override list
-   * is joined into the overlay's cache key, and a light read off a flickering
-   * sprite would add steps of its own to it.
-   */
   it("holds one strength for the whole crossing", () => {
     const def = lit();
     for (const elapsedMs of [0, 100, 200, 399]) {
@@ -249,19 +196,6 @@ describe("the light a flight casts", () => {
 describe("the projectiles we ship are drawn on one quad", () => {
   const tiles = normalizeTiles(tilesJson as unknown[]);
 
-  /**
-   * **A flight is one quad, built from the first frame and then flown.** Its
-   * size comes from that frame's rect and its anchoring from that frame's base,
-   * and every later frame is drawn by swapping the quad's UVs — the same
-   * bargain `./animTable`'s merged batch makes, which is why the check is the
-   * same function.
-   *
-   * A placed tile may disagree across frames: it is standing still, and
-   * `tableCanHold` sends it down a path that rebuilds. A flight cannot. The
-   * fireball's third frame once carried a base one cell up, and the whole
-   * sprite jumped a cell and back once per animation cycle for as long as it
-   * was in the air — with nothing anywhere saying so.
-   */
   it("keeps one footprint across every frame of every bearing", () => {
     const fired = projectileTiles(tiles);
 
@@ -307,11 +241,6 @@ describe("whether a projectile's sides ask anything of its sprite", () => {
     expect(wearsFlightTransition(CATALOGUE.arrow!)).toBe(false);
   });
 
-  /**
-   * The case the split is for: a side made purely of particles is thrown into
-   * the world by `flightEmitter` and wants nothing done to the arrow, so it
-   * must not buy one a material of its own.
-   */
   it("asks nothing of a side that is only a plume", () => {
     expect(wearsFlightTransition(sided({}, SPARK))).toBe(false);
   });
@@ -321,11 +250,6 @@ describe("whether a projectile's sides ask anything of its sprite", () => {
     expect(wearsFlightTransition(sided({ disappear: DISSOLVE }))).toBe(true);
   });
 
-  /**
-   * **And never by a hit.** That side plays on whatever was struck, which is
-   * never the arrow, so a dissolve authored on it has nothing to dissolve — and
-   * counting it would buy the flight a material nothing ever writes to.
-   */
   it("asks nothing of a dissolve authored on the hit", () => {
     expect(wearsFlightTransition(sided({}, DISSOLVE))).toBe(false);
   });
@@ -336,7 +260,6 @@ describe("whether a projectile's sides ask anything of its sprite", () => {
 });
 
 describe("which way an arrow points", () => {
-  /** Screen y grows downward, so north is a negative dy. */
   const CARDINALS: Array<[number, number, Octant]> = [
     [0, -4, "n"],
     [4, 0, "e"],
@@ -359,22 +282,15 @@ describe("which way an arrow points", () => {
     expect(projectileOctant(shot(dx, dy))).toBe(want);
   });
 
-  /** Each bearing owns a 45° wedge centred on itself, not one starting at it. */
   it("keeps a shot barely off a cardinal on that cardinal", () => {
     expect(projectileOctant(shot(1, -8))).toBe("n");
     expect(projectileOctant(shot(-1, -8))).toBe("n");
   });
 
-  /**
-   * **Measured on screen, which is what makes a shot upward point upward.** A
-   * level is drawn one cell up-left, so a body directly overhead is north-west
-   * of you on the screen even though it is nowhere on the plan.
-   */
   it("points up-left at somebody directly overhead", () => {
     expect(projectileOctant(shot(0, 0, HEIGHT_PER_LEVEL))).toBe("nw");
   });
 
-  /** Nowhere to point, and south is what everything else here draws by default. */
   it("answers south for a shot with no bearing at all", () => {
     expect(projectileOctant(shot(0, 0))).toBe("s");
   });
@@ -392,18 +308,11 @@ describe("the views a frame is drawn from", () => {
         y: 10,
         elevAbs: 0,
         z: 0,
-        // The fixture arrow authors no sides, which is every projectile that
-        // was drawn before one could wear them.
         phase: null,
       },
     ]);
   });
 
-  /**
-   * A straight line has one bearing, so it is taken from the whole flight
-   * rather than from the step just travelled — otherwise a rounding error near
-   * the boundary could flip an arrow between two sprites halfway across.
-   */
   it("keeps one bearing for the whole flight", () => {
     const flight = shot(6, -1);
     const bearings = [0, 60, 120, 199].map(
@@ -412,31 +321,17 @@ describe("the views a frame is drawn from", () => {
     expect(new Set(bearings).size).toBe(1);
   });
 
-  /**
-   * The catalogue is what says which tile a flight is, so an entry that has
-   * gone leaves nothing to draw. Guessing a sprite would put the wrong thing in
-   * the air; the blow it was a receipt for landed either way.
-   */
   it("skips a flight whose tile the catalogue has lost", () => {
     const flight = { ...shot(4, 0), tileId: "ghost-arrow" };
     expect(projectileViews([flight], CATALOGUE)).toEqual([]);
   });
 
-  /** And one whose tile has stopped being a projectile. @see resolveProjectile */
   it("skips a flight whose tile is no longer a projectile", () => {
     const crate = { ...CATALOGUE.arrow!, kind: "prop" as const };
     expect(projectileViews([shot(4, 0)], { arrow: crate })).toEqual([]);
   });
 });
 
-/**
- * The plume a flight's effect hangs from.
- *
- * Out here with the rest of the arithmetic for the reason `projectileViews` is:
- * where a burst stands and how it sorts is the whole of the behaviour, and every
- * way of getting it wrong leaves sparks that still look like sparks — behind the
- * body they came off, on the wrong floor, or half a cell from the arrow.
- */
 const SPARK: Transition = {
   durationMs: 150,
   particles: {
@@ -480,23 +375,16 @@ describe("the emitter an effect hangs from", () => {
     });
   });
 
-  /** A shot down a stairwell plays where it lands, not where it was loosed. */
   it("takes the level from the height it stopped at", () => {
     expect(flightEmitter(effect({ x: 0, y: 0, elevAbs: 0 }))!.z).toBe(0);
     expect(flightEmitter(effect({ x: 0, y: 0, elevAbs: HEIGHT_PER_LEVEL }))!.z).toBe(1);
   });
 
-  /** In front of the body it came off, never behind it. */
   it("sorts above anything standing in that cell", () => {
     const spec = flightEmitter(effect({ x: 4, y: 2, elevAbs: 0 }))!;
     expect(spec.stackBias).toBeGreaterThan(depthStackBias(0, 8));
   });
 
-  /**
-   * A dissolve and a scale are things done to a mesh, and a flight's mesh is
-   * not a placement — so an effect with neither a plume nor anything else this
-   * side can play hangs nothing at all, rather than an emitter of nothing.
-   */
   it("hangs nothing for an effect with no plume", () => {
     const dissolving: FlightEffect = {
       id: "shot-1:disappear",

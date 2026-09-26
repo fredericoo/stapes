@@ -93,150 +93,42 @@ import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 import { clampZoomOut, debugSpanPx, DEBUG_ZOOM_OUT, playSquareOrigin } from "./debugView";
 import { DebugPanel } from "./debugPanel";
 
-/** Do two references point at the same slot in the same cell? */
 function sameRef(a: ObjectRef | null, b: ObjectRef | null): boolean {
   if (!a || !b) return false;
   return a.x === b.x && a.y === b.y && a.z === b.z && a.stackIndex === b.stackIndex;
 }
 
-/**
- * How the fixed square view maps onto this canvas right now.
- *
- * Read from the element rather than cached across frames: the pane changes with
- * the window, the on-screen controls appearing, and a phone rotating, and a
- * stale scale puts the pointer somewhere the player is not looking.
- */
 function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
-  // Square by layout, so either side answers; the smaller one keeps a
-  // mis-sized pane showing the whole view rather than cropping it.
   return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight), spanPx);
 }
 
-/**
- * How solid a thing being dragged onto the world looks before it is let go of.
- *
- * Enough to read the sprite and tell it is not there yet. A fainter ghost reads
- * as a rendering fault on a busy floor, and a stronger one reads as a thing
- * already dropped.
- */
 const DROP_GHOST_ALPHA = 0.55;
 
-/**
- * Editor selection yellow — same affordance, same colour.
- *
- * And the same yellow the DOM wears for it: `--color-interact` in `app.css` is
- * this value, so a row lit in the list and the thing it names lit in the world
- * are one state rather than two that happen to co-occur.
- */
 const HOVER_COLOR = 0xffcc00;
 
-/** A battler under the pointer: somebody who *could* be singled out. */
 const TARGET_HOVER_COLOR = 0xffffff;
 
-/**
- * The one you have actually picked, while you are only watching them.
- *
- * The same white the hover wears, and told apart from it by the pulse rather
- * than by a third colour: a target and a body you happen to be pointing at are
- * the same *kind* of thing — somebody singled out — and the difference between
- * them is that one is a decision you have made, which is what the pulse says.
- */
 const TARGET_COLOR = 0xffffff;
 
-/**
- * The one you are swinging at. Red for the rest of the fight.
- *
- * Colour carries the stance and nothing else, which is why the pulse is on
- * both: red is not "this is your target", it is "this target is a fight", and
- * pressing the watch row beside the fight leaves the outline exactly where it
- * was in white.
- */
 const ATTACK_TARGET_COLOR = 0xff3b30;
 
-/** The fight outline lightened, as every other label ink here is. */
 const ATTACK_LABEL_INK = "#ff9b94";
 
-/**
- * Looking is blue, acting is yellow. Never both at once: two outlines in two
- * colours on one object asks the player to decode a legend, so entering look
- * mode takes the interaction hover off the screen entirely.
- */
 const LOOK_COLOR = 0x3fa9ff;
 
-/**
- * How long a finger has to rest on the world before it reads it instead of
- * tapping it.
- *
- * The same wait an item square gives a held finger, imported rather than
- * restated: it is one gesture — "this one, but wait" — and a player who learnt
- * it on their bag is making the same press here. @see ../lib/useDwell
- */
 const LOOK_HOLD_MS = DWELL_MS;
 
-/**
- * How far that finger may travel before the wait is called off.
- *
- * The gesture is hold *then* drag, so movement before the hold has fired is a
- * finger on its way somewhere rather than one asking about what it landed on.
- * The same ten pixels a tap is allowed elsewhere — under the width of a
- * fingertip. @see ../components/useTap
- */
 const LOOK_HOLD_SLOP_PX = 10;
 
-/**
- * Floors above and below the viewer that a pick can reach.
- *
- * One constant for looking, hovering and clicking, because a thing you can name
- * and a thing you can touch have to be the same set: an object reachable by one
- * pick and not the other reads as the outline lying about what a click will do.
- */
 const PICK_LEVEL_SLACK = 1;
 
-/**
- * Ink for the name of a thing the pointer is over, outside look mode.
- *
- * The hover's own {@link HOVER_COLOR} lightened, exactly as the look label's
- * `#9ad8ff` is {@link LOOK_COLOR} lightened: the label and the outline round the
- * same object have to be the same colour, and a text weight of pure `#ffcc00` is
- * a headline rather than a caption.
- */
 const HOVER_LABEL_INK = "#ffe27a";
 
-/**
- * A reward, which is the one thing on the board you can only take once.
- *
- * `--color-reward` in `app.css` is this value, on the same terms
- * {@link HOVER_COLOR} and `--color-interact` are one colour: the row in the list
- * and the silhouette in the world are one state.
- *
- * The third colour a pointer can produce, where two was the rule for a long
- * time — and the rule was about not making the player decode a legend for
- * something they already knew. This one is different in kind: nothing about the
- * verb, the sprite or the outline says whether a chest is one you can come back
- * to, and that is exactly the thing worth knowing before you walk away from it.
- */
 const REWARD_COLOR = 0xb15cff;
 
-/** The reward outline lightened, as every other label ink here is. */
 const REWARD_LABEL_INK = "#d9a9ff";
 
-/**
- * What colour an option paints its subject, and what ink its words are in.
- *
- * Four of them — red for a body a click would swing at, white for one merely
- * singled out, purple for something you can be given once, yellow for
- * everything else you could act on.
- * A row under a finger and a sprite under a cursor are two ways of pointing at
- * one thing, so pointing either way has to look identical.
- *
- * The ink is the outline lightened, exactly as the look label's `#9ad8ff` is
- * {@link LOOK_COLOR} lightened: the words and the silhouette are one reading,
- * and a text weight of pure `#ffcc00` is a headline rather than a caption.
- */
 function interactionColor(option: InteractionOption): number {
-  // Red before white, because a click on a body runs the fight: the outline has
-  // to say what the click does, and "Attack Rat" over a white silhouette would
-  // be the two halves of one answer disagreeing.
   if (option.action === "attack") return ATTACK_TARGET_COLOR;
   if (option.action === "target") return TARGET_HOVER_COLOR;
   if (option.action === "reward") return REWARD_COLOR;
@@ -250,37 +142,17 @@ function interactionInk(option: InteractionOption): string {
   return HOVER_LABEL_INK;
 }
 
-/**
- * The one label the pointer puts on the world, whichever mode produced it.
- *
- * Two modes fill it — look mode names a thing, and the interaction hover says
- * what you could do to it — and they share a shape so the placement, the anchor
- * and the element cache are written once. `height` rather than the tile itself
- * because the anchor is all the caller needs: a label hangs over the top of the
- * head, and how tall the head is is the whole of the question.
- */
 type PointerLabel = {
   ref: ObjectRef;
   height: number;
   lines: { id: string; text: string }[];
-  /** Absent leaves the stylesheet's blue in charge, which is look mode's own. */
   color?: string;
 };
 
 /**
- * A number that changes whenever anybody's health does.
- *
- * The interaction list is rebuilt from a gate that asks whether the answer
- * *could* have moved, and every question in it — the board, the player's cell,
- * who they are fighting — is blind to a blow landing: the map has no actors in
- * it, and standing still exchanging hits changes none of the rest. This is the
- * missing question, kept to one pass over a handful of bodies so the gate stays
- * the cheap thing it is there to be.
- *
- * A rolling hash rather than a joined string because this runs every frame, and
- * positional because two creatures trading a point between them is otherwise a
- * sum that has not moved. Collisions cost nothing worse than a bar redrawn at
- * the next commit instead of the next frame.
+ * A rolling hash rather than a sum: a sum would miss two creatures trading a
+ * point between them, since the total is unchanged. `| 0` keeps it a plain
+ * int32 so this stays cheap to compare every frame.
  */
 function healthSignature(actors: readonly ActorSnapshot[]): number {
   let signature = 0;
@@ -291,14 +163,7 @@ function healthSignature(actors: readonly ActorSnapshot[]): number {
   return signature;
 }
 
-/**
- * Land a lerped sprite on the same whole-pixel grid the static world sits on.
- *
- * Scenery is placed at integer world pixels, so a mover at a fractional offset
- * reads as sliding *between* the pixels around it — the sprite's own texels
- * stop lining up with everything else. Snapping trades perfectly smooth motion
- * for motion that steps in whole pixels, which is what pixel art expects.
- */
+/** Rounds a moving sprite to whole world pixels so its texels line up with the static scenery. */
 function snapToWholePixels(p: { x: number; y: number }): {
   x: number;
   y: number;
@@ -306,187 +171,54 @@ function snapToWholePixels(p: { x: number; y: number }): {
   return { x: Math.round(p.x), y: Math.round(p.y) };
 }
 
-/**
- * Client play loop: ticks a session, centers the camera on the viewer's own
- * actor, and lerps every moving actor during walks / falls.
- *
- * Typed against {@link PlaySession} rather than GameSession so the same
- * renderer can be driven by a local simulation or by a remote one fed over the
- * wire — the two differ in where the truth comes from, not in what is drawn.
- */
 export class GameRenderer {
   private world: WorldRenderer;
   private session: PlaySession;
   private canvas: HTMLCanvasElement;
   private tilesById: Record<string, TileDef>;
   private bodyEmitsCache = new WeakMap<TileDef, boolean>();
-  /**
-   * The status catalogue, for what statuses *look* like and nothing else.
-   *
-   * The simulation has its own copy and reads the formulas off it; this one is
-   * only ever asked for `vfx`. Held rather than reached through the session
-   * because the online session is a socket with no catalogue behind it, and both
-   * routes already resolve one to draw the strip with — see `routes/play`.
-   *
-   * Empty until {@link setStatuses}, which is the honest state for a renderer
-   * built before its route has finished loading: no tint, no plume, and a world
-   * that draws exactly as it did before this feature existed.
-   */
   private statusDefs: Record<string, StatusDef> = {};
-  /**
-   * Remaining time per running status, carried between the wire's updates.
-   *
-   * A wind-down is drawn from what a status has left, and online that arrives
-   * about once a second — see `./statusTaper`.
-   */
   private readonly remaining = new SmoothedRemaining();
   private minutesOfDay: number = DEFAULT_PLAY_MINUTES;
-  /**
-   * Last known reading of the clock and the frame time it was taken at. The
-   * clock is derived from this pair every frame rather than advanced by each
-   * frame's delta — see {@link clockAfter}.
-   */
   private clockAnchorMinutes: MinutesOfDay = DEFAULT_PLAY_MINUTES;
   private clockAnchorAtMs = 0;
   private clockPaused = false;
   private onClock: ((minutes: MinutesOfDay) => void) | null = null;
   private onStats: ((stats: FrameStats) => void) | null = null;
   private onEquipment: ((equipment: Equipment) => void) | null = null;
-  /** Identity of the last equipment handed on, so an idle frame costs a compare. */
   private equipmentSent: Equipment | null = null;
   private onConversation: ((conversation: Conversation | null) => void) | null = null;
-  /** Undefined until the first push, so a closed panel still gets reported once. */
   private conversationSent: Conversation | null | undefined = undefined;
   private onVitals: ((vitals: Vitals) => void) | null = null;
-  /**
-   * The last vitals handed on, compared field by field rather than by identity.
-   *
-   * Unlike a kit, `snap.self` is rebuilt every frame, so there is no reference to
-   * compare — and unlike a kit these are three small numbers, which makes
-   * comparing them cheaper than the render they would otherwise trigger sixty
-   * times a second.
-   */
   private vitalsSent: Vitals | null = null;
   private onMasteries: ((masteryXp: MasteryXp) => void) | null = null;
   private onSpells: ((spells: SpellButton[]) => void) | null = null;
-  /**
-   * What the row of spell buttons last *said*, as a string.
-   *
-   * By reading rather than by identity, unlike the kit above and for the reason
-   * the vitals below are: the answer is recomputed from scratch every frame —
-   * castability depends on where two bodies are standing — so there is no
-   * reference to compare. What a button can actually show is its sprite, whether
-   * it is dimmed, and a countdown to the second, so that is the grain worth
-   * comparing at. @see ../game/casting's `spellReading`
-   */
   private spellsSent: string | null = null;
-  /**
-   * Identity of the last block of experience handed on.
-   *
-   * The same compare the kit gets, and it works for the same reason: the session
-   * replaces the block rather than adding to it, so a frame on which nobody
-   * landed a blow is one reference comparison.
-   */
   private masteriesSent: MasteryXp | null = null;
-  /** Kit the interaction list was last built against. See the gate below. */
   private interactionsEquipment: Equipment | null = null;
-  /**
-   * Tags the interaction list was last built against.
-   *
-   * In the gate for the same reason the kit is, and it is the one signal that a
-   * reward row going away has: taking one changes nothing on the board, so the
-   * map keeps its identity and the player has not moved. Without this the chest
-   * would go on offering itself until something else happened.
-   */
   private interactionsTags: readonly string[] | null = null;
-  /**
-   * The respawn point the last list was built against.
-   *
-   * In the gate beside the tags for the reason the opened box is: it is a state
-   * a row is *named* for — "Set respawn point" against "You respawn here" — so
-   * pressing a marker renames a row without anybody having moved. By identity,
-   * which both sessions honour: the cell is replaced rather than mutated.
-   */
   private interactionsSpawnAt: Coord | null = null;
-  /**
-   * The pull the viewer was part-way through when the list was last built.
-   *
-   * In the gate on exactly the tags' terms, and it is the one signal a resource
-   * row has in either direction: a pull landing changes the board, but a pull
-   * *starting* changes nothing anybody can see — the map keeps its identity for
-   * the viewer's own reservation, nobody has moved, and without this the row
-   * would draw no bar until something else happened.
-   *
-   * Identity rather than contents, because the session replaces the value only
-   * when a pull starts or ends and winds it in place in between — so this fires
-   * twice a pull and never on the ticks that merely advance one. See
-   * `GameSnapshot.extracting`.
-   */
   private interactionsExtracting: Extraction | null = null;
-  /**
-   * The wait the fight row's bar was last drawn from.
-   *
-   * Beside {@link interactionsExtracting} and compared the same way, for the
-   * same reason: the session replaces the value only when the wait changes — a
-   * windup armed, a blow thrown — and winds it in place in between, so identity
-   * fires once a blow rather than on every tick that advances one.
-   *
-   * It is also what forces the hand-over. The list's key deliberately carries no
-   * remainder — see {@link pushInteractions} — so two consecutive waits produce
-   * a byte-identical key, and without this the row would keep the bar it mounted
-   * for the first of them and never start the second. @see `GameSnapshot.nextBlow`
-   */
   private interactionsNextBlow: Progress | null = null;
   private onOpenedContainer: ((container: OpenedContainer | null) => void) | null = null;
-  /** Which floor container the panel is showing, if any. */
   private openedRef: ObjectRef | null = null;
-  /**
-   * Which particular thing that reference was opened on.
-   *
-   * Learnt on the first read and checked on every one after it, so a slot that
-   * comes to hold something else cannot be shown under the old panel — see
-   * `readOpenedContainer`. Null until the first read.
-   */
   private openedItemId: string | null = null;
-  /** The placement last read for it — half of the gate below. */
   private openedPlacement: PlacedTile | null = null;
-  /** Where the viewer stood when reach was last asked — the other half. */
   private openedFrom = "";
-  /** Last value handed on. `undefined` means "nothing said yet". */
   private openedSent: OpenedContainer | null | undefined = undefined;
   private onCrafting: ((window: CraftingWindow | null) => void) | null = null;
-  /** Which crafter's window is open, if any. @see pushCrafting */
   private craftingRef: ObjectRef | null = null;
-  /** Board, cell and kit the window was last worked out from. */
   private craftingMap: MapFile | null = null;
   private craftingFrom = "";
   private craftingEquipment: Equipment | null = null;
-  /** What the window last listed, so an unchanged one is not re-sent. */
   private craftingSent: string | null | undefined = undefined;
   private onInteractions: ((options: InteractionOption[]) => void) | null = null;
-  /** Board and cell the held list was derived from. @see pushInteractionOptions */
   private interactionsMap: MapFile | null = null;
   private interactionsAt = "";
-  /** Health of everybody on the board when it was. @see healthSignature */
   private interactionsHealth = 0;
-  /** Contents of the last list handed over, so an unchanged one is not re-sent. */
   private interactionsKey = "";
-  /**
-   * The list as it was last handed over, kept so a hovered row can be resolved
-   * back to a *current* reference. @see listHoverOption
-   */
   private interactionsSent: InteractionOption[] = [];
-  /** @see setListHover */
   private listHoverId: string | null = null;
-  /**
-   * What is being dragged over the world right now, and where the pointer is.
-   *
-   * Held here rather than in React because it changes with every pixel of a
-   * drag: the page hands over the thing and the point, and this loop — which is
-   * already reading a snapshot every frame — decides what that means and draws
-   * it. Routing a ghost through React state would re-render the page around the
-   * game to move one translucent sprite.
-   */
   private dropDrag: { from: SlotRef; tileId: string; point: { x: number; y: number } } | null =
     null;
   private profiler = new FrameProfiler();
@@ -494,128 +226,37 @@ export class GameRenderer {
   private raf = 0;
   private lastTime = 0;
   private running = false;
-  /**
-   * Which object the pointer is over — not what can be done to it.
-   *
-   * **The reference is held and the row is looked up every frame**, which is the
-   * same trick the list hover plays and for a sharper reason. A row changes
-   * under a still cursor: open the chest you are pointing at and its row is
-   * renamed "Close", walk until a crate is out of reach and its row goes. Held
-   * as an option, the label would go on saying "Open Chest" over an open chest
-   * until the mouse twitched.
-   *
-   * The *pick* is still held rather than run per frame, for the reason the look
-   * pick is — see {@link repickPointer}. What is cheap to redo is the lookup,
-   * not the hit test.
-   */
   private pointerRef: ObjectRef | null = null;
   private pointerPickKey = "";
   private pointerPickMap: MapFile | null = null;
   private damageLayer: DamageNumberLayer | null = null;
-  /**
-   * The shake the viewer's own wounds put on the frame. @see ./screenShake
-   *
-   * With the ids of the blows it has already been told about, because a receipt
-   * sits in {@link GameSnapshot.damage} for every frame of its rise and one blow
-   * must shake the view once, not once a frame.
-   */
   private readonly shake = new ScreenShake();
   private readonly shakenBy = new Set<string>();
-  /**
-   * Whether the reader has asked for less motion, read once when the renderer
-   * is built. A shake is the one thing on this screen that moves the whole of it
-   * and carries nothing the health bar and the red number do not also say, so it
-   * is the thing to drop.
-   */
   private readonly shakeEnabled =
     typeof window === "undefined" ||
     typeof window.matchMedia !== "function" ||
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  /** Caster-to-target lines. @see ./castLines */
   private castLineLayer: CastLineLayer | null = null;
   private notificationLayer: NotificationLayer | null = null;
-  /**
-   * The lines waiting to be read at the foot of the view.
-   *
-   * Held whether or not there is anywhere to draw them, unlike the layer beside
-   * it: the queue is where a notice's lifetime is counted, and a renderer built
-   * without a text layer would otherwise silently discard the level-up that
-   * happened while it was not looking.
-   */
   private readonly notices = new NoticeQueue();
-  /**
-   * Where the last click is sending this body, or null until the page has said
-   * where a direction goes. @see setDirections
-   *
-   * Held by the renderer because a destination comes from a pointer over a
-   * canvas and nothing else in the game has one. What it *does* with the
-   * destination is not this class's business at all — see `../game/walkTo`.
-   */
   private walkTo: WalkTo | null = null;
-  /**
-   * The world is being read rather than acted on. @see applyLooking
-   *
-   * Two things can raise it and they are the same gesture on two devices, which
-   * is why neither is the flag itself: a mouse holds shift, and a finger holds
-   * still. Kept apart underneath so that letting go of one cannot cancel the
-   * other — the bug the modes had, in miniature.
-   */
   private lookMode = false;
-  /** Shift is down. @see attachKeys */
   private lookKeyHeld = false;
-  /** A finger has been held on the world past {@link LOOK_HOLD_MS}. */
   private touchLooking = false;
-  /** The wait a finger is still inside, or null. @see onPointerDown */
   private lookHold: ReturnType<typeof setTimeout> | null = null;
-  /** Where that finger landed, so travel can call the wait off. */
   private touchDownAt: { x: number; y: number } | null = null;
-  /**
-   * Which finger the press belongs to, or null between presses.
-   *
-   * One gesture at a time, held by whichever finger landed first: a second one
-   * arriving while the world is being read is a hand steadying the phone, and
-   * without an owner it would start a second wait over the top of the first and
-   * end the reading when it lifted.
-   */
   private touchId: number | null = null;
   private unbindLookKey: (() => void) | null = null;
   private unbindAttackKey: (() => void) | null = null;
   private lookedAt: ObjectRef | null = null;
-  /**
-   * Where the pointer was last seen, in canvas pixels.
-   *
-   * Held so entering look mode can pick immediately. Shift is a key, not a
-   * pointer event, so without this nothing lights up until the mouse next
-   * twitches — on a still hand that reads as the mode being broken.
-   */
   private lastPointer: { x: number; y: number } | null = null;
-  /** Camera and map the held look pick was taken against. @see repickLook */
   private lookPickKey = "";
   private lookPickMap: MapFile | null = null;
-  /** @see setLightingEnabled */
   private lightingEnabled = true;
   private labelLayer: WorldLabelLayer | null = null;
-  /**
-   * How many play squares across the camera draws, or null for the shipped
-   * view. The one piece of state the debug view has — everything else about it
-   * is derived from this and from what the renderer already knows.
-   */
   private debugZoomOut: number | null = null;
   private debugPanel: DebugPanel | null = null;
-  /**
-   * World-pixel anchor per live message, read once and held.
-   *
-   * The freeze is the point: a remark belongs to the moment it was made, so it
-   * must not ride later edits to the cell it was made in. See
-   * {@link speechAnchor}.
-   */
   private readonly speechAnchors = new Map<string, { x: number; y: number }>();
-  /**
-   * World-pixel anchor per damage number, read once and held.
-   *
-   * Same freeze, same reason as {@link speechAnchors}: what happened, happened
-   * at a height. @see damageFor
-   */
   private readonly damageAnchors = new Map<string, { x: number; y: number }>();
 
   constructor(
@@ -623,11 +264,6 @@ export class GameRenderer {
     session: PlaySession,
     tilesets: TilesetDef[],
     tiles: TileDef[],
-    /**
-     * Where in-world text is drawn. An element over the canvas rather than
-     * anything inside it — see `./textLabels` for why the text left the scene.
-     * Optional so a caller that never asks for names need not supply one.
-     */
     labelContainer?: HTMLElement | null,
   ) {
     this.session = session;
@@ -645,38 +281,10 @@ export class GameRenderer {
     this.attachKeys();
   }
 
-  /**
-   * Set the clock. Online this is the server's reading, taken on `hello`; the
-   * local rate carries it from there, so one anchor keeps every client in step
-   * for as long as the tab is open.
-   */
-  /**
-   * Hand over the status catalogue, so a poisoned body can be drawn poisoned.
-   *
-   * Separate from the constructor because it is not needed to draw a frame: a
-   * renderer with no catalogue draws an untinted world, which is the right
-   * answer while one is still loading and the right answer forever for a world
-   * that authored no effects.
-   */
   setStatuses(defs: Record<string, StatusDef>) {
     this.statusDefs = defs;
   }
 
-  /**
-   * Hand over the direction list a click should press, and with it the ability
-   * to walk to a cell at all.
-   *
-   * Separate from the constructor for the reason {@link setStatuses} is: a
-   * renderer draws a world without one, and online there is a socket and a
-   * `hello` between the page having a list and having a session to build a
-   * renderer around. A renderer nobody gave one to simply does not click-walk,
-   * which is the right answer for the editor's preview.
-   *
-   * The list rather than the session's `setInput`, because *which* direction is
-   * in force is not this class's decision to make: a key held over a click and
-   * a click over a held key are one rule, and `../game/heldDirections` is where
-   * it is written down. @see ../game/walkTo
-   */
   setDirections(directions: HeldDirections) {
     this.walkTo = new WalkTo(directions);
   }
@@ -689,8 +297,6 @@ export class GameRenderer {
 
   setClockPaused(paused: boolean) {
     if (paused === this.clockPaused) return;
-    // Pausing freezes the hand where it is; resuming runs on from there. Both
-    // are the same move: re-anchor to what the clock reads right now.
     this.reanchorClock(this.clockNow(performance.now()));
     this.clockPaused = paused;
   }
@@ -709,53 +315,17 @@ export class GameRenderer {
     this.onClock = cb;
   }
 
-  /**
-   * When there is a world on the canvas, so a page can hold a screen up until
-   * then. The world is not painted until its tilesets are on the GPU, and that
-   * lands some frames after the renderer is built — long enough that swapping to
-   * an empty canvas is a visible blank between the loading screen and the game.
-   *
-   * One shot: it fires on the next frame and clears itself, so a page that wants
-   * to wait for a second world — the one a rebirth's `hello` brings — asks
-   * again.
-   */
   setOnNextFrame(cb: (() => void) | null) {
     this.world.setOnNextFrame(cb);
   }
 
-  /**
-   * Per-frame timings, roughly twice a second. Reports the worst frame in each
-   * window as well as the median — a hitch on the frame a step commits is
-   * invisible in an average but is the whole of what a player feels.
-   */
   setOnStats(cb: ((stats: FrameStats) => void) | null) {
     this.onStats = cb;
     this.world.setProfiler(cb ? this.profiler : null);
   }
 
-  /**
-   * What the player could act on right now, whenever that changes.
-   *
-   * Derived here rather than polled from outside because this is the loop that
-   * already knows when the world moved, and the answer is only ever interesting
-   * at the moments it changes — a list rebuilt into React state thirty times a
-   * second would re-render the page for a frame nobody could tell apart from
-   * the last one. See {@link pushInteractionOptions} for the two gates.
-   */
-  /**
-   * What the viewer is carrying, whenever it changes.
-   *
-   * Routed through the render loop rather than read off the session by the page,
-   * for the same reason the interaction list is: this loop is already reading a
-   * snapshot every frame, and it is the only thing that knows when a new one
-   * arrived. The gate is object identity — the session replaces the whole
-   * equipment object when the server sends one and never mutates it in place —
-   * so a player standing still costs one reference compare per frame.
-   */
   setOnEquipment(cb: ((equipment: Equipment) => void) | null) {
     this.onEquipment = cb;
-    // Dropped so the next frame reports to a fresh listener even though nothing
-    // has changed, exactly as the interaction gates are.
     this.equipmentSent = null;
   }
 
@@ -766,13 +336,6 @@ export class GameRenderer {
     this.onEquipment(snap.equipment);
   }
 
-  /**
-   * Where the viewer is in a conversation, when it changes.
-   *
-   * Identity-gated on the kit's terms: the session replaces the whole object
-   * on every press and never mutates one, so a player reading a line costs one
-   * reference compare per frame.
-   */
   setOnConversation(cb: ((conversation: Conversation | null) => void) | null) {
     this.onConversation = cb;
     this.conversationSent = undefined;
@@ -787,8 +350,6 @@ export class GameRenderer {
 
   setOnVitals(cb: ((vitals: Vitals) => void) | null) {
     this.onVitals = cb;
-    // Dropped so the next frame reports to a fresh listener, exactly as the kit
-    // and the masteries are.
     this.vitalsSent = null;
   }
 
@@ -799,12 +360,7 @@ export class GameRenderer {
       maxHp: snap.self.maxHp,
       rating: snap.self.rating,
       statuses: snap.self.statuses,
-      // Off the snapshot rather than worked out here: the session that holds the
-      // equipment and the masteries is the one that can answer it. @see
-      // `../game/attributes`
       attributes: snap.attributes,
-      // And the switch for the same reason: whether it may be moved is a fact
-      // about a fight, which only a session knows it is in. @see `../game/pvp`
       pvp: snap.pvp,
     };
     const sent = this.vitalsSent;
@@ -813,20 +369,9 @@ export class GameRenderer {
       sent.hp === next.hp &&
       sent.maxHp === next.maxHp &&
       sent.rating === next.rating &&
-      // Field by field, for the reason the statuses are compared by reading: the
-      // block is rebuilt every tick, so identity here would push a new object
-      // thirty times a second. @see `../game/attributes`'s `sameAttributes`
       sameAttributes(sent.attributes, next.attributes) &&
-      // Two booleans, compared by value: the block is rebuilt every frame, so
-      // identity here would push a new object thirty times a second.
       sent.pvp.on === next.pvp.on &&
       sent.pvp.changeable === next.pvp.changeable &&
-      // By reading rather than by identity: the status list is a fresh array on
-      // every tick a status is running, so an identity check here would push a
-      // new object thirty times a second and re-render the panel with it. What
-      // the chrome can actually show is whole seconds, so that is the grain the
-      // comparison works at — one push a second per status, and the number on
-      // screen is always exact without a timer of its own.
       statusReading(sent.statuses) === statusReading(next.statuses)
     ) {
       return;
@@ -837,8 +382,6 @@ export class GameRenderer {
 
   setOnMasteries(cb: ((masteryXp: MasteryXp) => void) | null) {
     this.onMasteries = cb;
-    // Dropped so the next frame reports to a fresh listener, exactly as the kit
-    // and the interaction gates are.
     this.masteriesSent = null;
   }
 
@@ -849,22 +392,8 @@ export class GameRenderer {
     this.onMasteries(snap.masteryXp);
   }
 
-  /**
-   * Which stones can be pressed, whenever that changes.
-   *
-   * Asked of the session rather than read off the snapshot, because it is not a
-   * fact about the board: what a caster can do depends on their kit, their
-   * target and what they have learnt, and only whichever end owns the session
-   * can put those together. @see PlaySession.spells
-   *
-   * Routed through the render loop like the kit and the vitals, for the reason
-   * they are: this loop is already reading a fresh answer every frame and is
-   * the only thing that knows when one arrived.
-   */
   setOnSpells(cb: ((spells: SpellButton[]) => void) | null) {
     this.onSpells = cb;
-    // Dropped so the next frame reports to a fresh listener even though nothing
-    // has changed, exactly as the other gates are.
     this.spellsSent = null;
   }
 
@@ -877,55 +406,16 @@ export class GameRenderer {
     this.onSpells(spells);
   }
 
-  /**
-   * Put up anything the game has to say in words, and age what is already up.
-   *
-   * **Nothing is worked out here.** Every sentence is composed where the thing
-   * it describes happened — a reward as it is handed over, a mastery as the
-   * experience that crossed it is written — and arrives through
-   * `PlaySession.drainNotices`: the session's own queue in single-player, and
-   * the addressed `notice` message online. A refused click is drained beside
-   * them from the walk controller, on the same terms. @see ../game/notices
-   *
-   * The level-up line used to be a diff taken here, across successive
-   * `masteryXp` blocks, and it is worth knowing why it is not: reconstructing an
-   * event from state meant holding a private copy of the last block, gating on
-   * `hasExperience` so the empty block held before `hello` was not read as a
-   * lifetime of level-ups, and being careful that a re-registered listener did
-   * not replay them. All of it existed to guess at something the session knew
-   * exactly. A renderer draws; it does not infer what happened.
-   *
-   * The layer is written every frame whether or not anything arrived, because a
-   * notice also has to *leave*, and nothing else in the loop knows when its four
-   * seconds are up.
-   */
   private pushNotices(nowMs: number) {
     for (const text of this.session.drainNotices()) {
       this.notices.push(text, nowMs);
     }
-    // The one queue that is not the session's, and it is composed at its own
-    // source for the same reason the others are: a click with no route to it is
-    // a search this side ran about a cell the server was never told about, so
-    // there is nothing to be told. @see ../game/walkTo
     for (const text of this.walkTo?.drainNotices() ?? []) {
       this.notices.push(text, nowMs);
     }
     this.notificationLayer?.set(this.notices.live(nowMs));
   }
 
-  /**
-   * Give a walk in progress its next direction.
-   *
-   * Once a frame, off the snapshot this frame already took rather than one of
-   * its own: building a snapshot walks every actor, and steering one body is
-   * not worth that twice.
-   *
-   * After `session.update` rather than before it, which is what makes the walk
-   * seamless. The step that finished this frame has already been chained into
-   * the next by then, so what gets named here is the leg after the one now in
-   * flight — waiting there for the pipeline to ask for it, rather than arriving
-   * a frame after it was wanted.
-   */
   private stepWalkTo(snap: GameSnapshot, camera: { x: number; y: number }) {
     const walkTo = this.walkTo;
     if (!walkTo?.walking) return;
@@ -937,18 +427,6 @@ export class GameRenderer {
     walkTo.tick(view);
   }
 
-  /**
-   * Walk after this body until told otherwise, or stop.
-   *
-   * On the renderer rather than on the session because following is walking and
-   * walking is this side's own business: the directions go in where a held
-   * key's do and the server sees an ordinary walk. What the wire carries about
-   * a follow is nothing. @see ../game/interactionOptions' Follower
-   *
-   * Nothing here invalidates the interaction list. Who is being followed is
-   * part of the gate that list is rebuilt behind, so the row lights up on the
-   * next frame by itself. @see pushInteractionOptions
-   */
   setFollow(actorId: string | null) {
     const walkTo = this.walkTo;
     if (!walkTo) return;
@@ -958,31 +436,14 @@ export class GameRenderer {
     walkTo.follow(actorId, view);
   }
 
-  /**
-   * Which container on the floor the player is looking into, or null.
-   *
-   * The reference is held here rather than the contents, because a chest's
-   * contents live on its placement and arrive through the ordinary cell patch.
-   * Anything holding a copy would be a second version of what is in the box,
-   * going stale the moment somebody took something out of it.
-   */
   setOpenedContainer(ref: ObjectRef | null) {
     this.openedRef = ref;
-    // Dropped so the next frame reports even when the reference is unchanged —
-    // reopening the same chest must not be silent.
     this.openedItemId = null;
     this.openedPlacement = null;
     this.openedFrom = "";
     this.openedSent = undefined;
   }
 
-  /**
-   * Open the crafting window on this crafter, or close it.
-   *
-   * Held as a reference rather than a list, for the reason the opened box is:
-   * which recipes it offers is a function of the board, the viewer's cell and
-   * their kit, and all three are read fresh every frame by {@link pushCrafting}.
-   */
   setCrafting(ref: ObjectRef | null) {
     this.craftingRef = ref;
     this.craftingMap = null;
@@ -995,19 +456,6 @@ export class GameRenderer {
     this.craftingSent = undefined;
   }
 
-  /**
-   * Work the crafting window out off the live board, once a frame.
-   *
-   * **Closed is closed**, on `readOpenedContainer`'s terms: walking out of
-   * reach, the forge being taken away, or running out of anything you can
-   * afford drops the reference, and walking back does not reopen a window
-   * nobody asked for.
-   *
-   * Gated on the map, the viewer's cell and the kit — the three things the
-   * answer is a function of — by identity, so standing at a forge costs three
-   * compares a frame. A craft replaces the kit, which is what re-lists the
-   * window after every press.
-   */
   private pushCrafting(snap: GameSnapshot) {
     if (!this.onCrafting) return;
 
@@ -1040,8 +488,6 @@ export class GameRenderer {
       return;
     }
 
-    // The ref and the affordable indices are the whole of what the window
-    // draws that can change; the recipes themselves are the catalogue's.
     const key = `${ref.x},${ref.y},${ref.z},${ref.stackIndex}:${offered.recipes.map((r) => r.index).join(",")}`;
     if (key === this.craftingSent) return;
     this.craftingSent = key;
@@ -1055,25 +501,6 @@ export class GameRenderer {
     this.openedSent = undefined;
   }
 
-  /**
-   * Read the opened container off the live board, once a frame.
-   *
-   * **Two things can change the answer, and the gate has to admit both.** The
-   * container's cell can change — somebody takes something out, or takes the
-   * whole box — and the viewer can walk. Gating on the placement alone was a
-   * real bug: the map is copy-on-write, so a chest nobody touches is the same
-   * object for as long as it sits there, and walking out of range never
-   * re-asked the question. Whether it closed depended on whether anything
-   * happened to the box while you were away.
-   *
-   * So: the placement object, which is exactly the right granularity for "did
-   * that cell change", *and* the cell the viewer is standing in, which is the
-   * whole of what reach depends on. A player standing still over an open chest
-   * costs one stack read, one reference compare and one string compare.
-   *
-   * The rule itself is `readOpenedContainer`, which is pure and tested. All this
-   * does is decide when to ask and remember what it said.
-   */
   private pushOpenedContainer(snap: GameSnapshot) {
     if (!this.onOpenedContainer) return;
 
@@ -1093,10 +520,6 @@ export class GameRenderer {
 
     const read = readOpenedContainer(snap.map, this.tilesById, snap.self, ref, this.openedItemId);
     if (read.kind === "closed") {
-      // The reference is dropped rather than merely reporting null, which is
-      // what makes closed stay closed: walking back into range does not reopen
-      // a panel nobody asked for, and the slot cannot quietly come to hold
-      // somebody else's bag under the panel that used to be a chest.
       this.openedRef = null;
       this.openedItemId = null;
     } else {
@@ -1111,9 +534,6 @@ export class GameRenderer {
 
   setOnInteractions(cb: ((options: InteractionOption[]) => void) | null) {
     this.onInteractions = cb;
-    // The next frame has to report to a fresh listener even if nothing has
-    // moved, so both gates are dropped rather than left holding an answer the
-    // new callback has never seen.
     this.interactionsMap = null;
     this.interactionsAt = "";
     this.interactionsHealth = 0;
@@ -1125,40 +545,15 @@ export class GameRenderer {
     this.interactionsSent = [];
   }
 
-  /**
-   * Outline what a hovered row is talking about.
-   *
-   * The list names things that are somewhere, and "which one is that" is a
-   * question the world can answer for free — so hovering a row lights its
-   * subject exactly as the cursor would if it were over the sprite instead.
-   *
-   * **Held by id rather than by option, and that is the whole trick.** A row's
-   * subject moves: the list is rebuilt on every commit, so the reference inside
-   * an option is stale 200ms later, and the element does not re-fire its enter
-   * event because it is the same row. Resolving the id against the list as it
-   * stands now keeps the outline on a walking deer rather than on the cell it
-   * left — and drops it for nothing when the row itself goes, which is the
-   * event a mouse leaving an unmounting element never reports.
-   */
   setListHover(optionId: string | null) {
     this.listHoverId = optionId;
   }
 
-  /** The hovered row's option as it stands this frame, or null. */
   private listHoverOption(): InteractionOption | null {
     if (this.listHoverId === null) return null;
     return this.listOption(this.listHoverId);
   }
 
-  /**
-   * A row's option as it stands this frame, or null if the row has gone.
-   *
-   * What a pressed row acts on, for the reason the hover resolves by id: the
-   * page is only handed a new list when a row's id, label, state or health
-   * changes, so the option it holds keeps the `ref` from when it was handed
-   * over. A Talk row is keyed by who it is about, so an NPC who walks up to you
-   * keeps one row while its ref points at the cell where it entered reach.
-   */
   listOption(optionId: string): InteractionOption | null {
     return this.interactionsSent.find((o) => o.id === optionId) ?? null;
   }
@@ -1167,9 +562,6 @@ export class GameRenderer {
     if (this.running || this.disposed) return;
     this.running = true;
     this.lastTime = performance.now();
-    // Time only passes while the loop runs, so the anchor starts here rather
-    // than at construction — otherwise the first frame jumps the clock forward
-    // by however long the page had been open.
     this.reanchorClock(this.minutesOfDay);
     const loop = () => {
       if (!this.running || this.disposed) return;
@@ -1183,12 +575,8 @@ export class GameRenderer {
       if (next !== prev) this.onClock?.(next);
       const frameStart = performance.now();
       this.profiler.measure("sim", () => this.session.update(dt));
-      // `view` nests the sync/map/light/motion phases recorded inside setView,
-      // so it is their total rather than a separate slice.
       this.profiler.measure("view", () => this.pushView(now, dt));
       this.profiler.measure("anim", () => this.world.tick(dt));
-      // CPU cost of submitting the frame. GPU time lands after this returns and
-      // is not counted — a low `draw` does not by itself mean the GPU is idle.
       this.profiler.measure("draw", () => this.world.renderOnce());
       this.profiler.frame(performance.now() - frameStart);
 
@@ -1216,11 +604,6 @@ export class GameRenderer {
     this.stop();
     this.detachPointer();
     this.detachKeys();
-    // The one thing this class leaves outside itself: a clicked walk is a
-    // direction pressed on a list the page owns, and a renderer that went away
-    // mid-walk without letting go of it would leave the body walking on with
-    // nothing left to steer it. Everything else disposed here is this
-    // renderer's own. @see ../game/walkTo
     this.walkTo?.cancel();
     this.walkTo = null;
     this.cancelLookHold();
@@ -1237,23 +620,6 @@ export class GameRenderer {
     this.world.dispose();
   }
 
-  /**
-   * The three keys that are about pointing at the world rather than walking
-   * across it: shift reads what is under the pointer, space swings at whoever is
-   * picked, and Escape lets them go.
-   *
-   * Held here rather than by the page, because all three are answers to
-   * questions this class already owns — what the pointer is over, who is
-   * targeted, and what the outline is drawn in. They used to live in a hook
-   * beside a row of buttons that showed which mode they had left you in; the
-   * buttons are gone, so there is no second holder of the answer to keep in
-   * step, and the page has nothing to pass down.
-   *
-   * On the window rather than the canvas, because a canvas cannot hold focus in
-   * any way a player would recognise: they click a creature, move the mouse, and
-   * press escape — and by then the pointer may be anywhere. Movement still
-   * belongs to whoever owns the page. @see ../game/heldDirections
-   */
   private attachKeys() {
     if (typeof window === "undefined") return;
     window.addEventListener("keydown", this.onKeyDown);
@@ -1274,31 +640,16 @@ export class GameRenderer {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
-    // Only ever does anything while the debug view is on, and never while
-    // somebody is typing — a bracket belongs in the chat field it was aimed at.
     if ((e.key === "[" || e.key === "]") && !isTypingTarget(e.target)) {
       this.stepDebugZoom(e.key === "]" ? 1 : -1);
       return;
     }
     if (e.key !== "Escape") return;
-    // Nothing to call off, so nothing to swallow: a chat field or a dialog
-    // listening for the same key must still get it.
     if (this.session.getSnapshot().targetId === null) return;
     this.session.setTarget(null);
-    // The stance goes with the body it was about. Left on, the next creature
-    // pointed at would be swung at by a player who never said to.
     this.session.setAttackMode(false);
   };
 
-  /**
-   * E swings at whoever is picked, and E again stops without letting them go.
-   *
-   * The keyboard's half of the pair of rows on a body — see
-   * `../game/interactionOptions`' `attack` — and deliberately only that half: it
-   * cannot *pick* anybody. Choosing who you are fighting is done by pointing at
-   * them, and a key that chose for you is how a fight used to start with
-   * somebody nobody had looked at. With nothing picked it does nothing at all.
-   */
   private toggleSwing() {
     const snap = this.session.getSnapshot();
     if (snap.targetId === null) return;
@@ -1323,11 +674,6 @@ export class GameRenderer {
     this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
   }
 
-  /**
-   * The right button is a game button, so the browser's menu over the world is
-   * never what was being asked for. Cancelled on the canvas alone — every other
-   * surface on the page keeps its menu.
-   */
   private onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
   };
@@ -1339,9 +685,6 @@ export class GameRenderer {
 
   private onPointerMove = (e: PointerEvent) => {
     this.lastPointer = this.localPoint(e);
-    // A finger on its way somewhere is not a finger asking a question. The
-    // gesture is hold *then* drag, so travel before the wait is up calls it off
-    // and leaves the press an ordinary tap. @see onPointerDown
     if (this.lookHold !== null && this.touchDownAt && e.pointerId === this.touchId) {
       const dx = this.lastPointer.x - this.touchDownAt.x;
       const dy = this.lastPointer.y - this.touchDownAt.y;
@@ -1357,22 +700,6 @@ export class GameRenderer {
     this.pointerRef = this.pickRefAt(this.lastPointer, snap);
   };
 
-  /**
-   * The right button swings at whoever is under it.
-   *
-   * **Left picks, right fights**, which is the arrangement every game with a
-   * mouse in it already uses — so it is the one thing about this interface
-   * nobody has to be taught. It is the same pair of rows the creature's box
-   * offers, reached without looking away from the creature: the left button
-   * runs whatever the world offers, which on a body is the target, and this
-   * runs the fight beside it.
-   *
-   * Only a body offers one, so a right press on a crate or on the ground does
-   * nothing at all. Pressing it again on the body you are already fighting
-   * changes nothing either — stopping is what the target row, a left click and
-   * Escape are for, and a button that called the fight off when mashed
-   * mid-fight would be the worst possible answer to the gesture people make.
-   */
   private fightAt(point: { x: number; y: number }, snap: GameSnapshot) {
     this.pointerRef = this.pickRefAt(point, snap);
     if (!this.pointerRef) return;
@@ -1383,22 +710,12 @@ export class GameRenderer {
     if (fight) applyInteraction(this.session, fight, this);
   }
 
-  /**
-   * Interactive object drawn under a canvas-relative point, if any.
-   *
-   * Gated on *having a row* rather than on the session's own precedence. A
-   * chest offers nothing that precedence knows about — opening is panel state,
-   * so `canInteract` says no — and gating on it left a box that the list was
-   * offering to open sitting in the world unclickable.
-   */
   private pickAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     return pickInteractiveAt(
       {
         map: snap.map,
         tilesById: this.tilesById,
         camera: this.cameraFor(snap),
-        // CSS scale, not the render scale: the pointer arrives in the
-        // element's own coordinates, and the buffer is stretched over it.
         zoom: currentFit(this.canvas, this.spanPx()).cssScale,
       },
       point.x,
@@ -1409,21 +726,7 @@ export class GameRenderer {
     );
   }
 
-  /**
-   * One button for everything: a tap on an object runs whatever it offers.
-   * The alternative — a modifier or a second button per interaction — is the
-   * thing that made this unlearnable, and touch has neither.
-   *
-   * **A mouse acts on the press and a finger on the lift**, which is the whole
-   * of what hold-to-read costs: a finger has not said what it meant yet at the
-   * moment it lands. Held still it is a question, and lifted it is a tap, and
-   * the only way to tell is to wait — so the press starts a timer and
-   * {@link onPointerUp} runs the tap that never became a hold. A mouse says
-   * which it meant with shift and needs no wait.
-   */
   private onPointerDown = (e: PointerEvent) => {
-    // The two buttons this game has. Anything else — a middle click, a thumb
-    // button — is left to the browser.
     if (e.button !== 0 && e.button !== 2) return;
 
     const point = this.localPoint(e);
@@ -1433,9 +736,6 @@ export class GameRenderer {
       if (this.touchId !== null) return;
       this.touchId = e.pointerId;
       this.touchDownAt = point;
-      // Captured so the read survives the finger leaving the canvas: a drag
-      // that wanders over the controls below would otherwise stop reporting
-      // mid-sentence, and the lift that ends it would land somewhere else.
       this.canvas.setPointerCapture(e.pointerId);
       this.lookHold = setTimeout(() => {
         this.lookHold = null;
@@ -1446,9 +746,6 @@ export class GameRenderer {
     }
 
     if (e.button === 2) {
-      // Swallowed whether or not there is anybody there, because the menu it
-      // would otherwise open covers the world it was opened over. @see
-      // onContextMenu, which is what actually stops it.
       e.preventDefault();
       if (!this.lookMode) this.fightAt(point, this.session.getSnapshot());
       return;
@@ -1457,13 +754,6 @@ export class GameRenderer {
     this.act(point, e);
   };
 
-  /**
-   * The lift decides what a finger meant, because the press could not.
-   *
-   * A hold that fired has already been answered — the world was read under it,
-   * and the lift only ends the reading. Anything else is the tap this press was
-   * always going to be, run here at the point it was lifted from.
-   */
   private onPointerUp = (e: PointerEvent) => {
     if (e.pointerType !== "touch") return;
     if (e.pointerId !== this.touchId) return;
@@ -1476,11 +766,6 @@ export class GameRenderer {
     this.act(point, e);
   };
 
-  /**
-   * A gesture the browser took away — a call arriving, a scroll it decided was
-   * its own. Nothing is run: what was cancelled is precisely a press nobody
-   * completed.
-   */
   private onPointerCancel = (e: PointerEvent) => {
     if (e.pointerId !== this.touchId) return;
     this.touchId = null;
@@ -1488,20 +773,15 @@ export class GameRenderer {
     this.endLookHold();
   };
 
-  /** Do whatever the pointer means at this point: read it, use it, or walk. */
   private act(point: { x: number; y: number }, e: PointerEvent) {
     const snap = this.session.getSnapshot();
 
-    // Reading and acting cannot share a press: a tap on a door while shift is
-    // down reads it and leaves it shut.
     if (this.lookMode) {
       e.preventDefault();
       this.lookedAt = this.lookAt(point, snap);
       return;
     }
 
-    // Resolved here rather than read off the last hover: touch has no hover
-    // at all, and a press that outruns its move event would otherwise miss.
     this.pointerRef = this.pickRefAt(point, snap);
     const option = this.pointerOption();
     if (option) {
@@ -1510,34 +790,21 @@ export class GameRenderer {
       return;
     }
 
-    // Deliberately without `preventDefault`, unlike every branch above it.
-    //
-    // Cancelling a pointerdown buys nothing here — the canvas carries
-    // `touch-action: none` (see `../components/GameViewport`), so scrolling,
-    // pinch and double-tap zoom are already off for a gesture that starts on
-    // it, and that is what governs them rather than this event. What cancelling
-    // *does* do, measured in Chrome, is suppress the compatibility mouse events
-    // the press would otherwise fire: no `mousedown`, so no focus change. A
-    // walk click is the one that lands on nearly every tap of the world, and
-    // with it cancelled the chat field somebody has just typed into keeps
-    // focus — which `isTypingTarget` reads as typing, so the arrow keys stop
-    // walking the body and go on filling the field instead.
+    /**
+     * Deliberately without `preventDefault`, unlike the branches above: in
+     * Chrome, cancelling a pointerdown suppresses the compatibility mousedown
+     * it would otherwise fire, which would take focus off a chat field the
+     * player just typed into.
+     */
     this.walkToPointer(point, snap);
   }
 
-  /** Forget a hold that has not fired yet, leaving the press an ordinary tap. */
   private cancelLookHold() {
     if (this.lookHold === null) return;
     clearTimeout(this.lookHold);
     this.lookHold = null;
   }
 
-  /**
-   * Stop reading the world, and say whether it was being read at all.
-   *
-   * The answer is what {@link onPointerUp} needs: a lift that ended a reading
-   * must not also act, and one that ended nothing is a tap.
-   */
   private endLookHold(): boolean {
     this.cancelLookHold();
     if (!this.touchLooking) return false;
@@ -1546,21 +813,6 @@ export class GameRenderer {
     return true;
   }
 
-  /**
-   * Set off for whatever the pointer is over, when there was nothing to do to
-   * it.
-   *
-   * The second half of one button doing everything: a thing that offers a row
-   * is acted on, and everything else is somewhere to go. Which of the two a
-   * click is has already been decided above — this is only reached when the
-   * interaction list had no answer — so pointing at a door still opens it, and
-   * pointing at the floor beyond it walks.
-   *
-   * The pick is the *looking* one, where every tile is a candidate: a patch of
-   * grass offers nothing and is still a place. It is also the pick that honours
-   * the roof cut, so a click cannot send anybody to a cell the view has taken
-   * the roof off to show.
-   */
   private walkToPointer(point: { x: number; y: number }, snap: GameSnapshot) {
     const walkTo = this.walkTo;
     if (!walkTo) return;
@@ -1571,16 +823,6 @@ export class GameRenderer {
     walkTo.start(ref, view);
   }
 
-  /**
-   * What the walk controller needs to know about this body, or null when there
-   * is no body to steer.
-   *
-   * The placement is checked rather than trusted, because a snapshot's `self`
-   * outlives the actor: a killed body is off the board and the last cell it
-   * stood in is reported for as long as the death screen is up. Steering from
-   * there would have whatever respawns set off for a cell clicked before the
-   * death.
-   */
   private walkView(snap: GameSnapshot, camera: { x: number; y: number }): WalkView | null {
     const def = this.tilesById[PLAYER_TILE_ID];
     if (!def) return null;
@@ -1595,11 +837,6 @@ export class GameRenderer {
       def,
       tilesById: this.tilesById,
       statusDefs: this.statusDefs,
-      // The target's own rule, deliberately — see {@link isWithinView}. A
-      // follow and a target are the two commitments to one body, and a follow
-      // that outlived the screen would carry on after something the player can
-      // neither see nor call off, since the row that turns it off is gone with
-      // the body it was drawn for.
       bodyAt: (actorId) => {
         const actor = snap.actors.find((a) => a.id === actorId);
         if (!actor) return null;
@@ -1609,19 +846,6 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * Do what the row under the pointer says.
-   *
-   * The one place a click on the world turns into an action, and it runs the
-   * *same* option the outline and the label were describing — so "Open Chest"
-   * opens, and there is no second precedence to disagree with the words on
-   * screen.
-   *
-   * Opening is handled here rather than in `applyInteraction` because it never
-   * reaches the session at all: a container's contents ride on its placement, so
-   * looking inside is this renderer's own state and the page hears about it the
-   * same way it does when a row is pressed.
-   */
   private runOption(option: InteractionOption) {
     if (option.action === "open") {
       this.setOpenedContainer(option.active ? null : option.ref);
@@ -1633,22 +857,9 @@ export class GameRenderer {
   private onPointerLeave = () => {
     this.lastPointer = null;
     this.lookedAt = null;
-    // Only the *hover* goes. A target is a commitment held until it is called
-    // off, killed, or walks out of view — moving the mouse away is none of
-    // those, and dropping it here would make a fight unwinnable one-handed.
     this.pointerRef = null;
   };
 
-  /**
-   * The body drawn under a canvas-relative point, if any — a battler, or an NPC
-   * with a dialog. See `./pick`'s `pickBodyAt`.
-   *
-   * Never the viewer's own body. It is a battler like everything else and the
-   * pick has no way to know otherwise, but the camera is centred on it — so the
-   * pointer sits on top of it constantly, and an outline that lights up whenever
-   * the mouse crosses the middle of the screen is noise around something the
-   * session refuses to target anyway.
-   */
   private bodyAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     const found = pickBodyAt(
       {
@@ -1666,15 +877,6 @@ export class GameRenderer {
     return this.actorIdAt(found, snap) === snap.self.id ? null : found;
   }
 
-  /**
-   * Who is standing at a cell reference, if it is anybody.
-   *
-   * Matched against the snapshot's actors rather than read off the placement's
-   * `owner`, because a target has to be an *actor* — that is what the session
-   * looks up when it swings, and what a health bar is drawn from. A body mid-step
-   * is the wrong answer here on purpose: its actor is still recorded at the cell
-   * it is walking out of, which is the same cell this pick found it in.
-   */
   private actorIdAt(ref: ObjectRef, snap: GameSnapshot): string | null {
     for (const actor of snap.actors) {
       if (
@@ -1689,14 +891,6 @@ export class GameRenderer {
     return null;
   }
 
-  /**
-   * Start or stop reading the world, from whichever hand is asking.
-   *
-   * Leaving clears what was being read; entering re-picks from where the
-   * pointer already is rather than waiting for it to move — shift is a key
-   * rather than a pointer event, so on a still hand the wait reads as the key
-   * being broken.
-   */
   private applyLooking() {
     const enabled = this.lookKeyHeld || this.touchLooking;
     if (enabled === this.lookMode) return;
@@ -1705,21 +899,12 @@ export class GameRenderer {
       this.lookedAt = null;
       return;
     }
-    // Whatever the pointer was aimed at is no longer a hover target, and the
-    // yellow outline has to go with the pointing that owned it.
     this.pointerRef = null;
     if (this.lastPointer) {
       this.lookedAt = this.lookAt(this.lastPointer, this.session.getSnapshot());
     }
   }
 
-  /**
-   * Show where a dragged thing would land, or stop showing it.
-   *
-   * Takes client coordinates because a drag is a window-level gesture — it
-   * starts on a panel and crosses the canvas — and this is the one place that
-   * already knows where the canvas is.
-   */
   setDropGhost(drag: { from: SlotRef; tileId: string; clientX: number; clientY: number } | null) {
     if (!drag) {
       this.dropDrag = null;
@@ -1729,13 +914,6 @@ export class GameRenderer {
     this.dropDrag = point ? { from: drag.from, tileId: drag.tileId, point } : null;
   }
 
-  /**
-   * The cell a client point is over, or null when it is over nothing.
-   *
-   * Exported for the drop itself: the page owns the gesture and the session
-   * call, and this owns the camera — so the page asks *where*, and does the rest
-   * with the answer.
-   */
   dropCellAt(clientX: number, clientY: number): Coord | null {
     const point = this.canvasPoint(clientX, clientY);
     if (!point) return null;
@@ -1743,7 +921,6 @@ export class GameRenderer {
     return ref ? { x: ref.x, y: ref.y, z: ref.z } : null;
   }
 
-  /** Client point in canvas pixels, or null when it is not over the canvas. */
   private canvasPoint(clientX: number, clientY: number): { x: number; y: number } | null {
     const rect = this.canvas.getBoundingClientRect();
     const x = clientX - rect.left;
@@ -1752,7 +929,6 @@ export class GameRenderer {
     return { x, y };
   }
 
-  /** Whatever tile is drawn under a point, interactive or not. */
   private lookAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     return pickTileAt(
       {
@@ -1769,19 +945,6 @@ export class GameRenderer {
     );
   }
 
-  /**
-   * The ghost for whatever is being dragged, or null.
-   *
-   * **Nothing is drawn where the drop would be refused, and nothing says why.**
-   * The absent ghost is the whole answer: a player learns the range by watching
-   * it appear, which is a thing you feel out in a second, where a message
-   * explaining a rule is a thing you have to read every time.
-   *
-   * Asked of the session rather than of `canDropAt` directly, so this goes
-   * through the same door the release will — a ghost drawn from one rule and a
-   * drop honoured by another is exactly the disagreement the shared affordances
-   * exist to prevent.
-   */
   private dropGhostSpec(snap: GameSnapshot): OverlaySpec | null {
     const drag = this.dropDrag;
     if (!drag) return null;
@@ -1792,12 +955,6 @@ export class GameRenderer {
     return { kind: "ghost", tileId: drag.tileId, ...at, alpha: DROP_GHOST_ALPHA };
   }
 
-  /**
-   * Chrome for the current frame: a silhouette around the object under the
-   * pointer. The session only reports a hover the player can actually act on,
-   * so the outline *is* the affordance — an object that will not budge simply
-   * never lights up, and no second cue is needed to explain why.
-   */
   private overlaysFor(snap: GameSnapshot): OverlaySpec[] {
     const outline = (ref: ObjectRef, color: number, pulse = false): OverlaySpec => ({
       kind: "objectOutline",
@@ -1806,9 +963,6 @@ export class GameRenderer {
       pulse,
     });
 
-    // The row under the cursor points into the world whether or not the world
-    // is being read: holding shift governs what a press on the *canvas* means,
-    // and a hand on the list is already pointing at something explicitly.
     const listed = this.listHoverOption();
 
     if (this.lookMode) {
@@ -1821,51 +975,20 @@ export class GameRenderer {
     const specs: OverlaySpec[] = [];
     const ghost = this.dropGhostSpec(snap);
     if (ghost) specs.push(ghost);
-    // The target first, so a hovered body that is *already* the target reads as
-    // chosen rather than as merely hoverable — the later spec would otherwise
-    // draw its steady outline over the pulsing one.
     const target = this.targetOutline(snap);
     if (target) {
       specs.push(outline(target, snap.attacking ? ATTACK_TARGET_COLOR : TARGET_COLOR, true));
     }
-    // One outline for the pointer, in the colour its own row wears — the same
-    // function the list hover uses, because a row lit under a finger and a
-    // sprite lit under a cursor are two ways of pointing at one thing.
     const pointed = this.pointerOption();
     if (pointed && !sameRef(pointed.ref, target)) {
       specs.push(outline(pointed.ref, interactionColor(pointed)));
     }
-    // Last, so it draws over the pointer's own hover where the two land on one
-    // object — and skipped on the body already targeted, for the same reason the
-    // hover is: chosen outranks hoverable.
     if (listed && !sameRef(listed.ref, target)) {
       specs.push(outline(listed.ref, interactionColor(listed)));
     }
     return specs;
   }
 
-  /**
-   * Is this cell one the viewer can actually see?
-   *
-   * Chrome is drawn over the finished frame — a name tag and a damage number are
-   * elements above the canvas, owing nothing to depth — so without asking this
-   * they report things the world has hidden. That is exactly what went wrong when
-   * every battler started being named: the second cat lives two floors up, its
-   * sprite is cut away with the roof, and its name hung in the sky over an empty
-   * roofline. It reads as a ghost — an invisible thing that is plainly still
-   * alive, because it is: a real actor, ticking, just not on screen.
-   *
-   * Two rules. The roof-cut takes the geometry above the viewer, and
-   * {@link isHiddenFromCamera} answers the storeys below: is there a floor
-   * painted between the eye and this cell. Its own floor is always visible,
-   * because everything drawn there is drawn in front of nothing.
-   *
-   * This used to be a level slack — one floor either way — and the slack was
-   * always an admission that there was no cheap per-pixel answer. There is one
-   * now, and it is the rule {@link isVisibleBody} already uses. Leaving the
-   * slack over it meant a fight one storey down in a cave rained damage numbers
-   * over the ground above, through rock that was drawn in front of it.
-   */
   private isVisibleCell(
     snap: GameSnapshot,
     at: { x: number; y: number; z: number },
@@ -1874,63 +997,20 @@ export class GameRenderer {
     return isCellVisible(snap.map, this.tilesById, at, snap.self.z, cut);
   }
 
-  /**
-   * Is this body one the viewer can actually *see*?
-   *
-   * Asked by everything that describes a battler rather than a place: the name
-   * over a head, the health under the name, and which bodies the interaction
-   * list offers to target.
-   *
-   * **Deliberately not a question about levels, and not about reach either.**
-   * Both were tried and both are wrong. A level test names a rat on the floor
-   * above whose sprite is behind a ceiling, and goes silent on one standing in
-   * the open a storey down that you are looking straight at. A reach test — only
-   * name what you could hit — sounds principled and reads as blindness: you can
-   * plainly see the thing, and the game refuses to tell you what it is until you
-   * are already beside it. What a player means by "I can see it" is that its
-   * sprite is on their screen, so that is the question asked: inside the drawn
-   * square, and not drawn over. See {@link isHiddenFromCamera}.
-   *
-   * **Except on the viewer's own floor, which is asked nothing but "is it on
-   * screen".** The occlusion walk is there for the storeys you are not standing
-   * on, where a body really is painted behind a floor or a roof. On your own
-   * level it mostly catches furniture — a body stepping behind the far side of a
-   * wall it is standing beside, or under the lip of the roof over its head — and
-   * a name blinking out because a rat walked past a crate reads as a bug, not as
-   * cover. The floor you are on is the one you are playing on: everything drawn
-   * there is named and targetable, and the rule only starts asking questions
-   * once a body is somewhere else.
-   *
-   * Whether you can *fight* it is a separate rule with a separate answer, and
-   * the two are meant to disagree — reading a creature's health from across a
-   * courtyard and being unable to touch it is the normal state of affairs.
-   */
   private isVisibleBody(
     snap: GameSnapshot,
     actor: ActorSnapshot,
     camera: { x: number; y: number },
     cut: RoofCut | undefined,
   ): boolean {
-    // Where the body is standing, on {@link isVisibleCell}'s terms, plus the
-    // one question a cell is never asked: whether it is on screen at all.
     if (!this.isVisibleCell(snap, actor, cut)) return false;
     return this.isWithinView(snap.map, actor, camera);
   }
 
-  /**
-   * Is this body standing where the light draws it black?
-   *
-   * Asked by the name tags and the interaction list, which say nothing about a
-   * body in the dark: the server still sends it and its sprite is still drawn,
-   * but a name or a row would say what is in a cave before any light reaches
-   * it. Never the viewer, whose own health is readable wherever they walk.
-   * @see WorldRenderer.isCellPitchBlack
-   */
   private isInDarkness(snap: GameSnapshot, actor: ActorSnapshot): boolean {
     return actor.id !== snap.self.id && this.world.isCellPitchBlack(actor.x, actor.y, actor.z);
   }
 
-  /** Where the targeted actor is standing right now, if they still are. */
   private targetOutline(snap: GameSnapshot): ObjectRef | null {
     if (snap.targetId === null) return null;
     const actor = snap.actors.find((a) => a.id === snap.targetId);
@@ -1943,18 +1023,6 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * What is being looked at right now, resolved against the board.
-   *
-   * A held reference goes stale in two ways and this closes both. The
-   * placement can leave — pushed, switched, erased by the editor — in which
-   * case there is nothing to outline or name. And the *world can move under a
-   * still pointer*: the camera follows the viewer, so walking with shift held
-   * slides a different cell under a cursor that never moved. Re-picking is what
-   * keeps the outline on the thing the player is actually pointing at, the same
-   * argument the cursor already makes for being driven by the frame rather than
-   * by pointer events.
-   */
   private lookTarget(
     snap: GameSnapshot,
   ): { ref: ObjectRef; placed: PlacedTile; def: TileDef } | null {
@@ -1969,22 +1037,6 @@ export class GameRenderer {
     return { ref: this.lookedAt, placed, def };
   }
 
-  /**
-   * Re-pick when the world has moved under the pointer.
-   *
-   * Keyed on the camera and the map rather than run every frame: standing still
-   * and looking at a rock costs nothing, and the probe only pays while
-   * something is actually changing.
-   */
-  /**
-   * Re-pick the battler under the pointer when the world has moved under it.
-   *
-   * The same argument {@link repickLook} makes, and it matters more here: the
-   * camera follows the viewer, so walking past a cat slides it out from under a
-   * cursor that never moved. Without this the white outline would stay stuck to
-   * a cell the creature has left, and a click would target whoever wandered into
-   * it. Keyed on camera and map so standing still costs nothing.
-   */
   private repickPointer(snap: GameSnapshot, camera: { x: number; y: number }) {
     if (this.lookMode || !this.lastPointer) return;
     const key = `${camera.x},${camera.y}`;
@@ -1994,44 +1046,17 @@ export class GameRenderer {
     this.pointerRef = this.pickRefAt(this.lastPointer, snap);
   }
 
-  /**
-   * Whatever is drawn under a canvas-relative point and has something to offer.
-   *
-   * Two picks, and a body wins where they overlap — not by a rule stated here,
-   * but because a body is asked about first and the row it answers with is the
-   * one the list would put first anyway. Only the player tile is both fightable
-   * and shovable, and asking somebody to tell two outlines on one body apart to
-   * find out which the click will do is worse than not being able to push people.
-   *
-   * The object pick is skipped entirely when a body answered, which is the one
-   * place this saves work over asking both.
-   */
   private pickRefAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     const body = this.bodyAt(point, snap);
     if (body && topInteractionAt(this.interactionsSent, body)) return body;
     return this.pickAt(point, snap);
   }
 
-  /**
-   * The row for whatever the pointer is over, as it stands this frame.
-   *
-   * Resolved rather than remembered, so the outline, the words and the click all
-   * describe the board as it is now — see {@link pointerRef}.
-   */
   private pointerOption(): InteractionOption | null {
     if (!this.pointerRef) return null;
     return topInteractionAt(this.interactionsSent, this.pointerRef);
   }
 
-  /**
-   * Drop the target once it is no longer on screen.
-   *
-   * Two ways that happens and both are handled by the same rule: it walked out
-   * of the view, or it stopped existing — killed, disconnected, or dropped to a
-   * floor this client is not drawing. Checked against the drawn view rather than
-   * a radius in cells, because "on my screen" is what a player actually means,
-   * and the view is square and known.
-   */
   private enforceTargetVisibility(snap: GameSnapshot, camera: { x: number; y: number }) {
     if (snap.targetId === null) return;
     const actor = snap.actors.find((a) => a.id === snap.targetId);
@@ -2042,21 +1067,12 @@ export class GameRenderer {
     if (!this.isWithinView(snap.map, actor, camera)) this.session.setTarget(null);
   }
 
-  /**
-   * Is this actor's sprite inside the drawn square?
-   *
-   * Measured against the view rather than a radius in cells, because "on my
-   * screen" is what a player actually means, and the view is square and known.
-   * Shared by the two questions that both mean exactly that: whether a target
-   * is still yours to fight, and whether a body is one you could pick.
-   */
   private isWithinView(
     map: MapFile,
     actor: ActorSnapshot,
     camera: { x: number; y: number },
   ): boolean {
     const visual = this.actorVisualWorld(map, actor);
-    // The play square, not the drawn frame. @see playSquareFor
     const square = this.playSquareFor(camera);
     return (
       visual.x >= square.x &&
@@ -2075,18 +1091,6 @@ export class GameRenderer {
     this.lookedAt = this.lookAt(this.lastPointer, snap);
   }
 
-  /**
-   * Pull the camera back off the play square and draw the renderer's windows.
-   *
-   * Off in every shipped frame; `?debug=1` is the only thing that turns it on,
-   * and `docs/notes.md` is where it is written down. See `./debugView` for what
-   * the picture is of.
-   *
-   * The gameplay reading of "on screen" does **not** move with the camera —
-   * {@link isWithinView} still measures the play square — so a target does not
-   * become holdable, and a name does not become readable, because somebody
-   * zoomed out.
-   */
   setDebugView(on: boolean) {
     const zoomOut = on ? DEBUG_ZOOM_OUT : null;
     if (zoomOut === this.debugZoomOut) return;
@@ -2100,21 +1104,10 @@ export class GameRenderer {
     }
   }
 
-  /**
-   * Side of the square of world the camera draws, in world pixels.
-   *
-   * {@link VIEW_PX} for everybody playing. Under the debug view it is a whole
-   * multiple of it, which is what keeps the render scale a whole number — see
-   * `./viewport`.
-   */
   private spanPx(): number {
     return this.debugZoomOut === null ? VIEW_PX : debugSpanPx(this.debugZoomOut);
   }
 
-  /**
-   * Widen or narrow the debug camera. Ignored when the view is off, which is
-   * what keeps `[` and `]` free for anything a real player might want them for.
-   */
   private stepDebugZoom(by: number) {
     if (this.debugZoomOut === null) return;
     const next = clampZoomOut(this.debugZoomOut + by);
@@ -2122,29 +1115,12 @@ export class GameRenderer {
     this.debugZoomOut = next;
   }
 
-  /**
-   * Draw the world unlit. The renderer stops baking and uploading light (see
-   * {@link WorldRenderer.setLightingEnabled}); this end stops producing the
-   * per-actor emitter overrides that feed it, since nothing would read them.
-   */
   setLightingEnabled(enabled: boolean) {
     if (enabled === this.lightingEnabled) return;
     this.lightingEnabled = enabled;
     this.world.setLightingEnabled(enabled);
   }
 
-  /**
-   * Every piece of in-world text this frame: names on heads, speech on cells.
-   *
-   * All of it is produced here because it is all anchored in world pixels and
-   * handed to the same layer, which turns them into screen positions. Names are
-   * keyed by actor, speech by message id and a read sign by its slot, so none of
-   * them can collide in the element cache.
-   *
-   * The pointer goes in before the signs around it: the layout pass keeps the
-   * order it was handed within a kind, and the thing you are actually pointing
-   * at is the one that must survive a crowded view.
-   */
   private labelsFor(
     snap: GameSnapshot,
     camera: { x: number; y: number },
@@ -2160,17 +1136,6 @@ export class GameRenderer {
     return labels;
   }
 
-  /**
-   * What the things you are standing among say, in the same blue a look wears.
-   *
-   * Same colour and same anchor as a look on purpose — it is the same fact about
-   * the same placement, arrived at without being asked. What it drops is the
-   * name line: see `./nearbyInscriptions`, which owns the rule for who speaks.
-   *
-   * A placement being looked at is skipped, because the look label is already
-   * saying its words: drawn as well, the layout pass would sit one description
-   * above an identical one and read as a stutter.
-   */
   private pushNearbyInscriptionLabels(snap: GameSnapshot, into: WorldLabel[]) {
     for (const near of inscribedNearby(snap.map, this.tilesById, snap.self)) {
       if (this.lookMode && sameRef(near.ref, this.lookedAt)) continue;
@@ -2189,31 +1154,6 @@ export class GameRenderer {
     }
   }
 
-  /**
-   * What the thing under the pointer is, and what it says.
-   *
-   * Two lines at most: the tile's own name, and the placement's description
-   * under it when it has one. Lines flow downward from a group whose bottom
-   * edge is the anchor, so `[name, description]` puts the name on top and the
-   * text directly beneath — the same stacking speech already uses, which is why
-   * a look reads like a bubble rather than a tooltip.
-   *
-   * **Two readings, one label.** While the world is being read — shift, or a
-   * held finger — it names whatever you point at, in blue. Otherwise the
-   * pointer names *items* and nothing else, in the yellow of the outline
-   * already round them, because a rusty sword and a hand lantern are both a
-   * small thing on the floor and which one you are about to bend down for is
-   * worth knowing before you do. They cannot both appear: reading takes the
-   * interaction hover off the screen.
-   *
-   * One id for both, because there is only ever one thing under a pointer: the
-   * layer reuses a single element and refills it only when the words change,
-   * rather than churning a node per cell the cursor crosses.
-   *
-   * The anchor is the object's cell, so a described crate mid-shove has its
-   * label at the cell it has already committed to while the sprite lerps in
-   * behind. Accepted for now — see plans/looking-and-signs.md.
-   */
   private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
     const said = this.lookMode ? this.lookLines(snap) : this.pointerLines();
     if (!said) return;
@@ -2232,33 +1172,11 @@ export class GameRenderer {
     });
   }
 
-  /**
-   * What look mode says: the tile's name, what is written on the placement,
-   * what examining it would tell you, and — for a weapon — what it asks of you
-   * and what you are getting out of it.
-   *
-   * The demand goes last because it is the only part that is not a fact about
-   * the object: the name and the writing on it are the same for everybody who
-   * walks past, where "Sharp 20 — you have 12" is about the person doing the
-   * looking. See `../lib/weaponDemand` for why it is a table of numbers rather
-   * than the sentence it replaced.
-   */
   private lookLines(snap: GameSnapshot): PointerLabel | null {
     const target = this.lookTarget(snap);
     if (!target) return null;
     const { ref, placed, def } = target;
-    // The count on the name line, exactly where a bag square puts it — a pile of
-    // berries on the floor and the same pile in your hand are one thing being
-    // asked one question. See `../lib/piles`' `pileTally`.
     const tally = pileTally(placed);
-    // The engraving filled in, so a skull on the ground is whose it is rather
-    // than what kind of thing it is. Free for everything else — a name with no
-    // hole in it comes straight back. See `../lib/engraving`.
-    //
-    // Then whoever conjured it, where anybody did: "Green Fox's Arcane Flame"
-    // over the same tile a hearth leaves behind as plain "Arcane Flame". The
-    // caster is named off the snapshot's own actors, so the look label and the
-    // name tag over their head are one answer. @see `../game/conjured`
     const name = conjuredName(
       engravedName(def.name, placed.engraved),
       placed,
@@ -2268,32 +1186,15 @@ export class GameRenderer {
     if (placed.inscription) {
       lines.push({ id: "inscription", text: placed.inscription });
     }
-    // The quiet half, and a look is where it is allowed out into the world:
-    // pointing at one thing is the gesture that asks about that thing, where
-    // walking past a shelf of them is not. @see `../lib/types`'
-    // {@link PlacedTile.description}
     if (placed.description) {
       lines.push({ id: "description", text: placed.description });
     }
     for (const [index, text] of weaponDemandFor(def, snap.masteryXp).entries()) {
       lines.push({ id: `demand-${index}`, text });
     }
-    // No colour: the stylesheet's blue is the mode's own, and look mode is the
-    // only thing wearing it.
     return { ref, height: def.height, lines };
   }
 
-  /**
-   * What the pointer says outside look mode: the row it is over, as a sentence.
-   *
-   * "Push Box", "Pick up Rusty Sword", "Target Deer" — the verb first, because
-   * the verb is what you are deciding about. A sprite on the floor is a handful
-   * of pixels and a lantern and a sword are the same handful; a silhouette says
-   * *that* you could do something and this says what.
-   *
-   * Read off the same option the outline is drawn from and the click will run,
-   * so the words cannot describe an action other than the one that happens.
-   */
   private pointerLines(): PointerLabel | null {
     const option = this.pointerOption();
     if (!option) return null;
@@ -2306,42 +1207,6 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * A name over every battler, with its health under the name.
-   *
-   * **Anything that can be fought says what it is.** That used to be a mode the
-   * online route turned on and a check for the player tile inside it, which drew
-   * handles over people and left the wildlife anonymous — fine while a creature
-   * was scenery you walked past, and wrong the moment it is something you can
-   * pick a fight with. What a thing is called is what you need before you decide
-   * to hit it, and "battler" is exactly the set of things that question is asked
-   * about. Everything else on the map stays unlabelled, which is what keeps a
-   * field of grass a field of grass.
-   *
-   * **And only what you can see** — see {@link isVisibleBody}. Not what you can
-   * reach, and not what shares your floor: a tag hanging over a rat behind a
-   * cave ceiling is a ghost, and going silent about one standing in the open a
-   * storey down is blindness. Both were shipped before this and both read as
-   * bugs. Being on screen is the rule, because that is what a player means.
-   *
-   * Naming is `bodyNameFor`'s job, which already answers it for speech: a person
-   * by the handle derived from their connection, a creature by what its tile is
-   * called.
-   *
-   * Anchored on the top of the head rather than on the cell. Height moves a tile
-   * up-*left* in this projection, 4px per unit, so a label placed straight above
-   * the feet would drift off the shoulder of anything tall. Taking the actor's
-   * own visual position and applying the same elevation shift its sprite gets
-   * puts the name over the head of a two-unit player and a ten-unit one alike —
-   * and, because that position already carries the walk lerp and the fall drop,
-   * the name travels with the sprite instead of chasing it.
-   *
-   * Then lifted clear of the drawing by {@link labelHeadroomPx}, because a
-   * declared height is not where the art stops. Straight up rather than up-left
-   * with the elevation: the label is being moved off the sprite, not raised in
-   * the world, and only the vertical of that shift is what a bar sitting on a
-   * creature's back needs.
-   */
   private pushNameLabels(
     snap: GameSnapshot,
     into: WorldLabel[],
@@ -2356,14 +1221,7 @@ export class GameRenderer {
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);
       const head = elevationScreenOffset(height);
-      // Marked where this body is fighting other players, so a stranger's name
-      // says whether they can be fought before anybody swings — see
-      // `../game/pvp`. Under the ⭐ rather than over it, because the mark is
-      // always on and the rating only while looking.
       const name = fightingName(bodyNameFor(actor, this.tilesById), actor.pvp);
-      // Look mode, and not the target: a rating you only see once you have
-      // committed to the fight arrived too late to be any use. Holding shift is
-      // the question being asked.
       const sized = sizedUpName(name, actor.rating, this.lookMode);
       const fraction = healthFraction(actor.hp, actor.maxHp);
       into.push({
@@ -2372,38 +1230,14 @@ export class GameRenderer {
         x: visual.x + head.x,
         y: visual.y + head.y - labelHeadroomPx(height),
         lines: [{ id: actor.id, text: sized }],
-        // The same painter's key the world would sort these two bodies by, so a
-        // tag crossing another tag is stacked the way the creatures under them
-        // are. Two labels are whole boxes at one depth each, which is what
-        // `drawOrder` is for — the per-pixel depth the sprites get has no
-        // meaning for a box of text hanging above them both.
         order: drawOrder(
           actor.x,
           actor.y,
           standingFootAbs(snap.map, this.tilesById, actor, actor.stackIndex),
           actor.stackIndex,
         ),
-        // Tinted to match its own health, so the tag and the bar under it read
-        // as one reading of one thing rather than as a yellow label that happens
-        // to have a coloured strip beneath it.
         color: healthBarColor(fraction),
-        // Always, even at full. A bar that appeared only once a creature had
-        // been hit made its *absence* carry the meaning "unhurt" — which is a
-        // thing you can only read if you already know the rule, and which looks
-        // identical to a battler whose bar has not been drawn yet. A full green
-        // track says the same thing to somebody seeing it for the first time,
-        // and it means every battler on screen is measured on the same ruler.
         bar: { fraction },
-        // Only while this body is part-way through something — a deer at a
-        // bush, somebody else at a vein, a caster half way through a flame. One
-        // bar for both, because it is one thing to read: how long until whatever
-        // they are doing happens, and how long you have to do something about
-        // it. What they are actually doing is said by the board beside them and
-        // by the name they shouted as they started — see `GameSession.cast` — so
-        // the bar itself says nothing else.
-        //
-        // Never both at once: starting either takes the other off them.
-        // @see `../game/GameSession`'s `ActorSnapshot.casting`
         progress: actor.casting
           ? { fraction: progressFraction(actor.casting) }
           : actor.extracting
@@ -2413,29 +1247,9 @@ export class GameRenderer {
     }
   }
 
-  /**
-   * Speech, anchored to the *cell* it was said in rather than to its author.
-   *
-   * That is the whole difference between a bubble and a name: the name belongs
-   * to a body and follows it, while the words stay where they were spoken. The
-   * speaker can walk out from under their own sentence, or disconnect entirely,
-   * and it hangs there for the rest of its five seconds.
-   *
-   * **The anchor is frozen the first frame the message is seen** and never
-   * recomputed — see {@link speechAnchor}. Messages at one cell are handed over
-   * as a single group so they stack; clearing the name tag on the same head is
-   * the stylesheet's job, since both are fixed screen-size text and a gap
-   * measured in world pixels would close at low zoom and yawn at high.
-   */
   private pushSpeechLabels(snap: GameSnapshot, into: WorldLabel[]) {
-    // No clearing of the anchor map here, though this used to: it is shared
-    // with noises now, and a frame with nothing being said still has hisses in
-    // it. Both are swept together by `forgetStaleAnchors` instead.
     if (snap.chats.length === 0) return;
 
-    // Grouped by cell, in the order they arrived: the map preserves insertion
-    // order, so the oldest at a cell is first and ends up at the top of the
-    // column with the newest resting on the ground.
     const byCell = new Map<string, WorldLabel>();
     for (const chat of snap.chats) {
       const key = `${chat.x},${chat.y},${chat.z}`;
@@ -2461,16 +1275,6 @@ export class GameRenderer {
     for (const group of byCell.values()) into.push(group);
   }
 
-  /**
-   * Noises, hung where they were made and belonging to nobody.
-   *
-   * The one visible difference from speech, and the whole point of the channel:
-   * **no name is written**. A bubble reads "Amethyst Piranha says: crunch"
-   * because somebody said it; a noise is just the word, because the room heard
-   * it and there is nobody to attribute it to. What is left is the same
-   * cell-anchored, frozen, stacking column speech uses — so the two cannot drift
-   * apart in how they sit in the world, only in what they claim.
-   */
   private pushNoiseLabels(snap: GameSnapshot, into: WorldLabel[]) {
     if (snap.noises.length === 0) return;
 
@@ -2478,7 +1282,6 @@ export class GameRenderer {
     for (const noise of snap.noises) {
       const key = `${noise.x},${noise.y},${noise.z}`;
       const group = byCell.get(key);
-      // The text and nothing else. No `bodyNameFor`, no "says".
       const line = { id: noise.id, text: noise.text };
       if (group) {
         group.lines.push(line);
@@ -2497,23 +1300,6 @@ export class GameRenderer {
     for (const group of byCell.values()) into.push(group);
   }
 
-  /**
-   * Where a message hangs, worked out once and then held.
-   *
-   * Two things are deliberate here.
-   *
-   * **It ignores the speaker's own body.** `sceneryStack` drops the tile at the
-   * speaker's stack index, so the anchor is the ground they were standing *on*
-   * rather than the top of their head. Measured the other way the bubble
-   * appeared a body's height too high and then visibly dropped the moment they
-   * stepped away — the position after that drop is the right one, so it is the
-   * one taken from the start.
-   *
-   * **It is frozen.** Recomputing per frame meant the words rode whatever
-   * happened to the cell afterwards: drop a crate on the spot and the sentence
-   * climbed with it. A remark belongs to the moment it was made, so the height
-   * is read once, at the level and elevation of that moment, and kept.
-   */
   private speechAnchor(
     chat: { id: string; x: number; y: number; z: number; stackIndex: number },
     map: MapFile,
@@ -2528,19 +1314,6 @@ export class GameRenderer {
     return at;
   }
 
-  /**
-   * Drop held anchors for anything that has expired — said or merely heard.
-   *
-   * Both channels in one sweep, because they share the map: keeping two of them
-   * would be two chances to leak, and a sweep that knew about only one would
-   * delete the other's anchors every frame the other was quiet. Run once a
-   * frame, after both kinds have been collected.
-   *
-   * No size-based early-out beyond the empty case: one message expiring as
-   * another arrives leaves the count unchanged while the contents differ, and a
-   * cheap guard that is right only most of the time is worse than no guard at a
-   * handful of entries.
-   */
   private forgetStaleAnchors(snap: GameSnapshot) {
     if (this.speechAnchors.size === 0) return;
     const live = new Set<string>();
@@ -2551,11 +1324,6 @@ export class GameRenderer {
     }
   }
 
-  /**
-   * Same signal as the outline, for the pointer. Looking gets `help` rather
-   * than `pointer`: the object is not going to do anything if you click it, and
-   * a hand that promises otherwise is the cursor lying about what a click does.
-   */
   private applyCursor() {
     if (this.lookMode) {
       this.setCursor(this.lookedAt ? "help" : "");
@@ -2568,46 +1336,13 @@ export class GameRenderer {
     if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;
   }
 
-  /**
-   * What the view cuts away, asked once and reused for the rest of the frame.
-   *
-   * **Cached on the map and the anchor, and on nothing else.** Those are the
-   * only two things the answer depends on: `MapFile` is copy-on-write, so any
-   * edit anywhere in the world hands us a new object and the cut is recomputed,
-   * and the anchor changes when the player takes a step. Everything else that
-   * moves in a frame — an arrow, a rat, the clock — cannot change which
-   * structure is between the player and the sky.
-   *
-   * Worth caching at all because the cut is a flood fill over one building
-   * rather than the old boolean probe, and three callers ask for it in a frame:
-   * the pointer pick, the view push, and the labels behind it. Held on the
-   * renderer rather than inside `roofCutFor` so the identity is stable, which is
-   * what lets `WorldRenderer.applyRoofCut` skip a frame that changed nothing.
-   */
   private cutCache: {
     map: MapFile;
     anchor: ViewAnchor;
     cut: RoofCut | undefined;
-    /** The chunks the probe read, so a distant edit does not re-run it. */
     probe: readonly unknown[];
   } | null = null;
 
-  /**
-   * The frame's roof cut, re-derived only when it can have changed.
-   *
-   * **Keyed on the map the probe actually reads, never on the whole map.** Map
-   * identity changes whenever any cell anywhere does, and a world with a couple
-   * of hundred creatures in it changes on almost every tick — so a cache keyed
-   * that way misses constantly and the cut is rebuilt every frame. Underground
-   * that is not cheap: the seeds are the rock over your head, the fill spreads
-   * 26-way through every touching cell of it, and it walks `MAX_CUT_CELLS`
-   * before giving up and cutting the whole storey. Measured while walking the
-   * den, that was 10.7ms of every frame — as much as the map, the light and the
-   * draw together.
-   *
-   * `cutProbeChunks` says what the question depends on, and the comment there
-   * says what it deliberately leaves out.
-   */
   private roofCutFor(snap: GameSnapshot): RoofCut | undefined {
     const anchor = viewAnchorFor(snap.self);
     const cached = this.cutCache;
@@ -2620,8 +1355,6 @@ export class GameRenderer {
 
     const probe = cutProbeChunks(snap.map, anchor);
     if (sameAnchor && sameProbeChunks(cached.probe, probe)) {
-      // Nothing the cut reads has moved. Record the map it was confirmed
-      // against so the next frame takes the identity check above instead.
       this.cutCache = { ...cached, map: snap.map };
       return cached.cut;
     }
@@ -2631,34 +1364,12 @@ export class GameRenderer {
     return cut;
   }
 
-  /**
-   * Top-left of the view in world pixels. Derived on demand rather than cached
-   * from the last frame so pointer picking inverts the projection the player
-   * is looking at, even between frames or before the first one.
-   *
-   * The span is {@link VIEW_PX} whatever the canvas measures, so this no longer
-   * asks the element how much world to show — that is the fixed view.
-   */
   private cameraFor(snap: GameSnapshot): { x: number; y: number } {
     const visual = this.actorVisualWorld(snap.map, snap.self);
     const half = this.spanPx() / 2;
     return { x: visual.x - half, y: visual.y - half };
   }
 
-  /**
-   * The camera with this frame's shake added, after telling the shake about
-   * every blow on the viewer's own body it has not heard of yet.
-   *
-   * A blow is taken from the damage receipts rather than from a drop in the
-   * health reading, because the receipt is per blow and says how much: two hits
-   * on one tick are two receipts, and a heal on the same tick as a hit cannot
-   * cancel it out. Every harm the session deals floats one — a blow, a bolt, a
-   * poison tick — so every harm shakes.
-   *
-   * Only a receipt younger than a shake counts, so the numbers already rising
-   * when the renderer is built — a reconnect lands in the middle of a fight —
-   * do not all shake the view on its first frame.
-   */
   private shakenCamera(
     snap: GameSnapshot,
     camera: { x: number; y: number },
@@ -2684,16 +1395,6 @@ export class GameRenderer {
     return { x: camera.x + offset.x, y: camera.y + offset.y };
   }
 
-  /**
-   * Top-left of the square the player can actually see.
-   *
-   * The camera itself, in every shipped frame — the two are the same square.
-   * They come apart only under the debug view, where the camera has been pulled
-   * back and the play square sits concentric inside it. Everything that asks
-   * "is this on screen" in the sense the *game* means — a target you may keep,
-   * a name you may read — measures against this, so zooming out shows you more
-   * world without giving you more of it.
-   */
   private playSquareFor(camera: { x: number; y: number }): {
     x: number;
     y: number;
@@ -2705,32 +1406,20 @@ export class GameRenderer {
   private pushView(nowMs: number, dtMs: number) {
     const snap = this.session.getSnapshot();
     const fit = currentFit(this.canvas, this.spanPx());
-    // The buffer is a whole multiple of the view, so the world lands on a clean
-    // pixel grid and the element's stretch does the fitting.
     this.world.setBufferSize(fit.bufferPx);
     const zoom = fit.renderScale;
     const camera = this.cameraFor(snap);
-    // What the frame is drawn from, and nothing else: picking, targeting and
-    // the walk-to all keep asking about `camera`, so a blow never moves what a
-    // click lands on.
     const drawn = this.shakenCamera(snap, camera, nowMs);
-    // Before the overlay and the label read it, so both describe the same
-    // frame's answer rather than the previous one's.
     this.repickLook(snap, camera);
     this.enforceTargetVisibility(snap, camera);
 
     const cut = this.roofCutFor(snap);
 
-    // The list is built first because the pointer is *read out of it*: what is
-    // under the cursor is a row, so resolving one against last frame's list
-    // would outline a deer by the row it had before it moved.
     this.pushInteractionOptions(snap, camera, cut);
     this.repickPointer(snap, camera);
 
     const motions = this.tileMotionsFor(snap);
     const vfx = this.statusVfxFor(snap, dtMs);
-    // Taken once a frame, whether or not anything else changed: the renderer
-    // owns how far along each one is, and starts it from the moment it takes it.
     const transitions = this.session.takeTransitions();
 
     this.world.setView({
@@ -2740,9 +1429,6 @@ export class GameRenderer {
       zoom,
       minutesOfDay: this.minutesOfDay,
       tileMotions: motions.length > 0 ? motions : undefined,
-      // Undefined rather than an empty list on the overwhelmingly common frame
-      // where nothing is in the air, so the renderer can skip the pass outright
-      // — the same shape `tileMotions` above takes, and `spriteStates` below.
       projectiles:
         snap.projectiles.length > 0
           ? projectileViews(snap.projectiles, this.tilesById, this.aimAt(snap))
@@ -2755,9 +1441,6 @@ export class GameRenderer {
       roofCut: cut,
       viewerZ: snap.self.z,
       transitions: transitions.length > 0 ? transitions : undefined,
-      // Absent unless the camera has been pulled off the play square, which is
-      // what stops every window in the renderer growing with the zoom-out and
-      // leaving nothing to look at. @see ./debugView
       playSquare:
         this.debugZoomOut === null ? undefined : { ...this.playSquareFor(camera), sizePx: VIEW_PX },
     });
@@ -2772,44 +1455,13 @@ export class GameRenderer {
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);
     this.pushCrafting(snap);
-    // Written from inside the render loop's own rAF, so the style change and the
-    // canvas paint land in the same commit — which is what stops DOM text from
-    // trailing the sprite it belongs to.
-    // Placed against the drawn camera, so a name and a number shake with the
-    // body they hang over rather than holding still above it.
     this.labelLayer?.set(this.labelsFor(snap, camera, cut), drawn, fit.cssScale);
     this.damageLayer?.set(this.damageFor(snap, cut), drawn, fit.cssScale);
     this.castLineLayer?.set(this.castLinesFor(snap, cut), drawn, fit.cssScale);
-    // Driven by the frame, not the pointer: walking away from an object
-    // revokes the affordance without the pointer having moved at all.
     this.applyCursor();
-    // Last, and only when somebody asked for it: the panel reports on the frame
-    // that has just been decided, and throttles itself. @see ./debugPanel
     this.debugPanel?.update(nowMs, this.debugZoomOut ?? 1, this.world.debugReading());
   }
 
-  /**
-   * Hand the list of available interactions out, when it has actually moved.
-   *
-   * Two gates, and they answer different questions. The first is whether the
-   * answer *could* have changed: everything in the list is a function of the
-   * board, the player's cell and who they are fighting, so identity on the
-   * first two and equality on the third make standing still free — which is
-   * most frames. The second is whether it *did*, because the map gets a new
-   * identity on every commit anywhere in the world, and somebody walking across
-   * the room must not re-render this page.
-   *
-   * The camera is not in the first gate even though the list depends on it,
-   * because it is derived from the player's own position: it slides during a
-   * walk and settles where the cell says. The cost is that a body crossing the
-   * edge of the view is listed at the next commit rather than the next frame,
-   * which is 200ms at the one place on screen nobody is looking.
-   *
-   * Health *is* in the first gate, and has to be: a row carries the reading its
-   * subject's bar carries, and nothing else in that gate moves when somebody
-   * takes a hit. Standing still trading blows is exactly the case the list is
-   * being read in, and it is the one case the position gate calls free.
-   */
   private pushInteractionOptions(
     snap: GameSnapshot,
     camera: { x: number; y: number },
@@ -2817,36 +1469,14 @@ export class GameRenderer {
   ) {
     if (!this.onInteractions) return;
 
-    // Equipment is in the key because a full bag and an empty one offer
-    // different rows on the same board from the same cell: pick-up is gated on
-    // having somewhere to put the thing. Identity, not contents — the session
-    // replaces the kit rather than mutating it, which is what makes that sound.
-    // The opened box is in the key for the same reason the target is: it is a
-    // state a row is *named* for, so opening one renames a row without anything
-    // on the board having moved.
     const box = this.openedRef;
     const opened = box ? `${box.x},${box.y},${box.z},${box.stackIndex}` : "";
-    // The stance is in the key for the same reason the target and the opened box
-    // are: it is a state a row is *named* for — "Target Rat" against "Attack
-    // Rat" — so drawing a sword renames a row without anything on the board
-    // having moved.
-    // The conversation is in the key for the reason the target is: the Talk
-    // row reads as lit while its body is the one you are talking to.
     const talking = snap.conversation?.npcId ?? "";
-    // Who is being followed is in the key for the reason the target is: it is a
-    // state a row is drawn *lit* for, and it changes without anything on the
-    // board having moved — a follow that ends when its subject leaves the
-    // screen changes nothing else in here.
     const following = this.walkTo?.followingId ?? "";
-    // The open forge is in the key for the reason the conversation is: its row
-    // reads as lit while its window is the one open.
     const craftingAt = this.craftingRef;
     const crafting = craftingAt
       ? `${craftingAt.x},${craftingAt.y},${craftingAt.z},${craftingAt.stackIndex}`
       : "";
-    // Who is in the dark is in the key because light moves without the board
-    // moving: a lamp carried off, or the hour turning, puts a body in or out of
-    // the list with nothing else in here changing. @see unlistedInDarkness
     const unlisted = this.unlistedInDarkness(snap);
     const dark = unlisted.map((a) => a.id).join(" ");
     const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following},${crafting},${dark}`;
@@ -2863,8 +1493,6 @@ export class GameRenderer {
     ) {
       return;
     }
-    // Read before it is replaced, because it is the one change the key below
-    // cannot see. @see {@link interactionsNextBlow}
     const waitChanged = snap.nextBlow !== this.interactionsNextBlow;
     this.interactionsNextBlow = snap.nextBlow;
     this.interactionsEquipment = snap.equipment;
@@ -2886,76 +1514,22 @@ export class GameRenderer {
       snap.tags,
       snap.spawnAt,
       snap.attacking,
-      // Handed on as it arrived rather than copied, so the value the row's bar
-      // is drawn from is the one the session winds in place.
       snap.extracting,
       snap.conversation,
       this.walkTo?.followingId ?? null,
-      // The list as last built, so a subject still in it keeps its place in
-      // its tier. This is the same array held for the hover below, read before
-      // it is replaced.
       this.interactionsSent,
-      // Handed on as it arrived, on the pull's terms above: the bar on the
-      // fight row is drawn from the object the session winds in place.
       snap.nextBlow,
       this.craftingRef,
-    ).filter(
-      // The rows the board offers for a body's tile as well — a shove at an
-      // adjacent rat is named and measured like the fight row is — so a body in
-      // the dark loses every row, not only the ones `targetableActors` feeds.
-      (option) => !unlisted.some((a) => sameRef(option.ref, a)),
-    );
-    // Held whether or not it is handed on, because the *references* inside it go
-    // stale even when the list reads the same: a walking deer keeps its row and
-    // changes cell, and the hover outline follows the reference.
+    ).filter((option) => !unlisted.some((a) => sameRef(option.ref, a)));
     this.interactionsSent = options;
-    // **Everything the row draws, and the label is part of that.** The key is
-    // what decides whether React hears about the new list at all, so anything
-    // visible that is missing from it is a change that silently never arrives:
-    // drawing a sword renames a body's row without moving anything on the board,
-    // so an id-and-health key would have recomputed the right words and then
-    // refused to hand them over.
     const key = options
-      .map(
-        (o) =>
-          // The *presence* of a wait and never how much is left, which is the
-          // one thing in a row that moves continuously. Included because a row
-          // going grey is a visible change nothing else in this key would
-          // catch; excluded as a number because the remainder changes every
-          // frame, and a key that carried it would hand React a new list thirty
-          // times a second to redraw a bar that CSS is already animating.
-          `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`,
-      )
+      .map((o) => `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`)
       .join("|");
-    // The wait is the one thing that gets past an unchanged key, and it has to
-    // be: a fresh wait is byte-identical to the one it replaced — same row, same
-    // label, same presence of a clock — so a row told only about key changes
-    // would keep the bar it mounted for the first blow and never start another.
-    // @see {@link interactionsNextBlow}
     if (key === this.interactionsKey && !waitChanged) return;
     this.interactionsKey = key;
     this.onInteractions(options);
   }
 
-  /**
-   * Bodies the viewer could pick a fight with: the ones they can see.
-   *
-   * Picking a target is pointing at somebody, so the bound is what is drawn
-   * rather than what is in reach — {@link isVisibleBody}, the same rule the name
-   * tags use, since a body worth naming is exactly a body worth choosing.
-   * Whether a blow can actually land is the server's question and is asked at
-   * the swing; a target you cannot yet reach is a target you are walking towards.
-   *
-   * This is also the one list every *body's* name and health reaches the UI
-   * through, so the same gate is what keeps a rat behind a cave ceiling
-   * anonymous — a shove at it is still offered and still says "Push Rat",
-   * because that much is readable from its tile, but who it is and how hurt it
-   * is are not.
-   *
-   * Whoever is already being fought is kept regardless: they can step onto a
-   * floor the roof-cut hides, and dropping their row would leave a touch player
-   * in a fight with no way out of it.
-   */
   private targetableActors(
     snap: GameSnapshot,
     camera: { x: number; y: number },
@@ -2965,22 +1539,11 @@ export class GameRenderer {
     return snap.actors.filter(
       (actor) =>
         actor.id === snap.targetId ||
-        // Kept on the same grounds the target is, and it is the stronger case:
-        // the follow row is the only way to stop following, so a body that
-        // stepped under a roof the cut hides would take its own off switch with
-        // it. @see setFollow
         actor.id === following ||
         (this.isVisibleBody(snap, actor, camera, cut) && !this.isInDarkness(snap, actor)),
     );
   }
 
-  /**
-   * Bodies in the dark that the interaction list leaves out entirely.
-   *
-   * Everybody {@link isInDarkness} names, except the ones
-   * {@link targetableActors} keeps whatever it sees: the target and whoever is
-   * being followed, whose row is the only way out of the fight or the walk.
-   */
   private unlistedInDarkness(snap: GameSnapshot): ActorSnapshot[] {
     const following = this.walkTo?.followingId;
     return snap.actors.filter(
@@ -2989,26 +1552,6 @@ export class GameRenderer {
     );
   }
 
-  /**
-   * This frame's damage numbers, anchored where each blow landed.
-   *
-   * The anchor is the *cell*, not the body: a killing blow deletes its target on
-   * the same tick, so a number that followed the actor would vanish exactly when
-   * it mattered most.
-   *
-   * **And it is frozen the first frame the number is seen**, exactly as a speech
-   * anchor is. This used to be recomputed every frame, on the reasoning that a
-   * number lives under a second and so could not outlive the ground beneath it.
-   * That was wrong, and visibly so: the height comes from the *scenery* in the
-   * cell, so stepping out of the cell you were just hit in takes your own body
-   * out of that stack and the number you are still reading drops by your own
-   * height. The damage happened at a height, and a receipt for it has no
-   * business riding later edits to the floor it was printed over.
-   *
-   * Filtered to the floors this client is drawing, because the wire carries every
-   * blow struck anywhere in the world: without this a fight two storeys down
-   * would rain numbers over the room you are standing in.
-   */
   private damageFor(snap: GameSnapshot, cut: RoofCut | undefined): DamageNumberView[] {
     if (snap.damage.length === 0) return [];
 
@@ -3031,14 +1574,6 @@ export class GameRenderer {
     return out;
   }
 
-  /**
-   * A line for every cast aimed at somebody, where both ends can be seen.
-   *
-   * Both, on {@link isVisibleCell}'s terms rather than {@link isVisibleBody}'s:
-   * a caster behind a cave ceiling is not drawn, and neither is a line pointing
-   * at them, but a caster standing just off screen is still somebody casting at
-   * you, and the layer's own edge clips the line where the view ends.
-   */
   private castLinesFor(snap: GameSnapshot, cut: RoofCut | undefined): CastLineView[] {
     const out: CastLineView[] = [];
     for (const caster of snap.actors) {
@@ -3061,17 +1596,6 @@ export class GameRenderer {
     return out;
   }
 
-  /**
-   * The viewer's own ranged attack, drawn as a cast is, while the shot would go:
-   * the session has them engaged (`GameSnapshot.nextBlow`, which it drops on a
-   * pvp refusal or a target out of reach) and a ranged weapon they hold reaches
-   * the target with a clear line — see `../game/combat`'s `rangedWeaponReaches`.
-   * A bow's `Reach.min` is what keeps it off a target standing next to you.
-   *
-   * The viewer's alone, because {@link GameSnapshot.targetId} is: nobody else's
-   * target is on the wire. Skipped while the viewer is casting at somebody, so
-   * a cast and a shot at one target are not two lines drawn over each other.
-   */
   private attackLineFor(snap: GameSnapshot, cut: RoofCut | undefined): CastLineView | null {
     const self = snap.self;
     if (!snap.attacking || !snap.nextBlow || !snap.targetId || snap.targetId === self.id) {
@@ -3093,24 +1617,12 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * Half way up a body as drawn, walk and fall included, so a line between two
-   * bodies runs chest to chest rather than foot to foot.
-   */
   private bodyMiddle(map: MapFile, actor: ActorSnapshot): { x: number; y: number } {
     const visual = this.actorVisualWorld(map, actor);
     const lift = elevationScreenOffset(this.bodyOwnHeight(map, actor, actor.stackIndex) / 2);
     return { x: visual.x + lift.x, y: visual.y + lift.y };
   }
 
-  /**
-   * Where a damage number hangs, worked out once and then held.
-   *
-   * Read at the height the blow landed at — the ground in that cell plus the
-   * struck body's own height, so the figure comes off the head of whatever took
-   * it — and then never asked again. Both halves of that matter; see
-   * {@link damageFor} for what recomputing it did.
-   */
   private damageAnchor(hit: DamageNumber, map: MapFile): { x: number; y: number } {
     const held = this.damageAnchors.get(hit.id);
     if (held) return held;
@@ -3122,7 +1634,6 @@ export class GameRenderer {
     return at;
   }
 
-  /** Drop held anchors for numbers that have finished rising. */
   private forgetStaleDamageAnchors(snap: GameSnapshot) {
     if (this.damageAnchors.size === 0) return;
     const live = new Set(snap.damage.map((hit) => hit.id));
@@ -3131,23 +1642,6 @@ export class GameRenderer {
     }
   }
 
-  /**
-   * Cell-space fractional emit positions for the player light.
-   * Always returned when the player emits light — standing uses the tile
-   * centre so the static bake can omit the player and never re-run on each step.
-   */
-  /**
-   * What every body on the board is wearing and emitting this frame.
-   *
-   * Both halves come out of one sweep because they are read off the same list —
-   * a body's statuses — and separating them would mean resolving every status
-   * def twice per actor per frame for no gain.
-   *
-   * Returns undefined for each half that is empty, which is the shape
-   * {@link WorldView.tileMotions} takes and for the same reason: a world where
-   * nobody is under anything is the overwhelmingly common one, and it should
-   * cost the renderer a null check rather than an empty map.
-   */
   private statusVfxFor(
     snap: GameSnapshot,
     dtMs: number,
@@ -3173,13 +1667,6 @@ export class GameRenderer {
           vfx.taperMs,
         );
 
-        // Two statuses that both colour a body cannot both be worn — a tint is
-        // one uniform — so the loudest wins. Not a blend: mixing purple poison
-        // with amber burn gives a brown nobody authored, and "the worse thing
-        // showing" is the reading a player can act on.
-        //
-        // Compared *after* the taper, so a status that is nearly over stops
-        // outranking one that has just landed.
         if (vfx.tint) {
           const worn = taperedTint(vfx.tint, taper);
           if (!strongest || worn.strength > strongest.strength) strongest = worn;
@@ -3214,26 +1701,6 @@ export class GameRenderer {
     return { tints, emitters };
   }
 
-  /**
-   * One plume over a burning piece of ground.
-   *
-   * The counterpart to {@link emitterFor}, and deliberately a second function
-   * rather than a widening of that one: a body is found by id and carries its
-   * own stack index, where a placement is found by *tile id within a cell* —
-   * see `../game/endure`'s `poolKey` for why an index is not a name a placement
-   * can keep — and can have gone by the time this frame draws.
-   *
-   * **A tint is not offered, and cannot be.** `applySpriteTints` reaches only
-   * `movableMeshes`; a bush is merged into its floor's batch, so tinting its
-   * material would tint the ground. Particles need no mesh, which is exactly why
-   * they are the half a burning tile can have — see `docs/notes.md`.
-   *
-   * **No taper.** Only status ids travel, so there is no countdown to wind down
-   * against, on precisely the terms a remote body's plume has none. A burning
-   * tile therefore burns at full strength right up until it turns, which is also
-   * when the emitter stops being offered and the system retires it — the sparks
-   * already in the air finish their own lives.
-   */
   private groundEmitterFor(
     snap: GameSnapshot,
     placement: AfflictedPlacement,
@@ -3242,23 +1709,16 @@ export class GameRenderer {
   ): ParticleEmitterSpec | null {
     const { x, y, z, tileId } = placement;
     const stack = getStack(snap.map, x, y, z);
-    // The placement may have burned away between the tick that reported it and
-    // the frame drawing it, which is not an error: the fire went out.
     const stackIndex = stack.findIndex((placed) => placed.tileId === tileId);
     if (stackIndex < 0) return null;
 
     const foot = absoluteElevation(z, elevationAt(stack, stackIndex, this.tilesById));
     const top = foot + (this.tilesById[tileId]?.height ?? 0);
     return {
-      // Per placement per status, on `emitterFor`'s terms: one cell can hold two
-      // burning things and neither plume inherits the other's particles.
       id: `${x},${y},${z}:${tileId}:${defId}`,
       config: particles,
       cx: x + CELL_CENTRE,
       cy: y + CELL_CENTRE,
-      // The *top* of the thing that is burning, not the floor it stands on: a
-      // tree burns in its canopy, and a plume rising from the roots of a
-      // four-high sprite reads as smoke from under it.
       footElev: top,
       z,
       box: depthBox(x, y, top, top + HEIGHT_PER_LEVEL),
@@ -3267,19 +1727,6 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * One plume over one body.
-   *
-   * **Anchored to the cell, not to the sprite.** A body mid-step is drawn a
-   * fraction of a cell from where the map says it is, and a plume that chased
-   * that offset would drag its whole column of already-airborne sparks sideways
-   * with it. Leaving it on the cell means a walking creature lays a trail of
-   * what it is doing, which is both cheaper and a better reading.
-   *
-   * The draw order is the rule stated in `./particles`: a two-high tile standing
-   * on top of this body's stack. That puts the plume in front of the body at
-   * every pixel they share, and behind whatever is genuinely nearer.
-   */
   private emitterFor(
     snap: GameSnapshot,
     actor: ActorSnapshot,
@@ -3292,8 +1739,6 @@ export class GameRenderer {
     const bodyHeight = this.tilesById[actor.tileId]?.height ?? HEIGHT_PER_LEVEL;
     const top = foot + bodyHeight;
     return {
-      // Per body per status, so one creature can burn and be poisoned at once
-      // and neither plume inherits the other's particles.
       id: `${actor.id}:${defId}`,
       config: particles,
       cx: actor.x + CELL_CENTRE,
@@ -3306,19 +1751,6 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * The plumes bodies are wearing, plus whatever this frame's flights are
-   * playing.
-   *
-   * Appended to the status list rather than handed over separately, because the
-   * renderer takes one list and a plume is a plume however it got there — the
-   * particle system reconciles by id, so an effect that appears for a few frames
-   * and stops being handed over retires exactly as an ended status does.
-   *
-   * Only the particles half of an effect is played here. A dissolve and a scale
-   * are things done to a *mesh*, and a flight's mesh is not a placement — see
-   * `./WorldRenderer`'s `attachTransition`, which wants a cell and a depth box.
-   */
   private withFlightEffects(
     snap: GameSnapshot,
     emitters: ParticleEmitterSpec[] | undefined,
@@ -3335,23 +1767,6 @@ export class GameRenderer {
   private emitterOverridesFor(snap: GameSnapshot): EmitterOverride[] | undefined {
     if (!this.lightingEnabled) return undefined;
 
-    // One override per actor, in the snapshot's stable id order — the override
-    // list is joined into a cache key downstream, so a wobbling order would
-    // miss the cache every frame. Emitting only the viewer's own would leave
-    // every other actor's light omitted from the bake and never painted back,
-    // which is exactly the "goes dark" failure the bake omission warns about.
-    //
-    // The body asks whether the tile can *ever* emit, not what it is emitting
-    // this instant: that override is a position, and the light itself is
-    // resolved from the stack against the animation clock when it is painted.
-    // Asking for the live frame's light would drop the override on the dark
-    // half of a flicker and stop the light coming back.
-    //
-    // **Asked of each actor's own body, not the player's.** It used to read the
-    // player tile for everybody, which was right only while the player was the
-    // one body that could emit. A creature is omitted from the bake on the same
-    // terms (`dynamicLightTileIds`), so an NPC with a lit sprite was left out of
-    // the bake and never painted back — dark in the dark.
     const overrides: EmitterOverride[] = [];
     for (const actor of snap.actors) {
       const body = this.tilesById[actor.tileId];
@@ -3361,37 +1776,13 @@ export class GameRenderer {
       const fromStatuses = this.statusLightsFor(actor);
       if (!bodyEmits && !carried && !fromStatuses) continue;
       const at = this.actorEmitter(snap.map, actor, body.height ?? 0);
-      // The body's own light is found by reading the stack it is standing in,
-      // which is what an override has always meant. What is in the bag is not in
-      // any stack, so it travels on a second override at the same position — the
-      // cast accumulates, and one lantern at your hip lights exactly like one
-      // lantern at your hip.
       if (bodyEmits) overrides.push(at);
       if (carried) overrides.push({ ...at, lights: carried });
-      // A third emitter at the same position rather than a merge, on the terms
-      // the carried one is: the cast accumulates, and there is no blending rule
-      // to invent between a lantern in your hand and the fire on your back.
       if (fromStatuses) overrides.push({ ...at, lights: fromStatuses });
     }
     return overrides.length > 0 ? overrides : undefined;
   }
 
-  /**
-   * The actors' overrides, plus one per lit thing in the air.
-   *
-   * Its own pass rather than a branch inside {@link emitterOverridesFor},
-   * because that one is about *bodies* — it reads a stack, it adds a body's
-   * height, it asks what is in a bag — and none of that is true of an arrow.
-   * The shape is `./WorldRenderer`'s `withFadingLights`: take the list as it
-   * stands and add the lights that are not on the board.
-   *
-   * **This is the same door a torch goes through, and the same bill.** An
-   * override is already painted for every actor every frame at an interpolated
-   * position, so the overlay's cache key already changes on every frame anybody
-   * is walking; a flight adds one more entry to a list that is already being
-   * rebuilt. Nothing about the *static* bake changes — an arrow is never in the
-   * map, so there is no placement to omit from it.
-   */
   private withFlightLights(
     snap: GameSnapshot,
     base: EmitterOverride[] | undefined,
@@ -3408,31 +1799,12 @@ export class GameRenderer {
     return out ?? base;
   }
 
-  /**
-   * The lights this body is casting because of what is running on it.
-   *
-   * Undefined rather than an empty array for the usual case of none, on the
-   * terms {@link carriedLightsFor} is: this runs per actor per frame and almost
-   * nobody is under anything.
-   *
-   * **This is the same door a torch goes through, and that is the whole reason
-   * it is cheap.** An override is already painted for every actor every frame,
-   * and the overlay is add-only — so a status light costs one more `LightDef` in
-   * a list that is already being walked, and nothing about the *static* bake
-   * changes. What it must not become is a flicker: `emitterOverridesKey` has the
-   * lights in it, so a light that changed per frame would miss the overlay cache
-   * every frame and rebake. A status light is therefore steady by construction —
-   * see `StatusVfx.light`, which has no phase to vary.
-   */
   private statusLightsFor(actor: ActorSnapshot): LightDef[] | undefined {
     if (actor.statuses.length === 0) return undefined;
     let lights: LightDef[] | undefined;
     for (const instance of actor.statuses) {
       const vfx = this.statusDefs[instance.defId]?.vfx;
       if (!vfx?.light) continue;
-      // Read rather than written: `statusVfxFor` already carried every clock
-      // forward this frame, and aging them twice would run a taper at double
-      // speed. A status with no plume and no tint was still read there.
       const taper = taperAt(
         this.remaining.read(taperKey(actor.id, instance.defId), instance.remainingMs),
         vfx.taperMs,
@@ -3442,26 +1814,6 @@ export class GameRenderer {
     return lights;
   }
 
-  /**
-   * The lights this actor is carrying, or undefined for the usual case of none.
-   *
-   * Undefined rather than an empty array on purpose: this runs per actor per
-   * frame, and almost nobody is carrying a torch. Resolving the tile ids here
-   * rather than sending `LightDef`s over the wire is the same trade the whole
-   * protocol makes — every client already holds the catalogue.
-   *
-   * Resolved against the renderer's animation clock, like every other light.
-   * Carried lights are the one kind that arrives at the cast already resolved —
-   * there is no cell to read them from later — so if this took frame 0 a torch
-   * would flicker on the floor and burn flat the moment it went in a bag.
-   */
-  /**
-   * Whether a body tile can ever emit, memoised on the def.
-   *
-   * `tileCanEmitLight` gathers every sprite on the tile into a fresh array, and
-   * this is asked per actor per frame — a den of creatures is a hundred of them.
-   * Keyed on def identity, so a new catalogue answers afresh without a reset.
-   */
   private bodyEmitsLight(body: TileDef): boolean {
     let emits = this.bodyEmitsCache.get(body);
     if (emits === undefined) {
@@ -3483,26 +1835,6 @@ export class GameRenderer {
     return lights.length > 0 ? lights : undefined;
   }
 
-  /**
-   * Where each body is *drawn* this frame, for the shots following them.
-   *
-   * **The renderer is the right place to ask, and the only one with the finest
-   * answer.** A tick commits a body to a cell; the drawing lerps it between two
-   * of them, and a shot aimed at the cell would step once per stride while the
-   * body it is chasing slides. Both sessions hand their snapshot here, so this
-   * is one implementation rather than one per clock.
-   *
-   * Built once per frame and closed over the snapshot, because a flight asks
-   * for its own target and nothing else — there is no list to walk, and almost
-   * every frame has nothing in the air at all.
-   *
-   * It leans on {@link actorEmitter}, which already lerps a walking body and
-   * already answers at half its height — the same share a flight leaves and
-   * lands at, so an arrow between two bodies' middles is aimed at exactly the
-   * point it would have been aimed at standing still. The units are a light's
-   * and a flight's is different: `fx`/`fy` are cell centres, and `fz` is in
-   * levels rather than height units.
-   */
   private aimAt(snap: GameSnapshot): AimAt {
     return (targetId) => {
       const actor = snap.actors.find((a) => a.id === targetId);
@@ -3517,11 +1849,6 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * Cell-space fractional emit position for one actor's light. Standing uses
-   * the tile centre so the static bake can omit actors and never re-run on a
-   * step.
-   */
   private actorEmitter(map: MapFile, actor: ActorSnapshot, actorHeight: number): EmitterOverride {
     if (actor.walk) {
       const { from, to } = actor.walk;
@@ -3534,7 +1861,6 @@ export class GameRenderer {
         actor.stackIndex,
         this.tilesById,
       );
-      // Destination stack does not hold the actor yet — centre above its surface.
       const destAbs = this.surfaceFootAbs(map, to.x, to.y, to.z);
       const b = {
         fx: to.x + 0.5,
@@ -3568,16 +1894,8 @@ export class GameRenderer {
     return { x, y, z, fx: center.fx, fy: center.fy, fz: center.fz };
   }
 
-  /**
-   * Motions for tiles currently lerping. Same path for any moving tile — today
-   * only the player walks/falls. The box travels with the sprite in fractional
-   * cells, which is what lets a mover be behind the wall beside it and in front
-   * of the floor it is stepping onto at the same time.
-   */
   private tileMotionsFor(snap: GameSnapshot): TileMotion[] {
     const motions: TileMotion[] = [];
-    // Every actor, not just the viewer: a shove by someone across the room has
-    // to animate here too, or their crate teleports.
     for (const actor of snap.actors) {
       motions.push(...this.slideMotions(snap.map, actor));
 
@@ -3585,25 +1903,9 @@ export class GameRenderer {
       if (own) motions.push(own);
     }
 
-    // Always a list, empty or not: the caller hands it to two consumers, and one
-    // of them wants to search it rather than pass it along.
     return motions;
   }
 
-  /**
-   * Motion for one actor's walk / fall lerp, or for the lean of a blow — and for
-   * both at once, since a body can swing while it walks.
-   *
-   * One motion, never two: a motion is keyed by the slot it moves, so a second
-   * one for the same body would be two meshes claiming one placement. The strike
-   * therefore rides *on* whatever the body is already doing, which is also what
-   * it looks like — a creature that lunges mid-step leans out of its own stride.
-   *
-   * **The lean moves the sprite and not the depth box.** The striker has not
-   * left its cell — the simulation has it standing exactly where it stood — and
-   * a box that travelled half a cell into the target would put the two bodies on
-   * the boundary where their sort order flips, for 150ms, every swing.
-   */
   private actorMotion(map: MapFile, actor: ActorSnapshot): TileMotion | null {
     const lean = actor.strike ? strikeOffset(actor.strike, actor.strikeProgress) : null;
 
@@ -3627,15 +1929,11 @@ export class GameRenderer {
         stackIndex,
         ox: visual.x - fromCenter.x + (lean?.ox ?? 0),
         oy: visual.y - fromCenter.y + (lean?.oy ?? 0),
-        // Descending: also draw under the destination level so roof-cut can
-        // hide the origin group without the sprite vanishing mid-lerp.
         alsoDrawAtZ: to.z < from.z ? to.z : undefined,
         box: {
           x: from.x + (to.x - from.x) * t,
           y: from.y + (to.y - from.y) * t,
           foot,
-          // Halfway, not on commit — see `./depthClump`. The sprite is
-          // over the destination long before the step lands there.
           top:
             foot +
             steppingClumpHeight(
@@ -3644,8 +1942,6 @@ export class GameRenderer {
               t,
               this.tilesById,
             ),
-          // Feet share a plane with both floors it passes over; outrank the
-          // top tile of whichever stack it is standing on.
           stackBias: Math.max(
             depthStackBias(from.z, stackIndex),
             depthStackBias(to.z, destStackLen),
@@ -3677,9 +1973,6 @@ export class GameRenderer {
     }
 
     if (lean) {
-      // Standing and swinging: the box is exactly where the body is, which is
-      // the whole of what this motion is for — an offset sprite over an
-      // unchanged placement.
       const foot = this.standingFootAbs(map, actor, actor.stackIndex);
       return {
         x: actor.x,
@@ -3701,16 +1994,11 @@ export class GameRenderer {
     return null;
   }
 
-  /**
-   * Motions for a shoved column still catching up to the cell it was pushed
-   * into. One per travelling tile. @see slideTileMotions
-   */
   private slideMotions(map: MapFile, actor: ActorSnapshot): TileMotion[] {
     if (!actor.slide) return [];
     return slideTileMotions(map, this.tilesById, actor.slide, actor.slideProgress);
   }
 
-  /** Height of the tile at a stack slot — the mover is not always the player. */
   private clumpHeight(
     map: MapFile,
     cell: { x: number; y: number; z: number },
@@ -3722,14 +2010,6 @@ export class GameRenderer {
     return extent.top - extent.foot;
   }
 
-  /**
-   * How tall the body itself is — never its clump.
-   *
-   * What hangs over a head belongs to the head, and a clump is a fact about
-   * *sorting* and nothing else. Reading the clump here put a person's health bar
-   * up at the top of the open door they were standing in, which is a bar that
-   * has stopped reporting on the person.
-   */
   private bodyOwnHeight(
     map: MapFile,
     cell: { x: number; y: number; z: number },
@@ -3740,7 +2020,6 @@ export class GameRenderer {
     return this.tilesById[placed.tileId]?.height ?? 0;
   }
 
-  /** Absolute foot elevation of a tile standing at a stack slot. */
   private standingFootAbs(
     map: MapFile,
     cell: { x: number; y: number; z: number },
@@ -3749,19 +2028,10 @@ export class GameRenderer {
     return standingFootAbs(map, this.tilesById, cell, stackIndex);
   }
 
-  /** Absolute elevation of a cell's standing surface (scenery only). */
   private surfaceFootAbs(map: MapFile, x: number, y: number, z: number): number {
     return z * HEIGHT_PER_LEVEL + stackHeight(getStack(map, x, y, z), this.tilesById);
   }
 
-  /**
-   * Where an actor's sprite actually is this frame, in world pixels.
-   *
-   * Per actor rather than per frame: the camera wants this for the viewer's own
-   * actor, and every moving actor wants it for their own lerp. Computing it
-   * once for the camera and reusing it as everyone's offset — which is what the
-   * single-player version did — silently pins every other actor to the viewer.
-   */
   private actorVisualWorld(map: MapFile, actor: ActorSnapshot): { x: number; y: number } {
     if (actor.walk) {
       const a = this.cellWorldCenter(
@@ -3787,7 +2057,6 @@ export class GameRenderer {
     return base;
   }
 
-  /** Standing surface center for a cell (scenery only — no mover yet). */
   private surfaceWorldCenter(
     x: number,
     y: number,

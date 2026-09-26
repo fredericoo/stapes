@@ -26,73 +26,18 @@ import {
   WORLD_SHADER_CACHE_KEY,
 } from "./worldQuads";
 
-/**
- * Particles, on screen: one mesh, one draw call, rebuilt every frame.
- *
- * ## Circles, drawn rather than loaded
- *
- * A particle is a filled pixel circle, and every circle it can ever be is
- * rasterised once into {@link createParticleAtlas} at startup — one cell per
- * integer radius. No PNG, nothing to author, nothing to keep in step with the
- * art. A quad indexes the cell for its current radius, so growth over a
- * particle's life is a UV change and never a resample: a radius-3 circle is
- * *the* radius-3 circle at every zoom, which is the whole difference between
- * pixel art and a scaled sprite.
- *
- * Radii are integers because a circle between two pixel sizes does not exist.
- * {@link ParticleEmitterDef.radiusFromPx} is interpolated and then rounded, so a
- * particle growing from 1 to 3 visibly steps through 2 rather than smearing.
- *
- * ## Shapes, drawn when first seen
- *
- * An authored {@link ParticleEmitterDef.shape} is a 5×5 mask, and shapes are
- * data, so they cannot be rasterised at startup. The atlas keeps
- * {@link SHAPE_SLOTS} 5×5 cells under the circles, and a shape is written into
- * the next free one the first frame a particle needs it, keyed by its rows. When
- * every slot is taken, the slots are emptied at the start of the next frame and
- * filled again by whatever is on screen then — so the editor, which makes a new
- * shape on every click, never runs out. A frame that needs more distinct shapes
- * than there are slots draws the extras as circles.
- *
- * ## Why one mesh and not one per plume
- *
- * Sorting is per fragment — every quad carries the depth box it should sort as —
- * so grouping decides nothing about draw order, and the cheapest grouping is
- * therefore the right one. A hundred sparks across six burning bodies is one
- * buffer and one draw.
- *
- * The buffers are allocated once at {@link MAX_LIVE_PARTICLES} and only the
- * prefix in use is uploaded (`addUpdateRange`) — a frame with four particles
- * pushes four quads across the bus, not two thousand.
- *
- * ## Depth, and the rule it implements
- *
- * Every particle of a plume takes **the plume's** box, not its own: the order of
- * a two-high tile standing on top of the affected stack. A spark that has drifted
- * a cell away still sorts where the fire is. That is deliberate and it is what
- * keeps a plume stable — boxes derived per particle would have sparks crossing
- * the sprite's own depth as they rose, and a fire that flickers *behind* the
- * thing on fire reads as a bug rather than as a fire.
- */
-
-/** Widest cell in the atlas: a radius-`MAX` circle needs `2*MAX+1` pixels. */
 const CIRCLE_CELL_PX = MAX_PARTICLE_RADIUS_PX * 2 + 1;
 
-/** One cell per integer radius, zero included — a radius-0 circle is one pixel. */
 const CIRCLE_STEPS = MAX_PARTICLE_RADIUS_PX + 1;
 
 const ATLAS_W = CIRCLE_CELL_PX * CIRCLE_STEPS;
 
-/** 5×5 shape cells across one row of the atlas. */
 const SHAPES_PER_ROW = Math.floor(ATLAS_W / PARTICLE_SHAPE_PX);
 
-/** Rows of shape cells under the circles. */
 const SHAPE_ROWS = 4;
 
-/** How many distinct shapes one frame can draw. @see ParticleLayer.shapeSlotFor */
 export const SHAPE_SLOTS = SHAPES_PER_ROW * SHAPE_ROWS;
 
-/** The circles take the first `CIRCLE_CELL_PX` data rows, and the shapes the rest. */
 const ATLAS_H = CIRCLE_CELL_PX + SHAPE_ROWS * PARTICLE_SHAPE_PX;
 
 const VERTS_PER_QUAD = 4;
@@ -100,29 +45,10 @@ const INDICES_PER_QUAD = 6;
 const BOX_COMPONENTS = 4;
 const COLOR_COMPONENTS = 4;
 
-/**
- * Alpha below which a particle fragment is thrown away.
- *
- * Doing most of the work: the atlas is a hard-edged mask, so this is what turns
- * the square quad into a circle. It also retires a particle a hair before it
- * reaches zero alpha, which is invisible and saves the blend.
- */
 const PARTICLE_ALPHA_CUTOFF = 0.02;
 
-/**
- * Drawn after every world sprite.
- *
- * World materials are all `transparent`, so they share a queue with this one and
- * three sorts that queue by render order first. Without this a plume could be
- * drawn before a sprite that has not yet written its depth, and depth-test
- * against a hole — a spark in front of a wall it is behind.
- */
 const PARTICLE_RENDER_ORDER = 1;
 
-/**
- * A `PARTICLE_ALPHA_CUTOFF`-masked disc per integer radius, laid out in a row,
- * with the shape cells under them left empty.
- */
 export function createParticleAtlas(): THREE.DataTexture {
   const data = new Uint8Array(ATLAS_W * ATLAS_H * 4);
   for (let r = 0; r < CIRCLE_STEPS; r++) {
@@ -131,10 +57,11 @@ export function createParticleAtlas(): THREE.DataTexture {
       for (let px = 0; px < CIRCLE_CELL_PX; px++) {
         const dx = px - MAX_PARTICLE_RADIUS_PX;
         const dy = py - MAX_PARTICLE_RADIUS_PX;
-        // `<= r*r` rather than a fudged radius, because the fudges are all
-        // wrong at this size: `(r + 0.5)^2` makes radius 1 a 3x3 square, which
-        // is not a circle, it is a block. This gives a plus at 1 and a proper
-        // rounded blob from 2 up — the shapes a pixel artist would draw.
+        /**
+         * `<= r*r` rather than a fudged radius: `(r + 0.5)^2` makes radius 1 a
+         * 3x3 square instead of a circle. This gives a plus at 1 and a proper
+         * rounded blob from 2 up.
+         */
         const inside = dx * dx + dy * dy <= r * r;
         const o = (py * ATLAS_W + cellX + px) * 4;
         data[o] = 255;
@@ -153,12 +80,6 @@ export function createParticleAtlas(): THREE.DataTexture {
   return tex;
 }
 
-/**
- * The atlas slice for one integer radius: `u0, v0, u1, v1` and the quad's side.
- *
- * The circle is cut tight rather than drawn as the whole cell, so a one-pixel
- * spark costs one pixel of fill instead of the 17×17 the widest one needs.
- */
 export function circleSlice(radius: number): {
   u0: number;
   v0: number;
@@ -173,16 +94,12 @@ export function circleSlice(radius: number): {
   return {
     u0: x0 / ATLAS_W,
     u1: (x0 + sizePx) / ATLAS_W,
-    // In data rows, which a `DataTexture` lays out from v = 0 up. A circle is
-    // the same either way up, so which end is the top does not matter here; it
-    // does for a shape — see `shapeSlice`.
     v0: y0 / ATLAS_H,
     v1: (y0 + sizePx) / ATLAS_H,
     sizePx,
   };
 }
 
-/** The first data row of a shape slot's cell, and its first column. */
 function shapeCellOrigin(slot: number): { x: number; row: number } {
   return {
     x: (slot % SHAPES_PER_ROW) * PARTICLE_SHAPE_PX,
@@ -190,7 +107,6 @@ function shapeCellOrigin(slot: number): { x: number; row: number } {
   };
 }
 
-/** The atlas slice for one shape slot, in the shape {@link circleSlice} answers in. */
 export function shapeSlice(slot: number): {
   u0: number;
   v0: number;
@@ -208,12 +124,6 @@ export function shapeSlice(slot: number): {
   };
 }
 
-/**
- * Write a shape's mask into one slot of the atlas's pixel data.
- *
- * The quad puts `v1` on its top edge, so the shape's top row goes in the slot's
- * highest data row: row `y` of the shape is data row `row + 4 - y`.
- */
 export function writeShapeCell(data: Uint8Array, slot: number, shape: ParticleShape) {
   const { x, row } = shapeCellOrigin(slot);
   for (let y = 0; y < PARTICLE_SHAPE_PX; y++) {
@@ -228,15 +138,6 @@ export function writeShapeCell(data: Uint8Array, slot: number, shape: ParticleSh
   }
 }
 
-/**
- * World-pixel position of a point in the world, from an **absolute** elevation.
- *
- * The level term cancels: a level shifts a cell by `CELL_SIZE * z` and an
- * absolute elevation already carries `HEIGHT_PER_LEVEL * z` of that shift, and
- * `PX_PER_HEIGHT * HEIGHT_PER_LEVEL` *is* `CELL_SIZE`. So a particle needs no
- * level at all to be placed — which is exactly right for something that can rise
- * out of the storey it started in.
- */
 export function particleWorldPx(cell: number, elevAbs: number): number {
   return cell * CELL_SIZE - PX_PER_HEIGHT * elevAbs;
 }
@@ -248,19 +149,7 @@ export class ParticleLayer {
   private readonly geometry: THREE.BufferGeometry;
   private readonly atlas: THREE.DataTexture;
   private readonly lightUniformsFor: (z: number) => LevelLightUniforms;
-  /**
-   * One material per level, made on the frame a plume first appears there.
-   *
-   * **The reason this is not a single material** is the light map: it is bound
-   * per level, so a lit spark on the first storey drawn with the ground floor's
-   * uniforms would be lit by a room it is not in. Unlit sparks do not care, but
-   * splitting only the lit ones would mean two grouping rules where one does.
-   *
-   * In practice this is one entry: every plume on screen is usually on the level
-   * the player is standing on.
-   */
   private readonly materials = new Map<number, THREE.MeshBasicMaterial>();
-  /** Levels drawn this frame, in the order their groups appear. */
   private levels: number[] = [];
 
   private readonly positions = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 3);
@@ -270,48 +159,23 @@ export class ParticleLayer {
   private readonly colors = new Float32Array(
     MAX_LIVE_PARTICLES * VERTS_PER_QUAD * COLOR_COMPONENTS,
   );
-  /** 1 for a spark that lights itself, 0 for one the room lights. */
   private readonly unlit = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD);
-  /**
-   * Where each particle samples the light map, in cell space.
-   *
-   * All four corners of a quad get the same value and {@link lightScales} stays
-   * zero, so a particle takes one flat sample rather than a gradient — it is a
-   * pixel or two across, which is far smaller than the cell it is being lit by.
-   */
   private readonly lightUvs = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 2);
   private readonly lightScales = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 2);
 
-  /**
-   * Live particle indices, bucketed by the level they belong to.
-   *
-   * Held and cleared rather than rebuilt, because this runs every frame and the
-   * arrays are the only thing here that would otherwise be garbage. Quads have
-   * to be written level by level so each level's run of indices is contiguous
-   * and can be one geometry group.
-   */
   private readonly buckets = new Map<number, number[]>();
 
-  /**
-   * This frame's visibility answer per plume, so a hundred sparks off one fire
-   * ask once. Cleared rather than rebuilt, for the reason {@link buckets} is.
-   */
   private readonly hiddenSpecs = new Map<ParticleEmitterSpec, boolean>();
 
-  /** Which atlas slot each shape is drawn from, keyed by its rows joined. */
   private readonly shapeSlots = new Map<string, number>();
 
-  /** Each shape's key, worked out once per rows array rather than per particle. */
   private readonly shapeKeys = new WeakMap<ParticleShape, string>();
 
-  /** Reused across every particle of every frame. @see ParticleSystem.read */
   private readonly reading: ParticleReading = {
     x: 0,
     y: 0,
     elev: 0,
     life: 0,
-    // Overwritten on the first read; a real config rather than a cast, so
-    // nothing here can be the thing that puts undefined into a buffer.
     config: DEFAULT_PARTICLES,
     ramp: new Float32Array(0),
     z: 0,
@@ -320,11 +184,6 @@ export class ParticleLayer {
     taper: 1,
   };
 
-  /**
-   * @param lightUniformsFor The level's light uniforms, asked for per level
-   * rather than handed over once — a plume can appear on any storey, and the
-   * caller is the only thing that knows how a level's light is bound.
-   */
   constructor(lightUniformsFor: (z: number) => LevelLightUniforms, random?: Random) {
     this.system = new ParticleSystem(random);
     this.lightUniformsFor = lightUniformsFor;
@@ -339,13 +198,6 @@ export class ParticleLayer {
     this.mesh.visible = false;
   }
 
-  /**
-   * The material a plume on this level is drawn with.
-   *
-   * The same depth machinery every sprite goes through — a particle sorts by the
-   * box it carries, exactly as a tile does — and the same per-level light map,
-   * so a lit spark is lit by the room it is actually in.
-   */
   private materialFor(z: number): THREE.MeshBasicMaterial {
     const existing = this.materials.get(z);
     if (existing) return existing;
@@ -354,24 +206,17 @@ export class ParticleLayer {
       map: this.atlas,
       side: THREE.DoubleSide,
       transparent: true,
-      // Tested against the world so a wall in front hides a spark, but never
-      // written, so two sparks in a plume do not carve each other up.
       depthWrite: false,
       depthTest: true,
       alphaTest: PARTICLE_ALPHA_CUTOFF,
     });
     const lightUniforms = this.lightUniformsFor(z);
     material.onBeforeCompile = (shader) => {
-      // The roof cut is honoured by `writeQuads` and not by the shader: a
-      // plume is written per particle anyway, so the cheap answer is to not
-      // write the quad rather than to draw it and throw the fragments away.
       injectWorldShader(
         shader,
         lightUniforms,
         noTintUniforms(),
         noCutUniforms(this.atlas),
-        // Particles build their own geometry, so they carry no `aAnim` at all —
-        // see `noAnimUniforms` for why the branch is on the uniform.
         noAnimUniforms(this.atlas),
       );
       injectParticleShader(shader);
@@ -381,12 +226,10 @@ export class ParticleLayer {
     return material;
   }
 
-  /** @see ParticleSystem.setEmitters */
   setEmitters(specs: readonly ParticleEmitterSpec[]) {
     this.system.setEmitters(specs);
   }
 
-  /** Advance the plumes and rewrite the buffers. True when anything is drawn. */
   update(dtMs: number, hidden: CellHidden | undefined): boolean {
     this.system.advance(dtMs);
     const drawn = this.writeQuads(hidden);
@@ -394,7 +237,6 @@ export class ParticleLayer {
     return drawn > 0;
   }
 
-  /** Whether anything is alive, so a caller can skip a frame it need not draw. */
   get active(): boolean {
     return this.system.count > 0 || this.system.emitterCount > 0;
   }
@@ -407,33 +249,14 @@ export class ParticleLayer {
     this.system.clear();
   }
 
-  /**
-   * Fill the buffers from the pool, skipping plumes on cells the viewer cannot
-   * see.
-   *
-   * The skip is here rather than in the simulation because a particle behind a
-   * ceiling is still *there* — walking under a roof and back out should find the
-   * fire still burning, not restarted.
-   *
-   * It is also here and not only in the emitter list because a retired plume's
-   * sparks are left to finish: climbing out of a cave, the fire you left behind
-   * stops being listed, and without this its last sparks would rise through the
-   * ground you are now standing on.
-   */
   private writeQuads(hidden: CellHidden | undefined): number {
     for (const bucket of this.buckets.values()) bucket.length = 0;
-    // Emptied between frames and never during one, so no quad written this
-    // frame points at a slot that is rewritten under it. @see shapeSlotFor
     if (this.shapeSlots.size >= SHAPE_SLOTS) this.shapeSlots.clear();
     this.hiddenSpecs.clear();
 
     for (let i = 0; i < this.system.count; i++) {
       const spec = this.system.specAt(i);
       const z = spec.z;
-      // The cell the plume *hangs from*, not the one the spark has drifted over.
-      // A chimney on a roof the view has cut away is gone with the roof, and a
-      // spark that has risen a cell north of it is part of that plume rather
-      // than a thing happening on the cell it happens to be over.
       if (hidden) {
         let isHidden = this.hiddenSpecs.get(spec);
         if (isHidden === undefined) {
@@ -462,7 +285,6 @@ export class ParticleLayer {
       }
       const written = quad * INDICES_PER_QUAD - groupStart;
       if (written === 0) continue;
-      // One group per level, pointing at that level's material.
       this.geometry.addGroup(groupStart, written, this.levels.length);
       this.levels.push(z);
     }
@@ -472,24 +294,16 @@ export class ParticleLayer {
     return quad;
   }
 
-  /** One particle into slot `quad`. False when it is too faint to bother with. */
   private writeQuad(index: number, quad: number): boolean {
     const p = this.system.read(index, this.reading);
     const life = p.life;
-    // The authored size, scaled by how much of the effect was left when this
-    // spark was born. Rounded to a whole pixel by `circleSlice`, so a winding
-    // -down plume steps through real circle sizes rather than smearing.
     const radius =
       (p.config.radiusFromPx + (p.config.radiusToPx - p.config.radiusFromPx) * life) * p.taper;
-    // A shape is drawn at its own size whatever the taper, because a mask has no
-    // smaller version of itself; the fade still winds it down.
     const shapeSlot = p.config.shape ? this.shapeSlotFor(p.config.shape) : null;
     const slice = shapeSlot === null ? circleSlice(radius) : shapeSlice(shapeSlot);
     const alpha = p.config.alphaFrom + (p.config.alphaTo - p.config.alphaFrom) * life;
     if (alpha <= PARTICLE_ALPHA_CUTOFF) return false;
 
-    // Snapped to whole world pixels, so a particle moves in pixel steps like
-    // everything else on screen rather than sliding between them.
     const half = (slice.sizePx - 1) / 2;
     const cx = Math.round(particleWorldPx(p.x, p.elev));
     const cy = Math.round(particleWorldPx(p.y, p.elev));
@@ -503,10 +317,6 @@ export class ParticleLayer {
     const g = p.ramp[rampBase + 1] ?? 1;
     const b = p.ramp[rampBase + 2] ?? 1;
 
-    // The cell the particle is standing over, not its fractional position: a
-    // light map texel's centre is at the cell's integer coordinate (see
-    // `uLightOrigin`), so a fractional value would land on a texel boundary and
-    // a nearest-filtered sample would pick a neighbour at random.
     const lightCellX = Math.floor(p.x);
     const lightCellY = Math.floor(p.y);
     const unlit = p.config.lit ? 0 : 1;
@@ -549,8 +359,6 @@ export class ParticleLayer {
       const lb = (quad * VERTS_PER_QUAD + v) * 2;
       this.lightUvs[lb] = lightCellX;
       this.lightUvs[lb + 1] = lightCellY;
-      // Zero, so the shader's per-pixel-centre correction adds nothing and every
-      // fragment of the particle reads the same texel.
       this.lightScales[lb] = 0;
       this.lightScales[lb + 1] = 0;
     }
@@ -558,10 +366,6 @@ export class ParticleLayer {
     return true;
   }
 
-  /**
-   * The atlas slot this shape is drawn from, writing it in on first sight. Null
-   * when every slot is already taken this frame, which draws a circle instead.
-   */
   private shapeSlotFor(shape: ParticleShape): number | null {
     let key = this.shapeKeys.get(shape);
     if (key === undefined) {
@@ -579,7 +383,6 @@ export class ParticleLayer {
     return slot;
   }
 
-  /** Upload only the prefix that changed. @see THREE.BufferAttribute.addUpdateRange */
   private flushAttributes(quad: number) {
     const verts = quad * VERTS_PER_QUAD;
     const ranges: [string, number][] = [
@@ -600,7 +403,6 @@ export class ParticleLayer {
     }
   }
 
-  /** Every buffer a particle quad needs, allocated once and never resized. */
   private buildGeometry(): THREE.BufferGeometry {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
@@ -624,56 +426,47 @@ export class ParticleLayer {
       indices[ib + 5] = base + 1;
     }
     geo.setIndex(new THREE.BufferAttribute(indices, 1));
-    // **Left wide open on purpose, and it must stay that way.** Groups do not
-    // replace the draw range, they are intersected with it — a geometry pinned
-    // to `setDrawRange(0, 0)` draws nothing however many groups it carries, and
-    // that is exactly how the whole layer went silently blank. What bounds the
-    // draw is the groups; `mesh.visible` is what covers the frame with none.
+    /**
+     * Left wide open on purpose: a group does not replace the draw range, it
+     * is intersected with it, so a range pinned to setDrawRange(0, 0) draws
+     * nothing however many groups exist. The groups are what bounds the draw.
+     */
     geo.setDrawRange(0, Infinity);
     return geo;
   }
 }
 
-/** Distinct from the world's, because the source differs. @see WORLD_SHADER_CACHE_KEY */
 const PARTICLE_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-particles-v1`;
 
 /**
- * Add the per-particle colour to a shader already patched by
- * {@link injectWorldShader}.
- *
- * **Order matters, and this must run second.** Both patch `#include <common>`,
- * and replacing an include that has already been replaced hits the copy at the
- * head of the previous patch's text — so these declarations land in front of the
- * world shader's, which is exactly where a declaration belongs. The other two
- * anchors (`begin_vertex`, `color_fragment`) are ones the world shader does not
- * touch, so they hit the stock includes.
+ * This must run after `injectWorldShader`. Both patch `#include <common>`,
+ * and replacing an include that has already been replaced hits the copy at
+ * the head of the previous patch's text, so running second is what puts
+ * these declarations in front of the world shader's.
  */
 function injectParticleShader(shader: { vertexShader: string; fragmentShader: string }) {
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
-      /* glsl */ `#include <common>
+      `#include <common>
 attribute vec4 aParticleColor;
 varying vec4 vParticleColor;`,
     )
     .replace(
       "#include <begin_vertex>",
-      /* glsl */ `#include <begin_vertex>
+      `#include <begin_vertex>
 vParticleColor = aParticleColor;`,
     );
 
   shader.fragmentShader = shader.fragmentShader
     .replace(
       "#include <common>",
-      /* glsl */ `#include <common>
+      `#include <common>
 varying vec4 vParticleColor;`,
     )
-    // Before `<map_fragment>` multiplies the atlas in and before
-    // `<alphatest_fragment>` reads the result, so the cutoff sees the particle's
-    // own fade and the circle mask together.
     .replace(
       "#include <color_fragment>",
-      /* glsl */ `#include <color_fragment>
+      `#include <color_fragment>
 diffuseColor *= vParticleColor;`,
     );
 }

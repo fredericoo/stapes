@@ -5,24 +5,11 @@ import { defaultBase } from "../lib/types";
 
 type Props = {
   tileset: TilesetDef | null;
-  /**
-   * The selection, in cells of `tileset` and measured from its corner.
-   *
-   * **Absolute on the sheet in front of you, whatever the caller stores.** A
-   * tile's sprites are relative to its {@link TileDef.anchor} and a status icon
-   * is not, and neither of those is a fact about picking a rectangle out of a
-   * picture. The caller converts on the way in and on the way out, which is also
-   * what decides whether there is a selection to show at all: a value for a
-   * different sheet is passed as null rather than filtered out here.
-   */
   value: SpriteRef | null;
   onChange: (sprite: SpriteRef) => void;
   zoom?: number;
 };
 
-/**
- * Drag-select a rectangular cell area on a tileset; click inside selection to set base.
- */
 export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
@@ -50,7 +37,6 @@ export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
     if (!ctx) return;
     const w = tileset.width * zoom;
     const h = tileset.height * zoom;
-    // Resizing the buffer resets context state — set smoothing after.
     canvas.width = w;
     canvas.height = h;
     ctx.imageSmoothingEnabled = false;
@@ -62,7 +48,6 @@ export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
       ctx.drawImage(img, 0, 0, w, h);
     }
 
-    // Grid
     ctx.strokeStyle = "rgba(0,0,0,0.25)";
     ctx.lineWidth = 1;
     for (let x = 0; x <= tileset.width; x += 8) {
@@ -90,7 +75,6 @@ export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
         rect.w * 8 * zoom - 2,
         rect.h * 8 * zoom - 2,
       );
-      // Base cell
       ctx.fillStyle = "rgba(255, 200, 0, 0.45)";
       ctx.fillRect((rect.x + base.x) * 8 * zoom, (rect.y + base.y) * 8 * zoom, 8 * zoom, 8 * zoom);
       ctx.strokeStyle = "#c9a227";
@@ -139,9 +123,6 @@ export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
 
   return (
     <div className="flex max-w-full flex-col border-2 border-border bg-panel shadow-hard">
-      {/* The sheet scrolls inside its own box, both ways. Bounded in height
-          because a tall sheet at 4× is several screens, and letting it set the
-          dialog's height put the frame controls and the preview off the bottom. */}
       <div className="max-h-[50vh] max-w-full overflow-auto">
         <canvas
           ref={canvasRef}
@@ -163,7 +144,6 @@ export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
           onMouseDown={(e) => {
             const c = cellAt(e.clientX, e.clientY);
             if (!c || !tileset) return;
-            // If click inside existing selection, set base
             if (
               value &&
               c.x >= value.rect.x &&
@@ -172,7 +152,6 @@ export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
               c.y < value.rect.y + value.rect.h &&
               !e.shiftKey
             ) {
-              // Start drag only if moving; for now: mousedown inside = potential base set on mouseup without drag
               dragRef.current = {
                 startX: c.x,
                 startY: c.y,

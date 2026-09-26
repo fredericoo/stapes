@@ -13,14 +13,6 @@ export function Select({
   options: Array<{ value: string; label: string }>;
   placeholder?: string;
   className?: string;
-  /**
-   * What this select is *for*, where the surrounding text cannot say it.
-   *
-   * The trigger is a button rather than a form control, so a `<label>` beside it
-   * labels nothing — a caller whose caption is a `<span>` has a control that
-   * reads out as its current value and no more. Optional, because most callers
-   * sit inside a labelled row that already answers the question.
-   */
   ariaLabel?: string;
 }) {
   return (

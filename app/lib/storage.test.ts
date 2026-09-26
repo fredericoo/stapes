@@ -3,13 +3,12 @@ import { readPngSize } from "./png";
 
 const SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
-/** The first 24 bytes of a PNG: signature, IHDR chunk header, width, height. */
 function pngHeader(width: number, height: number): Uint8Array {
   const bytes = new Uint8Array(24);
   bytes.set(SIGNATURE, 0);
   const view = new DataView(bytes.buffer);
-  view.setUint32(8, 13); // IHDR payload length
-  bytes.set([0x49, 0x48, 0x44, 0x52], 12); // "IHDR"
+  view.setUint32(8, 13);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
   view.setUint32(16, width);
   view.setUint32(20, height);
   return bytes;
@@ -37,10 +36,6 @@ describe("readPngSize", () => {
     expect(() => readPngSize(pngHeader(8, 8).subarray(0, 23))).toThrow("Not a PNG");
   });
 
-  /**
-   * The bytes arrive as a view onto a larger upload buffer, so reading through
-   * the underlying ArrayBuffer rather than the view would find the wrong offset.
-   */
   it("honours a non-zero byteOffset", () => {
     const padded = new Uint8Array(32);
     padded.set(pngHeader(320, 128), 8);

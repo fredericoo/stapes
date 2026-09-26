@@ -19,12 +19,6 @@ import {
 import { normalizeTileDef, type TileDef } from "./types";
 import { FRAME } from "./testTile";
 
-/**
- * The editor authors a brain by name from a catalog, never by hand. Two things
- * have to hold for that to be safe: the catalog cannot offer a name the runtime
- * will not run, and a brain built from it survives the trip to disk unchanged.
- */
-
 function tileWithBrain(brain: BrainDef): TileDef {
   return normalizeTileDef({
     id: "creature",
@@ -39,11 +33,6 @@ function tileWithBrain(brain: BrainDef): TileDef {
 }
 
 describe("the authoring catalog", () => {
-  /**
-   * The whole point of feeding the pickers from here: a name in the catalog is
-   * a name the runtime implements, and a fresh instance of it is one the schema
-   * accepts. If these ever drift, the editor could author an inert creature.
-   */
   it("makes every action, condition and effect parse", () => {
     const brain: BrainDef = {
       initial: "s",
@@ -53,7 +42,6 @@ describe("the authoring catalog", () => {
           do: ACTION_NAMES.map((n) => ACTIONS[n].make()),
         },
       },
-      // One transition per condition, all pointing back at the only state.
       transitions: CONDITION_NAMES.map((n) => ({
         from: "any" as const,
         if: CONDITIONS[n].make(),
@@ -65,11 +53,6 @@ describe("the authoring catalog", () => {
     expect(validateBrain(brain).filter((i) => i.severity === "error")).toEqual([]);
   });
 
-  /**
-   * A brain assembled from catalog defaults is what the editor writes to
-   * `tiles.json`. Parsing it back must return the very same object — no field
-   * added, none dropped, none reordered into a different meaning.
-   */
   it("round-trips a built brain through parse unchanged", () => {
     const brain: BrainDef = {
       initial: "idle",
@@ -94,18 +77,10 @@ describe("the authoring catalog", () => {
 
     const parsed = resolveBrain(tileWithBrain(brain));
     expect(parsed).toEqual(brain);
-    // And byte-for-byte through JSON, which is the actual disk trip.
     expect(JSON.parse(JSON.stringify(parsed))).toEqual(brain);
   });
 });
 
-/**
- * The two things the editor can now author that a flat `make()` does not cover:
- * a condition narrowed to one voice, and several conditions joined into one.
- * Both are optional shapes layered over the same vocabulary, so the round trip
- * is the whole test — a field dropped on the way to disk is an NPC that stops
- * telling its partner from a passer-by, silently.
- */
 describe("the shapes a condition can grow", () => {
   it("round-trips a heard narrowed to one voice, either way round", () => {
     const brain: BrainDef = {
@@ -159,7 +134,6 @@ describe("the shapes a condition can grow", () => {
     expect(resolveBrain(tileWithBrain(brain as unknown as BrainDef))).toBeNull();
   });
 
-  // 24 is midnight written the other way, and an author who typed it meant 0.
   it("refuses a time of day past the last hour", () => {
     const brain: BrainDef = {
       initial: "idle",
@@ -196,7 +170,6 @@ describe("the shapes a condition can grow", () => {
     expect(JSON.parse(JSON.stringify(parsed))).toEqual(brain);
   });
 
-  /** A group is a condition, so validation still walks the states it names. */
   it("still flags a transition whose grouped condition leads nowhere", () => {
     const issues = validateBrain({
       initial: "idle",
@@ -269,10 +242,6 @@ describe("reporting what is wrong", () => {
     });
   });
 
-  /**
-   * A wildcard source reaches from everywhere, so a state only its `any`
-   * transition leads to is reachable — the reachability walk must not report it.
-   */
   it("counts a state reached only through a wildcard as reachable", () => {
     const issues = validateBrain({
       initial: "idle",

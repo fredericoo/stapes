@@ -38,7 +38,6 @@ function at(map: MapFile, x: number, y: number, z: number) {
   return { x, y, z, stackIndex: getStack(map, x, y, z).length - 1 };
 }
 
-/** Flat grass strip along y=0 from x=0..width-1, with the object on x=0. */
 function grassStrip(width: number, objectId = "crate"): MapFile {
   let map = emptyMap();
   for (let x = 0; x < width; x++) {
@@ -115,13 +114,6 @@ describe("pushDestination climb", () => {
     if (check.ok) expect(check.to).toEqual({ x: 1, y: 0, z: 0 });
   });
 
-  /**
-   * Object stands on a wall top (abs 2). East of it, a column offering two
-   * rests inside a climb-full band: grass below at abs 0 and a raised slab at
-   * abs 3. A statue is used deliberately — with no gravity it can only ever be
-   * placed by the surface search, so landing low proves the preference rather
-   * than a fall.
-   */
   function forkedColumn(objectId: string): MapFile {
     let map = emptyMap();
     map = place(map, 0, 0, 0, ["wall"]);
@@ -146,8 +138,6 @@ describe("pushDestination climb", () => {
   });
 
   it("takes the way up when that is the only rest in the band", () => {
-    // Same fork with the low surface removed: the raised slab was reachable
-    // all along, it just lost to the descent.
     let map = forkedColumn("statue");
     map = replaceStack(map, 1, 0, 0, []);
 
@@ -167,7 +157,6 @@ describe("pushDestination climb", () => {
 describe("pushDestination physics", () => {
   it("a gravity object shoved off a ledge settles on the surface below", () => {
     let map = emptyMap();
-    // Plateau at z=1, open ground two levels down at z=-1.
     map = place(map, 0, 0, 0, ["wall"]);
     map = place(map, 0, 0, 1, ["crate"]);
     map = place(map, 1, 0, -1, ["grass"]);
@@ -218,8 +207,6 @@ describe("pushDestination physics", () => {
 
   it("refuses a push with no headroom", () => {
     let map = grassStrip(2, "boulder");
-    // Surface one half-level up, with the level above walled in: a full-height
-    // object standing there would poke into the wall.
     map = place(map, 1, 0, 0, ["grass", "slab"]);
     map = place(map, 1, 0, 1, ["wall"]);
     const check = pushDestination(
@@ -286,10 +273,6 @@ describe("pushDestination move-on-tiles", () => {
   });
 });
 
-/**
- * A shove moves the object and everything stacked on it as one rigid column,
- * so the room it needs at the far end is the column's and not the crate's.
- */
 describe("pushDestination with a rider", () => {
   it("counts the whole column from the slot being shoved", () => {
     let map = grassStrip(2);
@@ -311,8 +294,6 @@ describe("pushDestination with a rider", () => {
     map = place(map, 0, 0, 0, ["grass", "crate", "crate"]);
     map = place(map, 1, 0, 0, ["grass", "slab"]);
 
-    // The upper crate stands at 1 and the slab's top is at 1 — level ground for
-    // it, however tall the pile under it is.
     const check = pushDestination(
       map,
       { x: 0, y: 0, z: 0, stackIndex: 2 },
@@ -328,8 +309,6 @@ describe("pushDestination with a rider", () => {
     let map = emptyMap();
     map = place(map, 0, 0, 0, ["grass", "crate", "crate", "crate"]);
     map = place(map, 1, 0, 0, ["grass"]);
-    // A floor one level up, which the top crate slides onto happily and a
-    // three-high column cannot pass under.
     map = place(map, 1, 0, 1, ["grass"]);
 
     const shove = (stackIndex: number) =>

@@ -11,29 +11,17 @@ import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { Rng } from "./rng";
 import { tile } from "../lib/testTile";
 
-/**
- * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
- * here like every other tile id in this file: what a body carries is authored
- * content now, so there is no constant in the engine left to import.
- */
 const BAG_TILE_ID = "basic-bag";
 
-/** Fixed lifetimes, so a test asserts a deadline rather than a distribution. */
 const BLOOD_MS = 1000;
 const STAIN_MS = 2000;
 
-/** The spread the jitter tests draw from. */
 const JITTER_FROM_MS = 1000;
 const JITTER_TO_MS = 5000;
 
-/** Fixed lifetimes for the things somebody can carry. */
 const BERRY_MS = 3000;
 const ROTTEN_MS = 4000;
 
-/**
- * A lifetime longer than a fight, for the one thing that has to survive being
- * fought over. See the `scarecrow` tile.
- */
 const GOURD_MS = 60_000;
 
 function directionalTile(id: string, extra: Record<string, unknown> = {}) {
@@ -58,10 +46,8 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
   });
 }
 
-/** The plainest consumable there is: no verb, no statuses, no health in it. */
 const EDIBLE = { type: "consumable", hp: 0 } as const;
 
-/** A tile somebody can pick up, optionally with a clock on it. */
 function itemTile(
   id: string,
   item: Record<string, unknown>,
@@ -79,9 +65,6 @@ function itemTile(
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "wall", height: 4 }),
-  // A battler with a kit, because that is now the only way anybody gets a bag
-  // — and half this file is about a berry ripening inside one. See
-  // `app/lib/kit.ts`.
   directionalTile("player", {
     affectedByGravity: true,
     walkable: false,
@@ -103,7 +86,6 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // The motivating pair: blood dries to a stain, the stain fades to nothing.
   tile({
     id: "blood",
     height: 0,
@@ -114,8 +96,6 @@ const tiles: TileDef[] = [
     height: 0,
     interactions: { decay: { tileId: "", fromMs: STAIN_MS, toMs: STAIN_MS } },
   }),
-  // Opted in on both sides, unlike everything else here: an ember plays out and
-  // the ash it leaves plays in. Blood and stain above opt into nothing.
   tile({
     id: "ember",
     height: 0,
@@ -137,7 +117,6 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // Draws its lifetime from a spread rather than taking a fixed one.
   tile({
     id: "spatter",
     height: 0,
@@ -145,38 +124,32 @@ const tiles: TileDef[] = [
       decay: { tileId: "", fromMs: JITTER_FROM_MS, toMs: JITTER_TO_MS },
     },
   }),
-  // Rots into something that cannot fit under a load.
   tile({
     id: "swell",
     height: 0,
     interactions: { decay: { tileId: "wall", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
   }),
-  // Names a tile this world does not have.
   tile({
     id: "orphan",
     height: 0,
     interactions: { decay: { tileId: "nope", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
   }),
-  // Zero lifetime is not a decay at all.
   tile({
     id: "inert",
     height: 0,
     interactions: { decay: { tileId: "", fromMs: 0, toMs: 0 } },
   }),
-  // Longest shorter than shortest — malformed, so inert.
   tile({
     id: "backwards",
     height: 0,
     interactions: { decay: { tileId: "", fromMs: 5000, toMs: 1000 } },
   }),
-  // A body that decays — its runtime must not be stranded.
   directionalTile("ghoul", {
     actor: true,
     affectedByGravity: true,
     walkable: false,
     interactions: { decay: { tileId: "", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
   }),
-  // Things somebody can carry, which is the other half of what decays.
   itemTile("basic-bag", { type: "container", size: 4, equippable: true }),
   itemTile("crate", { type: "container", size: 2, equippable: false }),
   itemTile("berry", EDIBLE, {
@@ -189,15 +162,12 @@ const tiles: TileDef[] = [
     fromMs: ROTTEN_MS,
     toMs: ROTTEN_MS,
   }),
-  // Rots into a container, which no slot and no bag may hold.
   itemTile("seed-pod", EDIBLE, {
     tileId: "crate",
     fromMs: BERRY_MS,
     toMs: BERRY_MS,
   }),
-  // Rots into scenery: a thing, and then not a thing at all.
   itemTile("mushroom", EDIBLE, { tileId: "stain", fromMs: BERRY_MS, toMs: BERRY_MS }),
-  // A weapon that rots into something nobody can swing.
   itemTile(
     "bone-club",
     {
@@ -211,7 +181,6 @@ const tiles: TileDef[] = [
     },
     { tileId: "berry", fromMs: BERRY_MS, toMs: BERRY_MS },
   ),
-  // A bag that rots away — but only once there is nothing left inside it.
   itemTile(
     "satchel",
     { type: "container", size: 2, equippable: true },
@@ -221,16 +190,11 @@ const tiles: TileDef[] = [
       toMs: BERRY_MS,
     },
   ),
-  // Long enough to outlive the fight that spills it, which is the whole point
-  // of it: a berry would have gone off in the hand that was still holding it.
   itemTile("gourd", EDIBLE, {
     tileId: "rotten-berry",
     fromMs: GOURD_MS,
     toMs: GOURD_MS,
   }),
-  // Something to kill: hit points, one thing to its name, and no way to fight
-  // back. Toughness 1 rather than 0 — a body with no stats has no hit points
-  // and cannot die at all, which is what a statue is.
   tile({
     id: "scarecrow",
     height: 2,
@@ -258,7 +222,6 @@ const tiles: TileDef[] = [
 
 const tilesById = tilesByIdFromList(tiles);
 
-/** Player parked away from the action; every map needs exactly one. */
 function withIdlePlayer(map: MapFile): MapFile {
   return replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
 }
@@ -267,14 +230,6 @@ function stackIds(map: MapFile, x: number, y: number, z = 0): string[] {
   return getStack(map, x, y, z).map((p) => p.tileId);
 }
 
-/**
- * Tick past `ms` of simulated time.
- *
- * One tick further than the arithmetic asks for, because a deadline lands
- * partway through a tick and is only served by the one after it — and because
- * a tick is not a whole millisecond, so summing thirty of them lands a hair
- * either side of a second.
- */
 function run(session: GameSession, ms: number) {
   for (let i = 0; i <= Math.ceil(ms / TICK_MS); i++) session.tick(TICK_MS);
 }
@@ -324,8 +279,6 @@ describe("DecayIndex", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "blood" }]);
     const index = armed(map);
 
-    // Somebody walks over the blood every tick for most of its life. Re-stamping
-    // here is what would make blood in a doorway immortal.
     for (let elapsed = 0; elapsed < BLOOD_MS; elapsed += TICK_MS) {
       index.advance(TICK_MS);
       index.armCell(map, ORIGIN, tilesById);
@@ -344,7 +297,6 @@ describe("DecayIndex", () => {
     expect(index.takeDue()).toHaveLength(2);
   });
 
-  /** Deadlines drawn for `count` placements armed together at time zero. */
   function jitteredDeadlines(count: number, seed?: number): number[] {
     const index = new DecayIndex(new Rng(seed));
     let map = emptyMap();
@@ -368,8 +320,6 @@ describe("DecayIndex", () => {
   });
 
   it("spreads a burst armed on the same tick across the range", () => {
-    // The whole point of the range: fifty splashes placed together must not
-    // share one deadline and clear the floor on a single frame.
     const distinct = new Set(jitteredDeadlines(50));
     expect(distinct.size).toBeGreaterThan(1);
   });
@@ -380,8 +330,6 @@ describe("DecayIndex", () => {
   });
 
   it("spends exactly one draw per placement, whatever the range", () => {
-    // A draw count that varied with the authored numbers would make widening
-    // one tile's range change what every creature after it rolled.
     const rng = new Rng(7);
     const index = new DecayIndex(rng);
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "blood" }]);
@@ -517,12 +465,6 @@ describe("GameSession decay", () => {
   });
 });
 
-/**
- * What a decay announces for the renderer to play, as a server would drain it.
- *
- * Drained after every tick, because a session empties the list at the top of
- * the next one — the same hand-over the server makes.
- */
 function runHearing(session: GameSession, ms: number): string[] {
   const heard: string[] = [];
   for (let i = 0; i <= Math.ceil(ms / TICK_MS); i++) {
@@ -594,7 +536,6 @@ describe("GameSession transitions", () => {
         },
       },
     });
-    // In front of the idle player, who faces south from (9,9).
     const map = replaceStack(withIdlePlayer(emptyMap()), 9, 10, 0, [
       { tileId: "grass" },
       { tileId: "glowcap", itemId: "cap-1" },
@@ -605,15 +546,12 @@ describe("GameSession transitions", () => {
     expect(session.drainTransitions()).toEqual([]);
     expect(runHearing(session, TICK_MS)).toEqual([]);
 
-    // And putting it back down is a move too.
     expect(session.drop({ kind: "contents", index: 0 }, { x: 9, y: 10, z: 0 })).toBe(true);
     expect(session.drainTransitions()).toEqual([]);
     expect(session.takeTransitions()).toEqual([]);
   });
 
   it("plays each one out of the slot a viewer last saw it in", () => {
-    // Dries to nothing on the ember's own clock, below it in the same cell — so
-    // the ember's slot in the stack a viewer holds is not the ash's slot after.
     const puddle = tile({
       id: "puddle",
       height: 0,
@@ -636,14 +574,12 @@ describe("GameSession transitions", () => {
   });
 });
 
-/** Room beside the idle player for somebody carrying something. */
 const BESIDE: Coord = { x: 8, y: 9, z: 0 };
 
 function withCompany(map: MapFile): MapFile {
   return replaceStack(withIdlePlayer(map), BESIDE.x, BESIDE.y, BESIDE.z, [{ tileId: "grass" }]);
 }
 
-/** Grass beside the player with `placed` standing on it. */
 function beside(placed: PlacedTile): MapFile {
   return replaceStack(withIdlePlayer(emptyMap()), BESIDE.x, BESIDE.y, BESIDE.z, [
     { tileId: "grass" },
@@ -655,7 +591,6 @@ function thing(id: string, tileId: string): ItemInstance {
   return { id, tileId };
 }
 
-/** A kit with a bag on its back, and whatever else is asked for. */
 function kitWith(contents: ItemInstance[], slots: Partial<Equipment> = {}): Equipment {
   return {
     ...emptyEquipment(),
@@ -674,13 +609,11 @@ function bagIds(session: GameSession, id: string): string[] {
   return (carried(session, id).bag?.contents ?? []).map((held) => held.tileId);
 }
 
-/** Somebody stood beside the idle player, carrying `kit`. */
 function bearerOf(session: GameSession, kit: Equipment): string {
   session.spawn("bearer", { at: BESIDE, carrying: kit });
   return "bearer";
 }
 
-/** What the cell beside the player is holding. */
 function asideStack(session: GameSession): PlacedTile[] {
   return getStack(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z);
 }
@@ -724,9 +657,6 @@ describe("things that decay while somebody is holding them", () => {
     const who = bearerOf(session, kitWith([{ ...thing("itm_berries", "berry"), count: 3 }]));
 
     run(session, BERRY_MS);
-    // Two berries and the one that went off, not three rotten berries: a heap
-    // you cannot leave alone for a minute without losing all of it is a heap
-    // nobody would gather.
     expect(carried(session, who).bag?.contents).toEqual([
       { id: "itm_berries", tileId: "berry", count: 2 },
       { id: expect.any(String), tileId: "rotten-berry" },
@@ -741,7 +671,6 @@ describe("things that decay while somebody is holding them", () => {
     run(session, BERRY_MS);
     const contents = carried(session, who).bag?.contents ?? [];
     expect(contents[0]).toEqual({ id: "itm_berries", tileId: "berry" });
-    // The two that went off are one pile of rot, poured together on arrival.
     expect(contents[1]).toEqual({
       id: expect.any(String),
       tileId: "rotten-berry",
@@ -757,8 +686,6 @@ describe("things that decay while somebody is holding them", () => {
     });
 
     run(session, BERRY_MS);
-    // A square on a body holds one thing, so there is nowhere for the berry that
-    // came off to be. It stays a pile of two until something moves it.
     expect(carried(session, who).offhand).toEqual({
       id: "itm_berries",
       tileId: "berry",
@@ -795,8 +722,6 @@ describe("things that decay while somebody is holding them", () => {
   });
 
   it("does not start over when somebody picks it up", () => {
-    // The whole point of keying a clock to the thing rather than to the cell:
-    // half a berry's life on the floor and half in a bag is one berry's life.
     const session = new GameSession(beside({ tileId: "berry", itemId: "itm_berry" }), tiles);
 
     run(session, BERRY_MS / 2);
@@ -820,8 +745,6 @@ describe("things that decay while somebody is holding them", () => {
       }),
     );
 
-    // Both are due on the same tick, and only the berry may go: a bag that
-    // rotted out from under what it held would destroy it silently.
     run(session, BERRY_MS);
     expect(carried(session, who).bag?.tileId).toBe("satchel");
     expect(bagIds(session, who)).toEqual(["rotten-berry"]);
@@ -844,8 +767,6 @@ describe("things that decay while somebody is holding them", () => {
     const session = new GameSession(withCompany(emptyMap()), tiles);
     const who = bearerOf(session, kitWith([thing("itm_pod", "seed-pod")]));
 
-    // A container may not go in a container, so the pod waits rather than
-    // arriving in the bag as something the nesting rule forbids.
     run(session, BERRY_MS);
     expect(bagIds(session, who)).toEqual(["seed-pod"]);
   });
@@ -862,8 +783,6 @@ describe("things that decay while somebody is holding them", () => {
     const session = new GameSession(withCompany(emptyMap()), tiles);
     const who = bearerOf(session, kitWith([], { weapon: thing("itm_club", "bone-club") }));
 
-    // A hand is not a weapon rack — see `handAccepts`. A club that rots into
-    // something inedible to swing is still something you can hold.
     run(session, BERRY_MS);
     expect(carried(session, who).weapon?.tileId).toBe("berry");
   });
@@ -872,8 +791,6 @@ describe("things that decay while somebody is holding them", () => {
     const session = new GameSession(withCompany(emptyMap()), tiles);
     const who = bearerOf(session, kitWith([], { offhand: thing("itm_shroom", "mushroom") }));
 
-    // The one thing a hand refuses is a thing that is not a thing: scenery in
-    // a fist is a state nothing else in the game has an answer for.
     run(session, BERRY_MS);
     expect(carried(session, who).offhand?.tileId).toBe("mushroom");
   });
@@ -900,7 +817,6 @@ describe("things that decay while somebody is holding them", () => {
   it("makes the same turn on the floor that a slot refused", () => {
     const session = new GameSession(beside({ tileId: "seed-pod", itemId: "itm_pod" }), tiles);
 
-    // The ground holds anything, which is the only rule the floor has.
     run(session, BERRY_MS);
     expect(asideStack(session).map((p) => p.tileId)).toEqual(["grass", "crate"]);
   });
@@ -911,30 +827,13 @@ describe("things that decay while somebody is holding them", () => {
     run(session, BERRY_MS);
     const [, turned] = asideStack(session);
     expect(turned?.tileId).toBe("stain");
-    // An item id on a tile nobody can pick up would keep it counting down under
-    // a key nothing can reach. As a stain it decays by cell, like any other.
     expect(turned?.itemId).toBeUndefined();
     run(session, STAIN_MS);
     expect(asideStack(session).map((p) => p.tileId)).toEqual(["grass"]);
   });
 });
 
-/**
- * What a body was carrying does not stop ageing because the body stopped.
- *
- * A kit is armed the moment it is assigned — see `GameSession.setEquipment` —
- * and a killing blow puts every piece of it on the floor still wearing the
- * identity it was minted with (`dropKit`, via `placementFromInstance`). Between
- * them the clock never notices the death: the same entry that was counting down
- * in a hand goes on counting down in the pile.
- *
- * Which is worth pinning precisely because the alternative is so plausible. A
- * pile that started fresh where it fell would be the obvious reading of "loot
- * decays", and it is the reading that lets a player farm a camp forever by
- * killing the same body before anything it carries can go off.
- */
 describe("what a dead battler leaves on the floor", () => {
-  /** The scarecrow standing beside the idle player, holding its one thing. */
   function withScarecrow(): GameSession {
     const map = replaceStack(withIdlePlayer(emptyMap()), BESIDE.x, BESIDE.y, BESIDE.z, [
       { tileId: "grass" },
@@ -943,13 +842,6 @@ describe("what a dead battler leaves on the floor", () => {
     return new GameSession(map, tiles);
   }
 
-  /**
-   * Swing until the body is gone, and say how long it took.
-   *
-   * The dice are seeded, so this is reproducible — but it is read rather than
-   * hard-coded, because a rebalance that changes how long a fight lasts should
-   * not silently change what this test is measuring from.
-   */
   function killBeside(session: GameSession): number {
     const victim = session.actorIds().find((id) => id !== LOCAL_ACTOR_ID);
     if (!victim) throw new Error("nobody to kill");
@@ -982,8 +874,6 @@ describe("what a dead battler leaves on the floor", () => {
     const session = withScarecrow();
     const diedAtMs = killBeside(session);
 
-    // The rest of the lifetime the kit began, and no more. A pile that started
-    // over where it landed would still be a gourd here.
     run(session, GOURD_MS - diedAtMs);
 
     expect(stackIds(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z)).toEqual([

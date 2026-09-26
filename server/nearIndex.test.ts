@@ -3,16 +3,8 @@ import { BODY_REACH_ON_LEVEL, withinBodyReachOf } from "../app/net/interest";
 import { MAX_LEVEL, MIN_LEVEL } from "../app/lib/types";
 import { NEAR_BUCKET_CELLS, NearIndex } from "./nearIndex";
 
-/**
- * A client's cut reads only what the tick filed within its reach, so a value
- * the index fails to mark is a change that client is never sent, and one it
- * marks wrongly is a change it is asked about for nothing. Every case here
- * checks the marked values against `withinBodyReachOf`, point by point.
- */
-
 type Filed = { x: number; y: number; z: number; value: number };
 
-/** Every value filed at a point within a body's reach of (x, y, z). */
 function within(filed: readonly Filed[], x: number, y: number, z: number): Set<number> {
   const out = new Set<number>();
   for (const point of filed) {
@@ -33,7 +25,6 @@ function marked(stamp: Int32Array, mark: number): Set<number> {
   return out;
 }
 
-/** A seeded generator, so a failure is the same failure on the next run. */
 function seeded(seed: number): () => number {
   let state = seed;
   return () => {
@@ -56,8 +47,6 @@ describe("what the tick filed within a client's reach", () => {
         x: Math.floor(random() * 400) - 200,
         y: Math.floor(random() * 400) - 200,
         z: random() < 0.6 ? 0 : level(random),
-        // Some values filed at two points and more, as a cell is filed where its
-        // body stands and where it stood.
         value: k % values,
       });
     }
@@ -89,7 +78,6 @@ describe("what the tick filed within a client's reach", () => {
           const z = MIN_LEVEL;
           const filed = [
             { x: x + dx, y: y + dy, z: z + dz, value: 0 },
-            // One step further out, which is out of reach.
             { x: x + dx + Math.sign(dx), y: y + dy, z: z + dz, value: 1 },
           ];
           const stamp = new Int32Array(2);
@@ -118,9 +106,7 @@ describe("what the tick filed within a client's reach", () => {
     ]);
     const stamp = new Int32Array(2);
     expect(index.markWithinReach(0, 0, 0, stamp, 5)).toBe(2);
-    // Again for the same client: nothing new.
     expect(index.markWithinReach(0, 0, 0, stamp, 5)).toBe(0);
-    // A new client marks afresh.
     expect(index.markWithinReach(0, 0, 0, stamp, 6)).toBe(2);
   });
 });

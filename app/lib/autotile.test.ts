@@ -25,11 +25,8 @@ describe("autotile blob", () => {
   });
 
   it("clears corner bits when edges are missing", () => {
-    // Only NE present — both N and E missing → corner cleared
     expect(maskBlobCorners(NE)).toBe(0);
-    // N+E+NE → NE kept
     expect(maskBlobCorners(N | E | NE)).toBe(N | E | NE);
-    // N+NE without E → NE cleared
     expect(maskBlobCorners(N | NE)).toBe(N);
   });
 
@@ -123,7 +120,6 @@ describe("pickAutotileSprite", () => {
       base: { x: 0, y: 0 },
     },
     durationMs: 200,
-    // tag via tileset — actually use duration as marker; use light color
     light: { radius: 1, intensity: 1, color: id },
   });
 
@@ -150,18 +146,6 @@ describe("pickAutotileSprite", () => {
   });
 });
 
-/**
- * The wooden floor's inner block, as authored, against the real `tiles.json`.
- *
- * The inset floor and its complement have to agree on *which* neighbourhood
- * they are in, or the two halves are drawn for different shapes and meet in a
- * seam. Nothing in the data says so: the agreement is produced entirely by the
- * inner tile naming the floor in `connectsTo`, which is what makes it read the
- * stack it sits on as more of itself. The last test here is the one that would
- * actually catch its removal — an author paints the inner tile on the ring
- * hugging an opening and nowhere else, so an inner tile left to autotile
- * against its own placements sees a thin ring where the floor sees a field.
- */
 describe("wooden floor inner", () => {
   const tiles = normalizeTiles(tilesJson as unknown[]);
   const byId = Object.fromEntries(tiles.map((t) => [t.id, t]));
@@ -171,12 +155,10 @@ describe("wooden floor inner", () => {
   const HOLE = { x: 2, y: 2 };
   const FIELD = 5;
 
-  /** The cells an author would close: the ring touching the opening. */
   const RING = [-1, 0, 1]
     .flatMap((dy) => [-1, 0, 1].map((dx) => ({ x: HOLE.x + dx, y: HOLE.y + dy })))
     .filter((c) => !(c.x === HOLE.x && c.y === HOLE.y));
 
-  /** A field of floor with one cell cut out, inner painted only on the ring. */
   function ringMap() {
     const cells: { x: number; y: number; tileId: string }[] = [];
     for (let y = 0; y < FIELD; y++) {
@@ -191,9 +173,6 @@ describe("wooden floor inner", () => {
     return mapWith(cells);
   }
 
-  // Where the sprite actually sits on the sheet, not where it sits in its own
-  // tile's block: these are two tiles with two anchors, and the claim below is
-  // about the distance between them on the picture.
   const rectOf = (tile: TileDef, ctx: Parameters<typeof resolveTileSprite>[1]) =>
     spriteRect(tile.anchor, resolveTileSprite(tile, ctx)!.frames[0]!.sprite);
 

@@ -8,13 +8,6 @@ import { slotKey } from "./itemMoves";
 import { leaveResidue, residueSlots } from "./residue";
 import { tile as baseTile } from "../lib/testTile";
 
-/**
- * Where a bottle goes once the potion is gone.
- *
- * The session tests cover a drink end to end; these pin the order the places
- * are tried in and the refusals, against a kit built by hand.
- */
-
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
   return baseTile({ kind: "item", intangible: true, ...partial });
 }
@@ -53,7 +46,6 @@ const tilesById: Record<string, TileDef> = Object.fromEntries(
 
 const actor = { x: 0, y: 0, z: 0 };
 
-/** A board with the actor's cell and a chest one step east. */
 function board(chestContents: ItemInstance[] = []): MapFile {
   let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
   map = replaceStack(map, 1, 0, 0, [
@@ -116,7 +108,6 @@ describe("leaving the residue", () => {
       instance("bottle"),
     );
     expect(landed?.equipment.bag?.contents?.map((i) => i.tileId)).toEqual(["bottle"]);
-    // The board is untouched, and identically so: nothing here reindexes.
     expect(landed?.map).toBe(map);
   });
 

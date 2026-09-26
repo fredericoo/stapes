@@ -40,9 +40,32 @@ an oblique cabinet projection with Three.js.
   `bun run format` and `bun run lint` from `README.md`, and open a draft PR as
   below.
 - **`README.md`** — every script, and what it is for.
-- **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules, and a
-  paragraph per exception saying why the rule is wrong here. A rule turned off
-  without that paragraph is one nobody can turn back on.
+- **`docs/<subject>.md`** — `combat`, `terrain`, `ui`, `server`, `deploy`,
+  `testing`, `tooling`: the constraints in the code that the obvious
+  change would break.
+- **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules. Each
+  exception has its reason in `docs/tooling.md`. A rule turned off without one
+  is one nobody can turn back on.
+
+## Comments only where the code cannot be read without one
+
+A comment is allowed only when a competent reader would otherwise misread the
+code or have to trace other files to understand it: a formula, a bit trick, an
+ordering or check that looks redundant but is required, a platform or library
+quirk, a deliberate departure from the idiomatic version. Nothing that restates
+a name or signature, describes straightforward code, or records history.
+
+Write it as a `/** ... */` block directly above the code it explains, in one to
+three plain sentences. `stapes/no-comments` in `lint/plugin.ts` rejects every
+other comment form except lint and type directives
+(`// oxlint-disable-next-line`, `// @ts-expect-error`, `/// <reference>`),
+which carry no appended reason. CSS, YAML, shell and GLSL inside template
+strings follow the same bar in their own comment syntax; the rule cannot see
+them.
+
+A fact that spans files, or two values kept equal by hand, goes in
+`docs/<subject>.md` instead, and only if the obvious change would break it.
+Describe the current state.
 
 `CLAUDE.md` is a symlink to this file.
 
@@ -85,7 +108,7 @@ against a real world, not in `vitest`.
 ## Say what you mean
 
 This applies to everything written here: commit messages, PR titles and
-descriptions, `docs/notes.md`, and code comments.
+descriptions, and everything in `docs/`.
 
 Mannered prose substitutes metaphor and flourish for direct statement. Instead
 of "a parameter worth varying," the mannered writer produces "a dial worth

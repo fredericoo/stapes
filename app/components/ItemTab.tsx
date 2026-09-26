@@ -47,27 +47,10 @@ import { WeaponFields } from "./WeaponFields";
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
-  /**
-   * The status catalogue, so a consumable can be pointed at one by name rather
-   * than by an id somebody has to remember. Empty where nothing is authored, in
-   * which case the section says so instead of offering an empty dropdown.
-   */
   statusDefs?: Record<string, StatusDef>;
-  /**
-   * The whole library, handed through to the weapon fields so a bow can be
-   * pointed at the arrow it fires. Here for the same reason the Battle tab
-   * carries it: the picker needs the catalogue, and this tab is the only thing
-   * between it and the dialog that has one.
-   */
   tiles: TileDef[];
 };
 
-/**
- * Where a piece of armour goes, in the order a body wears it.
- *
- * Named by `SLOT_LABELS` rather than here, so the square a helmet is authored
- * into is called what the kit table calls it — see `../lib/kit`.
- */
 const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> = ARMOR_SLOTS.map((slot) => ({
   value: slot,
   label: SLOT_LABELS[slot],
@@ -84,7 +67,6 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "charm", label: "Charm" },
 ];
 
-/** What each type is, for the tooltip beside the type picker. */
 const TYPE_INFO: Record<ItemType, string> = {
   weapon:
     "Held. Replaces the wielder's natural weapon entirely — the same block as a creature's on the Battle tab.",
@@ -101,14 +83,6 @@ const TYPE_INFO: Record<ItemType, string> = {
     "Worn on the accessory square, never held and never pressed. Does its thing on its own clock for as long as it is worn.",
 };
 
-/**
- * What it takes to be carried.
- *
- * A tab of its own on the same grounds the Battle tab has one: being an item is
- * something the tile *is*, chosen by the Kind select, and this configures it
- * rather than deciding it. Like that tab it has no on/off switch — it is only
- * ever shown for a tile whose kind is already `item`.
- */
 export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
   const item = draft.interactions?.item ?? DEFAULT_WEAPON;
 
@@ -120,14 +94,6 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     });
   };
 
-  /**
-   * Swap which arm of the union this is, from that arm's defaults.
-   *
-   * Whole-block replacement rather than a patch, so the draft never holds a
-   * weapon's `atk` beside a container's `size`. `itemForSave` would drop the
-   * stray field on the way to disk anyway, but a draft that is briefly both is a
-   * draft the editor can render wrong.
-   */
   const setType = (type: ItemType) => {
     if (type === item.type) return;
     if (type === "weapon") setItem({ ...DEFAULT_WEAPON });
@@ -135,10 +101,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     else if (type === "shield") setItem({ ...DEFAULT_SHIELD });
     else if (type === "consumable") setItem({ ...DEFAULT_CONSUMABLE });
     else if (type === "artifact") setItem({ ...DEFAULT_ARTIFACT });
-    // Deep enough to matter: the default's effect is a shared object, and a
-    // shallow copy would let a stone edited in the tile editor write through it
-    // into every other stone that took the same default.
     else if (type === "stone") {
+      /** Copies `effect`, since a shallow spread would share one `effect` object between stones. */
       setItem({ ...DEFAULT_STONE, effect: { ...DEFAULT_STONE.effect } });
     } else if (type === "charm") setItem({ ...DEFAULT_CHARM });
     else setItem({ ...DEFAULT_CONTAINER });
@@ -169,8 +133,6 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     setItem({ ...item, ...fields });
   };
 
-  // Anything carriable but this tile itself: a potion that left a full potion
-  // behind would be a bottle that never empties.
   const residueTiles = tiles.filter((tile) => tile.kind === "item" && tile.id !== draft.id);
 
   const patchContainer = (fields: Partial<ContainerItem>) => {
@@ -188,19 +150,6 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     setItem({ ...item, ...fields });
   };
 
-  /**
-   * The elements are authored once, below the arm rather than inside four of
-   * them.
-   *
-   * What wearing a thing makes you is the same question whichever kind of thing
-   * it is, so it gets one control in one place — four copies inside the branches
-   * above would be four chances for them to drift apart, and an author would
-   * have to learn that a tunic and a shield ask it differently.
-   *
-   * Offered only for the things a body actually wears or holds. A loaf of bread
-   * has nowhere to put an element and no square to be in, and a control for a
-   * field that could never be read is a promise the simulation does not keep.
-   */
   const wearable =
     item.type === "weapon" ||
     item.type === "armor" ||
@@ -451,30 +400,11 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
   );
 }
 
-/**
- * What a piece of armour is worth, in words.
- *
- * Flat and subtracted, so the sentence can say the thing outright rather than
- * gesturing at a curve: every blow that lands is worth this much less, and an
- * author reading it back knows immediately whether they have just written a
- * padded coat or a wall.
- */
 function describeDefence(def: number): string {
   if (def === 0) return "Nothing on its own.";
   return `Every blow that lands does ${def} less.`;
 }
 
-/**
- * What one of the signed stats does to a wielder, in words.
- *
- * There is no arithmetic left to read out of the simulation — the number *is*
- * what happens, which is the point of the change that removed `weight` — so this
- * only has to say which direction it goes and stay quiet at zero.
- *
- * Both words are passed in whole rather than built from a stem, because English
- * does not conjugate them alike: accuracy goes more and less, speed goes faster
- * and slower, and "less fast" is what you get from pretending otherwise.
- */
 function describeShift(value: number, up: string, down: string): string {
   if (value === 0) return "No effect.";
   return `${value > 0 ? up : down} by ${Math.abs(value)}.`;

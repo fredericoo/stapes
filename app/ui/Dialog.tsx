@@ -14,15 +14,6 @@ export function Dialog({
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  /**
-   * The editor size: as wide as the window allows, and a fixed height.
-   *
-   * Fixed rather than fitted because a wide dialog is a tabbed one, and a
-   * popup sized to its content jumps every time a tab with a different amount
-   * in it is opened — the footer and its Save button move under the pointer.
-   * The body scrolls inside the box instead. A narrow dialog is one short form
-   * and keeps fitting its content.
-   */
   wide?: boolean;
 }) {
   return (

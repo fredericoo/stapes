@@ -40,9 +40,7 @@ describe("cellPhaseMs", () => {
 
   it("wraps rather than running off the end of the cycle", () => {
     const s = sprite(14, { x: 3, y: -1 });
-    // 5 * 3 = 15, which is one past the cycle: the 15th frame is the 1st.
     expect(cellPhaseMs(s, 5, 0)).toBe(1 * 80);
-    // Negative coordinates are as ordinary as positive ones on this map.
     expect(cellPhaseMs(s, -1, 0)).toBe(11 * 80);
   });
 
@@ -138,12 +136,6 @@ describe("withSpritePhase", () => {
 describe("the shipped catalogue", () => {
   const catalogue = normalizeTiles(tiles as unknown[]) as TileDef[];
 
-  /**
-   * The pairing `spritePhase` refuses, asserted here so that refusing it is a
-   * guard rather than the only thing standing between an author and a lamp
-   * whose glow has quietly stopped matching its own flame. A tile that wants
-   * both wants per-cell light bakes, which is a decision, not an oversight.
-   */
   it("never phases a sprite whose light varies", () => {
     const offenders: string[] = [];
     for (const tile of catalogue) {

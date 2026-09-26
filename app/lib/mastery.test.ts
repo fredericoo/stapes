@@ -21,21 +21,6 @@ import {
   xpFromMasteries,
 } from "./mastery";
 
-/**
- * How much of what a weapon asks a body actually brings.
- *
- * One number, and what a weapon is worth in the hand hangs off it — damage,
- * accuracy and speed all fall on it together. It is also the kind of arithmetic
- * that is quietly wrong for months: it returns a plausible fraction whatever it
- * does.
- */
-
-/**
- * The same pooling with the cap taken off, which is the whole of what a stone
- * reads and a weapon does not. What it is for is time off a cast — see
- * `../game/casting`'s `castDurationMs` — so the cases that matter are the ones
- * above the line, where {@link requirementShare} has stopped counting.
- */
 describe("requirementCoverage", () => {
   it("agrees with the capped share right up to the requirement", () => {
     const asks = { arcane: 8, fire: 2 };
@@ -49,12 +34,6 @@ describe("requirementCoverage", () => {
     expect(requirementCoverage({ arcane: 16, fire: 4 }, asks)).toBe(2);
   });
 
-  /**
-   * Pooled, so a point is a point wherever it was earned. A caster cannot cast
-   * on that basis — a shortfall anywhere refuses the stone outright, through
-   * `meetsRequirements` — so this only ever describes somebody who is already
-   * over the line everywhere.
-   */
   it("pools the surplus across the block", () => {
     expect(requirementCoverage({ arcane: 11, fire: 2 }, { arcane: 8, fire: 2 })).toBeCloseTo(1.3);
   });
@@ -65,19 +44,11 @@ describe("requirementCoverage", () => {
   });
 });
 
-/**
- * The gate a stone is behind, which is the one place a requirement is read as
- * all-or-nothing rather than as a share. @see `../game/casting`'s `castability`
- */
 describe("meetsRequirements", () => {
   it("asks nothing of a stone with no block", () => {
     expect(meetsRequirements({}, undefined)).toBe(true);
   });
 
-  /**
-   * On the terms a weapon's are: what a stone asks of a mastery it does not
-   * train is a real gate and not a footnote.
-   */
   it("holds every named mastery, trained or not", () => {
     const asks = { arcane: 10, toughness: 5 };
     expect(meetsRequirements({ arcane: 10 }, asks)).toBe(false);
@@ -91,11 +62,6 @@ describe("requirementShare", () => {
     expect(requirementShare({ sharp: 50 }, {})).toBe(REQUIREMENTS_MET);
   });
 
-  /**
-   * A requirement of zero reads as absent, on the same terms an unwritten
-   * mastery reads as zero. Otherwise a block that had been through the editor
-   * and back would count a requirement nobody wrote.
-   */
   it("ignores a requirement of zero rather than counting it", () => {
     expect(requirementShare({ sharp: 10 }, { sharp: 0, blunt: 0 })).toBe(REQUIREMENTS_MET);
     expect(requirementShare({ sharp: 10, blunt: 10 }, { sharp: 0, blunt: 20 })).toBe(0.5);
@@ -105,24 +71,11 @@ describe("requirementShare", () => {
     expect(requirementShare({ blunt: 35 }, { blunt: 35 })).toBe(1);
   });
 
-  /**
-   * **Pooled, not weakest-link.** Every point asked for counts once, wherever it
-   * was asked, so partial progress towards a second requirement is visible
-   * rather than invisible until it is complete. Under the rule this replaced,
-   * being one point short of a secondary requirement halved the weapon outright.
-   */
   it("pools every requirement rather than taking the worst", () => {
     const wielder = { blunt: 35, toughness: 10 };
-    // 35 of 35 Blunt and 10 of 20 Toughness: 45 of the 55 points asked.
     expect(requirementShare(wielder, { blunt: 35, toughness: 20 })).toBeCloseTo(45 / 55, 10);
   });
 
-  /**
-   * **A surplus never carries.** The cap is what keeps each requirement
-   * genuinely required: a brute with enormous Blunt and no Toughness must not be
-   * able to muscle past the half of a weapon that is about being able to hold
-   * it.
-   */
   it("never lets a surplus in one mastery cover a shortfall in another", () => {
     expect(
       requirementShare({ blunt: 100, toughness: 0 }, { blunt: 35, toughness: 20 }),
@@ -133,12 +86,6 @@ describe("requirementShare", () => {
     expect(requirementShare({ sharp: 40 }, { arcane: 20 })).toBe(0);
   });
 
-  /**
-   * **A gate, not a scale.** However far past the requirement a wielder is, a
-   * met requirement is met and nothing further is owed here — being good with a
-   * weapon is paid by `../lib/battler`, against the absolute mastery rather than
-   * against the requirement.
-   */
   it("stops at fully met however far past it the wielder is", () => {
     expect(requirementShare({ blunt: 100 }, { blunt: 1 })).toBe(REQUIREMENTS_MET);
     expect(requirementShare({ blunt: 100 }, { blunt: 35 })).toBe(REQUIREMENTS_MET);
@@ -149,17 +96,7 @@ describe("requirementShare", () => {
   });
 });
 
-/**
- * What a fight is weighed against depends on which part of you is asking.
- *
- * This is the rule that lets a veteran learn a second weapon at all. Under one
- * body Rating, a Blunt 80 swordsmanship novice was paid for a rat exactly as a
- * Blunt 80 mace veteran was — which is to say nothing — and there was no way
- * into a fresh mastery except to take it straight into fights pitched at
- * everything else they had.
- */
 describe("what a mastery is weighed against", () => {
-  /** Somebody who has mastered one weapon and never picked up another. */
   const veteran = { blunt: 80, sharp: 5, toughness: 40, agility: 40 };
 
   it("weighs a weapon mastery against itself", () => {
@@ -171,22 +108,11 @@ describe("what a mastery is weighed against", () => {
     expect(standingIn({ ...veteran, fire: 3 }, "fire")).toBe(3);
   });
 
-  /**
-   * **You cannot be a novice at having a body.** A rat's bite teaches a tough
-   * body nothing however little Toughness it has trained, and the reason is not
-   * its Rating — it is that the bite does not hurt, which
-   * `../game/experience`'s `threatRate` asks directly.
-   */
   it("weighs the two body masteries against the whole body", () => {
     expect(standingIn(veteran, "toughness")).toBe(rating(veteran));
     expect(standingIn(veteran, "agility")).toBe(rating(veteran));
   });
 
-  /**
-   * The payoff, in one comparison: a rat is worth everything to the sword the
-   * veteran has just picked up and nothing at all to the mace they mastered
-   * years ago, from the same blow.
-   */
   it("makes a rat worth fighting for the mastery that is a novice's", () => {
     const rat = 8;
     expect(masteryMultiplier(rat, veteran, "sharp")).toBeGreaterThan(1);
@@ -194,11 +120,6 @@ describe("what a mastery is weighed against", () => {
     expect(masteryMultiplier(rat, veteran, "agility")).toBe(0);
   });
 
-  /**
-   * And it runs out, which is what keeps it a way *in* rather than a way up. A
-   * rat stops paying once the mastery it is teaching has passed three times its
-   * own Rating — see {@link NOTHING_BELOW_RATIO}.
-   */
   it("stops paying once the mastery has outgrown the creature", () => {
     expect(masteryMultiplier(8, { ...veteran, sharp: 20 }, "sharp")).toBeGreaterThan(0);
     expect(masteryMultiplier(8, { ...veteran, sharp: 25 }, "sharp")).toBe(0);
@@ -219,7 +140,6 @@ describe("the experience curve", () => {
     expect(levelForXp(nextPoint)).toBe(level + 1);
   });
 
-  /** Each point costs more than the last, which is the whole shape of it. */
   it("makes every point dearer than the one before", () => {
     for (let level = 1; level < 20; level++) {
       const thisPoint = xpForLevel(level) - xpForLevel(level - 1);
@@ -228,10 +148,6 @@ describe("the experience curve", () => {
     }
   });
 
-  /**
-   * Spent rather than banked. Experience past the top of the scale buying an
-   * invisible level would be a player wondering why nothing was happening.
-   */
   it("stops at the top of the scale", () => {
     expect(levelForXp(xpForLevel(MAX_MASTERY) * 100)).toBe(MAX_MASTERY);
   });
@@ -241,7 +157,6 @@ describe("the experience curve", () => {
     expect(masteriesFromXp(xpFromMasteries(masteries))).toEqual(masteries);
   });
 
-  /** Sparse in, sparse out — an untrained mastery is absent, not a zero. */
   it("writes nothing down for a mastery nobody has trained", () => {
     expect(xpFromMasteries({ sharp: 0 })).toEqual({});
     expect(masteriesFromXp({ sharp: 0, blunt: 1 })).toEqual({});
@@ -249,7 +164,6 @@ describe("the experience curve", () => {
 });
 
 describe("rating", () => {
-  /** The weights sum to one, which is what puts ⭐ on the mastery scale. */
   it("rates a body that is 40 at everything at 40", () => {
     const even = Object.fromEntries(
       ["fist", "sharp", "blunt", "ranged", "arcane", "toughness", "agility"].map((mastery) => [
@@ -260,11 +174,6 @@ describe("rating", () => {
     expect(rating(even)).toBe(40);
   });
 
-  /**
-   * Breadth is free. A swordsman who takes up the bow is no harder to reward
-   * for it, which is what stops hyper-specialisation being the only sane way to
-   * play.
-   */
   it("counts only the best weapon mastery, so a second one is free", () => {
     const swordsman = { sharp: 40, toughness: 10, agility: 10 };
     expect(rating({ ...swordsman, ranged: 30 })).toBe(rating(swordsman));
@@ -274,24 +183,16 @@ describe("rating", () => {
     expect(rating({ sharp: 10, blunt: 40 })).toBe(rating({ sharp: 40, blunt: 10 }));
   });
 
-  /** Rating is a divisor, so nothing that fights is allowed to rate nothing. */
   it("never rates anything below the floor", () => {
     expect(rating({})).toBe(MIN_RATING);
   });
 });
 
-/**
- * What a fight is worth, by how far above or below you it is.
- *
- * The curve nobody can eyeball, and the one that decides whether the world has
- * anything worth fighting in it.
- */
 describe("experienceMultiplier", () => {
   it("pays the plain rate against something exactly your equal", () => {
     expect(experienceMultiplier(20, 20)).toBe(1);
   });
 
-  /** Continuous at parity: the two arms meet rather than step. */
   it("meets itself at parity from both sides", () => {
     const yours = 100;
     const justBelow = experienceMultiplier(yours - 0.001, yours);
@@ -304,30 +205,15 @@ describe("experienceMultiplier", () => {
     expect(experienceMultiplier(NOTHING_BELOW_RATIO * 20 - 0.001, 20)).toBe(0);
   });
 
-  /**
-   * The cliff is a cliff rather than a fade, and it lands where a payout would
-   * have stopped reading as a payout — a fortieth of a percent.
-   */
   it("gives up a figure too small to read as a number", () => {
     expect(NOTHING_BELOW_RATIO ** BENEATH_YOU_EXPONENT).toBeLessThan(0.005);
   });
 
-  /**
-   * Steep, but no longer a trapdoor. The thresholds moved with
-   * `BENEATH_YOU_EXPONENT` going 8 → 5: something at 70% of your Rating pays a
-   * sixth rather than a sixteenth, which is what keeps the first safe target a
-   * player finds worth more than a single point of progress.
-   */
   it("falls away steeply for anything beneath you", () => {
     expect(experienceMultiplier(14, 20)).toBeLessThan(0.2);
     expect(experienceMultiplier(18, 20)).toBeLessThan(0.7);
   });
 
-  /**
-   * The reason the exponent was softened rather than the cliff moved: a rounded
-   * Rating ticking over used to more than halve what a starter target was worth,
-   * which reads as a punishment for levelling up.
-   */
   it("does not collapse a starter target when your Rating rounds up", () => {
     const before = experienceMultiplier(8, 9);
     const after = experienceMultiplier(8, 10);
@@ -349,14 +235,6 @@ describe("experienceMultiplier", () => {
   });
 });
 
-/**
- * The bar under a level.
- *
- * Worth its own arithmetic because it is the only part of a mastery a player
- * sees moving. A level changes a few times an hour; this changes on every landed
- * blow, and it is the whole of what makes ten minutes of fighting rats feel like
- * something rather than nothing.
- */
 describe("progressToNextLevel", () => {
   it("is nothing at all at a level exactly reached", () => {
     expect(progressToNextLevel(xpForLevel(9))).toBe(0);
@@ -374,23 +252,11 @@ describe("progressToNextLevel", () => {
     expect(progressToNextLevel(next)).toBe(0);
   });
 
-  /**
-   * At the top there is no next point to be part of the way to, and a bar
-   * creeping towards a level that cannot arrive is worse than no bar.
-   */
   it("is nothing at the top of the scale, however much is banked", () => {
     expect(progressToNextLevel(xpForLevel(MAX_MASTERY) * 10)).toBe(0);
   });
 });
 
-/**
- * Which elements a spell is made of.
- *
- * The casting side, and the only side masteries have an opinion about: what a
- * body counts as when a spell lands on it is authored rather than practised —
- * see `../game/equipment`'s `bodyElements`, which is tested beside the squares
- * it walks.
- */
 describe("spellElements", () => {
   it("is empty for a spell that asks for no element", () => {
     expect(spellElements(undefined)).toEqual([]);

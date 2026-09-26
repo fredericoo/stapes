@@ -12,14 +12,6 @@ import {
 } from "./particleVfx";
 import { hexToRgb01 } from "./palette";
 
-/**
- * What an authored plume comes to.
- *
- * A ramp is a *number* and can be pinned, which is the whole reason these
- * assertions look nothing like the tint's next door: there is a right answer to
- * "what colour is this particle at half its life", and it is worth writing down.
- */
-
 const lut = (stops: { at: number; color: string }[], t: number) => {
   const compiled = compileRamp(stops);
   const base = rampIndexAt(t) * 3;
@@ -56,14 +48,6 @@ describe("a colour ramp", () => {
   });
 
   it("holds the ends beyond the outermost stops", () => {
-    // A ramp is not obliged to start at 0 or finish at 1, and a particle born
-    // before the first stop is not a particle with no colour.
-    //
-    // Asserted against the stop's own colour rather than against the table entry
-    // at the stop's position, because those are not the same number: 64 samples
-    // cannot land exactly on 0.25, so the nearest entry sits a hair *inside* the
-    // ramp and has already begun interpolating. What is being tested is the
-    // hold, and the hold is exact.
     const stops = [
       { at: 0.25, color: "#ffffff" },
       { at: 0.75, color: "#2e222f" },
@@ -93,9 +77,6 @@ describe("a colour ramp", () => {
   });
 
   it("passes through a midpoint lighter than the sRGB average", () => {
-    // The whole argument for interpolating in OKLab. Halfway from white to a
-    // mid amber is a warm cream; the naive sRGB midpoint is darker and duller,
-    // and a fire made of those looks like a fire behind a dirty window.
     const stops = [
       { at: 0, color: "#ffffff" },
       { at: 1, color: "#fb6b1d" },
@@ -120,8 +101,6 @@ describe("a colour ramp", () => {
   it("indexes the table over the whole life and never past its end", () => {
     expect(rampIndexAt(0)).toBe(0);
     expect(rampIndexAt(1)).toBe(RAMP_LUT_SIZE - 1);
-    // Life is clamped rather than wrapped: a particle read a hair past its own
-    // death must not come back round to its birth colour.
     expect(rampIndexAt(1.5)).toBe(RAMP_LUT_SIZE - 1);
     expect(rampIndexAt(-1)).toBe(0);
   });
@@ -147,9 +126,6 @@ describe("what validates", () => {
   });
 
   it("defaults a plume to lighting itself", () => {
-    // Every emitter authored before `lit` existed glowed in the dark, and it has
-    // to keep doing so — a silent change to how a fire reads at night would be
-    // worse than an author having to tick a box.
     const parsed = v.parse(particleEmitterSchema, {
       ...DEFAULT_PARTICLES,
       lit: undefined,

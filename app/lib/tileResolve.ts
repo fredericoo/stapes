@@ -16,31 +16,11 @@ import {
   type TileSprite,
 } from "./types";
 
-/**
- * The state's own sprites, or nothing when it is idle or unauthored.
- *
- * `idle` is never looked up: it *is* the def's inline sprites, so asking for it
- * here would be asking `states.idle` to exist. See {@link TileDef.states}.
- */
 function overrideFor(tile: TileDef, state: SpriteState | undefined): StateSprites | undefined {
   if (state == null || state === "idle") return undefined;
   return tile.states?.[state];
 }
 
-/**
- * Which sprite a placement draws with.
- *
- * Resolves the {@link SpriteState} first and the tile's own axis second, falling
- * back to idle at every step so a sparsely authored state is usable rather than
- * blank.
- *
- * **Facing outranks state in the fallback**, which is the one ordering here worth
- * arguing about. A deer that authors `moving` facing south only, walking east,
- * draws the *standing east* sprite rather than the walking south one: a creature
- * facing the wrong way reads as a bug, while one that forgets to animate reads as
- * art not finished yet. So a missing variant falls through to idle's same
- * direction, never to the state's other directions.
- */
 export function resolveTileSprite(
   tile: TileDef,
   ctx: TileResolveContext = {},
@@ -52,12 +32,13 @@ export function resolveTileSprite(
   }
   if (isDirectional(tile)) {
     const dir = ctx.direction ?? "s";
-    // The bearing itself, then the cardinal it is nearest to, then south. The
-    // middle step is what makes a half-authored eight-way tile usable and a
-    // four-way tile answerable at all when something asks it for a corner: an
-    // arrow authored only on the cardinals points east on its way north-east,
-    // which reads as art not finished rather than as an arrow flying sideways.
-    // Falling straight through to south instead would do exactly that.
+    /**
+     * Facing outranks state in this fallback: a missing variant falls
+     * through to idle's same direction, never to the state's other
+     * directions. Falling straight to south instead would draw a creature
+     * facing the wrong way, which reads as a bug more than a missing
+     * animation does.
+     */
     const cardinal = nearestCardinal(dir);
     return (
       override?.sprites?.[dir] ??
@@ -68,23 +49,21 @@ export function resolveTileSprite(
     );
   }
   if (tile.type === "variant") {
-    // The placement's own answer and nothing else — no coordinates to hash and
-    // no neighbours to read, which is the whole of what this type is.
-    //
-    // The key is settled against *idle* before either holder is asked, so a
-    // placement that names no face draws the same one in every state. Letting
-    // each holder answer "first authored" for itself would make a tile whose
-    // `moving` state lists its faces in another order change face the moment it
-    // moved, and change back on the way down — the same mistake as letting a
-    // state outrank facing, in variant clothing.
+    /**
+     * The key is settled against idle before either holder is asked, so a
+     * placement that names no face draws the same one in every state.
+     * Letting each holder answer "first authored" for itself would change
+     * face when the tile changed state.
+     */
     const key = ctx.variant ?? variantKeys(tile)[0];
     return override?.variants?.[key ?? ""] ?? pickVariantSprite(tile, key);
   }
   if (tile.type === "scatter") {
-    // Counted off idle even when a state is drawing, so a bush keeps its
-    // species while it moves. Counting off the override instead would let a
-    // state authoring three faces where idle has five re-pick every placement
-    // the moment it started moving, and pick it back on the way down.
+    /**
+     * Counted off idle even when a state is drawing, so a placement keeps
+     * its face while it moves. Counting off the override instead would
+     * re-pick it the moment the state changed.
+     */
     const count = tile.scatter?.length ?? 0;
     let index = ctx.scatterIndex;
     if (index == null && ctx.x != null && ctx.y != null && ctx.z != null) {
@@ -93,17 +72,11 @@ export function resolveTileSprite(
     if (index == null) index = 0;
     return override?.scatter?.[index] ?? pickScatterSprite(tile, index);
   }
-  // autotile
   let slice = ctx.autotileSlice;
   if (slice == null && ctx.map != null && ctx.x != null && ctx.y != null && ctx.z != null) {
     slice = resolveAutotileSlice(ctx.map, ctx.x, ctx.y, ctx.z, tile);
   }
   if (slice == null) slice = 0;
-  // This slice on the state and no other, then idle with its full slice
-  // fallback. Asking `pickAutotileSprite` for the override would let *its*
-  // fallback answer first, so a tile authoring `moving` for one shape would
-  // wear that shape in every neighbourhood while it moved — the same mistake as
-  // letting a state outrank facing, in autotile clothing.
   return override?.slices?.[slice] ?? pickAutotileSprite(tile, slice);
 }
 
@@ -118,7 +91,6 @@ export function getFrames(
   return resolved?.frames;
 }
 
-/** Light from the active animation frame for this placement. */
 export function resolveLight(
   tile: TileDef,
   ctx: TileResolveContext = {},
@@ -132,13 +104,6 @@ export function resolveLight(
   return light;
 }
 
-/**
- * Compact fingerprint of all frame lights (editor cache invalidation).
- *
- * Spans every {@link SpriteState} for the reason `allTileSprites` does: a light
- * authored on a state the signature cannot see is a light the cache never
- * notices anybody editing.
- */
 export function tileLightSignature(tile: TileDef): string {
   const parts: string[] = [];
   const pushSprite = (key: string, sprite: TileSprite | undefined) => {

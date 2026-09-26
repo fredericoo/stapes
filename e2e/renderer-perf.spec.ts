@@ -2,61 +2,24 @@ import { expect, test } from "@playwright/test";
 import { PERF_BUDGETS } from "../app/editor/perf";
 import { signInAsAdmin } from "./accounts";
 
-/**
- * Structure caps always run. Frame-time budget:
- * - Local → p95 < 1ms
- * - CI → p95 < 8ms (shared runners / software GL)
- * - PERF_SKIP_TIMING=1 → skip timing, keep structure asserts
- */
 function frameMsBudget(): number | null {
   if (process.env.PERF_SKIP_TIMING === "1") return null;
   if (process.env.CI) return PERF_BUDGETS.frameMsP95Ci;
   return PERF_BUDGETS.frameMsP95;
 }
 
-/**
- * How long the app is allowed to take to exist, as opposed to to draw.
- *
- * None of this is a budget — the budgets are the assertions at the bottom, and
- * they only measure frames taken after `ready()` resolves. Everything before
- * that is the app booting, and on a cold Vite cache most of it is the module
- * graph being transformed for the first time: a fresh clone, CI, the first run
- * after touching a source file, or simply another dev server compiling on the
- * same machine.
- *
- * These were 15s and 30s, which a cold compile beats on a quiet laptop and
- * loses to badly under any contention. That failed the run on a timeout, which
- * reads as a renderer regression and is nothing of the sort. Generous here
- * costs a slow failure on a genuinely broken app and buys a test that only
- * fails for the reason it exists.
- */
 const BOOT_TIMEOUT_MS = 120_000;
 const READY_TIMEOUT_MS = 60_000;
 
 test.describe("editor renderer perf", () => {
   test("stays within draw-call / mesh / frame budgets", async ({ page }) => {
-    // Room for the boot allowances above, on top of the config's own budget.
     test.setTimeout(BOOT_TIMEOUT_MS + READY_TIMEOUT_MS + 60_000);
 
     const pageErrors: string[] = [];
     page.on("pageerror", (err) => pageErrors.push(String(err)));
 
-    // The editors are behind an `ADMIN` account now, and this test is not about
-    // the door: without a session the navigation below lands on a sign-in form
-    // and there is no canvas to measure. @see ./accounts
     await signInAsAdmin(page);
 
-    // A first load on a cold Vite cache, whose errors are then dropped. The dev
-    // server optimises dependencies while that page is already running, and the
-    // reload it triggers aborts the client entry mid-import: "Failed to fetch
-    // dynamically imported module … entry.client.tsx". The app recovers by
-    // itself — the canvas comes up and the probe reports — but the error is
-    // real enough to have been caught, and the gate below could only read it as
-    // a broken app.
-    //
-    // Listening across both loads rather than arming afterwards, so that an app
-    // that is genuinely broken still fails by name: it throws on this load and
-    // on the next one, and only the copy from this one is discarded.
     await page.goto("/admin/map", { waitUntil: "networkidle" });
     await page.locator("canvas").first().waitFor({ timeout: BOOT_TIMEOUT_MS });
     pageErrors.length = 0;
@@ -89,12 +52,6 @@ test.describe("editor renderer perf", () => {
       `draw calls ${result.calls} exceeded budget ${PERF_BUDGETS.maxDrawCalls}`,
     ).toBeLessThanOrEqual(PERF_BUDGETS.maxDrawCalls);
 
-    // **Derived from the map rather than typed in.** `placedQuads` is every
-    // placement the authored world holds — see `EditorRenderer.countPlacedQuads`,
-    // which walks the map itself and not the camera — so this ceiling grows when
-    // somebody builds a town and a failure can only mean the renderer started
-    // emitting more geometry per tile. There used to be a flat `maxTriangles`
-    // beside it; see `PERF_BUDGETS.maxTrianglesPerQuad` for why it is gone.
     const triangleBudget = Math.round(result.placedQuads * PERF_BUDGETS.maxTrianglesPerQuad);
     const perQuad = result.triangles / result.placedQuads;
 

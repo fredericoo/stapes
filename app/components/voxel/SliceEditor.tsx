@@ -27,7 +27,6 @@ export function SliceEditor({
   palette: string[];
   selectedColor: number;
   tool: SliceTool;
-  /** Batch of voxel writes within the current slice. */
   onPaint: (writes: { x: number; y: number; value: number }[]) => void;
   onPick: (paletteIndex: number) => void;
 }) {

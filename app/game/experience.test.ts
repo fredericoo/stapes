@@ -24,17 +24,6 @@ import {
 import { GameSession } from "./GameSession";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
-/**
- * What a fight teaches the bodies in it.
- *
- * Two halves, and they fail differently. The arithmetic below is a pure function
- * of one swing and is wrong in ways you can read; the session tests after it are
- * about the plumbing — that the experience reaches a player and never reaches a
- * rat, that it survives being carried back in, and that what it buys actually
- * shows up in the next blow. A curve that is perfect and wired to nothing is the
- * more likely of the two failures.
- */
-
 const landed: AttackOutcome = {
   missed: false,
   dodged: false,
@@ -57,11 +46,6 @@ const missed: AttackOutcome = {
   inflicted: [],
 };
 
-/**
- * A body small enough that a ten-point blow is well past the threshold — so the
- * threat rate is exactly one and the payouts below read as the plain arithmetic
- * they are about. The falloff itself is asserted separately.
- */
 const FRAIL_HP = 10 / SIGNIFICANT_THREAT_SHARE;
 
 const sword = {
@@ -76,7 +60,6 @@ const sword = {
   requirements: { sharp: 5 },
 };
 
-/** Every mastery weighed the same, so the arithmetic below reads as itself. */
 const FLAT = () => 1;
 
 describe("what a landed blow teaches the swinger", () => {
@@ -85,10 +68,6 @@ describe("what a landed blow teaches the swinger", () => {
     expect(earned.sharp).toBeGreaterThan(0);
   });
 
-  /**
-   * Footwork. Without it the defensive mastery of a player who never gets hit
-   * would be the one mastery they cannot practise.
-   */
   it("pays agility a small share on top, rather than out of the same pot", () => {
     const earned = attackerEarnings(landed, sword, FLAT);
     expect(earned.agility).toBeCloseTo(earned.sharp! * AGILITY_SHARE_OF_OFFENCE, 10);
@@ -105,18 +84,6 @@ describe("what a landed blow teaches the swinger", () => {
     expect(attackerEarnings(dodged, sword, FLAT)).toEqual({});
   });
 
-  /**
-   * **The fairness rule, stated from the swinging end.** A landed blow is worth
-   * what it did, whatever the wielder happens to be holding — the weapon's
-   * requirements do not enter the arithmetic in either direction.
-   *
-   * There used to be a `learningRate` cubing the ratio of the requirement to the
-   * wielder's level, so an outgrown weapon paid a fraction of the rate. It
-   * charged a player twice for one choice: the outgrown weapon is the weaker
-   * weapon, this is counted in damage dealt, so it was already paying less.
-   * `experienceMultiplier` is the brake that survives, and it is keyed to what
-   * you are fighting rather than to what you are gripping.
-   */
   it("pays the same rate whatever the weapon asks of its wielder", () => {
     const outgrown = attackerEarnings(landed, { ...sword, requirements: { sharp: 1 } }, FLAT);
     const met = attackerEarnings(landed, sword, FLAT);
@@ -124,11 +91,6 @@ describe("what a landed blow teaches the swinger", () => {
     expect(outgrown.agility).toBe(met.agility);
   });
 
-  /**
-   * The other direction is not discounted either: a weapon far above you already
-   * pays less by landing fewer blows, and charging twice for the same difficulty
-   * is what deadlocked the training wall this replaced.
-   */
   it("does not discount a weapon that outclasses the wielder", () => {
     const requirementless = attackerEarnings(landed, { ...sword, requirements: undefined }, FLAT);
     const demanding = attackerEarnings(landed, { ...sword, requirements: { sharp: 90 } }, FLAT);
@@ -149,21 +111,10 @@ describe("what a blow teaches the body it was aimed at", () => {
     });
   });
 
-  /**
-   * **The decision the plan left open, settled the other way.** The hit chance
-   * is the attacker's weapon and the attacker's mastery and nothing else — the
-   * defender contributes not one term to it — so paying them for a miss would be
-   * paying Agility for something Agility did not do.
-   */
   it("pays nobody for a swing that missed", () => {
     expect(defenderEarnings(missed, 1, 1, FRAIL_HP)).toEqual({});
   });
 
-  /**
-   * Potential rather than actual on both rows, so that the day armour halves
-   * what reaches you it does not also halve what you learn from wearing it. On a
-   * dodge it is the only measure there is of what was escaped.
-   */
   it("counts what the blow could have been rather than what got through", () => {
     const absorbed: AttackOutcome = { ...landed, damage: 1, potentialDamage: 10 };
     expect(defenderEarnings(absorbed, 1, 1, FRAIL_HP)).toEqual({
@@ -171,13 +122,6 @@ describe("what a blow teaches the body it was aimed at", () => {
     });
   });
 
-  /**
-   * The rule the whole grind turned on. A blow measured against a body it could
-   * genuinely hurt is worth the full payout; the same blow against a body six
-   * times the size is worth a fraction of it, and the payout keeps falling as
-   * the body keeps growing. Before this, Toughness had nothing to outgrow and a
-   * wolf paid a fully armoured player exactly what it paid a novice.
-   */
   it("pays less the less of you one blow could take off", () => {
     const felt = defenderEarnings(landed, 1, 1, FRAIL_HP);
     const shrugged = defenderEarnings(landed, 1, 1, FRAIL_HP * 4);
@@ -185,22 +129,12 @@ describe("what a blow teaches the body it was aimed at", () => {
     expect(shrugged.toughness).toBeGreaterThan(0);
   });
 
-  /**
-   * A dodge you never needed to make is worth as little as a blow you cannot
-   * feel. Exempting Agility would leave the same exploit standing one mastery
-   * over — stand in front of something harmless and watch evasion climb.
-   */
   it("applies the same falloff to a dodge", () => {
     const felt = defenderEarnings(dodged, 1, 1, FRAIL_HP);
     const shrugged = defenderEarnings(dodged, 1, 1, FRAIL_HP * 4);
     expect(shrugged.agility).toBeLessThan(felt.agility!);
   });
 
-  /**
-   * **Never a bonus.** Below the threshold the ratio exceeds one, and paying
-   * extra for being small would make the frailest body in the world the fastest
-   * trainer.
-   */
   it("never pays more than the plain rate, however frail the body", () => {
     expect(threatRate(10, 1)).toBe(1);
     expect(threatRate(10, FRAIL_HP)).toBe(1);
@@ -208,18 +142,6 @@ describe("what a blow teaches the body it was aimed at", () => {
   });
 });
 
-/**
- * **Armour is worn to survive, and it must not be a tax on learning to.** Both
- * inputs to the defensive payout are deliberately blind to it: `potentialDamage`
- * is rolled before `damageAfterDefence` subtracts anything, and `maxHp` comes
- * off Toughness alone — `effectiveBattler` overrides `def` and `resist` and
- * nothing else.
- *
- * Asserted through the real resolver against the shipped armour rather than by
- * reading the formula, because the formula is not where this would break: it
- * would break the day somebody folded worn defence into `maxHp`, or paid on
- * `damage` because it read more naturally.
- */
 describe("what the defender is wearing", () => {
   const tilesById: Record<string, TileDef> = Object.fromEntries(
     (shippedTiles as unknown as TileDef[]).map((tile) => [tile.id, normalizeTileDef(tile)]),
@@ -273,23 +195,10 @@ describe("per-target diminishing returns", () => {
     expect(defensiveDecay(10)).toBeLessThan(defensiveDecay(1));
   });
 
-  /**
-   * A floor rather than zero: a fight that has genuinely gone long is still a
-   * fight, and a payout that reached exactly nothing would make a hard drawn-out
-   * win worth less than a short easy one.
-   */
   it("never falls to nothing however long the fight has gone", () => {
     expect(defensiveDecay(1000)).toBe(MIN_DEFENSIVE_DECAY);
   });
 });
-
-/**
- * The plumbing.
- *
- * A board, two bodies, and a fight allowed to run — the same path a session
- * takes, because the arithmetic above proves nothing about whether anything
- * calls it.
- */
 
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
@@ -299,26 +208,8 @@ function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">)
   });
 }
 
-/**
- * How tough both sides of a sparring fixture are.
- *
- * Named above the claws because the claws have to *clear* it: Toughness grants
- * defence now — see `../lib/battler`'s `defFrom` — and a fixture bred to stand
- * there trading blows for a whole test had quietly grown enough armour to make
- * every blow in the file worth nothing, which reads as experience never being
- * earned rather than as damage never landing.
- */
 const SPARRING_TOUGHNESS = 95;
 
-/**
- * The guard one of these bodies puts up, at both ends of the draw.
- *
- * Armour is a draw rather than a subtraction — see `./combat`'s
- * {@link MIN_GUARD_SHARE} — so a blow authored against the *whole* guard is
- * worth three points when the draw comes up highest and fifteen when it does
- * not, and a fixture built to be hit all day dies in nine seconds. Authored
- * against the low end instead: three at most, one at least, every blow.
- */
 const SPARRING_GUARD = guardBand(
   { def: defFrom(SPARRING_TOUGHNESS), resist: {} },
   { mastery: "fist" },
@@ -335,15 +226,6 @@ const claws = (fields: Record<string, unknown>) => ({
   ...fields,
 });
 
-/**
- * Both sides rated alike, so the reward curve pays about the plain rate and
- * these tests are about the plumbing rather than about the curve.
- *
- * Tough far past anything on the real ladder, because a fixture has one job a
- * creature does not: stand there trading blows for the whole length of a test. A
- * body that dies half way through stops having experience at all, and every
- * delta after that reads as a mastery going backwards.
- */
 const EVENLY_MATCHED = { fist: 20, toughness: SPARRING_TOUGHNESS, agility: 20 };
 
 const tiles: TileDef[] = [
@@ -358,8 +240,6 @@ const tiles: TileDef[] = [
       battler: { baseHp: 8, masteries: EVENLY_MATCHED, naturalWeapon: claws({}) },
     },
   }),
-  // Rated with the player and durable enough to be hit all day. No brain: what
-  // is being measured is what a fight pays, not who decides to have one.
   tile({
     id: "sparring-partner",
     height: 2,
@@ -369,8 +249,6 @@ const tiles: TileDef[] = [
       battler: { baseHp: 8, masteries: EVENLY_MATCHED, naturalWeapon: claws({}) },
     },
   }),
-  // Swings constantly and cannot connect: its weapon finds nothing, so almost
-  // every blow is a miss rather than a dodge.
   tile({
     id: "flailer",
     height: 2,
@@ -401,7 +279,6 @@ function withBody(map: MapFile, x: number, tileId: string): MapFile {
   return replaceStack(map, x, 0, 0, [{ tileId: "grass" }, { tileId }]);
 }
 
-/** An actor's ⭐ as the snapshot carries it — the number shown beside its name. */
 function ratingOf(session: GameSession, id: string): number | null {
   return session.actorSnapshots().find((a) => a.id === id)?.rating ?? null;
 }
@@ -412,7 +289,6 @@ function advance(session: GameSession, ms: number) {
   }
 }
 
-/** The player, and something standing next to them, already fighting. */
 function sparring(opponent = "sparring-partner", seed = 1) {
   const session = new GameSession(withBody(field(), 1, opponent), tiles, {
     actorIds: ["me"],
@@ -424,11 +300,6 @@ function sparring(opponent = "sparring-partner", seed = 1) {
   return { session, foe };
 }
 
-/**
- * The same board with the swinging the other way round, for the two rows of the
- * table a defender is paid on. Neither fixture has a brain, so who is attacking
- * whom is set here and stays set.
- */
 function beingHit(opponent = "sparring-partner") {
   const { session, foe } = sparring(opponent);
   session.setAttackMode(false, "me");
@@ -440,19 +311,10 @@ function beingHit(opponent = "sparring-partner") {
 const learnt = (xp: MasteryXp | null, mastery: Mastery) => xp?.[mastery] ?? 0;
 
 describe("a player earns from the fights they have", () => {
-  /**
-   * The seeding, which is the one place the authored block and the earned one
-   * meet. A point lost here is a player who starts below what the tile says, and
-   * it would never be noticed — it looks exactly like the tile having been
-   * authored that way.
-   */
   it("starts out knowing exactly what the tile says they know", () => {
     const { session } = sparring();
     session.setAttackMode(false, "me");
 
-    // Nothing has asked yet, so nothing has been seeded: the numbers appear the
-    // first time somebody needs a body to fight with, and asking for a ⭐ is
-    // asking for one.
     expect(session.masteryXpOf("me")).toBeNull();
     ratingOf(session, "me");
 
@@ -474,25 +336,15 @@ describe("a player earns from the fights they have", () => {
   it("climbs toughness by being hit, without ever swinging", () => {
     const { session } = beingHit();
     advance(session, TICK_MS);
-    // Copied, because what the session hands back is the live block — a
-    // reference held across the fight would read as nothing having happened.
     const before = { ...session.masteryXpOf("me") };
     const swung = learnt(before, "fist");
 
     advance(session, 4000);
     const after = session.masteryXpOf("me")!;
     expect(learnt(after, "toughness")).toBeGreaterThan(learnt(before, "toughness"));
-    // Toughness is what being hit teaches, and it is the only thing it teaches:
-    // a body that earned Fist for standing there would be paid for the fight it
-    // did not have.
     expect(learnt(after, "fist")).toBe(swung);
   });
 
-  /**
-   * A creature never improves, which is the other half of "masteries are earned
-   * by players and fixed on creatures". Nothing writes to a rat, so there is no
-   * runtime number for a long fight to move.
-   */
   it("teaches the creature on the other side nothing at all", () => {
     const { session, foe } = sparring();
     advance(session, 6000);
@@ -500,16 +352,10 @@ describe("a player earns from the fights they have", () => {
     expect(session.masteryXpOf(foe)).toBeNull();
   });
 
-  /**
-   * What experience is *for*. A mastery that climbed and changed nothing about
-   * the next blow would be a number in a save file.
-   */
   it("shows up in the body the next blow is fought with", () => {
     const { session } = sparring();
     const before = ratingOf(session, "me")!;
 
-    // Enough to buy several points outright, handed over rather than ground out
-    // — the grind is the previous test's business.
     session.spawn("veteran", {
       at: { x: -1, y: 0, z: 0 },
       earned: { fist: xpForLevel(60), toughness: xpForLevel(60) },
@@ -519,10 +365,6 @@ describe("a player earns from the fights they have", () => {
 });
 
 describe("what a fight is worth is paced", () => {
-  /**
-   * The decay, end to end. The tenth blow from the same rat has to be worth less
-   * than the first, or standing still is a strategy.
-   */
   it("pays less for each further blow from the same attacker", () => {
     const { session } = beingHit();
 
@@ -538,10 +380,6 @@ describe("what a fight is worth is paced", () => {
     expect(later - late).toBeLessThan(late - early);
   });
 
-  /**
-   * And recovers, so that coming back tomorrow is a fresh fight. Long enough
-   * never to fire mid-fight, short enough that a real break is a real reset.
-   */
   it("forgives payouts once the attacker has left off", () => {
     const { session, foe } = beingHit();
 
@@ -565,7 +403,6 @@ describe("what a fight is worth is paced", () => {
     expect(afterRest).toBeGreaterThan(withoutRest);
   });
 
-  /** A miss is the attacker's failure and pays nobody, on a real board. */
   it("teaches a body nothing from being swung at and missed", () => {
     const { session } = beingHit("flailer");
 
@@ -573,22 +410,11 @@ describe("what a fight is worth is paced", () => {
     const before = learnt(session.masteryXpOf("me"), "agility");
     advance(session, 3000);
 
-    // Five percent of swings land whatever the weapon is — nothing in a fight is
-    // certain — so this is "almost nothing", not "nothing".
     const earned = learnt(session.masteryXpOf("me"), "agility") - before;
     expect(earned).toBeLessThan(1);
   });
 });
 
-/**
- * What reaches the panel.
- *
- * The arithmetic above and the plumbing before it are both invisible without
- * this: a mastery that climbs and never leaves the session is a number in a save
- * file. What is asserted here is the two contracts the drawing side depends on —
- * that the block is on the snapshot at all, and that its *identity* changes when
- * it moves.
- */
 describe("what the viewer is shown", () => {
   it("puts the viewer's own experience on their snapshot", () => {
     const { session } = sparring();
@@ -598,12 +424,6 @@ describe("what the viewer is shown", () => {
     expect(learnt(snapshot.masteryXp, "fist")).toBeGreaterThan(0);
   });
 
-  /**
-   * **Identity is the change signal**, on exactly the terms the kit's is: the
-   * renderer hands the block to React only when the reference differs, so a
-   * block edited in place would be the same object on every frame and a progress
-   * bar that never advanced.
-   */
   it("hands over a different block once anything has been learnt", () => {
     const { session } = sparring();
     advance(session, TICK_MS);
@@ -623,18 +443,12 @@ describe("what the viewer is shown", () => {
     expect(session.getSnapshot("me").masteryXp).toBe(before);
   });
 
-  /**
-   * ⭐ rides on the body everybody can see, unlike the masteries under it —
-   * sizing a creature up before swinging at it is the whole point of the number,
-   * and one you could only learn by losing would be no use.
-   */
   it("shows every body's ⭐ beside its hit points", () => {
     const { session, foe } = sparring();
     advance(session, TICK_MS);
 
     for (const actor of session.getSnapshot("me").actors) {
       expect(actor.rating).toBeGreaterThan(0);
-      // Null exactly when hp is, so anything drawing one can key off the other.
       expect(actor.rating === null).toBe(actor.hp === null);
     }
     expect(ratingOf(session, foe)).toBeGreaterThan(0);

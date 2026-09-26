@@ -3,14 +3,12 @@ import { type CellOcclusion, rayTransmission, stackOcclusion } from "./lighting"
 import type { ChunkCells, LevelChunks, MapFile, TileDef } from "./types";
 import { CHUNK_SIZE, HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, coordKey, levelKey } from "./types";
 
-/** Euclidean cell radius around the view anchor for roof-hide checks. */
 export const VIEW_RADIUS = 2.5;
 
 const TRANSMISSION_EPSILON = 1e-3;
 
 export type ViewAnchor = { x: number; y: number; z: number };
 
-/** Minimal actor shape — satisfied by ActorSnapshot. */
 export type ViewAnchorActor = {
   x: number;
   y: number;
@@ -23,7 +21,6 @@ function cellKey(x: number, y: number, z: number): string {
   return `${z}:${coordKey(x, y)}`;
 }
 
-/** Map level for feet at absolute elevation — matches game/gravity cellForFeetAbs. */
 function levelForFeetAbs(feetAbs: number): number {
   let z = Math.floor(feetAbs / HEIGHT_PER_LEVEL);
   if (z < MIN_LEVEL) z = MIN_LEVEL;
@@ -31,16 +28,6 @@ function levelForFeetAbs(feetAbs: number): number {
   return z;
 }
 
-/**
- * Where level-visibility is evaluated from: walk destination while walking,
- * landing level while falling, otherwise the committed cell.
- *
- * Takes one actor rather than the whole snapshot, and deliberately stays
- * single-anchor with many actors on the board: the roof-cut is an affordance
- * for whoever is looking, so it follows the viewer's own actor. Two players on
- * different floors cannot both get a correct cut — visibility is one boolean
- * per level group for the whole scene.
- */
 export function viewAnchorFor(actor: ViewAnchorActor): ViewAnchor {
   if (actor.walk) {
     return { x: actor.walk.to.x, y: actor.walk.to.y, z: actor.walk.to.z };
@@ -55,19 +42,6 @@ export function viewAnchorFor(actor: ViewAnchorActor): ViewAnchor {
   return { x: actor.x, y: actor.y, z: actor.z };
 }
 
-/**
- * Same occlusion model as lighting: light-passing tiles are ignored, height
- * maps to opacity, full walls seal the ray.
- */
-/**
- * Occluders the roof-cut probe can consult: the anchor's own level, within
- * `span` cells of it.
- *
- * That is the whole reachable set — {@link hideRayClear} rays on a single level
- * between two points inside the radius, so the walk cannot leave the box. This
- * runs every frame, and sweeping the world to look at a handful of cells around
- * the player put the map's size into the frame budget.
- */
 function buildOcclusion(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -90,7 +64,6 @@ function buildOcclusion(
   return occlusion;
 }
 
-/** Levels above `viewZ` at (x, y) that hold anything, nearest first. */
 function contentAbove(map: MapFile, x: number, y: number, viewZ: number, into: number[]): number[] {
   into.length = 0;
   for (let z = viewZ + 1; z <= MAX_LEVEL; z++) {
@@ -99,11 +72,6 @@ function contentAbove(map: MapFile, x: number, y: number, viewZ: number, into: n
   return into;
 }
 
-/**
- * Same-floor LOS for roof-hide, matching light: intermediate cells attenuate
- * by opacity, and a fully opaque destination (solid wall) blocks looking into
- * that cell. Light-passing tiles (windows) stay see-through.
- */
 function hideRayClear(
   x0: number,
   y0: number,
@@ -117,8 +85,6 @@ function hideRayClear(
   const transmission = rayTransmission(x0, y0, z, x1, y1, z, occlusion);
   if (transmission < TRANSMISSION_EPSILON) return false;
 
-  // rayTransmission skips the destination; a solid wall on the probe cell
-  // still means you cannot look through it into content above.
   const dest = occlusion.get(cellKey(x1, y1, z));
   if (dest && dest.opacity >= 1 - TRANSMISSION_EPSILON) return false;
 
@@ -126,78 +92,29 @@ function hideRayClear(
 }
 
 /**
- * Most cells one roof-cut may hide before it stops being a *structure*.
- *
- * The fill exists to separate one building from the next, and a building is
- * tens of cells. A fill that runs past this is not walking a roof — it is
- * walking terrain: the level above a cliff you are standing under is a whole
- * hillside, connected to itself for hundreds of cells, and there is no smaller
- * thing there to cut.
- *
- * Past the budget the cut degrades to the whole storey (`cells: null`) rather
- * than to whatever the fill had reached, and that is the important half. A
- * truncated fill would hide *part* of the hillside — a hard edge across
- * continuous ground, moving as you walk. Hiding all of it is what this did
- * before per-structure cuts existed, so the worst case is the old behaviour and
- * not a new artefact.
- *
- * **The number is measured, and it is a budget rather than a limit.** Sampling
- * 2,947 anchors across every level of `data/map.json`: the largest structure
- * cut anywhere on the shipped map is 392 cells, p95 is 280, and *every* anchor
- * underground refuses. So the cap is never what decides a real building's cut —
- * it only decides how much work is spent discovering that a cave ceiling is not
- * a building, and underground that is every anchor, every time the cut is
- * re-derived.
- *
- * It was 4096, ten times the largest structure the world contains, and it cost
- * 16-24ms per cut in the caves — the most expensive single thing on a frame
- * down there. At 1024 there is still 2.6x headroom over anything authored, and
- * the same sample comes back with every cut identical. If a building ever
- * genuinely wants more, the symptom is its roof cutting as a whole storey
- * rather than as itself: visible, specific, and a good reason to raise this.
+ * Measured, not guessed: sampling every anchor across `data/map.json`, the
+ * largest structure the shipped map cuts is 392 cells and every underground
+ * anchor refuses. Past the cap the cut degrades to the whole storey rather
+ * than a truncated fill, so raising or lowering this only changes how much
+ * work is spent discovering that a cave ceiling is not a building.
  */
 export const MAX_CUT_CELLS = 1024;
 
-/**
- * The geometry the view has cut away, and the level it was cut for.
- *
- * `cells` is per level so the renderer can ask a level for its own cut without
- * walking the rest, and `null` means *every* level above `floor` — the
- * whole-storey cut, kept for the case the fill refuses (see
- * {@link MAX_CUT_CELLS}).
- */
 export type RoofCut = {
-  /** The viewer's own level. Nothing at or below it is ever cut. */
   readonly floor: number;
-  /** Cut cells by level, each keyed by {@link coordKey}; null cuts everything. */
   readonly cells: ReadonlyMap<number, ReadonlySet<string>> | null;
 };
 
-/** Is this cell one the view has cut away? The only question a cut answers. */
 export function cutHides(cut: RoofCut | undefined, x: number, y: number, z: number): boolean {
   if (!cut || z <= cut.floor) return false;
   if (cut.cells === null) return true;
   return cut.cells.get(z)?.has(coordKey(x, y)) === true;
 }
 
-/** Levels this cut takes away in their entirety, so a caller can skip drawing them. */
 export function cutHidesWholeLevel(cut: RoofCut | undefined, z: number): boolean {
   return cut !== undefined && cut.cells === null && z > cut.floor;
 }
 
-/**
- * Cells above the view that the viewer has same-floor line of sight to.
- *
- * The seeds of the cut, and the whole of what used to be
- * `levelsAboveShouldHide`: this is the same probe, reporting *what* it found
- * instead of merely that it found something.
- *
- * Every content cell in a reachable column is a seed, not just the lowest.
- * What stands between you and the sky in a doorway may be a roof at one level
- * and a walkway three levels up with a gap between them, and both are drawn
- * over the room you are trying to look into. Taking only the nearest would
- * leave the walkway in place across the cut.
- */
 function cutSeeds(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -216,9 +133,6 @@ function cutSeeds(
 
       const x = view.x + dx;
       const y = view.y + dy;
-      // Before the ray, because it is a column of cell lookups and the ray is a
-      // walk — the overwhelming majority of cells in the radius have open sky
-      // and never need one.
       if (contentAbove(map, x, y, view.z, levels).length === 0) continue;
       if (!hideRayClear(view.x, view.y, view.z, x, y, occlusion)) continue;
 
@@ -229,21 +143,12 @@ function cutSeeds(
 }
 
 /**
- * Every cell reachable from `seeds` through touching geometry above `floor`.
- *
- * **26-way, and deliberately the most generous adjacency there is.** The two
- * ways to be wrong are not symmetric. Merging two structures that only touch
- * at a corner costs one extra roof lifting with yours — which is what happened
- * on every roof in town until now, so nobody will notice one. *Splitting* a
- * structure costs half a roof drawn and half cut, a hard diagonal edge through
- * a building, and it is the artefact a 4-way fill produces the first time
- * somebody authors a roof that steps diagonally. Include the level above and
- * below in the same neighbourhood, or a two-storey house whose upper floor sits
- * one cell in from its roof cuts as two things.
- *
- * The fill is bounded by the structure, never by the map: it starts at cells the
- * probe already found and only ever steps onto occupied ones, so a lone shed
- * costs a shed's worth of lookups whatever the world is doing elsewhere.
+ * 26-way adjacency, deliberately the most generous there is: merging two
+ * structures that only touch at a corner costs one extra roof lifting with
+ * yours, while splitting a structure costs a hard diagonal edge through a
+ * building. Including the level above and below keeps a two-storey house
+ * whose upper floor sits one cell in from its roof from cutting as two
+ * things.
  */
 function fillStructure(
   map: MapFile,
@@ -269,15 +174,13 @@ function fillStructure(
 
   for (const seed of seeds) claim(seed.x, seed.y, seed.z);
 
-  // **The occupancy test is the whole cost of this function**, so it does not
-  // go through `getStack`. That builds three keys per probe — the level, the
-  // chunk and the cell — and this asks about twenty-six neighbours per cell,
-  // for up to {@link MAX_CUT_CELLS} of them: underground, where the structure
-  // over your head is the entire rock mass and the fill always runs to the cap,
-  // that measured 10.7ms of every frame. Neighbours are adjacent by
-  // construction, so nearly all of them share a chunk with the one before —
-  // holding the last level and chunk record makes the common probe a single
-  // object lookup.
+  /**
+   * This occupancy test is the whole cost of the fill, so it does not go
+   * through `getStack`, which builds three keys per probe. Neighbours are
+   * adjacent by construction, so nearly all of them share a chunk with the
+   * one before, and holding the last level and chunk record makes the common
+   * case a single object lookup instead.
+   */
   let lastZ = Number.NaN;
   let lastLevel: LevelChunks | undefined;
   let lastChunkKey = "";
@@ -299,8 +202,6 @@ function fillStructure(
     return stack !== undefined && stack.length > 0;
   };
 
-  // Index rather than shift: a shift off the front of a several-hundred entry
-  // array is a copy of the rest of it, once per cell.
   for (let head = 0; head < queue.length; head++) {
     if (size > MAX_CUT_CELLS) return null;
     const cell = queue[head]!;
@@ -323,31 +224,6 @@ function fillStructure(
   return byLevel;
 }
 
-/**
- * What the view cuts away from where the player is standing, or undefined when
- * it cuts nothing.
- *
- * **The cut is the structure you can see into, not the storey it is on.** Seeing
- * inside one house used to lift the roof off every house on the street, because
- * the answer was a single level threshold for the whole scene. What a player
- * reads into that is a claim about the town — every building is open — when the
- * only thing that happened is that they opened a door.
- *
- * So the probe's answer is turned into geometry: the cells it can see above the
- * viewer seed a flood fill through whatever touches them, and that component is
- * the cut. The house you are in lifts its roof; the one across the road keeps
- * its own.
- *
- * **Recomputed from the map rather than indexed off it, and that is on
- * purpose.** A structure index built when the world loads would have to be
- * invalidated by every wall a player places, every roof authored in the editor
- * and every tile decay — and would still be answering a question that changes
- * whenever the viewer takes a step, since which component counts depends on
- * where they are standing. The fill is proportional to one building, so
- * recomputing it when the map or the anchor changes is cheaper than maintaining
- * the index would be, and it cannot go stale. Callers should cache on those two
- * identities (see `GameRenderer.roofCutFor`), not on a clock.
- */
 export function roofCutFor(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -359,25 +235,6 @@ export function roofCutFor(
   return { floor: view.z, cells: fillStructure(map, view.z, seeds) };
 }
 
-/**
- * The chunk records the *probe* can read, as references to compare by identity.
- *
- * A cut is a local question — what stands between this body and the sky, within
- * {@link VIEW_RADIUS} — and this is the map it asks. Handing a caller these
- * lets it skip re-deriving a cut that cannot have changed, which matters
- * because the obvious cheaper test is wrong in the expensive direction: keying
- * on whole-map identity means a creature stepping anywhere in the world
- * re-runs the probe, and with a couple of hundred of them that is every frame.
- *
- * **What it deliberately does not cover is the fill.** `fillStructure` walks
- * the whole structure the seeds belong to, which can run far past the probe, so
- * a roof cell added at the other end of a building is not noticed here until
- * the body moves. That is invisible: cells that far away are not on screen. The
- * one case it could show is a structure sitting exactly on
- * {@link MAX_CUT_CELLS}, where one cell either way flips the cut between a set
- * and the whole storey — and a structure that large is already being cut
- * wholesale in practice.
- */
 export function cutProbeChunks(map: MapFile, view: ViewAnchor, radius = VIEW_RADIUS): unknown[] {
   const span = Math.ceil(radius);
   const out: unknown[] = [];
@@ -385,8 +242,6 @@ export function cutProbeChunks(map: MapFile, view: ViewAnchor, radius = VIEW_RAD
   const cx1 = Math.floor((view.x + span) / CHUNK_SIZE);
   const cy0 = Math.floor((view.y - span) / CHUNK_SIZE);
   const cy1 = Math.floor((view.y + span) / CHUNK_SIZE);
-  // Every level, not only those above the body: the occlusion the probe walks
-  // is built from the body's own storey as well as the ones over it.
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (let cx = cx0; cx <= cx1; cx++) {
       for (let cy = cy0; cy <= cy1; cy++) {
@@ -397,7 +252,6 @@ export function cutProbeChunks(map: MapFile, view: ViewAnchor, radius = VIEW_RAD
   return out;
 }
 
-/** Do two probe reads name the same chunk records? */
 export function sameProbeChunks(a: readonly unknown[] | undefined, b: readonly unknown[]): boolean {
   if (a === undefined || a.length !== b.length) return false;
   for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;

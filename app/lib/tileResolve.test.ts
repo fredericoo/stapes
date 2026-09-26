@@ -88,8 +88,6 @@ describe("normalizeTileDef", () => {
   });
 
   it("fills in an emitter field the authored plume predates", () => {
-    // A plume written before there was a wind was written in still air, and the
-    // renderer reads a complete emitter rather than checking for holes in one.
     const { windX: _x, windY: _y, ...stillAir } = DEFAULT_PARTICLES;
     const def = normalizeTileDef({
       id: "chimney",
@@ -105,10 +103,6 @@ describe("normalizeTileDef", () => {
   });
 
   it("drops a malformed plume rather than refusing the tile", () => {
-    // Nothing parses a tile on the way in, so a hand-edited `tiles.json` is the
-    // way a `ratePerSecond` of "lots" reaches the emission loop. A world that
-    // would not load over a smoke plume is worse than a chimney that has
-    // stopped smoking.
     const def = normalizeTileDef({
       id: "chimney",
       name: "Chimney",
@@ -124,7 +118,6 @@ describe("normalizeTileDef", () => {
 });
 
 describe("a tile written before it had an anchor", () => {
-  /** The old encoding: a sheet on every sprite, rects from the sheet's corner. */
   const legacyFrame = (x: number, y: number, tilesetId = "chars") => ({
     sprite: {
       tilesetId,
@@ -160,8 +153,6 @@ describe("a tile written before it had an anchor", () => {
     expect(at(def.sprites!.n!.frames[0]!.sprite)).toMatchObject({ x: 10, y: 6 });
     expect(at(def.sprites!.n!.frames[1]!.sprite)).toMatchObject({ x: 12, y: 6 });
     expect(at(def.sprites!.e!.frames[0]!.sprite)).toMatchObject({ x: 10, y: 8 });
-    // States are walked too, which is where a migration led by `type` would have
-    // left half the tile absolute and half of it relative.
     expect(at(def.states!.moving!.sprites!.n!.frames[0]!.sprite)).toMatchObject({ x: 14, y: 6 });
   });
 
