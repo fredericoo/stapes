@@ -252,6 +252,7 @@ async function run(options: Options) {
   const server = new GameServer(context, {
     dataStore: new DataStore(new DiskBlobs(directory)),
     nameOf: async (actorId) => `Crowd${actorId.slice(0, 8)}`,
+    maxOnlinePlayers: options.players,
   });
 
   const checkpoint = setInterval(() => {
