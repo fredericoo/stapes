@@ -2038,6 +2038,14 @@ and portals in that cell's stack, asking `canTeleportFrom` and `teleportFits`,
 the same questions the game asks before it moves a body. A ladder whose top is
 covered by something is still refused, as it is in the game.
 
+A dirt cell only has to be reached if a body could stand in it: a walkable
+surface on that level with room for `player` above it. The check used to
+excuse only cells holding a `walkable: false` tile, so the `stone-wall` ring
+of the forge room on level -3 and every barrel, crate and bottle in a cellar
+counted as cells nobody could walk to. A wall fills its cell up to the level
+above, and a barrel, crate or bottle under a floor leaves no room on top of it
+for a three-unit body, so nobody can stand in any of those cells.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take

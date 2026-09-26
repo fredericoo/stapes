@@ -854,7 +854,6 @@ function checkWritten(carved?: Carved): string[] {
     : null;
 
   const denCells = new Set<string>();
-  const props = new Set<string>();
   const bodies: Array<{ x: number; y: number; z: number; def: TileDef }> = [];
   for (const z of SYSTEM.levels) {
     for (const { x, y, stack } of listCoords(live, z)) {
@@ -866,7 +865,6 @@ function checkWritten(carved?: Carved): string[] {
         const def = tilesById[placed.tileId];
         if (!def) continue;
         if (def.kind === "battler") bodies.push({ x, y, z, def });
-        else if (def.walkable === false) props.add(`${x},${y},${z}`);
       }
     }
   }
@@ -1015,10 +1013,24 @@ function checkWritten(carved?: Carved): string[] {
     });
   }
 
+  /**
+   * Only a cell a body can stand in has to be reachable. A wall, or a barrel
+   * or crate under a floor, is a dirt cell nobody stands in, not one nobody
+   * can reach.
+   */
+  const standable = (x: number, y: number, z: number) =>
+    listStandingSurfaces(live, x, y, tilesById).some(
+      (s) =>
+        s.z === z &&
+        fitsHeightAtElevation(live, x, y, s.abs, playerDef.height, tilesById, {
+          throughPlayers: true,
+        }).ok,
+    );
   let stranded = 0;
   for (const cell of denCells) {
-    if (seen.has(cell) || props.has(cell)) continue;
-    stranded++;
+    if (seen.has(cell)) continue;
+    const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
+    if (standable(x, y, z)) stranded++;
   }
   if (stranded > 0) problems.push(`${stranded} carved cells cannot be walked to`);
 
