@@ -14,6 +14,11 @@ Two inline disables:
 - `server/authDialect.ts` `streamQuery` is a generator that only throws, so `require-yield` is disabled on it.
 - `app/lib/clock.ts` writes the first keyframe as `0 * 60` to match the keys below it, so `erasing-op` is disabled on that line.
 
+## `stapes/no-comments`
+
+- `lint/plugin.ts` is a local oxlint JS plugin. It is TypeScript, so `bun run lint` runs oxlint with `bun --bun`: CI installs no Node, and the runner's default Node may not strip types.
+- The rule allows `oxlint-disable`/`oxlint-enable` directives, a bare `@ts-expect-error`, `/// <reference>` and shebangs.
+
 ## `.oxfmtrc.json`
 
 - **`**/*.md`** — oxfmt rewrites `*emphasis*` as `_emphasis_` and pads tables. Markdown is not formatted; `README.md` and `AGENTS.md` are therefore not checked either.

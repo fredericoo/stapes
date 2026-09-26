@@ -1,5 +1,5 @@
 {
-  "include": ["scripts/**/*", "e2e/**/*", "*.config.ts"],
+  "include": ["scripts/**/*", "e2e/**/*", "lint/**/*", "*.config.ts"],
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "types": ["node", "bun"],

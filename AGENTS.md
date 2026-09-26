@@ -51,7 +51,9 @@ an oblique cabinet projection with Three.js.
 
 Source files carry no comments. Lint and type directives
 (`// oxlint-disable-next-line`, `// @ts-expect-error`, `/// <reference>`) are
-the exception, without a reason appended.
+the exception, without a reason appended. `stapes/no-comments` in
+`lint/plugin.ts` enforces this; it cannot see comments inside GLSL template
+strings, so keep those out by hand.
 
 When something must be written down, it goes in `docs/<subject>.md`, and only
 if the code as it stands would lead a reader to break it: an ordering

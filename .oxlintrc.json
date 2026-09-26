@@ -1,10 +1,12 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc"],
+  "jsPlugins": ["./lint/plugin.ts"],
   "categories": {
     "correctness": "error"
   },
   "rules": {
+    "stapes/no-comments": "error",
     "unicorn/no-thenable": "off",
     "unicorn/no-useless-spread": "off",
     "typescript/no-this-alias": "off",
