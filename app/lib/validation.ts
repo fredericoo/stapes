@@ -87,7 +87,6 @@ export function fitsTile(
   const stack = getStack(map, x, y, z);
   const e = stackHeight(stack, tilesById);
   const h = physicalHeight(tileDef);
-  const total = e + h;
 
   if (h === 0) {
     return { ok: true };
@@ -101,25 +100,37 @@ export function fitsTile(
       y,
       z,
       z * HEIGHT_PER_LEVEL + e,
-      z * HEIGHT_PER_LEVEL + total,
+      z * HEIGHT_PER_LEVEL + e + h,
       tilesById,
     )
   ) {
     return { ok: false, reason: "Somebody is standing there" };
   }
 
-  if (e >= HEIGHT_PER_LEVEL) {
+  return fitsInColumn(map, x, y, z, e, h);
+}
+
+function fitsInColumn(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  beneath: number,
+  height: number,
+): PlaceResult {
+  if (beneath >= HEIGHT_PER_LEVEL) {
     return {
       ok: false,
       reason: "Stack already reaches the next level; place there instead",
     };
   }
 
-  if (total <= HEIGHT_PER_LEVEL) {
+  const top = beneath + height;
+  if (top <= HEIGHT_PER_LEVEL) {
     return { ok: true };
   }
 
-  if (total <= HEIGHT_PER_LEVEL * 2) {
+  if (top <= HEIGHT_PER_LEVEL * 2) {
     if (z >= MAX_LEVEL) {
       return { ok: false, reason: "Cannot overflow past the top level" };
     }
