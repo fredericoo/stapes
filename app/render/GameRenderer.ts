@@ -59,7 +59,7 @@ import type { EmitterOverride } from "../lib/lighting";
 import { DEFAULT_PLAY_MINUTES, clockAfter, wrapMinutes, type MinutesOfDay } from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
 import { DWELL_MS } from "../lib/useDwell";
-import { elevationAt, getStack, stackHeight } from "../lib/mapData";
+import { elevationAt, getStack, removeTileAt, stackHeight } from "../lib/mapData";
 import { conjuredName } from "../game/conjured";
 import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
@@ -214,6 +214,7 @@ export class GameRenderer {
   private craftingSent: string | null | undefined = undefined;
   private onInteractions: ((options: InteractionOption[]) => void) | null = null;
   private interactionsMap: MapFile | null = null;
+  private unseenFrom: { map: MapFile; at: string; drawn: MapFile } | null = null;
   private interactionsAt = "";
   private interactionsHealth = 0;
   private interactionsKey = "";
@@ -1007,6 +1008,27 @@ export class GameRenderer {
     return this.isWithinView(snap.map, actor, camera);
   }
 
+  /**
+   * A hidden body is still in the session's map, where the rules need it, so it is
+   * cut from a copy that only the world renderer sees. The copy is kept until the
+   * map or the body moves, because a new map every frame re-diffs every level.
+   */
+  private withoutHiddenBodies(snap: GameSnapshot): GameSnapshot {
+    const hidden = snap.actors.filter((actor) => actor.hidden);
+    if (hidden.length === 0) {
+      this.unseenFrom = null;
+      return snap;
+    }
+    const at = hidden.map((a) => `${a.x},${a.y},${a.z},${a.stackIndex}`).join("|");
+    const kept = this.unseenFrom;
+    const map =
+      kept && kept.map === snap.map && kept.at === at
+        ? kept.drawn
+        : hidden.reduce((drawn, a) => removeTileAt(drawn, a.x, a.y, a.z, a.stackIndex), snap.map);
+    this.unseenFrom = { map: snap.map, at, drawn: map };
+    return { ...snap, map, actors: snap.actors.filter((actor) => !actor.hidden) };
+  }
+
   private isInDarkness(snap: GameSnapshot, actor: ActorSnapshot): boolean {
     return actor.id !== snap.self.id && this.world.isCellPitchBlack(actor.x, actor.y, actor.z);
   }
@@ -1214,7 +1236,7 @@ export class GameRenderer {
     cut: RoofCut | undefined,
   ) {
     for (const actor of snap.actors) {
-      if (actor.hp === null || actor.maxHp === null) continue;
+      if (actor.hidden || actor.hp === null || actor.maxHp === null) continue;
       if (!this.isVisibleBody(snap, actor, camera, cut)) continue;
       if (this.isInDarkness(snap, actor)) continue;
 
@@ -1418,12 +1440,13 @@ export class GameRenderer {
     this.pushInteractionOptions(snap, camera, cut);
     this.repickPointer(snap, camera);
 
-    const motions = this.tileMotionsFor(snap);
-    const vfx = this.statusVfxFor(snap, dtMs);
+    const seen = this.withoutHiddenBodies(snap);
+    const motions = this.tileMotionsFor(seen);
+    const vfx = this.statusVfxFor(seen, dtMs);
     const transitions = this.session.takeTransitions();
 
     this.world.setView({
-      map: snap.map,
+      map: seen.map,
       tilesById: this.tilesById,
       camera: drawn,
       zoom,
@@ -1433,10 +1456,10 @@ export class GameRenderer {
         snap.projectiles.length > 0
           ? projectileViews(snap.projectiles, this.tilesById, this.aimAt(snap))
           : undefined,
-      spriteStates: spriteStatesFor(snap.actors),
-      emitterOverrides: this.withFlightLights(snap, this.emitterOverridesFor(snap)),
+      spriteStates: spriteStatesFor(seen.actors),
+      emitterOverrides: this.withFlightLights(snap, this.emitterOverridesFor(seen)),
       spriteTints: vfx.tints,
-      wading: wadingFor(snap.map, snap.actors, this.tilesById),
+      wading: wadingFor(seen.map, seen.actors, this.tilesById),
       particleEmitters: this.withFlightEffects(snap, vfx.emitters),
       roofCut: cut,
       viewerZ: snap.self.z,
