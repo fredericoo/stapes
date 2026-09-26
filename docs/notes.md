@@ -2354,6 +2354,98 @@ showed it, because its next step waits for the next brain round and so arrives
 in a later patch. The fix reads `serverMap` and finds the body in the stack by
 its owner, which is the same question the server's `walkDurationOf` asks.
 
+## A blow used to wait for a decision as well
+
+A creature swung only when its brain's `attack` line called `tryAttack`, and a
+brain gets one turn a round. `runAutoAttacks` tries a swing every tick, but only
+for a body with `attacking` set, which is a player's attack mode and nothing a
+brain sets. So a creature's attack interval was rounded up to a whole number of
+rounds, the same rounding its walking had. Measured beside a player it could not
+kill, with its spells taken away so that every gap was between two blows:
+
+| creature | authored | swung every, before | swung every, now |
+| --- | --- | --- | --- |
+| rat | 667ms | 800ms | 700ms |
+| bat | 700ms | 800ms | 700ms |
+| cat | 933ms | 1000ms | 933ms |
+| wolf | 1367ms | 1400ms | 1400ms |
+| bog imp, claws | 1467ms | 1600ms | 1500ms |
+| snake | 1800ms | 2000ms | 1833ms |
+| cave troll, fists | 4733ms | 4800ms | 4733ms |
+| cyclops, fists | 5800ms | 6000ms | 5833ms |
+
+The weapons the troll, the cyclops and the imp can be born carrying behave the
+same way: each moved from the next whole round down to the authored figure or a
+tick over it, except the imp's iron mace, whose 3000ms is a whole number of
+rounds already. Where "now" is still a tick over the authored figure, the cause
+is the cooldown countdown, described at the end of this section.
+
+**A creature now holds an attack order.** The brain's `attack` goes through
+`orderAttack`, which writes the target into `ActorRuntime.attackOrder` and
+returns whatever `tryAttack` returned, so the line the brain runs next is chosen
+exactly as before. `pressAttackOrders` tries every held order once a tick, the
+way `runAutoAttacks` tries a player's standing target, so a blow lands on the
+tick its cooldown and windup allow instead of on the first turn after that.
+
+- **An order lives one round unless it is asked for again.** `tickOneBrain`
+  drops it at the top of every turn, before the incapacitation check and before
+  any transition or action runs, as it does a walk order. A turn that flees,
+  casts, walks away, holds or sleeps therefore stops the swinging on that turn.
+  The order is held whenever the `attack` line ran, including a turn where it
+  failed and the brain went on to the line below: failing while the cooldown
+  runs is what `attack` does between blows. In every brain we ship the lines
+  below it are `step_toward` and `hold`, and a `cast` or `attack_range` above it
+  that lands or is still running keeps `attack` from running at all.
+- **Orders are pressed at the end of `tickBrains`.** That is after this tick's
+  turns and before the players' auto-attacks, which is where a creature's blow
+  always landed within a tick. It is also the one place that knows whether
+  brains run at all: with nobody connected there are no turns and no order is
+  pressed, so creatures do not go on fighting each other in an empty world.
+- **A dozing creature's order is not pressed between its turns**, for the same
+  reason its walk order is not: pressing at the tick rate for creatures nobody
+  is near would put the size of the map back into what a tick costs. A dozing
+  creature swings on its turns, at the rounded pace it always had.
+- **A target that has left the world drops the order** the next time it is
+  pressed, the way `runAutoAttacks` drops a player's target. An attacker that
+  has left takes its order with it.
+- **The windup is unchanged.** Pressing is asking, so `sinceSeenMs` is reset
+  every tick for as long as the order is held: a chase out of reach pauses the
+  windup instead of letting it lapse, and `WINDUP_LAPSE_MS` forgets it two
+  rounds after the order is dropped.
+
+**What the brain is told did not change; how often it hears `success` did.**
+`attack` still reports whether a blow was struck on that call. Most blows now
+land between turns, so a turn usually finds the cooldown running and goes on to
+the next line, as every turn between two blows always did. No shipped attack
+state can become `stuck` this way, because each one ends in `hold`.
+
+**The world now swings exactly as often as the Arena's duel loop, and for some
+intervals both are a tick slower than `combatMetrics`.** `attackIntervalMs`
+returns a whole number of ticks, but counting it down by subtracting `TICK_MS`
+and clamping at zero leaves a positive residue of 1e-14 to 1e-12 for 791 of the
+1195 tick counts between `MIN_ATTACK_TICKS` and `SLOWEST_ATTACK_TICKS`, the
+rat's 20 among them, and the swing waits one more tick for it to clear.
+`GameSession.advanceCooldowns` and `Duel.advanceCooldown` count down the same
+way, so the world and the duel loop agree with each other and are both a tick
+behind the closed form, which reads the interval directly. It affects players
+as much as creatures and is not changed here. "bites at the pace the Arena
+measures, not the brain's" in `brain.test.ts` compares the world with the duel
+loop rather than with the interval, so it holds with the residue or without it,
+as long as both loops count down the same way.
+
+**It costs one `tryAttack` per held order per tick**, the same price a player in
+attack mode already pays. Timed on the scenarios `bun run bench:server` runs,
+`pressAttackOrders` takes 30µs a tick in town with one order held, 37µs in the
+deepest den, and 0.1–0.25ms in the spread scenario, where about nine creatures
+hold orders against six players standing in dens. The number of `routeStep`
+calls did not change, although a turn now falls through to `step_toward` more
+often. Run in one process with the two versions' ticks interleaved, tick p50 rose
+by 0.00–0.07ms in the one-player scenarios and by 0.07–0.35ms in spread. The two
+worlds diverge from the first blow timed differently, so the rest of the tail
+moved both ways: p95 fell 0.4ms in the deepest den and rose 0.5–1.2ms in spread.
+Players standing in the dens die more often: 87 deaths in a minute of the spread
+scenario before, 95 after.
+
 ## A creature that has left the board must not be given a turn
 
 `tickOneBrain` asked `defFor` before anything else, and `defFor` goes through
@@ -4155,13 +4247,14 @@ Two seams are worth knowing:
   move: tick p50 0.42–0.78ms against 0.43–0.86ms before it, p95 inside the
   run-to-run spread on every scenario, and the wire untouched.
 - **The windup is wound on the tick clock and dropped by `WINDUP_LAPSE_MS`.**
-  Reach is only asked about where somebody is trying to swing, and the two askers
-  run at very different rates: a player's standing target is tried every tick,
-  a creature's brain reaches its `attack` action once a round. Winding on the
-  tick is what makes the approach the same length for both. The lapse is the
-  other side of it — a windup nobody has confirmed for two rounds is forgotten,
-  so dropping your target and picking it up again is not a way to skip the wait.
-  Leaving reach *while still asking* pauses it; see below.
+  Reach is only asked about where somebody is trying to swing. A player's
+  standing target and a creature's attack order are both tried every tick, but a
+  dozing creature asks only on its turns, once a round at most (see "A blow used
+  to wait for a decision as well"). Winding on the tick is what makes the
+  approach the same length for all of them. The lapse is the other side of it —
+  a windup nobody has confirmed for two rounds is forgotten, so dropping your
+  target and picking it up again is not a way to skip the wait. Leaving reach
+  *while still asking* pauses it; see below.
 
 `duel.ts` seats both fighters on a first cooldown of `swingWindupMs` rather than
 ready. It has no reach to lose — the whole premise of that module is two bodies
@@ -4193,9 +4286,10 @@ Now `ActorRuntime.windup` is **time owed in reach**:
   fight where nobody leaves it runs out first and the rate is unchanged.
 - **Asking keeps it; reach does not have to.** `sinceSeenMs` is reset by any
   `tryAttack` against the same target, in reach or not. A creature chasing you
-  asks every round (its `attack` line runs before its `chase` line) and keeps
-  what it has; one that gives up stops asking, and `WINDUP_LAPSE_MS` forgets it
-  two rounds later.
+  holds an attack order, because its `attack` line runs before its `chase` line,
+  and the order is tried every tick, so it keeps what it has; one that gives up
+  drops the order on its next turn, and `WINDUP_LAPSE_MS` forgets the windup two
+  rounds after that.
 - **The fight row is hidden while paused.** `nextBlow` is nulled by
   `outOfReach` and re-issued on the way back in, starting from what the paused
   windup had left, so the bar comes back part full.
@@ -8416,9 +8510,10 @@ status on the list has `incapacitates`. The gates:
 - `GameSession.applyStepRequest` and `faceActor` refuse steps and turns, which
   covers held input, a client's `requestStep`, and a creature's walk order.
 - `tickOneBrain` returns before the brain is stepped and drops the standing walk
-  order. The brain's clocks stop, so it picks up where it left off.
-- `tryAttack` refuses and disengages, so auto-attack and a brain's `attack` both
-  stop. The target stays picked.
+  order and attack order. The brain's clocks stop, so it picks up where it left
+  off.
+- `tryAttack` refuses and disengages, so auto-attack, a brain's `attack` and an
+  attack order pressed between turns all stop. The target stays picked.
 - `castability` refuses with `incapacitated` (`CastContext.incapacitated`), so
   the spell buttons dim on the client from the same function.
 - `readyToAct` is `idle` plus not incapacitated, and every board act and kit act

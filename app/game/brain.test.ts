@@ -28,11 +28,13 @@ import { attackIntervalMs } from "./combat";
 import {
   BRAIN_ATTENTION_FLOOR_CELLS,
   BRAIN_DOZE_BUDGET,
+  BRAIN_ROUND_TICKS,
   BRAIN_TURNS_PER_TICK_MIN,
   BRAIN_TICK_MS,
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
+import { Duel } from "./duel";
 import { GameSession } from "./GameSession";
 import { Rng } from "./rng";
 import { FRAME, tile } from "../lib/testTile";
@@ -3403,6 +3405,42 @@ describe("the vermin we ship", () => {
     const snake = msToArrive("snake");
     expect(snake).toBeLessThan(msToArrive("rat") * 2);
     expect(snake).toBeLessThan(BRAIN_TICK_MS * 2 * 6);
+  });
+
+  const BLOWS_TIMED = 4;
+
+  function ticksBetweenBlows(tick: () => boolean): number[] {
+    const landed: number[] = [];
+    for (let n = 0; landed.length < BLOWS_TIMED && n < 10_000 / TICK_MS; n++) {
+      if (tick()) landed.push(n);
+    }
+    return landed.slice(1).map((at, i) => at - landed[i]!);
+  }
+
+  it("bites at the pace the Arena measures, not the brain's", () => {
+    const rat = resolveBattler(authored.find((tile) => tile.id === "rat")!)!;
+    const bite = fightingStats(rat, rat.naturalWeapon);
+    const duel = new Duel(
+      { swings: [bite] },
+      { swings: [{ ...bite, damage: 0, maxHp: Number.MAX_SAFE_INTEGER }] },
+      new Rng(YARD_SEED),
+    );
+    const arena = ticksBetweenBlows(() =>
+      duel.tick().some((event) => event.kind === "swing" && event.by === "a"),
+    );
+
+    const session = yard([["rat", 0, 0]], { x: 1, y: 0 });
+    const ratId = bodies(session, "rat")[0]!.id;
+    const world = ticksBetweenBlows(() => {
+      session.tick(TICK_MS);
+      return session.drainSwings().includes(ratId);
+    });
+
+    expect(
+      arena[0]! % BRAIN_ROUND_TICKS,
+      "the rat's interval has to fall between brain rounds for this to test anything",
+    ).not.toBe(0);
+    expect(world).toEqual(arena);
   });
 
   it("leaves a pocket instead of giving up in it", () => {
