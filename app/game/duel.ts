@@ -111,7 +111,7 @@ export class Duel {
     const events: DuelEvent[] = [];
     for (const side of SIDES) this.tickStatuses(side, events);
     for (const side of SIDES) this.advanceCooldown(side);
-    for (const side of SIDES) this.trySwing(side, events);
+    this.exchangeBlows(events);
     return events.length === 0 ? QUIET : events;
   }
 
@@ -163,15 +163,36 @@ export class Duel {
     }
   }
 
-  private trySwing(side: Side, events: DuelEvent[]) {
-    const attacker = this.fighter(side);
-    const defenderSide = opponentOf(side);
-    const defender = this.fighter(defenderSide);
-    if (attacker.hp <= 0 || defender.hp <= 0) return;
-    if (attacker.cooldownMs > 0) return;
+  /**
+   * Who swings, and the stats both sides swing with, are settled before any
+   * blow lands, so a killing blow never cancels one due on the same tick. The
+   * dice are still rolled `a` first, so a tick with one blow draws exactly what
+   * it always did.
+   */
+  private exchangeBlows(events: DuelEvent[]) {
+    const swinging = SIDES.filter((side) => this.dueToSwing(side));
+    if (swinging.length === 0) return;
 
-    const attackerStats = this.statsOf(side);
-    const defenderStats = this.statsOf(defenderSide);
+    const stats: Record<Side, FightingStats> = { a: this.statsOf("a"), b: this.statsOf("b") };
+    for (const side of swinging) this.swing(side, stats[side], stats[opponentOf(side)], events);
+    for (const side of SIDES) {
+      if (!this.alive(side)) events.push({ kind: "death", side });
+    }
+  }
+
+  private dueToSwing(side: Side): boolean {
+    if (!this.alive(side) || !this.alive(opponentOf(side))) return false;
+    return this.fighter(side).cooldownMs === 0;
+  }
+
+  private swing(
+    side: Side,
+    attackerStats: FightingStats,
+    defenderStats: FightingStats,
+    events: DuelEvent[],
+  ) {
+    const attacker = this.fighter(side);
+    const defender = this.fighter(opponentOf(side));
     attacker.nextSwing += 1;
     attacker.cooldownMs = swingIntervalMs(attackerStats);
 
@@ -184,10 +205,7 @@ export class Duel {
     defender.hp -= outcome.damage;
     events.push({ kind: "swing", by: side, outcome, hpLeft: defender.hp });
 
-    if (defender.hp === 0) {
-      events.push({ kind: "death", side: defenderSide });
-      return;
-    }
+    if (defender.hp === 0) return;
     for (const grant of outcome.inflicted) {
       const def = this.statusDefs[grant.id];
       if (!def) continue;
@@ -212,6 +230,10 @@ function freshFighter(setup: DuelSetup): DuelFighter {
   };
 }
 
+/**
+ * A null `winner` is either a draw, where both fell on the same tick, or a
+ * fight still going at `maxTicks`. With `ticks` below `maxTicks` it is a draw.
+ */
 export type DuelResult = {
   winner: Side | null;
   ticks: number;
@@ -231,13 +253,12 @@ export function runDuel(
 
   for (let tick = 1; tick <= maxTicks; tick++) {
     duel.tick();
+    if (!duel.finished) continue;
     const winner = duel.winner;
-    if (!winner) continue;
-    const survivor = duel.fighter(winner);
     return {
       winner,
       ticks: tick,
-      survivorHealth: survivor.hp / duel.statsOf(winner).maxHp,
+      survivorHealth: winner ? duel.fighter(winner).hp / duel.statsOf(winner).maxHp : 0,
     };
   }
 

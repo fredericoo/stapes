@@ -192,6 +192,7 @@ export default function ArenaPage() {
           floaters={snapshot.floaters}
           elapsedMs={snapshot.elapsedMs}
           winner={snapshot.winner}
+          finished={snapshot.finished}
         />
 
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">

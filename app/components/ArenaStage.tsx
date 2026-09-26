@@ -41,6 +41,7 @@ export function ArenaStage({
   floaters,
   elapsedMs,
   winner,
+  finished,
 }: {
   a: StageSide;
   b: StageSide;
@@ -48,7 +49,9 @@ export function ArenaStage({
   floaters: readonly Floater[];
   elapsedMs: number;
   winner: Side | null;
+  finished: boolean;
 }) {
+  const drawn = finished && winner === null;
   return (
     <div className="flex items-stretch justify-center gap-4 border-2 border-border bg-panel px-4 py-6">
       <Fighter
@@ -60,7 +63,9 @@ export function ArenaStage({
         won={winner === "a"}
       />
       <div className="flex min-w-12 flex-col items-center justify-center gap-1">
-        <span className="text-xs font-bold uppercase text-muted">vs</span>
+        <span className={`text-xs font-bold uppercase ${drawn ? "text-ink" : "text-muted"}`}>
+          {drawn ? "draw" : "vs"}
+        </span>
         <span className="tabular-nums text-xs text-muted">{(elapsedMs / 1000).toFixed(1)}s</span>
       </div>
       <Fighter

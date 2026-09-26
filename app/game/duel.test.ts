@@ -423,16 +423,25 @@ describe("the duel loop", () => {
     expect(opening(slow, quick)).toEqual(["b"]);
   });
 
-  it("takes the killing blow's target out before it can answer", () => {
-    const killer = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0 });
-    const victim = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0, flee: 0 });
-    for (let seed = 0; seed < 50; seed++) {
-      const duel = new Duel({ swings: [killer] }, { swings: [victim] }, new Rng(seed));
-      const events = duel.tick();
-      const answered = events.some((event) => event.kind === "swing" && event.by === "b");
-      if (duel.winner !== "a") continue;
-      expect(answered).toBe(false);
+  it("lands both blows due on one tick, so two fighters who kill each other draw", () => {
+    const lethal = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0, flee: 0 });
+    let mutual = 0;
+    for (let seed = 0; seed < 20; seed++) {
+      const duel = new Duel({ swings: [lethal] }, { swings: [lethal] }, new Rng(seed));
+      const swings = tickUntilSwing(duel).filter((event) => event.kind === "swing");
+      expect(swings.map((swing) => swing.by)).toEqual(["a", "b"]);
+      if (swings.some((swing) => swing.outcome.damage === 0)) continue;
+
+      mutual++;
+      expect(duel.finished).toBe(true);
+      expect(duel.winner).toBeNull();
+      expect(runDuel({ swings: [lethal] }, { swings: [lethal] }, new Rng(seed))).toEqual({
+        winner: null,
+        ticks: Math.round(duel.elapsedMs / TICK_MS),
+        survivorHealth: 0,
+      });
     }
+    expect(mutual).toBeGreaterThan(0);
   });
 
   it("leaves a venomous weapon inert when nothing is authored", () => {
@@ -504,7 +513,7 @@ describe("the duel loop", () => {
     expect(without.b.statuses).toEqual([]);
   });
 
-  it("calls a draw when neither side can get through", () => {
+  it("stops at maxTicks with no winner when neither side can get through", () => {
     const stone = dummy({ damage: 0, def: 99, maxHp: 50 });
     const result = runDuel({ swings: [stone] }, { swings: [stone] }, new Rng(1), {
       maxTicks: 500,

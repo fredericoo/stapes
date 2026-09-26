@@ -5904,6 +5904,28 @@ worth nothing if the fight it ran was an approximation of the one the world
 runs. Extracting it left every seeded assertion in that file green, which is the
 evidence the two were the same fight.
 
+**Blows due on the same tick land together.** `Duel.exchangeBlows` decides which
+sides swing, and works out both sides' stats, before either blow lands, then
+rolls `a`'s blow and `b`'s in that order. A killing blow does not cancel the
+other one, and when both kill, both fall: `winner` is null, `finished` is true,
+and `runDuel` returns at that tick. In `runDuel`'s result, a null `winner` with
+`ticks` below `maxTicks` means both fell; at `maxTicks` it means nobody
+finished. The Arena shows "draw" between the two fighters.
+
+Before this, `a` swung first and a kill ended the tick, so side `a` won every
+exchange that was lethal both ways. Over 5,000 seeds that gave side `a` 55–64%
+of its own mirror matches (rat 55%, player 58%, cat 61%, wolf 63%, bat 64%).
+Now the two sides are within two points of each other and 9–29% of mirror
+matches are draws. No seeded figure in `duel.test.ts` moved: none of those
+fights ends on a tick where both blows are lethal.
+
+The world does not resolve it this way. `GameSession` runs attacks one actor at
+a time and a melee blow lands inside `tryAttack`, so there whichever body acts
+first on a shared tick wins a lethal exchange and the other never swings. What
+decides that is where each body sits in `actors`, and whether it attacks from
+its brain's turn or from a standing target. None of it is a fact about either
+creature, so the duel does not copy it.
+
 **Statuses are off unless a catalogue is passed**, and that is a setting rather
 than an oversight. An inflicted status costs a draw, so handing `Duel` a
 catalogue moves the dice for everything after it — which is why `duel.test.ts`
