@@ -671,6 +671,7 @@ export class GameServer {
     protected readonly env: {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
+      maxOnlinePlayers?: number;
     },
   ) {}
 
@@ -1366,7 +1367,8 @@ export class GameServer {
   }
 
   private hasRoomFor(actorId: string): boolean {
-    return this.socketsByActor.has(actorId) || this.socketsByActor.size < MAX_ONLINE_PLAYERS;
+    const limit = this.env.maxOnlinePlayers ?? MAX_ONLINE_PLAYERS;
+    return this.socketsByActor.has(actorId) || this.socketsByActor.size < limit;
   }
 
   private displaceSockets(actorId: string) {

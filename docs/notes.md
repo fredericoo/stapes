@@ -822,6 +822,15 @@ constant so that it is changed in one place when the host changes.
   20–30 seconds, jittered, rather than on its ordinary backoff: every refused
   tab is asking a server already at its limit. `PROTOCOL_VERSION` went to 20
   for the new code, on the terms it went to 17 for 4004.
+- **`bench:crowd` raises it for its own server.** `GameServer` takes a
+  `maxOnlinePlayers` option in place of the constant, and the bench sets it to
+  the number of players it was asked for, because it measures crowds larger
+  than this host is trusted to carry. Seating them as administrators
+  would also get them past the limit, but it changes what is measured: every
+  administrator is sent a `players` frame whenever anybody joins or leaves
+  (about half a million frames while a thousand are seated), gets a player
+  count in each `hello`, and has its saved `hidden` flag read each time it
+  joins or is reborn.
 
 ## The simulation holds N actors
 
@@ -2597,10 +2606,18 @@ copy of `data/`, the checkpoint loop running, sockets that record rather than
 send — and walks them the way the stress bots do: runs of one to eight steps, a
 pause now and then, a turn when a step is refused, a rebirth three seconds after
 dying. It is one process with no network, so what it measures is the tick. It
-reports ticks a second, tick and gap percentiles, and the time each phase of the
-tick took; `--profile` writes a CPU profile of the measured window alone, and
-`--idle`, `--clustered` and `--deflate` change what the players do and what a
-send costs.
+raises its server's player limit to the number of players it is asked for, so a
+crowd larger than `MAX_ONLINE_PLAYERS` is seated whole (see *The world holds at
+most `MAX_ONLINE_PLAYERS`*). It reports ticks a second, tick and gap
+percentiles, and the time each phase of the tick took; `--profile` writes a CPU
+profile of the measured window alone, and `--idle`, `--clustered` and
+`--deflate` change what the players do and what a send costs.
+
+**A run that could not seat its whole crowd exits 1.** The report gives the
+players seated and the players the server refused, and divides the per-player
+figures by the players seated. A refusal means every figure is for a smaller
+crowd than was asked for, so the bench prints it after seating and again after
+the report, and exits 1.
 
 **Compare runs made with the same `BUN_OPTIONS`, alternated.** Some shells
 export `BUN_OPTIONS=--smol`, which makes Bun collect garbage far more often: the
