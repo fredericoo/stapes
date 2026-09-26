@@ -1526,9 +1526,10 @@ surface is not intersecting it.
 authoring.** `PX_PER_HEIGHT` is `CELL_SIZE / HEIGHT_PER_LEVEL`, so one unit is
 2px. Anything a three-high body stands on *under a roof* has to be a single
 unit — 2px of apparent lift. That is the whole indoor furniture vocabulary:
-`chair` and `stool` are 1, and `table`, `barrel` and the crates stayed at 2
-(half a level) and are deliberately still things you walk around indoors rather
-than onto. Outdoors, with nothing overhead, any height climbs as before.
+`chair` and `stool` are 1, `table` and the crates stayed at 2 (half a level),
+and `barrel` is 3. They are deliberately things you walk around indoors rather
+than onto, and two barrels stacked are six units, which overflows into the
+level above. Outdoors, with nothing overhead, any height climbs as before.
 
 **Nothing stored had to be migrated.** A map holds tile ids and stack order,
 never elevations — every height in the world is derived from `data/tiles.json`
