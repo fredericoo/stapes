@@ -634,6 +634,7 @@ type ActorRuntime = {
     allowDrops: boolean | undefined;
     arrive: "beside" | "on";
   } | null;
+  attackOrder: string | null;
   refuge: Coord | null;
   brainAttentive: boolean;
   conversation: Conversation | null;
@@ -882,6 +883,7 @@ export class GameSession implements PlaySession {
       brain: null,
       brainDeferredMs: 0,
       walkOrder: null,
+      attackOrder: null,
       refuge: null,
       brainAttentive: false,
       conversation: null,
@@ -1374,6 +1376,23 @@ export class GameSession implements PlaySession {
       this.brainRound = this.planBrainRound();
     }
     if (this.brainRound) this.takeBrainTurns(this.brainRound, this.brainRound.perTick);
+    /**
+     * Here rather than beside the players' swings in `runAutoAttacks`: with
+     * nobody connected no brain runs to drop an order, so none may be pressed.
+     */
+    this.pressAttackOrders();
+  }
+
+  private pressAttackOrders() {
+    for (const actor of this.actors.values()) {
+      const targetId = actor.attackOrder;
+      if (targetId === null || !actor.brainAttentive) continue;
+      if (!this.actors.has(targetId)) {
+        actor.attackOrder = null;
+        continue;
+      }
+      this.tryAttack(actor, targetId);
+    }
   }
 
   private planBrainRound(): BrainRound {
@@ -1633,6 +1652,7 @@ export class GameSession implements PlaySession {
   }
 
   private tickOneBrain(actor: ActorRuntime, round: BrainRound, tickMs: number) {
+    actor.attackOrder = null;
     const loc = this.tryLocate(actor);
     if (!loc) return;
     if (this.incapacitated(actor)) {
@@ -1677,7 +1697,7 @@ export class GameSession implements PlaySession {
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
       hurtBy: () => this.visibleAttackers(round.hurt.get(actor.id)),
-      attack: (id) => this.tryAttack(actor, id),
+      attack: (id) => this.orderAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
       consume: (tileId) => this.consumeForBrain(actor, tileId),
@@ -2030,6 +2050,11 @@ export class GameSession implements PlaySession {
     windup.inReach = false;
     windup.sinceSeenMs = 0;
     actor.nextBlow = null;
+  }
+
+  private orderAttack(attacker: ActorRuntime, targetId: string): boolean {
+    attacker.attackOrder = targetId;
+    return this.tryAttack(attacker, targetId);
   }
 
   private tryAttack(attacker: ActorRuntime, targetId: string): boolean {
