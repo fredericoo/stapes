@@ -24,6 +24,10 @@ export async function openWorldDatabaseExclusively(
   );
 }
 
+/**
+ * Matched on the driver's phrasing, not on the word "lock": the message embeds
+ * the database path, which may itself contain "lock".
+ */
 function isLockError(error: unknown): boolean {
   return /Locking error|locked by another process/i.test(String(error));
 }

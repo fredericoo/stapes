@@ -288,6 +288,9 @@ if (uFxEnabled > 0.5) {
     fxToCentre.y / dFdy(vWorldPx.y)
   );
   vec2 fxAtCentre = vFxPx + dFdx(vFxPx) * fxSteps.x + dFdy(vFxPx) * fxSteps.y;
+  // Nudged past the exact pixel edge: at scales like 1/2 a world pixel's
+  // centre lands exactly between two art pixels, and float error would leave
+  // neighbouring fragments disagreeing about which side they are on.
   fxPx = floor(fxAtCentre + ${FX_EDGE_NUDGE_PX}) + 0.5;
   #ifdef USE_MAP
   vec2 fxUvPerArtPx = vec2(

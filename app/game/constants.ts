@@ -30,4 +30,5 @@ export const DAMAGE_NUMBER_LIFETIME_MS = 900;
 
 export const NOISE_LIFETIME_MS = 2_000;
 
+/** Must stay below `MIN_ATTACK_TICKS` in `combat.ts`. */
 export const STRIKE_DURATION_MS = 150;

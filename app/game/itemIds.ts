@@ -20,6 +20,11 @@ export function mintItemIds(map: MapFile, tilesById: Record<string, TileDef>): M
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y, stack } of listCoords(map, z)) {
       let touched = false;
+      /**
+       * Read off `map` rather than `next`: the only edit here stamps an id
+       * onto a placement, so nothing moves out from under the walk, and
+       * re-reading `next` per level would begin from the map being rebuilt.
+       */
       const replaced = stack.map((placed) => {
         const contents = placed.contents && mintContentIds(placed.contents);
         const withContents =

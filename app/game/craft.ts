@@ -94,6 +94,7 @@ export function rollCraft(output: CraftOutput, random: () => number): string[] {
     pick -= item.weight;
     if (pick < 0) return [item.tileId];
   }
+  /** Only reachable through float rounding on the last option's upper edge. */
   return [output.items[output.items.length - 1]!.tileId];
 }
 

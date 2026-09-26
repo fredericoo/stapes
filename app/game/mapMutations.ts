@@ -32,6 +32,10 @@ export function normalizeStandingCell(
   return { z: nz, elevInLevel: e };
 }
 
+/**
+ * Appends onto the existing stack. Promoting the placement onto an empty level
+ * above would snap its feet down to that level's base.
+ */
 export function placeEntityOnSurface(
   map: MapFile,
   x: number,
@@ -53,6 +57,11 @@ export function moveEntity(
   return moveColumn(map, from, 1, to, direction);
 }
 
+/**
+ * Writes source and destination in one `setStacks` call. A loop of `moveEntity`
+ * would leave a rider without the object it stands on between iterations, where
+ * the gravity and pressure-plate passes can see it.
+ */
 export function moveColumn(
   map: MapFile,
   from: { x: number; y: number; z: number; stackIndex: number },
@@ -97,6 +106,12 @@ export function setEntityDirection(
   const stack = getStack(map, x, y, z);
   const current = stack[stackIndex];
   if (!current) return map;
+  /**
+   * Already facing that way: return the same map object. Callers reassert
+   * facing every tick a key is held, and a new object here would read
+   * downstream as a real edit, invalidating lighting and rebuilding geometry
+   * for a frame in which nothing moved.
+   */
   if (current.direction === direction) return map;
   const next = stack.map((p, i) => (i === stackIndex ? { ...p, direction } : p));
   return replaceStack(map, x, y, z, next);

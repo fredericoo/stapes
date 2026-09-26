@@ -40,27 +40,32 @@ an oblique cabinet projection with Three.js.
   `bun run format` and `bun run lint` from `README.md`, and open a draft PR as
   below.
 - **`README.md`** — every script, and what it is for.
-- **`docs/<subject>.md`** — `combat`, `terrain`, `renderer`, `ui`, `server`,
-  `deploy`, `testing`, `tooling`: the constraints in the code that the obvious
+- **`docs/<subject>.md`** — `combat`, `terrain`, `ui`, `server`, `deploy`,
+  `testing`, `tooling`: the constraints in the code that the obvious
   change would break.
 - **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules. Each
   exception has its reason in `docs/tooling.md`. A rule turned off without one
   is one nobody can turn back on.
 
-## No code comments
+## Comments only where the code cannot be read without one
 
-Source files carry no comments. Lint and type directives
-(`// oxlint-disable-next-line`, `// @ts-expect-error`, `/// <reference>`) are
-the exception, without a reason appended. `stapes/no-comments` in
-`lint/plugin.ts` enforces this; it cannot see comments inside GLSL template
-strings, so keep those out by hand.
+A comment is allowed only when a competent reader would otherwise misread the
+code or have to trace other files to understand it: a formula, a bit trick, an
+ordering or check that looks redundant but is required, a platform or library
+quirk, a deliberate departure from the idiomatic version. Nothing that restates
+a name or signature, describes straightforward code, or records history.
 
-When something must be written down, it goes in `docs/<subject>.md`, and only
-if the code as it stands would lead a reader to break it: an ordering
-constraint, an invariant another module relies on, a value that must match
-another by hand, a platform quirk being worked around. Describe the current
-state. Do not record past decisions or history unless the default way of doing
-something would undo them.
+Write it as a `/** ... */` block directly above the code it explains, in one to
+three plain sentences. `stapes/no-comments` in `lint/plugin.ts` rejects every
+other comment form except lint and type directives
+(`// oxlint-disable-next-line`, `// @ts-expect-error`, `/// <reference>`),
+which carry no appended reason. CSS, YAML, shell and GLSL inside template
+strings follow the same bar in their own comment syntax; the rule cannot see
+them.
+
+A fact that spans files, or two values kept equal by hand, goes in
+`docs/<subject>.md` instead, and only if the obvious change would break it.
+Describe the current state.
 
 `CLAUDE.md` is a symlink to this file.
 

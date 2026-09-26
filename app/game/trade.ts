@@ -64,6 +64,10 @@ function sources(equipment: Equipment): Place[] {
   const places: Place[] = HAND_HOLDERS.map((holder) => ({ holder }));
   for (const holder of ["bag", "weapon", "offhand"] as const) {
     const contents = equipment[holder]?.contents ?? [];
+    /**
+     * Last to first, so emptying one square as it is taken from never shifts
+     * the index of a square still to be read.
+     */
     for (let index = contents.length - 1; index >= 0; index--) {
       places.push({ holder, index });
     }

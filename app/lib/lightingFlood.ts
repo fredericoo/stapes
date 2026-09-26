@@ -212,6 +212,11 @@ function denseRayTransmission(
       tMaxZ += tDeltaZ;
       movedZ = true;
     }
+    /**
+     * The lid between two cells belongs to the upper of them — see
+     * `lighting.rayTransmission` — so it is checked before the arrival
+     * break, or the last crossing of a descent would go unchecked.
+     */
     if (movedZ) {
       const lidLz = (stepZ > 0 ? z : z + 1) - dom.z0;
       const lidLx = x - dom.x0;

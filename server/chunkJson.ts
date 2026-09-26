@@ -64,6 +64,7 @@ function entryTextOf(text: StackText): string {
 
 function textOf(chunk: ChunkCells, z: number): ChunkText {
   const kept = texts.get(chunk);
+  /** Two levels can share one chunk object, and the level is part of the text. */
   if (kept && kept.z === z) return kept;
   const text = inheritedText(chunk, z) ?? readText(chunk, z);
   texts.set(chunk, text);
@@ -223,6 +224,11 @@ export function mapOfInterestJson(
     }
     if (parts) levels.set(levelKey(z), parts);
   }
+  /**
+   * The key order an object built from these keys lists them in (integer keys
+   * ascending, then the rest as inserted), which is how `JSON.stringify` writes
+   * `mapOfInterest`'s `levels`.
+   */
   const order = Object.keys(Object.fromEntries([...levels.keys()].map((key) => [key, 0])));
   const body = order.map((key) => `${JSON.stringify(key)}:{${levels.get(key)!.join(",")}}`);
   return `{"version":${MAP_FILE_VERSION},"levels":{${body.join(",")}}}`;

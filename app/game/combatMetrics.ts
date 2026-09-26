@@ -75,6 +75,10 @@ function firstDrawAbove(climbing: (draw: number) => number, value: number, from:
   return above;
 }
 
+/**
+ * The CDF of the sum of two independent uniform draws on [0, 1], averaged: a
+ * triangular distribution peaking at 0.5.
+ */
 function triangularCdf(mean: number): number {
   if (mean <= 0) return 0;
   if (mean >= 1) return 1;
@@ -103,6 +107,7 @@ export type SwingOdds = {
   statuses: { id: string; perSwing: number }[];
 };
 
+/** Mirrors the draw order of `rollAttack` in `combat.ts`. */
 export function swingOdds(attacker: FightingStats, defender: FightingStats): SwingOdds {
   const intervalMs = swingIntervalMs(attacker);
   const attacksPerSecond = 1000 / intervalMs;

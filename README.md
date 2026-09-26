@@ -77,8 +77,9 @@ It is the path to open when the question is whether the game still works.
 - `bun run seed` — load `data/` into a database that already has content. Rarely
   needed: a fresh one seeds itself on boot
 - `bun run lint` — oxlint, run under Bun so it can load the TypeScript plugin
-  in `lint/plugin.ts`, whose `stapes/no-comments` rule rejects comments. Four
-  built-in rules are off and `docs/tooling.md` says why
+  in `lint/plugin.ts`, whose `stapes/no-comments` rule rejects every comment
+  but `/** */` blocks and directives. Four built-in rules are off and
+  `docs/tooling.md` says why
 - `bun run format` — oxfmt, at a print width of 100. `bun run format:check`
   is the same question without writing, which is what CI asks. Markdown is not
   formatted, and neither are `data/map.json` or `data/tiles.json`, whose

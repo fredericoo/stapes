@@ -32,6 +32,14 @@ export function useGameAssets(tilesets: TilesetDef[]): boolean {
   return ready;
 }
 
+/**
+ * Rendering is gated on every asset rather than degraded per asset. A name
+ * label's position is measured against the font in place at the time and
+ * held until the text changes, so a measurement taken against the fallback
+ * face before the pixel font has arrived leaves the label mispositioned for
+ * the rest of the session — waiting for every asset up front avoids that
+ * measurement ever happening against the wrong font.
+ */
 async function loadGameAssets(tilesets: TilesetDef[]): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<void>((resolve) => {
@@ -51,6 +59,11 @@ async function loadGameAssets(tilesets: TilesetDef[]): Promise<void> {
   }
 }
 
+/**
+ * Waits for this one face rather than `document.fonts.ready`, which resolves
+ * only once every font the page has in flight has loaded — including
+ * third-party fonts the world's labels do not depend on.
+ */
 async function loadLabelFont(): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
   await document.fonts.load(FONT_PROBE);

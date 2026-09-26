@@ -18,6 +18,7 @@ import { resolveWalkDurationMs } from "./movement";
 import type { Rng } from "./rng";
 import { hasLineOfSight } from "./sight";
 
+/** Must stay above `STRIKE_DURATION_MS` in `constants.ts`. */
 export const MIN_ATTACK_TICKS = 6;
 
 export const MAX_ATTACK_TICKS = 600;
@@ -187,6 +188,12 @@ export function cappedToHealth(outcome: AttackOutcome, healthLeft: number): Atta
 
 const NOTHING_INFLICTED: readonly never[] = [];
 
+/**
+ * Every draw is taken up front, before any of them is read or an outcome
+ * returned early. The world's dice must advance by the same amount whatever
+ * the stats and the outcome are, so one creature's numbers cannot change what
+ * the next creature rolls. `swingOdds` in `combatMetrics.ts` mirrors this order.
+ */
 export function rollAttack(
   attacker: FightingStats,
   defender: FightingStats,
@@ -233,6 +240,7 @@ export function defenceAgainst(defender: Guarded, attacker: Striking): number {
   return defender.def + (defender.resist[attacker.mastery] ?? 0);
 }
 
+/** An absent `chance` is certain, not a default to fall back on. */
 export function inflictedBy<Grant extends StatusGrant>(
   statuses: readonly Grant[],
   rolls: readonly number[],

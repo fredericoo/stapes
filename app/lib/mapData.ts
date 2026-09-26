@@ -434,6 +434,10 @@ export function climbFromSourceAt(
   return null;
 }
 
+/**
+ * `for...in` makes V8 build an enumeration cache over the whole object, so
+ * on a populated level this is O(cells), not the O(1) it looks like.
+ */
 function isEmptyRecord(record: Record<string, unknown>): boolean {
   for (const _ in record) return false;
   return true;

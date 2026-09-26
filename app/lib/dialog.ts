@@ -46,6 +46,11 @@ const count = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIAL
 
 const tradeSideSchema = v.object({ tileId, count });
 
+/**
+ * Typed explicitly and referenced through `v.lazy` inside its own options and
+ * trade branches, since TypeScript cannot otherwise infer the type of a
+ * schema that points back at itself.
+ */
 const commandSchema: v.GenericSchema<unknown, DialogCommand> = v.variant("kind", [
   v.object({ kind: v.literal("say"), text: line }),
   v.object({ kind: v.literal("anchor"), name }),

@@ -95,6 +95,7 @@ function MaintenanceCard() {
       </p>
       <label className="flex flex-col gap-1 text-sm">
         Message for players (optional)
+        {/** 16px so Safari on iOS does not zoom the page in when it is focused. */}
         <Textarea
           rows={3}
           className="text-base"

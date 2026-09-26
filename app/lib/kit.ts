@@ -20,6 +20,10 @@ export const SLOT_LABELS: Record<EquipSlot, string> = {
   weapon: "Weapon hand",
   offhand: "Off hand",
   armor: "Body",
+  /**
+   * `charm` is the key on the wire and in saved kits, though the square also
+   * takes rings, stones and torches.
+   */
   charm: "Accessory",
   footwear: "Feet",
   bag: "Back",

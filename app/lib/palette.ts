@@ -1,3 +1,7 @@
+/**
+ * Append-only. `VfxPreview` reads index 0 as its backdrop, and reordering changes
+ * which pixels quantise to which entry.
+ */
 export const STAPES_PALETTE: readonly string[] = [
   "#2e222f",
   "#313638",
@@ -68,6 +72,7 @@ export function clamp01(n: number): number {
   return n < 0 ? 0 : n > 1 ? 1 : n;
 }
 
+/** Björn Ottosson's sRGB → OKLab. Inputs are sRGB 0..1. */
 export function srgbToOklab(r: number, g: number, b: number): Oklab {
   const lr = srgbChannelToLinear(r);
   const lg = srgbChannelToLinear(g);

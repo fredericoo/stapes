@@ -106,6 +106,11 @@ export class VfxPreview {
     const white = new Uint8Array([255, 255, 255, 255]);
     this.whiteTex = new THREE.DataTexture(white, 1, 1, THREE.RGBAFormat);
     this.whiteTex.needsUpdate = true;
+    /**
+     * Alpha full, rgb zero: the shader reads `texel.a * uAmbient + texel.rgb`,
+     * so a white texel would saturate to full brightness regardless of the
+     * ambient. This lets the ambient alone decide how dark the room is.
+     */
     const dark = new Uint8Array([0, 0, 0, 255]);
     this.darkTex = new THREE.DataTexture(dark, 1, 1, THREE.RGBAFormat);
     this.darkTex.needsUpdate = true;
@@ -539,6 +544,11 @@ export class VfxPreview {
   }
 }
 
+/**
+ * Through THREE.Color rather than a plain hex parse: a vertex colour is
+ * multiplied into `diffuseColor` in linear space, and an sRGB triple put
+ * there directly comes out visibly too bright.
+ */
 function linearRgb(hex: string): [number, number, number] {
   const c = new THREE.Color().setStyle(hex, THREE.SRGBColorSpace);
   return [c.r, c.g, c.b];

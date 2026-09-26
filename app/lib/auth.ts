@@ -86,6 +86,11 @@ export async function createCharacter(name: string): Promise<Attempt<Character>>
 
 export const ADMIN_SIGN_IN_PATH = "/admin/sign-in";
 
+/**
+ * Only a courtesy redirect. These pages are static files anybody can fetch;
+ * what actually blocks a write is the server refusing it for a
+ * non-administrator session.
+ */
 export async function requireAdmin(): Promise<Me> {
   const me = await fetchMe();
   if (me.user?.role !== "ADMIN") throw redirect(ADMIN_SIGN_IN_PATH);

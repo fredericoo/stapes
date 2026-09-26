@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Tooltip, TooltipProvider } from "./Tooltip";
 
+/** Nests its own `TooltipProvider` because Base UI keeps the open delay on the provider. */
 export function InfoTip({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider delay={0}>

@@ -119,6 +119,11 @@ export type EditorStore = {
   markSaved: () => void;
   clearToast: () => void;
 
+  /**
+   * All map data changes must go through this (or a store method that calls
+   * it), so undo history stays complete. Pass `{ coalesceInStroke: true }`
+   * only for per-cell steps inside beginStroke/endStroke.
+   */
   commitMap: (next: MapFile, opts?: { coalesceInStroke?: boolean }) => void;
   beginStroke: () => void;
   endStroke: () => void;
@@ -231,6 +236,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!prev && !h) return;
     set({ hover: h });
   },
+  /**
+   * Arming a different tile drops the face with it: a face name belongs to
+   * one tile's catalogue, and carrying it over to another variant tile would
+   * silently place that tile's first face while the picker said otherwise.
+   */
   setArmedTileId: (id) =>
     set(id === get().armedTileId ? { armedTileId: id } : { armedTileId: id, armedVariant: null }),
   setArmedVariant: (variant) => set({ armedVariant: variant }),

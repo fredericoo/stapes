@@ -118,6 +118,12 @@ function levelVisibility(
   return "ghost";
 }
 
+/**
+ * Safari's own pinch-zoom gesture events, cancelled on the canvas only. The
+ * page allows pinch-zoom everywhere else, but a two-finger drag on the map is
+ * meant to pan it, and Safari zooming the whole page instead leaves the
+ * editor cropped off screen with no way back to the canvas.
+ */
 const SAFARI_GESTURE_EVENTS = ["gesturestart", "gesturechange", "gestureend"] as const;
 
 function preventDefault(e: Event) {
@@ -477,6 +483,11 @@ export class EditorRenderer {
     return u;
   }
 
+  /**
+   * Held by reference rather than replaced: a material binds this object once
+   * at shader compile time, so a rebuild has to mutate the texture inside it
+   * rather than hand out a new object nothing is looking at.
+   */
   private ensureAnimUniforms(z: number): LevelAnimUniforms {
     let u = this.animUniformsByZ.get(z);
     if (!u) {
@@ -493,6 +504,10 @@ export class EditorRenderer {
       const lightUniforms = this.ensureLightUniforms(z);
       mat = new THREE.MeshBasicMaterial({
         map: texture,
+        /**
+         * The ortho camera uses top < bottom for Y-down, which reverses face
+         * winding, so DoubleSide is required here rather than incidental.
+         */
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
@@ -1198,6 +1213,13 @@ export class EditorRenderer {
         const tileset = this.tilesetById.get(def.anchor.tilesetId);
         if (!tileset) return;
 
+        /**
+         * A quad the table accepts is built at frame 0 and moved by the
+         * shader; one it refuses is built at the live frame and moved by
+         * `updateAnimations`. The two must not be mixed: the table's offsets
+         * are measured from frame 0, so a quad built anywhere else would be
+         * shifted by however far the clock had run when the level was built.
+         */
         const animRow = animTable.add(frames, tileset);
         const merged = animRow !== NO_ANIMATION;
         const first = merged ? frames[0]! : frames[frameIdx]!;

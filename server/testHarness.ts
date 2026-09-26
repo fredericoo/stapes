@@ -55,6 +55,11 @@ class Pair {
     });
   }
 
+  /**
+   * Frames are queued and handed over only once a listener exists, as a browser
+   * buffers them, so a frame sent during an awaited call is still there for
+   * `await thing(); await nextMessage(ws)`. Order is preserved.
+   */
   drain() {
     if (this.draining) return;
     this.draining = true;

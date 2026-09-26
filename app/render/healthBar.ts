@@ -1,5 +1,10 @@
 export const HEALTH_BAR_FILL_STEPS = 24;
 
+/**
+ * The track is sized to a cell including its border, so a track that fits a
+ * cell only on the inside would be two bricks wider than the cell. Must match
+ * the `.world-label__bar` border in `app/app.css`.
+ */
 const TRACK_BORDER_BRICKS = 1;
 
 const MIN_TRACK_BRICKS = 4;

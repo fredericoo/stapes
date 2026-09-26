@@ -3,6 +3,11 @@ import type { Api } from "../../server/api";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { TileDef, TilesetDef } from "./types";
 
+/**
+ * Uses `window.location.origin`, not the bare host: Eden prefixes a bare
+ * host with `https://` unless it is loopback, which would call an HTTP dev
+ * server over HTTPS.
+ */
 const client = treaty<Api>(typeof window === "undefined" ? "localhost" : window.location.origin);
 
 function unwrap<T>(response: { data: T | null; error: unknown }): T {

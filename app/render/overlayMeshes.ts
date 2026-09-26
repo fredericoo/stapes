@@ -12,6 +12,10 @@ export const OVERLAY_RENDER_ORDER = {
 const HEAVY_INSET_PX = 0.5;
 const HEAVY_INSET_OPACITY = 0.85;
 
+/**
+ * A five-point line, because `EdgesGeometry` is unreliable under the Y-down
+ * orthographic camera.
+ */
 export function makeRectOutline(
   originX: number,
   originY: number,
@@ -138,7 +142,12 @@ function makeOutlineMaterial(): THREE.ShaderMaterial {
       varying vec2 vUvMin;
       varying vec2 vUvMax;
       void main() {
+        // The quad is centred on its own origin, so a corner's sign is the
+        // direction it grows in, giving each vertex its own uv rect with no
+        // uniform to rewrite when the frame flips.
         vec2 grow = sign(position.xy);
+        // uv runs down the atlas while the mesh runs up the screen, so the
+        // top corners carry the smaller v.
         vec2 uvGrow = vec2(grow.x, -grow.y);
         vec2 span = abs(position.xy) * 2.0 * uPx;
         vUvMin = uv - step(0.0, uvGrow) * span;
@@ -169,6 +178,8 @@ function makeOutlineMaterial(): THREE.ShaderMaterial {
         return texture2D(map, uv).a;
       }
 
+      // A sibling's alpha here, which is this sprite's own alpha one offset
+      // away: the copies of a heap are one piece of art drawn several times.
       float peerA(vec2 uv) {
         for (int i = 0; i < ${MAX_OUTLINE_PEERS}; i++) {
           if (i >= uPeerCount) break;
@@ -178,6 +189,11 @@ function makeOutlineMaterial(): THREE.ShaderMaterial {
         return 0.0;
       }
 
+      // Tells a real corner from the crook of a staircase, which look alike up
+      // close. Both are an empty texel with the silhouette diagonally across
+      // from it; what separates them is one texel further out along each axis
+      // — at a real corner both probes come up empty, and in a crook one of
+      // them meets the next step of the stair.
       float cornerTip(vec2 uv, vec2 d) {
         if (sampleA(uv + d) < 0.5) return 0.0;
         if (sampleA(uv + vec2(d.x * 2.0, 0.0)) >= 0.5) return 0.0;
@@ -186,9 +202,13 @@ function makeOutlineMaterial(): THREE.ShaderMaterial {
       }
 
       void main() {
+        // Outer ring only: opaque texels belong to the sprite itself or to a
+        // sibling drawn over this spot, and neither wants a ring.
         if (sampleA(vUv) >= 0.5) discard;
         if (peerA(vUv) >= 0.5) discard;
 
+        // The four sides. Any texel touching the silhouette edge-on is
+        // outline, and this alone is the whole outline except at a corner.
         float orth = max(
           max(sampleA(vUv + vec2(-uPx.x, 0.0)), sampleA(vUv + vec2(uPx.x, 0.0))),
           max(sampleA(vUv + vec2(0.0, -uPx.y)), sampleA(vUv + vec2(0.0, uPx.y)))

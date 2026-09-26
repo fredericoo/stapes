@@ -414,6 +414,10 @@ type Checkpoint = {
   dead?: string[];
 };
 
+/**
+ * Compared by identity: motion state is mutated in place as it advances, so the
+ * same object on two ticks is the same motion and a new object is a new one.
+ */
 type SentMotion = {
   walk: unknown;
   fall: unknown;
@@ -689,6 +693,11 @@ export class GameServer {
   private sentCarriedLights = new Map<string, string>();
   private sentStatusIds = new Map<string, { defIds: string[]; key: string }>();
   private sentPvp = new Map<string, boolean>();
+  /**
+   * These three are compared by identity: the runtime mutates one object in
+   * place for a whole pull, wait or cast and replaces it only when one starts
+   * or ends, so comparing the numbers would report a change every tick.
+   */
   private sentExtractions = new Map<string, ActorSnapshot["extracting"]>();
   private sentNextBlow = new Map<string, Progress | null>();
   private sentCastings = new Map<string, ActorSnapshot["casting"]>();
@@ -755,6 +764,11 @@ export class GameServer {
         });
     this.dead = new Set(board ? (checkpoint!.dead ?? []) : []);
     this.broadcastMap = this.session.getMap();
+    /**
+     * Not `this.session.getMap()`: constructing the session changes the board it
+     * was given (adopting bodies, consuming the spawn marker, settling plates), so
+     * the first flush has to write the whole board.
+     */
     this.checkpointedMap = null;
     await this.restoreActors();
     await this.pruneRemembered();
@@ -932,6 +946,7 @@ export class GameServer {
     const map = this.session?.getMap();
     if (!map || !point.itemIds) return false;
     const present = presentItemIds(map, point);
+    /** `present` is a subset of `itemIds`, so equal lengths mean equal sets. */
     if (present.length === point.itemIds.length) return false;
     point.itemIds = present;
     return true;
@@ -1285,6 +1300,11 @@ export class GameServer {
     let done!: () => void;
     this.joining = new Promise<void>((resolve) => (done = resolve));
     await ahead;
+    /**
+     * A macrotask, not a microtask: a join does ~20ms of work without yielding,
+     * and only a `setTimeout` lets the tick loop and socket reads run between
+     * two joins.
+     */
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     return done;
   }
@@ -1298,6 +1318,10 @@ export class GameServer {
     this.ctx.acceptWebSocket(socket);
     this.seat(socket, { actorId, admin });
 
+    /**
+     * Seated before loading, because loading reaps every checkpointed body with
+     * no seated socket and would put this player back at spawn.
+     */
     await this.ensureLoaded();
 
     await this.seatActor(actorId);
@@ -1724,6 +1748,10 @@ export class GameServer {
     if (!session) return;
 
     for (const [actorId, queue] of this.queuedIntents) {
+      /**
+       * The owner can have died since queueing, and `noteDeaths`, which clears
+       * the queue, runs after this in `tick`.
+       */
       if (!session.hasActor(actorId)) {
         this.queuedIntents.delete(actorId);
         continue;
@@ -2086,6 +2114,10 @@ export class GameServer {
   }
 
   async resetWorld(): Promise<void> {
+    /**
+     * The tick and the session are dropped before the first await, so no flush
+     * can write the live session back between the wipe and the reload.
+     */
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
@@ -2126,6 +2158,12 @@ export class GameServer {
     this.timer = setInterval(() => this.tickIfDue(), TICK_POLL_MS);
   }
 
+  /**
+   * Polled every `TICK_POLL_MS` against a timeline instead of `setInterval(…,
+   * TICK_MS)`, because Bun's interval never makes up lost time and every long
+   * tick would slow the world for good. A per-tick `setTimeout` measured slower
+   * under load. If the tick replaced `this.timer`, the timeline is not this one's.
+   */
   private tickIfDue() {
     if (performance.now() < this.tickDueAt) return;
     const timer = this.timer;
@@ -2175,6 +2213,11 @@ export class GameServer {
     this.collectTransitionEvents(session);
     this.collectTeleportEvents(session);
     this.collectSwingEvents(session);
+    /**
+     * In this order: `noteDeaths` reads `spawns`, which `flushSpawnMarks`
+     * updates, and `releaseLingerers` must not drop a lingering body before
+     * `noteDeaths` has recorded its death.
+     */
     this.flushSpawnMarks();
     this.noteDeaths(session);
     this.releaseLingerers();
@@ -2200,6 +2243,11 @@ export class GameServer {
       extractions,
       castings,
     });
+    /**
+     * The shared baseline advances whatever each client was sent. A cell left out
+     * of one client's patch reaches it when its chunk comes into reach and is
+     * handed over whole, and that handover runs after the patch.
+     */
     this.broadcastMap = session.getMap();
     this.events = [];
 
@@ -3003,6 +3051,11 @@ export class GameServer {
 
     const arrivals = entered === null ? [] : entered.map((i) => frame.actors[i]!);
     cut.cells.push(...this.cellsOfChangedReach(arrivals, departed ?? [], held));
+    /**
+     * Arrivals first and departures last: a client ignores a `spawned` that
+     * follows the same body's `walkStarted`, and an event after a `despawned`
+     * undoes it.
+     */
     cut.events = [
       ...arrivals.map((actor): MotionEvent => ({
         kind: "spawned",
@@ -3204,6 +3257,7 @@ export class GameServer {
     let entered: number[] | null = null;
     for (const i of inReach) if (!known.has(actors[i]!.id)) (entered ??= []).push(i);
     const heldCount = self !== undefined ? inReach.length : inReach.length + 1;
+    /** With no arrivals every held body is already known, so equal sizes mean nobody left. */
     if (entered === null && heldCount === known.size && known.has(actorId)) {
       return { entered: null, departed: null, held: known, before: known };
     }

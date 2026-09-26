@@ -8,6 +8,11 @@ export function stacksEqual(a: PlacedTile[], b: PlacedTile[]): boolean {
     const pa = a[i]!;
     const pb = b[i]!;
     if (pa.tileId !== pb.tileId) return false;
+    /**
+     * Both axes a placement chooses for itself: a fill that ignored either
+     * would flood across the seam between a hole in planks and a hole in
+     * sand, or between a fence facing north and one facing east.
+     */
     if ((pa.direction ?? undefined) !== (pb.direction ?? undefined)) return false;
     if ((pa.variant ?? undefined) !== (pb.variant ?? undefined)) return false;
   }
@@ -35,6 +40,13 @@ function occupiedBounds(map: MapFile, z: number): Bounds | null {
   return bounds;
 }
 
+/**
+ * A blank start cell floods too, but blank space has no far edge: it only
+ * counts as fillable while it stays inside the box around everything the
+ * level already holds. Step outside that box and the flood is walking into
+ * open world with nothing to stop it, so that case fills nothing at all
+ * rather than an arbitrary prefix of the void.
+ */
 export function floodCoords(
   map: MapFile,
   x: number,

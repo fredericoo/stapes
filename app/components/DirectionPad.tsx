@@ -84,6 +84,13 @@ export function DirectionPad({
     const pad = padRef.current;
     if (!pad) return;
 
+    /**
+     * iOS turns a double-tap-and-hold on a control into its own gesture that
+     * magnifies the page, and `touch-action` does not stop it — only
+     * cancelling the touch's default action does. This must be a native,
+     * non-passive listener, since React registers touch listeners passively
+     * and `preventDefault` would do nothing there.
+     */
     const cancelNativeGesture = (event: TouchEvent) => event.preventDefault();
     pad.addEventListener("touchstart", cancelNativeGesture, { passive: false });
     pad.addEventListener("touchmove", cancelNativeGesture, { passive: false });

@@ -142,6 +142,13 @@ export function GameViewport({
     }),
     [onDragOverWorld, onDropOnWorld],
   );
+  /**
+   * Null rather than a boolean seeded from the device, because the device is
+   * not known on the server: `useCoarsePointer` answers false until hydration,
+   * so a phone seeded at construction would come up with both panels open and
+   * stay that way. Left null, the default follows the pointer until the player
+   * expresses a preference.
+   */
   const [equipmentOpen, setEquipmentOpen] = useState<boolean | null>(null);
   const [bagOpen, setBagOpen] = useState<boolean | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);

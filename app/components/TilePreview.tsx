@@ -100,6 +100,7 @@ export async function drawSprite(
     const sy = rect.y * 8;
     const sw = rect.w * 8;
     const sh = rect.h * 8;
+    /** Integer scale so canvas nearest-neighbor stays chunky, not interpolated. */
     const scale = Math.max(1, Math.floor(Math.min(size / sw, size / sh)));
     const dw = sw * scale;
     const dh = sh * scale;

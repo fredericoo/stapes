@@ -20,6 +20,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
 
   return new Elysia({ prefix: "/api" })
     .all("/auth/*", ({ request }) => world.auth.handler(request), {
+      /** Better Auth reads the body off the `Request` itself, so Elysia must not consume it first. */
       parse: "none",
     })
     .post(

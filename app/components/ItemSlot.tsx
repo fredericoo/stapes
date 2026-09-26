@@ -155,6 +155,12 @@ export function ItemSlot({
   const coarse = useCoarsePointer();
   const [pointedAt, setPointedAt] = useState(false);
   const [dwelling, setDwelling] = useState(false);
+  /**
+   * The same fact as `dwelling`, readable now. A state updater does not run
+   * when it is called — React defers it — so a handler that decided "was I
+   * dwelling?" inside `setDwelling` would be deciding after the event it was
+   * deciding about.
+   */
   const dwellingRef = useRef(false);
   const dwellTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swallowClick = useRef(false);
@@ -244,6 +250,11 @@ export function ItemSlot({
       style={{
         width: sizePx,
         height: sizePx,
+        /**
+         * Without this a finger dragging off a slot scrolls the panel instead
+         * of moving the item, and the pointermove events stop arriving
+         * entirely.
+         */
         touchAction: "none",
       }}
       title={asking ? undefined : instance ? name : emptyHint}

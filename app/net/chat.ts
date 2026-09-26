@@ -8,6 +8,11 @@ export const CHAT_MIN_INTERVAL_MS = 750;
 
 export const MAX_CHAT_RAW_LENGTH = 512;
 
+/**
+ * Printable ASCII — the range the font is subset to. The tilde is the one
+ * character in that range NF Pixels does not draw, so the range stops one
+ * short of it (0x7d) rather than at 0x7e.
+ */
 const FIRST_PRINTABLE = 0x20;
 const LAST_PRINTABLE = 0x7d;
 

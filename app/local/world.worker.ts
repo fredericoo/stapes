@@ -6,9 +6,21 @@ import type { FromWorld, ToWorld } from "./workerProtocol";
 
 let world: Promise<LocalWorld> | null = null;
 
+/**
+ * `end` is what `GameSocket` reads before every send, and it has to be set
+ * by both ways a connection ends — the world closing it, and the page
+ * saying the page is gone. Without the second, a tick between the page's
+ * close and the world finishing with the socket posts frames at a
+ * connection nobody is listening to.
+ */
 type Connection = { socket: GameSocket; end(): void };
 const sockets = new Map<number, Connection>();
 
+/**
+ * The world is one thing and its operations are asynchronous, so without
+ * this a frame could be handled before the join that seats the actor it
+ * belongs to.
+ */
 let queue: Promise<unknown> = Promise.resolve();
 function inOrder(work: () => Promise<void>): void {
   queue = queue.then(work).catch((error: unknown) => {
@@ -78,6 +90,7 @@ async function open(id: number, actorId: string, protocolVersion: number): Promi
     await (await world).join(socket, actorId);
   } catch (error) {
     console.error("[local] the world would not open", error);
+    /** Dropped so the next attempt builds one rather than awaiting the rejection this one left behind. */
     world = null;
     sockets.delete(id);
     socket.close(1011, "could not open the world");

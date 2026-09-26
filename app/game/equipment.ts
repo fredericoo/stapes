@@ -246,6 +246,10 @@ export function effectiveBattler(
   return { ...stats, def: guard, resist };
 }
 
+/**
+ * Indexed rather than `for...of`, here and in `armorDefence` and `requirementShortfall`:
+ * Bun's JIT deoptimises a `for...of` whose body did not run while it was being compiled.
+ */
 export function armorResistances(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,

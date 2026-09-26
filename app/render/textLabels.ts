@@ -84,6 +84,11 @@ type LabelEntry = {
   color: string | undefined;
 };
 
+/**
+ * The delimiters are escapes rather than typed control characters on purpose:
+ * as literal bytes they made this file read as binary, so `file` called it
+ * data and `grep -r` across the repo skipped it silently.
+ */
 function signatureOf(label: WorldLabel): string {
   const lines = label.lines.map((line) => `${line.id}\u0000${line.text}`).join("\u0001");
   const bar = label.bar ? "|bar" : "";

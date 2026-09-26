@@ -61,6 +61,11 @@ function framesFrom(port: number, count: number): Promise<Frame[]> {
   });
 }
 
+/**
+ * The next message out of one decompressor kept for the whole connection, as
+ * a browser keeps it: fed the payload and the `00 00 ff ff` RFC 7692 takes off
+ * the end, and flushed.
+ */
 function inflateNext(inflater: InflateRaw, payload: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];

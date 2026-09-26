@@ -301,6 +301,10 @@ function validateFrameLights(frames: Frame[]): string | null {
   return null;
 }
 
+/**
+ * Spreads the original sprite and replaces only the frames, so fields such as
+ * `phase` survive a save.
+ */
 export function sanitizeSprite(sprite: TileSprite): TileSprite {
   return {
     ...sprite,

@@ -170,6 +170,12 @@ export function surfacesInClimbBand(
   return listStandingSurfaces(map, x, y, tilesById).filter((surface) => {
     if (surface.abs < from.abs - MAX_CLIMB_HEIGHT) return false;
     if (surface.abs > from.abs + MAX_CLIMB_HEIGHT) return false;
+    /**
+     * A step up crosses the plane in the column being left; a step down
+     * crosses it in the column being entered. Using the wrong column for
+     * either direction lets a body climb through a ceiling, or refuses every
+     * step off a ledge.
+     */
     const travelColumn = surface.abs > from.abs ? from : { x, y };
     return !crossesSealedPlane(
       map,
@@ -198,6 +204,11 @@ export function findLandingAbs(
       stack = sceneryStack(map, x, y, z, exclude.stackIndex);
     }
 
+    /**
+     * A stack with nothing solid in it is open air with decoration in it, not
+     * a floor: without this guard its level base reads as a landing and a
+     * body can hover in a shaft with no floor under it.
+     */
     if (stack.some((placed) => isSolidPlacement(placed, tilesById))) {
       const top = absoluteStandingElevation(z, stack, tilesById);
       if (top < feetAbs) {
@@ -304,6 +315,11 @@ export function canWalk(
     return { ok: false, reason: `Climb ${climb} exceeds max ${MAX_CLIMB_HEIGHT}` };
   }
 
+  /**
+   * `destAbs + 1` includes a solid top that coincides with `destAbs` itself —
+   * a tree whose top sits exactly at the empty level above it — so standing
+   * and falling share this one check instead of missing that case.
+   */
   const restAbs = findLandingAbs(map, destX, destY, destAbs + 1, tilesById);
   if (restAbs != null && !isWalkableSurfaceAt(map, destX, destY, restAbs, tilesById)) {
     return { ok: false, reason: "Destination surface is not walkable" };

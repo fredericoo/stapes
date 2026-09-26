@@ -71,6 +71,11 @@ async function play(actorId: string) {
   return { remote, pair, advance };
 }
 
+/**
+ * `webSocketMessage` is async and the socket pair calls it without waiting, so
+ * a step sent this frame is still a pending promise when the frame ends. A
+ * microtask is not enough — the handler awaits storage on its way in.
+ */
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }

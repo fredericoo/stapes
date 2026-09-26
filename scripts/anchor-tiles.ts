@@ -31,6 +31,10 @@ if (spread.length > 0) {
   process.exit(1);
 }
 
+/**
+ * Rebuilt only to reorder keys: `normalizeTileDef` appends `anchor`, and this
+ * moves it up beside the tile's identity fields in the written file.
+ */
 const anchored = normalizeTiles(raw).map(
   ({ id, name, height, type, kind, attributes, anchor, ...rest }) => ({
     id,

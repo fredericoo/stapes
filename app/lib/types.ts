@@ -11,6 +11,7 @@ export const DIRECTIONS: Direction[] = ["n", "e", "s", "w"];
 
 export type Octant = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
+/** Clockwise from north. Angle-to-octant code indexes into it. */
 export const OCTANTS: Octant[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
 
 const NEAREST_CARDINAL: Record<Octant, Direction> = {
@@ -228,6 +229,7 @@ export function climbFromForSave(
   return any ? out : undefined;
 }
 
+/** A level is four height units so a body can be shorter than a storey. One unit is `PX_PER_HEIGHT` = 2px. */
 export const HEIGHT_PER_LEVEL = 4;
 
 export function lightPassingForced(def: TileDef): boolean {
@@ -300,6 +302,13 @@ export const MAX_LEVEL = 8;
 export const CELL_SIZE = 8;
 export const CHUNK_SIZE = 16;
 
+/**
+ * How far light travels, in cells. Sky spill is seeded at this level and
+ * every lateral step costs at least 1, so nothing sky-lit reaches further.
+ * `clampTileLight` holds every authored block emitter to the same bound,
+ * which is what makes a chunked bake's apron (`LIGHT_APRON`) an exact crop
+ * rather than an approximation.
+ */
 export const MAX_LIGHT_LEVEL = 15;
 
 export function defaultBase(rect: CellRect): { x: number; y: number } {

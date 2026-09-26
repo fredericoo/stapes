@@ -53,6 +53,8 @@ uniform vec3 uTintLab;
 uniform float uTintStrength;
 uniform float uTintKeepLuma;
 
+// From linear RGB, not sRGB: diffuseColor is already linear at the point in
+// the shader this mixes with, since three.js decodes the texture on sample.
 vec3 linearRgbToOklab(vec3 c) {
   float l = 0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b;
   float m = 0.2119034982 * c.r + 0.6806995451 * c.g + 0.1073969566 * c.b;

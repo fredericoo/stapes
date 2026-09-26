@@ -72,6 +72,11 @@ export function pushableDefAt(
   const stack = getStack(map, ref.x, ref.y, ref.z);
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
+  /**
+   * A body standing on top refuses the push: it has its own motion, and
+   * sliding the ground out from under it mid-step would commit that walk from
+   * a cell it is no longer in.
+   */
   for (let above = ref.stackIndex + 1; above < stack.length; above++) {
     if (stack[above]?.owner) return null;
   }
@@ -189,6 +194,7 @@ function standingElevationUnder(
   return absoluteStandingElevation(at.z, stack.slice(0, at.stackIndex), tilesById);
 }
 
+/** A body never counts as a lid, so standing on a sword does not bury it. */
 function isLid(placed: PlacedTile | undefined, tilesById: Record<string, TileDef>): boolean {
   if (!placed || placed.owner) return false;
   const def = tilesById[placed.tileId];

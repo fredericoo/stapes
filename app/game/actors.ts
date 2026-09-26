@@ -11,6 +11,10 @@ export type ActorLocation = Coord & {
 
 export const DEFAULT_FACING: Direction = "s";
 
+/**
+ * 1 is enough because a single map edit moves an actor at most one cell, or
+ * one level when falling — never across the map.
+ */
 const ACTOR_SEARCH_RADIUS = 1;
 
 function isActor(placed: PlacedTile | undefined, ownerId: string): boolean {
@@ -43,6 +47,12 @@ export function findActorNear(map: MapFile, ownerId: string, near: Coord): Actor
 }
 
 export function findActorAnywhere(map: MapFile, ownerId: string): ActorLocation | null {
+  /**
+   * Walks the chunk records directly instead of going through `listCoords`,
+   * which allocates an object and parses a key for every cell on a level. This
+   * runs on every spawn and departure, so the allocating version cost about
+   * 40ms on the shipped map.
+   */
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const level = map.levels[levelKey(z)];
     if (!level) continue;

@@ -51,6 +51,10 @@ export class AnimationTable {
         const rect = frame.sprite.rect;
         const o = (row * w + col) * 4;
         data[o] = ((rect.x - first.x) * CELL_SIZE) / tileset.width;
+        /**
+         * Negative: the v axis is flipped when a rect becomes UVs, so a frame
+         * further down the sheet sits lower in v.
+         */
         data[o + 1] = -((rect.y - first.y) * CELL_SIZE) / tileset.height;
         data[o + 2] = col < frames.length ? end : total;
       }

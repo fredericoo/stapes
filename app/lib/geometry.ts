@@ -2,6 +2,11 @@ import { CELL_SIZE, HEIGHT_PER_LEVEL, MIN_LEVEL } from "./types";
 
 export const PX_PER_HEIGHT = CELL_SIZE / HEIGHT_PER_LEVEL;
 
+/**
+ * The elevation weight in ray depth. `HEIGHT_PER_LEVEL` is the geometric
+ * constant; the `+0.5` breaks ties in favor of the higher surface when two
+ * fragments would otherwise land at the same depth.
+ */
 export const RAY_DEPTH_ELEV = HEIGHT_PER_LEVEL + 0.5;
 
 export const WADE_SINK_PX = PX_PER_HEIGHT;
@@ -62,10 +67,21 @@ export function screenToCoord(
   };
 }
 
+/**
+ * Not used for world tiles, which get per-pixel depth from {@link fragDepth}
+ * instead. This survives only for the editor's overlay chrome, drawn with
+ * `depthTest: false`, which needs a whole-sprite `renderOrder`.
+ */
 export function drawOrder(x: number, y: number, absElev: number, stackIndex: number): number {
   return y * 1_000_000_000 + x * 1_000_000 + absElev * 1_000 + stackIndex;
 }
 
+/**
+ * `eastPx`/`southPx` are world pixels of the unshifted cell grid
+ * (`(cell + 1) * CELL_SIZE`), not what {@link baseCellWorldOrigin} returns —
+ * that origin already bakes in the elevation screen shift, which these
+ * planes must not, since the shader recovers elevation from that shift.
+ */
 export type DepthBox = {
   eastPx: number;
   southPx: number;
@@ -82,10 +98,17 @@ export function depthBox(x: number, y: number, foot: number, top: number): Depth
   };
 }
 
+/**
+ * The oblique projection puts `(x+1, y+1, elev+HEIGHT_PER_LEVEL)` on the same
+ * screen pixel as `(x, y, elev)`, so `x + y + HEIGHT_PER_LEVEL*elev` is
+ * constant along a view ray. This is that constant, in terms of the pixel a
+ * fragment lands on and the elevation it depicts.
+ */
 export function rayDepth(screenX: number, screenY: number, elev: number): number {
   return (screenX + screenY) / CELL_SIZE + RAY_DEPTH_ELEV * elev;
 }
 
+/** The nearest elevation still inside the box: each visible face caps it, hence the min. */
 function boxExitElevation(box: DepthBox, screenX: number, screenY: number): number {
   return Math.min(
     (box.eastPx - screenX) / PX_PER_HEIGHT,
@@ -94,6 +117,10 @@ function boxExitElevation(box: DepthBox, screenX: number, screenY: number): numb
   );
 }
 
+/**
+ * One cell of screen travel is one `HEIGHT_PER_LEVEL` of ray climb, so a far
+ * face sits one level behind the corresponding near face.
+ */
 function boxFarFaceElevation(box: DepthBox, screenX: number, screenY: number): number {
   return (
     Math.max((box.eastPx - screenX) / PX_PER_HEIGHT, (box.southPx - screenY) / PX_PER_HEIGHT) -
@@ -101,6 +128,15 @@ function boxFarFaceElevation(box: DepthBox, screenX: number, screenY: number): n
   );
 }
 
+/**
+ * A ray that crosses the box exits through a visible face, which is the
+ * surface. A ray that misses (art drawn outside the box's footprint) falls
+ * back to whichever neighboring plane it would have crossed — the far-face
+ * plane above the far faces, the foot plane under the foot — and is marked
+ * `overhang` so {@link DEPTH_OVERHANG_BIAS} can win the resulting tie for the
+ * art instead of losing it to the neighbor whose real face sits on that
+ * plane.
+ */
 export function boxSurface(
   box: DepthBox,
   screenX: number,
@@ -123,18 +159,48 @@ const DEPTH_ELEV_LIMIT = 48;
 export const DEPTH_MAX = 2 * DEPTH_COORD_LIMIT + HEIGHT_PER_LEVEL * DEPTH_ELEV_LIMIT;
 export const DEPTH_MIN = -DEPTH_MAX;
 
+/**
+ * The nudge applied per stack index to separate coplanar surfaces, such as a
+ * character's feet on the floor it stands on. About 24 times the 24-bit
+ * depth buffer's smallest step over `[DEPTH_MIN, DEPTH_MAX]` — enough to
+ * order ties, far too small to reorder anything that is genuinely apart.
+ */
 export const DEPTH_STACK_BIAS = 0.002;
 
+/**
+ * Multiplier on a box's south/east edges that settles a coplanar tie between
+ * two flat tiles (south wins, then east) instead of leaving it to depend on
+ * merge order. Sized so one cell step beats a few stack indices while the
+ * whole map stays under one elevation unit of {@link RAY_DEPTH_ELEV}.
+ */
 export const DEPTH_PLANE_BIAS = 0.0005;
 
 export const DEPTH_PLANE_EAST_WEIGHT = 1 / 1024;
 
 const MAX_ART_OVERHANG_CELLS = 4;
 
+/**
+ * Wins the tie {@link boxSurface} creates for art that misses its own box:
+ * larger than {@link DEPTH_PLANE_BIAS} can accumulate across the widest
+ * overhang allowed, and far smaller than one art pixel of ray depth, so it
+ * can only ever break a tie, never reorder fragments that are genuinely
+ * apart.
+ */
 export const DEPTH_OVERHANG_BIAS = MAX_ART_OVERHANG_CELLS * CELL_SIZE * DEPTH_PLANE_BIAS;
 
+/**
+ * Lifts a box just enough to count as having volume — half a stack index
+ * once ray depth has weighted it, which is smaller than
+ * {@link DEPTH_STACK_BIAS} can move anything, so it can only win a tie it
+ * was already losing on a technicality.
+ */
 export const DEPTH_LEAST_BODY = DEPTH_STACK_BIAS / RAY_DEPTH_ELEV / 2;
 
+/**
+ * Must beat any in-level `stackIndex`, while keeping
+ * `(levelSpan * this + maxIndex) * DEPTH_STACK_BIAS` under one elevation unit
+ * of ray depth, so a single elevation unit still wins over the largest bias.
+ */
 export const DEPTH_BIAS_PER_LEVEL = 64;
 
 export function depthStackBias(z: number, stackIndex: number): number {

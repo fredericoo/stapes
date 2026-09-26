@@ -33,6 +33,10 @@ describe("AnimationTable", () => {
 
     expect(row).toBe(0);
     expect(texel(table, 0, 0).du).toBeCloseTo(0);
+    /**
+     * `toBeCloseTo` rather than `toBe`: negating the zero row gives `-0`, which
+     * is the same offset and a different value to `Object.is`.
+     */
     expect(texel(table, 0, 0).dv).toBeCloseTo(0);
     expect(texel(table, 0, 1).du).toBeCloseTo(CELL_SIZE / SHEET.width);
     expect(texel(table, 0, 2).dv).toBeCloseTo((-2 * CELL_SIZE) / SHEET.height);

@@ -124,6 +124,10 @@ export function encodeGif(opts: GifOptions, frames: readonly GifFrame[]): Uint8A
     w.byte(0x21);
     w.byte(0xf9);
     w.byte(4);
+    /**
+     * Disposal method 2 (restore to background), so a transparent pixel does
+     * not show the previous frame through it; the low bit flags transparency.
+     */
     w.byte((2 << 2) | (transparentIndex === null ? 0 : 1));
     w.u16(frame.delayCs);
     w.byte(transparentIndex ?? 0);

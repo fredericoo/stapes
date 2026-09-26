@@ -72,6 +72,12 @@ export function roofLevelsFor(span: number): number {
   return Math.max(0, Math.ceil(span / 2));
 }
 
+/**
+ * `window-1` has two sprites under four names — the north/south pair and the
+ * east/west pair — so a wall running east-west shows its south face and one
+ * running north-south its east face. That is the convention every window in
+ * `data/map.json` is authored with.
+ */
 function windowDirectionFor(wall: Direction): Direction {
   return wall === "n" || wall === "s" ? "s" : "e";
 }

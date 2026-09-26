@@ -1094,6 +1094,10 @@ export class WorldRenderer {
     disposeGroupChildren(this.projectileGroup);
     this.projectileMeshes.clear();
     this.retireAllTransitions();
+    /**
+     * Dropped with the meshes they belong to: a disposed material written to
+     * on a stray tick is a use-after-free as far as WebGL is concerned.
+     */
     this.pulsingOutlines = [];
     this.followingOutlines = [];
     this.renderer.dispose();
@@ -1142,6 +1146,11 @@ export class WorldRenderer {
           : baseBox.box,
         motion ? motion.box.stackBias : baseBox.stackBias,
       );
+      /**
+       * The scene has matrixWorldAutoUpdate false, so world matrices are not
+       * recomputed automatically: without this the mesh never moves on
+       * screen despite its position changing.
+       */
       mesh.updateMatrix();
       mesh.updateMatrixWorld(true);
 
@@ -2565,6 +2574,10 @@ function frameUvs(
   return {
     u0: (rect.x * CELL_SIZE) / tileset.width,
     u1: ((rect.x + rect.w) * CELL_SIZE) / tileset.width,
+    /**
+     * v is flipped: the rect's y grows downward and uv's v grows upward, so
+     * the sprite's top edge (the smaller rect.y) is the larger v.
+     */
     v1: 1 - (rect.y * CELL_SIZE) / tileset.height,
     v0: 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height,
   };

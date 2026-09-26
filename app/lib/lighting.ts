@@ -271,6 +271,12 @@ export function rayTransmission(
       movedZ = true;
     }
 
+    /**
+     * A tile sits on its own level's floor plane, so the lid between two
+     * cells belongs to the upper of them. Reading the cell the step arrived
+     * in instead checks the wrong lid on the way down, and a torch lights
+     * the cave below the one it stands in.
+     */
     if (movedZ) {
       const lid = occlusion.get(cellKey(x, y, stepZ > 0 ? z : z + 1));
       if (lid?.sealsLevel) return 0;
@@ -331,6 +337,12 @@ function castEmitter(
   const xLo = Math.floor(e.x) - rCells;
   const xHi = Math.ceil(e.x) + rCells;
 
+  /**
+   * The emitter's own cell must not shadow it sideways, so its opacity is
+   * cleared for the cast and restored below. Its seal is left alone: that
+   * seal is the floor the emitter stands on, and clearing it too would let
+   * the light through to the storey underneath.
+   */
   const selfIndex = denseIndex(occlusion, e.lx, e.ly, e.lz);
   const savedSelfOpacity = selfIndex < 0 ? 0 : occlusion.opacity[selfIndex]!;
   if (selfIndex >= 0) occlusion.opacity[selfIndex] = 0;
@@ -631,6 +643,7 @@ function denseRayTransmission(
       movedZ = true;
     }
 
+    /** The lid of the upper cell of the pair — see {@link rayTransmission}. */
     if (movedZ) {
       const lidIndex = denseIndex(o, x, y, stepZ > 0 ? z : z + 1);
       if (lidIndex >= 0 && o.seals[lidIndex]!) return 0;

@@ -71,6 +71,8 @@ export function createPaletteMaterial(): THREE.ShaderMaterial {
       }
 
       void main() {
+        // The scene RT samples as linear; re-encode to sRGB so this compares
+        // against the palette's own hex/255 values.
         vec3 lab = srgbToOklab(linearToSrgb(texture2D(tScene, vUv).rgb));
         float bestD = 1e20;
         int best = 0;
@@ -126,6 +128,8 @@ export function createLevelFadeCompositeMaterial(): THREE.ShaderMaterial {
         vec4 texel = texture2D(tLevel, vUv);
         float alpha = texel.a * uOpacity;
         if (alpha < 0.004) discard;
+        // The level target samples as linear but the canvas holds sRGB
+        // bytes, and the output must be premultiplied for CustomBlending.
         gl_FragColor = vec4(linearToSrgb(texel.rgb) * alpha, alpha);
       }
     `,

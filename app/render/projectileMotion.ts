@@ -28,7 +28,15 @@ export function projectileOctant(flight: ProjectileFlight, to: FlightPoint = fli
   const { dx, dy } = flightScreenDelta(flight.from, to);
   if (dx === 0 && dy === 0) return "s";
 
+  /**
+   * atan2(dx, -dy), not the usual atan2(dy, dx): screen y grows downward and
+   * north is the zero, so this measures clockwise from north.
+   */
   const index = Math.round(Math.atan2(dx, -dy) / OCTANT_RADIANS);
+  /**
+   * Modulo twice: a negative angle gives a negative index, and JS's `%` keeps
+   * the sign, so `-2 % 8` is `-2` rather than a valid index.
+   */
   return OCTANTS[((index % OCTANTS.length) + OCTANTS.length) % OCTANTS.length]!;
 }
 

@@ -31,6 +31,12 @@ const FUNCTIONS: Record<string, { arity: number; apply: (args: number[]) => numb
   max: { arity: 2, apply: ([a, b]) => Math.max(a!, b!) },
 };
 
+/**
+ * Rounds half away from zero, unlike `Math.round`, which is asymmetric about
+ * zero (`Math.round(-0.5)` is `-0` where `Math.round(0.5)` is `1`). A
+ * non-finite result becomes 0 rather than `Infinity` or `NaN`, so a division
+ * by zero in an authored formula cannot propagate into a body's hit points.
+ */
 export function integerise(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.sign(value) * Math.round(Math.abs(value));

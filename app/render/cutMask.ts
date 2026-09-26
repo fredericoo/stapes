@@ -1,5 +1,10 @@
 import { parseCoordKey } from "../lib/types";
 
+/**
+ * The shader samples this texture for every fragment on the level, and a
+ * texture clamps at its edge rather than reading zero past it, so without a
+ * ring of zeros the outermost cut row would smear across the floor beyond it.
+ */
 const APRON_CELLS = 1;
 
 export type CutMask = {

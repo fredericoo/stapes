@@ -87,6 +87,12 @@ class TursoConnection implements DatabaseConnection {
   }
 }
 
+/**
+ * Kysely's `SqliteIntrospector` with `PRAGMA table_info(…)` per table in place of
+ * the `pragma_table_info(name)` table-valued function. On Turso 0.7 that function
+ * makes every later autocommit write on the connection vanish at the next open,
+ * which lost every account made after boot.
+ */
 class TursoIntrospector implements DatabaseIntrospector {
   constructor(private readonly db: Database) {}
 

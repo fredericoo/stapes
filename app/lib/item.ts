@@ -15,6 +15,11 @@ export type Reach = {
   height: number;
 };
 
+/**
+ * `1.5` squares to `2.25`: the diagonal neighbour is `2` and the cell two
+ * along is `4`, so this includes exactly the 3x3 box around the wielder with
+ * room on both sides of the boundary rather than sitting on it.
+ */
 export const MELEE_REACH: Reach = { cells: 1.5, height: HEIGHT_PER_LEVEL / 2 };
 
 export type WeaponItem = {
@@ -153,6 +158,10 @@ export const DEFAULT_WEAPON_STATUS_CHANCE = 10;
 
 export const MAX_CONTAINER_SIZE = 12;
 
+/**
+ * Equal to `MAX_WEAPON_DAMAGE` because armour is subtracted from damage. Changing
+ * one alone changes whether armour can fully cancel the heaviest authored blow.
+ */
 export const MAX_ARMOR_DEF = MAX_WEAPON_DAMAGE;
 
 export const MAX_CONSUMABLE_HP_SHIFT = 999;

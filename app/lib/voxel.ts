@@ -172,6 +172,10 @@ export function renderGrid(
   const colors = palette.map(parseHexColor);
   const depth = new Int16Array(widthPx * heightPx).fill(NO_DEPTH);
 
+  /**
+   * Flat-index order is z, then y, then x ascending — exactly painter
+   * order, since along a view ray only higher-z voxels overdraw.
+   */
   for (let i = 0; i < grid.length; i++) {
     const val = grid[i];
     if (val === EMPTY_VOXEL) continue;
@@ -186,6 +190,7 @@ export function renderGrid(
     rgba[p + 1] = g;
     rgba[p + 2] = b;
     rgba[p + 3] = 255;
+    /** The view ray runs along (+1,+1,+1), so this sum grows toward the camera. */
     depth[sy * widthPx + sx] = x + y + z;
   }
 

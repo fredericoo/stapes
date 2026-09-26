@@ -81,6 +81,11 @@ export function clampChance(chance: number): number {
   return Math.max(MIN_CHANCE, Math.min(MAX_CHANCE, chance));
 }
 
+/**
+ * A quadratic through the origin, `c·level + d·level²`, where `c` and `d` are
+ * solved so the curve totals `atMax` at `MAX_MASTERY` and its last point pays
+ * `acceleration` times what its first point paid.
+ */
 function acceleratingTotal(level: number, atMax: number, acceleration: number): number {
   const reach = Math.max(0, level);
   const first = (2 * atMax) / (MAX_MASTERY * (acceleration + 1));

@@ -35,6 +35,10 @@ export function DoorField({ label, ...props }: ComponentProps<"input"> & { label
   return (
     <label className="flex w-full flex-col gap-1">
       <span className="text-[10px] uppercase tracking-widest text-paper/60">{label}</span>
+      {/**
+       * `text-base` (16px): Safari on iOS zooms the page in when it focuses a
+       * field set smaller than that and never zooms back out.
+       */}
       <input
         className="border-2 border-paper/40 bg-transparent px-3 py-2 text-base text-paper placeholder:text-paper/30 focus:border-paper focus:outline-none disabled:opacity-50"
         style={{ fontFamily: SYSTEM_MONO }}

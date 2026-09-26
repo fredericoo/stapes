@@ -20,6 +20,11 @@ self.onmessage = (event: MessageEvent<BakerRequest>) => {
   const msg = event.data;
 
   if (msg.type === "init") {
+    /**
+     * Kept rather than cloned: `msg.map` arrived by structured clone and
+     * belongs to nobody else, which is what lets `applyMapPatch` write into
+     * it directly.
+     */
     map = msg.map;
     tilesById = Object.fromEntries(msg.tiles.map((t) => [t.id, t]));
     omit = msg.omit.length ? new Set(msg.omit) : undefined;
@@ -41,6 +46,11 @@ self.onmessage = (event: MessageEvent<BakerRequest>) => {
   try {
     const baked = bakeRegion(map, tilesById, omit, msg.rect, msg.timeMs);
     const chunks: Array<[string, WireChunk]> = [];
+    /**
+     * Every plane here is freshly allocated by the bake and read by nobody
+     * on this side, so the buffers are transferred rather than copied — this
+     * side is left with detached views it never touches.
+     */
     const transfer: Transferable[] = [];
     for (const [key, chunk] of baked) {
       const wire: WirePlanes = [];

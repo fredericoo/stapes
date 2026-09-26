@@ -1,3 +1,8 @@
+/**
+ * Off because Safari cannot read the frames Bun compresses: Bun sends most of
+ * them as complete deflate streams, and Safari drops the connection after the
+ * first one. `server/sockets.test.ts` pins what a replacement must not send.
+ */
 export const PER_MESSAGE_DEFLATE = false;
 
 export interface Transport {

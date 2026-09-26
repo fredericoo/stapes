@@ -90,6 +90,10 @@ const WADE_COMPONENTS = 2;
 
 const WADE_ALPHA = 0.5;
 
+/**
+ * Bump the version suffix whenever this shader's source changes, or three.js
+ * reuses the stale compiled program from its cache.
+ */
 export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v12";
 
 function glsl(n: number): string {
@@ -294,6 +298,11 @@ export function writeBoxAttr(geo: THREE.BufferGeometry, box: DepthBox, stackBias
   stackAttr.needsUpdate = true;
 }
 
+/**
+ * The animated-frame offset is added straight onto `vMapUv`, which is correct only
+ * while the world material has no texture transform. If one is set, the offset
+ * must go through `mapTransform`.
+ */
 export function injectWorldShader(
   shader: { vertexShader: string; fragmentShader: string; uniforms: object },
   lightUniforms: LevelLightUniforms,
@@ -327,6 +336,9 @@ varying vec2 vLightScale;
 varying vec2 vWade;
 ${TRANSITION_GLSL_VERTEX_COMMON}
 
+// Walks the row until the texel's z (that frame's cumulative end time)
+// passes the clock; the last column repeats the cycle length so the loop
+// always stops before reading past the row's real frames.
 vec2 animFrameOffset(float row, float clockMs) {
   float v = (row + 0.5) / uAnimSize.y;
   float total = texture2D(uAnimTable, vec2(1.0 - 0.5 / uAnimSize.x, v)).z;
@@ -386,6 +398,8 @@ ${TRANSITION_GLSL_COMMON}`,
       "#include <map_fragment>",
       `#include <map_fragment>
 ${TRANSITION_GLSL_SNAP}
+// vBox.xy is this quad's unshifted base cell, constant across the quad
+// however tall the sprite is, so a tall wall is cut with the cell it stands on.
 if (uCutEnabled > 0.5) {
   vec2 cutCell = vBox.xy / ${glsl(CELL_SIZE)} - 0.5;
   vec2 cutUv = (cutCell - uCutOrigin) / uCutSize;
@@ -393,25 +407,40 @@ if (uCutEnabled > 0.5) {
 }
 ${TRANSITION_GLSL_DISCARD}
 ${TINT_GLSL_FRAGMENT}
+// Sample at the art pixel's centre rather than the fragment: a fragment is
+// smaller than a texel once zoomed, so sampling per fragment would smear a
+// gradient across art that should read flat per pixel.
 vec2 depthPx = floor(vWorldPx) + 0.5;
 if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
+  // vLightUv and vWorldPx are both affine across the quad, so stepping from
+  // the fragment to the pixel centre is just the constant per-quad gradient.
   vec2 lightCell = vLightUv + (depthPx - vWorldPx) * vLightScale;
   vec2 lightUv = (lightCell - uLightOrigin) / uLightSize;
   vec4 lightTexel = texture2D(uLightMap, lightUv);
+  // RGB is block light, alpha is the sky factor, so the ambient tint is
+  // applied here rather than baked into the map.
   vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + lightTexel.rgb);
   diffuseColor.rgb *= light;
 }
 ${TRANSITION_GLSL_EDGE}
+// A ray cast from this pixel: each visible (south/east/top) face caps how far
+// it climbs before leaving the box, so the exit point is the lowest of them.
 float eastFace = (vBox.x - depthPx.x) / ${glsl(PX_PER_HEIGHT)};
 float southFace = (vBox.y - depthPx.y) / ${glsl(PX_PER_HEIGHT)};
 float exitElev = min(min(eastFace, southFace), vBox.w);
+// The far (north/west) faces, one cell of climb behind the near ones.
 float farFaceElev =
   max(eastFace, southFace) - ${glsl(HEIGHT_PER_LEVEL)};
+// A surface above the exit point means the ray left without crossing a face —
+// art drawn outside its own silhouette — so it falls back to whichever
+// neighbouring plane already owns that space.
 float surfaceElev = max(max(exitElev, farFaceElev), vBox.z);
 float overhangBias =
   surfaceElev > exitElev && (farFaceElev > exitElev || vBox.w > vBox.z)
     ? ${glsl(DEPTH_OVERHANG_BIAS)}
     : 0.0;
+// Breaks ties between two flat overhanging sprites at the same elevation,
+// restoring south-then-east painter order.
 float planeBias =
   (vBox.y + vBox.x * ${glsl(DEPTH_PLANE_EAST_WEIGHT)}) *
   ${glsl(DEPTH_PLANE_BIAS)};
@@ -430,6 +459,8 @@ gl_FragDepth = clamp(
     .replace(
       "#include <alphatest_fragment>",
       `#include <alphatest_fragment>
+// Feet measured from the sprite's own sunk position, not its box, since a
+// body's slot is two cells square and the box corner is empty.
 if (vWade.y > 0.0) {
   vec2 sunkFeet =
     vBox.xy - ${glsl(CELL_SIZE / 2)} - vBox.z * ${glsl(PX_PER_HEIGHT)} + vWade.x;

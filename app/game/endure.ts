@@ -203,6 +203,11 @@ export class EndureIndex {
     let heldMs = 0;
     if (running) {
       heldMs = (pool.heldMs[def.id] ?? 0) + tickMs;
+      /**
+       * Compared against the epsilon rather than the figure itself: thirty
+       * ticks come to a hair over a second, and an exact comparison would be
+       * a tick late half the time.
+       */
       if (heldMs + HELD_EPSILON_MS < everyMs) {
         this.pools.set(key, { ...pool, heldMs: { ...pool.heldMs, [def.id]: heldMs } });
         return false;

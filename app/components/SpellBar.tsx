@@ -208,6 +208,11 @@ function CooldownRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: 
   const arcRef = useRef<SVGCircleElement>(null);
   const animationRef = useRef<Animation | null>(null);
 
+  /**
+   * Layout rather than passive, so the new animation is in place before the
+   * browser paints a frame of the arc sitting at the previous cooldown's
+   * figure.
+   */
   useLayoutEffect(() => {
     const arc = arcRef.current;
     if (!arc) return;

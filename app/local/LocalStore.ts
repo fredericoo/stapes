@@ -27,6 +27,7 @@ export class LocalStore {
     return Promise.resolve(raw === undefined ? undefined : (decode(raw) as T));
   }
 
+  /** Sorted because the server's is — `pruneOldest` walks the result expecting the oldest first. */
   list<T>(options: { prefix: string }): Promise<Map<string, T>> {
     const keys = [...this.values.keys()].filter((key) => key.startsWith(options.prefix)).sort();
     const out = new Map<string, T>();
@@ -102,6 +103,13 @@ export class LocalStore {
     return this.written.size > 0 || this.deleted.size > 0 || this.alarmDirty;
   }
 
+  /**
+   * The batch is taken before the first await, so writes made while a
+   * checkpoint is in flight belong to the next one rather than being lost.
+   * Overlapping calls are serialised for the same reason the server's are:
+   * two commits carrying interleaved views of one board is the corruption a
+   * checkpoint exists to prevent.
+   */
   async flush(): Promise<void> {
     if (this.flushing) {
       await this.flushing;

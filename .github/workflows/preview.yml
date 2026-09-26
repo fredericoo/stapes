@@ -16,8 +16,11 @@ jobs:
     permissions:
       contents: read
     env:
+      # Built from the PR number because Coolify's compose deployments do not return the preview URL.
       PREVIEW_ORIGIN: https://pr-${{ github.event.number }}.${{ vars.PREVIEW_DOMAIN }}
     steps:
+      # The head commit, which is what Coolify deploys. The default merge ref would
+      # build main's client to run against the branch's server.
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -55,6 +58,8 @@ jobs:
           }
 
           for i in $(seq 1 90); do
+            # Without -f, curl exits 0 on any HTTP answer, so a non-zero exit means no
+            # answer at all. The fallback keeps `bash -e` from ending the step on it.
             CODE=$(curl -sS --max-time 10 -o "$BODY" -w '%{http_code}' \
               "${{ vars.COOLIFY_URL }}/api/v1/deployments/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}?take=20" \
               -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}") || CODE=none

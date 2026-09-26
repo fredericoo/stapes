@@ -72,6 +72,10 @@ run("server", ["bun", "--watch", "server/index.ts"], {
   PUBLIC_ORIGIN: `http://localhost:${clientPort}`,
 });
 
+/**
+ * Vite runs on Node, not Bun. With `--bun` it aborts a few seconds after start,
+ * because Vite 8 drives rolldown through native bindings that do not load under Bun.
+ */
 run("client", ["bunx", "vite", "dev", "--host"], {
   PORT: String(clientPort),
   STAPES_SERVER_ORIGIN: serverOrigin,

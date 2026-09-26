@@ -42,6 +42,7 @@ export function withinBodyReachOf(
 
 const BODY_GRID_CELLS = CHUNK_SIZE;
 
+/** One number per bucket: offset by 0x8000 so a negative coordinate cannot collide with a positive one. */
 function bodyGridKey(bx: number, by: number): number {
   return (bx + 0x8000) * 0x10000 + (by + 0x8000);
 }

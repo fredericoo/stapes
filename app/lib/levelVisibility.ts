@@ -91,6 +91,13 @@ function hideRayClear(
   return true;
 }
 
+/**
+ * Measured, not guessed: sampling every anchor across `data/map.json`, the
+ * largest structure the shipped map cuts is 392 cells and every underground
+ * anchor refuses. Past the cap the cut degrades to the whole storey rather
+ * than a truncated fill, so raising or lowering this only changes how much
+ * work is spent discovering that a cave ceiling is not a building.
+ */
 export const MAX_CUT_CELLS = 1024;
 
 export type RoofCut = {
@@ -135,6 +142,14 @@ function cutSeeds(
   return seeds;
 }
 
+/**
+ * 26-way adjacency, deliberately the most generous there is: merging two
+ * structures that only touch at a corner costs one extra roof lifting with
+ * yours, while splitting a structure costs a hard diagonal edge through a
+ * building. Including the level above and below keeps a two-storey house
+ * whose upper floor sits one cell in from its roof from cutting as two
+ * things.
+ */
 function fillStructure(
   map: MapFile,
   floor: number,
@@ -159,6 +174,13 @@ function fillStructure(
 
   for (const seed of seeds) claim(seed.x, seed.y, seed.z);
 
+  /**
+   * This occupancy test is the whole cost of the fill, so it does not go
+   * through `getStack`, which builds three keys per probe. Neighbours are
+   * adjacent by construction, so nearly all of them share a chunk with the
+   * one before, and holding the last level and chunk record makes the common
+   * case a single object lookup instead.
+   */
   let lastZ = Number.NaN;
   let lastLevel: LevelChunks | undefined;
   let lastChunkKey = "";

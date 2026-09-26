@@ -29,9 +29,21 @@ export const UNKNOWN_REMAINING_MS = Number.POSITIVE_INFINITY;
 
 export function snapToTick(everyMs: number): number {
   if (everyMs <= 0) return 0;
+  /**
+   * Nudged by the epsilon before the ceiling: `1000 / TICK_MS` computes to
+   * 30.000000000000004, so an honest `ceil` would round a cadence of exactly
+   * 1000ms up to 31 ticks and make every authored cadence a tick late.
+   */
   return Math.max(1, Math.ceil(everyMs / TICK_MS - TICK_EPSILON_MS)) * TICK_MS;
 }
 
+/**
+ * Slack for comparing accumulated millisecond counts. `TICK_MS` is not
+ * exactly representable, so a count built up from many ticks drifts a few
+ * times 1e-15 off the exact value, which is enough to fail a comparison
+ * against an exact boundary. Far smaller than anything the simulation
+ * observes, and far larger than the drift it absorbs.
+ */
 const TICK_EPSILON_MS = 1e-6;
 
 export function secondsLeft(remainingMs: number): number {
@@ -122,6 +134,10 @@ export type StatusTick = {
   expired: boolean;
 };
 
+/**
+ * Runs three phases per status, in order: wind down the remaining time, fire
+ * the periods that fell due, then drop the status if it has expired.
+ */
 export function advanceStatuses(
   statuses: readonly StatusInstance[],
   tickMs: number,
@@ -148,6 +164,11 @@ export function advanceStatuses(
     if (def.effects.hp) {
       const scope = scopeFor(instance, remainingMs, bearer);
       const everyMs = snapToTick(def.everyMs.evaluate(scope));
+      /**
+       * A `while`, not an `if`: `GameSession.update` can run several ticks in
+       * one call, so a status whose cadence is shorter than the catch-up owes
+       * one payout per period it accumulated, not just the last.
+       */
       while (everyMs > 0 && sinceEffectMs + TICK_EPSILON_MS >= everyMs) {
         sinceEffectMs -= everyMs;
         hpChanges.push({

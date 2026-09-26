@@ -25,6 +25,11 @@ export function dodgeAway(defender: ReachPoint, attacker: ReachPoint): StrikeSta
   return leanBetween("dodge", attacker, defender);
 }
 
+/**
+ * Only a dodge with `elapsedMs` of zero, meaning it started this tick: leans
+ * are aged before anything swings, so a dodge from an earlier tick has
+ * already been drawn and has no claim on the next blow this body throws.
+ */
 export function outranksSwing(state: StrikeState | null): boolean {
   return state !== null && state.kind === "dodge" && state.elapsedMs === 0;
 }

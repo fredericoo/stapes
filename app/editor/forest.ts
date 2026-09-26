@@ -53,6 +53,10 @@ export const MIN_FOREST_FOOTPRINT = 8;
 
 export const FOREST_DENSITY_RANGE = { min: 0, max: 100 } as const;
 
+/**
+ * Two is the floor for the same reason no cave passage is one cell wide: the
+ * oblique projection draws the tree in front of a one-cell path over the path.
+ */
 export const PATH_WIDTH_RANGE = { min: 2, max: 6 } as const;
 
 export const PATH_COUNT_RANGE = { min: 1, max: 3 } as const;

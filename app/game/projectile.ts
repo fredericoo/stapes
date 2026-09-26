@@ -24,6 +24,11 @@ export type FlightEffect = {
   elapsedMs: number;
 };
 
+/**
+ * `elevPx` is subtracted from both axes because the world is drawn in
+ * oblique cabinet projection, where a height unit shifts a sprite on both
+ * the x and y axes of the screen rather than only upward.
+ */
 export function flightScreenDelta(from: FlightPoint, to: FlightPoint): { dx: number; dy: number } {
   const elevPx = (to.elevAbs - from.elevAbs) * PX_PER_HEIGHT;
   return {
@@ -93,6 +98,10 @@ export type FlightPhase = {
 };
 
 export function flightLifetimeMs(flight: ProjectileFlight, def: TileDef | undefined): number {
+  /**
+   * `disappear`, never `hit`: `disappear` is the transition that plays on the
+   * arrow itself, while `hit` plays on whatever the arrow struck.
+   */
   const going = projectileEffect(def, "disappear");
   return flight.durationMs + (going?.durationMs ?? 0);
 }

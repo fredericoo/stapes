@@ -34,6 +34,11 @@ export function MapCanvas({ tilesets, tiles }: { tilesets: TilesetDef[]; tiles: 
   }, []);
 
   useEffect(() => {
+    /**
+     * Read fresh rather than subscribed: an ordinary effect runs after the
+     * page's useLayoutEffect that hydrates the store, so tilesById is
+     * already populated by the time this runs.
+     */
     const tilesById = useEditorStore.getState().tilesById;
     rendererRef.current?.setAssets(tilesets, tilesById);
   }, [tilesets, tiles]);

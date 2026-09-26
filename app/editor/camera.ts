@@ -4,6 +4,11 @@ import { useEditorStore, ZOOM_LEVELS, type ZoomLevel } from "./store";
 
 const ZOOM_STEP_RATIO = 2;
 
+/**
+ * The geometric midpoint between two neighbouring zoom levels, so a pinch
+ * lands on whichever step its spread is now nearer. A linear threshold would
+ * step early in one direction and late in the other.
+ */
 export const PINCH_ZOOM_RATIO = Math.sqrt(ZOOM_STEP_RATIO);
 
 export type Viewport = { width: number; height: number };
@@ -75,6 +80,11 @@ export function steppedZoom(current: ZoomLevel, steps: number): ZoomLevel {
 export function pinchZoomSteps(ratio: number): number {
   if (!Number.isFinite(ratio) || ratio <= 0) return 0;
   const steps = Math.log(ratio) / Math.log(ZOOM_STEP_RATIO);
+  /**
+   * Rounded on the absolute value rather than with Math.round directly:
+   * Math.round(-0.5) is -0, which would make closing the fingers need more
+   * travel than spreading them by the same amount.
+   */
   const rounded = Math.round(Math.abs(steps));
   if (rounded === 0) return 0;
   return steps < 0 ? -rounded : rounded;

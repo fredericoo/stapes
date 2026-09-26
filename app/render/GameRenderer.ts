@@ -149,6 +149,11 @@ type PointerLabel = {
   color?: string;
 };
 
+/**
+ * A rolling hash rather than a sum: a sum would miss two creatures trading a
+ * point between them, since the total is unchanged. `| 0` keeps it a plain
+ * int32 so this stays cheap to compare every frame.
+ */
 function healthSignature(actors: readonly ActorSnapshot[]): number {
   let signature = 0;
   for (const actor of actors) {
@@ -158,6 +163,7 @@ function healthSignature(actors: readonly ActorSnapshot[]): number {
   return signature;
 }
 
+/** Rounds a moving sprite to whole world pixels so its texels line up with the static scenery. */
 function snapToWholePixels(p: { x: number; y: number }): {
   x: number;
   y: number;
@@ -784,6 +790,12 @@ export class GameRenderer {
       return;
     }
 
+    /**
+     * Deliberately without `preventDefault`, unlike the branches above: in
+     * Chrome, cancelling a pointerdown suppresses the compatibility mousedown
+     * it would otherwise fire, which would take focus off a chat field the
+     * player just typed into.
+     */
     this.walkToPointer(point, snap);
   }
 

@@ -128,6 +128,10 @@ function runOnEnter(brain: BrainDef, memory: BrainMemory, ctx: BrainContext) {
   }
 }
 
+/**
+ * The drop check runs first because it is one column scan, cheaper than the
+ * hazard check's step check plus stack scan.
+ */
 function footing(direction: Direction, allowDrops: boolean | undefined, ctx: BrainContext) {
   if (!allowDrops && ctx.wouldDrop(direction)) return false;
   return !ctx.wouldStepIntoHazard(direction);

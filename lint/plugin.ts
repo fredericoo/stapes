@@ -10,17 +10,18 @@ const DIRECTIVE = /^\s*(oxlint-(disable|enable)|@ts-expect-error\s*$)|^\/\s*<ref
 const noComments = {
   meta: {
     type: "suggestion",
-    docs: { description: "Forbid comments other than lint and type directives" },
+    docs: { description: "Forbid comments other than doc blocks and lint and type directives" },
   },
   create(context: Context) {
     return {
       Program() {
         for (const comment of context.sourceCode.getAllComments()) {
           if (comment.type === "Shebang" || DIRECTIVE.test(comment.value)) continue;
+          if (comment.type === "Block" && comment.value.startsWith("*")) continue;
           context.report({
             node: comment,
             message:
-              "Remove this comment. Write constraints the code cannot show in docs/<subject>.md.",
+              "Remove this comment. Explain code that cannot be read without help in a /** */ block, and constraints in docs/<subject>.md.",
           });
         }
       },

@@ -40,6 +40,11 @@ const app = new Elysia({
       });
       sockets.set(ws.raw as object, socket);
 
+      /**
+       * Refusals below close the open socket with a code instead of rejecting the
+       * upgrade: a browser reports a rejected upgrade as a generic failure, and the
+       * client would retry instead of reloading or showing the sign-in screen.
+       */
       const url = new URL(ws.data.request.url);
       const claimed = Number(url.searchParams.get(PROTOCOL_VERSION_PARAM));
       if (claimed !== PROTOCOL_VERSION) {

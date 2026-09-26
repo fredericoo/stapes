@@ -22,6 +22,12 @@ import {
 
 export const LIGHT_CHUNK_SIZE = 32;
 
+/**
+ * Equal to {@link MAX_LIGHT_LEVEL} because a block emitter's radius is
+ * clamped to that same bound by `clampTileLight`. If that clamp is ever
+ * loosened, this crop is no longer wide enough and a chunk's edge can go
+ * dark while a wider light approaches it from outside the apron.
+ */
 export const LIGHT_APRON = MAX_LIGHT_LEVEL;
 
 export const LIGHT_WINDOW_MARGIN = 4;
@@ -133,6 +139,11 @@ function sliceChunk(level: RawLevelLight, rect: WorldRect): Uint8Array {
   return out;
 }
 
+/**
+ * `ceil(radius) - 1` because the flood reaches zero exactly at `radius`.
+ * `ceil(radius)` would charge chunks the emitter never lights, and they would
+ * rebake on every flicker frame.
+ */
 function litReach(radius: number): number {
   return Math.max(0, Math.ceil(radius) - 1);
 }

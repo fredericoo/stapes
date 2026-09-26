@@ -245,6 +245,12 @@ export function carveCave(
     openConnection(grid, bounds, connection, CONNECTION_DEPTH);
   }
 
+  /**
+   * Widening and joining each undo a little of the other: widening a
+   * corridor to two cells can pinch it shut, and the corridor bored to
+   * replace it can meet its region at an angle that widening then pinches in
+   * turn. So they alternate rather than each running once.
+   */
   for (let attempt = 0; attempt < JOIN_ATTEMPTS; attempt++) {
     widenToTwo(grid);
     if (regionsOf(grid).length <= 1) return grid;
@@ -270,6 +276,10 @@ export function erodeWithWater(grid: CellGrid, bounds: Bounds, config: CaveConfi
   return water;
 }
 
+/**
+ * The shell is never an edge: a low wall there would be a hole in the
+ * block-out, and what is beyond it is usually nothing the map draws at all.
+ */
 function isCaveEdge(g: CellGrid, bounds: Bounds, x: number, y: number): boolean {
   if (x === bounds.minX || x === bounds.maxX) return false;
   if (y === bounds.minY || y === bounds.maxY) return false;

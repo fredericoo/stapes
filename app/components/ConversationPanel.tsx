@@ -128,6 +128,10 @@ export function ConversationPanel({
         </button>
       </div>
 
+      {/**
+       * `relative` keeps the transcript's absolutely positioned screen-reader
+       * prefixes inside it instead of growing the page.
+       */}
       <div
         ref={bodyRef}
         className="relative flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"

@@ -31,6 +31,12 @@ export function cellInScope(
 ): CellPatch | null {
   const { cell, terrain, bodies } = scoped;
   if (!chunks.has(scoped.chunk ?? chunkKeyFor(cell.x, cell.y))) return null;
+  /**
+   * Held or known, not held alone: the two sets differ for exactly one
+   * tick, and a body that died or walked out of reach in that tick is one
+   * whose departure patch — the one that takes its tile off this client's
+   * board — must not be dropped.
+   */
   if (!terrain && !bodies.some((o) => held.has(o) || known.has(o))) return null;
   const stack = visibleStack(cell.stack, held);
   return stack === cell.stack ? cell : { ...cell, stack };

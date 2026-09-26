@@ -332,6 +332,11 @@ function decayedContents(
     touched = true;
     if (turn.kind === "turned") next.push({ ...held, tileId: turn.tileId });
     if (turn.kind !== "peeled") continue;
+    /**
+     * `peelOne` only returns null for a pile of one, and this is only ever
+     * reached for a pile of more than one — a guard against that rule
+     * changing, not a case that happens.
+     */
     const rest = peelOne(held) ?? held;
     if (turn.tileId) {
       peels.push({ at: next.length, shed: { id: mintId(), tileId: turn.tileId } });

@@ -587,6 +587,11 @@ export class RemoteSession implements PlaySession {
     }
   }
 
+  /**
+   * Read off `serverMap`, not `map`. Events are applied after the frame's
+   * cells and before `rebuildPredicted`, so at this point `map` is still the
+   * previous frame's board.
+   */
   private walkDurationAt(actorId: string, at: { x: number; y: number; z: number }): number {
     const stack = getStack(this.serverMap, at.x, at.y, at.z);
     const stackIndex = stack.findIndex((placed) => placed.owner === actorId);

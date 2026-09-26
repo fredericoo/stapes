@@ -9,4 +9,3 @@
 ## Wire
 
 - `parseServerMessage` uses valibot `v.object` schemas, which strip unknown fields. A field added to a message type but not to its schema is dropped in transit without a type error.
-- The Eden client in `app/lib/api.ts` is built from `window.location.origin`, not `host`. Eden prefixes a non-loopback bare host with `https://`, which breaks a phone on a LAN dev server over plain HTTP.

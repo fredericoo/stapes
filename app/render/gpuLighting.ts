@@ -13,6 +13,7 @@ export type GpuLightingOptions = {
   renderer?: THREE.WebGLRenderer;
 };
 
+/** Always bakes on the CPU. The `useGpuJacobi` option is accepted and ignored. */
 export class GpuLighting {
   private opts: GpuLightingOptions;
 

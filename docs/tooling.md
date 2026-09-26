@@ -17,7 +17,7 @@ Two inline disables:
 ## `stapes/no-comments`
 
 - `lint/plugin.ts` is a local oxlint JS plugin. It is TypeScript, so `bun run lint` runs oxlint with `bun --bun`: CI installs no Node, and the runner's default Node may not strip types.
-- The rule allows `oxlint-disable`/`oxlint-enable` directives, a bare `@ts-expect-error`, `/// <reference>` and shebangs.
+- The rule allows `/** */` blocks, `oxlint-disable`/`oxlint-enable` directives, a bare `@ts-expect-error`, `/// <reference>` and shebangs.
 
 ## `.oxfmtrc.json`
 

@@ -307,6 +307,12 @@ function swapInto(
 ): ItemMoveResult | null {
   const displaced = equipment[to.kind];
   if (!displaced?.id) return null;
+  /**
+   * Refuses only when at least one side is a genuine pile (count > 1): two
+   * single items of the same tile sum to two and are an ordinary swap, not a
+   * merge that would leave the player holding the count they were trying to
+   * add to.
+   */
   if (displaced.tileId === instance.tileId && countOf(displaced) + countOf(instance) > 2) {
     return null;
   }

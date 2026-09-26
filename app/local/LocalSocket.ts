@@ -23,6 +23,12 @@ export class LocalSocket implements ClientSocket {
   close(): void {
     if (this.state !== SOCKET_OPEN) return;
     this.post({ kind: "close", id: this.id });
+    /**
+     * Ended in its own turn rather than inline, because a WebSocket does the
+     * same: close() returns, and the close event arrives afterwards. A page
+     * that tore itself down inside its own close() call would be running
+     * its cleanup twice over.
+     */
     queueMicrotask(() => this.ended(1000, "closed by the page"));
   }
 

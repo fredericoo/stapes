@@ -106,6 +106,11 @@ export async function openDatabase(path: string, { exclusive = false } = {}): Pr
   await db.exec("PRAGMA foreign_keys = ON");
   if (exclusive) {
     await db.exec("PRAGMA locking_mode = EXCLUSIVE");
+    /**
+     * The exclusive lock is taken on the first write, not by the pragma. This
+     * empty write takes it now, so a second process fails at open instead of at
+     * its first checkpoint.
+     */
     await db.exec("BEGIN IMMEDIATE");
     await db.exec("COMMIT");
   }

@@ -68,6 +68,10 @@ function settledStack(
 ): PlacedTile[] | null {
   const stack = getStack(map, cell.x, cell.y, cell.z);
   let next = stack;
+  /**
+   * Bottom-up, so a plate stacked on a plate reads the load its neighbour has
+   * already settled into rather than the one it had a moment ago.
+   */
   for (let i = 0; i < stack.length; i++) {
     const swapped = swapPlateAt(map, cell, next, i, tilesById);
     if (swapped) next = swapped;

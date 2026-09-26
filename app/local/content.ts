@@ -3,6 +3,12 @@ import type { Blobs } from "../lib/dataStore";
 export class ApiBlobs implements Blobs {
   constructor(private readonly origin: string = self.location.origin) {}
 
+  /**
+   * Written against fetch rather than the Eden client in app/lib/api.ts on
+   * purpose: that client resolves its origin from window.location, and
+   * there is no window in the worker this runs in — it would quietly
+   * address localhost.
+   */
   async getText(key: string): Promise<string | null> {
     if (key === "map.json") {
       return this.json<{ map: string }>("/api/map", (body) => body.map);

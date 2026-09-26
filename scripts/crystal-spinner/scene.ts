@@ -150,6 +150,7 @@ window.renderCrystal = (p: SceneParams): number[][] => {
   canvas.height = p.size;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true });
   renderer.setClearColor(0x000000, 0);
+  /** The shader writes sRGB ramp values directly, so no conversion is applied on output. */
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 
   const e = p.viewExtent;

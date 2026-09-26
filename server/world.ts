@@ -90,6 +90,10 @@ export class World {
     }, this.config.CHECKPOINT_INTERVAL_MS);
   }
 
+  /**
+   * On its own timer rather than the tick, because a world at rest stops
+   * ticking and a silent connection is dropped by the proxy in front of it.
+   */
   private startKeepalive() {
     const frame = JSON.stringify({ type: "keepalive" });
     this.keepaliveTimer = setInterval(() => {

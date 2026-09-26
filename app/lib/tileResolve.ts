@@ -32,6 +32,13 @@ export function resolveTileSprite(
   }
   if (isDirectional(tile)) {
     const dir = ctx.direction ?? "s";
+    /**
+     * Facing outranks state in this fallback: a missing variant falls
+     * through to idle's same direction, never to the state's other
+     * directions. Falling straight to south instead would draw a creature
+     * facing the wrong way, which reads as a bug more than a missing
+     * animation does.
+     */
     const cardinal = nearestCardinal(dir);
     return (
       override?.sprites?.[dir] ??
@@ -42,10 +49,21 @@ export function resolveTileSprite(
     );
   }
   if (tile.type === "variant") {
+    /**
+     * The key is settled against idle before either holder is asked, so a
+     * placement that names no face draws the same one in every state.
+     * Letting each holder answer "first authored" for itself would change
+     * face when the tile changed state.
+     */
     const key = ctx.variant ?? variantKeys(tile)[0];
     return override?.variants?.[key ?? ""] ?? pickVariantSprite(tile, key);
   }
   if (tile.type === "scatter") {
+    /**
+     * Counted off idle even when a state is drawing, so a placement keeps
+     * its face while it moves. Counting off the override instead would
+     * re-pick it the moment the state changed.
+     */
     const count = tile.scatter?.length ?? 0;
     let index = ctx.scatterIndex;
     if (index == null && ctx.x != null && ctx.y != null && ctx.z != null) {

@@ -4,6 +4,12 @@ const TAP_SLOP_PX = 10;
 
 const SYNTHESISED_CLICK_WINDOW_MS = 500;
 
+/**
+ * Touch does not produce a native `click`; browsers synthesise one afterwards,
+ * arriving up to `SYNTHESISED_CLICK_WINDOW_MS` later. Without this, the
+ * pointer handlers below would run the tap once and the synthesised click
+ * would run it again.
+ */
 function swallowSynthesisedClick() {
   const swallow = (event: MouseEvent) => {
     event.stopPropagation();
@@ -41,6 +47,11 @@ export type TapProps = {
   onClick: React.MouseEventHandler<HTMLButtonElement>;
 };
 
+/**
+ * Reads presses from pointer events instead of `click`. iOS synthesises
+ * `click` only while a single finger is down, so a tap on this button while
+ * another finger is steering the d-pad would otherwise never fire.
+ */
 export function useTap(onTap: () => void): TapProps {
   const pressed = useRef<TouchPress | null>(null);
   const run = useRef(onTap);

@@ -21,6 +21,13 @@ export type BakerResponse =
   | { type: "baked"; id: number; chunks: Array<[string, WireChunk]> }
   | { type: "failed"; id: number; message: string };
 
+/**
+ * Sending the map slice a bake needs costs about 3ms of structured clone on
+ * the calling thread — a third of the bake it was meant to save — so the
+ * worker keeps its own copy of the map instead and is only ever told what
+ * changed. `MapFile` is persistent (an edit rebuilds only the level and
+ * chunk it touched), so a reference compare here cannot miss a change.
+ */
 export function diffMapChunks(prev: MapFile | null, next: MapFile): MapPatch | null {
   if (prev === next) return null;
   const levels: MapPatch["levels"] = {};

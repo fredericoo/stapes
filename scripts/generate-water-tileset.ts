@@ -29,6 +29,11 @@ const SHAPE_SOURCE_TILE = "dirt";
 const TILESET_ID = "water";
 const TILE_ID = "water";
 
+/**
+ * A shadow on the left column or top row is cast from the neighbouring tile,
+ * which is `PHASE` frames apart in the cycle, so the source frame is shifted by
+ * that phase at those edges. Changing `PHASE` means regenerating the sheet.
+ */
 function shadowOf(litByFrame: boolean[][][], frame: number): boolean[][] {
   const count = litByFrame.length;
   const lit = litByFrame[frame]!;
@@ -70,6 +75,10 @@ function nickCorners(inside: boolean[][], mask: number, casting = false): boolea
   return out;
 }
 
+/**
+ * Off-tile pixels count as inside the water, so open water gets no bank and an
+ * edge slice is shaded only where its own shape cuts in.
+ */
 function bankOf(shape: boolean[][], inside: boolean[][]): boolean[][] {
   const at = (x: number, y: number): boolean =>
     x < 0 || y < 0 || x >= CELL || y >= CELL ? true : shape[y]![x]!;

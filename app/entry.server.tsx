@@ -17,6 +17,11 @@ export default async function handleRequest(
     {
       onError(error: unknown) {
         status = 500;
+        /**
+         * Errors thrown before the shell flushes are already reported through
+         * the rejected `renderToReadableStream` promise below; logging them
+         * here too would double them up.
+         */
         if (shellRendered) console.error(error);
       },
     },

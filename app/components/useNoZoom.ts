@@ -19,6 +19,13 @@ export function continuesDoubleTap(
 
 const WEBKIT_GESTURE_EVENTS = ["gesturestart", "gesturechange", "gestureend"] as const;
 
+/**
+ * `touch-action` alone does not stop every zoom gesture. A pinch is stopped by
+ * refusing the second finger a default action, WebKit reports its own
+ * two-finger gesture as `gesture*` events instead of touches, and iOS's
+ * double-tap-and-hold magnifier ignores `touch-action` entirely, so its second
+ * tap is cancelled here by hand.
+ */
 export function useNoZoom(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
@@ -52,6 +59,11 @@ export function useNoZoom(enabled: boolean) {
       };
     };
 
+    /**
+     * Registered with `{ passive: false }` so `preventDefault` actually cancels
+     * the gesture. React registers touch listeners passively, which is why
+     * these are raw `addEventListener` calls instead of JSX handlers.
+     */
     for (const name of WEBKIT_GESTURE_EVENTS) {
       document.addEventListener(name, cancel, { passive: false });
     }

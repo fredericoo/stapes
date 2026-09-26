@@ -39,6 +39,12 @@ class ManualBaker implements ChunkBaker {
     return this.queue.length;
   }
 
+  /**
+   * A macrotask, not a couple of microtasks. The cache hangs its bookkeeping off
+   * `.then().catch().finally()`, so the slot it counts requests against is only
+   * given back on the third tick — awaiting two left it permanently held, and
+   * every later refresh was silently declined for want of it.
+   */
   async flush() {
     const queued = this.queue;
     this.queue = [];

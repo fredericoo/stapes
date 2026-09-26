@@ -57,6 +57,11 @@ export function createParticleAtlas(): THREE.DataTexture {
       for (let px = 0; px < CIRCLE_CELL_PX; px++) {
         const dx = px - MAX_PARTICLE_RADIUS_PX;
         const dy = py - MAX_PARTICLE_RADIUS_PX;
+        /**
+         * `<= r*r` rather than a fudged radius: `(r + 0.5)^2` makes radius 1 a
+         * 3x3 square instead of a circle. This gives a plus at 1 and a proper
+         * rounded blob from 2 up.
+         */
         const inside = dx * dx + dy * dy <= r * r;
         const o = (py * ATLAS_W + cellX + px) * 4;
         data[o] = 255;
@@ -421,6 +426,11 @@ export class ParticleLayer {
       indices[ib + 5] = base + 1;
     }
     geo.setIndex(new THREE.BufferAttribute(indices, 1));
+    /**
+     * Left wide open on purpose: a group does not replace the draw range, it
+     * is intersected with it, so a range pinned to setDrawRange(0, 0) draws
+     * nothing however many groups exist. The groups are what bounds the draw.
+     */
     geo.setDrawRange(0, Infinity);
     return geo;
   }
@@ -428,6 +438,12 @@ export class ParticleLayer {
 
 const PARTICLE_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-particles-v1`;
 
+/**
+ * This must run after `injectWorldShader`. Both patch `#include <common>`,
+ * and replacing an include that has already been replaced hits the copy at
+ * the head of the previous patch's text, so running second is what puts
+ * these declarations in front of the world shader's.
+ */
 function injectParticleShader(shader: { vertexShader: string; fragmentShader: string }) {
   shader.vertexShader = shader.vertexShader
     .replace(

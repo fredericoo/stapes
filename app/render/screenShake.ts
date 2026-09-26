@@ -38,6 +38,7 @@ export class ScreenShake {
     }
     const reach = this.amplitude * shakeEnvelope(elapsed);
     return {
+      /** `+ 0` turns the -0 a rounded negative fraction can give into a 0. */
       x: Math.round(reach * Math.sin(elapsed * FREQ_X)) + 0,
       y: Math.round(reach * Math.cos(elapsed * FREQ_Y)) + 0,
     };

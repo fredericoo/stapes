@@ -98,6 +98,10 @@ function inDrawOrder(offsets: PileOffset[]): PileOffset[] {
 
 const memo = new Map<number, readonly PileOffset[]>();
 
+/**
+ * Depends only on `count`, the one thing every client knows about a pile. Any
+ * randomness would draw the same pile differently on each client.
+ */
 export function pileOffsets(count: number): readonly PileOffset[] {
   if (count <= 1) return NO_PILE_OFFSET;
   const drawn = Math.min(count, MAX_PILE_SPRITES);

@@ -47,6 +47,10 @@ function candidateIn(
   return topmost < 0 ? null : { stackIndex: topmost, actionable: false };
 }
 
+/**
+ * Tests the foot square of each level's cell under the pointer, not the sprite's
+ * bounds, so tall art does not take clicks meant for what stands behind it.
+ */
 function pickTopAt(
   ctx: PickContext,
   screenX: number,

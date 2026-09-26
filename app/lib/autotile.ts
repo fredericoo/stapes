@@ -19,6 +19,11 @@ export const NW = 128;
 const EDGE_BITS = N | E | S | W;
 const CORNER_BITS = NE | SE | SW | NW;
 
+/**
+ * Clears a corner bit when either adjacent edge bit is missing, per the
+ * standard 47-tile blob rule: a corner only renders as connected when both
+ * edges it touches are also connected.
+ */
 export function maskBlobCorners(raw: number): number {
   let mask = raw & (EDGE_BITS | CORNER_BITS);
   if (!(mask & N) || !(mask & E)) mask &= ~NE;

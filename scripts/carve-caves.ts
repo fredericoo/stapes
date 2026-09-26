@@ -83,6 +83,11 @@ const CRYSTAL_NOOK_ROCK = 5;
 const CRYSTAL_SPACING = 8;
 const CRYSTAL_HOLE_REACH = 2;
 
+/**
+ * A level-tall tile tops out on the floor plane above, and `surfaceTileAt` takes
+ * the lower stack on that tie, so an unwalkable tall crystal makes the cell
+ * above it unwalkable. Tall crystals only go where the roof is rock.
+ */
 const TALL_CRYSTAL_TILES = ["arcane-crystal-1", "arcane-crystal-2"];
 const LOW_CRYSTAL_TILES = ["arcane-crystal-3"];
 
@@ -176,6 +181,11 @@ const SEALED_ROOF: Mask = (() => {
     const [x, y] = key.split(",").map(Number) as [number, number];
     const stack = (map.levels["0"]![key] ?? []) as PlacedTile[];
     const { opacity, sealsLevel } = stackOcclusion(stack, tilesById);
+    /**
+     * A bare floor (opacity 0) hard-seals the sky shaft and a full block stops
+     * it. Anything between, such as a bush or a pond, lets daylight through at
+     * partial strength, so no cave is carved under it.
+     */
     if ((sealsLevel && opacity === 0) || opacity >= 1) {
       mask[idx(x, y)] = 1;
     }
@@ -457,6 +467,10 @@ function carveSystem(): Carved {
   });
 
   const rampHoles = new Set(ramps.map((r) => `${r.z + 1}:${r.cell}`));
+  /**
+   * A three-high body standing on a two-high ramp reaches a unit into the level
+   * above, so the cell over every ramp must be empty: it becomes the hole.
+   */
   for (const ramp of ramps) floorAt(ramp.z + 1)?.open.fill(0, ramp.cell, ramp.cell + 1);
 
   const pits = new Set<string>();

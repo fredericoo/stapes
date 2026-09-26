@@ -669,6 +669,12 @@ type ActorRuntime = {
   } | null;
 };
 
+/**
+ * Slack for comparing accumulated ticks against a step size. `TICK_MS` is
+ * 1000/30, which is not exactly representable, so thirty ticks of it sum to
+ * 1000.0000000000005, and a plain comparison against the round number would
+ * read a step late about half the time.
+ */
 const COOLDOWN_EPSILON_MS = 1e-6;
 
 const STANDING_STATUS_EVERY_MS = 1000;
@@ -1199,6 +1205,12 @@ export class GameSession implements PlaySession {
     }
   }
 
+  /**
+   * Actors move in insertion order, and that order is load-bearing: two
+   * actors stepping into the same cell on the same tick resolve by it, so a
+   * stable order is what makes a tick reproducible rather than dependent on
+   * which message happened to arrive first.
+   */
   tick(tickMs: number = TICK_MS) {
     this.pendingSpeech = [];
     this.pendingDamage = [];
@@ -1302,6 +1314,13 @@ export class GameSession implements PlaySession {
     }
   }
 
+  /**
+   * The order is load-bearing in one place: the shares a finished status
+   * passes on are worked out against the map as it was before the swap. A
+   * stack of two burning things needs the first one still counted when the
+   * second one's share is divided, or turning one first changes what the
+   * other divides by.
+   */
   private applyWornThrough(tickMs: number) {
     const consumed = this.endure.advance(tickMs, this.statusDefs);
     if (consumed.length === 0) return;
@@ -1949,6 +1968,12 @@ export class GameSession implements PlaySession {
 
       clock.elapsedMs += tickMs;
       if (clock.elapsedMs < charm.item.everyMs) continue;
+      /**
+       * Subtracted rather than zeroed, so a long-run cadence stays honest on
+       * a tick that does not divide the interval evenly. Bounded by one
+       * interval, so a world resumed after an hour does not pay out an
+       * hour's worth of healing in one frame.
+       */
       clock.elapsedMs = Math.min(charm.item.everyMs, clock.elapsedMs - charm.item.everyMs);
       this.spendCharm(actor, charm.item);
     }
@@ -2063,6 +2088,12 @@ export class GameSession implements PlaySession {
     windup.inReach = true;
     windup.sinceSeenMs = 0;
     if (!armed || returning) {
+      /**
+       * The longer of the two waits, not the windup alone: a body that turns
+       * on the target beside the one it just killed is in reach immediately
+       * and still owes the rest of its cooldown, and reading only the windup
+       * would promise a blow that is not coming.
+       */
       attacker.nextBlow = {
         remainingMs: Math.max(windup.msLeft, attacker.attackCooldownMs),
         durationMs: interval,
@@ -2522,6 +2553,10 @@ export class GameSession implements PlaySession {
       blow.remainingMs -= tickMs;
       (blow.remainingMs <= 0 ? arrived : waiting).push(blow);
     }
+    /**
+     * Swapped before anything lands rather than after, so a blow that kills
+     * somebody cannot be walked over twice by a re-entrant tick.
+     */
     this.blowsInFlight = waiting;
     for (const blow of arrived) blow.land();
   }
@@ -2546,6 +2581,12 @@ export class GameSession implements PlaySession {
   ): FightingStats | null {
     const base = this.baseBattlerOf(actor, hand);
     if (!base) return null;
+    /**
+     * The stored figure rather than {@link hpOf}, which reads this function
+     * and would recurse. Statuses that read HP see the raw number for this
+     * reason: the clamp exists so a lowered maximum cannot leave somebody
+     * overfull, not to change what they have.
+     */
     return withStatusModifiers(base, actor.statuses, this.statusDefs, actor.hp ?? base.maxHp);
   }
 
@@ -3017,6 +3058,12 @@ export class GameSession implements PlaySession {
     },
   ) {
     if (move.kind === "harm") {
+      /**
+       * Trimmed to what the subject has left: a body with three points can
+       * only lose three, and this is also what experience is paid on —
+       * without the trim, a caster finishing off a nearly-dead body would be
+       * paid for hit points that were never there.
+       */
       const dealt = Math.min(move.amount, this.hpOf(subject) ?? 0);
       if (dealt <= 0) return;
       this.applyDamage(subject, dealt, context.blame);
@@ -3153,6 +3200,10 @@ export class GameSession implements PlaySession {
   ): number | null {
     if (!stats) return null;
     actor.hp ??= stats.maxHp;
+    /**
+     * Clamped on read rather than on write, so lowering a tile's maximum in
+     * the editor cannot leave a creature standing there overfull.
+     */
     return Math.min(actor.hp, stats.maxHp);
   }
 
@@ -3404,6 +3455,11 @@ export class GameSession implements PlaySession {
         avoidWade: !def.swims,
       },
     );
+    /**
+     * An empty route means the body has nowhere better than where it
+     * stands, on the same terms `findRefuge` uses elsewhere for arrived —
+     * not a failure, so it is folded into the same null return as one.
+     */
     if (!found.ok || found.route.length === 0) return null;
     return found.route[found.route.length - 1]!.to;
   }
@@ -3422,6 +3478,12 @@ export class GameSession implements PlaySession {
         const actor = this.actors.get(id);
         if (!actor || actor.hidden) continue;
         const loc = this.tryLocate(actor);
+        /**
+         * The tile is re-checked against the board rather than taken from
+         * the index. Positions are read live here — the index only says who
+         * is worth asking about — so an entry that has gone stale costs a
+         * lookup instead of naming the wrong body.
+         */
         if (!loc || loc.placed.tileId !== tileId) continue;
         const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
         if (steps < bestSteps) {
@@ -3433,6 +3495,11 @@ export class GameSession implements PlaySession {
     return best;
   }
 
+  /**
+   * Insertion order is inherited from `actors` and is load-bearing: two
+   * bodies exactly as far away must resolve the same way on every run, or a
+   * seeded world stops being reproducible.
+   */
   private actorsOnTile(tileId: string): readonly string[] {
     this.tileIndex ??= this.buildTileIndex();
     return this.tileIndex.get(tileId) ?? NO_ACTORS;
@@ -4833,6 +4900,13 @@ export class GameSession implements PlaySession {
       walkProgress: actor.walk
         ? Math.min(1, (actor.walk.elapsedMs + visualExtra) / actor.walk.durationMs)
         : 0,
+      /**
+       * Unclamped, unlike the walk above: a fall is a run of height units
+       * rather than one lerp, and the tick that commits a unit lands after
+       * the unit's time is up, so a value past 1 is exactly what the next
+       * step will confirm. Clamping here froze the sprite for a tick at
+       * every boundary and then made it lurch.
+       */
       fallProgress: actor.fall ? (actor.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT : 0,
       slide: actor.slide,
       slideProgress: actor.slide

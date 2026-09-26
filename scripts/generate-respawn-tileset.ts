@@ -49,6 +49,7 @@ function paint(png: PNG, frame: number) {
 }
 
 const png = new PNG({ width: CELL * FRAMES, height: CELL });
+/** pngjs leaves the buffer opaque black even with `fill: true`; the sheet needs a transparent backdrop. */
 png.data.fill(0);
 for (let frame = 0; frame < FRAMES; frame++) paint(png, frame);
 

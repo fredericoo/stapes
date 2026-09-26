@@ -1,4 +1,5 @@
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
+/** Signature (8) + length (4) + "IHDR" (4) + width (4) + height (4). */
 const IHDR_END = 24;
 
 export function readPngSize(bytes: Uint8Array): {

@@ -168,6 +168,11 @@ export class WalkTo {
 }
 
 export function standingCellOn(view: WalkView, on: Coord & { stackIndex: number }): Coord | null {
+  /**
+   * Empty at the walker's own level, not the picked tile's, is what marks a
+   * hole: the pointer names whatever is visible at the bottom, which sits on
+   * a level below the one the walker stands on.
+   */
   if (getStack(view.map, on.x, on.y, view.at.z).length === 0) {
     return dropLanding(
       view.map,

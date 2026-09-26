@@ -402,6 +402,11 @@ export function findPath(
     const node = frontier.pop();
     if (!node) return exhausted(pruned);
 
+    /**
+     * Stale: a cheaper way to this cell was queued after it and has already
+     * been expanded. Skipping it is what a decrease-key would have done,
+     * without a heap that has to find an entry it already gave away.
+     */
     if (node.g > (best.get(cellKey(node.at)) ?? Infinity)) continue;
 
     if (arrived(node.at, goal, arrive)) return { ok: true, route: unwind(node) };

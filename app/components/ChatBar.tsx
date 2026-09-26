@@ -48,6 +48,12 @@ function ChatComposer({
 
   return (
     <>
+      {/**
+       * `pointer-coarse:text-base` is 16px on a finger, and it has to be:
+       * Safari on iOS zooms the page in when a focused field is smaller than
+       * that, and nothing here zooms it back out. No desktop browser does
+       * this, so the desktop bar keeps `text-sm`.
+       */}
       <input
         ref={inputRef}
         type="text"

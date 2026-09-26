@@ -7,6 +7,10 @@ export class Rng {
     this.state = seed >>> 0;
   }
 
+  /**
+   * mulberry32: one multiply-xor-shift round per draw, producing a uniform
+   * float in [0, 1).
+   */
   next(): number {
     this.state = (this.state + 0x6d2b79f5) >>> 0;
     let t = this.state;

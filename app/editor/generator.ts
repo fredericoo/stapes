@@ -469,6 +469,11 @@ function boreLine(
   const stepY = Math.sign(to.y - from.y);
   let { x, y } = from;
   for (let guard = 0; guard <= g.cells.length; guard++) {
+    /**
+     * The brush is clamped into the box, not each of its cells: clamping
+     * cell by cell folds the far column onto the near one at the boundary
+     * and leaves a corridor one cell wide there.
+     */
     const bx = Math.min(Math.max(x, box.minX), Math.max(box.minX, box.maxX - 1));
     const by = Math.min(Math.max(y, box.minY), Math.max(box.minY, box.maxY - 1));
     for (let dy = 0; dy <= 1; dy++) {

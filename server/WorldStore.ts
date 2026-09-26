@@ -218,6 +218,11 @@ function upsertSql(rows: number): string {
   return sql;
 }
 
+/**
+ * Written as text although the `kv` column is `BLOB`: the driver binds a string
+ * several times faster than bytes, and SQLite stores whichever it is given.
+ * `decode` reads both.
+ */
 function encode(value: unknown): string {
   return JSON.stringify(value ?? null);
 }

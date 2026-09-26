@@ -37,7 +37,18 @@ export function Tooltip({
   return (
     <BaseTooltip.Root open={open}>
       <BaseTooltip.Trigger render={children} />
+      {/**
+       * Portalled because a tooltip inside a vertically scrolling column, such as
+       * `ItemSlot`'s, is clipped otherwise: `overflow-y: auto` makes `overflow-x`
+       * compute to `auto` too.
+       */}
       <BaseTooltip.Portal>
+        {/**
+         * The z-index goes on the positioner, which is the element that is
+         * actually positioned. On the popup inside it, it would only order the
+         * popup within the positioner's own stacking context, and the whole
+         * thing would still sort under a dialog's `z-50`.
+         */}
         <BaseTooltip.Positioner
           side={side}
           align={align}

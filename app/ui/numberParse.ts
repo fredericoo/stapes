@@ -7,6 +7,11 @@ export type NumberRule = {
 
 export type NumberParse = { ok: true; value: number | null } | { ok: false; error: string };
 
+/**
+ * `Math.round(value / step) * step` is exact in decimal and not in binary — 0.1
+ * steps can land on values like `0.30000000000000004`. Rounding back through
+ * the step's own decimal precision removes that dust.
+ */
 export function roundToStep(value: number, step: number): number {
   const decimals = Math.max(0, -Math.floor(Math.log10(step)));
   return Number((Math.round(value / step) * step).toFixed(decimals));
