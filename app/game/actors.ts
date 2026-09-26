@@ -98,7 +98,7 @@ export function adoptAuthoredPlayer(map: MapFile, ownerId: string): MapFile {
   return adoptBodyAt(map, requireSinglePlayer(map), ownerId);
 }
 
-export function listActorOwners(map: MapFile): string[] {
+export function listActorOwners(map: MapFile): ReadonlySet<string> {
   const owners = new Set<string>();
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { stack } of listCoords(map, z)) {
@@ -107,7 +107,7 @@ export function listActorOwners(map: MapFile): string[] {
       }
     }
   }
-  return [...owners];
+  return owners;
 }
 
 export function listResidentBodies(

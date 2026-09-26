@@ -96,9 +96,17 @@ export function presentItemIds(map: MapFile, point: SpawnPoint): string[] {
   );
 }
 
-export function isSpawnFilled(map: MapFile, point: SpawnPoint): boolean {
+/**
+ * Pass `owners` as `listActorOwners(map)` when checking many points against
+ * one map: without it, each creature's point sweeps the whole board.
+ */
+export function isSpawnFilled(
+  map: MapFile,
+  point: SpawnPoint,
+  owners?: ReadonlySet<string>,
+): boolean {
   if (point.ownerId) {
-    return findActorAnywhere(map, point.ownerId) !== null;
+    return owners ? owners.has(point.ownerId) : findActorAnywhere(map, point.ownerId) !== null;
   }
   const owed = point.count ?? 1;
   if (point.itemIds) return presentItemIds(map, point).length >= owed;
