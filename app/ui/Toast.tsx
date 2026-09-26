@@ -34,7 +34,7 @@ function ToastList() {
         >
           <Toast.Title className="text-sm font-bold">{toast.title}</Toast.Title>
           {toast.description ? (
-            <Toast.Description className="text-xs text-muted">
+            <Toast.Description className="text-xs whitespace-pre-line text-muted">
               {toast.description}
             </Toast.Description>
           ) : null}
@@ -53,8 +53,8 @@ export function useToast() {
     throw new Error("useToast must be used within ToastProvider");
   }
   const show = useCallback(
-    (title: string, description?: string) => {
-      manager.add({ title, description, timeout: 3200 });
+    (title: string, description?: string, options?: { untilDismissed?: boolean }) => {
+      manager.add({ title, description, timeout: options?.untilDismissed ? 0 : 3200 });
     },
     [manager],
   );

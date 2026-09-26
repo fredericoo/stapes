@@ -1,7 +1,7 @@
 import { MAP_FILE_VERSION } from "../lib/types";
 import { beforeEach, describe, expect, it } from "vitest";
 import { chunkifyMap } from "../lib/mapData";
-import { getStack } from "../lib/mapData";
+import { getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { useEditorStore } from "./store";
@@ -146,6 +146,25 @@ describe("editor store history", () => {
     ]);
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().past).toHaveLength(0);
+  });
+
+  it("removeUnfit takes off what does not fit as one undoable entry", () => {
+    const tooTall = replaceStack(seedMap, 1, 2, 0, [
+      { tileId: "grass" },
+      { tileId: "rock" },
+      { tileId: "rock" },
+      { tileId: "rock" },
+    ]);
+    useEditorStore.getState().hydrate(tooTall, tiles);
+
+    const removed = useEditorStore.getState().removeUnfit();
+
+    expect(removed).toEqual([expect.objectContaining({ x: 1, y: 2, z: 0, tileId: "rock" })]);
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toHaveLength(3);
+    expect(useEditorStore.getState().past).toHaveLength(1);
+
+    useEditorStore.getState().undo();
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual(getStack(tooTall, 1, 2, 0));
   });
 
   it("discrete commits stay undoable during an open stroke", () => {

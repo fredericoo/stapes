@@ -9564,14 +9564,15 @@ tile in the stack. The server refusing the save is the whole of the safety net.
 ### A save removes what does not fit, and never the marker
 
 `removeUnfitPlacements` (`app/lib/validation.ts`) runs over every map that is
-saved, in `replaceWorld` before the session is built, so a placement that does
-not fit is never written. A placement does not fit when `fitsTile` would refuse
-to put it where it stands, on the placements under it in its own stack: on a
-stack that already reaches the next level, overflowing into a level that holds
-anything, or making the stack taller than two levels. The refusal `fitsTile`
-gives the cell *above* an overflowing stack is left out. It is the same
-conflict seen from the other side, and taking the overflowing placements off
-the stack below settles it without touching the cell above.
+saved: in the editor before it sends the map, and in `replaceWorld` before the
+session is built, so a placement that does not fit is never written. A
+placement does not fit when `fitsTile` would refuse to put it where it stands,
+on the placements under it in its own stack: on a stack that already reaches
+the next level, overflowing into a level that holds anything, or making the
+stack taller than two levels. The refusal `fitsTile` gives the cell *above* an
+overflowing stack is left out. It is the same conflict seen from the other
+side, and taking the overflowing placements off the stack below settles it
+without touching the cell above.
 
 It exists because a height can change under placements that were legal when
 they were made. When `barrel` went from 2 to 3 units, four cells of
@@ -9586,13 +9587,20 @@ never removed: a marker that does not fit refuses the save with a message
 naming its cell, the way a map with no marker is refused, because a map
 without it cannot start.
 
+The editor applies its removal through `commitMap`, so it is one undo step, and
+lists what it removed in a notice that stays until it is dismissed. The server
+finds more to remove only when its tile catalogue changed after the editor
+loaded. The route's loader runs again after every save, and `hydrate` replaces
+the editor's map with the saved one when the two differ.
+
 ## Map mutations must be undoable
 
-Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
+Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeUnfit`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
 
 - Do **not** assign `map` via `setState`, mutate stacks in place, or call `mapData` helpers and write the result into the store yourself.
 - Discrete edits (backspace/delete, stack panel trash/reorder/direction, tile picker append, shape stamp) use plain `commitMap(next)` so each gets its own undo entry.
 - Paint drags use `beginStroke` → `commitMap(next, { coalesceInStroke: true })` → `endStroke` so the whole drag is one undo step.
+- Saving calls `removeUnfit` before the map is sent, so taking off the placements that do not fit is one undo step of its own.
 - If you add a new map-editing path, wire it through `commitMap` and confirm ⌘Z undoes it before considering the work done.
 
 ### The bucket fills blank cells, bounded by the level's own extent
