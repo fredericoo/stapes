@@ -160,6 +160,7 @@ import {
   type BattlerDef,
   type NaturalSpell,
   DEFAULT_BATTLER,
+  isImmune,
   resolveBattler,
   type FightingStats,
   spellPower,
@@ -2648,9 +2649,7 @@ export class GameSession implements PlaySession {
   ): StatusGrantOutcome {
     const def = this.statusDefs[grant.id];
     if (!def) return "refused";
-    if (resolveBattler(this.defFor(actor))?.immuneTo?.includes(grant.id)) {
-      return "refused";
-    }
+    if (isImmune(resolveBattler(this.defFor(actor)), grant.id)) return "refused";
     if (def.tone === "bad" && causedBy !== undefined) {
       const causer = this.actors.get(causedBy);
       if (causer && !this.mayHarm(causer, actor)) return "refused";
