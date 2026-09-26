@@ -5931,6 +5931,19 @@ block is a blow whose whole worth the armour ate. That is reported as
 defence that swallows a third of the blows outright and one that shaves a third
 off each of them are very different fights and can produce the same mean.
 
+**A body with a weapon in each hand gets a column per hand.** `Duel` swings the
+hands in turn and waits each blow's own interval after it. The rows about one
+swing — miss, dodge, connect, defence faced, absorbed, wound, damage range, mean
+blow, mitigated, what it inflicts — have a column per hand, headed with the
+weapon's name. The rows about the fight — attacks and damage per second, swings
+and time to kill — span the side, and `rotationOdds` works them out over one
+rotation: every hand swings once in the sum of their intervals, so each figure is
+a mean over the hands, not the sum of each hand's own rate. Attacks per second
+lists the intervals in the order the hands swing, as in `0.42 (2600ms + 2167ms)`.
+A body with one weapon, or none, is a rotation of one and keeps a single column.
+`combatMetrics.test.ts` runs `Duel` with two different weapons and holds the
+rotation's figures to what it deals.
+
 The seed is on the page for the reason it is in the world: a fight somebody
 watched and wants to ask about has to be the same fight when they run it again.
 

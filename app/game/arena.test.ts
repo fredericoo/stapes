@@ -3,7 +3,7 @@ import tilesJson from "../../data/tiles.json";
 import { resolveWeapon } from "../lib/item";
 import { normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { equipmentOf, fighterForTile, statsOf, swingsOf } from "./arena";
+import { equipmentOf, fighterForTile, statsOf, swingNamesOf, swingsOf } from "./arena";
 
 describe("what the Arena reports", () => {
   const tilesById = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
@@ -37,6 +37,17 @@ describe("what the Arena reports", () => {
     expect(swings).toHaveLength(2);
     expect(swings.map((swing) => swing.mastery)).toEqual(["sharp", "blunt"]);
     expect(swings[0]!.damage).not.toBe(swings[1]!.damage);
+  });
+
+  it("names each swing after the weapon that makes it, in the order it is swung", () => {
+    const sword = tilesById["knights-sword"]!.name;
+    const hammer = tilesById["simple-hammer"]!.name;
+
+    expect(swingNamesOf(armed("knights-sword", "simple-hammer"), tilesById)).toEqual([
+      sword,
+      hammer,
+    ]);
+    expect(swingNamesOf(armed("knights-sword", "iron-shield"), tilesById)).toEqual([sword]);
   });
 
   it("does not count a hand holding a shield or a torch", () => {

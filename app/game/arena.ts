@@ -64,6 +64,11 @@ export function statsOf(
   return swingsOf(fighter, tilesById)[0] ?? null;
 }
 
+function rotationOf(equipment: Equipment, tilesById: Record<string, TileDef>): (Hand | null)[] {
+  const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand));
+  return hands.length > 0 ? hands : [null];
+}
+
 export function swingsOf(
   fighter: ArenaFighter,
   tilesById: Record<string, TileDef>,
@@ -71,9 +76,18 @@ export function swingsOf(
   const body = bodyOf(fighter, tilesById);
   if (!body) return [];
   const equipment = equipmentOf(fighter, tilesById);
-  const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand));
-  const rotation: (Hand | null)[] = hands.length > 0 ? hands : [null];
-  return rotation.map((hand) => effectiveBattler(body, equipment, tilesById, hand));
+  return rotationOf(equipment, tilesById).map((hand) =>
+    effectiveBattler(body, equipment, tilesById, hand),
+  );
+}
+
+export function swingNamesOf(fighter: ArenaFighter, tilesById: Record<string, TileDef>): string[] {
+  if (!bodyOf(fighter, tilesById)) return [];
+  const equipment = equipmentOf(fighter, tilesById);
+  return rotationOf(equipment, tilesById).map((hand) => {
+    const held = hand ? equipment[hand] : null;
+    return held ? (tilesById[held.tileId]?.name ?? held.tileId) : "Natural weapon";
+  });
 }
 
 export function battlerTiles(tiles: TileDef[]): TileDef[] {
