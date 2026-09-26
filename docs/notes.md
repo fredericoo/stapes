@@ -6047,8 +6047,8 @@ hitting something, which folds the answer together with all three.
 **Three modules, and the split between them is the design.**
 
 - **`app/game/duel.ts` runs the fight**, on `GameSession`'s own tick order —
-  statuses, then cooldowns, then swings, with both sides starting ready so the
-  faster one lands first. It reaches for no dice of its own and re-derives no
+  statuses, then cooldowns, then swings, with each side's first cooldown set to
+  its windup (`swingWindupMs`, half an interval) so the faster one lands first. It reaches for no dice of its own and re-derives no
   curve: a swing costs what `rollAttack` costs and nothing more.
 - **`app/game/combatMetrics.ts` works the odds out**, in closed form. Exact
   rather than sampled, and that is the whole point of it: a balance figure with
