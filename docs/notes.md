@@ -2020,6 +2020,24 @@ with a ladder beside it, and a hole in the floor of a roofless house at
 treats them as it treats the mouth. A new hole is a line there; anything else
 that lets the sky in is still reported.
 
+## `carve:caves --verify` walks the underground the way a player gets around it
+
+Straight after a carve, the script checks only the cells it carved. With
+`--verify` it checks every dirt cell on levels -1 to -3, and a good part of
+those were built by hand: the tutorial rooms around the spawn, the cellars
+under houses, rooms behind doors, a floor reached only by ladder. A walk that
+started at the mouth and only took `canWalk` steps reached none of them: it
+reported 355 cells nobody could walk to, and a bat walled in behind a door.
+
+The walk now starts at the `player` marker as well as at the mouth, because
+that is where everybody enters the world, and the tutorial's only way out is a
+one-way portal. It treats every door as open, since anybody who reaches one
+can open it: a tile whose `switch` turns it into an intangible tile is
+switched before the walk. And from every cell it reaches it takes the ladders
+and portals in that cell's stack, asking `canTeleportFrom` and `teleportFits`,
+the same questions the game asks before it moves a body. A ladder whose top is
+covered by something is still refused, as it is in the game.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take
