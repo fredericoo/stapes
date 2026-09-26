@@ -101,10 +101,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     else if (type === "shield") setItem({ ...DEFAULT_SHIELD });
     else if (type === "consumable") setItem({ ...DEFAULT_CONSUMABLE });
     else if (type === "artifact") setItem({ ...DEFAULT_ARTIFACT });
-    else if (type === "stone") {
-      /** Copies `effect`, since a shallow spread would share one `effect` object between stones. */
-      setItem({ ...DEFAULT_STONE, effect: { ...DEFAULT_STONE.effect } });
-    } else if (type === "charm") setItem({ ...DEFAULT_CHARM });
+    else if (type === "stone") setItem({ ...DEFAULT_STONE, effect: { ...DEFAULT_STONE.effect } });
+    else if (type === "charm") setItem({ ...DEFAULT_CHARM });
     else setItem({ ...DEFAULT_CONTAINER });
   };
 

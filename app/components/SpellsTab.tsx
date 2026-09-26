@@ -23,7 +23,7 @@ function freshSpell(existing: readonly NaturalSpell[]): NaturalSpell {
   let name = DEFAULT_SPELL_NAME;
   const taken = new Set(existing.map((spell) => spell.name));
   for (let i = 2; taken.has(name); i++) name = `${DEFAULT_SPELL_NAME} ${i}`;
-  return { ...DEFAULT_STONE, name };
+  return { ...DEFAULT_STONE, effect: { ...DEFAULT_STONE.effect }, name };
 }
 
 function IconField({
