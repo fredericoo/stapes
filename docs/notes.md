@@ -3096,6 +3096,15 @@ is seating the body, so an account demoted while hidden comes back visible.
 The server sends the state to its owner (`ServerMessage` `hidden`) and to
 nobody else.
 
+**The owner does not see its own body either**, since the switch exists for
+recording footage. `RemoteSession` marks its own `ActorSnapshot` `hidden`, and
+`GameRenderer.withoutHiddenBodies` cuts that placement from a copy of the map
+that only `WorldRenderer` is given, along with the body's motion, tint, status
+particles and carried light. The session's own map keeps the body, because
+walking, reach and the camera read it. The name and health bar are skipped in
+`pushNameLabels`. The copy is cached on the map and the body's cell, since
+handing `WorldRenderer` a new map each frame re-diffs every level.
+
 **Known gap:** `destinationTaken` still counts a hidden admin's walk, so a
 creature cannot end a step in a cell the admin is walking into. It is a
 one-step window, and seeing it means watching the creature closely.
