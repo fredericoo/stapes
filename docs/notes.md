@@ -8301,9 +8301,11 @@ cloth tunic) won 1–10% of duels against the melee imps. At 12, measured with
 Each armour piece is 25%, so most imps are near the first row: about a wolf in
 contact, plus the stone and, on a quarter of them, a bow that opens the fight
 from eight cells. That is "a little stronger than a wolf". The bow row is low
-because a duel starts both bodies in contact, where a bow inside its
-`reach.min` does not fire. In the world the imp shoots from range and backs off
-to keep it.
+because `duel.ts` has no distance in it. It fires the bow point-blank like the
+other three weapons, so the imp pays for the bow's reach in accuracy — the
+hunting bow is authored at 40 against the knight's sword's 90, and the imp
+lands about a third of its shots — and never gets to use that reach. In the
+world the imp shoots from range and backs off to keep it.
 
 **Throw stone is its second spell and the hunt names it by position.** A bolt
 at the target for 12, variance 30, 500ms to cast, eight seconds to cool, nine
