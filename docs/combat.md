@@ -1,5 +1,6 @@
 # Combat
 
 - `STRIKE_DURATION_MS` (`app/game/constants.ts`) must stay below the shortest gap between two blows, `MIN_ATTACK_TICKS` (`app/game/combat.ts`). A blow's lean has to finish before the next blow starts.
+- A swing cooldown is counted down twice: by `GameSession.advanceCooldowns` (`app/game/GameSession.ts`) for the world and by `Duel.advanceCooldown` (`app/game/duel.ts`) for the Arena. They must count the same way, including the float residue that holds some intervals a tick over `attackIntervalMs`, or the Arena measures a different pace from the one played. "bites at the pace the Arena measures, not the brain's" in `brain.test.ts` fails when they drift.
 - `rollAttack` (`app/game/combat.ts`) draws its dice in a fixed order and count whatever the outcome: miss, dodge, damage band, guard, then one draw per authored status. `swingOdds` in `combatMetrics.ts` mirrors that order. Changing the order or skipping a draw conditionally desyncs the two; the draw-count assertions in `combat.test.ts` catch it.
 - To retune how much a kill is worth, change `XP_PER_DAMAGE` (`app/game/experience.ts`), not `XP_FOR_FIRST_LEVEL` (`app/lib/mastery.ts`). Stored experience is read against the levelling curve, so changing the curve re-levels every saved player.
