@@ -822,6 +822,15 @@ constant so that it is changed in one place when the host changes.
   20–30 seconds, jittered, rather than on its ordinary backoff: every refused
   tab is asking a server already at its limit. `PROTOCOL_VERSION` went to 20
   for the new code, on the terms it went to 17 for 4004.
+- **`bench:crowd` raises it for its own server.** `GameServer` takes a
+  `maxOnlinePlayers` option in place of the constant, and the bench sets it to
+  the number of players it was asked for, because it measures crowds larger
+  than this host is trusted to carry. Seating them as administrators
+  would also get them past the limit, but it changes what is measured: every
+  administrator is sent a `players` frame whenever anybody joins or leaves
+  (about half a million frames while a thousand are seated), gets a player
+  count in each `hello`, and has its saved `hidden` flag read each time it
+  joins or is reborn.
 
 ## The simulation holds N actors
 
@@ -852,6 +861,12 @@ single-actor API still defaults to, and the tests are what call it.
   cheapest-first discipline the single-player memo had, and for the same reason:
   a tick rewrites the map several times and almost none of those edits move
   anybody.
+- **An actor is added with its body's cell remembered.** An actor with no last
+  cell goes straight to the board sweep, so `spawn` remembers where it put a
+  player's body and `addResident` where a creature's is — adopted at load,
+  grown back by `respawnAt`, or summoned by `/tile`. Before `addResident`, a
+  world with two thousand creatures swept the board two thousand times on its
+  first `hello`. See "Loading a large world, profiled".
 - **Per-actor vs per-board state.** Input, walk, fall, slide, hover and the
   location memo belong to the actor. The map, the plate and wire indexes, and
   `settledMap` belong to the session — a plate does not care who stepped on it,
@@ -874,7 +889,10 @@ single-actor API still defaults to, and the tests are what call it.
   an actor on the body they have rather than minting a second — `despawn` only
   ever removes one, so a duplicate would linger forever. Actors in a resumed map
   with no live connection are reaped (`reapAbsentActors`); nothing else would
-  ever remove them.
+  ever remove them. The reap is one walk of the board (`despawnActors`), not a
+  `despawnActor` sweep per body: the last checkpoint before a restart holds
+  everybody who was online, and the load after it reaps every one of them but
+  the player whose join started it.
 - **A map that has been run cannot be resumed without its spawn point.**
   Starting a session *consumes* the authored `player` marker — adopted or
   removed — so there is no tile left to read it from. `getSpawnPoint` exists so
@@ -2395,6 +2413,98 @@ showed it, because its next step waits for the next brain round and so arrives
 in a later patch. The fix reads `serverMap` and finds the body in the stack by
 its owner, which is the same question the server's `walkDurationOf` asks.
 
+## A blow used to wait for a decision as well
+
+A creature swung only when its brain's `attack` line called `tryAttack`, and a
+brain gets one turn a round. `runAutoAttacks` tries a swing every tick, but only
+for a body with `attacking` set, which is a player's attack mode and nothing a
+brain sets. So a creature's attack interval was rounded up to a whole number of
+rounds, the same rounding its walking had. Measured beside a player it could not
+kill, with its spells taken away so that every gap was between two blows:
+
+| creature | authored | swung every, before | swung every, now |
+| --- | --- | --- | --- |
+| rat | 667ms | 800ms | 700ms |
+| bat | 700ms | 800ms | 700ms |
+| cat | 933ms | 1000ms | 933ms |
+| wolf | 1367ms | 1400ms | 1400ms |
+| bog imp, claws | 1467ms | 1600ms | 1500ms |
+| snake | 1800ms | 2000ms | 1833ms |
+| cave troll, fists | 4733ms | 4800ms | 4733ms |
+| cyclops, fists | 5800ms | 6000ms | 5833ms |
+
+The weapons the troll, the cyclops and the imp can be born carrying behave the
+same way: each moved from the next whole round down to the authored figure or a
+tick over it, except the imp's iron mace, whose 3000ms is a whole number of
+rounds already. Where "now" is still a tick over the authored figure, the cause
+is the cooldown countdown, described at the end of this section.
+
+**A creature now holds an attack order.** The brain's `attack` goes through
+`orderAttack`, which writes the target into `ActorRuntime.attackOrder` and
+returns whatever `tryAttack` returned, so the line the brain runs next is chosen
+exactly as before. `pressAttackOrders` tries every held order once a tick, the
+way `runAutoAttacks` tries a player's standing target, so a blow lands on the
+tick its cooldown and windup allow instead of on the first turn after that.
+
+- **An order lives one round unless it is asked for again.** `tickOneBrain`
+  drops it at the top of every turn, before the incapacitation check and before
+  any transition or action runs, as it does a walk order. A turn that flees,
+  casts, walks away, holds or sleeps therefore stops the swinging on that turn.
+  The order is held whenever the `attack` line ran, including a turn where it
+  failed and the brain went on to the line below: failing while the cooldown
+  runs is what `attack` does between blows. In every brain we ship the lines
+  below it are `step_toward` and `hold`, and a `cast` or `attack_range` above it
+  that lands or is still running keeps `attack` from running at all.
+- **Orders are pressed at the end of `tickBrains`.** That is after this tick's
+  turns and before the players' auto-attacks, which is where a creature's blow
+  always landed within a tick. It is also the one place that knows whether
+  brains run at all: with nobody connected there are no turns and no order is
+  pressed, so creatures do not go on fighting each other in an empty world.
+- **A dozing creature's order is not pressed between its turns**, for the same
+  reason its walk order is not: pressing at the tick rate for creatures nobody
+  is near would put the size of the map back into what a tick costs. A dozing
+  creature swings on its turns, at the rounded pace it always had.
+- **A target that has left the world drops the order** the next time it is
+  pressed, the way `runAutoAttacks` drops a player's target. An attacker that
+  has left takes its order with it.
+- **The windup is unchanged.** Pressing is asking, so `sinceSeenMs` is reset
+  every tick for as long as the order is held: a chase out of reach pauses the
+  windup instead of letting it lapse, and `WINDUP_LAPSE_MS` forgets it two
+  rounds after the order is dropped.
+
+**What the brain is told did not change; how often it hears `success` did.**
+`attack` still reports whether a blow was struck on that call. Most blows now
+land between turns, so a turn usually finds the cooldown running and goes on to
+the next line, as every turn between two blows always did. No shipped attack
+state can become `stuck` this way, because each one ends in `hold`.
+
+**The world now swings exactly as often as the Arena's duel loop, and for some
+intervals both are a tick slower than `combatMetrics`.** `attackIntervalMs`
+returns a whole number of ticks, but counting it down by subtracting `TICK_MS`
+and clamping at zero leaves a positive residue of 1e-14 to 1e-12 for 791 of the
+1195 tick counts between `MIN_ATTACK_TICKS` and `SLOWEST_ATTACK_TICKS`, the
+rat's 20 among them, and the swing waits one more tick for it to clear.
+`GameSession.advanceCooldowns` and `Duel.advanceCooldown` count down the same
+way, so the world and the duel loop agree with each other and are both a tick
+behind the closed form, which reads the interval directly. It affects players
+as much as creatures and is not changed here. "bites at the pace the Arena
+measures, not the brain's" in `brain.test.ts` compares the world with the duel
+loop rather than with the interval, so it holds with the residue or without it,
+as long as both loops count down the same way.
+
+**It costs one `tryAttack` per held order per tick**, the same price a player in
+attack mode already pays. Timed on the scenarios `bun run bench:server` runs,
+`pressAttackOrders` takes 30µs a tick in town with one order held, 37µs in the
+deepest den, and 0.1–0.25ms in the spread scenario, where about nine creatures
+hold orders against six players standing in dens. The number of `routeStep`
+calls did not change, although a turn now falls through to `step_toward` more
+often. Run in one process with the two versions' ticks interleaved, tick p50 rose
+by 0.00–0.07ms in the one-player scenarios and by 0.07–0.35ms in spread. The two
+worlds diverge from the first blow timed differently, so the rest of the tail
+moved both ways: p95 fell 0.4ms in the deepest den and rose 0.5–1.2ms in spread.
+Players standing in the dens die more often: 87 deaths in a minute of the spread
+scenario before, 95 after.
+
 ## A creature that has left the board must not be given a turn
 
 `tickOneBrain` asked `defFor` before anything else, and `defFor` goes through
@@ -2638,10 +2748,18 @@ copy of `data/`, the checkpoint loop running, sockets that record rather than
 send — and walks them the way the stress bots do: runs of one to eight steps, a
 pause now and then, a turn when a step is refused, a rebirth three seconds after
 dying. It is one process with no network, so what it measures is the tick. It
-reports ticks a second, tick and gap percentiles, and the time each phase of the
-tick took; `--profile` writes a CPU profile of the measured window alone, and
-`--idle`, `--clustered` and `--deflate` change what the players do and what a
-send costs.
+raises its server's player limit to the number of players it is asked for, so a
+crowd larger than `MAX_ONLINE_PLAYERS` is seated whole (see *The world holds at
+most `MAX_ONLINE_PLAYERS`*). It reports ticks a second, tick and gap
+percentiles, and the time each phase of the tick took; `--profile` writes a CPU
+profile of the measured window alone, and `--idle`, `--clustered` and
+`--deflate` change what the players do and what a send costs.
+
+**A run that could not seat its whole crowd exits 1.** The report gives the
+players seated and the players the server refused, and divides the per-player
+figures by the players seated. A refusal means every figure is for a smaller
+crowd than was asked for, so the bench prints it after seating and again after
+the report, and exits 1.
 
 **Compare runs made with the same `BUN_OPTIONS`, alternated.** Some shells
 export `BUN_OPTIONS=--smol`, which makes Bun collect garbage far more often: the
@@ -2863,6 +2981,58 @@ one part of what is left is most of it:
   container at 512MB by default, which a thousand players exceed before this
   work and after, so a world meant to hold a thousand needs `MEM_LIMIT`
   raised.
+
+## Loading a large world, profiled
+
+Loading a world used to sweep the whole board once or more for every creature
+in it. The shipped map hides that: it has 222 creatures on about ninety
+thousand cells, a sweep there takes 3–7ms, and the whole load took under two
+seconds. On a 512×512 field with two thousand creatures the first join took
+37 seconds.
+
+**How it was measured.** A script outside the repository builds a square grass
+field in code, scatters creatures over it from a fixed seed, and loads it with
+the real `GameServer` on the in-memory store the tab uses
+(`LocalStore(memoryCheckpoints())`), timing one administrator's join and the
+phases inside it.
+
+**Three sweeps ran once per actor:**
+
+- **Each creature's first lookup.** A resident was added with no remembered
+  cell, so the first `tryLocate` for it was `findActorAnywhere`. On the server
+  the first `hello` paid it, because a `hello` snapshots every actor to decide
+  who is in reach; a bare `GameSession` paid it on its first tick.
+  `addResident` remembers the cell instead.
+- **Each creature's spawn point.** `loadRespawnState` asked `isSpawnFilled`
+  about every point, and for a creature that is `findActorAnywhere`. It now
+  builds `listActorOwners` once and passes the set in.
+- **Each absent player's body.** `reapAbsentActors` removed them one
+  `despawnActor` at a time. The last checkpoint before a restart holds
+  everyone who was online, up to `MAX_ONLINE_PLAYERS`, so this one grows with
+  players rather than creatures. `despawnActors` removes them all in one walk.
+
+| | before | after |
+|---|---|---|
+| 512×512, 2,000 creatures: first join | 37s | 2.8s |
+| 512×512, 500 creatures: first join | 10.7s | 2.7s |
+| 1024×1024, 100 creatures: first join | 21.0s | 10.6s |
+| shipped map: first join | 1.8s | 1.0s |
+| `GameSession` alone, 512×512, 2,000 creatures: first tick | 17.1s | 8ms |
+| 250 absent players reaped, 512×512 with 500 creatures | 2.3s | 0.1s |
+
+**What is left runs once per load, not once per actor**, and at 1024×1024 it
+is nearly all of the ten seconds. Parsing the map takes 1.5s and constructing
+the `GameSession` 7.7s, almost all of it in separate passes over every cell:
+`structuredClone` (1.8s), each of the five `find…Cells` indexes (0.75–0.9s),
+`requireSinglePlayer` twice, and `listResidentBodies`, `mintItemIds` and
+`clearExtractReservations` (about 0.3s each). Most of those passes go through
+`listCoords`, which builds an object for every cell of a level.
+
+**Three sweeps remain that run per event rather than per load**: a respawn
+(see "Known remaining costs"), `spawn` on every join (see "A thousand players,
+profiled"), and a body moved by `moveThrough` — a step teleport, `/goto` or
+`/move` — whose memo still names the cell it left, so its next lookup sweeps
+the board once.
 
 ## A joiner is sent the chunks its view can reach
 
@@ -3136,6 +3306,15 @@ room. But `lastHiddenOf` honours that row only while an administrator's socket
 is seating the body, so an account demoted while hidden comes back visible.
 The server sends the state to its owner (`ServerMessage` `hidden`) and to
 nobody else.
+
+**The owner does not see its own body either**, since the switch exists for
+recording footage. `RemoteSession` marks its own `ActorSnapshot` `hidden`, and
+`GameRenderer.withoutHiddenBodies` cuts that placement from a copy of the map
+that only `WorldRenderer` is given, along with the body's motion, tint, status
+particles and carried light. The session's own map keeps the body, because
+walking, reach and the camera read it. The name and health bar are skipped in
+`pushNameLabels`. The copy is cached on the map and the body's cell, since
+handing `WorldRenderer` a new map each frame re-diffs every level.
 
 **Known gap:** `destinationTaken` still counts a hidden admin's walk, so a
 creature cannot end a step in a cell the admin is walking into. It is a
@@ -4196,13 +4375,14 @@ Two seams are worth knowing:
   move: tick p50 0.42–0.78ms against 0.43–0.86ms before it, p95 inside the
   run-to-run spread on every scenario, and the wire untouched.
 - **The windup is wound on the tick clock and dropped by `WINDUP_LAPSE_MS`.**
-  Reach is only asked about where somebody is trying to swing, and the two askers
-  run at very different rates: a player's standing target is tried every tick,
-  a creature's brain reaches its `attack` action once a round. Winding on the
-  tick is what makes the approach the same length for both. The lapse is the
-  other side of it — a windup nobody has confirmed for two rounds is forgotten,
-  so dropping your target and picking it up again is not a way to skip the wait.
-  Leaving reach *while still asking* pauses it; see below.
+  Reach is only asked about where somebody is trying to swing. A player's
+  standing target and a creature's attack order are both tried every tick, but a
+  dozing creature asks only on its turns, once a round at most (see "A blow used
+  to wait for a decision as well"). Winding on the tick is what makes the
+  approach the same length for all of them. The lapse is the other side of it —
+  a windup nobody has confirmed for two rounds is forgotten, so dropping your
+  target and picking it up again is not a way to skip the wait. Leaving reach
+  *while still asking* pauses it; see below.
 
 `duel.ts` seats both fighters on a first cooldown of `swingWindupMs` rather than
 ready. It has no reach to lose — the whole premise of that module is two bodies
@@ -4234,9 +4414,10 @@ Now `ActorRuntime.windup` is **time owed in reach**:
   fight where nobody leaves it runs out first and the rate is unchanged.
 - **Asking keeps it; reach does not have to.** `sinceSeenMs` is reset by any
   `tryAttack` against the same target, in reach or not. A creature chasing you
-  asks every round (its `attack` line runs before its `chase` line) and keeps
-  what it has; one that gives up stops asking, and `WINDUP_LAPSE_MS` forgets it
-  two rounds later.
+  holds an attack order, because its `attack` line runs before its `chase` line,
+  and the order is tried every tick, so it keeps what it has; one that gives up
+  drops the order on its next turn, and `WINDUP_LAPSE_MS` forgets the windup two
+  rounds after that.
 - **The fight row is hidden while paused.** `nextBlow` is nulled by
   `outOfReach` and re-issued on the way back in, starting from what the paused
   windup had left, so the bar comes back part full.
@@ -5945,11 +6126,57 @@ worth nothing if the fight it ran was an approximation of the one the world
 runs. Extracting it left every seeded assertion in that file green, which is the
 evidence the two were the same fight.
 
+**Blows due on the same tick land together.** `Duel.exchangeBlows` decides which
+sides swing, and works out both sides' stats, before either blow lands, then
+rolls `a`'s blow and `b`'s in that order. A killing blow does not cancel the
+other one, and when both kill, both fall: `winner` is null, `finished` is true,
+and `runDuel` returns at that tick. In `runDuel`'s result, a null `winner` with
+`ticks` below `maxTicks` means both fell; at `maxTicks` it means nobody
+finished. The Arena shows "draw" between the two fighters.
+
+Before this, `a` swung first and a kill ended the tick, so side `a` won every
+exchange that was lethal both ways. Over 5,000 seeds that gave side `a` 55–64%
+of its own mirror matches (rat 55%, player 58%, cat 61%, wolf 63%, bat 64%).
+Now the two sides are within two points of each other and 9–29% of mirror
+matches are draws. No seeded figure in `duel.test.ts` moved: none of those
+fights ends on a tick where both blows are lethal.
+
+The world does not resolve it this way. `GameSession` runs attacks one actor at
+a time and a melee blow lands inside `tryAttack`, so there whichever body acts
+first on a shared tick wins a lethal exchange and the other never swings. What
+decides that is where each body sits in `actors`, and whether it attacks from
+its brain's turn or from a standing target. None of it is a fact about either
+creature, so the duel does not copy it.
+
 **Statuses are off unless a catalogue is passed**, and that is a setting rather
 than an oversight. An inflicted status costs a draw, so handing `Duel` a
 catalogue moves the dice for everything after it — which is why `duel.test.ts`
 passes none and gets the stream it always had, and why a caller comparing two
 damage curves can take the venom out of the comparison.
+
+**With a catalogue, a status follows the world's rules.** `Duel` calls the same
+functions `GameSession` calls, so each rule is written once. The exception is
+the windup after incapacitation, which the duel copies by hand:
+
+- **Immunity.** `DuelSetup.immuneTo` carries the body's `immuneTo` list, which
+  `duelSetupOf` in `arena.ts` fills from the battler, and a status a blow
+  inflicts is skipped when `isImmune` says so, which is the check
+  `GameSession.grantStatus` makes. A refused status takes no draw, as in the
+  world. Before this, the Arena poisoned the cyclops, which is immune to
+  poison, in 56 of 200 fights against the snake.
+- **Incapacitation.** A fighter holding a status that `incapacitates` does not
+  swing (`incapacitated`). Its cooldown keeps running, and when it can act
+  again the cooldown is raised to at least `swingWindupMs` of its current
+  stats. That is the duel's form of `GameSession.tryAttack`, which calls
+  `disengage` to drop the windup of a body that cannot act, arms a full one
+  when it can, and swings only once both the windup and `attackCooldownMs` are
+  spent.
+- **Ending on damage.** Damage above zero runs `endOnDamage` on the body that
+  takes it, whether it came from a blow or from a status tick such as poison,
+  in `Duel.applyDamage` as in `GameSession.applyDamage`. A miss, a dodge, a
+  blow that armour reduces to 0, and a heal end nothing. A blow that does
+  damage and inflicts sleep ends the sleep already held before it grants the
+  new one, in the same order as `GameSession.landSwing`.
 
 **Masteries and equipment are overridable; a natural weapon is not.** The first
 two are things the world can produce — a mastery is earned, a weapon is picked
@@ -8342,9 +8569,11 @@ cloth tunic) won 1–10% of duels against the melee imps. At 12, measured with
 Each armour piece is 25%, so most imps are near the first row: about a wolf in
 contact, plus the stone and, on a quarter of them, a bow that opens the fight
 from eight cells. That is "a little stronger than a wolf". The bow row is low
-because a duel starts both bodies in contact, where a bow inside its
-`reach.min` does not fire. In the world the imp shoots from range and backs off
-to keep it.
+because `duel.ts` has no distance in it. It fires the bow point-blank like the
+other three weapons, so the imp pays for the bow's reach in accuracy — the
+hunting bow is authored at 40 against the knight's sword's 90, and the imp
+lands about a third of its shots — and never gets to use that reach. In the
+world the imp shoots from range and backs off to keep it.
 
 **Throw stone is its second spell and the hunt names it by position.** A bolt
 at the target for 12, variance 30, 500ms to cast, eight seconds to cool, nine
@@ -8457,9 +8686,10 @@ status on the list has `incapacitates`. The gates:
 - `GameSession.applyStepRequest` and `faceActor` refuse steps and turns, which
   covers held input, a client's `requestStep`, and a creature's walk order.
 - `tickOneBrain` returns before the brain is stepped and drops the standing walk
-  order. The brain's clocks stop, so it picks up where it left off.
-- `tryAttack` refuses and disengages, so auto-attack and a brain's `attack` both
-  stop. The target stays picked.
+  order and attack order. The brain's clocks stop, so it picks up where it left
+  off.
+- `tryAttack` refuses and disengages, so auto-attack, a brain's `attack` and an
+  attack order pressed between turns all stop. The target stays picked.
 - `castability` refuses with `incapacitated` (`CastContext.incapacitated`), so
   the spell buttons dim on the client from the same function.
 - `readyToAct` is `idle` plus not incapacitated, and every board act and kit act
@@ -11542,5 +11772,16 @@ Not yet fixed, and worth knowing before you profile something else:
   transition, which every shipped brain has; the structural one would be
   remembering the failure for a few ticks, which is the only piece of route
   state worth keeping and has not been needed yet.
+- **A respawn sweeps the whole board, and a creature's respawn sweeps it
+  twice.** `respawnAt` mints item ids with `mintItemIds` over the whole board
+  rather than in the cell it grew: about 26ms on the shipped map and 70ms on a
+  512×512 field. A creature's point also asks `isSpawnFilled`, which is
+  `findActorAnywhere` and misses, because a creature whose respawn is due is
+  not on the board: another 6.5ms and 18ms. Every tree that grows back pays
+  the first, and a restart pays both, in one tick, for every respawn that fell
+  due while the world was down. Minting in the one cell is not a drop-in
+  change: a decay or a wear that turns a non-item into an item leaves it with
+  no id (no shipped tile does either), and at the moment the next respawn
+  anywhere on the board is what gives it one.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.
