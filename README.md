@@ -218,6 +218,15 @@ an agent drives", lists every call.
     against its sheet. It exits 1 on an error in tiles, statuses or tilesets;
     what it finds in `data/map.json` is a warning. `--data <dir>` checks
     another copy
+  - `battle <a> <b>` fights two sides through the Arena's `Duel` for every
+    seed, both ways round, and reports wins, losses, draws and undecided
+    fights with a 95% interval, time to kill, damage per second each way,
+    each hand's hit, miss, dodge and absorbed rates, and status uptime, with
+    the closed-form figures from `combatMetrics.ts` beside the sampled ones.
+    A side is a battler tile id, optionally with masteries and equipment by
+    slot: `player:sharp=15,agility=15,toughness=15,weapon=knights-sword`.
+    `--seeds`, `--seed`, `--statuses on|off`, `--kit rolled|none` and
+    `--max-seconds` change what is fought
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says

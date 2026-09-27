@@ -22,13 +22,21 @@ table. `bun run verify --help` lists the commands, and
 | You changed | Run | It answers |
 | --- | --- | --- |
 | anything in `data/`: tiles, statuses, tilesets, the map | `bun run verify content` | Does every tile, status, brain and dialog load, and does every id they name exist? |
-| combat numbers, a weapon, a creature's stats | the Arena at `/admin/arena`, for now | Who wins, and how fast? |
+| combat numbers, a weapon, a creature's stats | `bun run verify battle <a> <b>` | Who wins, how often and how fast, sampled over seeds beside the closed-form figures? |
 
 `verify content` exits 1 on an error in tiles, statuses or tilesets and prints
 each finding with its file, the id and what is wrong. What it finds in
 `data/map.json` is a warning and does not change the exit code. `--data <dir>`
 checks a copy of the content directory instead, which is how to show that it
 catches a fault: seed the fault into a copy and run it there.
+
+`verify battle` fights through the Arena's own `Duel`, every seed both ways
+round. A side is a battler tile id, or one with masteries and equipment by
+slot: `player:sharp=15,agility=15,toughness=15,weapon=knights-sword`. By
+default each body rolls its kit per seed, as the world does; `--kit none`
+fights with only what you name, as the Arena does. The sampled time to kill
+counts only the fights that side won, so it runs shorter than the closed form,
+which is hit points over damage per second.
 
 ## Checks that need no command
 

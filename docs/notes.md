@@ -13411,6 +13411,35 @@ deer's kit puts `raw-meat` in the `armor` slot at 12%, which takes only armour,
 and the rabbit's puts `skin` in the `bag` slot at 25%, which takes only an
 equippable container.
 
+### `verify battle` fights through `Duel`, both ways round
+
+`runBattle` (`app/verify/battle.ts`) builds each side the way the Arena does,
+with `fighterForTile`, `duelSetupOf` and `swingNamesOf`, and plays every seed
+with `runDuel`, whose `watch` callback reads each tick's events. It adds no
+rule of a fight; what it adds is bookkeeping.
+
+- **Every seed is fought twice, with the sides swapped.** `Duel` rolls side
+  `a`'s blow before side `b`'s on a shared tick, so fighting each seed once
+  would give one side the first draw of every exchange. With both, a mirror
+  match scores exactly as many wins as losses, which `battle.test.ts` holds.
+- **A kit is rolled from a stream of its own**, salted by side (`KIT_SALT` in
+  `app/verify/sides.ts`), so rolling one never moves the dice the fight is
+  fought with, and the two sides of a mirror match roll different kits.
+- **Each swing is put on the hand that threw it**, read from the fighter's
+  `nextSwing` after the tick. The closed-form rates beside it are `swingOdds`
+  for that hand against that seed's opponent, averaged over the same swings, so
+  with `--statuses off` the two differ only by sampling noise. A larger gap
+  means `Duel` and `combatMetrics.ts` no longer describe the same fight.
+- **Time to kill counts only the fights a side won**, so it runs shorter than
+  the closed form, which is hit points over damage per second whether or not
+  the attacker would live that long.
+- **A fight still going at `--max-seconds` is undecided**, and the limit is
+  120 s rather than the 666 s of `MAX_DUEL_TICKS`. A fight nobody can win runs
+  the whole limit at about 0.9 µs a tick with statuses on, and most fights
+  that end do so within fifteen seconds.
+- **The `combat` status is left out of status uptime**, because every blow
+  refreshes it.
+
 ## Verifying performance work
 
 **Prove the test can fail.** A parity test that passes at every setting is

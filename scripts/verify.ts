@@ -1,11 +1,12 @@
 import { join } from "node:path";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { type Command, commitOf, describeCommit, type Outcome, UsageError } from "./verify/cli";
+import { battle } from "./verify/battle";
 import { content } from "./verify/content";
 
 const ROOT = join(import.meta.dir, "..");
 
-const COMMANDS: readonly Command[] = [content];
+const COMMANDS: readonly Command[] = [content, battle];
 
 const COMMON_OPTIONS: ParseArgsOptionsConfig = {
   json: { type: "boolean" },

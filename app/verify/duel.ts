@@ -1,4 +1,4 @@
-import { Duel, type DuelOptions, type DuelSetup, type Side } from "../game/duel";
+import { Duel, type DuelEvent, type DuelOptions, type DuelSetup, type Side } from "../game/duel";
 import type { Rng } from "../game/rng";
 
 /**
@@ -13,17 +13,20 @@ export type DuelResult = {
 
 export const MAX_DUEL_TICKS = 20_000;
 
+export type DuelWatch = (events: readonly DuelEvent[], duel: Duel) => void;
+
 export function runDuel(
   a: DuelSetup,
   b: DuelSetup,
   rng: Rng,
-  options: DuelOptions & { maxTicks?: number } = {},
+  options: DuelOptions & { maxTicks?: number; watch?: DuelWatch } = {},
 ): DuelResult {
   const duel = new Duel(a, b, rng, options);
   const maxTicks = options.maxTicks ?? MAX_DUEL_TICKS;
 
   for (let tick = 1; tick <= maxTicks; tick++) {
-    duel.tick();
+    const events = duel.tick();
+    options.watch?.(events, duel);
     if (!duel.finished) continue;
     const winner = duel.winner;
     return {
