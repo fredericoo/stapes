@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { PX_PER_HEIGHT } from "../lib/geometry";
+import { type DepthBox, PX_PER_HEIGHT } from "../lib/geometry";
 import {
   DEFAULT_PARTICLES,
   MAX_LIVE_PARTICLES,
@@ -184,6 +184,8 @@ export class ParticleLayer {
     taper: 1,
   };
 
+  private readonly pointBox: DepthBox = { eastPx: 0, southPx: 0, foot: 0, top: 0 };
+
   constructor(lightUniformsFor: (z: number) => LevelLightUniforms, random?: Random) {
     this.system = new ParticleSystem(random);
     this.lightUniformsFor = lightUniformsFor;
@@ -320,6 +322,7 @@ export class ParticleLayer {
     const lightCellX = Math.floor(p.x);
     const lightCellY = Math.floor(p.y);
     const unlit = p.config.lit ? 0 : 1;
+    const box = p.config.ownDepth ? this.boxAtPoint(p) : p.box;
 
     const pb = quad * VERTS_PER_QUAD * 3;
     this.positions[pb] = x0;
@@ -343,10 +346,10 @@ export class ParticleLayer {
 
     for (let v = 0; v < VERTS_PER_QUAD; v++) {
       const bb = (quad * VERTS_PER_QUAD + v) * BOX_COMPONENTS;
-      this.boxes[bb] = p.box.eastPx;
-      this.boxes[bb + 1] = p.box.southPx;
-      this.boxes[bb + 2] = p.box.foot;
-      this.boxes[bb + 3] = p.box.top;
+      this.boxes[bb] = box.eastPx;
+      this.boxes[bb + 1] = box.southPx;
+      this.boxes[bb + 2] = box.foot;
+      this.boxes[bb + 3] = box.top;
       this.stacks[quad * VERTS_PER_QUAD + v] = p.stackBias;
       this.unlit[quad * VERTS_PER_QUAD + v] = unlit;
 
@@ -364,6 +367,20 @@ export class ParticleLayer {
     }
 
     return true;
+  }
+
+  /**
+   * A box with no volume whose east and south edges run through the particle
+   * itself, so along the ray through the particle's own pixel the box's
+   * surface is the particle's elevation, and it sorts where it is.
+   */
+  private boxAtPoint(p: ParticleReading): DepthBox {
+    const box = this.pointBox;
+    box.eastPx = p.x * CELL_SIZE;
+    box.southPx = p.y * CELL_SIZE;
+    box.foot = p.elev;
+    box.top = p.elev;
+    return box;
   }
 
   private shapeSlotFor(shape: ParticleShape): number | null {

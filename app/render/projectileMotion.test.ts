@@ -345,6 +345,7 @@ const SPARK: Transition = {
     riseTo: 4,
     driftCellsPerSecond: 1,
     lit: false,
+    ownDepth: false,
     gravity: -10,
     offsetX: "",
     offsetY: "",

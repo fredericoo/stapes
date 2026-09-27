@@ -533,6 +533,20 @@ export function ParticleFields({
             ariaLabel="Affected by lighting"
           />
         </Field>
+        <Field
+          label="Passes behind things"
+          hint={
+            particles.ownDepth
+              ? "Each particle sorts where it is, so an orbit goes behind its body."
+              : "Sorts as one, in front of what it rises from, so a fire never flickers behind it."
+          }
+        >
+          <Switch
+            checked={particles.ownDepth}
+            onCheckedChange={(ownDepth) => patch({ ownDepth })}
+            ariaLabel="Passes behind things"
+          />
+        </Field>
       </Row>
 
       <RampEditor ramp={particles.ramp} onChange={(ramp) => patch({ ramp })} />

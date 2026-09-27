@@ -22,6 +22,7 @@ export type ParticleEmitterDef = {
   offsetY: string;
   offsetElev: string;
   lit: boolean;
+  ownDepth: boolean;
   shape: ParticleShape | null;
   radiusFromPx: number;
   radiusToPx: number;
@@ -81,6 +82,7 @@ export const DEFAULT_PARTICLES: ParticleEmitterDef = {
   offsetY: "",
   offsetElev: "",
   lit: true,
+  ownDepth: false,
   shape: null,
   radiusFromPx: 1,
   radiusToPx: 2,
@@ -104,6 +106,7 @@ export const DEFAULT_IMPACT: ParticleEmitterDef = {
   offsetY: "",
   offsetElev: "",
   lit: false,
+  ownDepth: false,
   shape: null,
   radiusFromPx: 1,
   radiusToPx: 1,
@@ -146,6 +149,7 @@ export const particleEmitterSchema = v.pipe(
     riseTo: v.pipe(v.number(), v.minValue(-32), v.maxValue(32)),
     driftCellsPerSecond: v.pipe(v.number(), v.minValue(0), v.maxValue(8)),
     lit: v.optional(v.boolean(), false),
+    ownDepth: v.optional(v.boolean(), false),
     gravity: v.pipe(v.number(), v.minValue(-32), v.maxValue(32)),
     offsetX: v.optional(offsetFormula, ""),
     offsetY: v.optional(offsetFormula, ""),

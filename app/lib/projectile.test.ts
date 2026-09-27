@@ -27,6 +27,7 @@ function burst(over: Record<string, unknown> = {}) {
       riseTo: 4,
       driftCellsPerSecond: 1,
       lit: false,
+      ownDepth: false,
       gravity: -10,
       offsetX: "",
       offsetY: "",

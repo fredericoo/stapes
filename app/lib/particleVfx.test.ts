@@ -149,6 +149,11 @@ describe("what validates", () => {
     });
     expect(parsed.lit).toBe(false);
   });
+
+  it("defaults a plume to sorting as one, so a fire never ducks behind its body", () => {
+    const { ownDepth: _ownDepth, ...plume } = DEFAULT_PARTICLES;
+    expect(v.parse(particleEmitterSchema, plume).ownDepth).toBe(false);
+  });
 });
 
 describe("a drawn shape", () => {

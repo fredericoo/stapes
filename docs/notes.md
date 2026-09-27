@@ -10333,10 +10333,37 @@ it crosses the player sprite, which is also mostly white, the two run together.
 
 ### A plume sorts as a two-high tile on top of the affected stack
 
-Not per particle. Every spark of one emitter carries the same depth box, so a
-particle that has drifted a cell away still sorts where the fire is. Boxes
-derived per particle would have sparks crossing the sprite's own depth as they
-rose, and a fire that flickers *behind* the thing on fire reads as a bug.
+Not per particle, unless the emitter asks. Every spark of one emitter carries
+the same depth box, so a particle that has drifted a cell away still sorts where
+the fire is. Boxes derived per particle would have sparks crossing the sprite's
+own depth as they rose, and a fire that flickers *behind* the thing on fire
+reads as a bug.
+
+**An orbit is the exception, and `ownDepth` is how an emitter asks for it.** A
+spiral round a body has to pass behind it on the far side, which is that same
+flicker done on purpose. With `ownDepth` on, `ParticleLayer.boxAtPoint` gives
+each particle a box with no volume whose east and south edges run through the
+particle, so along the ray through its own pixel the box's surface is the
+particle's own elevation, and the depth the world has already written hides it
+wherever something is between it and the camera. That depth is the mask: there
+is no second pass and no extra draw, only four numbers per particle in the box
+attribute every quad already carries. Two things follow from sorting where it
+really is:
+
+- **Behind is the camera's.** It looks from the south-east and above, so a
+  particle west of a body is behind it as much as one north of it, and height
+  counts: one above a head is not hidden by the body under it. A rule on the
+  particle's y alone would get the west side wrong and pop as a particle
+  crossed it.
+- **It sorts against everything, not only its body.** An orbit beside a wall
+  goes behind the wall, and a particle at floor level ties with the floor and
+  fights it, so an emitter that sorts on its own should start a little above
+  the floor.
+- **It only shows where the orbit crosses the sprite.** A particle behind a
+  body draws up and to the left of its cell, two pixels for every unit of
+  height, so an orbit that is already above the head by the time it goes round
+  the back passes beside the sprite, and nothing hides it. The pass behind has
+  to happen low.
 
 Opacity is legal here for one reason: particles are blended into the scene
 target **before** `app/render/palettePass.ts` quantises, so a half-faded spark is
