@@ -26,7 +26,6 @@ import {
   findSpawnPoints,
   isSpawnFilled,
   presentItemIds,
-  rollRespawnDelayMs,
   type SpawnPoint,
   withMigratedItemIds,
 } from "../app/game/respawn";
@@ -826,7 +825,7 @@ export class GameServer {
     for (const point of this.respawnPoints.values()) {
       if (this.respawnPending.has(point.key)) continue;
       if (isSpawnFilled(map, point, owners)) continue;
-      this.respawnPending.set(point.key, nowMs + rollRespawnDelayMs(point.respawn));
+      this.respawnPending.set(point.key, nowMs + session.respawnDelayMs(point.respawn));
     }
     this.persistRespawnPending();
     this.scheduleRespawnAlarm();
@@ -887,8 +886,9 @@ export class GameServer {
   }
 
   private armRespawn(point: SpawnPoint, nowMs: number) {
-    if (this.respawnPending.has(point.key)) return;
-    this.respawnPending.set(point.key, nowMs + rollRespawnDelayMs(point.respawn));
+    const session = this.session;
+    if (!session || this.respawnPending.has(point.key)) return;
+    this.respawnPending.set(point.key, nowMs + session.respawnDelayMs(point.respawn));
     this.persistRespawnPending();
     this.scheduleRespawnAlarm();
   }

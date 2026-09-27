@@ -18,10 +18,7 @@ export type SpawnPoint = {
 
 export type RespawnOutcome = { kind: "done"; itemId?: string } | { kind: "blocked" };
 
-export function rollRespawnDelayMs(
-  respawn: RespawnInteraction,
-  random: () => number = Math.random,
-): number {
+export function rollRespawnDelayMs(respawn: RespawnInteraction, random: () => number): number {
   const spread = respawn.toMs - respawn.fromMs + 1;
   return respawn.fromMs + Math.floor(random() * spread);
 }
