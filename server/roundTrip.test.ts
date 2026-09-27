@@ -30,11 +30,13 @@ function strip(): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels: { "0": cells } } as FlatMapFile;
 }
 
+const NOON_MS = 12 * 60 * 60 * 1000;
+
 let harness: Harness;
 
 beforeEach(async () => {
   worldDebt = 0;
-  harness = await Harness.create();
+  harness = await Harness.create({}, { manualTicks: { startAtMs: NOON_MS } });
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
   await harness.blobs.put("map.json", JSON.stringify(strip()), JSON_TYPE);
@@ -64,7 +66,7 @@ async function play(actorId: string) {
       clock += frameMs;
       remote.update(frameMs);
       await flush();
-      tickWorld(frameMs);
+      await tickWorld(frameMs);
       await flush();
     }
   };
@@ -81,20 +83,11 @@ function flush(): Promise<void> {
 }
 
 let worldDebt = 0;
-function tickWorld(ms: number) {
-  const internals = harness.server as unknown as {
-    timer: ReturnType<typeof setInterval> | null;
-    tick(): void;
-  };
-  if (internals.timer !== null) {
-    clearInterval(internals.timer);
-    internals.timer = null;
-  }
+async function tickWorld(ms: number) {
   worldDebt += ms;
-  while (worldDebt >= TICK_MS) {
-    worldDebt -= TICK_MS;
-    internals.tick();
-  }
+  const ticks = Math.floor(worldDebt / TICK_MS);
+  worldDebt -= ticks * TICK_MS;
+  if (ticks > 0) await harness.server.step(ticks);
 }
 
 async function stepCreature(

@@ -26,7 +26,6 @@ import {
   findSpawnPoints,
   isSpawnFilled,
   presentItemIds,
-  rollRespawnDelayMs,
   type SpawnPoint,
   withMigratedItemIds,
 } from "../app/game/respawn";
@@ -677,6 +676,8 @@ export class GameServer {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
       maxOnlinePlayers?: number;
+      manualTicks?: { startAtMs: number };
+      seed?: number;
     },
   ) {}
 
@@ -715,6 +716,7 @@ export class GameServer {
   private timer: ReturnType<typeof setInterval> | null = null;
   private tickDueAt = 0;
   private consecutiveTickFailures = 0;
+  private ticksStepped = 0;
   private loading: Promise<void> | null = null;
   private lastSaidAt = new Map<string, number>();
   private actorsSavedAt = 0;
@@ -766,6 +768,7 @@ export class GameServer {
         })
       : new GameSession(await store.readMap(), this.tiles, {
           actorIds: [],
+          seed: this.env.seed,
           statuses: this.statusDefs,
           clock: () => this.minutesOfDay(),
         });
@@ -822,13 +825,13 @@ export class GameServer {
       Object.entries(pending ?? {}).filter(([key]) => this.respawnPoints.has(key)),
     );
 
-    const nowMs = Date.now();
+    const nowMs = this.now();
     const map = session.getMap();
     const owners = listActorOwners(map);
     for (const point of this.respawnPoints.values()) {
       if (this.respawnPending.has(point.key)) continue;
       if (isSpawnFilled(map, point, owners)) continue;
-      this.respawnPending.set(point.key, nowMs + rollRespawnDelayMs(point.respawn));
+      this.respawnPending.set(point.key, nowMs + session.respawnDelayMs(point.respawn));
     }
     this.persistRespawnPending();
     this.scheduleRespawnAlarm();
@@ -879,6 +882,7 @@ export class GameServer {
   }
 
   private scheduleRespawnAlarm() {
+    if (this.env.manualTicks) return;
     if (this.respawnPending.size === 0) {
       this.ctx.storage.deleteAlarm().catch(GameServer.reportWriteFailure("respawn alarm clear"));
       return;
@@ -889,8 +893,9 @@ export class GameServer {
   }
 
   private armRespawn(point: SpawnPoint, nowMs: number) {
-    if (this.respawnPending.has(point.key)) return;
-    this.respawnPending.set(point.key, nowMs + rollRespawnDelayMs(point.respawn));
+    const session = this.session;
+    if (!session || this.respawnPending.has(point.key)) return;
+    this.respawnPending.set(point.key, nowMs + session.respawnDelayMs(point.respawn));
     this.persistRespawnPending();
     this.scheduleRespawnAlarm();
   }
@@ -936,7 +941,7 @@ export class GameServer {
   private sweepRespawnCells(cells: ScopedCell[]) {
     const session = this.session;
     if (!session || this.respawnPointsByCell.size === 0) return;
-    const nowMs = Date.now();
+    const nowMs = this.now();
     let pointsDirty = false;
     for (const { cell } of cells) {
       const points = this.respawnPointsByCell.get(cellKey(cell));
@@ -963,7 +968,7 @@ export class GameServer {
 
   async alarm() {
     await this.ensureLoaded();
-    this.processDueRespawns(Date.now());
+    this.processDueRespawns(this.now());
     this.wake();
   }
 
@@ -1028,7 +1033,7 @@ export class GameServer {
     const spawn: ActorPosition = { x, y, z, direction: DEFAULT_FACING };
     this.spawns.set(actorId, spawn);
     this.ctx.storage
-      .put(this.spawnKey(actorId), { ...spawn, savedAt: Date.now() })
+      .put(this.spawnKey(actorId), { ...spawn, savedAt: this.now() })
       .catch(GameServer.reportWriteFailure("spawn write"));
   }
 
@@ -1082,7 +1087,7 @@ export class GameServer {
     const session = this.session!;
     if (session.hiddenOf(actorId) !== enabled && session.setHidden(enabled, actorId)) {
       this.ctx.storage
-        .put(this.hiddenKey(actorId), { on: enabled, savedAt: Date.now() } satisfies SavedHidden)
+        .put(this.hiddenKey(actorId), { on: enabled, savedAt: this.now() } satisfies SavedHidden)
         .catch(GameServer.reportWriteFailure("hidden write"));
       this.events.push({ kind: enabled ? "left" : "joined", actorId });
       this.tellAdminsPlayerCount({});
@@ -1142,7 +1147,7 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
 
-    const savedAt = Date.now();
+    const savedAt = this.now();
     const entries: Record<
       string,
       | SavedPosition
@@ -1265,7 +1270,7 @@ export class GameServer {
   private saveActorsIfDue() {
     const session = this.session;
     if (!session) return;
-    const now = Date.now();
+    const now = this.now();
     if (now - this.actorsSavedAt < ACTOR_FLUSH_INTERVAL_MS) return;
     this.actorsSavedAt = now;
     this.saveActors(session.actorIds());
@@ -1699,7 +1704,7 @@ export class GameServer {
       };
       this.spawns.set(actorId, spawn);
       this.ctx.storage
-        .put(this.spawnKey(actorId), { ...spawn, savedAt: Date.now() })
+        .put(this.spawnKey(actorId), { ...spawn, savedAt: this.now() })
         .catch(GameServer.reportWriteFailure("spawn write"));
       this.sendTo(actorId, { type: "spawnPoint", at: { ...at } });
     }
@@ -1711,13 +1716,13 @@ export class GameServer {
   }
 
   private minutesOfDay(): MinutesOfDay {
-    return wrapMinutes(minutesOfDayAt(Date.now()) + this.clockOffsetMinutes);
+    return wrapMinutes(minutesOfDayAt(this.now()) + this.clockOffsetMinutes);
   }
 
   private flushClock() {
     const minutes = this.session?.drainClockSet();
     if (minutes === null || minutes === undefined) return;
-    this.clockOffsetMinutes = minutes - minutesOfDayAt(Date.now());
+    this.clockOffsetMinutes = minutes - minutesOfDayAt(this.now());
     this.broadcast({ type: "clock", minutesOfDay: minutes });
   }
 
@@ -1838,7 +1843,7 @@ export class GameServer {
   }
 
   private say(actorId: string, raw: string) {
-    const now = Date.now();
+    const now = this.now();
     const last = this.lastSaidAt.get(actorId);
     if (last !== undefined && now - last < CHAT_MIN_INTERVAL_MS) return;
 
@@ -1914,7 +1919,7 @@ export class GameServer {
   ) {
     const message: ServerMessage = { type: "chat", ...at };
     this.sendToNearby(at, actors, message);
-    this.logChat(Date.now(), at.actorId, at, at.text);
+    this.logChat(this.now(), at.actorId, at, at.text);
   }
 
   private sendToNearby(
@@ -1988,7 +1993,7 @@ export class GameServer {
     if (this.session?.inCombat(attachment.actorId)) {
       this.saveActors([attachment.actorId], true);
       this.session.standIdle(attachment.actorId);
-      this.lingering.set(attachment.actorId, Date.now() + GameServer.MAX_LINGER_MS);
+      this.lingering.set(attachment.actorId, this.now() + GameServer.MAX_LINGER_MS);
       this.wake();
       return;
     }
@@ -2019,7 +2024,7 @@ export class GameServer {
   }
 
   private releaseLingerers() {
-    const nowMs = Date.now();
+    const nowMs = this.now();
     for (const [actorId, releaseAtMs] of this.lingering) {
       if (this.hasSocket(actorId)) {
         this.lingering.delete(actorId);
@@ -2050,6 +2055,7 @@ export class GameServer {
     const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
     const session = new GameSession(map, tiles, {
       actorIds: [],
+      seed: this.env.seed,
       statuses: statusDefs,
       clock: () => this.minutesOfDay(),
     });
@@ -2189,8 +2195,28 @@ export class GameServer {
     this.wake();
   }
 
+  /**
+   * A world stepped by hand keeps its own time, one `TICK_MS` per step, so a
+   * respawn or a night comes after the same number of steps on every run.
+   */
+  private now(): number {
+    const manual = this.env.manualTicks;
+    return manual ? manual.startAtMs + this.ticksStepped * TICK_MS : Date.now();
+  }
+
+  async step(ticks = 1): Promise<void> {
+    if (!this.env.manualTicks) {
+      throw new Error("only a GameServer built with manualTicks is stepped by hand");
+    }
+    await this.ensureLoaded();
+    for (let i = 0; i < ticks; i++) {
+      this.ticksStepped += 1;
+      this.tick();
+    }
+  }
+
   private wake() {
-    if (this.timer !== null) return;
+    if (this.env.manualTicks || this.timer !== null) return;
     this.tickDueAt = performance.now() + TICK_MS;
     this.timer = setInterval(() => this.tickIfDue(), TICK_POLL_MS);
   }
@@ -2241,7 +2267,7 @@ export class GameServer {
 
     session.tick(TICK_MS);
     this.applyQueuedSteps();
-    this.processDueRespawns(Date.now());
+    this.processDueRespawns(this.now());
 
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);
@@ -2369,7 +2395,7 @@ export class GameServer {
       this.queuedIntents.delete(actorId);
       this.writtenActors.delete(actorId);
       const point = this.respawnPoints.get(actorId);
-      if (point) this.armRespawn(point, Date.now());
+      if (point) this.armRespawn(point, this.now());
 
       const connected = this.hasSocket(actorId);
       if (!connected && !this.lingering.has(actorId)) continue;

@@ -18,7 +18,7 @@ import {
   tileIdsInChunk,
   walkableElevInStack,
 } from "../lib/mapData";
-import type { ExtractInteraction } from "../lib/interactions";
+import type { ExtractInteraction, RespawnInteraction } from "../lib/interactions";
 import {
   resolveAddStatus,
   resolveRemoveStatus,
@@ -259,7 +259,7 @@ import {
   type ProjectileFlight,
 } from "./projectile";
 import { pushedColumn } from "./push";
-import { isSpawnFilled, type RespawnOutcome, type SpawnPoint } from "./respawn";
+import { isSpawnFilled, rollRespawnDelayMs, type RespawnOutcome, type SpawnPoint } from "./respawn";
 import {
   applyItemMove,
   canMoveItem,
@@ -1079,6 +1079,10 @@ export class GameSession implements PlaySession {
 
   getSeed(): number {
     return this.rng.save();
+  }
+
+  respawnDelayMs(respawn: RespawnInteraction): number {
+    return rollRespawnDelayMs(respawn, () => this.rng.next());
   }
 
   private actor(id: string): ActorRuntime {
