@@ -363,6 +363,21 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "keeper", name: "Keeper", height: 2, actor: true, walkable: false }),
   tile({
+    id: "bolt",
+    name: "Bolt",
+    height: 1,
+    kind: "projectile",
+    interactions: {
+      projectile: {
+        cellsPerSecond: 20,
+        hit: {
+          durationMs: 100,
+          dissolve: { pattern: "noise", edgeColor: "#8ce6ff", edgeWidth: 0.1 },
+        },
+      },
+    },
+  }),
+  tile({
     id: "hound",
     name: "Hound",
     height: 2,
@@ -1269,6 +1284,84 @@ describe("switching a brain", () => {
     expect(session.drainNotices("me")).toEqual([
       "Deer is not driven by a brain",
       'No state called "fetch" in Hound\'s brain. Try roam, sit',
+    ]);
+  });
+});
+
+describe("firing a projectile", () => {
+  it("reads an end as a cell when it is numbers and commas, and as a body otherwise", () => {
+    expect(parseCommand("/fire Bolt npc:1,0,0,1 -3,12,0")).toEqual({
+      ok: true,
+      command: {
+        name: "fire",
+        tileId: "bolt",
+        from: { kind: "body", target: "npc:1,0,0,1" },
+        to: { kind: "cell", at: { x: -3, y: 12, z: 0 } },
+      },
+    });
+    expect(parseCommand("/fire bolt self 2,2")).toMatchObject({
+      ok: true,
+      command: {
+        from: { kind: "body", target: null },
+        to: { kind: "cell", at: { x: 2, y: 2, z: null } },
+      },
+    });
+    expect(parseCommand("/fire bolt self")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "fire" },
+    });
+  });
+
+  it("sends a flight from a body to a cell, and answers with how long it flies", () => {
+    const session = world();
+    const reply = session.runCommand("/fire bolt npc:1,0,0,1 -2,2,0", "me");
+
+    const [flight] = session.drainProjectiles();
+    expect(flight).toMatchObject({ tileId: "bolt", from: { x: 1, y: 0 }, to: { x: -2, y: 2 } });
+    expect(flight?.targetId).toBeUndefined();
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Bolt flies from Deer to -2, 2, 0",
+      ids: [],
+      data: {
+        command: "fire",
+        tileId: "bolt",
+        from: { x: 1, y: 0, z: 0 },
+        to: { x: -2, y: 2, z: 0 },
+        target: null,
+        flightMs: flight?.durationMs,
+      },
+    });
+  });
+
+  it("follows a body at its far end, and does nothing to it when it lands", () => {
+    const session = world();
+    const hp = session.getSnapshot("me").self.hp;
+    session.runCommand("/fire bolt 2,2,0 self", "me");
+    const [flight] = session.drainProjectiles();
+    expect(flight?.targetId).toBe("me");
+
+    const struck: string[] = [];
+    let receipts = 0;
+    for (let elapsed = 0; elapsed <= (flight?.durationMs ?? 0) * 2; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      struck.push(...session.drainTransitions().flatMap((note) => note.struckBy ?? []));
+      receipts += session.drainDamage().length;
+    }
+    expect(struck).toEqual([]);
+    expect(receipts).toBe(0);
+    expect(session.getSnapshot("me").self.hp).toBe(hp);
+    expect(session.getSnapshot("me").self.statuses).toEqual([]);
+  });
+
+  it("refuses a tile that does not fly, and a body that is not there", () => {
+    const session = world();
+    session.runCommand("/fire apple self 1,1,0", "me");
+    session.runCommand("/fire bolt nobody 1,1,0", "me");
+
+    expect(session.drainNotices("me")).toEqual([
+      '"apple" is not a projectile. Try bolt',
+      'Nobody here answers to "nobody"',
     ]);
   });
 });

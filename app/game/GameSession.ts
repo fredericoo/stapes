@@ -111,6 +111,7 @@ import {
   brainNotice,
   craftNotice,
   extractNotice,
+  fireNotice,
   giveNotice,
   masteryNotice,
   otherMasteryNotice,
@@ -138,6 +139,7 @@ import { type Combatant, mayHarm } from "./pvp";
 import {
   BRAIN_COMMAND,
   DESPAWN_COMMAND,
+  FIRE_COMMAND,
   GIVE_COMMAND,
   GOTO_COMMAND,
   HEALTH_COMMAND,
@@ -155,6 +157,8 @@ import {
   type CommandRefusal,
   type CommandReply,
   type DespawnCommand,
+  type FireCommand,
+  type FlightEnd,
   type GiveCommand,
   type GiveSlot,
   type HealthCommand,
@@ -398,7 +402,7 @@ import {
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { settleAllSpans, settleSpans, spanAnchor } from "../lib/footprint";
-import { projectileEffect, resolveProjectile } from "../lib/projectile";
+import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
   applyStatus,
@@ -1265,9 +1269,19 @@ export class GameSession implements PlaySession {
     return reachPointAt(this.map, this.tilesById, loc);
   }
 
-  private flightPointOf(loc: ActorLocation): FlightPoint {
-    const point = this.reachPointOf(loc);
-    const body = this.tilesById[loc.placed.tileId];
+  /**
+   * A cell is measured as a body put on top of its stack would be, at the
+   * height used for a body whose tile cannot be found.
+   */
+  private flightPointOf(end: ActorLocation | Coord): FlightPoint {
+    const body = "placed" in end ? this.tilesById[end.placed.tileId] : undefined;
+    const point = reachPointAt(
+      this.map,
+      this.tilesById,
+      "placed" in end
+        ? end
+        : { ...end, stackIndex: getStack(this.map, end.x, end.y, end.z).length },
+    );
     return {
       x: point.x,
       y: point.y,
@@ -2402,8 +2416,8 @@ export class GameSession implements PlaySession {
 
   private fireProjectile(
     tileId: string | null | undefined,
-    fromBody: ActorLocation,
-    toBody: ActorLocation,
+    fromEnd: ActorLocation | Coord,
+    toEnd: ActorLocation | Coord,
     connected: boolean,
   ): number {
     if (!tileId) return 0;
@@ -2411,15 +2425,16 @@ export class GameSession implements PlaySession {
     const flies = resolveProjectile(def);
     if (!flies) return 0;
 
-    const from = this.flightPointOf(fromBody);
-    const to = this.flightPointOf(toBody);
+    const from = this.flightPointOf(fromEnd);
+    const to = this.flightPointOf(toEnd);
+    const targetId = "placed" in toEnd ? toEnd.placed.owner : undefined;
 
     const flight: ProjectileFlight = {
       id: `shot-${this.nextProjectileId++}`,
       tileId,
       from: { x: from.x, y: from.y, elevAbs: from.elevAbs },
       to: { x: to.x, y: to.y, elevAbs: to.elevAbs },
-      ...(toBody.placed.owner ? { targetId: toBody.placed.owner } : {}),
+      ...(targetId ? { targetId } : {}),
       durationMs: flightDurationMs(from, to, flies),
       elapsedMs: 0,
       hit: connected,
@@ -4700,6 +4715,8 @@ export class GameSession implements PlaySession {
         return this.runGiveCommand(command, id);
       case BRAIN_COMMAND:
         return this.runBrainCommand(command, id);
+      case FIRE_COMMAND:
+        return this.runFireCommand(command, id);
     }
   }
 
@@ -4979,6 +4996,67 @@ export class GameSession implements PlaySession {
     const state = actor.brain?.state ?? brain.initial;
     this.say(id, brainNotice(name, on, state));
     return { ok: true, data: { command: BRAIN_COMMAND, target: actor.id, on, state } };
+  }
+
+  private runFireCommand(command: FireCommand, id: string): CommandOutcome {
+    const def = this.tilesById[command.tileId];
+    if (!def) return { ok: false, refusal: { kind: "unknownTile", typed: command.tileId } };
+    if (!resolveProjectile(def)) {
+      const known = projectileTiles(Object.values(this.tilesById)).map((tile) => tile.id);
+      return { ok: false, refusal: { kind: "notAProjectile", typed: command.tileId, known } };
+    }
+
+    const from = this.flightEnd(command.from, id);
+    if (!from.ok) return from;
+    const to = this.flightEnd(command.to, id);
+    if (!to.ok) return to;
+
+    /** `connected` says whether a blow landed, and no blow travels with this flight. */
+    const flightMs = this.fireProjectile(def.id, from.end, to.end, false);
+    this.say(id, fireNotice(def.name, from.name, to.name));
+    return {
+      ok: true,
+      data: {
+        command: FIRE_COMMAND,
+        tileId: def.id,
+        from: from.at,
+        to: to.at,
+        target: to.target,
+        flightMs,
+      },
+    };
+  }
+
+  private flightEnd(
+    end: FlightEnd,
+    authorId: string,
+  ):
+    | {
+        ok: true;
+        end: ActorLocation | Coord;
+        at: Coord;
+        name: string | Coord;
+        target: string | null;
+      }
+    | { ok: false; refusal: CommandRefusal } {
+    if (end.kind === "cell") {
+      const level = end.at.z ?? this.levelOf(authorId);
+      if (level === null) return { ok: false, refusal: { kind: "nowhereToPlace" } };
+      const at = { x: end.at.x, y: end.at.y, z: level };
+      return { ok: true, end: at, at, name: at, target: null };
+    }
+
+    const bodyId = end.target ?? authorId;
+    const actor = this.actors.get(bodyId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: bodyId } };
+    return {
+      ok: true,
+      end: loc,
+      at: { x: loc.x, y: loc.y, z: loc.z },
+      name: this.bodyName(actor.id) ?? actor.id,
+      target: actor.id,
+    };
   }
 
   private levelOf(id: string): number | null {
