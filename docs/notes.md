@@ -7286,9 +7286,9 @@ A line beginning with `/` is an instruction rather than something to say.
 `app/game/commands.ts` owns that one rule and the grammar behind it,
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
-The verbs are `/mastery`, `/tile`, `/status`, `/health`, `/goto`, `/move` and
-`/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the grammar of each, and
-is the line a player is shown when they get one wrong.
+The verbs are `/mastery`, `/tile`, `/spawn`, `/status`, `/health`, `/goto`,
+`/move` and `/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the grammar of
+each, and is the line a player is shown when they get one wrong.
 
 - **Only an administrator runs one.** The gate is in
   `GameServer.webSocketMessage`, on the `command` arm, and it reads `admin` off
@@ -7475,6 +7475,36 @@ on.
   `summonedOwnerId` takes the names this same command has already minted: with
   nothing adopted until the end, the runtime cannot see a clash inside one
   `/tile wolf x3` for itself.
+
+### `/spawn` is `/tile` for a body, at a cell of the map
+
+`/spawn <tile> <x> <y> [z]` puts a creature at a cell of the map. It exists
+because `/tile` cannot write one: under the sign grammar a negative number is a
+step from where you stand, so `/tile wolf -3 -12` lands three west and twelve
+south of the author, and most of the map is negative. `/spawn` is to `/tile`
+what `/goto` is to `/move`: every number is a cell, and a level left off means
+the one the author stands on.
+
+- **It places bodies and nothing else.** A tile `resolveActor` does not call a
+  body is refused with a sentence that points at `/tile`, which already puts
+  down anything. The `player` tile is refused first, on `/tile`'s terms: it is
+  not a body to `resolveActor`, so the order matters, and sending the author to
+  `/tile` would send them to a second refusal.
+- **It asks `canStandIn` before the editor's `canPlace`.** `canPlace` measures a
+  stack's height and nothing else, so on its own it says yes to a cell with
+  nothing under it and to the top of another creature, which leaves the new
+  body with nothing to stand on or standing on the other one's head.
+  `canStandIn` asks the question `/goto` asks of a typed destination, and
+  `canPlace` still runs after it because the body is placed through `/tile`'s
+  path.
+- **That path is `placeTiles`, the one `/tile` summons through.** The body gets
+  its owner id from `summonedOwnerId` and is adopted as a resident on the spot,
+  on the same terms as a body `/tile` summons: named after the cell it was put
+  in, which `residentHome` reads back as its home, unless that name is taken,
+  in which case it gets a unique name and no home.
+- **The sentence names the body's id**: "Wolf appears at -3, 12, 0 as
+  npc:-3,12,0,1". Every command that acts on a creature takes that id, and
+  nothing else on screen shows it. The reply carries it in `ids`.
 
 ### `/time` moves the world's clock, for everybody
 

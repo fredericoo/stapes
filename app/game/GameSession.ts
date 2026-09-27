@@ -112,6 +112,7 @@ import {
   rewardNotice,
   spawnMarkNotice,
   spawnMarkUnchangedNotice,
+  spawnNotice,
   statusAcquiredNotice,
   otherStatusNotice,
   statusesClearedNotice,
@@ -130,6 +131,7 @@ import {
   MASTERY_COMMAND,
   parseCommand,
   resolveCell,
+  SPAWN_COMMAND,
   STATUS_COMMAND,
   TILE_COMMAND,
   TIME_COMMAND,
@@ -139,6 +141,7 @@ import {
   type CommandReply,
   type HealthCommand,
   type MasteryCommand,
+  type SpawnCommand,
   type StatusCommand,
   type TileCommand,
   type TimeCommand,
@@ -4401,6 +4404,8 @@ export class GameSession implements PlaySession {
         return this.runMoveCommand(command, id);
       case TIME_COMMAND:
         return this.runTimeCommand(command, id);
+      case SPAWN_COMMAND:
+        return this.runSpawnCommand(command, id);
     }
   }
 
@@ -4410,8 +4415,7 @@ export class GameSession implements PlaySession {
     return { ok: true, data: { command: TIME_COMMAND, minutes: command.minutes } };
   }
 
-  private canStandIn(actor: ActorRuntime, to: Coord): boolean {
-    const def = this.defFor(actor);
+  private canStandIn(def: TileDef, to: Coord): boolean {
     const surface = listStandingSurfaces(this.map, to.x, to.y, this.tilesById).find(
       (candidate) => candidate.z === to.z,
     );
@@ -4460,7 +4464,9 @@ export class GameSession implements PlaySession {
       data: { command: name, target: actor.id, at: { x: to.x, y: to.y, z: to.z } },
     };
     if (to.x === loc.x && to.y === loc.y && to.z === loc.z) return arrived;
-    if (!this.canStandIn(actor, to)) return { ok: false, refusal: { kind: "noRoom", at: to } };
+    if (!this.canStandIn(this.defFor(actor), to)) {
+      return { ok: false, refusal: { kind: "noRoom", at: to } };
+    }
 
     this.moveThrough(actor, to);
     this.statusOnArrival(actor);
@@ -4508,6 +4514,36 @@ export class GameSession implements PlaySession {
       data: { command: TILE_COMMAND, tileId: def.id, at, count: command.count },
       ids: placed.owners,
     };
+  }
+
+  private runSpawnCommand(command: SpawnCommand, id: string): CommandOutcome {
+    const found = this.summonableTile(command.tileId);
+    if (!found.ok) return found;
+    const { def } = found;
+    if (!resolveActor(def)) {
+      return { ok: false, refusal: { kind: "notABody", typed: command.tileId } };
+    }
+
+    const level = command.at.z ?? this.levelOf(id);
+    if (level === null) return { ok: false, refusal: { kind: "nowhereToPlace" } };
+    const at = { x: command.at.x, y: command.at.y, z: level };
+    if (!this.canStandIn(def, at)) return { ok: false, refusal: { kind: "noRoom", at } };
+
+    const placed = this.placeTiles(def, at, 1, null);
+    if (!placed.ok) return placed;
+
+    this.say(id, spawnNotice(def.name, at, placed.owners[0]!));
+    return {
+      ok: true,
+      data: { command: SPAWN_COMMAND, tileId: def.id, at },
+      ids: placed.owners,
+    };
+  }
+
+  private levelOf(id: string): number | null {
+    const actor = this.actors.get(id);
+    const loc = actor ? this.tryLocate(actor) : null;
+    return loc ? loc.z : null;
   }
 
   private summonableTile(

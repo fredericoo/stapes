@@ -4,7 +4,13 @@ import { DEFAULT_CRAFT_VERB, DEFAULT_EXTRACT_VERB } from "../lib/interactions";
 import { MASTERIES, MAX_MASTERY, MIN_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
 import type { CastRefusal } from "./casting";
-import { COMMAND_USAGE, MAX_TILE_COUNT, type CommandRefusal } from "./commands";
+import {
+  COMMAND_PREFIX,
+  COMMAND_USAGE,
+  MAX_TILE_COUNT,
+  TILE_COMMAND,
+  type CommandRefusal,
+} from "./commands";
 import type { PathRefusal } from "./pathfinding";
 
 export function masteryNotice(mastery: Mastery, level: number): string {
@@ -117,6 +123,8 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return refusal.known.length === 0
         ? `No status called "${refusal.typed}", and this world authored none`
         : `No status called "${refusal.typed}". Try ${refusal.known.join(", ")}`;
+    case "notABody":
+      return `"${refusal.typed}" is not a body. Put it down with ${COMMAND_PREFIX}${TILE_COMMAND}`;
   }
 }
 
@@ -127,6 +135,10 @@ function cellName(at: Coord): string {
 export function tileNotice(name: string, at: Coord, count = 1): string {
   const many = count > 1 ? ` ×${count}` : "";
   return `${name}${many} appears at ${cellName(at)}`;
+}
+
+export function spawnNotice(name: string, at: Coord, id: string): string {
+  return `${tileNotice(name, at)} as ${id}`;
 }
 
 export function noRoomToLeaveNotice(name: string): string {

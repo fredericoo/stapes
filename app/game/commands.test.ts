@@ -886,6 +886,73 @@ describe("going somewhere", () => {
   });
 });
 
+function upstairs() {
+  let map = emptyMap();
+  for (let x = 0; x <= 2; x++) {
+    map = replaceStack(map, x, 0, 1, [{ tileId: "grass" }]);
+    map = replaceStack(map, x, 2, 0, [{ tileId: "grass" }]);
+  }
+  map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+  map = replaceStack(map, 0, 2, 0, [{ tileId: "grass" }, { tileId: "deer" }]);
+  return new GameSession(map, tiles, { actorIds: ["me"], seed: 1 });
+}
+
+describe("putting a body at a cell of the map", () => {
+  it("reads /spawn as a tile and a cell of the map, minus signs and all", () => {
+    expect(parseCommand("/spawn Deer -3 -12")).toEqual({
+      ok: true,
+      command: { name: "spawn", tileId: "deer", at: { x: -3, y: -12, z: null } },
+    });
+    expect(parseCommand("/spawn deer")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "spawn" },
+    });
+  });
+
+  it("puts a body down as a resident, and hands back the id it answers to", () => {
+    const session = world();
+    const reply = session.runCommand("/spawn deer -2 -1", "me");
+
+    expect(stackAt(session, -2, -1, 0)[1]?.owner).toBe("npc:-2,-1,0,1");
+    expect(session.isResident("npc:-2,-1,0,1")).toBe(true);
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Deer appears at -2, -1, 0 as npc:-2,-1,0,1",
+      ids: ["npc:-2,-1,0,1"],
+      data: { command: "spawn", tileId: "deer", at: { x: -2, y: -1, z: 0 } },
+    });
+  });
+
+  it("reads a left-off level as the one the author stands on", () => {
+    const session = upstairs();
+    session.runCommand("/spawn deer 2 0", "me");
+
+    expect(stackAt(session, 2, 0, 1).map((placed) => placed.tileId)).toEqual(["grass", "deer"]);
+  });
+
+  it("refuses a cell a body could not stand in, off the board or inside another body", () => {
+    const session = world();
+    const before = session.actorIds();
+    session.runCommand("/spawn deer 40 40", "me");
+    session.runCommand("/spawn deer 1 0", "me");
+
+    expect(session.drainNotices("me")).toEqual([
+      "Nothing will fit at 40, 40, 0",
+      "Nothing will fit at 1, 0, 0",
+    ]);
+    expect(session.actorIds()).toEqual(before);
+  });
+
+  it("sends anything that is not a body to /tile", () => {
+    const session = world();
+    const reply = session.runCommand("/spawn apple 2 2", "me");
+
+    expect(reply).toMatchObject({ ok: false, refusal: { kind: "notABody", typed: "apple" } });
+    expect(reply.notice).toBe('"apple" is not a body. Put it down with /tile');
+    expect(stackAt(session, 2, 2, 0).map((placed) => placed.tileId)).toEqual(["grass"]);
+  });
+});
+
 const MINUTES_PER_HOUR = 60;
 const SIX_PM_MINUTES = 18 * MINUTES_PER_HOUR;
 const HALF_SIX_AM_MINUTES = 6 * MINUTES_PER_HOUR + 30;
