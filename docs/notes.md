@@ -13439,6 +13439,14 @@ rule of a fight; what it adds is bookkeeping.
   that end do so within fifteen seconds.
 - **The `combat` status is left out of status uptime**, because every blow
   refreshes it.
+- **`--matrix` puts every creature against a player at rungs 10, 15 and 33**,
+  with Sharp, Toughness and Agility at the rung and the sword that asks for it
+  (`MATRIX_RUNGS` in `app/verify/matrix.ts`), at 100 seeds a cell. A creature
+  is a battler other than the player that is not flagged `pvp`: the townsfolk
+  only a player with PvP on may harm are left out, as they are from the bots'
+  `creaturesAround`, and each can still be fought by name. It takes
+  about 3.5 s, and most of that is the training dummy, whose 10,000 hit points
+  keep every fight going until `--max-seconds`.
 
 ## Verifying performance work
 

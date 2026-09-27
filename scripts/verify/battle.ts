@@ -11,6 +11,7 @@ import {
   type Spread,
 } from "../../app/verify/battle";
 import { KITS, parseSide, SideError, type Subject } from "../../app/verify/sides";
+import { type MatrixCell, type MatrixReport, runMatrix } from "../../app/verify/matrix";
 import { traceBattle, type TraceEvent, type TraceReport } from "../../app/verify/trace";
 import {
   choice,
@@ -26,6 +27,7 @@ import {
 const DATA = join(import.meta.dir, "../../data");
 
 const DEFAULT_SEEDS = 1000;
+const DEFAULT_MATRIX_SEEDS = 100;
 const DEFAULT_MAX_SECONDS = 120;
 
 async function catalogue(): Promise<Catalogue> {
@@ -202,11 +204,34 @@ function traceText(trace: TraceReport): string {
   return [setup, blows, end].join("\n\n");
 }
 
+function whole(share: number): string {
+  return `${(share * 100).toFixed(0)}%`;
+}
+
+function matrixCell(cell: MatrixCell): string {
+  const time = cell.timeToWin ? `${cell.timeToWin.p50.toFixed(1)} s` : "never";
+  return `${whole(cell.wins.share)} [${whole(cell.wins.low)}-${whole(cell.wins.high)}] win · ${whole(cell.losses.share)} loss · ${time}`;
+}
+
+function matrixText(report: MatrixReport): string {
+  const setup = [
+    ...report.players.map(({ rung, spec }) => `rung ${rung}  ${spec}`),
+    `${report.seeds.toLocaleString("en")} seeds a cell, each fought both ways round: ${report.fights.toLocaleString("en")} fights · ${conditions(report)}`,
+  ].join("\n");
+  const cells = table([
+    ["creature", ...report.players.map(({ rung }) => `player at rung ${rung}`)],
+    ...report.rows.map((row) => [row.key, ...row.cells.map(matrixCell)]),
+  ]);
+  const key =
+    "Each cell: how often the player wins, with its 95% interval, how often it loses, and its median time to win. Draws and undecided fights are the rest.";
+  return [setup, cells, key].join("\n\n");
+}
+
 export const battle: Command = {
   name: "battle",
   summary:
     "fight two sides through the Arena's Duel over many seeds: who wins, how often, how fast",
-  usage: "bun run verify battle <a> <b> [options]",
+  usage: "bun run verify battle <a> <b> [options], or bun run verify battle --matrix [options]",
   options: {
     seeds: { type: "string" },
     seed: { type: "string" },
@@ -214,13 +239,17 @@ export const battle: Command = {
     kit: { type: "string" },
     "max-seconds": { type: "string" },
     trace: { type: "string" },
+    matrix: { type: "boolean" },
   },
   help: [
     [
       "<a> <b>",
       "a battler tile id, or one with masteries and equipment by slot, such as player:sharp=15,weapon=knights-sword (none empties a slot)",
     ],
-    ["--seeds <n>", `seeds to fight, each both ways round (default ${DEFAULT_SEEDS})`],
+    [
+      "--seeds <n>",
+      `seeds to fight, each both ways round (default ${DEFAULT_SEEDS}, or ${DEFAULT_MATRIX_SEEDS} a cell with --matrix)`,
+    ],
     ["--seed <s>", "the first seed (default 1)"],
     ["--statuses on|off", "apply the status catalogue, as the world and the Arena do (default on)"],
     [
@@ -235,9 +264,21 @@ export const battle: Command = {
       "--trace <seed>",
       "print one fight blow by blow instead: who swung with which hand, the outcome, the damage, the hp left, and statuses gained and lost (the combat status is left out)",
     ],
+    [
+      "--matrix",
+      "fight every creature against a player at rungs 10, 15 and 33 (Sharp, Toughness and Agility at the rung, holding that rung's sword), as one table; takes no sides",
+    ],
     ["--json", "print one JSON object instead of the tables"],
   ],
   async run({ values, positionals }): Promise<Outcome> {
+    if (values.matrix) {
+      if (positionals.length > 0 || values.trace !== undefined) {
+        throw new UsageError("--matrix picks its own sides; drop the sides and --trace.");
+      }
+      const options = optionsOf(values, DEFAULT_MATRIX_SEEDS);
+      const report = runMatrix(await catalogue(), options);
+      return { exitCode: 0, seed: options.seed, json: { ...report }, text: matrixText(report) };
+    }
     if (positionals.length !== 2) {
       throw new UsageError(`battle takes two sides, and was given ${positionals.length}.`);
     }
