@@ -1080,6 +1080,14 @@ export class WorldRenderer {
     return !this.disposed && this.assetsReady && this.prevMap !== null;
   }
 
+  /**
+   * A chunk whose light is being re-baked stays stale until the worker's result
+   * lands, so no stale chunk means the light on screen is the current light.
+   */
+  isSettled(): boolean {
+    return this.isReady() && this.lighting.staleChunks === 0;
+  }
+
   dispose() {
     this.disposed = true;
     this.stop();
