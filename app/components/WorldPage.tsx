@@ -10,6 +10,8 @@ import { LoadingScreen } from "./LoadingScreen";
 import { LeaveWorldButton } from "./LeaveWorldButton";
 import { MaintenanceScreen } from "./MaintenanceScreen";
 import { OutdatedScreen } from "./OutdatedScreen";
+import { loadPadSide, type PadSide, savePadSide } from "./padSide";
+import { PadSideToggle } from "./PadSideToggle";
 import { ReplacedScreen } from "./ReplacedScreen";
 import { WorldFullScreen } from "./WorldFullScreen";
 import { WorldClock } from "./WorldClock";
@@ -20,6 +22,7 @@ import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirectio
 import { applyInteraction, type InteractionOption } from "../game/interactionOptions";
 import { activeStatuses, COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
+import { useCoarsePointer } from "../lib/useMediaQuery";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
@@ -182,6 +185,12 @@ export function WorldPage({
   }, []);
 
   const [lightingEnabled, setLightingEnabled] = useState(true);
+  const coarse = useCoarsePointer();
+  const [padSide, setPadSide] = useState(loadPadSide);
+  const choosePadSide = useCallback((side: PadSide) => {
+    setPadSide(side);
+    savePadSide(side);
+  }, []);
   const spellsRef = useRef(spells);
   spellsRef.current = spells;
   const statusDefsRef = useRef(statusDefs);
@@ -422,6 +431,11 @@ export function WorldPage({
               <MenuRow label="Lighting">
                 <LightingToggle enabled={lightingEnabled} onChange={setLightingEnabled} />
               </MenuRow>
+              {coarse ? (
+                <MenuRow label="Joystick">
+                  <PadSideToggle side={padSide} onChange={choosePadSide} />
+                </MenuRow>
+              ) : null}
               {admin ? (
                 <MenuRow label="Invisible">
                   <InvisibleToggle
@@ -485,6 +499,7 @@ export function WorldPage({
                 onStopCast={stopCast}
                 tiles={tiles}
                 tilesets={tilesets}
+                padSide={padSide}
               />
             ) : null}
             {status === "outdated" ? (

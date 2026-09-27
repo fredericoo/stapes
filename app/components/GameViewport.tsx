@@ -24,6 +24,7 @@ import { ConversationPanel } from "./ConversationPanel";
 import { CraftPanel } from "./CraftPanel";
 import { InteractionList } from "./InteractionList";
 import type { ActionButtonSize } from "./actionButton";
+import { DEFAULT_PAD_SIDE, type PadSide } from "./padSide";
 import { SpellBar } from "./SpellBar";
 import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
 import { PvpToggle } from "./PvpToggle";
@@ -77,6 +78,7 @@ export function GameViewport({
   onStopCast,
   tiles = [],
   tilesets = [],
+  padSide = DEFAULT_PAD_SIDE,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   labelRef?: React.RefObject<HTMLDivElement | null>;
@@ -111,6 +113,7 @@ export function GameViewport({
   onStopCast?: () => void;
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
+  padSide?: PadSide;
 }) {
   const coarse = useCoarsePointer();
   useNoZoom(coarse);
@@ -408,7 +411,12 @@ export function GameViewport({
         ) : null}
 
         {coarse ? (
-          <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3">
+          <div
+            className={[
+              "flex w-full min-h-0 flex-1 items-stretch gap-3 px-3",
+              padSide === "left" ? "flex-row-reverse" : "flex-row",
+            ].join(" ")}
+          >
             <div
               className="flex min-h-0 flex-1 flex-col items-start gap-2"
               style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
@@ -444,7 +452,12 @@ export function GameViewport({
                 </div>
               </div>
               {readouts ? (
-                <div className="flex w-full shrink-0 items-center justify-end gap-2 pt-1">
+                <div
+                  className={[
+                    "flex w-full shrink-0 items-center gap-2 pt-1",
+                    padSide === "left" ? "justify-start" : "justify-end",
+                  ].join(" ")}
+                >
                   {readouts}
                 </div>
               ) : null}
