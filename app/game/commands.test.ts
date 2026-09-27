@@ -7,6 +7,7 @@ import { COMMAND_USAGE, MAX_COMMAND_HP, isCommand, parseCommand } from "./comman
 import { constantFormula } from "../lib/formula";
 import { NO_VFX } from "../lib/statusVfx";
 import type { StatusDef } from "../lib/status";
+import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
@@ -361,6 +362,20 @@ const tiles: TileDef[] = [
     interactions: { item: { ...DEFAULT_CONTAINER, size: 1 } },
   }),
   tile({ id: "keeper", name: "Keeper", height: 2, actor: true, walkable: false }),
+  tile({
+    id: "hound",
+    name: "Hound",
+    height: 2,
+    walkable: false,
+    interactions: {
+      battler: { baseHp: 8, masteries: AUTHORED, naturalWeapon: claws },
+      brain: {
+        initial: "roam",
+        states: { roam: { do: [{ action: "step_random" }] }, sit: { do: [{ action: "hold" }] } },
+        transitions: [],
+      },
+    },
+  }),
 ];
 
 function field(): MapFile {
@@ -1181,6 +1196,79 @@ describe("giving a body something to carry", () => {
       '"grass" is not an item. Put it down with /tile',
       'Nobody here answers to "nobody"',
       "Keeper has no equipment",
+    ]);
+  });
+});
+
+const A_FEW_BRAIN_TURNS_MS = 2_000;
+
+function cellAfter(session: GameSession, id: string, ms: number) {
+  for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
+  const at = session.actorPosition(id);
+  return at && { x: at.x, y: at.y };
+}
+
+describe("switching a brain", () => {
+  it("reads a body, then off, on or the name of a state", () => {
+    expect(parseCommand("/brain npc:2,2,0,1 OFF")).toEqual({
+      ok: true,
+      command: { name: "brain", target: "npc:2,2,0,1", change: { kind: "off" } },
+    });
+    expect(parseCommand("/brain npc:2,2,0,1 to_fire")).toEqual({
+      ok: true,
+      command: {
+        name: "brain",
+        target: "npc:2,2,0,1",
+        change: { kind: "state", state: "to_fire" },
+      },
+    });
+    expect(parseCommand("/brain npc:2,2,0,1")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "brain" },
+    });
+  });
+
+  it("keeps a body standing while its brain is off, and lets it wander once it is on", () => {
+    const session = world();
+    session.runCommand("/spawn hound 2 2", "me");
+    const reply = session.runCommand("/brain npc:2,2,0,1 off", "me");
+
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Hound's brain is off, in the roam state",
+      ids: [],
+      data: { command: "brain", target: "npc:2,2,0,1", on: false, state: "roam" },
+    });
+    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).toEqual({ x: 2, y: 2 });
+
+    session.runCommand("/brain npc:2,2,0,1 on", "me");
+    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).not.toEqual({ x: 2, y: 2 });
+  });
+
+  it("puts a brain in the state named, and switches it on", () => {
+    const session = world();
+    session.runCommand("/spawn hound 2 2", "me");
+    session.runCommand("/brain npc:2,2,0,1 off", "me");
+    const reply = session.runCommand("/brain npc:2,2,0,1 sit", "me");
+
+    expect(reply).toMatchObject({
+      ok: true,
+      notice: "Hound's brain is on, in the sit state",
+      data: { on: true, state: "sit" },
+    });
+    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).toEqual({ x: 2, y: 2 });
+  });
+
+  it("refuses a body with no brain, and a state its brain does not have", () => {
+    const session = world();
+    session.runCommand("/spawn hound 2 2", "me");
+    session.drainNotices("me");
+    session.runCommand("/brain npc:1,0,0,1 off", "me");
+    session.runCommand("/brain npc:2,2,0,1 fetch", "me");
+
+    expect(session.drainNotices("me")).toEqual([
+      "Deer is not driven by a brain",
+      'No state called "fetch" in Hound\'s brain. Try roam, sit',
     ]);
   });
 });

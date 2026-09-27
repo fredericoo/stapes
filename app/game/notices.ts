@@ -147,6 +147,10 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return `${refusal.name}'s bag is full`;
     case "statusAbsent":
       return `${refusal.name} is not ${statusInSentence(refusal.status)}`;
+    case "brainless":
+      return `${refusal.name} is not driven by a brain`;
+    case "unknownState":
+      return `No state called "${refusal.typed}" in ${refusal.name}'s brain. Try ${refusal.known.join(", ")}`;
   }
 }
 
@@ -167,6 +171,10 @@ export function giveNotice(item: string, slot: GiveSlot, owner: string | null): 
   const whose = owner === null ? "your" : `${owner}'s`;
   const into = slot === "contents" ? "bag" : `${slot} square`;
   return `${item} appears in ${whose} ${into}`;
+}
+
+export function brainNotice(name: string, on: boolean, state: string): string {
+  return `${name}'s brain is ${on ? "on" : "off"}, in the ${state} state`;
 }
 
 export function otherArrivalNotice(name: string, at: Coord): string {

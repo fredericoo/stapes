@@ -24,9 +24,12 @@ export const TIME_COMMAND = "time";
 export const SPAWN_COMMAND = "spawn";
 export const DESPAWN_COMMAND = "despawn";
 export const GIVE_COMMAND = "give";
+export const BRAIN_COMMAND = "brain";
 
 export const STATUS_CLEAR_ARGUMENT = "clear";
 export const STATUS_OFF_ARGUMENT = "off";
+export const BRAIN_OFF_ARGUMENT = "off";
+export const BRAIN_ON_ARGUMENT = "on";
 
 export type CommandName =
   | typeof MASTERY_COMMAND
@@ -38,7 +41,8 @@ export type CommandName =
   | typeof TIME_COMMAND
   | typeof SPAWN_COMMAND
   | typeof DESPAWN_COMMAND
-  | typeof GIVE_COMMAND;
+  | typeof GIVE_COMMAND
+  | typeof BRAIN_COMMAND;
 
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_EARNED_MASTERY}-${MAX_MASTERY}> [player id]`,
@@ -51,6 +55,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   [SPAWN_COMMAND]: `${COMMAND_PREFIX}${SPAWN_COMMAND} <tile> <x> <y> [z]`,
   [DESPAWN_COMMAND]: `${COMMAND_PREFIX}${DESPAWN_COMMAND} <body>`,
   [GIVE_COMMAND]: `${COMMAND_PREFIX}${GIVE_COMMAND} <item> [square] [body]`,
+  [BRAIN_COMMAND]: `${COMMAND_PREFIX}${BRAIN_COMMAND} <body> <${BRAIN_OFF_ARGUMENT} | ${BRAIN_ON_ARGUMENT} | state>`,
 };
 
 export type Coordinate = { kind: "absolute"; value: number } | { kind: "relative"; offset: number };
@@ -116,6 +121,11 @@ export type Command =
       tileId: string;
       square: EquipSlot | null;
       target: string | null;
+    }
+  | {
+      name: typeof BRAIN_COMMAND;
+      target: string | null;
+      change: BrainChange;
     };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
@@ -126,6 +136,9 @@ export type TimeCommand = Extract<Command, { name: typeof TIME_COMMAND }>;
 export type SpawnCommand = Extract<Command, { name: typeof SPAWN_COMMAND }>;
 export type DespawnCommand = Extract<Command, { name: typeof DESPAWN_COMMAND }>;
 export type GiveCommand = Extract<Command, { name: typeof GIVE_COMMAND }>;
+export type BrainCommand = Extract<Command, { name: typeof BRAIN_COMMAND }>;
+
+export type BrainChange = { kind: "off" } | { kind: "on" } | { kind: "state"; state: string };
 
 /** `contents` is inside the bag; `bag` is the square the bag itself is worn in. */
 export type GiveSlot = EquipSlot | "contents";
@@ -160,7 +173,9 @@ export type CommandRefusal =
   | { kind: "squareTaken"; name: string; square: EquipSlot; holding: string }
   | { kind: "noBag"; name: string }
   | { kind: "bagFull"; name: string }
-  | { kind: "statusAbsent"; name: string; status: string };
+  | { kind: "statusAbsent"; name: string; status: string }
+  | { kind: "brainless"; name: string }
+  | { kind: "unknownState"; typed: string; name: string; known: readonly string[] };
 
 export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
@@ -184,7 +199,8 @@ export type CommandData =
       tileId: string;
       itemId: string;
       slot: GiveSlot;
-    };
+    }
+  | { command: typeof BRAIN_COMMAND; target: string; on: boolean; state: string };
 
 export type CommandOutcome =
   | { ok: true; data: CommandData; ids?: readonly string[] }
@@ -226,6 +242,8 @@ export function parseCommand(raw: string): CommandParse {
       return parseDespawnArguments(args);
     case GIVE_COMMAND:
       return parseGiveArguments(args);
+    case BRAIN_COMMAND:
+      return parseBrainArguments(args);
     default:
       return {
         ok: false,
@@ -492,6 +510,25 @@ function parseGiveArguments(args: string[]): CommandParse {
 
 function squareOf(token: string): EquipSlot | null {
   return EQUIP_SLOTS.find((square) => square === token.toLowerCase()) ?? null;
+}
+
+function parseBrainArguments(args: string[]): CommandParse {
+  if (args.length !== 2) {
+    return { ok: false, refusal: { kind: "badArguments", command: BRAIN_COMMAND } };
+  }
+
+  const [bodyToken, word = ""] = args;
+  return {
+    ok: true,
+    command: { name: BRAIN_COMMAND, target: targetOf(bodyToken), change: brainChangeOf(word) },
+  };
+}
+
+function brainChangeOf(word: string): BrainChange {
+  const lower = word.toLowerCase();
+  if (lower === BRAIN_OFF_ARGUMENT) return { kind: "off" };
+  if (lower === BRAIN_ON_ARGUMENT) return { kind: "on" };
+  return { kind: "state", state: word };
 }
 
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;
