@@ -42,6 +42,7 @@ const at = (x: number, y: number, z = 0): ParticleEmitterSpec => ({
   box: { eastPx: 0, southPx: 0, foot: 0, top: 0 },
   stackBias: 0,
   taper: 1,
+  scale: 1,
 });
 
 const byLevel = (...specs: ParticleEmitterSpec[]) => {

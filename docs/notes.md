@@ -10450,6 +10450,53 @@ makes the diagonal, the same way it does for `rise`: a circle in `offsetX` and
 `offsetY` is a circle on screen, and one in `offsetX` and `offsetElev` is
 sheared, because height goes up-left.
 
+### A plume that lands on a body is drawn to that body's size
+
+A status's plume and a projectile's hit are authored once and drawn on whatever
+they land on: a rat, the player, the cyclops. They are authored against the
+player's 2×2 sprite, and `ParticleEmitterSpec.scale` draws them on any other
+body at the ratio of that body's size to the player's. **It multiplies every
+distance a particle covers from its anchor** — the spawn spread and spawn
+height, drift, rise, gravity and the offset formulas — and nothing else: the
+lifetime, the emission rate and the particles themselves stay as authored. A
+bigger body gets the same number of the same particles spread over more room,
+so its plume is sparser rather than made of bigger sparks. Every term is linear
+in the scale, so a scaled plume is exactly the authored one enlarged about its
+anchor: a spiral round the cyclops turns at the rate one round the player does,
+twice as wide.
+
+**The size is `plumeScale`: the square root of the sprite's area in cells, over
+the player's four.** A 3×3 body draws a plume one and a half times as large and
+a 4×4 one twice as large, which is what the side of the sprite says. The area is
+what is measured because a sprite that is not square has two sides: a rat is
+1×2 facing north and 2×1 facing east, and those are the same size. Its area is
+half the player's, so its plume is 0.71 of the player's rather than half. A
+distance is a length, and a plume scaled by area would draw the cyclops's spiral
+four times as wide as the player's.
+
+**It is measured on the idle frame facing south, not on the frame being worn.**
+A wolf is 2×2 facing north and 3×2 side-on, so measuring the frame it wears
+would grow and shrink its plume every time it turned. The south frame is also
+the one the editor's preview draws.
+
+**What scales is whatever was authored for somebody else's sprite.** A status's
+plume scales on a body (`GameRenderer.emitterFor`) and on a burning placement
+(`groundEmitterFor`), so a 1×1 tuft of grass burns at half the size a 2×2 bush
+does. A hit scales to the body it struck (`burstScale`, beside
+`transitionForNote`). Everything a tile carries for itself — its own plume, its
+appear and disappear, an extract's pull, a projectile's own appear and
+disappear — was authored looking at that tile, and is drawn at 1.
+
+**A particle keeps the scale it was born at**, as it keeps its taper: gravity and
+the offsets read `birthScale` rather than the emitter's current scale, so the
+sparks already in the air do not jump when a plume's scale changes. It is held
+per particle, and `swapRemove` has to move it with the particle's other fields.
+
+**The preview scales to the body picked in "Drawn on"**, in the status editor
+and on a projectile's hit, because that picker stands in for whatever the effect
+lands on. A preview pinned to the tile being edited draws at 1, because what it
+shows is that tile's own.
+
 ### A tile emits because it is that tile, not because something happened to it
 
 `TileDef.particles` is the same `ParticleEmitterDef` a status carries, and every

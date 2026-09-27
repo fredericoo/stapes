@@ -42,6 +42,7 @@ import {
   admitTransitions,
   placementIdentity,
   appendTransitionEmitters,
+  burstScale,
   fadingLightScale,
   isFinished,
   liveShown,
@@ -2066,6 +2067,7 @@ export class WorldRenderer {
             box,
             stackBias,
             taper: 1,
+            scale: 1,
           }
         : undefined;
 
@@ -2438,6 +2440,7 @@ export class WorldRenderer {
       box: item.box,
       stackBias: item.stackBias,
       taper: 1,
+      scale: burstScale(live.note, this.tilesById),
     };
   }
 

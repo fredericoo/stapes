@@ -150,5 +150,6 @@ export function flightEmitter(effect: FlightEffect): ParticleEmitterSpec | null 
     box: depthBox(x, y, elevAbs, elevAbs + HEIGHT_PER_LEVEL),
     stackBias: depthStackBias(z, FLIGHT_STACK_BIAS),
     taper: 1,
+    scale: 1,
   };
 }

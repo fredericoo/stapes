@@ -12,6 +12,7 @@ import {
 } from "../lib/tileTransition";
 import { CELL_SIZE, type TileDef } from "../lib/types";
 import type { ParticleEmitterSpec } from "./particles";
+import { plumeScale } from "./plumeScale";
 
 export const MAX_LIVE_TRANSITIONS = 32;
 
@@ -45,6 +46,18 @@ export function transitionForNote(
   if (note.struckBy) return projectileEffect(tilesById[note.struckBy], "hit");
   if (note.pulled) return pullEffect(tilesById[note.tileId]);
   return transitionOf(tilesById[note.tileId], note.side);
+}
+
+/**
+ * A hit is authored once, on the projectile, and plays on whatever body it
+ * struck, so it is drawn to that body's size. Every other transition is the
+ * tile's own and is drawn as authored.
+ */
+export function burstScale(
+  note: TileTransitionNote,
+  tilesById: Readonly<Record<string, TileDef>>,
+): number {
+  return note.struckBy ? plumeScale(tilesById[note.tileId]) : 1;
 }
 
 export type TransitionIntake = {

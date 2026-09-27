@@ -67,6 +67,7 @@ export class VfxPreview {
   private readonly darkTex: THREE.DataTexture;
   private night = false;
   private taper = 1;
+  private scale = 1;
   private readonly tintU: TintUniforms = noTintUniforms();
   private readonly transitionU: TransitionUniforms = noTransitionUniforms();
   private playing: LiveTransition | null = null;
@@ -205,6 +206,11 @@ export class VfxPreview {
     this.particles.setEmitters(this.emitterSpecs());
   }
 
+  setScale(scale: number) {
+    this.scale = scale;
+    this.particles.setEmitters(this.emitterSpecs());
+  }
+
   private applyLighting() {
     const u = this.lightUniforms;
     if (!this.night) {
@@ -289,6 +295,7 @@ export class VfxPreview {
         box,
         stackBias: depthStackBias(0, 1),
         taper: this.taper * shown,
+        scale: this.scale,
       });
     }
     const burst =
@@ -304,6 +311,7 @@ export class VfxPreview {
         box: depthBox(SUBJECT_CELL.x, SUBJECT_CELL.y, 0, this.def?.height ?? 0),
         stackBias: depthStackBias(0, 0),
         taper: 1,
+        scale: this.scale,
       });
     }
     return specs;

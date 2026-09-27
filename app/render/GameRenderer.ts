@@ -84,6 +84,7 @@ import {
   WorldRenderer,
 } from "./WorldRenderer";
 import type { ParticleEmitterSpec } from "./particles";
+import { plumeScale } from "./plumeScale";
 import type { StatusDef } from "../lib/status";
 import { taperAt, taperedGlow, taperedTint, type StatusTint } from "../lib/statusVfx";
 import { SmoothedRemaining, taperKey } from "./statusTaper";
@@ -1750,7 +1751,8 @@ export class GameRenderer {
     if (stackIndex < 0) return null;
 
     const foot = absoluteElevation(z, elevationAt(stack, stackIndex, this.tilesById));
-    const top = foot + (this.tilesById[tileId]?.height ?? 0);
+    const burning = this.tilesById[tileId];
+    const top = foot + (burning?.height ?? 0);
     return {
       id: `${x},${y},${z}:${tileId}:${defId}`,
       config: particles,
@@ -1761,6 +1763,7 @@ export class GameRenderer {
       box: depthBox(x, y, top, top + HEIGHT_PER_LEVEL),
       stackBias: depthStackBias(z, stackIndex + 1),
       taper: 1,
+      scale: plumeScale(burning),
     };
   }
 
@@ -1773,8 +1776,8 @@ export class GameRenderer {
   ): ParticleEmitterSpec {
     const stack = getStack(snap.map, actor.x, actor.y, actor.z);
     const foot = absoluteElevation(actor.z, elevationAt(stack, actor.stackIndex, this.tilesById));
-    const bodyHeight = this.tilesById[actor.tileId]?.height ?? HEIGHT_PER_LEVEL;
-    const top = foot + bodyHeight;
+    const body = this.tilesById[actor.tileId];
+    const top = foot + (body?.height ?? HEIGHT_PER_LEVEL);
     return {
       id: `${actor.id}:${defId}`,
       config: particles,
@@ -1785,6 +1788,7 @@ export class GameRenderer {
       box: depthBox(actor.x, actor.y, top, top + HEIGHT_PER_LEVEL),
       stackBias: depthStackBias(actor.z, actor.stackIndex + 1),
       taper,
+      scale: plumeScale(body),
     };
   }
 
