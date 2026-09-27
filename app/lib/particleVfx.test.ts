@@ -127,11 +127,19 @@ describe("what validates", () => {
     );
   });
 
-  it("defaults a plume authored before the wind to still air", () => {
-    const { windX: _x, windY: _y, ...stillAir } = DEFAULT_PARTICLES;
-    const parsed = v.parse(particleEmitterSchema, stillAir);
-    expect(parsed.windX).toBe(0);
-    expect(parsed.windY).toBe(0);
+  it("defaults a plume authored before offsets to none", () => {
+    const { offsetX: _x, offsetY: _y, offsetElev: _elev, ...still } = DEFAULT_PARTICLES;
+    const parsed = v.parse(particleEmitterSchema, still);
+    expect(parsed.offsetX).toBe("");
+    expect(parsed.offsetY).toBe("");
+    expect(parsed.offsetElev).toBe("");
+  });
+
+  it("refuses an offset that is not a formula", () => {
+    const circle = { ...DEFAULT_PARTICLES, offsetX: "cos(AGE_SEC)", offsetY: "sin(AGE_SEC)" };
+    expect(v.safeParse(particleEmitterSchema, circle).success).toBe(true);
+    const typo = { ...DEFAULT_PARTICLES, offsetElev: "cos(AGE_SEC" };
+    expect(v.safeParse(particleEmitterSchema, typo).success).toBe(false);
   });
 
   it("defaults a plume to lighting itself", () => {

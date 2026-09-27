@@ -10362,22 +10362,64 @@ the same rule when it reaches a shader as a number. The dissolve edge
 entry back through `THREE.Color` as the sRGB the scene target stores, so a table
 written in sRGB fails the ramp tests.
 
-### A plume can be blown sideways, and the wind is an acceleration
+### A particle's path is a formula of its age, added to where it would be
 
 `driftCellsPerSecond` is symmetric — a per-axis roll in ±drift, drawn once at
-birth — so it spreads a plume and never moves one. `windX` / `windY` are the
-other thing: cells per second squared along the map's axes, integrated in
-`ParticleSystem.advance` exactly as `gravity` already is on the vertical.
+birth — so it spreads a plume and never moves one. `offsetX`, `offsetY` and
+`offsetElev` are the other thing: formulas (`app/lib/particleOffset.ts`) of the
+particle's age, **added to** wherever rise, drift and gravity carry it — cells
+east, cells south and height units up. Blank is none.
 
-**An acceleration and not a speed**, and the difference is the whole effect: a
-plume that leaves the chimney already travelling reads as a jet, and one that
-leaves it straight and bends over as it climbs reads as smoke in a breeze. Only
-an acceleration draws that curve, which is what `particles.test.ts` asserts —
-the second second of sideways travel has to be longer than the first, not merely
-non-zero.
+**An offset, not a force.** Each formula is read at the particle's current age
+whenever it is drawn and never integrated, so a circle is `0.5 * cos(6 *
+AGE_SEC)` east with `0.5 * sin(6 * AGE_SEC)` south, and it closes on itself at
+any frame rate. Written as a velocity or an acceleration, the same circle is a
+derivative the author has to work out, and summing it frame by frame lets the
+particle wander off the circle by an amount that depends on the frame rate. A
+steady wind is still one line: an acceleration `a` from rest is `a / 2 *
+AGE_SEC * AGE_SEC`. The fires in `data/tiles.json` are `0.175 * AGE_SEC *
+AGE_SEC` east and `-0.1 * AGE_SEC * AGE_SEC` south, so the plume leaves the
+flame straight and bends over as it climbs; only a term that grows faster than
+the age draws that curve, and a term in the age alone is a plume leaning from
+birth.
+
+**The variables** are `AGE_SEC` (seconds since birth), `LIFE` (0 at birth to 1
+at death, the fraction the ramp, radius and opacity are read at), `SEED` and
+`PI`; the functions are the status language's six plus `sin`, `cos`, `sqrt` and
+`pow`.
+`SEED` is drawn once per particle in `[0, 1)`. Without it every particle of one
+emitter starts at the same angle, so a ring is a chain of particles following
+one another round; `2 * PI * SEED` inside the `cos` and the `sin` starts each
+one somewhere of its own. It is held per particle, in a `Float64Array` because a
+float32 rounds a draw just under 1 up to 1, and `swapRemove` has to move it with
+the particle's other fields: leave it behind and a survivor takes the seed of
+the particle that died in its slot, and jumps across the circle.
+
+**The parser is the status formula's.** `app/lib/expression.ts` is the
+arithmetic both languages share, and each is a `Grammar` naming its variables
+and functions. An offset is not rounded, since a particle moves by fractions of
+a cell, and a non-finite result (`sqrt(0 - 1)`, a division by zero) is no offset
+rather than a `NaN` in the vertex buffer. A change to the core changes both
+languages; `formula.test.ts` is what shows the status one did not move.
+
+**They run when a particle is read, not when it moves.** `ParticleSystem.read`
+evaluates them, and the layer reads each live particle once a frame unless its
+plume is hidden; `advance` never does, and a plume with no offsets skips them.
+A full pool of 2,048 particles each running a spiral on all three axes reads in
+about 0.35 ms, against 0.04 ms with none. They are compiled when an emitter
+first appears and again only when their source text changes. The editor hands
+over a new config on every keystroke, and comparing the strings rather than the
+config object means a config rebuilt with the same formulas compiles nothing.
+
+**A formula that does not parse fails the emitter schema**, so it is dropped on
+the terms any malformed plume is (see "A tile emits because it is that tile"
+below), and a status carrying it does not resolve. The editor marks the field
+as it is typed.
 
 Map axes, never screen ones. `+x` is east, `+y` is south, and the projection
-makes the diagonal, the same way it does for `rise`.
+makes the diagonal, the same way it does for `rise`: a circle in `offsetX` and
+`offsetY` is a circle on screen, and one in `offsetX` and `offsetElev` is
+sheared, because height goes up-left.
 
 ### A tile emits because it is that tile, not because something happened to it
 

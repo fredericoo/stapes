@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { clamp01, hexToRgb01, oklabToLinearRgb, srgbToOklab } from "./palette";
+import { isOffsetFormula } from "./particleOffset";
 
 export type RampStop = {
   at: number;
@@ -17,8 +18,9 @@ export type ParticleEmitterDef = {
   riseTo: number;
   driftCellsPerSecond: number;
   gravity: number;
-  windX: number;
-  windY: number;
+  offsetX: string;
+  offsetY: string;
+  offsetElev: string;
   lit: boolean;
   shape: ParticleShape | null;
   radiusFromPx: number;
@@ -75,8 +77,9 @@ export const DEFAULT_PARTICLES: ParticleEmitterDef = {
   riseTo: 6,
   driftCellsPerSecond: 0.25,
   gravity: -1.6,
-  windX: 0,
-  windY: 0,
+  offsetX: "",
+  offsetY: "",
+  offsetElev: "",
   lit: true,
   shape: null,
   radiusFromPx: 1,
@@ -97,8 +100,9 @@ export const DEFAULT_IMPACT: ParticleEmitterDef = {
   riseTo: 5,
   driftCellsPerSecond: 0.9,
   gravity: -18,
-  windX: 0,
-  windY: 0,
+  offsetX: "",
+  offsetY: "",
+  offsetElev: "",
   lit: false,
   shape: null,
   radiusFromPx: 1,
@@ -117,7 +121,7 @@ export const unitIntervalSchema = v.pipe(v.number(), v.minValue(0), v.maxValue(1
 
 const particleTtlMs = v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_TTL_MS));
 
-const wind = v.pipe(v.number(), v.minValue(-32), v.maxValue(32));
+const offsetFormula = v.pipe(v.string(), v.check(isOffsetFormula, "an offset is not a formula"));
 
 const shapeSchema = v.pipe(
   v.array(
@@ -143,8 +147,9 @@ export const particleEmitterSchema = v.pipe(
     driftCellsPerSecond: v.pipe(v.number(), v.minValue(0), v.maxValue(8)),
     lit: v.optional(v.boolean(), false),
     gravity: v.pipe(v.number(), v.minValue(-32), v.maxValue(32)),
-    windX: v.optional(wind, 0),
-    windY: v.optional(wind, 0),
+    offsetX: v.optional(offsetFormula, ""),
+    offsetY: v.optional(offsetFormula, ""),
+    offsetElev: v.optional(offsetFormula, ""),
     shape: v.optional(v.nullable(shapeSchema), null),
     radiusFromPx: radiusPx,
     radiusToPx: radiusPx,

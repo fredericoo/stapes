@@ -88,7 +88,7 @@ describe("normalizeTileDef", () => {
   });
 
   it("fills in an emitter field the authored plume predates", () => {
-    const { windX: _x, windY: _y, ...stillAir } = DEFAULT_PARTICLES;
+    const { offsetX: _x, offsetY: _y, offsetElev: _elev, ...still } = DEFAULT_PARTICLES;
     const def = normalizeTileDef({
       id: "chimney",
       name: "Chimney",
@@ -96,10 +96,11 @@ describe("normalizeTileDef", () => {
       type: "simple",
       kind: "prop",
       attributes: {},
-      particles: stillAir,
+      particles: still,
     });
-    expect(def.particles?.windX).toBe(0);
-    expect(def.particles?.windY).toBe(0);
+    expect(def.particles?.offsetX).toBe("");
+    expect(def.particles?.offsetY).toBe("");
+    expect(def.particles?.offsetElev).toBe("");
   });
 
   it("drops a malformed plume rather than refusing the tile", () => {

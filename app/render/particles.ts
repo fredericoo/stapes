@@ -1,4 +1,5 @@
 import type { DepthBox } from "../lib/geometry";
+import { compileOffsets, type OffsetScope, type ParticleOffsets } from "../lib/particleOffset";
 import { compileRamp, MAX_LIVE_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 
 export type Random = () => number;
@@ -18,6 +19,7 @@ export type ParticleEmitterSpec = {
 type EmitterState = {
   spec: ParticleEmitterSpec;
   ramp: Float32Array;
+  offsets: ParticleOffsets | null;
   spawnDebt: number;
   retired: boolean;
   refs: number;
@@ -47,10 +49,14 @@ export class ParticleSystem {
   private readonly ttlMs = new Float32Array(MAX_LIVE_PARTICLES);
   private readonly emitterIdx = new Int32Array(MAX_LIVE_PARTICLES);
   private readonly birthTaper = new Float32Array(MAX_LIVE_PARTICLES);
+  /** Float64 because a float32 rounds a draw just under 1 up to 1, and `SEED` is below 1. */
+  private readonly seed = new Float64Array(MAX_LIVE_PARTICLES);
   private liveCount = 0;
 
   private emitters: EmitterState[] = [];
   private emitterById = new Map<string, number>();
+
+  private readonly offsetScope: OffsetScope = { AGE_SEC: 0, LIFE: 0, SEED: 0 };
 
   private readonly random: Random;
 
@@ -76,6 +82,7 @@ export class ParticleSystem {
         this.emitters.push({
           spec,
           ramp: compileRamp(spec.config.ramp),
+          offsets: compileOffsets(spec.config),
           spawnDebt: 0,
           retired: false,
           refs: 0,
@@ -85,6 +92,9 @@ export class ParticleSystem {
       const state = this.emitters[existing]!;
       if (state.spec.config.ramp !== spec.config.ramp) {
         state.ramp = compileRamp(spec.config.ramp);
+      }
+      if (!sameOffsets(state.spec.config, spec.config)) {
+        state.offsets = compileOffsets(spec.config);
       }
       state.spec = spec;
       state.retired = false;
@@ -105,14 +115,10 @@ export class ParticleSystem {
       }
       this.ageMs[i] = age;
       const config = this.emitters[this.emitterIdx[i]!]!.spec.config;
-      const vx = this.vx[i]! + config.windX * dtSec;
-      const vy = this.vy[i]! + config.windY * dtSec;
       const vElev = this.vElev[i]! + config.gravity * dtSec;
-      this.vx[i] = vx;
-      this.vy[i] = vy;
       this.vElev[i] = vElev;
-      this.x[i] = this.x[i]! + vx * dtSec;
-      this.y[i] = this.y[i]! + vy * dtSec;
+      this.x[i] = this.x[i]! + this.vx[i]! * dtSec;
+      this.y[i] = this.y[i]! + this.vy[i]! * dtSec;
       this.elev[i] = this.elev[i]! + vElev * dtSec;
       i++;
     }
@@ -135,12 +141,23 @@ export class ParticleSystem {
   }
 
   read(index: number, into: ParticleReading): ParticleReading {
+    const age = this.ageMs[index]!;
+    const ttl = this.ttlMs[index]!;
+    const life = ttl <= 0 ? 1 : age / ttl;
+    const state = this.emitters[this.emitterIdx[index]!]!;
     into.x = this.x[index]!;
     into.y = this.y[index]!;
     into.elev = this.elev[index]!;
-    const ttl = this.ttlMs[index]!;
-    into.life = ttl <= 0 ? 1 : this.ageMs[index]! / ttl;
-    const state = this.emitters[this.emitterIdx[index]!]!;
+    into.life = life;
+    if (state.offsets) {
+      const scope = this.offsetScope;
+      scope.AGE_SEC = age / MS_PER_SECOND;
+      scope.LIFE = life;
+      scope.SEED = this.seed[index]!;
+      into.x += state.offsets.x(scope);
+      into.y += state.offsets.y(scope);
+      into.elev += state.offsets.elev(scope);
+    }
     into.config = state.spec.config;
     into.ramp = state.ramp;
     into.z = state.spec.z;
@@ -172,6 +189,7 @@ export class ParticleSystem {
     this.ttlMs[i] = lerp(c.ttlFromMs, c.ttlToMs, r());
     this.emitterIdx[i] = emitterIndex;
     this.birthTaper[i] = state.spec.taper;
+    this.seed[i] = r();
     state.refs++;
     return true;
   }
@@ -193,6 +211,7 @@ export class ParticleSystem {
     this.ttlMs[index] = this.ttlMs[last]!;
     this.emitterIdx[index] = this.emitterIdx[last]!;
     this.birthTaper[index] = this.birthTaper[last]!;
+    this.seed[index] = this.seed[last]!;
   }
 
   private dropFinishedEmitters() {
@@ -232,4 +251,8 @@ const MS_PER_SECOND = 1_000;
 
 function lerp(from: number, to: number, t: number): number {
   return from + (to - from) * t;
+}
+
+function sameOffsets(a: ParticleEmitterDef, b: ParticleEmitterDef): boolean {
+  return a.offsetX === b.offsetX && a.offsetY === b.offsetY && a.offsetElev === b.offsetElev;
 }
