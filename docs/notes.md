@@ -1544,9 +1544,10 @@ surface is not intersecting it.
 authoring.** `PX_PER_HEIGHT` is `CELL_SIZE / HEIGHT_PER_LEVEL`, so one unit is
 2px. Anything a three-high body stands on *under a roof* has to be a single
 unit — 2px of apparent lift. That is the whole indoor furniture vocabulary:
-`chair` and `stool` are 1, and `table`, `barrel` and the crates stayed at 2
-(half a level) and are deliberately still things you walk around indoors rather
-than onto. Outdoors, with nothing overhead, any height climbs as before.
+`chair` and `stool` are 1, `table` and the crates stayed at 2 (half a level),
+and `barrel` is 3. They are deliberately things you walk around indoors rather
+than onto, and two barrels stacked are six units, which overflows into the
+level above. Outdoors, with nothing overhead, any height climbs as before.
 
 **Nothing stored had to be migrated.** A map holds tile ids and stack order,
 never elevations — every height in the world is derived from `data/tiles.json`
@@ -1739,6 +1740,13 @@ slope: from the floor above you step into it, land on the ramp two units down �
 an ordinary walk, not a drop — and carry on down. The animal den's mouth is the
 same three cells with the surface as its upper level, which is why walking off
 the road into it feels like walking into a cave rather than like using a door.
+
+It is also easy to tidy up by accident, because nothing in the editor marks
+it: a floor painted across the den covers it like any other gap. Five of the
+den's ramps lost their holes that way in two commits of hand edits made on the
+same day. Two were turned into plain floor afterwards, and three stayed as
+ramps nobody could stand on until the holes were emptied again. `bun run
+carve:caves --verify` reports such a ramp as one that "climbs nowhere".
 
 **The facing is the opposite of the way you climb.** `climbFrom` on both tiles
 reads "from a ramp facing *n*, you may climb north-**wards**… no": variant `n`
@@ -2029,6 +2037,39 @@ lighting one:
 The check that catches all three is the last thing `scripts/carve-caves.ts`
 does: bake the map it just wrote and assert no carved cell has any sky in it
 away from the mouth. Everything above was found by that assertion failing.
+
+The mouth is not the only way daylight is meant to get in any more. Two holes
+were drawn in the surface by hand with the `hole` tile: a shaft at (-2, 31)
+with a ladder beside it, and a hole in the floor of a roofless house at
+(55, -12) over its cellar. Both are listed in `AUTHORED_HOLES`, and the check
+treats them as it treats the mouth. A new hole is a line there; anything else
+that lets the sky in is still reported.
+
+## `carve:caves --verify` walks the underground the way a player gets around it
+
+Straight after a carve, the script checks only the cells it carved. With
+`--verify` it checks every dirt cell on levels -1 to -3, and a good part of
+those were built by hand: the tutorial rooms around the spawn, the cellars
+under houses, rooms behind doors, a floor reached only by ladder. A walk that
+started at the mouth and only took `canWalk` steps reached none of them: it
+reported 355 cells nobody could walk to, and a bat walled in behind a door.
+
+The walk now starts at the `player` marker as well as at the mouth, because
+that is where everybody enters the world, and the tutorial's only way out is a
+one-way portal. It treats every door as open, since anybody who reaches one
+can open it: a tile whose `switch` turns it into an intangible tile is
+switched before the walk. And from every cell it reaches it takes the ladders
+and portals in that cell's stack, asking `canTeleportFrom` and `teleportFits`,
+the same questions the game asks before it moves a body. A ladder whose top is
+covered by something is still refused, as it is in the game.
+
+A dirt cell only has to be reached if a body could stand in it: a walkable
+surface on that level with room for `player` above it. The check used to
+excuse only cells holding a `walkable: false` tile, so the `stone-wall` ring
+of the forge room on level -3 and every barrel, crate and bottle in a cellar
+counted as cells nobody could walk to. A wall fills its cell up to the level
+above, and a barrel, crate or bottle under a floor leaves no room on top of it
+for a three-unit body, so nobody can stand in any of those cells.
 
 ## A chase is a route, and it stops being one
 
@@ -2383,20 +2424,20 @@ kill, with its spells taken away so that every gap was between two blows:
 
 | creature | authored | swung every, before | swung every, now |
 | --- | --- | --- | --- |
-| rat | 667ms | 800ms | 700ms |
+| rat | 667ms | 800ms | 667ms |
 | bat | 700ms | 800ms | 700ms |
 | cat | 933ms | 1000ms | 933ms |
-| wolf | 1367ms | 1400ms | 1400ms |
-| bog imp, claws | 1467ms | 1600ms | 1500ms |
-| snake | 1800ms | 2000ms | 1833ms |
+| wolf | 1367ms | 1400ms | 1367ms |
+| bog imp, claws | 1467ms | 1600ms | 1467ms |
+| snake | 1800ms | 2000ms | 1800ms |
 | cave troll, fists | 4733ms | 4800ms | 4733ms |
-| cyclops, fists | 5800ms | 6000ms | 5833ms |
+| cyclops, fists | 5800ms | 6000ms | 5800ms |
 
 The weapons the troll, the cyclops and the imp can be born carrying behave the
-same way: each moved from the next whole round down to the authored figure or a
-tick over it, except the imp's iron mace, whose 3000ms is a whole number of
-rounds already. Where "now" is still a tick over the authored figure, the cause
-is the cooldown countdown, described at the end of this section.
+same way: each moved from the next whole round down to the authored figure,
+except the imp's iron mace, whose 3000ms is a whole number of rounds already.
+"Now" also needs the cooldown to be counted down through `countDown`, described
+at the end of this section.
 
 **A creature now holds an attack order.** The brain's `attack` goes through
 `orderAttack`, which writes the target into `ActorRuntime.attackOrder` and
@@ -2437,19 +2478,14 @@ land between turns, so a turn usually finds the cooldown running and goes on to
 the next line, as every turn between two blows always did. No shipped attack
 state can become `stuck` this way, because each one ends in `hold`.
 
-**The world now swings exactly as often as the Arena's duel loop, and for some
-intervals both are a tick slower than `combatMetrics`.** `attackIntervalMs`
-returns a whole number of ticks, but counting it down by subtracting `TICK_MS`
-and clamping at zero leaves a positive residue of 1e-14 to 1e-12 for 791 of the
-1195 tick counts between `MIN_ATTACK_TICKS` and `SLOWEST_ATTACK_TICKS`, the
-rat's 20 among them, and the swing waits one more tick for it to clear.
-`GameSession.advanceCooldowns` and `Duel.advanceCooldown` count down the same
-way, so the world and the duel loop agree with each other and are both a tick
-behind the closed form, which reads the interval directly. It affects players
-as much as creatures and is not changed here. "bites at the pace the Arena
+**The world swings exactly as often as the Arena's duel loop, and both land on
+`attackIntervalMs`.** `GameSession.advanceCooldowns` and `Duel.advanceCooldown`
+count the cooldown down through the same `countDown` (`app/game/ticks.ts`), which
+absorbs the float residue a plain subtraction of `TICK_MS` leaves; see "A clock
+counted in ticks runs out on its last tick". "bites at the pace the Arena
 measures, not the brain's" in `brain.test.ts` compares the world with the duel
-loop rather than with the interval, so it holds with the residue or without it,
-as long as both loops count down the same way.
+loop rather than with the interval, so it catches the two loops counting
+differently.
 
 **It costs one `tryAttack` per held order per tick**, the same price a player in
 attack mode already pays. Timed on the scenarios `bun run bench:server` runs,
@@ -6034,6 +6070,78 @@ the frame is drawn from for 320ms, by up to 6 world pixels.
   is built. The shake carries nothing the health bar and the red number do not
   also show.
 
+## A clock counted in ticks runs out on its last tick
+
+`TICK_MS` is `1000 / 30`, which a double cannot hold: it is
+33.333333333333336. Counting a duration off one tick at a time, down to zero or
+up to the duration, drifts by up to 2e-9ms for anything under a minute, and when
+the drift lands on the wrong side of the boundary the clock runs one more tick:
+a countdown left 1e-14ms above zero still reads `> 0`. Swing
+intervals are whole ticks by construction, because `attackIntervalMs` rounds to
+them, and 791 of the 1195 intervals it can return ran one tick long this way;
+the windup ran long at 420 of those paces. A rat authored at 20 ticks (667ms)
+bit every 21 (700ms) in the Arena and for any body swinging every tick in the
+world, while `combatMetrics` showed 667ms.
+
+**`app/game/ticks.ts` holds the rule once.** `countDown(remainingMs, elapsedMs)`
+returns exactly 0 once the remainder is within `TICK_SLACK_MS` of zero, so a
+`> 0` check and an `=== 0` check both read it as run out, and
+`reached(elapsedMs, targetMs)` is the same rule for a clock that counts up. The
+slack is 1e-6ms: hundreds of times the drift, and far below the third of a
+millisecond that separates a whole-millisecond duration from a tick boundary it
+does not fall on. The only timers it moves are the ones that were a tick late.
+
+- `GameSession.advanceCooldowns` counts the swing cooldown, the windup and the
+  strike recovery through it, and `Duel.advanceCooldown` counts the Arena's
+  cooldown through it. They were the same subtraction written twice; sharing
+  one function is what stops the Arena measuring a pace the world does not
+  play.
+- `forgetSpentAssailants` counts an attacker's interval plus
+  `ASSAILANT_GRACE_MS` through it, and `landArrivedBlows` counts a projectile's
+  flight, which is a whole number of ticks at some distances.
+- `advanceExtraction` and `advanceCasting` count a pull's and a cast's
+  progress through it. Every shipped pull and cast time is a whole number of
+  ticks, and the 500ms, 1500ms and 2000ms casts and the 2000ms and 6000ms pulls
+  each finished a tick after their authored time.
+- `advanceMotion` ends a walk once `reached(walk.elapsedMs, walk.durationMs)`.
+  Twelve ticks add up to 399.99999999999994ms, so a 400ms step, the cat's and a
+  player's wading in water, took 13 ticks and left the server a tick behind the
+  client's prediction of every step. Paralysis makes a step ten times as long,
+  and most of those ran long the same way: the player's 2000ms, the rat's
+  1500ms and the wolf's 1400ms.
+- Status cadences and expiry (`advanceStatuses`, `snapToTick`), the
+  standing-status clock, the stone clock and an endured status (`EndureIndex`)
+  were on time already, each against a 1e-6ms slack of its own. They use
+  `reached` and `TICK_SLACK_MS` now, so there is one slack to reason about.
+
+**It is a balance change.** At their authored pace every shipped weapon and
+creature gets a tick back somewhere. The rusty sword, iron sword, simple hammer,
+battleaxe and war maul, and the rat, snake, wolf, bog imp, deer, rabbit and
+cyclops swing a tick sooner every time; the rest open a fight a tick sooner,
+because their windup was the one running long. The largest share is the rat's,
+which does both and bites 5% more often. A creature in the world presses its
+attack order every tick ("A blow used to wait for a decision as well"), so it
+gets the same tick back and swings at the pace the Arena measures.
+
+**Checked and left as they are.** The brain round, a fall's height steps, the
+charm and the defensive recovery carry their remainder into the next period
+and measured on time. The push slide, the damage-number lifetime, the shipped
+projectile effects and the windup lapse (`sinceSeenMs > WINDUP_LAPSE_MS`) land
+on their tick, and the strike lean is not a whole number of ticks. A noise's
+2000ms lifetime runs a tick long, which only keeps it a tick longer in the
+snapshot's `noises`. The decay index runs one clock that never resets, so
+its drift grows (about 1e-3ms after a day of ticks); a slack cannot absorb
+that, and it can only move a lifetime that is a whole number of ticks, by one
+tick in minutes.
+
+**`damagePerSecond` in `duel.test.ts` still counts the old way.** It keeps a
+private cooldown loop. Counting it with `countDown` gives the iron sword at the
+player's 54 ticks a twelfth swing in its 20-second window where it had eleven,
+and that turns two ladder assertions: the knight's sword stops being worth
+picking up at sharp 13 (4.99 damage a second against the iron sword's 5.24),
+and the simple axe prices at 0.899 of the iron sword against a floor of 0.9.
+Whether to retune the weapons or the measurement is a content decision.
+
 ## Balancing happens in the Arena, not in the world
 
 `/admin/arena` is a fight with the world taken out of it: two bodies, a cell apart, on
@@ -8749,7 +8857,8 @@ there was anything to grant at all.
 spends hit points once a second — so a helping per payout means the two clocks
 do not beat against each other. It is also exactly thirty ticks, which is what
 lets `ActorRuntime.standingStatusMs` be compared against it with nothing but the
-float slack `COOLDOWN_EPSILON_MS` absorbs. The accumulator is *drained* rather
+float slack `reached` allows (see "A clock counted in ticks runs out on its last
+tick"). The accumulator is *drained* rather
 than zeroed on each payout, for the same reason a status's own is: a tick is not
 a whole number of milliseconds, and zeroing would lose the remainder every
 second and drift a standing body a tick further behind each time.
@@ -9784,6 +9893,12 @@ been erased in the editor persisted the unstartable map and destroyed the only
 startable copy left. The session is now built first, from the incoming map, and
 storage is untouched until it exists.
 
+The move from Durable Objects to Bun reintroduced the bug in the HTTP handler:
+`POST /api/map` wrote the map itself and then called `replaceWorld`, so a save
+of a map with no marker still replaced the stored map before the session
+refused it. The handler now only parses the body and hands it to
+`replaceWorld`, which is the one place the map is written.
+
 **Never read the world you are replacing.** `replaceWorld` used to open with
 `ensureLoaded()`. Once the stored map could not start, that threw — so the
 editor could no longer save the very fix that would have repaired it. Putting
@@ -9798,13 +9913,46 @@ once goes on failing long after the cause is fixed.
 The editor gives no warning before you erase the marker — it is an ordinary
 tile in the stack. The server refusing the save is the whole of the safety net.
 
+### A save removes what does not fit, and never the marker
+
+`removeUnfitPlacements` (`app/lib/validation.ts`) runs over every map that is
+saved: in the editor before it sends the map, and in `replaceWorld` before the
+session is built, so a placement that does not fit is never written. A
+placement does not fit when `fitsTile` would refuse to put it where it stands,
+on the placements under it in its own stack: on a stack that already reaches
+the next level, overflowing into a level that holds anything, or making the
+stack taller than two levels. The refusal `fitsTile` gives the cell *above* an
+overflowing stack is left out. It is the same conflict seen from the other
+side, and taking the overflowing placements off the stack below settles it
+without touching the cell above.
+
+It exists because a height can change under placements that were legal when
+they were made. When `barrel` went from 2 to 3 units, four cells of
+`data/map.json` holding two barrels — exactly a level until then — overflowed
+into the rock, wall or floor above them. Nothing reported it: the editor checks
+a placement when it is made, and nothing checked the map again.
+
+Two things are left alone on purpose. A placement whose tile is missing from
+the catalogue has no height to judge, and removing it would let a renamed tile
+delete every placement of itself on the next save. The `player` marker is
+never removed: a marker that does not fit refuses the save with a message
+naming its cell, the way a map with no marker is refused, because a map
+without it cannot start.
+
+The editor applies its removal through `commitMap`, so it is one undo step, and
+lists what it removed in a notice that stays until it is dismissed. The server
+finds more to remove only when its tile catalogue changed after the editor
+loaded. The route's loader runs again after every save, and `hydrate` replaces
+the editor's map with the saved one when the two differ.
+
 ## Map mutations must be undoable
 
-Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
+Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeUnfit`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
 
 - Do **not** assign `map` via `setState`, mutate stacks in place, or call `mapData` helpers and write the result into the store yourself.
 - Discrete edits (backspace/delete, stack panel trash/reorder/direction, tile picker append, shape stamp) use plain `commitMap(next)` so each gets its own undo entry.
 - Paint drags use `beginStroke` → `commitMap(next, { coalesceInStroke: true })` → `endStroke` so the whole drag is one undo step.
+- Saving calls `removeUnfit` before the map is sent, so taking off the placements that do not fit is one undo step of its own.
 - If you add a new map-editing path, wire it through `commitMap` and confirm ⌘Z undoes it before considering the work done.
 
 ### The bucket fills blank cells, bounded by the level's own extent

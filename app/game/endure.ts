@@ -9,12 +9,11 @@ import type { Element } from "../lib/element";
 import { cellKey } from "./pressurePlates";
 import type { Rng } from "./rng";
 import { advanceStatuses, applyStatus, type StatusInstance } from "./statuses";
+import { reached } from "./ticks";
 
 function poolKey(cell: Coord, tileId: string): string {
   return `${cellKey(cell)}|${tileId}`;
 }
-
-const HELD_EPSILON_MS = 1e-6;
 
 export type Endurance = {
   cell: Coord;
@@ -203,12 +202,7 @@ export class EndureIndex {
     let heldMs = 0;
     if (running) {
       heldMs = (pool.heldMs[def.id] ?? 0) + tickMs;
-      /**
-       * Compared against the epsilon rather than the figure itself: thirty
-       * ticks come to a hair over a second, and an exact comparison would be
-       * a tick late half the time.
-       */
-      if (heldMs + HELD_EPSILON_MS < everyMs) {
+      if (!reached(heldMs, everyMs)) {
         this.pools.set(key, { ...pool, heldMs: { ...pool.heldMs, [def.id]: heldMs } });
         return false;
       }
