@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
+import { DEFAULT_IMPACT, DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import type { StatusVfx } from "../lib/statusVfx";
 import {
   burstParticleCount,
@@ -54,6 +54,11 @@ const SIDES: Array<{ side: TransitionSide; title: string; info: string }> = [
   },
 ];
 
+const PULLED_INFO =
+  "Played on this tile each time a use of its Extract finishes, whatever the roll came up with. The use that spends the last of it removes the tile or turns it into its depleted tile, so that one plays only the burst, where the tile stood.";
+
+const STARTER_PULL_MS = 300;
+
 function defaultDissolve(side: TransitionSide): Dissolve {
   return {
     pattern: "noise",
@@ -82,6 +87,13 @@ function defaultTransition(side: TransitionSide): Transition {
   return { durationMs: DEFAULT_DURATION_MS, dissolve: defaultDissolve(side) };
 }
 
+function starterPull(): Transition {
+  return {
+    durationMs: STARTER_PULL_MS,
+    particles: { ...DEFAULT_IMPACT, ramp: [...DEFAULT_IMPACT.ramp] },
+  };
+}
+
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
@@ -92,6 +104,7 @@ type Props = {
 
 export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewVfx }: Props) {
   const [play, setPlay] = useState<TransitionPlay | null>(null);
+  const extract = draft.interactions?.extract;
 
   const setSide = (side: TransitionSide, next: Transition | undefined) => {
     const transitions: TileTransitions = { ...draft.transitions };
@@ -102,6 +115,22 @@ export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewV
       transitions: transitions.appear || transitions.disappear ? transitions : undefined,
     });
   };
+
+  const setPulled = (next: Transition | undefined) => {
+    if (!extract) return;
+    const { pulled: _replaced, ...rest } = extract;
+    onChange({
+      ...draft,
+      interactions: { ...draft.interactions, extract: next ? { ...rest, pulled: next } : rest },
+    });
+  };
+
+  const playAs = (side: TransitionSide) => (transition: Transition) =>
+    setPlay((last) => ({
+      transition,
+      side,
+      token: (last?.token ?? 0) + 1,
+    }));
 
   return (
     <div className="flex flex-wrap items-start gap-4">
@@ -120,15 +149,20 @@ export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewV
             info={info}
             transition={draft.transitions?.[side]}
             onChange={(next) => setSide(side, next)}
-            onPlay={(transition) =>
-              setPlay((last) => ({
-                transition,
-                side,
-                token: (last?.token ?? 0) + 1,
-              }))
-            }
+            onPlay={playAs(side)}
           />
         ))}
+        {extract ? (
+          <TransitionSection
+            side="appear"
+            title="Extract"
+            info={PULLED_INFO}
+            starter={starterPull}
+            transition={extract.pulled}
+            onChange={setPulled}
+            onPlay={playAs("appear")}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -138,6 +172,7 @@ function TransitionSection({
   side,
   title,
   info,
+  starter = () => defaultTransition(side),
   transition,
   onChange,
   onPlay,
@@ -145,6 +180,7 @@ function TransitionSection({
   side: TransitionSide;
   title: string;
   info: string;
+  starter?: () => Transition;
   transition: Transition | undefined;
   onChange: (next: Transition | undefined) => void;
   onPlay: (transition: Transition) => void;
@@ -167,7 +203,7 @@ function TransitionSection({
       <div className="flex items-center justify-between gap-2">
         <SwitchField
           checked={Boolean(transition)}
-          onCheckedChange={(on) => onChange(on ? defaultTransition(side) : undefined)}
+          onCheckedChange={(on) => onChange(on ? starter() : undefined)}
           label={title}
           info={info}
           size="section"

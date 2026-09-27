@@ -613,6 +613,10 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
                 </span>
               )}
             </div>
+
+            <p className="text-[11px] leading-snug text-muted">
+              The effect a finished use plays is set on the Effects tab.
+            </p>
           </div>
         ) : null}
       </section>

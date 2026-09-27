@@ -48,8 +48,9 @@ import {
   pixelSnappedQuad,
   rejoinsBatch,
   resolveTransitionSlot,
-  struckRemainsSlot,
+  formerSlot,
   transitionAddress,
+  transitionForNote,
   transitionPose,
   noTransitionUniforms,
   transitionUniforms,
@@ -58,7 +59,7 @@ import {
   type TransitionPose,
   type TransitionUniforms,
 } from "./tileTransitions";
-import { transitionOf, type HeldTransition } from "../lib/tileTransition";
+import type { HeldTransition } from "../lib/tileTransition";
 import { type RoofCut, cutHides, cutHidesWholeLevel } from "../lib/levelVisibility";
 import { isCellVisible } from "./cameraSight";
 import { countOf } from "../lib/piles";
@@ -97,7 +98,6 @@ import { ChunkedLighting, LIGHT_WINDOW_MARGIN, type WorldRect } from "../lib/lig
 import { canBakeOffThread, WorkerChunkBaker } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { wearsFlightTransition, type ProjectileView } from "./projectileMotion";
-import { projectileEffect } from "../lib/projectile";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
 import {
@@ -2117,10 +2117,7 @@ export class WorldRenderer {
     const admitted = admitTransitions(heard, {
       clockMs: this.animClock,
       live: this.liveTransitions.size,
-      transitionOf: (note) =>
-        note.struckBy
-          ? projectileEffect(view.tilesById[note.struckBy], "hit")
-          : transitionOf(view.tilesById[note.tileId], note.side),
+      transitionOf: (note) => transitionForNote(note, view.tilesById),
       inWindow: (note) => window !== null && cellInMeshWindow(window, note.x, note.y, note.z),
     });
     for (const live of admitted) {
@@ -2136,7 +2133,7 @@ export class WorldRenderer {
       };
       const played =
         live.note.side === "appear"
-          ? this.markForming(state, view.map) || this.throwStruckBurst(state)
+          ? this.markForming(state, view.map) || this.throwBurstWhereItStood(state)
           : this.playOutCopy(state);
       if (played) this.liveTransitions.set(live.note.id, state);
     }
@@ -2180,12 +2177,12 @@ export class WorldRenderer {
     return items.length > 0;
   }
 
-  private throwStruckBurst(state: TransitionState): boolean {
+  private throwBurstWhereItStood(state: TransitionState): boolean {
     const prev = this.prevMap;
     const { note } = state.live;
     if (!prev) return false;
     const stack = getStack(prev, note.x, note.y, note.z);
-    const slot = struckRemainsSlot(note, stack);
+    const slot = formerSlot(note, stack);
     if (slot === undefined) return false;
     const item = this.cellItems(prev, note.z, note.x, note.y, stack).find(
       (candidate) => candidate.stackIndex === slot,

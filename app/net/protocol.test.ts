@@ -588,17 +588,19 @@ describe("nothing is quietly dropped in transit", () => {
     }
   });
 
-  it("carries a struck body's borrowed effect through whole", () => {
+  it.each([
+    { what: "a struck body's borrowed effect", tileId: "rat", struckBy: "arrow" },
+    { what: "a worked resource's pull effect", tileId: "crystal", pulled: true as const },
+  ])("carries $what through whole", ({ what: _what, ...cause }) => {
     const event = {
       kind: "tileTransition" as const,
       id: "transition-2",
       side: "appear" as const,
-      tileId: "rat",
       x: 1,
       y: 0,
       z: 0,
       stackIndex: 1,
-      struckBy: "arrow",
+      ...cause,
     };
 
     const message = parseServerMessage(

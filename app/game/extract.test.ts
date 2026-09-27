@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { extractsLeft, interactionsForSave, resolveExtract } from "../lib/interactions";
+import tilesJson from "../../data/tiles.json";
+import { extractsLeft, interactionsForSave, pullEffect, resolveExtract } from "../lib/interactions";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../lib/mapData";
+import { DEFAULT_IMPACT } from "../lib/particleVfx";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
 import { TICK_MS } from "./constants";
@@ -38,6 +40,8 @@ const EXTRACT_MS = 4_000;
 const QUICK_PULL_MS = 2_000;
 
 const WILT_MS = 1_000;
+
+const CHIPS = { durationMs: 200, particles: DEFAULT_IMPACT };
 
 const tiles = [
   tile({ id: "grass" }),
@@ -116,6 +120,19 @@ const tiles = [
         tileId: "",
         durationMs: 0,
         slots: [{ tileId: "shard", chance: 50 }],
+      },
+    },
+  }),
+  tile({
+    id: "geode",
+    height: 4,
+    interactions: {
+      extract: {
+        durability: 2,
+        tileId: "",
+        durationMs: EXTRACT_MS,
+        slots: [{ tileId: "shard", chance: 100 }],
+        pulled: CHIPS,
       },
     },
   }),
@@ -222,6 +239,28 @@ describe("resolving an extract", () => {
     });
 
     expect(resolveExtract(typo)?.slots).toEqual([{ tileId: "berry", chance: 100 }]);
+  });
+
+  it("drops a malformed pull effect rather than the resource", () => {
+    const garbled = tile({
+      id: "garbled",
+      interactions: {
+        extract: {
+          durability: 1,
+          tileId: "",
+          durationMs: 0,
+          slots: [{ tileId: "berry", chance: 100 }],
+          pulled: { durationMs: 200, particles: { ramp: "blue" } },
+        },
+      },
+    });
+
+    expect(resolveExtract(garbled)).toEqual({
+      durability: 1,
+      tileId: "",
+      durationMs: 0,
+      slots: [{ tileId: "berry", chance: 100 }],
+    });
   });
 });
 
@@ -725,6 +764,75 @@ describe("what it says afterwards", () => {
   });
 });
 
+describe("the effect a finished pull plays", () => {
+  const pulledAt = (tileId: string) => ({
+    id: expect.any(String),
+    side: "appear",
+    tileId,
+    x: BUSH.x,
+    y: BUSH.y,
+    z: BUSH.z,
+    stackIndex: BUSH.stackIndex,
+    pulled: true,
+  });
+
+  it("is raised on the resource when the pull lands, and not before", () => {
+    const session = new GameSession(board("geode"), tiles);
+    session.interact(BUSH);
+    session.tick(EXTRACT_MS - 100);
+
+    expect(session.drainTransitions()).toEqual([]);
+
+    session.tick(100);
+    expect(session.drainTransitions()).toEqual([pulledAt("geode")]);
+  });
+
+  it("is raised where the resource stood when its last pull takes it away", () => {
+    const map = replaceStack(board("geode"), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "geode", extractsLeft: 1 },
+    ]);
+    const session = new GameSession(map, tiles);
+    session.interact(BUSH);
+    session.tick(EXTRACT_MS);
+
+    expect(stackAt(session.getMap(), 1, 0).map((p) => p.tileId)).toEqual(["grass"]);
+    expect(session.drainTransitions()).toEqual([pulledAt("geode")]);
+  });
+
+  it("is not raised for a pull that was lost", () => {
+    const session = new GameSession(board("geode"), tiles);
+    session.interact(BUSH);
+    session.setInput({ directions: ["w"] });
+    session.tick(16);
+    session.tick(EXTRACT_MS);
+
+    expect(session.getSnapshot().extracting).toBeNull();
+    expect(session.drainTransitions()).toEqual([]);
+  });
+
+  it("is not raised for a resource that authored none", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+    session.tick(EXTRACT_MS);
+
+    expect(bagTileIds(session)).toEqual(["berry"]);
+    expect(session.drainTransitions()).toEqual([]);
+  });
+});
+
+describe("the pull effects we ship", () => {
+  it("resolves every one that is authored, rather than dropping it unseen", () => {
+    const authored = normalizeTiles(tilesJson as unknown[]).filter(
+      (def) => def.interactions?.extract?.pulled !== undefined,
+    );
+
+    for (const def of authored) {
+      expect(pullEffect(def), `${def.id}'s pull effect does not parse`).toBeDefined();
+    }
+  });
+});
+
 describe("the row it offers", () => {
   function optionsFor(session: GameSession, equipment?: Equipment) {
     const snap = session.getSnapshot();
@@ -945,6 +1053,20 @@ describe("saving an extract", () => {
     });
 
     expect(saved?.extract?.tileId).toBe("");
+  });
+
+  it("keeps the effect a finished pull plays", () => {
+    const saved = interactionsForSave({
+      extract: {
+        durability: 1,
+        tileId: "",
+        durationMs: 0,
+        slots: [{ tileId: "shard", chance: 100 }],
+        pulled: CHIPS,
+      },
+    });
+
+    expect(saved?.extract?.pulled).toEqual(CHIPS);
   });
 });
 

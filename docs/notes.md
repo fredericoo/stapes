@@ -4842,8 +4842,8 @@ air.
   `appear` in the new map, found no body, and dropped the whole note — the
   sparks as well, although they need only a place to stand. Only a creature
   with a `disappear` of its own showed anything on a kill. Now, when
-  `markForming` cannot find a struck body, `throwStruckBurst` finds it in
-  `prevMap` (see `struckRemainsSlot`) and plays the hit's particles there, with
+  `markForming` cannot find a struck body, `throwBurstWhereItStood` finds it in
+  `prevMap` (see `formerSlot`) and plays the hit's particles there, with
   no mesh. The sweep and the scale are not played: they are done to a sprite,
   and a copy wearing an `appear` would climb back to whole and then vanish. A
   body's own `disappear` still plays beside the sparks.
@@ -7959,6 +7959,13 @@ nothing, so it is worth clearing the room or bringing somebody to watch the
 door. This is only how *these* caves work; another dungeon is free to want
 something else.
 
+Every finished pull throws a spray of chips that starts white and runs through
+the crystal's own mint, cyan and blue (`#affcdb`, `#53d5cf`, `#225ac0`), and the
+spray grows with the crystal: about 10, 15 and 22 particles. It is born over
+less than a fifth of a second so the chips leave together and separate. An
+earlier spray, born over 300 ms with twice as many chips, overlapped into one
+white blob on the crystal.
+
 ### The row greys rather than vanishing whenever the refusal is not about the world
 
 **A missing row and a greyed row are different facts, and the list has to say
@@ -8084,6 +8091,45 @@ player's pull is still running on the body they left.
   being that thing" a check rather than a special case, and it is what stops a
   reservation being handed back to whatever tile replaced the one it was taken
   from.
+
+### A finished pull plays the resource's pull effect
+
+`extract.pulled` is a `Transition`, authored on the tile editor's Effects tab
+in a section called **Extract**, which is there only while the tile has an
+extract block. It plays each time a pull lands, whatever the roll came up
+with, for the reason a pull that found nothing is still spent: the effect
+shows the resource being worked, not what came out of it.
+
+- **It is on the extract block rather than a third side of `transitions`.**
+  That is where the projectile `hit` went, for the same reason: only a tile
+  with the block can ever play it, so no other tile carries the field. Being a
+  `Transition` gives it the dissolve, the scale, the drop and the burst budget
+  without new code. `resolveExtract` drops a malformed one and keeps the
+  block, because an effect that does not parse must not stop anybody mining.
+- **It is raised on the placement as an `appear`.** `GameSession.notePull`
+  raises it from `finishExtraction`, once the pull has been spent and only if
+  the tile authored one, so a deer picking a bush costs nothing. A resource
+  with pulls left stays on the board and has to end drawn as itself, which is
+  why a struck body's hit is an `appear` too. The note names the resource and
+  carries `pulled: true`, and `transitionForNote` reads the effect off the
+  extract block rather than off the tile's own `appear`, since a tile may
+  author both.
+- **The last pull plays only the burst, where the resource stood.** The same
+  tick removes the crystal, or swaps the bush for `picked-bush`, so
+  `markForming` finds nothing to dress and `throwBurstWhereItStood` finds the
+  resource in `prevMap` through `formerSlot` — the path a killing hit already
+  takes. A dissolve or a scale on that pull has no sprite left to act on.
+- **A new field on a motion event needs the schema as well.** `v.object`
+  strips a key it does not name, so without `pulled` in `serverMessageSchema`
+  the flag disappears on the client and the note plays the tile's own `appear`
+  instead, with no error and nothing logged. `protocol.test.ts` carries both
+  fields that point a note at an effect other than the tile's own sides,
+  `struckBy` and `pulled`. `PROTOCOL_VERSION` went to 24 for it.
+- **Every pull effect in `data/tiles.json` is checked against the parser.** A
+  single value outside `particleEmitterSchema` drops the whole effect without
+  a word, and nothing else notices: a spray written with `gravity: -40`, below
+  the schema's floor of -32, plays nothing in the world while every other test
+  passes. `extract.test.ts` asks each authored `pulled` to resolve.
 
 ## A brain can name a place, work it, and eat what came out
 
@@ -9607,7 +9653,9 @@ a wake whose body was reaped — not the re-seat after an editor save, which
 passes `announce: false`), and what a decay turns into. A disappear is a
 decay, a death (`kill`, where the body fell) or a player leaving (`despawn`). A thing that moved — a drop, a pickup, loot out of a kit, gravity
 — existed all along and plays nothing, and neither does a tile swapped in
-place by a switch, a plate or an extraction. All of it only when the tile
+place by a switch, a plate or an extraction. A finished pull plays the
+resource's own pull effect instead of either side (see "A finished pull
+plays the resource's pull effect"). All of it only when the tile
 has that side authored; everything else changes instantly, which is what
 every tile did before this existed, and costs the wire nothing.
 
@@ -9737,6 +9785,14 @@ milliseconds each, so a 700 ms effect is over by the second frame. To look at
 one, raise its duration in `data/tiles.json`, post the file to the dev server
 (which, under `bun dev`, writes the file too — that is the editor's save path),
 and put it back afterwards.
+
+A CDP screencast (`Page.startScreencast`) sees it at its real speed. It hands
+over every frame Chromium composites, and in `/admin/play` an administrator's
+`/tile <id> +1` puts the tile being watched beside them. Headless Chromium
+draws the world in software WebGL at three or four frames a second, so most of
+what the screencast sends are repeats of the same canvas: keep the frames
+whose pixels differ and read those. The editor's preview draws a much smaller
+scene and runs far faster.
 
 ## Fire divides its fuel, which is the only reason a forest survives one
 

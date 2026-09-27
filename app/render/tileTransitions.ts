@@ -1,13 +1,16 @@
 import * as THREE from "three";
 import { levelScreenOffset } from "../lib/geometry";
+import { pullEffect } from "../lib/interactions";
 import { hexToRgb01 } from "../lib/palette";
+import { projectileEffect } from "../lib/projectile";
 import {
   shownFraction,
+  transitionOf,
   type HeldTransition,
   type TileTransitionNote,
   type Transition,
 } from "../lib/tileTransition";
-import { CELL_SIZE } from "../lib/types";
+import { CELL_SIZE, type TileDef } from "../lib/types";
 import type { ParticleEmitterSpec } from "./particles";
 
 export const MAX_LIVE_TRANSITIONS = 32;
@@ -33,6 +36,15 @@ export function placementIdentity(placed: { owner?: string; itemId?: string }): 
   if (placed.owner) return `owner:${placed.owner}`;
   if (placed.itemId) return `item:${placed.itemId}`;
   return undefined;
+}
+
+export function transitionForNote(
+  note: TileTransitionNote,
+  tilesById: Readonly<Record<string, TileDef>>,
+): Transition | undefined {
+  if (note.struckBy) return projectileEffect(tilesById[note.struckBy], "hit");
+  if (note.pulled) return pullEffect(tilesById[note.tileId]);
+  return transitionOf(tilesById[note.tileId], note.side);
 }
 
 export type TransitionIntake = {
@@ -72,11 +84,11 @@ export function resolveTransitionSlot(
   return only;
 }
 
-export function struckRemainsSlot(
+export function formerSlot(
   note: TileTransitionNote,
   previousStack: readonly { tileId: string }[],
 ): number | undefined {
-  if (!note.struckBy) return undefined;
+  if (!note.struckBy && !note.pulled) return undefined;
   return resolveTransitionSlot(previousStack, note);
 }
 

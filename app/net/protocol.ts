@@ -711,6 +711,7 @@ const serverMessageSchema = v.variant("type", [
           side: v.picklist(TRANSITION_SIDES),
           tileId: v.string(),
           struckBy: v.optional(v.string()),
+          pulled: v.optional(v.literal(true)),
           x: v.pipe(v.number(), v.integer()),
           y: v.pipe(v.number(), v.integer()),
           z: v.pipe(v.number(), v.integer()),
@@ -810,7 +811,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 23;
+export const PROTOCOL_VERSION = 24;
 
 export const MAX_STEPS_AHEAD = 8;
 

@@ -31107,7 +31107,47 @@
             "tileId": "arcane-shard",
             "chance": 40
           }
-        ]
+        ],
+        "pulled": {
+          "durationMs": 120,
+          "particles": {
+            "ratePerSecond": 84,
+            "ttlFromMs": 350,
+            "ttlToMs": 700,
+            "spawnRadiusCells": 0.3,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 4,
+            "riseFrom": 6,
+            "riseTo": 14,
+            "driftCellsPerSecond": 3.2,
+            "lit": false,
+            "gravity": -28,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 0,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.1,
+                "color": "#affcdb"
+              },
+              {
+                "at": 0.4,
+                "color": "#53d5cf"
+              },
+              {
+                "at": 1,
+                "color": "#225ac0"
+              }
+            ]
+          }
+        }
       },
       "respawn": {
         "fromMs": 120000,
@@ -31291,7 +31331,47 @@
             "tileId": "arcane-shard",
             "chance": 50
           }
-        ]
+        ],
+        "pulled": {
+          "durationMs": 150,
+          "particles": {
+            "ratePerSecond": 100,
+            "ttlFromMs": 350,
+            "ttlToMs": 700,
+            "spawnRadiusCells": 0.3,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 4,
+            "riseFrom": 6,
+            "riseTo": 14,
+            "driftCellsPerSecond": 3.2,
+            "lit": false,
+            "gravity": -28,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 0,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.1,
+                "color": "#affcdb"
+              },
+              {
+                "at": 0.4,
+                "color": "#53d5cf"
+              },
+              {
+                "at": 1,
+                "color": "#225ac0"
+              }
+            ]
+          }
+        }
       },
       "respawn": {
         "fromMs": 120000,
@@ -31360,7 +31440,47 @@
             "tileId": "arcane-shard",
             "chance": 40
           }
-        ]
+        ],
+        "pulled": {
+          "durationMs": 180,
+          "particles": {
+            "ratePerSecond": 122,
+            "ttlFromMs": 350,
+            "ttlToMs": 700,
+            "spawnRadiusCells": 0.3,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 4,
+            "riseFrom": 6,
+            "riseTo": 14,
+            "driftCellsPerSecond": 3.2,
+            "lit": false,
+            "gravity": -28,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 0,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.1,
+                "color": "#affcdb"
+              },
+              {
+                "at": 0.4,
+                "color": "#53d5cf"
+              },
+              {
+                "at": 1,
+                "color": "#225ac0"
+              }
+            ]
+          }
+        }
       },
       "respawn": {
         "fromMs": 120000,
