@@ -143,6 +143,10 @@ export function spawnNotice(name: string, at: Coord, id: string): string {
   return `${tileNotice(name, at)} as ${id}`;
 }
 
+export function otherArrivalNotice(name: string, at: Coord): string {
+  return `${name} is now at ${cellName(at)}`;
+}
+
 export function despawnNotice(name: string, at: Coord): string {
   return `${name} disappears from ${cellName(at)}`;
 }

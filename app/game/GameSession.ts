@@ -107,6 +107,7 @@ import {
   extractNotice,
   masteryNotice,
   otherMasteryNotice,
+  otherArrivalNotice,
   healthNotice,
   noRoomToLeaveNotice,
   rewardNotice,
@@ -4432,15 +4433,25 @@ export class GameSession implements PlaySession {
     command: Extract<Command, { name: typeof GOTO_COMMAND }>,
     id: string,
   ): CommandOutcome {
-    const actor = this.actors.get(id);
+    const bodyId = command.target ?? id;
+    const actor = this.actors.get(bodyId);
     const loc = actor ? this.tryLocate(actor) : null;
-    if (!actor || !loc) return { ok: false, refusal: { kind: "nowhereToPlace" } };
+    if (!actor || !loc) {
+      const refusal: CommandRefusal =
+        command.target === null
+          ? { kind: "nowhereToPlace" }
+          : { kind: "noSuchTarget", typed: bodyId };
+      return { ok: false, refusal };
+    }
 
-    return this.putBodyAt(GOTO_COMMAND, actor, loc, {
-      x: command.at.x,
-      y: command.at.y,
-      z: command.at.z ?? loc.z,
-    });
+    const level = command.at.z ?? this.levelOf(id);
+    if (level === null) return { ok: false, refusal: { kind: "nowhereToPlace" } };
+    const to = { x: command.at.x, y: command.at.y, z: level };
+    const moved = this.putBodyAt(GOTO_COMMAND, actor, loc, to);
+    if (moved.ok && actor.id !== id) {
+      this.say(id, otherArrivalNotice(this.bodyName(actor.id) ?? actor.id, to));
+    }
+    return moved;
   }
 
   private runMoveCommand(

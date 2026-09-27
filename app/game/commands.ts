@@ -41,7 +41,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [xN] [x] [y] [z]`,
   [STATUS_COMMAND]: `${COMMAND_PREFIX}${STATUS_COMMAND} <status id | ${STATUS_CLEAR_ARGUMENT}> [player id]`,
   [HEALTH_COMMAND]: `${COMMAND_PREFIX}${HEALTH_COMMAND} <n | +n | -n> [player id]`,
-  [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z]`,
+  [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z] [body]`,
   [MOVE_COMMAND]: `${COMMAND_PREFIX}${MOVE_COMMAND} <east> <south> [up]`,
   [TIME_COMMAND]: `${COMMAND_PREFIX}${TIME_COMMAND} <hh:mm>`,
   [SPAWN_COMMAND]: `${COMMAND_PREFIX}${SPAWN_COMMAND} <tile> <x> <y> [z]`,
@@ -64,6 +64,7 @@ export type Command =
   | {
       name: typeof GOTO_COMMAND;
       at: MapCell;
+      target: string | null;
     }
   | {
       name: typeof MOVE_COMMAND;
@@ -378,10 +379,15 @@ function parseOffsets(
 }
 
 function parseGotoArguments(args: string[]): CommandParse {
-  const parsed = parseCell(args, GOTO_COMMAND);
+  const last = args.at(-1);
+  const named = last !== undefined && !COORDINATE_PATTERN.test(last);
+  const parsed = parseCell(named ? args.slice(0, -1) : args, GOTO_COMMAND);
   if (!parsed.ok) return parsed;
 
-  return { ok: true, command: { name: GOTO_COMMAND, at: parsed.at } };
+  return {
+    ok: true,
+    command: { name: GOTO_COMMAND, at: parsed.at, target: named ? targetOf(last) : null },
+  };
 }
 
 function parseCell(

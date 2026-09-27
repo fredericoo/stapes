@@ -7421,6 +7421,17 @@ Both verbs land through one `putBodyAt`, which moves with `moveThrough` — the
 same one a portal makes — so a body that walks somewhere and a body that types
 its way there end in one state and the client animates both the same way.
 
+**`/goto` can send any body, named last.** `/goto <x> <y> [z] [body]` moves the
+body with that actor id instead of the author, under the same `canStandIn`
+rule, asked of that body's own tile. A last word that is not a number is the
+body, which cannot be misread because no id is a number: a player's is a UUID
+and a creature's begins `npc:`. A level left off is still the author's rather
+than the body's, for the reason above: it is the floor the author is looking
+at, so a creature fetched out of a cave lands on the author's floor. The author
+is told where the body went, "Wolf is now at 5, 5, 0", because unlike their own
+arrival it may land where they cannot see it; sending themselves stays silent.
+`/move` still moves only the author.
+
 **Both are reachable in `/admin/play`**, which they were not while that page ran
 a session of its own: commands are typed into the chat field, the field is
 `onSay`, and a page with nothing to send to never drew one. The world in the tab

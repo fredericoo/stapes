@@ -785,6 +785,17 @@ describe("moving health by hand", () => {
   });
 });
 
+function upstairs() {
+  let map = emptyMap();
+  for (let x = 0; x <= 2; x++) {
+    map = replaceStack(map, x, 0, 1, [{ tileId: "grass" }]);
+    map = replaceStack(map, x, 2, 0, [{ tileId: "grass" }]);
+  }
+  map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+  map = replaceStack(map, 0, 2, 0, [{ tileId: "grass" }, { tileId: "deer" }]);
+  return new GameSession(map, tiles, { actorIds: ["me"], seed: 1 });
+}
+
 describe("going somewhere", () => {
   it("reads /goto as a cell of the map, minus sign and all", () => {
     expect(parseCommand("/goto -11 -55")).toMatchObject({
@@ -884,18 +895,44 @@ describe("going somewhere", () => {
       });
     }
   });
-});
 
-function upstairs() {
-  let map = emptyMap();
-  for (let x = 0; x <= 2; x++) {
-    map = replaceStack(map, x, 0, 1, [{ tileId: "grass" }]);
-    map = replaceStack(map, x, 2, 0, [{ tileId: "grass" }]);
-  }
-  map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
-  map = replaceStack(map, 0, 2, 0, [{ tileId: "grass" }, { tileId: "deer" }]);
-  return new GameSession(map, tiles, { actorIds: ["me"], seed: 1 });
-}
+  it("reads a last word that is not a number as the body to send", () => {
+    expect(parseCommand("/goto -3 12 npc:1,0,0,1")).toEqual({
+      ok: true,
+      command: { name: "goto", at: { x: -3, y: 12, z: null }, target: "npc:1,0,0,1" },
+    });
+    expect(parseCommand("/goto 4 9 2 self")).toEqual({
+      ok: true,
+      command: { name: "goto", at: { x: 4, y: 9, z: 2 }, target: null },
+    });
+  });
+
+  it("sends the named body instead, to the author's level when none is given", () => {
+    const session = upstairs();
+    const reply = session.runCommand("/goto 2 0 npc:0,2,0,1", "me");
+
+    expect(stackAt(session, 2, 0, 1).map((placed) => placed.owner)).toEqual([
+      undefined,
+      "npc:0,2,0,1",
+    ]);
+    expect(stackAt(session, 0, 0, 1)[1]?.owner).toBe("me");
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Deer is now at 2, 0, 1",
+      ids: [],
+      data: { command: "goto", target: "npc:0,2,0,1", at: { x: 2, y: 0, z: 1 } },
+    });
+  });
+
+  it("names the body nobody answers to rather than moving the author", () => {
+    const session = world();
+    session.runCommand("/goto 2 2 nobody", "me");
+
+    expect(session.drainNotices("me")).toEqual(['Nobody here answers to "nobody"']);
+    const me = session.actorSnapshots().find((a) => a.id === "me")!;
+    expect({ x: me.x, y: me.y }).toEqual({ x: 0, y: 0 });
+  });
+});
 
 describe("putting a body at a cell of the map", () => {
   it("reads /spawn as a tile and a cell of the map, minus signs and all", () => {
