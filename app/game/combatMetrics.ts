@@ -89,7 +89,6 @@ function triangularCdf(mean: number): number {
 export type SwingOdds = {
   defence: number;
   intervalMs: number;
-  attacksPerSecond: number;
   missed: number;
   dodged: number;
   dodgeWhenAimed: number;
@@ -100,18 +99,12 @@ export type SwingOdds = {
   maxDamage: number;
   meanConnectingDamage: number;
   meanSwingDamage: number;
-  damagePerSecond: number;
   mitigation: number;
-  swingsToKill: number | null;
-  secondsToKill: number | null;
   statuses: { id: string; perSwing: number }[];
 };
 
 /** Mirrors the draw order of `rollAttack` in `combat.ts`. */
 export function swingOdds(attacker: FightingStats, defender: FightingStats): SwingOdds {
-  const intervalMs = swingIntervalMs(attacker);
-  const attacksPerSecond = 1000 / intervalMs;
-
   const lands = landChance(attacker);
   const dodgeGivenAim = dodgeChance(defender.flee, reflex(attacker));
 
@@ -134,13 +127,9 @@ export function swingOdds(attacker: FightingStats, defender: FightingStats): Swi
     }
   }
 
-  const meanSwingDamage = connected * meanConnectingDamage;
-  const damagePerSecond = meanSwingDamage * attacksPerSecond;
-
   return {
     defence: defenceAgainst(defender, attacker),
-    intervalMs,
-    attacksPerSecond,
+    intervalMs: swingIntervalMs(attacker),
     missed,
     dodged,
     dodgeWhenAimed: dodgeGivenAim,
@@ -150,14 +139,49 @@ export function swingOdds(attacker: FightingStats, defender: FightingStats): Swi
     minDamage: Math.max(0, (band[0]?.value ?? 0) - (guards[guards.length - 1]?.value ?? 0)),
     maxDamage: Math.max(0, (band[band.length - 1]?.value ?? 0) - (guards[0]?.value ?? 0)),
     meanConnectingDamage,
-    meanSwingDamage,
-    damagePerSecond,
+    meanSwingDamage: connected * meanConnectingDamage,
     mitigation: meanPotential > 0 ? 1 - meanConnectingDamage / meanPotential : 0,
-    swingsToKill: meanSwingDamage > 0 ? defender.maxHp / meanSwingDamage : null,
-    secondsToKill: damagePerSecond > 0 ? defender.maxHp / damagePerSecond : null,
     statuses: attacker.statuses.map((status) => ({
       id: status.id,
       perSwing: connected * (status.chance / MAX_PERCENT_STAT),
     })),
   };
+}
+
+export type RotationOdds = {
+  swings: SwingOdds[];
+  attacksPerSecond: number;
+  damagePerSecond: number;
+  swingsToKill: number | null;
+  secondsToKill: number | null;
+};
+
+/**
+ * `Duel` swings a body's hands in turn and waits each blow's own interval after
+ * it, so one rotation strikes with every hand once. The whole-fight figures are
+ * therefore means over the rotation, not the sum of each hand's rate.
+ */
+export function rotationOdds(
+  swings: readonly FightingStats[],
+  defender: FightingStats,
+): RotationOdds {
+  const odds = swings.map((swing) => swingOdds(swing, defender));
+  const intervalMs = meanOf(odds, (swing) => swing.intervalMs);
+  const meanSwingDamage = meanOf(odds, (swing) => swing.meanSwingDamage);
+  const attacksPerSecond = 1000 / intervalMs;
+  const damagePerSecond = meanSwingDamage * attacksPerSecond;
+
+  return {
+    swings: odds,
+    attacksPerSecond,
+    damagePerSecond,
+    swingsToKill: meanSwingDamage > 0 ? defender.maxHp / meanSwingDamage : null,
+    secondsToKill: damagePerSecond > 0 ? defender.maxHp / damagePerSecond : null,
+  };
+}
+
+function meanOf(odds: readonly SwingOdds[], figure: (swing: SwingOdds) => number): number {
+  let total = 0;
+  for (const swing of odds) total += figure(swing);
+  return total / odds.length;
 }

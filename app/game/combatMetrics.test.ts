@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { FightingStats } from "../lib/battler";
 import { MELEE_REACH } from "../lib/item";
 import { damageFraction, rollAttack } from "./combat";
-import { potentialDamages, swingOdds } from "./combatMetrics";
+import { potentialDamages, rotationOdds, swingOdds } from "./combatMetrics";
+import { TICK_MS } from "./constants";
+import { Duel } from "./duel";
 import { Rng } from "./rng";
 
 const SAMPLES = 200_000;
@@ -144,15 +146,18 @@ describe("swing odds", () => {
   });
 
   it("turns speed into a rate", () => {
-    const slow = swingOdds(statsOf({ spd: 0 }), statsOf({}));
-    const quick = swingOdds(statsOf({ spd: 100 }), statsOf({}));
+    const slow = rotationOdds([statsOf({ spd: 0 })], statsOf({}));
+    const quick = rotationOdds([statsOf({ spd: 100 })], statsOf({}));
     expect(quick.attacksPerSecond).toBeGreaterThan(slow.attacksPerSecond);
-    expect(quick.attacksPerSecond).toBeCloseTo(1000 / quick.intervalMs, 10);
+    expect(quick.attacksPerSecond).toBeCloseTo(1000 / quick.swings[0]!.intervalMs, 10);
   });
 
   it("has nothing to say about time to kill when nothing can get through", () => {
-    const odds = swingOdds(statsOf({ damage: 2, variance: 0, hitChance: 1 }), statsOf({ def: 50 }));
-    expect(odds.absorbed).toBeCloseTo(odds.connected, 10);
+    const odds = rotationOdds(
+      [statsOf({ damage: 2, variance: 0, hitChance: 1 })],
+      statsOf({ def: 50 }),
+    );
+    expect(odds.swings[0]!.absorbed).toBeCloseTo(odds.swings[0]!.connected, 10);
     expect(odds.secondsToKill).toBeNull();
     expect(odds.swingsToKill).toBeNull();
   });
@@ -166,6 +171,40 @@ describe("swing odds", () => {
     const odds = swingOdds(attacker, statsOf({ flee: 0 }));
     expect(odds.statuses[0]!.perSwing).toBeCloseTo(odds.connected * 0.5, 10);
     expect(odds.statuses[0]!.perSwing).toBeLessThan(0.5);
+  });
+});
+
+describe("a body with a weapon in each hand", () => {
+  /**
+   * Both speeds give intervals the duel's cooldown counts down to exactly zero.
+   * At about half of all speeds, subtracting `TICK_MS` leaves a float remainder
+   * that holds each blow back one tick, which would fail this test for a reason
+   * other than the rotation.
+   */
+  const light = statsOf({ damage: 5, variance: 40, spd: 72, hitChance: 0.9 });
+  const heavy = statsOf({ damage: 24, variance: 30, spd: 62, hitChance: 0.7, mastery: "blunt" });
+  const target = statsOf({ maxHp: Number.MAX_SAFE_INTEGER, def: 2, flee: 25, damage: 0, spd: 0 });
+
+  function dueled(swings: FightingStats[], seconds = 20_000) {
+    const duel = new Duel({ swings }, { swings: [target] }, new Rng(7));
+    let blows = 0;
+    let damage = 0;
+    for (let tick = 0; tick < (seconds * 1000) / TICK_MS; tick++) {
+      for (const event of duel.tick()) {
+        if (event.kind !== "swing" || event.by !== "a") continue;
+        blows++;
+        damage += event.outcome.damage;
+      }
+    }
+    return { attacksPerSecond: blows / seconds, damagePerSecond: damage / seconds };
+  }
+
+  it("matches the duel's attacks and damage per second, swinging both in turn", () => {
+    const predicted = rotationOdds([light, heavy], target);
+    const observed = dueled([light, heavy]);
+
+    expect(observed.attacksPerSecond).toBeCloseTo(predicted.attacksPerSecond, 3);
+    expect(observed.damagePerSecond / predicted.damagePerSecond).toBeCloseTo(1, 1);
   });
 });
 

@@ -6155,8 +6155,8 @@ hitting something, which folds the answer together with all three.
 **Three modules, and the split between them is the design.**
 
 - **`app/game/duel.ts` runs the fight**, on `GameSession`'s own tick order —
-  statuses, then cooldowns, then swings, with both sides starting ready so the
-  faster one lands first. It reaches for no dice of its own and re-derives no
+  statuses, then cooldowns, then swings, with each side's first cooldown set to
+  its windup (`swingWindupMs`, half an interval) so the faster one lands first. It reaches for no dice of its own and re-derives no
   curve: a swing costs what `rollAttack` costs and nothing more.
 - **`app/game/combatMetrics.ts` works the odds out**, in closed form. Exact
   rather than sampled, and that is the whole point of it: a balance figure with
@@ -6185,7 +6185,7 @@ right and `[t, t]` a faithful probe. Both are asserted in
 band rolled some other way fails loudly instead of drifting. `combat.test.ts`'s
 draw-count assertions are the other half of that net: a *new* roll in a swing —
 a block, a crit — changes what a swing costs the dice and fails there first.
-- **`app/game/arena.ts` assembles a body**, and `app/routes/arena.tsx` draws it.
+- **`app/game/arena.ts` assembles a body**, and `app/routes/admin/arena.tsx` draws it.
 
 **There is one duel loop, and `duel.test.ts` uses it.** That file used to hold a
 private one, and an assertion about whether the numbers add up to a game is
@@ -6265,6 +6265,19 @@ block is a blow whose whole worth the armour ate. That is reported as
 **Absorbed** — how often — beside **Mitigated** — how much. Both, because a
 defence that swallows a third of the blows outright and one that shaves a third
 off each of them are very different fights and can produce the same mean.
+
+**A body with a weapon in each hand gets a column per hand.** `Duel` swings the
+hands in turn and waits each blow's own interval after it. The rows about one
+swing — miss, dodge, connect, defence faced, absorbed, wound, damage range, mean
+blow, mitigated, what it inflicts — have a column per hand, headed with the
+weapon's name. The rows about the fight — attacks and damage per second, swings
+and time to kill — span the side, and `rotationOdds` works them out over one
+rotation: every hand swings once in the sum of their intervals, so each figure is
+a mean over the hands, not the sum of each hand's own rate. Attacks per second
+lists the intervals in the order the hands swing, as in `0.42 (2600ms + 2167ms)`.
+A body with one weapon, or none, is a rotation of one and keeps a single column.
+`combatMetrics.test.ts` runs `Duel` with two different weapons and holds the
+rotation's figures to what it deals.
 
 The seed is on the page for the reason it is in the world: a fight somebody
 watched and wants to ask about has to be the same fight when they run it again.

@@ -4,8 +4,14 @@ import { AdminShell } from "../../components/AppShell";
 import { ArenaFighterPanel } from "../../components/ArenaFighterPanel";
 import { ArenaMetrics } from "../../components/ArenaMetrics";
 import { type Floater, ArenaStage, type StageSide } from "../../components/ArenaStage";
-import { type ArenaFighter, battlerTiles, duelSetupOf, fighterForTile } from "../../game/arena";
-import { swingOdds } from "../../game/combatMetrics";
+import {
+  type ArenaFighter,
+  battlerTiles,
+  duelSetupOf,
+  fighterForTile,
+  swingNamesOf,
+} from "../../game/arena";
+import { rotationOdds } from "../../game/combatMetrics";
 import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../../game/constants";
 import {
   type DuelEvent,
@@ -205,8 +211,10 @@ export default function ArenaPage() {
           <ArenaMetrics
             aName={names.a}
             bName={names.b}
-            aToB={statsA && statsB ? swingOdds(statsA, statsB) : null}
-            bToA={statsA && statsB ? swingOdds(statsB, statsA) : null}
+            aSwingNames={swingNamesOf(a, tilesById)}
+            bSwingNames={swingNamesOf(b, tilesById)}
+            aToB={statsA && statsB ? rotationOdds(setupA.swings, statsB) : null}
+            bToA={statsA && statsB ? rotationOdds(setupB.swings, statsA) : null}
           />
           <CombatLog entries={snapshot.log} />
         </div>
