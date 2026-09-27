@@ -11646,6 +11646,18 @@ it are worth knowing before writing a test:
   nextMessage(ws)` works — delivering eagerly would drop the frame before the
   listener existed. A test that wants only what comes *next* says so with
   `record(ws)`, which discards what is pending first.
+- **A world can be stepped by hand, and then it repeats.**
+  `Harness.create({}, { manualTicks: { startAtMs }, seed })` builds a
+  `GameServer` that never ticks on its own: `await server.step(n)` runs `n`
+  ticks, and its clock moves `TICK_MS` per tick from `startAtMs`, so a respawn,
+  the hour and a lingering body's release all come after the same number of
+  steps on every run. It sets no alarms, since every step processes due
+  respawns anyway. `seed` is the seed of a fresh world, which otherwise starts
+  from `DEFAULT_SEED`, and respawn delays are drawn from the session's `Rng`
+  (`respawnDelayMs`) rather than `Math.random`, so they follow that seed and a
+  checkpoint carries their state with every other roll. This is what the verify
+  harness runs worlds on, and what `server/roundTrip.test.ts` uses instead of
+  clearing the server's timer and calling its private `tick()`.
 
 ### The map a unit test runs against is never `data/map.json`
 

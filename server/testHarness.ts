@@ -137,9 +137,13 @@ export class Harness {
     private db: Database,
     private readonly directory: string,
     private readonly names: Readonly<Record<string, string>>,
+    private readonly options: ServerOptions,
   ) {}
 
-  static async create(names: Readonly<Record<string, string>> = {}): Promise<Harness> {
+  static async create(
+    names: Readonly<Record<string, string>> = {},
+    options: ServerOptions = {},
+  ): Promise<Harness> {
     const directory = await mkdtemp(join(tmpdir(), "stapes-world-"));
     const db = await openDatabase(join(directory, "stapes.db"));
     const blobs = new SqliteBlobs(db);
@@ -147,13 +151,14 @@ export class Harness {
     const hub = new SocketHub();
 
     const harness = new Harness(
-      buildServer(store, hub, blobs, names),
+      buildServer(store, hub, blobs, names, options),
       store,
       hub,
       blobs,
       db,
       directory,
       names,
+      options,
     );
     harness.startAlarms();
     return harness;
@@ -189,13 +194,14 @@ export class Harness {
     const store = new WorldStore(this.db);
     const hub = new SocketHub();
     return new Harness(
-      buildServer(store, hub, blobs, this.names),
+      buildServer(store, hub, blobs, this.names, this.options),
       store,
       hub,
       blobs,
       this.db,
       this.directory,
       this.names,
+      this.options,
     );
   }
 
@@ -212,11 +218,14 @@ export class Harness {
   }
 }
 
+type ServerOptions = { manualTicks?: { startAtMs: number }; seed?: number };
+
 function buildServer(
   store: WorldStore,
   hub: SocketHub,
   blobs: SqliteBlobs,
   names: Readonly<Record<string, string>>,
+  options: ServerOptions,
 ): GameServer {
   const context: WorldContext = {
     storage: store,
@@ -226,6 +235,7 @@ function buildServer(
   return new GameServer(context, {
     dataStore: new DataStore(blobs),
     nameOf: async (actorId) => names[actorId] ?? null,
+    ...options,
   });
 }
 
