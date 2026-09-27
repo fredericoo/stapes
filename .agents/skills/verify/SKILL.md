@@ -36,7 +36,8 @@ slot: `player:sharp=15,agility=15,toughness=15,weapon=knights-sword`. By
 default each body rolls its kit per seed, as the world does; `--kit none`
 fights with only what you name, as the Arena does. The sampled time to kill
 counts only the fights that side won, so it runs shorter than the closed form,
-which is hit points over damage per second.
+which is hit points over damage per second. To ask why a fight went the way it
+did, `--trace <seed>` prints that one fight blow by blow.
 
 ## Checks that need no command
 

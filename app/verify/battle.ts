@@ -7,7 +7,15 @@ import { Rng } from "../game/rng";
 import { COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { runDuel } from "./duel";
-import { fighterOn, type Kit, loadoutOf, type SideSpec, type Subject } from "./sides";
+import {
+  fighterOn,
+  type Kit,
+  loadoutOf,
+  opponent,
+  type SideSpec,
+  type Subject,
+  SUBJECTS,
+} from "./sides";
 
 export type BattleOptions = {
   seeds: number;
@@ -100,11 +108,18 @@ export function pairingOn(
 
 export type FightEnd = "A" | "B" | "draw" | "undecided";
 
-export type FightWatch = {
-  swing?(by: Subject, hand: number, outcome: AttackOutcome, hpLeft: number): void;
-  ailment?(on: Subject, statusId: string, hp: number, hpLeft: number): void;
-  tick?(atMs: number, statuses: Record<Subject, readonly string[]>): void;
+export type FightEvent =
+  | { kind: "swing"; by: Subject; hand: number; outcome: AttackOutcome; hpLeft: number }
+  | { kind: "ailment"; on: Subject; statusId: string; hp: number; hpLeft: number }
+  | { kind: "death"; on: Subject };
+
+export type FightTick = {
+  atMs: number;
+  events: readonly FightEvent[];
+  statuses: Record<Subject, readonly string[]>;
 };
+
+const NONE_HELD: readonly string[] = [];
 
 /**
  * Fights one seed with A on side `a` or on side `b` of the `Duel`. The side
@@ -117,7 +132,7 @@ export function fightOn(
   seed: number,
   statusDefs: Record<string, StatusDef> | undefined,
   maxSeconds: number,
-  watch: FightWatch = {},
+  watch: (tick: FightTick) => void = () => {},
 ): { end: FightEnd; seconds: number } {
   const subjectOn = (side: Side): Subject => (side === aOn ? "A" : "B");
   const first = pairing.setups[subjectOn("a")];
@@ -127,24 +142,29 @@ export function fightOn(
     statusDefs,
     maxTicks: Math.max(1, Math.round((maxSeconds * 1000) / TICK_MS)),
     watch: (events, duel) => {
-      for (const event of events) {
-        if (event.kind === "swing") {
-          const fighter = duel.fighter(event.by);
-          const hand = (fighter.nextSwing - 1) % fighter.swings.length;
-          watch.swing?.(subjectOn(event.by), hand, event.outcome, event.hpLeft);
-        } else if (event.kind === "ailment") {
-          watch.ailment?.(subjectOn(event.on), event.defId, event.hp, event.hpLeft);
-        }
+      const statuses = { A: NONE_HELD, B: NONE_HELD };
+      for (const side of SIDES) {
+        const held = duel.fighter(side).statuses;
+        if (held.length === 0) continue;
+        statuses[subjectOn(side)] = held
+          .map((status) => status.defId)
+          .filter((statusId) => statusId !== COMBAT_STATUS_ID);
       }
-      if (watch.tick) {
-        const held = { A: [] as string[], B: [] as string[] };
-        for (const side of SIDES) {
-          for (const status of duel.fighter(side).statuses) {
-            if (status.defId !== COMBAT_STATUS_ID) held[subjectOn(side)].push(status.defId);
+      watch({
+        atMs: duel.elapsedMs,
+        statuses,
+        events: events.map((event): FightEvent => {
+          if (event.kind === "swing") {
+            const fighter = duel.fighter(event.by);
+            const hand = (fighter.nextSwing - 1) % fighter.swings.length;
+            return { ...event, by: subjectOn(event.by), hand };
           }
-        }
-        watch.tick(duel.elapsedMs, held);
-      }
+          if (event.kind === "ailment") {
+            return { ...event, on: subjectOn(event.on), statusId: event.defId };
+          }
+          return { kind: "death", on: subjectOn(event.side) };
+        }),
+      });
       finished = duel.finished;
     },
   });
@@ -265,49 +285,55 @@ export function runBattle(
   for (let i = 0; i < options.seeds; i++) {
     const seed = options.seed + i;
     const pairing = pairingOn(sides, seed, options.kit, tilesById, odds);
-    for (const subject of ["A", "B"] as const) {
+    for (const subject of SUBJECTS) {
       const loadouts = tally[subject].loadouts;
       loadouts.set(pairing.loadouts[subject], (loadouts.get(pairing.loadouts[subject]) ?? 0) + 2);
     }
 
     for (const aOn of SIDES) {
-      const { end, seconds } = fightOn(pairing, aOn, seed, statusDefs, options.maxSeconds, {
-        swing(by, hand, outcome) {
-          const name = pairing.hands[by][hand] ?? "?";
-          const key = `${by} · ${name}`;
-          let counted = hands.get(key);
-          if (!counted) {
-            counted = {
-              side: by,
-              hand: name,
-              swings: 0,
-              sampled: noRates(),
-              closedForm: noRates(),
-            };
-            hands.set(key, counted);
+      const { end, seconds } = fightOn(
+        pairing,
+        aOn,
+        seed,
+        statusDefs,
+        options.maxSeconds,
+        (tick) => {
+          for (const event of tick.events) {
+            if (event.kind === "swing") {
+              const name = pairing.hands[event.by][event.hand] ?? "?";
+              const key = `${event.by} · ${name}`;
+              let counted = hands.get(key);
+              if (!counted) {
+                counted = {
+                  side: event.by,
+                  hand: name,
+                  swings: 0,
+                  sampled: noRates(),
+                  closedForm: noRates(),
+                };
+                hands.set(key, counted);
+              }
+              counted.swings++;
+              addOutcome(counted.sampled, event.outcome);
+              addOdds(counted.closedForm, pairing.odds[event.by].swings[event.hand]!);
+              tally[event.by].blows += event.outcome.damage;
+            } else if (event.kind === "ailment" && event.hp < 0) {
+              tally[opponent(event.on)].statuses -= event.hp;
+            }
           }
-          counted.swings++;
-          addOutcome(counted.sampled, outcome);
-          addOdds(counted.closedForm, pairing.odds[by].swings[hand]!);
-          tally[by].blows += outcome.damage;
-        },
-        ailment(on, _statusId, hp) {
-          if (hp < 0) tally[on === "A" ? "B" : "A"].statuses -= hp;
-        },
-        tick(_atMs, held) {
-          for (const subject of ["A", "B"] as const) {
-            for (const statusId of held[subject]) {
-              const uptime = tally[subject].uptimeMs;
+          for (const subject of SUBJECTS) {
+            const uptime = tally[subject].uptimeMs;
+            for (const statusId of tick.statuses[subject]) {
               uptime.set(statusId, (uptime.get(statusId) ?? 0) + TICK_MS);
             }
           }
         },
-      });
+      );
       fights++;
       totalSeconds += seconds;
       ends[end]++;
       if (end === "A" || end === "B") tally[end].kills.push(seconds);
-      for (const subject of ["A", "B"] as const) {
+      for (const subject of SUBJECTS) {
         const closed = pairing.odds[subject];
         tally[subject].closedForm.attacksPerSecond += closed.attacksPerSecond;
         tally[subject].closedForm.damagePerSecond += closed.damagePerSecond;

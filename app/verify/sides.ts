@@ -13,6 +13,12 @@ export const KITS: readonly Kit[] = ["rolled", "none"];
 
 export type Subject = "A" | "B";
 
+export const SUBJECTS: readonly Subject[] = ["A", "B"];
+
+export function opponent(subject: Subject): Subject {
+  return subject === "A" ? "B" : "A";
+}
+
 export type SideSpec = {
   text: string;
   tileId: string;

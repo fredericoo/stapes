@@ -10,7 +10,8 @@ import {
   type SideReport,
   type Spread,
 } from "../../app/verify/battle";
-import { KITS, parseSide, SideError } from "../../app/verify/sides";
+import { KITS, parseSide, SideError, type Subject } from "../../app/verify/sides";
+import { traceBattle, type TraceEvent, type TraceReport } from "../../app/verify/trace";
 import {
   choice,
   type Command,
@@ -24,8 +25,8 @@ import {
 
 const DATA = join(import.meta.dir, "../../data");
 
-export const DEFAULT_SEEDS = 1000;
-export const DEFAULT_MAX_SECONDS = 120;
+const DEFAULT_SEEDS = 1000;
+const DEFAULT_MAX_SECONDS = 120;
 
 async function catalogue(): Promise<Catalogue> {
   const tiles = normalizeTiles(await Bun.file(join(DATA, "tiles.json")).json());
@@ -57,6 +58,10 @@ function sidesOf(texts: readonly string[], cat: Catalogue) {
   }
 }
 
+function conditions(report: { statuses: boolean; kit: string; maxSeconds: number }): string {
+  return `statuses ${report.statuses ? "on" : "off"} · kit ${report.kit} · a fight still going at ${report.maxSeconds} s is undecided`;
+}
+
 function seconds(value: number | null): string {
   return value === null ? "never" : `${value.toFixed(1)} s`;
 }
@@ -83,18 +88,14 @@ function loadoutRows(label: string, side: SideReport): string[][] {
   ];
 }
 
-function handCell(sampled: number, closedForm: number): string {
-  return `${percent(sampled)} (${percent(closedForm)})`;
-}
-
 const HAND_RATES: (keyof HandRates)[] = ["hit", "missed", "dodged", "absorbed"];
 
-export function battleText(report: BattleReport): string {
+function battleText(report: BattleReport): string {
   const { a, b, outcomes } = report;
   const setup = [
     `A  ${a.spec} (${a.name})`,
     `B  ${b.spec} (${b.name})`,
-    `${report.seeds.toLocaleString("en")} seeds, each fought both ways round: ${report.fights.toLocaleString("en")} fights · statuses ${report.statuses ? "on" : "off"} · kit ${report.kit} · a fight still going at ${report.maxSeconds} s is undecided`,
+    `${report.seeds.toLocaleString("en")} seeds, each fought both ways round: ${report.fights.toLocaleString("en")} fights · ${conditions(report)}`,
   ].join("\n");
 
   const results = table(
@@ -130,21 +131,75 @@ export function battleText(report: BattleReport): string {
     ["status uptime", uptime(a), uptime(b)],
   ]);
 
-  const worn = table([...loadoutRows(`A ${a.name}`, a), ...loadoutRows(`B ${b.name}`, b)], [1]);
-
   const hands = table(
     [
       ["per hand, sampled (closed form)", "swings", ...HAND_RATES],
       ...report.hands.map((hand) => [
         hand.key,
         hand.swings.toLocaleString("en"),
-        ...HAND_RATES.map((name) => handCell(hand.sampled[name], hand.closedForm[name])),
+        ...HAND_RATES.map(
+          (name) => `${percent(hand.sampled[name])} (${percent(hand.closedForm[name])})`,
+        ),
       ]),
     ],
     [1],
   );
 
+  const worn = table([...loadoutRows(`A ${a.name}`, a), ...loadoutRows(`B ${b.name}`, b)], [1]);
+
   return [setup, results, sides, hands, `loadouts (kit ${report.kit})\n${worn}`].join("\n\n");
+}
+
+function traceRow(event: TraceEvent, trace: TraceReport): string[] {
+  const hp = (subject: Subject, left: number) =>
+    `${subject} ${left}/${(subject === "A" ? trace.a : trace.b).maxHp}`;
+  const at = event.atSeconds.toFixed(2);
+  if (event.kind === "swing") {
+    const worth = `(worth ${event.worth})`;
+    const what = {
+      hit: `hits for ${event.damage} ${worth}`,
+      missed: "misses",
+      dodged: `is dodged ${worth}`,
+      absorbed: `is absorbed ${worth}`,
+    }[event.outcome];
+    const inflicts = event.inflicts.length > 0 ? `, inflicts ${event.inflicts.join(", ")}` : "";
+    return [at, event.by, event.hand, `${what}${inflicts}`, hp(event.target, event.hpLeft)];
+  }
+  if (event.kind === "ailment") {
+    const what = event.hp < 0 ? `takes ${-event.hp}` : `heals ${event.hp}`;
+    return [at, event.on, event.statusId, what, hp(event.on, event.hpLeft)];
+  }
+  if (event.kind === "statuses") {
+    const changes = [
+      ...(event.gained.length > 0 ? [`gains ${event.gained.join(", ")}`] : []),
+      ...(event.lost.length > 0 ? [`loses ${event.lost.join(", ")}`] : []),
+    ];
+    return [at, event.on, "statuses", changes.join("; "), ""];
+  }
+  return [at, event.on, "", "falls", ""];
+}
+
+function traceText(trace: TraceReport): string {
+  const setup = [
+    `A  ${trace.a.spec} (${trace.a.name}) · ${trace.a.maxHp} hp · ${trace.a.loadout}`,
+    `B  ${trace.b.spec} (${trace.b.name}) · ${trace.b.maxHp} hp · ${trace.b.loadout}`,
+    `A is side a of the Duel, whose blow is rolled first on a shared tick · ${conditions(trace)}`,
+  ].join("\n");
+  const blows = table(
+    [
+      ["time (s)", "side", "hand or status", "what happens", "hp left"],
+      ...trace.events.map((event) => traceRow(event, trace)),
+    ],
+    [0],
+  );
+  const name = (subject: Subject) => `${subject} (${(subject === "A" ? trace.a : trace.b).name})`;
+  const end = {
+    A: `${name("A")} wins in ${trace.seconds.toFixed(1)} s.`,
+    B: `${name("B")} wins in ${trace.seconds.toFixed(1)} s.`,
+    draw: `Both fall at ${trace.seconds.toFixed(1)} s: a draw.`,
+    undecided: `Nobody has fallen at ${trace.maxSeconds} s: undecided.`,
+  }[trace.end];
+  return [setup, blows, end].join("\n\n");
 }
 
 export const battle: Command = {
@@ -158,6 +213,7 @@ export const battle: Command = {
     statuses: { type: "string" },
     kit: { type: "string" },
     "max-seconds": { type: "string" },
+    trace: { type: "string" },
   },
   help: [
     [
@@ -175,15 +231,32 @@ export const battle: Command = {
       "--max-seconds <n>",
       `a fight still going after this long counts as undecided (default ${DEFAULT_MAX_SECONDS})`,
     ],
+    [
+      "--trace <seed>",
+      "print one fight blow by blow instead: who swung with which hand, the outcome, the damage, the hp left, and statuses gained and lost (the combat status is left out)",
+    ],
     ["--json", "print one JSON object instead of the tables"],
   ],
   async run({ values, positionals }): Promise<Outcome> {
     if (positionals.length !== 2) {
       throw new UsageError(`battle takes two sides, and was given ${positionals.length}.`);
     }
-    const options = optionsOf(values, DEFAULT_SEEDS);
+    if (values.trace !== undefined && (values.seed !== undefined || values.seeds !== undefined)) {
+      throw new UsageError(
+        "--trace takes the seed of the one fight it prints; drop --seed and --seeds.",
+      );
+    }
     const cat = await catalogue();
-    const report = runBattle(sidesOf(positionals, cat), cat, options);
+    const sides = sidesOf(positionals, cat);
+
+    if (values.trace !== undefined) {
+      const seed = wholeNumber(values.trace, "--trace", 1);
+      const trace = traceBattle(sides, cat, { ...optionsOf(values, 1), seed });
+      return { exitCode: 0, seed, json: { trace }, text: traceText(trace) };
+    }
+
+    const options = optionsOf(values, DEFAULT_SEEDS);
+    const report = runBattle(sides, cat, options);
     return { exitCode: 0, seed: options.seed, json: { ...report }, text: battleText(report) };
   },
 };

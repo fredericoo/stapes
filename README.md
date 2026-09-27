@@ -226,7 +226,8 @@ an agent drives", lists every call.
     A side is a battler tile id, optionally with masteries and equipment by
     slot: `player:sharp=15,agility=15,toughness=15,weapon=knights-sword`.
     `--seeds`, `--seed`, `--statuses on|off`, `--kit rolled|none` and
-    `--max-seconds` change what is fought
+    `--max-seconds` change what is fought, and `--trace <seed>` prints one
+    fight blow by blow instead
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says
