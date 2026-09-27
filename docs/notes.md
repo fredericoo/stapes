@@ -10342,6 +10342,26 @@ composited and then snapped, and what lands on the canvas is a solid palette
 entry. Fading *after* the quantise — which is what the editor's level fade does —
 puts colours on screen that are not in the palette.
 
+### A ramp is compiled to linear light, not to the sRGB it is authored in
+
+`compileRamp` interpolates the stops in OKLab and writes its table as
+linear-light RGB. The particle shader multiplies that table into
+`diffuseColor`, and three.js keeps `diffuseColor` linear: an sRGB texture is
+decoded when it is sampled, and the scene target is `SRGB8_ALPHA8`, so the GPU
+encodes back to sRGB when it writes the pixel. A vertex attribute or a uniform is not
+converted by anything, so an sRGB triple put there is encoded twice and comes out
+lighter. The palette pass then snaps it to a different entry: red `#e83b3b`
+draws as `#e6904e`, orange `#fb6b1d` as `#fbb954`, the default green `#1ebc73`
+as `#53d5cf`. Only a channel at 0 or 255 comes through unchanged, so a test
+ramp of white hides the mistake.
+
+Any hex that is meant to be drawn, rather than to multiply what is drawn, follows
+the same rule when it reaches a shader as a number. The dissolve edge
+(`writeTransitionUniforms`) and the preview's floor (`linearRgb` in
+`VfxPreview.ts`) convert for this reason. `particleVfx.test.ts` reads each table
+entry back through `THREE.Color` as the sRGB the scene target stores, so a table
+written in sRGB fails the ramp tests.
+
 ### A plume can be blown sideways, and the wind is an acceleration
 
 `driftCellsPerSecond` is symmetric — a per-axis roll in ±drift, drawn once at
