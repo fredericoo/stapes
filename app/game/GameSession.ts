@@ -1809,20 +1809,7 @@ export class GameSession implements PlaySession {
 
   private noteTransition(side: TransitionSide, tileId: string, cell: Coord, stackIndex: number) {
     if (!transitionOf(this.tilesById[tileId], side)) return;
-    const note: TileTransitionNote = {
-      id: `transition-${this.nextTransitionId++}`,
-      side,
-      tileId,
-      x: cell.x,
-      y: cell.y,
-      z: cell.z,
-      stackIndex,
-    };
-    this.pendingTransitions.push(note);
-    this.heldForViewer.push(note);
-    if (this.heldForViewer.length > MAX_HELD_TRANSITIONS) {
-      this.heldForViewer.shift();
-    }
+    this.raiseTransition({ side, tileId, x: cell.x, y: cell.y, z: cell.z, stackIndex });
   }
 
   private strikeBody(targetId: string, projectileTileId: string | null | undefined) {
@@ -1832,8 +1819,7 @@ export class GameSession implements PlaySession {
     const loc = target ? this.tryLocate(target) : null;
     if (!loc) return;
 
-    const note: TileTransitionNote = {
-      id: `transition-${this.nextTransitionId++}`,
+    this.raiseTransition({
       side: "appear",
       tileId: loc.placed.tileId,
       x: loc.x,
@@ -1841,7 +1827,11 @@ export class GameSession implements PlaySession {
       z: loc.z,
       stackIndex: loc.stackIndex,
       struckBy: projectileTileId,
-    };
+    });
+  }
+
+  private raiseTransition(unnamed: Omit<TileTransitionNote, "id">) {
+    const note: TileTransitionNote = { id: `transition-${this.nextTransitionId++}`, ...unnamed };
     this.pendingTransitions.push(note);
     this.heldForViewer.push(note);
     if (this.heldForViewer.length > MAX_HELD_TRANSITIONS) {
