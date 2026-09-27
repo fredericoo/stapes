@@ -7019,7 +7019,8 @@ a block, a crit — changes what a swing costs the dice and fails there first.
 private one, and an assertion about whether the numbers add up to a game is
 worth nothing if the fight it ran was an approximation of the one the world
 runs. Extracting it left every seeded assertion in that file green, which is the
-evidence the two were the same fight.
+evidence the two were the same fight. `runDuel`, which plays a `Duel` to its
+end, lives in `app/verify/duel.ts`, because nothing in the game calls it.
 
 **Blows due on the same tick land together.** `Duel.exchangeBlows` decides which
 sides swing, and works out both sides' stats, before either blow lands, then
