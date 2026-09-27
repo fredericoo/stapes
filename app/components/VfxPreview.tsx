@@ -109,7 +109,9 @@ export function VfxPreview({
       />
       {fixedSubject === undefined ? (
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-bold uppercase text-muted">Drawn on</span>
+          <span className="text-[11px] font-bold uppercase text-muted">
+            {scale === 1 ? "Drawn on" : `Drawn on · ${Number(scale.toFixed(2))}× the player's size`}
+          </span>
           <Select
             value={subjectId}
             onValueChange={(id) => setSubjectId(id ?? PLAYER_TILE_ID)}
