@@ -665,6 +665,35 @@ Adding a maximum scale to the viewport meta would also stop the zoom, and is the
 wrong fix: it takes pinch-zoom away from everybody, including anybody who needs
 it to read.
 
+## The phone's joystick can sit on either side, and the browser remembers which
+
+On a phone the space under the toolbar is two columns: the reach list, and a
+column holding the effects strip, the spell bar, the direction pad and the
+clock. The pad column is on the right unless the player picks **Left** in the
+game menu's Joystick row (`app/components/PadSideToggle.tsx`).
+
+**The swap is `flex-row-reverse` on the row in `GameViewport`**, so the DOM
+order stays list first. A screen reader and the tab key meet the columns in the
+same order on either side, and changing side remounts nothing. The clock is
+aligned to the screen edge, so its `justify-*` flips with the side. The effects
+strip does not flip: it is read left to right, most urgent first.
+
+**The side is kept in `localStorage`, not on the account**
+(`app/components/padSide.ts`, key `stapes:pad-side`). It is a preference about
+how a device is held, and one account is played on more than one device. A
+stored value that is not `left` or `right` reads as `right`, the layout from
+before the setting existed.
+
+**The page's state is what the layout reads, and storage is written beside it.**
+`WorldPage` seeds its state from storage once and saves on each change. A
+browser that refuses `localStorage` still gets the swap for as long as the page
+is open, and only loses it on reload. A hook that read the side back out of
+storage would make the setting do nothing in that browser.
+
+**The row is only in the menu on a coarse pointer.** The desktop layout puts
+everything in one side column and has no pad, so the row would change nothing
+there.
+
 ## Known: a rebirth inherits the status that killed you
 
 **Not fixed, and deliberately left for a design decision.** Reported from the
