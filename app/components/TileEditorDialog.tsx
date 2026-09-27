@@ -19,11 +19,7 @@ import type {
   TilesetDef,
   FacingKey,
 } from "../lib/types";
-import {
-  DEFAULT_PARTICLES,
-  type ParticleEmitterDef,
-  validateParticleEmitter,
-} from "../lib/particleVfx";
+import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import { ParticleFields } from "./ParticleFields";
 import { ProjectileTab } from "./ProjectileTab";
 import { VfxPreview } from "./VfxPreview";
@@ -72,6 +68,13 @@ import { battlerIssues } from "../lib/battler";
 import { validateBrain, type BrainDef } from "../lib/brain";
 import { validateDialog, type DialogDef } from "../lib/dialog";
 import { tilesByIdFromList } from "../lib/validation";
+import {
+  idleSprites,
+  statesForSave,
+  TILE_ID_PATTERN,
+  tileArtError,
+  tileIdentityError,
+} from "../lib/tileSave";
 import {
   Button,
   Dialog,
@@ -203,113 +206,6 @@ function setCurrentSprite(
   const patch = patchHolder(draft, state, at, sprite);
   if (state === "idle") return { ...draft, ...patch };
   return { ...draft, states: { ...draft.states, [state]: patch } };
-}
-
-function idleSprites(draft: TileDef): StateSprites {
-  if (draft.type === "simple") return { sprite: draft.sprite };
-  if (isDirectional(draft)) return { sprites: draft.sprites };
-  if (draft.type === "scatter") return { scatter: draft.scatter };
-  if (draft.type === "variant") return { variants: draft.variants };
-  return { slices: draft.slices };
-}
-
-function stateSpriteList(draft: TileDef, from: StateSprites): TileSprite[] {
-  if (draft.type === "simple") return from.sprite ? [from.sprite] : [];
-  if (isDirectional(draft)) {
-    return facingKeysFor(draft)
-      .map((d) => from.sprites?.[d])
-      .filter((s): s is TileSprite => s != null);
-  }
-  if (draft.type === "scatter") {
-    return (from.scatter ?? []).filter((s): s is TileSprite => s != null);
-  }
-  if (draft.type === "variant") {
-    return Object.values(from.variants ?? {}).filter((s): s is TileSprite => s != null);
-  }
-  return Object.values(from.slices ?? {}).filter((s): s is TileSprite => s != null);
-}
-
-function footprintOf(sprite: TileSprite | undefined): string | null {
-  const first = sprite?.frames[0];
-  if (!first) return null;
-  const { rect, base } = first.sprite;
-  return `${rect.w}x${rect.h}@${base.x},${base.y}`;
-}
-
-function footprintMismatch(
-  draft: TileDef,
-  state: OverrideSpriteState,
-  override: StateSprites,
-): string | null {
-  const idle = idleSprites(draft);
-  const check = (label: string, a: TileSprite | undefined, b: TileSprite | undefined) => {
-    const want = footprintOf(a);
-    const got = footprintOf(b);
-    if (want == null || got == null || want === got) return null;
-    return `${state} ${label}: sprite is ${got} but idle is ${want} — a state must draw at idle's size and base`;
-  };
-
-  if (draft.type === "simple") return check("sprite", idle.sprite, override.sprite);
-  if (isDirectional(draft)) {
-    for (const d of facingKeysFor(draft)) {
-      const err = check(d.toUpperCase(), idle.sprites?.[d], override.sprites?.[d]);
-      if (err) return err;
-    }
-    return null;
-  }
-  if (draft.type === "scatter") {
-    for (let i = 0; i < (override.scatter?.length ?? 0); i++) {
-      const err = check(`face ${i + 1}`, idle.scatter?.[i], override.scatter?.[i]);
-      if (err) return err;
-    }
-    return null;
-  }
-  if (draft.type === "variant") {
-    for (const key of Object.keys(override.variants ?? {})) {
-      const err = check(key, idle.variants?.[key], override.variants?.[key]);
-      if (err) return err;
-    }
-    return null;
-  }
-  for (const key of Object.keys(override.slices ?? {})) {
-    const i = Number(key);
-    const err = check(`slice ${i}`, idle.slices?.[i], override.slices?.[i]);
-    if (err) return err;
-  }
-  return null;
-}
-
-function statesForSave(draft: TileDef): TileDef["states"] {
-  const allowed = new Set(availableStates(draft));
-  const idle = JSON.stringify(idleSprites(draft));
-  const out: NonNullable<TileDef["states"]> = {};
-  let any = false;
-
-  for (const [key, sprites] of Object.entries(draft.states ?? {})) {
-    const state = key as OverrideSpriteState;
-    if (!sprites || !allowed.has(state)) continue;
-    if (JSON.stringify(sprites) === idle) continue;
-    out[state] = sprites;
-    any = true;
-  }
-  return any ? out : undefined;
-}
-
-function validateFrameLights(frames: Frame[]): string | null {
-  for (let i = 0; i < frames.length; i++) {
-    const light = frames[i]?.light;
-    if (!light) continue;
-    if (!(light.radius > 0) || !Number.isFinite(light.radius)) {
-      return `Frame ${i + 1}: light radius must be a positive number`;
-    }
-    if (!(light.intensity >= 0) || !(light.intensity <= 1) || !Number.isFinite(light.intensity)) {
-      return `Frame ${i + 1}: light intensity must be between 0 and 1`;
-    }
-    if (!/^#[0-9a-fA-F]{6}$/.test(light.color)) {
-      return `Frame ${i + 1}: light colour must be a hex like #ffcc88`;
-    }
-  }
-  return null;
 }
 
 /**
@@ -639,16 +535,9 @@ export function TileEditorDialog({
   );
 
   const buildSaved = (): TileDef | null => {
-    if (!draft.id.trim()) {
-      setError("Id is required");
-      return null;
-    }
-    if (!/^[a-z0-9-]+$/.test(draft.id)) {
-      setError("Id must be lowercase letters, numbers, and hyphens");
-      return null;
-    }
-    if (!draft.name.trim()) {
-      setError("Name is required");
+    const identity = tileIdentityError(draft);
+    if (identity) {
+      setError(identity);
       return null;
     }
 
@@ -679,110 +568,10 @@ export function TileEditorDialog({
       }
     }
 
-    const emitters = [
-      draft.particles,
-      draft.transitions?.appear?.particles,
-      draft.transitions?.disappear?.particles,
-      draft.interactions?.projectile?.hit?.particles,
-      draft.interactions?.extract?.pulled?.particles,
-      draft.interactions?.craft?.succeeded?.particles,
-      draft.interactions?.craft?.failed?.particles,
-    ];
-    for (const emitter of emitters) {
-      const err = emitter ? validateParticleEmitter(emitter) : null;
-      if (err) {
-        setError(`Particles: ${err}`);
-        return null;
-      }
-    }
-
-    if (draft.type === "simple") {
-      if (!draft.sprite?.frames.length) {
-        setError("At least one frame is required");
-        return null;
-      }
-      const err = validateFrameLights(draft.sprite.frames);
-      if (err) {
-        setError(err);
-        return null;
-      }
-    } else if (isDirectional(draft)) {
-      for (const d of facingKeysFor(draft)) {
-        if (!draft.sprites?.[d]?.frames.length) {
-          setError(`Missing frames for direction ${d.toUpperCase()}`);
-          return null;
-        }
-        const err = validateFrameLights(draft.sprites[d]!.frames);
-        if (err) {
-          setError(`${d.toUpperCase()}: ${err}`);
-          return null;
-        }
-      }
-    } else if (draft.type === "scatter") {
-      const faces = draft.scatter ?? [];
-      if (!faces.length) {
-        setError("Add at least one scatter face");
-        return null;
-      }
-      for (let i = 0; i < faces.length; i++) {
-        if (!faces[i]?.frames.length) {
-          setError(`Face ${i + 1}: at least one frame is required`);
-          return null;
-        }
-        const err = validateFrameLights(faces[i]!.frames);
-        if (err) {
-          setError(`Face ${i + 1}: ${err}`);
-          return null;
-        }
-      }
-    } else if (draft.type === "variant") {
-      const entries = Object.entries(draft.variants ?? {});
-      if (!entries.length) {
-        setError("Add at least one variant face");
-        return null;
-      }
-      for (const [key, sprite] of entries) {
-        if (!sprite?.frames.length) {
-          setError(`${key}: at least one frame is required`);
-          return null;
-        }
-        const err = validateFrameLights(sprite.frames);
-        if (err) {
-          setError(`${key}: ${err}`);
-          return null;
-        }
-      }
-    } else {
-      const defined = Object.values(draft.slices ?? {}).filter(Boolean);
-      if (!defined.length) {
-        setError("Define at least one autotile slice");
-        return null;
-      }
-      for (const [k, s] of Object.entries(draft.slices ?? {})) {
-        if (!s?.frames.length) continue;
-        const err = validateFrameLights(s.frames);
-        if (err) {
-          setError(`Slice ${k}: ${err}`);
-          return null;
-        }
-      }
-    }
-
-    const savedStates = statesForSave(draft);
-    for (const [key, sprites] of Object.entries(savedStates ?? {})) {
-      if (!sprites) continue;
-      const mismatch = footprintMismatch(draft, key as OverrideSpriteState, sprites);
-      if (mismatch) {
-        setError(mismatch);
-        return null;
-      }
-      for (const s of stateSpriteList(draft, sprites)) {
-        const err = validateFrameLights(s.frames);
-        if (err) {
-          setError(`${key}: ${err}`);
-          return null;
-        }
-      }
+    const art = tileArtError(draft);
+    if (art) {
+      setError(art);
+      return null;
     }
 
     setError(null);
@@ -820,7 +609,7 @@ export function TileEditorDialog({
       particles: draft.particles,
       transitions: draft.transitions,
       interactions: interactionsForSave(draft.interactions),
-      states: savedStates,
+      states: statesForSave(draft),
     };
 
     if (draft.type === "simple" && draft.sprite) {
@@ -863,7 +652,7 @@ export function TileEditorDialog({
     if (!duplicate || !onDuplicate) return;
     const id = duplicate.id.trim();
     const name = duplicate.name.trim();
-    if (!/^[a-z0-9-]+$/.test(id)) {
+    if (!TILE_ID_PATTERN.test(id)) {
       setDuplicateError("Id must be lowercase letters, numbers, and hyphens");
       return;
     }
