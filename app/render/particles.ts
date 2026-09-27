@@ -14,6 +14,12 @@ export type ParticleEmitterSpec = {
   box: DepthBox;
   stackBias: number;
   taper: number;
+  /**
+   * Multiplies every distance a particle covers, measured from `cx`, `cy` and
+   * `footElev`: its spawn spread, drift, rise, gravity and offsets. Its size,
+   * lifetime and the emission rate are left as authored.
+   */
+  scale: number;
 };
 
 type EmitterState = {
@@ -49,6 +55,7 @@ export class ParticleSystem {
   private readonly ttlMs = new Float32Array(MAX_LIVE_PARTICLES);
   private readonly emitterIdx = new Int32Array(MAX_LIVE_PARTICLES);
   private readonly birthTaper = new Float32Array(MAX_LIVE_PARTICLES);
+  private readonly birthScale = new Float32Array(MAX_LIVE_PARTICLES);
   /** Float64 because a float32 rounds a draw just under 1 up to 1, and `SEED` is below 1. */
   private readonly seed = new Float64Array(MAX_LIVE_PARTICLES);
   private liveCount = 0;
@@ -115,7 +122,7 @@ export class ParticleSystem {
       }
       this.ageMs[i] = age;
       const config = this.emitters[this.emitterIdx[i]!]!.spec.config;
-      const vElev = this.vElev[i]! + config.gravity * dtSec;
+      const vElev = this.vElev[i]! + config.gravity * this.birthScale[i]! * dtSec;
       this.vElev[i] = vElev;
       this.x[i] = this.x[i]! + this.vx[i]! * dtSec;
       this.y[i] = this.y[i]! + this.vy[i]! * dtSec;
@@ -154,9 +161,10 @@ export class ParticleSystem {
       scope.AGE_SEC = age / MS_PER_SECOND;
       scope.LIFE = life;
       scope.SEED = this.seed[index]!;
-      into.x += state.offsets.x(scope);
-      into.y += state.offsets.y(scope);
-      into.elev += state.offsets.elev(scope);
+      const scale = this.birthScale[index]!;
+      into.x += state.offsets.x(scope) * scale;
+      into.y += state.offsets.y(scope) * scale;
+      into.elev += state.offsets.elev(scope) * scale;
     }
     into.config = state.spec.config;
     into.ramp = state.ramp;
@@ -177,18 +185,20 @@ export class ParticleSystem {
     if (this.liveCount >= MAX_LIVE_PARTICLES) return false;
     const i = this.liveCount++;
     const c = state.spec.config;
+    const s = state.spec.scale;
     const r = this.random;
 
-    this.x[i] = state.spec.cx + this.signed() * c.spawnRadiusCells;
-    this.y[i] = state.spec.cy + this.signed() * c.spawnRadiusCells;
-    this.elev[i] = state.spec.footElev + lerp(c.spawnElevFrom, c.spawnElevTo, r());
-    this.vx[i] = this.signed() * c.driftCellsPerSecond;
-    this.vy[i] = this.signed() * c.driftCellsPerSecond;
-    this.vElev[i] = lerp(c.riseFrom, c.riseTo, r());
+    this.x[i] = state.spec.cx + this.signed() * c.spawnRadiusCells * s;
+    this.y[i] = state.spec.cy + this.signed() * c.spawnRadiusCells * s;
+    this.elev[i] = state.spec.footElev + lerp(c.spawnElevFrom, c.spawnElevTo, r()) * s;
+    this.vx[i] = this.signed() * c.driftCellsPerSecond * s;
+    this.vy[i] = this.signed() * c.driftCellsPerSecond * s;
+    this.vElev[i] = lerp(c.riseFrom, c.riseTo, r()) * s;
     this.ageMs[i] = 0;
     this.ttlMs[i] = lerp(c.ttlFromMs, c.ttlToMs, r());
     this.emitterIdx[i] = emitterIndex;
     this.birthTaper[i] = state.spec.taper;
+    this.birthScale[i] = s;
     this.seed[i] = r();
     state.refs++;
     return true;
@@ -211,6 +221,7 @@ export class ParticleSystem {
     this.ttlMs[index] = this.ttlMs[last]!;
     this.emitterIdx[index] = this.emitterIdx[last]!;
     this.birthTaper[index] = this.birthTaper[last]!;
+    this.birthScale[index] = this.birthScale[last]!;
     this.seed[index] = this.seed[last]!;
   }
 

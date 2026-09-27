@@ -13,6 +13,7 @@ import {
   NO_TRANSITION_UNIFORMS,
   admitTransitions,
   appendTransitionEmitters,
+  burstScale,
   goingPlumeId,
   placementIdentity,
   fadingLightScale,
@@ -282,6 +283,30 @@ describe("transitionForNote", () => {
   });
 });
 
+describe("burstScale", () => {
+  const cyclops = normalizeTileDef({
+    id: "cyclops",
+    name: "Cyclops",
+    height: 4,
+    type: "simple",
+    kind: "battler",
+    attributes: {},
+    anchor: { tilesetId: "animals", x: 0, y: 0 },
+    sprite: {
+      frames: [
+        { sprite: { rect: { x: 0, y: 0, w: 4, h: 4 }, base: { x: 3, y: 3 } }, durationMs: 120 },
+      ],
+    },
+  });
+  const own: TileTransitionNote = { ...note("t1"), tileId: "cyclops" };
+
+  it("draws a hit to the size of the body it struck, and the tile's own bursts as authored", () => {
+    expect(burstScale({ ...own, struckBy: "verdant-light" }, { cyclops })).toBe(2);
+    expect(burstScale(own, { cyclops })).toBe(1);
+    expect(burstScale({ ...own, pulled: true }, { cyclops })).toBe(1);
+  });
+});
+
 describe("transitionPose", () => {
   const dropping = sideOf({ durationMs: DURATION_MS, drop: { levels: 2 } });
 
@@ -357,6 +382,7 @@ describe("appendTransitionEmitters", () => {
     box: { eastPx: 16, southPx: 24, foot: 0, top: 4 },
     stackBias: 0,
     taper: 1,
+    scale: 1,
   });
   const at = (side: TileTransitionNote["side"], startMs: number): LiveTransition => ({
     note: note("t1", side),

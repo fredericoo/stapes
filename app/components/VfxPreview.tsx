@@ -3,6 +3,7 @@ import { PLAYER_TILE_ID } from "../game/constants";
 import type { StatusVfx } from "../lib/statusVfx";
 import type { Transition, TransitionSide } from "../lib/tileTransition";
 import type { TileDef, TilesetDef } from "../lib/types";
+import { plumeScale } from "../render/plumeScale";
 import { VfxPreview as PreviewRenderer } from "../render/VfxPreview";
 import { Select, Switch } from "../ui";
 
@@ -53,6 +54,12 @@ export function VfxPreview({
   const options = useMemo(() => subjectOptions(tiles), [tiles]);
   const subject =
     fixedSubject !== undefined ? fixedSubject : (tiles.find((t) => t.id === subjectId) ?? null);
+  /**
+   * A subject picked from the list stands in for any body a status or a hit
+   * lands on, so the effect is drawn to its size. A fixed subject is the tile
+   * the effect belongs to, which draws it as authored.
+   */
+  const scale = fixedSubject === undefined ? plumeScale(subject ?? undefined) : 1;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,6 +76,10 @@ export function VfxPreview({
   useEffect(() => {
     previewRef.current?.setSubject(subject, tilesets);
   }, [subject, tilesets]);
+
+  useEffect(() => {
+    previewRef.current?.setScale(scale);
+  }, [scale]);
 
   useEffect(() => {
     previewRef.current?.setVfx(vfx);
@@ -98,7 +109,9 @@ export function VfxPreview({
       />
       {fixedSubject === undefined ? (
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-bold uppercase text-muted">Drawn on</span>
+          <span className="text-[11px] font-bold uppercase text-muted">
+            {scale === 1 ? "Drawn on" : `Drawn on · ${Number(scale.toFixed(2))}× the player's size`}
+          </span>
           <Select
             value={subjectId}
             onValueChange={(id) => setSubjectId(id ?? PLAYER_TILE_ID)}

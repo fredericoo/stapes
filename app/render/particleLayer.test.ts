@@ -47,6 +47,7 @@ function emitter(
     box: { eastPx: 32, southPx: 40, foot: 0, top: 2 },
     stackBias: 1,
     taper: 1,
+    scale: 1,
     ...over,
   };
 }

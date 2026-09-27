@@ -17,6 +17,7 @@ const emitter = (
   box: { eastPx: 40, southPx: 56, foot: 2, top: 4 },
   stackBias: 3,
   taper: 1,
+  scale: 1,
   ...over,
 });
 
@@ -231,6 +232,61 @@ describe("living and dying", () => {
     const reading = system.read(0, blank());
     expect(reading.x).toBeCloseTo(4.5);
     expect(reading.y).toBeCloseTo(6.5);
+  });
+});
+
+describe("scaled to the body it is drawn on", () => {
+  const TRAVELLING: Partial<ParticleEmitterDef> = {
+    ratePerSecond: 1,
+    ttlFromMs: 9_000,
+    ttlToMs: 9_000,
+    spawnRadiusCells: 0.25,
+    spawnElevFrom: 1,
+    spawnElevTo: 1,
+    riseFrom: 4,
+    riseTo: 4,
+    driftCellsPerSecond: 0.5,
+    gravity: -2,
+    offsetX: "0.8 * cos(7 * AGE_SEC)",
+    offsetY: "0.8 * sin(7 * AGE_SEC)",
+    offsetElev: "AGE_SEC",
+  };
+
+  it("draws a plume at scale 2 as the authored one enlarged about its anchor, on the same clock", () => {
+    const spec = emitter({}, TRAVELLING);
+    const authored = new ParticleSystem(fixed(0.75));
+    const doubled = new ParticleSystem(fixed(0.75));
+    authored.setEmitters([spec]);
+    doubled.setEmitters([{ ...spec, scale: 2 }]);
+    for (const system of [authored, doubled]) system.advance(1_000);
+
+    for (let step = 0; step < 4; step++) {
+      for (const system of [authored, doubled]) system.advance(250);
+      const a = authored.read(0, blank());
+      const d = doubled.read(0, blank());
+      expect(d.x - spec.cx).toBeCloseTo(2 * (a.x - spec.cx));
+      expect(d.y - spec.cy).toBeCloseTo(2 * (a.y - spec.cy));
+      expect(d.elev - spec.footElev).toBeCloseTo(2 * (a.elev - spec.footElev));
+      expect(d.life).toBeCloseTo(a.life);
+    }
+  });
+
+  it("holds a particle to the scale it was born at, wherever the pool moves it", () => {
+    const falling = { ...STILL, gravity: -8, offsetElev: "1" };
+    const lasting = emitter({ id: "b", scale: 2 }, falling);
+    const alone = new ParticleSystem(fixed(0.5));
+    alone.setEmitters([lasting]);
+
+    const crowded = new ParticleSystem(fixed(0.5));
+    const shortLived = emitter({ id: "a" }, { ...falling, ttlFromMs: 400, ttlToMs: 400 });
+    crowded.setEmitters([shortLived, lasting]);
+
+    for (const system of [alone, crowded]) system.advance(1_000);
+    crowded.setEmitters([{ ...lasting, scale: 3 }]);
+    for (const system of [alone, crowded]) system.advance(500);
+
+    expect(crowded.count).toBe(1);
+    expect(crowded.read(0, blank()).elev).toBeCloseTo(alone.read(0, blank()).elev);
   });
 });
 
