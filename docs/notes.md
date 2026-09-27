@@ -10414,7 +10414,7 @@ config object means a config rebuilt with the same formulas compiles nothing.
 **A formula that does not parse fails the emitter schema**, so it is dropped on
 the terms any malformed plume is (see "A tile emits because it is that tile"
 below), and a status carrying it does not resolve. The editor marks the field
-as it is typed.
+as it is typed, and neither editor will save it.
 
 Map axes, never screen ones. `+x` is east, `+y` is south, and the projection
 makes the diagonal, the same way it does for `rise`: a circle in `offsetX` and
@@ -10504,6 +10504,15 @@ the terms `clampTileLight` is silent: this is one author's own content, and a
 world that would not load over a smoke plume is worse than a chimney that has
 stopped smoking. The same parse is what fills in a field an authored block
 predates, so the renderer reads a complete emitter and never a partial one.
+
+**The tile editor refuses to save a malformed plume** rather than let the next
+load drop it, which would come back as the Particles switch turned off and the
+whole block gone. `buildSaved` runs `validateParticleEmitter` on the five places
+a tile carries an emitter — its own `particles`, each transition's burst, a
+projectile's hit and an extract's pull — and shows the schema's message. An
+emitter added anywhere else on a tile needs adding to that list. The status editor needs no list: its
+Save is off whenever `resolveStatus` refuses the draft, and the vfx is part of
+that parse.
 
 **The map editor draws no plumes**, tile or status: `/admin/map` is
 `app/editor/EditorRenderer.ts`, a separate renderer from the one play uses, with

@@ -19,7 +19,11 @@ import type {
   TilesetDef,
   FacingKey,
 } from "../lib/types";
-import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
+import {
+  DEFAULT_PARTICLES,
+  type ParticleEmitterDef,
+  validateParticleEmitter,
+} from "../lib/particleVfx";
 import { ParticleFields } from "./ParticleFields";
 import { ProjectileTab } from "./ProjectileTab";
 import { VfxPreview } from "./VfxPreview";
@@ -664,6 +668,21 @@ export function TileEditorDialog({
       const fatal = validateDialog(dialog, catalogue).find((i) => i.severity === "error");
       if (fatal) {
         setError(`Dialog: ${fatal.message}`);
+        return null;
+      }
+    }
+
+    const emitters = [
+      draft.particles,
+      draft.transitions?.appear?.particles,
+      draft.transitions?.disappear?.particles,
+      draft.interactions?.projectile?.hit?.particles,
+      draft.interactions?.extract?.pulled?.particles,
+    ];
+    for (const emitter of emitters) {
+      const err = emitter ? validateParticleEmitter(emitter) : null;
+      if (err) {
+        setError(`Particles: ${err}`);
         return null;
       }
     }

@@ -169,6 +169,11 @@ export const particleEmitterSchema = v.pipe(
   v.check((raw) => raw.riseTo >= raw.riseFrom, "particle rise range is inverted"),
 );
 
+export function validateParticleEmitter(def: ParticleEmitterDef): string | null {
+  const parsed = v.safeParse(particleEmitterSchema, def);
+  return parsed.success ? null : parsed.issues[0].message;
+}
+
 /** valibot types the defaults of a pipe as undefined, so this asks the object inside it. */
 const EMITTER_DEFAULTS = v.getDefaults(particleEmitterSchema.pipe[0]);
 
