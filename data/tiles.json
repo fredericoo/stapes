@@ -25266,7 +25266,8 @@
         "effect": {
           "kind": "bolt",
           "on": "caster",
-          "damage": -20
+          "damage": -20,
+          "projectile": "verdant-light"
         },
         "cooldownMs": 30000,
         "castTimeMs": 1500,
@@ -31305,6 +31306,87 @@
           }
         }
       }
+    }
+  },
+  {
+    "id": "verdant-light",
+    "name": "Verdant Light",
+    "height": 0,
+    "type": "simple",
+    "kind": "projectile",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 10,
+      "y": 14
+    },
+    "lightPassing": true,
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 8,
+        "hit": {
+          "durationMs": 1200,
+          "particles": {
+            "ratePerSecond": 8,
+            "ttlFromMs": 1200,
+            "ttlToMs": 1200,
+            "spawnRadiusCells": 0,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 0,
+            "riseFrom": 4.5,
+            "riseTo": 4.5,
+            "driftCellsPerSecond": 0,
+            "lit": false,
+            "gravity": 0,
+            "offsetX": "1.1 * (1 - 0.35 * LIFE) * cos(7 * AGE_SEC)",
+            "offsetY": "1.1 * (1 - 0.35 * LIFE) * sin(7 * AGE_SEC)",
+            "offsetElev": "",
+            "shape": null,
+            "radiusFromPx": 2,
+            "radiusToPx": 2,
+            "alphaFrom": 1,
+            "alphaTo": 0.5,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.3,
+                "color": "#91db69"
+              },
+              {
+                "at": 1,
+                "color": "#1ebc73"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 1,
+            "intensity": 0.3,
+            "color": "#91db69"
+          }
+        }
+      ]
     }
   },
   {
