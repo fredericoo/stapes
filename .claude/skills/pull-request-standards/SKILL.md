@@ -118,21 +118,28 @@ If the change is visual, include screenshots or recordings to illustrate it.
 
 ### Getting an image into the body
 
-GitHub's upload endpoint is part of its web editor, not part of the API `gh`
-drives, so there is no flag that attaches a file. The
-[`gh image`](https://github.com/drogers0/gh-image) extension borrows the
-browser's GitHub session to reach it, and prints the markdown to paste:
+`gh` uploads files itself from 2.99.0 on. Reference each file in the body by
+the path you pass to `--attach`, and `gh` uploads it and rewrites the reference
+to the uploaded URL, keeping the alt text you wrote:
 
-```sh
-gh extension install drogers0/gh-image   # once
-gh image shot-before.png shot-after.png  # prints ![shot-before.png](https://github.com/user-attachments/…)
+```md
+![The lantern's light, drawn on both levels](./shot-before.png)
 ```
 
-**A `user-attachments` URL 404s to anything without a session, and that is not a
-failed upload.** This repository is private, so its attachments are readable only
-by somebody signed in and allowed to see it — which is every reviewer, in a
-browser, and no `curl`. Checking one from a shell and concluding the upload broke
-costs more time than the upload did.
+```sh
+gh pr create --draft --title "…" --body-file body.md \
+  --attach ./shot-before.png --attach ./shot-after.png
+```
+
+`gh pr edit <number> --body-file body.md --attach …` does the same to a PR that
+is already open, and `gh pr comment` takes `--attach` too. A file you attach but
+never reference is appended to the end of the body with its file name as alt
+text, so reference every one. PNG, JPEG, GIF, WebP, MP4, MOV and WebM all
+upload; a video renders as a player and cannot carry alt text, so say what it
+shows in the `<summary>` around it.
+
+The upload needs push access to the repository and a token GitHub accepts for
+it: the one `gh auth login` stores, or a classic personal access token.
 
 ### Capturing the files
 
