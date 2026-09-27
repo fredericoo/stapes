@@ -32,6 +32,12 @@ keeps in its own database when it is not. See [SETUP.md](SETUP.md).
 `GameServer` in a worker, the real protocol, no socket and nothing to log in to.
 It is the path to open when the question is whether the game still works.
 
+Both play pages put `window.__stapes` on the page, for a script or an agent to
+drive the game over the DevTools protocol: run a chat command and get its answer,
+act as the player, read the world and what just happened, and wait until the
+picture is ready to screenshot. `docs/notes.md`, "`window.__stapes` is the page
+an agent drives", lists every call.
+
 ## Scripts
 
 - `bun dev` — both halves at once: Vite for the client, `bun --watch` for the

@@ -76,7 +76,13 @@ import { HEIGHT_PER_LEVEL, tileCanEmitLight } from "../lib/types";
 import { clumpExtentAt, steppingClumpHeight } from "./depthClump";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
-import { type OverlaySpec, type TileMotion, tileInstanceKey, WorldRenderer } from "./WorldRenderer";
+import {
+  type DebugReading,
+  type OverlaySpec,
+  type TileMotion,
+  tileInstanceKey,
+  WorldRenderer,
+} from "./WorldRenderer";
 import type { ParticleEmitterSpec } from "./particles";
 import type { StatusDef } from "../lib/status";
 import { taperAt, taperedGlow, taperedTint, type StatusTint } from "../lib/statusVfx";
@@ -318,6 +324,14 @@ export class GameRenderer {
 
   setOnNextFrame(cb: (() => void) | null) {
     this.world.setOnNextFrame(cb);
+  }
+
+  isSettled(): boolean {
+    return this.world.isSettled();
+  }
+
+  debugReading(): DebugReading | null {
+    return this.world.debugReading();
   }
 
   setOnStats(cb: ((stats: FrameStats) => void) | null) {

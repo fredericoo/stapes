@@ -602,6 +602,62 @@ leftover from the Worker deployment in any case: the module is a set of keys and
 a `JSON.parse`, with nothing server-only in it, and `GameServer` had been
 importing its type into shared code for as long as it has existed.
 
+## `window.__stapes` is the page an agent drives
+
+The play pages, `/` and `/admin/play`, put one object on the window for anything
+that drives a page over the DevTools protocol: Playwright, the Chrome DevTools
+MCP server, the desktop app's browser pane. It is how an agent sets up a scene
+and reads the result without touching the UI. `app/components/stapes.ts` holds
+it and `WorldPage` installs it.
+
+- `command(text)` sends a chat command and resolves to its `CommandReply`.
+- `act(input)` sends what a player sends: a step, held directions, a facing, a
+  target, attack mode, a cast, using or picking up a thing, eating, talking,
+  saying something, rebirth.
+- `snapshot()` is the world as this client holds it: every body it knows with
+  its cell, health and statuses, the hour, and the player's own kit and target.
+  `stack(x, y, z)` reads one cell.
+- `events(since)` is what the server told this client, one entry per thing that
+  happened: damage, deaths, blows swung, projectiles, bodies arriving and
+  leaving, status changes, notices, chat, the clock. Each has a `seq`, so a
+  caller asks for what came after the last one it read. `logEvents(true)` also
+  writes each one to the console as a JSON line.
+- `stats()` is the frame profile and, with `?debug=1` in the address, the debug
+  reading: chunks, light, draw calls and triangles.
+- `ready()` resolves when there is a picture worth taking.
+
+**It is in every build, production included.** It can do nothing the chat field
+and the client cannot already do, and the server's admin gate still decides
+every command, so a player who finds it gains nothing. Shipping it means the
+same calls work against a pull request's preview, signed in as its seeded
+admin, and not only against a dev server.
+
+**`ready()` waits for four things, in order:** the session to be connected, a
+first frame painted, no chunk's light stale, and the page's fonts loaded. A
+chunk whose light is being re-baked stays stale until the worker's result lands,
+so no stale chunk means the light on screen is the current light. It polls with
+`setTimeout` rather than on animation frames, because a headless browser drawing
+through SwiftShader can go seconds between frames.
+
+**`events()` is recorded from the frames, not read back from the session.** The
+chat drains the session's notices as it shows them, and damage numbers expire
+once they have been drawn, so reading either back from the session would take
+notices off the screen and miss most of the numbers. `RemoteSession.setOnServerMessage`
+hands every parsed frame to the log before the session acts on it. Motion
+events (walks, falls, slides, strikes) are left out: they arrive every step,
+and `snapshot()` has where everybody is. A death is inferred from a health patch
+that reaches nothing, because the wire has no death event for anybody but you.
+
+**Draw calls and triangles are only counted in the debug view.** `WorldRenderer`
+resets `renderer.info` by hand only while `?debug=1` is on; otherwise Three.js
+resets it at every `render` call, and the frame's last pass is all that is left
+to read. Counting them in every view means changing the render loop, which is
+left for the performance tooling.
+
+**A Playwright spec cannot import it.** Its types reach the renderer, which the
+Node tsconfig the specs are checked with cannot compile, so
+`e2e/stapes.spec.ts` writes out the part of the type it calls.
+
 ## `dependencies` is what the *server* needs, and nothing else
 
 React, three, the icon sets and the rest of the client's packages are

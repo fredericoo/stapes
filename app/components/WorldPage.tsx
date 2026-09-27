@@ -41,6 +41,7 @@ import { RemoteSession } from "../net/RemoteSession";
 import type { FrameStats } from "../render/frameProfile";
 import { GameRenderer } from "../render/GameRenderer";
 import { debugViewRequested } from "../render/debugView";
+import { installStapes, StapesEventLog } from "./stapes";
 
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
@@ -130,6 +131,11 @@ export function WorldPage({
   }, []);
   const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(DEFAULT_PLAY_MINUTES);
   const [stats, setStats] = useState<FrameStats | null>(null);
+  const statsRef = useRef(stats);
+  statsRef.current = stats;
+  const paintedRef = useRef(painted);
+  paintedRef.current = painted;
+  const stapesLog = useMemo(() => new StapesEventLog(), []);
   const [players, setPlayers] = useState<number | null>(null);
   const [hidden, setHidden] = useState(false);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
@@ -195,6 +201,18 @@ export function WorldPage({
     stopRef.current?.();
     handlersRef.current.onLeave?.();
   }, []);
+
+  useEffect(
+    () =>
+      installStapes({
+        session: () => sessionRef.current,
+        renderer: () => rendererRef.current,
+        painted: () => paintedRef.current,
+        frameStats: () => statsRef.current,
+        log: stapesLog,
+      }),
+    [stapesLog],
+  );
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
@@ -263,6 +281,7 @@ export function WorldPage({
       });
       session = remote;
       sessionRef.current = remote;
+      remote.setOnServerMessage(stapesLog.record);
       remote.setOnPlayers(setPlayers);
       remote.setOnHidden(setHidden);
       remote.setOnDead((isDead) => {
@@ -388,7 +407,7 @@ export function WorldPage({
       if (stopRef.current === stop) stopRef.current = null;
       stop();
     };
-  }, [tiles, tilesets, link, assetsReady]);
+  }, [tiles, tilesets, link, assetsReady, stapesLog]);
 
   const statusChip = (
     <span

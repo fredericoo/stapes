@@ -114,6 +114,7 @@ import {
   type HpPatch,
   type NamePatch,
   type MotionEvent,
+  type ServerMessage,
   MAX_STEPS_AHEAD,
 } from "./protocol";
 
@@ -205,6 +206,7 @@ export class RemoteSession implements PlaySession {
   private onClockSet: ((minutes: MinutesOfDay) => void) | null = null;
   private nextRequestId = 0;
   private readonly awaitingReplies = new Map<number, AwaitedReply>();
+  private onServerMessage: ((message: ServerMessage) => void) | null = null;
 
   constructor(
     private readonly socket: ClientSocket,
@@ -291,6 +293,10 @@ export class RemoteSession implements PlaySession {
     this.onClockSet = cb;
   }
 
+  setOnServerMessage(cb: ((message: ServerMessage) => void) | null) {
+    this.onServerMessage = cb;
+  }
+
   private setClock(minutes: MinutesOfDay) {
     this.serverMinutesOfDay = minutes;
     this.onClockSet?.(minutes);
@@ -309,6 +315,7 @@ export class RemoteSession implements PlaySession {
     if (typeof event.data !== "string") return;
     const message = parseServerMessage(event.data);
     if (!message) return;
+    this.onServerMessage?.(message);
 
     if (message.type === "serverRestarting") {
       this.onRestarting?.();
