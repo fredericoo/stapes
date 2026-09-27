@@ -259,7 +259,7 @@
         "keepLuma": 0.8
       },
       "particles": {
-        "ratePerSecond": 14,
+        "ratePerSecond": 2,
         "ttlFromMs": 700,
         "ttlToMs": 1500,
         "spawnRadiusCells": 0.35,
@@ -421,6 +421,8 @@
         "offsetElev": "",
         "lit": false,
         "shape": ["#####", "...#.", "..#..", ".#...", "#####"],
+        "sizeFromPx": 5,
+        "sizeToPx": 1,
         "radiusFromPx": 1,
         "radiusToPx": 1,
         "alphaFrom": 1,
