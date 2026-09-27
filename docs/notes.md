@@ -7371,9 +7371,9 @@ A line beginning with `/` is an instruction rather than something to say.
 `app/game/commands.ts` owns that one rule and the grammar behind it,
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
-The verbs are `/mastery`, `/tile`, `/status`, `/health`, `/goto`, `/move` and
-`/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the grammar of each, and
-is the line a player is shown when they get one wrong.
+The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/status`, `/health`,
+`/goto`, `/move` and `/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the
+grammar of each, and is the line a player is shown when they get one wrong.
 
 - **Only an administrator runs one.** The gate is in
   `GameServer.webSocketMessage`, on the `command` arm, and it reads `admin` off
@@ -7506,6 +7506,17 @@ Both verbs land through one `putBodyAt`, which moves with `moveThrough` — the
 same one a portal makes — so a body that walks somewhere and a body that types
 its way there end in one state and the client animates both the same way.
 
+**`/goto` can send any body, named last.** `/goto <x> <y> [z] [body]` moves the
+body with that actor id instead of the author, under the same `canStandIn`
+rule, asked of that body's own tile. A last word that is not a number is the
+body, which cannot be misread because no id is a number: a player's is a UUID
+and a creature's begins `npc:`. A level left off is still the author's rather
+than the body's, for the reason above: it is the floor the author is looking
+at, so a creature fetched out of a cave lands on the author's floor. The author
+is told where the body went, "Wolf is now at 5, 5, 0", because unlike their own
+arrival it may land where they cannot see it; sending themselves stays silent.
+`/move` still moves only the author.
+
 **Both are reachable in `/admin/play`**, which they were not while that page ran
 a session of its own: commands are typed into the chat field, the field is
 `onSay`, and a page with nothing to send to never drew one. The world in the tab
@@ -7560,6 +7571,56 @@ on.
   `summonedOwnerId` takes the names this same command has already minted: with
   nothing adopted until the end, the runtime cannot see a clash inside one
   `/tile wolf x3` for itself.
+
+### `/spawn` is `/tile` for a body, at a cell of the map
+
+`/spawn <tile> <x> <y> [z]` puts a creature at a cell of the map. It exists
+because `/tile` cannot write one: under the sign grammar a negative number is a
+step from where you stand, so `/tile wolf -3 -12` lands three west and twelve
+south of the author, and most of the map is negative. `/spawn` is to `/tile`
+what `/goto` is to `/move`: every number is a cell, and a level left off means
+the one the author stands on.
+
+- **It places bodies and nothing else.** A tile `resolveActor` does not call a
+  body is refused with a sentence that points at `/tile`, which already puts
+  down anything. The `player` tile is refused first, on `/tile`'s terms: it is
+  not a body to `resolveActor`, so the order matters, and sending the author to
+  `/tile` would send them to a second refusal.
+- **It asks `canStandIn` before the editor's `canPlace`.** `canPlace` measures a
+  stack's height and nothing else, so on its own it says yes to a cell with
+  nothing under it and to the top of another creature, which leaves the new
+  body with nothing to stand on or standing on the other one's head.
+  `canStandIn` asks the question `/goto` asks of a typed destination, and
+  `canPlace` still runs after it because the body is placed through `/tile`'s
+  path.
+- **That path is `placeTiles`, the one `/tile` summons through.** The body gets
+  its owner id from `summonedOwnerId` and is adopted as a resident on the spot,
+  on the same terms as a body `/tile` summons: named after the cell it was put
+  in, which `residentHome` reads back as its home, unless that name is taken,
+  in which case it gets a unique name and no home.
+- **The sentence names the body's id**: "Wolf appears at -3, 12, 0 as
+  npc:-3,12,0,1". Every command that acts on a creature takes that id, and
+  nothing else on screen shows it. The reply carries it in `ids`.
+
+### `/despawn` takes a creature off the board, and never a player
+
+`/despawn <body>` removes a body by its id. It goes through `despawn`, the
+method a player's leaving goes through, rather than `kill`: the body plays its
+`disappear` and whatever it carried goes with it. `kill` would drop its kit and
+its remains on the floor and report a death nobody caused.
+
+- **A player's body is refused by name.** It belongs to that player's
+  connection: the server seats it when they enter and takes it off when they
+  leave. Removed from under a connected player, it would leave them with no
+  body until they reconnected, since the server drops every frame from a
+  player with no body on the board.
+- **It is not a death, so the server's respawn bookkeeping does not see it.**
+  `GameServer` re-arms a respawn point when its body dies, when the cell the
+  point was authored in changes, and when the world loads. A creature with an
+  authored respawn point that is taken off its own cell is therefore back after
+  its delay; one taken off anywhere else is not re-armed until the world next
+  loads. A creature with no respawn point, and every body `/spawn` or `/tile`
+  put down, is gone for good.
 
 ### `/time` moves the world's clock, for everybody
 

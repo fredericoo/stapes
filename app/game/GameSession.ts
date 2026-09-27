@@ -108,11 +108,14 @@ import {
   extractNotice,
   masteryNotice,
   otherMasteryNotice,
+  otherArrivalNotice,
   healthNotice,
   noRoomToLeaveNotice,
   rewardNotice,
   spawnMarkNotice,
   spawnMarkUnchangedNotice,
+  spawnNotice,
+  despawnNotice,
   statusAcquiredNotice,
   otherStatusNotice,
   statusesClearedNotice,
@@ -125,12 +128,14 @@ import { type Blame, causeOfDeath, possessive } from "./blame";
 import { conjuredName, sparesStander } from "./conjured";
 import { type Combatant, mayHarm } from "./pvp";
 import {
+  DESPAWN_COMMAND,
   GOTO_COMMAND,
   HEALTH_COMMAND,
   MOVE_COMMAND,
   MASTERY_COMMAND,
   parseCommand,
   resolveCell,
+  SPAWN_COMMAND,
   STATUS_COMMAND,
   TILE_COMMAND,
   TIME_COMMAND,
@@ -138,8 +143,10 @@ import {
   type CommandOutcome,
   type CommandRefusal,
   type CommandReply,
+  type DespawnCommand,
   type HealthCommand,
   type MasteryCommand,
+  type SpawnCommand,
   type StatusCommand,
   type TileCommand,
   type TimeCommand,
@@ -4406,6 +4413,10 @@ export class GameSession implements PlaySession {
         return this.runMoveCommand(command, id);
       case TIME_COMMAND:
         return this.runTimeCommand(command, id);
+      case SPAWN_COMMAND:
+        return this.runSpawnCommand(command, id);
+      case DESPAWN_COMMAND:
+        return this.runDespawnCommand(command, id);
     }
   }
 
@@ -4415,8 +4426,7 @@ export class GameSession implements PlaySession {
     return { ok: true, data: { command: TIME_COMMAND, minutes: command.minutes } };
   }
 
-  private canStandIn(actor: ActorRuntime, to: Coord): boolean {
-    const def = this.defFor(actor);
+  private canStandIn(def: TileDef, to: Coord): boolean {
     const surface = listStandingSurfaces(this.map, to.x, to.y, this.tilesById).find(
       (candidate) => candidate.z === to.z,
     );
@@ -4428,15 +4438,25 @@ export class GameSession implements PlaySession {
     command: Extract<Command, { name: typeof GOTO_COMMAND }>,
     id: string,
   ): CommandOutcome {
-    const actor = this.actors.get(id);
+    const bodyId = command.target ?? id;
+    const actor = this.actors.get(bodyId);
     const loc = actor ? this.tryLocate(actor) : null;
-    if (!actor || !loc) return { ok: false, refusal: { kind: "nowhereToPlace" } };
+    if (!actor || !loc) {
+      const refusal: CommandRefusal =
+        command.target === null
+          ? { kind: "nowhereToPlace" }
+          : { kind: "noSuchTarget", typed: bodyId };
+      return { ok: false, refusal };
+    }
 
-    return this.putBodyAt(GOTO_COMMAND, actor, loc, {
-      x: command.at.x,
-      y: command.at.y,
-      z: command.at.z ?? loc.z,
-    });
+    const level = command.at.z ?? this.levelOf(id);
+    if (level === null) return { ok: false, refusal: { kind: "nowhereToPlace" } };
+    const to = { x: command.at.x, y: command.at.y, z: level };
+    const moved = this.putBodyAt(GOTO_COMMAND, actor, loc, to);
+    if (moved.ok && actor.id !== id) {
+      this.say(id, otherArrivalNotice(this.bodyName(actor.id) ?? actor.id, to));
+    }
+    return moved;
   }
 
   private runMoveCommand(
@@ -4465,7 +4485,9 @@ export class GameSession implements PlaySession {
       data: { command: name, target: actor.id, at: { x: to.x, y: to.y, z: to.z } },
     };
     if (to.x === loc.x && to.y === loc.y && to.z === loc.z) return arrived;
-    if (!this.canStandIn(actor, to)) return { ok: false, refusal: { kind: "noRoom", at: to } };
+    if (!this.canStandIn(this.defFor(actor), to)) {
+      return { ok: false, refusal: { kind: "noRoom", at: to } };
+    }
 
     this.moveThrough(actor, to);
     this.statusOnArrival(actor);
@@ -4498,25 +4520,97 @@ export class GameSession implements PlaySession {
     const from = actor ? this.tryLocate(actor) : null;
     if (!from) return { ok: false, refusal: { kind: "nowhereToPlace" } };
 
-    const def = this.tilesById[command.tileId];
-    if (!def) return { ok: false, refusal: { kind: "unknownTile", typed: command.tileId } };
-    if (def.id === PLAYER_TILE_ID) {
-      return { ok: false, refusal: { kind: "spawnMarkerTile", typed: command.tileId } };
-    }
+    const found = this.summonableTile(command.tileId);
+    if (!found.ok) return found;
+    const { def } = found;
 
     const at = resolveCell(command.at, from);
     const underfoot = at.x === from.x && at.y === from.y && at.z === from.z;
+    const placed = this.placeTiles(def, at, command.count, underfoot ? from.stackIndex : null);
+    if (!placed.ok) return placed;
 
+    this.say(id, tileNotice(def.name, at, command.count));
+    return {
+      ok: true,
+      data: { command: TILE_COMMAND, tileId: def.id, at, count: command.count },
+      ids: placed.owners,
+    };
+  }
+
+  private runSpawnCommand(command: SpawnCommand, id: string): CommandOutcome {
+    const found = this.summonableTile(command.tileId);
+    if (!found.ok) return found;
+    const { def } = found;
+    if (!resolveActor(def)) {
+      return { ok: false, refusal: { kind: "notABody", typed: command.tileId } };
+    }
+
+    const level = command.at.z ?? this.levelOf(id);
+    if (level === null) return { ok: false, refusal: { kind: "nowhereToPlace" } };
+    const at = { x: command.at.x, y: command.at.y, z: level };
+    if (!this.canStandIn(def, at)) return { ok: false, refusal: { kind: "noRoom", at } };
+
+    const placed = this.placeTiles(def, at, 1, null);
+    if (!placed.ok) return placed;
+
+    this.say(id, spawnNotice(def.name, at, placed.owners[0]!));
+    return {
+      ok: true,
+      data: { command: SPAWN_COMMAND, tileId: def.id, at },
+      ids: placed.owners,
+    };
+  }
+
+  private runDespawnCommand(command: DespawnCommand, id: string): CommandOutcome {
+    const targetId = command.target ?? id;
+    const actor = this.actors.get(targetId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
+
+    const name = this.bodyName(actor.id) ?? actor.id;
+    if (!actor.resident) return { ok: false, refusal: { kind: "playerBody", name } };
+
+    const at = { x: loc.x, y: loc.y, z: loc.z };
+    this.despawn(actor.id);
+    this.reindexCells([at]);
+    this.settleBoardNow();
+    this.say(id, despawnNotice(name, at));
+    return { ok: true, data: { command: DESPAWN_COMMAND, target: actor.id, at } };
+  }
+
+  private levelOf(id: string): number | null {
+    const actor = this.actors.get(id);
+    const loc = actor ? this.tryLocate(actor) : null;
+    return loc ? loc.z : null;
+  }
+
+  private summonableTile(
+    tileId: string,
+  ): { ok: true; def: TileDef } | { ok: false; refusal: CommandRefusal } {
+    const def = this.tilesById[tileId];
+    if (!def) return { ok: false, refusal: { kind: "unknownTile", typed: tileId } };
+    if (def.id === PLAYER_TILE_ID) {
+      return { ok: false, refusal: { kind: "spawnMarkerTile", typed: tileId } };
+    }
+    return { ok: true, def };
+  }
+
+  private placeTiles(
+    def: TileDef,
+    at: Coord,
+    count: number,
+    insertAt: number | null,
+  ): { ok: true; owners: string[] } | { ok: false; refusal: CommandRefusal } {
     let candidate = this.map;
     const owners: string[] = [];
     let formed: number[] = [];
-    for (let placement = 0; placement < command.count; placement++) {
+    for (let placement = 0; placement < count; placement++) {
       if (!canPlace(candidate, at.x, at.y, at.z, def, this.tilesById).ok) {
         return { ok: false, refusal: { kind: "noRoom", at } };
       }
 
       const stack = getStack(candidate, at.x, at.y, at.z);
-      const stackIndex = underfoot ? from.stackIndex : stack.length;
+      const stackIndex = insertAt ?? stack.length;
       const placed: PlacedTile = {
         tileId: def.id,
         ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
@@ -4548,12 +4642,7 @@ export class GameSession implements PlaySession {
     }
     this.reindexCells([at]);
     this.settleBoardNow();
-    this.say(id, tileNotice(def.name, at, command.count));
-    return {
-      ok: true,
-      data: { command: TILE_COMMAND, tileId: def.id, at, count: command.count },
-      ids: owners,
-    };
+    return { ok: true, owners };
   }
 
   private summonedOwnerId(

@@ -20,6 +20,8 @@ export const HEALTH_COMMAND = "health";
 export const GOTO_COMMAND = "goto";
 export const MOVE_COMMAND = "move";
 export const TIME_COMMAND = "time";
+export const SPAWN_COMMAND = "spawn";
+export const DESPAWN_COMMAND = "despawn";
 
 export const STATUS_CLEAR_ARGUMENT = "clear";
 
@@ -30,16 +32,20 @@ export type CommandName =
   | typeof HEALTH_COMMAND
   | typeof GOTO_COMMAND
   | typeof MOVE_COMMAND
-  | typeof TIME_COMMAND;
+  | typeof TIME_COMMAND
+  | typeof SPAWN_COMMAND
+  | typeof DESPAWN_COMMAND;
 
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_MASTERY}-${MAX_MASTERY}> [player id]`,
   [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [xN] [x] [y] [z]`,
   [STATUS_COMMAND]: `${COMMAND_PREFIX}${STATUS_COMMAND} <status id | ${STATUS_CLEAR_ARGUMENT}> [player id]`,
   [HEALTH_COMMAND]: `${COMMAND_PREFIX}${HEALTH_COMMAND} <n | +n | -n> [player id]`,
-  [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z]`,
+  [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z] [body]`,
   [MOVE_COMMAND]: `${COMMAND_PREFIX}${MOVE_COMMAND} <east> <south> [up]`,
   [TIME_COMMAND]: `${COMMAND_PREFIX}${TIME_COMMAND} <hh:mm>`,
+  [SPAWN_COMMAND]: `${COMMAND_PREFIX}${SPAWN_COMMAND} <tile> <x> <y> [z]`,
+  [DESPAWN_COMMAND]: `${COMMAND_PREFIX}${DESPAWN_COMMAND} <body>`,
 };
 
 export type Coordinate = { kind: "absolute"; value: number } | { kind: "relative"; offset: number };
@@ -52,10 +58,13 @@ export type CellRequest = {
 
 export const MAX_COMMAND_HP = MAX_CONSUMABLE_HP_SHIFT;
 
+export type MapCell = { x: number; y: number; z: number | null };
+
 export type Command =
   | {
       name: typeof GOTO_COMMAND;
-      at: { x: number; y: number; z: number | null };
+      at: MapCell;
+      target: string | null;
     }
   | {
       name: typeof MOVE_COMMAND;
@@ -86,6 +95,15 @@ export type Command =
   | {
       name: typeof TIME_COMMAND;
       minutes: MinutesOfDay;
+    }
+  | {
+      name: typeof SPAWN_COMMAND;
+      tileId: string;
+      at: MapCell;
+    }
+  | {
+      name: typeof DESPAWN_COMMAND;
+      target: string | null;
     };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
@@ -93,6 +111,8 @@ export type TileCommand = Extract<Command, { name: typeof TILE_COMMAND }>;
 export type StatusCommand = Extract<Command, { name: typeof STATUS_COMMAND }>;
 export type HealthCommand = Extract<Command, { name: typeof HEALTH_COMMAND }>;
 export type TimeCommand = Extract<Command, { name: typeof TIME_COMMAND }>;
+export type SpawnCommand = Extract<Command, { name: typeof SPAWN_COMMAND }>;
+export type DespawnCommand = Extract<Command, { name: typeof DESPAWN_COMMAND }>;
 
 export type HealthChange = { kind: "set"; hp: number } | { kind: "shift"; by: number };
 
@@ -114,7 +134,9 @@ export type CommandRefusal =
   | { kind: "badHealth"; typed: string }
   | { kind: "badTime"; typed: string }
   | { kind: "unharmableTarget"; name: string }
-  | { kind: "immuneTarget"; name: string; status: string };
+  | { kind: "immuneTarget"; name: string; status: string }
+  | { kind: "notABody"; typed: string }
+  | { kind: "playerBody"; name: string };
 
 export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
@@ -129,7 +151,9 @@ export type CommandData =
   | { command: typeof HEALTH_COMMAND; target: string; hp: number; maxHp: number }
   | { command: typeof MASTERY_COMMAND; target: string; mastery: Mastery; level: number }
   | { command: typeof GOTO_COMMAND | typeof MOVE_COMMAND; target: string; at: Coord }
-  | { command: typeof TIME_COMMAND; minutes: MinutesOfDay };
+  | { command: typeof TIME_COMMAND; minutes: MinutesOfDay }
+  | { command: typeof SPAWN_COMMAND; tileId: string; at: Coord }
+  | { command: typeof DESPAWN_COMMAND; target: string; at: Coord };
 
 export type CommandOutcome =
   | { ok: true; data: CommandData; ids?: readonly string[] }
@@ -165,6 +189,10 @@ export function parseCommand(raw: string): CommandParse {
       return parseMoveArguments(args);
     case TIME_COMMAND:
       return parseTimeArguments(args);
+    case SPAWN_COMMAND:
+      return parseSpawnArguments(args);
+    case DESPAWN_COMMAND:
+      return parseDespawnArguments(args);
     default:
       return {
         ok: false,
@@ -351,14 +379,26 @@ function parseOffsets(
 }
 
 function parseGotoArguments(args: string[]): CommandParse {
-  const parsed = parseOffsets(args, GOTO_COMMAND);
+  const last = args.at(-1);
+  const named = last !== undefined && !COORDINATE_PATTERN.test(last);
+  const parsed = parseCell(named ? args.slice(0, -1) : args, GOTO_COMMAND);
+  if (!parsed.ok) return parsed;
+
+  return {
+    ok: true,
+    command: { name: GOTO_COMMAND, at: parsed.at, target: named ? targetOf(last) : null },
+  };
+}
+
+function parseCell(
+  args: string[],
+  command: CommandName,
+): { ok: true; at: MapCell } | { ok: false; refusal: CommandRefusal } {
+  const parsed = parseOffsets(args, command);
   if (!parsed.ok) return parsed;
 
   const [x, y, z] = parsed.values;
-  return {
-    ok: true,
-    command: { name: GOTO_COMMAND, at: { x: x!, y: y!, z: z ?? null } },
-  };
+  return { ok: true, at: { x: x!, y: y!, z: z ?? null } };
 }
 
 function parseMoveArguments(args: string[]): CommandParse {
@@ -367,6 +407,27 @@ function parseMoveArguments(args: string[]): CommandParse {
 
   const [x, y, z] = parsed.values;
   return { ok: true, command: { name: MOVE_COMMAND, by: { x: x!, y: y!, z: z ?? 0 } } };
+}
+
+function parseSpawnArguments(args: string[]): CommandParse {
+  const [tileToken, ...cell] = args;
+  if (tileToken === undefined) {
+    return { ok: false, refusal: { kind: "badArguments", command: SPAWN_COMMAND } };
+  }
+  const parsed = parseCell(cell, SPAWN_COMMAND);
+  if (!parsed.ok) return parsed;
+
+  return {
+    ok: true,
+    command: { name: SPAWN_COMMAND, tileId: tileToken.toLowerCase(), at: parsed.at },
+  };
+}
+
+function parseDespawnArguments(args: string[]): CommandParse {
+  if (args.length !== 1) {
+    return { ok: false, refusal: { kind: "badArguments", command: DESPAWN_COMMAND } };
+  }
+  return { ok: true, command: { name: DESPAWN_COMMAND, target: targetOf(args[0]) } };
 }
 
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;
