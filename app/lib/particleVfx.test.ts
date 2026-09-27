@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import * as v from "valibot";
 import {
@@ -12,10 +13,16 @@ import {
 } from "./particleVfx";
 import { hexToRgb01 } from "./palette";
 
+/**
+ * Reads an entry back as the sRGB the scene target stores for it. The table is
+ * linear light, so this is where an authored hex has to come back out.
+ */
 const lut = (stops: { at: number; color: string }[], t: number) => {
   const compiled = compileRamp(stops);
   const base = rampIndexAt(t) * 3;
-  return [compiled[base]!, compiled[base + 1]!, compiled[base + 2]!] as const;
+  const linear = new THREE.Color(compiled[base]!, compiled[base + 1]!, compiled[base + 2]!);
+  const { r, g, b } = linear.getRGB({ r: 0, g: 0, b: 0 }, THREE.SRGBColorSpace);
+  return [r, g, b] as const;
 };
 
 const near = (a: number, b: number, tolerance = 0.02) => Math.abs(a - b) <= tolerance;

@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { clamp01, hexToRgb01, oklabToSrgb, srgbToOklab } from "./palette";
+import { clamp01, hexToRgb01, oklabToLinearRgb, srgbToOklab } from "./palette";
 
 export type RampStop = {
   at: number;
@@ -164,6 +164,11 @@ export const particleEmitterSchema = v.pipe(
   v.check((raw) => raw.riseTo >= raw.riseFrom, "particle rise range is inverted"),
 );
 
+/**
+ * The table holds linear-light RGB, not the sRGB the stops are written in. The
+ * particle shader multiplies it into `diffuseColor`, which three.js keeps linear
+ * until the sRGB scene target encodes it on write.
+ */
 export function compileRamp(stops: readonly RampStop[]): Float32Array {
   const lut = new Float32Array(RAMP_LUT_SIZE * 3);
   if (stops.length === 0) return lut;
@@ -198,10 +203,10 @@ export function compileRamp(stops: readonly RampStop[]): Float32Array {
       b = loLab[2] + (hiLab[2] - loLab[2]) * k;
     }
 
-    const [sr, sg, sb] = oklabToSrgb(L, a, b);
-    lut[i * 3] = clamp01(sr);
-    lut[i * 3 + 1] = clamp01(sg);
-    lut[i * 3 + 2] = clamp01(sb);
+    const [lr, lg, lb] = oklabToLinearRgb(L, a, b);
+    lut[i * 3] = clamp01(lr);
+    lut[i * 3 + 1] = clamp01(lg);
+    lut[i * 3 + 2] = clamp01(lb);
   }
   return lut;
 }
