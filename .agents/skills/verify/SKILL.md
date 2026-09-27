@@ -22,7 +22,7 @@ table. `bun run verify --help` lists the commands, and
 | You changed | Run | It answers |
 | --- | --- | --- |
 | anything in `data/`: tiles, statuses, tilesets, the map | `bun run verify content` | Does every tile, status, brain and dialog load, and does every id they name exist? |
-| combat numbers, a weapon, a creature's stats | `bun run verify battle <a> <b>` | Who wins, how often and how fast, sampled over seeds beside the closed-form figures? |
+| combat numbers, a weapon, a creature's stats | `bun run verify battle <a> <b> --against main`, for example `bun run verify battle wolf player:sharp=15,agility=15,toughness=15,weapon=knights-sword --against main` | Who wins, how often and how fast, sampled over seeds beside the closed-form figures, and how far each figure moved from `main`? |
 
 `verify content` exits 1 on an error in tiles, statuses or tilesets and prints
 each finding with its file, the id and what is wrong. What it finds in
@@ -40,6 +40,11 @@ which is hit points over damage per second. To ask why a fight went the way it
 did, `--trace <seed>` prints that one fight blow by blow. `--matrix` fights
 every creature against a player at rungs 10, 15 and 33, which is the table to
 show when a change could move more than one creature.
+
+`--against <ref>` fights the same battles, on the same seeds, on another commit
+in a temporary git worktree, and adds the change in each figure. That
+comparison is the balance evidence a combat or content PR attaches. The ref
+has to have `verify battle` itself; on an older one it says so and stops.
 
 ## Checks that need no command
 

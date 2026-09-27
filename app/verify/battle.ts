@@ -48,7 +48,7 @@ export type HandReport = {
 export type SideReport = {
   spec: string;
   name: string;
-  loadouts: { loadout: string; share: number }[];
+  loadouts: Record<string, number>;
   timeToKill: Spread | null;
   damagePerSecond: { sampled: number; blows: number; statuses: number };
   closedForm: {
@@ -352,9 +352,11 @@ export function runBattle(
     return {
       spec: sides[subject].text,
       name: def?.name ?? sides[subject].tileId,
-      loadouts: [...counted.loadouts]
-        .sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))
-        .map(([loadout, times]) => ({ loadout, share: round(times / fights) })),
+      loadouts: Object.fromEntries(
+        [...counted.loadouts]
+          .sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))
+          .map(([loadout, times]) => [loadout, round(times / fights)]),
+      ),
       timeToKill: spread(counted.kills),
       damagePerSecond: {
         sampled: perSecond(counted.blows + counted.statuses),

@@ -229,7 +229,10 @@ an agent drives", lists every call.
     `--max-seconds` change what is fought, and `--trace <seed>` prints one
     fight blow by blow instead. `battle --matrix` fights every creature
     against a player at rungs 10, 15 and 33, holding that rung's sword, as
-    one table
+    one table. `--against <ref>` runs the same fights on another commit, in
+    a temporary git worktree that borrows this checkout's `node_modules`,
+    and prints the change in each figure: the balance evidence a content PR
+    attaches
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says

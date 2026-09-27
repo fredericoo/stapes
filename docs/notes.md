@@ -13447,6 +13447,15 @@ rule of a fight; what it adds is bookkeeping.
   `creaturesAround`, and each can still be fought by name. It takes
   about 3.5 s, and most of that is the training dummy, whose 10,000 hit points
   keep every fight going until `--max-seconds`.
+- **`--against <ref>` runs the ref's own `verify battle`** in a temporary git
+  worktree, with every option spelled out so a default that changed between
+  the two commits cannot make them fight different battles, and matches the
+  two reports figure by figure. A list item is matched by its `key` (a hand,
+  a creature, a rung), not by its position. The worktree borrows this
+  checkout's `node_modules` through a symlink, which is removed on its own
+  before the worktree is. The `node_modules` it links is the first one above
+  the checkout that holds `valibot`, because a worktree that has never had an
+  install can still have a `node_modules/.vite` that vitest made for its cache.
 
 ## Verifying performance work
 

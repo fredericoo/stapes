@@ -23,6 +23,7 @@ import {
   UsageError,
   wholeNumber,
 } from "./cli";
+import { changes, changesText, runAgainst } from "./against";
 
 const DATA = join(import.meta.dir, "../../data");
 
@@ -48,7 +49,10 @@ function optionsOf(values: Parsed["values"], defaultSeeds: number): BattleOption
   };
 }
 
-function sidesOf(texts: readonly string[], cat: Catalogue) {
+function twoSides(texts: readonly string[], cat: Catalogue) {
+  if (texts.length !== 2) {
+    throw new UsageError(`battle takes two sides, and was given ${texts.length}.`);
+  }
   try {
     return {
       A: parseSide(texts[0]!, cat.tilesById),
@@ -82,10 +86,11 @@ function uptime(side: SideReport): string {
 const LOADOUTS_SHOWN = 3;
 
 function loadoutRows(label: string, side: SideReport): string[][] {
-  const shown = side.loadouts.slice(0, LOADOUTS_SHOWN);
-  const more = side.loadouts.length - shown.length;
+  const loadouts = Object.entries(side.loadouts);
+  const shown = loadouts.slice(0, LOADOUTS_SHOWN);
+  const more = loadouts.length - shown.length;
   return [
-    ...shown.map(({ loadout, share }, i) => [i === 0 ? label : "", percent(share), loadout]),
+    ...shown.map(([loadout, share], i) => [i === 0 ? label : "", percent(share), loadout]),
     ...(more > 0 ? [["", "", `and ${more} more in --json`]] : []),
   ];
 }
@@ -240,6 +245,7 @@ export const battle: Command = {
     "max-seconds": { type: "string" },
     trace: { type: "string" },
     matrix: { type: "boolean" },
+    against: { type: "string" },
   },
   help: [
     [
@@ -268,36 +274,64 @@ export const battle: Command = {
       "--matrix",
       "fight every creature against a player at rungs 10, 15 and 33 (Sharp, Toughness and Agility at the rung, holding that rung's sword), as one table; takes no sides",
     ],
+    [
+      "--against <ref>",
+      "run the same fights on another commit, such as main, in a temporary git worktree, and print the change in each figure",
+    ],
     ["--json", "print one JSON object instead of the tables"],
   ],
   async run({ values, positionals }): Promise<Outcome> {
-    if (values.matrix) {
-      if (positionals.length > 0 || values.trace !== undefined) {
-        throw new UsageError("--matrix picks its own sides; drop the sides and --trace.");
-      }
-      const options = optionsOf(values, DEFAULT_MATRIX_SEEDS);
-      const report = runMatrix(await catalogue(), options);
-      return { exitCode: 0, seed: options.seed, json: { ...report }, text: matrixText(report) };
-    }
-    if (positionals.length !== 2) {
-      throw new UsageError(`battle takes two sides, and was given ${positionals.length}.`);
-    }
-    if (values.trace !== undefined && (values.seed !== undefined || values.seeds !== undefined)) {
-      throw new UsageError(
-        "--trace takes the seed of the one fight it prints; drop --seed and --seeds.",
-      );
-    }
-    const cat = await catalogue();
-    const sides = sidesOf(positionals, cat);
-
     if (values.trace !== undefined) {
+      if (values.matrix || values.against !== undefined) {
+        throw new UsageError("--trace prints one fight; drop --matrix and --against.");
+      }
+      if (values.seed !== undefined || values.seeds !== undefined) {
+        throw new UsageError(
+          "--trace takes the seed of the one fight it prints; drop --seed and --seeds.",
+        );
+      }
+      const cat = await catalogue();
       const seed = wholeNumber(values.trace, "--trace", 1);
-      const trace = traceBattle(sides, cat, { ...optionsOf(values, 1), seed });
+      const trace = traceBattle(twoSides(positionals, cat), cat, { ...optionsOf(values, 1), seed });
       return { exitCode: 0, seed, json: { trace }, text: traceText(trace) };
     }
 
-    const options = optionsOf(values, DEFAULT_SEEDS);
-    const report = runBattle(sides, cat, options);
-    return { exitCode: 0, seed: options.seed, json: { ...report }, text: battleText(report) };
+    const cat = await catalogue();
+    let options: BattleOptions;
+    let fought: { json: Record<string, unknown>; text: string; args: string[] };
+    if (values.matrix) {
+      if (positionals.length > 0)
+        throw new UsageError("--matrix picks its own sides; drop the sides.");
+      options = optionsOf(values, DEFAULT_MATRIX_SEEDS);
+      const report = runMatrix(cat, options);
+      fought = { json: { ...report }, text: matrixText(report), args: ["--matrix"] };
+    } else {
+      options = optionsOf(values, DEFAULT_SEEDS);
+      const report = runBattle(twoSides(positionals, cat), cat, options);
+      fought = { json: { ...report }, text: battleText(report), args: [...positionals] };
+    }
+
+    if (typeof values.against !== "string") {
+      return { exitCode: 0, seed: options.seed, json: fought.json, text: fought.text };
+    }
+    const baseline = runAgainst(values.against, [
+      "battle",
+      ...fought.args,
+      ...["--seeds", String(options.seeds), "--seed", String(options.seed)],
+      ...["--statuses", options.statuses ? "on" : "off", "--kit", options.kit],
+      ...["--max-seconds", String(options.maxSeconds)],
+    ]);
+    const found = changes(baseline.report, fought.json);
+    return {
+      exitCode: 0,
+      seed: options.seed,
+      json: {
+        ...fought.json,
+        against: baseline,
+        changes: found.changed,
+        unchanged: found.unchanged,
+      },
+      text: `${fought.text}\n\n${changesText(baseline, found)}`,
+    };
   },
 };
