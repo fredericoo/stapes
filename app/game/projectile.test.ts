@@ -140,6 +140,8 @@ const SPARK: Transition = {
     offsetY: "",
     offsetElev: "",
     shape: null,
+    sizeFromPx: 5,
+    sizeToPx: null,
     radiusFromPx: 1,
     radiusToPx: 1,
     alphaFrom: 1,

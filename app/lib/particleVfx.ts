@@ -24,6 +24,8 @@ export type ParticleEmitterDef = {
   lit: boolean;
   ownDepth: boolean;
   shape: ParticleShape | null;
+  sizeFromPx: number;
+  sizeToPx: number | null;
   radiusFromPx: number;
   radiusToPx: number;
   alphaFrom: number;
@@ -40,6 +42,8 @@ export const MAX_PARTICLE_RATE = 200;
 export const MAX_PARTICLE_RADIUS_PX = 8;
 
 export const PARTICLE_SHAPE_PX = 5;
+
+export const MAX_PARTICLE_SIZE_PX = 3 * PARTICLE_SHAPE_PX;
 
 export const SHAPE_PIXEL = "#";
 
@@ -84,6 +88,8 @@ export const DEFAULT_PARTICLES: ParticleEmitterDef = {
   lit: true,
   ownDepth: false,
   shape: null,
+  sizeFromPx: PARTICLE_SHAPE_PX,
+  sizeToPx: null,
   radiusFromPx: 1,
   radiusToPx: 2,
   alphaFrom: 1,
@@ -108,6 +114,8 @@ export const DEFAULT_IMPACT: ParticleEmitterDef = {
   lit: false,
   ownDepth: false,
   shape: null,
+  sizeFromPx: PARTICLE_SHAPE_PX,
+  sizeToPx: null,
   radiusFromPx: 1,
   radiusToPx: 1,
   alphaFrom: 1,
@@ -137,6 +145,8 @@ const shapeSchema = v.pipe(
 );
 const radiusPx = v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_RADIUS_PX));
 
+const sizePx = v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_SIZE_PX));
+
 export const particleEmitterSchema = v.pipe(
   v.object({
     ratePerSecond: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_RATE)),
@@ -155,6 +165,8 @@ export const particleEmitterSchema = v.pipe(
     offsetY: v.optional(offsetFormula, ""),
     offsetElev: v.optional(offsetFormula, ""),
     shape: v.optional(v.nullable(shapeSchema), null),
+    sizeFromPx: v.optional(sizePx, PARTICLE_SHAPE_PX),
+    sizeToPx: v.optional(v.nullable(sizePx), null),
     radiusFromPx: radiusPx,
     radiusToPx: radiusPx,
     alphaFrom: unitIntervalSchema,

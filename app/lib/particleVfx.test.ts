@@ -6,6 +6,7 @@ import {
   completeParticles,
   DEFAULT_PARTICLES,
   EMPTY_SHAPE,
+  PARTICLE_SHAPE_PX,
   type ParticleEmitterDef,
   particleEmitterSchema,
   RAMP_LUT_SIZE,
@@ -162,6 +163,13 @@ describe("a drawn shape", () => {
   it("defaults a plume authored before shapes to a circle", () => {
     const { shape: _shape, ...circle } = DEFAULT_PARTICLES;
     expect(v.parse(particleEmitterSchema, circle).shape).toBeNull();
+  });
+
+  it("defaults a shape authored before sizes to five pixels for its whole life", () => {
+    const { sizeFromPx: _from, sizeToPx: _to, ...unsized } = { ...DEFAULT_PARTICLES, shape: Z };
+    const parsed = v.parse(particleEmitterSchema, unsized);
+    expect(parsed.sizeFromPx).toBe(PARTICLE_SHAPE_PX);
+    expect(parsed.sizeToPx).toBeNull();
   });
 
   it("reads five rows of five", () => {

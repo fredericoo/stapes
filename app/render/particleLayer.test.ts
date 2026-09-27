@@ -248,11 +248,51 @@ describe("the shapes", () => {
     return material.map as THREE.DataTexture;
   }
 
+  function halfwayAndNewborn(config: Partial<ParticleEmitterDef>): number[] {
+    const l = layer();
+    l.setEmitters([
+      emitter(
+        {},
+        { shape: TOP_ROW, ratePerSecond: 1, ttlFromMs: 2_000, ttlToMs: 2_000, ...config },
+      ),
+    ]);
+    l.update(1_000, undefined);
+    l.update(1_000, undefined);
+    return quadWidths(l, 2);
+  }
+
   it("draws a shaped particle at five pixels whatever the radius says", () => {
     const l = layer();
     l.setEmitters([emitter({}, { shape: TOP_ROW, radiusFromPx: 8, radiusToPx: 8 })]);
     l.update(1_000, undefined);
     expect(quadWidths(l, 1)).toEqual([PARTICLE_SHAPE_PX]);
+  });
+
+  it("takes a shape from its first size to its second over its life", () => {
+    expect(halfwayAndNewborn({ sizeFromPx: 5, sizeToPx: 15 })).toEqual([10, 5]);
+    expect(halfwayAndNewborn({ sizeFromPx: 5, sizeToPx: 1 })).toEqual([3, 5]);
+  });
+
+  it("holds a shape at its first size when the second is left blank", () => {
+    expect(halfwayAndNewborn({ sizeFromPx: 10, sizeToPx: null })).toEqual([10, 10]);
+  });
+
+  it("shrinks a shape with its plume's taper", () => {
+    const l = layer();
+    l.setEmitters([emitter({ taper: 0.5 }, { shape: TOP_ROW, sizeFromPx: 10 })]);
+    l.update(1_000, undefined);
+    expect(quadWidths(l, 1)).toEqual([5]);
+  });
+
+  it("starts a shape of even size on a whole pixel", () => {
+    const l = layer();
+    l.setEmitters([emitter({}, { shape: TOP_ROW, sizeFromPx: 6 })]);
+    l.update(1_000, undefined);
+
+    const pos = attr(l, "position").array as Float32Array;
+    const corners = [0, 1, 3, 4, 6, 7, 9, 10].map((i) => pos[i]!);
+    expect(quadWidths(l, 1)).toEqual([6]);
+    expect(corners.every(Number.isInteger)).toBe(true);
   });
 
   it("puts the shape's top row at the top of the quad", () => {
