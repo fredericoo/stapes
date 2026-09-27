@@ -50,6 +50,7 @@ import {
   resolveTransitionSlot,
   formerSlot,
   transitionAddress,
+  transitionForNote,
   transitionPose,
   noTransitionUniforms,
   transitionUniforms,
@@ -58,7 +59,7 @@ import {
   type TransitionPose,
   type TransitionUniforms,
 } from "./tileTransitions";
-import { transitionOf, type HeldTransition } from "../lib/tileTransition";
+import type { HeldTransition } from "../lib/tileTransition";
 import { type RoofCut, cutHides, cutHidesWholeLevel } from "../lib/levelVisibility";
 import { isCellVisible } from "./cameraSight";
 import { countOf } from "../lib/piles";
@@ -97,7 +98,6 @@ import { ChunkedLighting, LIGHT_WINDOW_MARGIN, type WorldRect } from "../lib/lig
 import { canBakeOffThread, WorkerChunkBaker } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { wearsFlightTransition, type ProjectileView } from "./projectileMotion";
-import { projectileEffect } from "../lib/projectile";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
 import {
@@ -2117,10 +2117,7 @@ export class WorldRenderer {
     const admitted = admitTransitions(heard, {
       clockMs: this.animClock,
       live: this.liveTransitions.size,
-      transitionOf: (note) =>
-        note.struckBy
-          ? projectileEffect(view.tilesById[note.struckBy], "hit")
-          : transitionOf(view.tilesById[note.tileId], note.side),
+      transitionOf: (note) => transitionForNote(note, view.tilesById),
       inWindow: (note) => window !== null && cellInMeshWindow(window, note.x, note.y, note.z),
     });
     for (const live of admitted) {

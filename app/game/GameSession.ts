@@ -20,6 +20,7 @@ import {
 } from "../lib/mapData";
 import type { ExtractInteraction, RespawnInteraction } from "../lib/interactions";
 import {
+  pullEffect,
   resolveAddStatus,
   resolveRemoveStatus,
   resolveExtract,
@@ -1827,6 +1828,19 @@ export class GameSession implements PlaySession {
       z: loc.z,
       stackIndex: loc.stackIndex,
       struckBy: projectileTileId,
+    });
+  }
+
+  private notePull(tileId: string, at: ObjectRef) {
+    if (!pullEffect(this.tilesById[tileId])) return;
+    this.raiseTransition({
+      side: "appear",
+      tileId,
+      x: at.x,
+      y: at.y,
+      z: at.z,
+      stackIndex: at.stackIndex,
+      pulled: true,
     });
   }
 
@@ -4294,6 +4308,7 @@ export class GameSession implements PlaySession {
 
     const yielded = rollExtract(extract, () => this.rng.next());
     if (!this.spendPull(run.ref, stack, placed, extract)) return false;
+    this.notePull(placed.tileId, run.ref);
     if (yielded.length > 0) this.giveExtracted(actor, yielded);
     if (actor.extraction === run) this.setExtraction(actor, null);
 

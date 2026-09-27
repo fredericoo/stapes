@@ -86,6 +86,7 @@ export type TileTransitionNote = {
   z: number;
   stackIndex: number;
   struckBy?: string;
+  pulled?: true;
 };
 
 export type HeldTransition = { note: TileTransitionNote; ageMs: number };

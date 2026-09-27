@@ -8,6 +8,7 @@ import { kitForSave } from "./kit";
 import { itemForSave, stoneForSave, MAX_CONTAINER_SIZE, resolveItem, weaponForSave } from "./item";
 import { MASTERIES } from "./mastery";
 import { MAX_PROJECTILE_SPEED, MIN_PROJECTILE_SPEED, type ProjectileBlock } from "./projectile";
+import { resolveTransition, type Transition } from "./tileTransition";
 import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
@@ -206,6 +207,7 @@ export type ExtractInteraction = {
   tileId: string;
   durationMs: number;
   slots: ExtractSlot[];
+  pulled?: Transition;
 };
 
 export type TileInteractions = {
@@ -507,6 +509,7 @@ const extractSchema = v.object({
       slots.filter((slot): slot is ExtractSlot => slot != null).slice(0, MAX_EXTRACT_SLOTS),
     ),
   ),
+  pulled: v.optional(v.unknown()),
 });
 
 const extractCache = new WeakMap<TileDef, ExtractInteraction | null>();
@@ -517,9 +520,22 @@ export function resolveExtract(def: TileDef): ExtractInteraction | null {
 
   const raw = def.interactions?.extract;
   const parsed = raw == null ? null : v.safeParse(extractSchema, raw);
-  const extract = parsed?.success && parsed.output.slots.length > 0 ? parsed.output : null;
+  const extract =
+    parsed?.success && parsed.output.slots.length > 0 ? withPullEffect(parsed.output) : null;
   extractCache.set(def, extract);
   return extract;
+}
+
+function withPullEffect({
+  pulled: raw,
+  ...extract
+}: v.InferOutput<typeof extractSchema>): ExtractInteraction {
+  const pulled = resolveTransition(raw);
+  return pulled ? { ...extract, pulled } : extract;
+}
+
+export function pullEffect(def: TileDef | undefined): Transition | undefined {
+  return def ? resolveExtract(def)?.pulled : undefined;
 }
 
 export const DEFAULT_EXTRACT_VERB = "Gather";
@@ -928,6 +944,7 @@ export function interactionsForSave(
           tileId: extract.tileId.trim(),
           durationMs: Math.max(0, Math.round(extract.durationMs)),
           slots: savedSlots.slice(0, MAX_EXTRACT_SLOTS),
+          ...(extract.pulled ? { pulled: extract.pulled } : {}),
         }
       : undefined;
   const teleport = interactions?.teleport;

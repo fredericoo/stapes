@@ -6,7 +6,7 @@ import {
   type Transition,
 } from "../lib/tileTransition";
 import { DEFAULT_PARTICLES } from "../lib/particleVfx";
-import { CELL_SIZE } from "../lib/types";
+import { CELL_SIZE, normalizeTileDef } from "../lib/types";
 import {
   LIGHT_FADE_STEP_MS,
   MAX_LIVE_TRANSITIONS,
@@ -23,6 +23,7 @@ import {
   resolveTransitionSlot,
   formerSlot,
   transitionAddress,
+  transitionForNote,
   transitionPose,
   transitionUniforms,
   type LiveTransition,
@@ -243,6 +244,41 @@ describe("formerSlot", () => {
 
   it("has nowhere to play when the old board has no such body either", () => {
     expect(formerSlot(hit("arrow"), placed("grass"))).toBeUndefined();
+  });
+
+  it("finds a resource its last pull took away", () => {
+    const spent: TileTransitionNote = { ...hit(), tileId: "crystal", pulled: true };
+
+    expect(formerSlot(spent, placed("grass", "crystal"))).toBe(1);
+  });
+});
+
+describe("transitionForNote", () => {
+  const chip = sideOf({ durationMs: 200, scale: {} });
+  const crystal = normalizeTileDef({
+    id: "crystal",
+    name: "Crystal",
+    height: 4,
+    type: "simple",
+    kind: "prop",
+    attributes: {},
+    sprite: { frames: [] },
+    transitions: { appear: sweep },
+    interactions: {
+      extract: {
+        durability: 2,
+        tileId: "",
+        durationMs: 1_000,
+        slots: [{ tileId: "shard", chance: 100 }],
+        pulled: chip,
+      },
+    },
+  });
+  const arrived: TileTransitionNote = { ...note("t1"), tileId: "crystal" };
+
+  it("plays a pull's effect off the extract, and the tile's own appear otherwise", () => {
+    expect(transitionForNote({ ...arrived, pulled: true }, { crystal })).toEqual(chip);
+    expect(transitionForNote(arrived, { crystal })).toEqual(sweep);
   });
 });
 
