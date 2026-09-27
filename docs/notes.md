@@ -4891,7 +4891,9 @@ air.
   `appear` — a struck body stays on the board and has to end drawn as itself, so
   the blow scatters it and it resolves; a `disappear` would dissolve it away and
   pop it back. Raising it in `ageFlights` as well would play the same effect
-  twice, once in the air and once on the body.
+  twice, once in the air and once on the body. "Always" includes a bolt on its
+  own caster, which throws nothing: its `hit` still plays, on the caster, so a
+  mend can name a projectile for the hit alone.
 - **A killing hit plays its burst where the body stood, and nothing else.**
   `strikeBody` runs before the damage, so a killing blow still sends a hit, but
   `kill` takes the body off the map on the same tick. The renderer looks for an
