@@ -192,12 +192,14 @@ describe("craft", () => {
 
 describe("command", () => {
   it("carries the line as typed, because the grammar is not the wire's business", () => {
-    const message = { type: "command", text: "/mastery sharp 10 self" };
+    const message = { type: "command", text: "/mastery sharp 10 self", requestId: 4 };
     expect(parsed(message)).toEqual(message);
   });
 
   it("drops one long enough to be an attack rather than a command", () => {
-    expect(parsed({ type: "command", text: "/".repeat(MAX_COMMAND_LENGTH + 1) })).toBeNull();
+    expect(
+      parsed({ type: "command", text: "/".repeat(MAX_COMMAND_LENGTH + 1), requestId: 0 }),
+    ).toBeNull();
   });
 });
 
@@ -389,6 +391,26 @@ describe("a kit that will not parse", () => {
 });
 
 describe("nothing is quietly dropped in transit", () => {
+  it.each([
+    {
+      ok: true,
+      notice: "Deer appears at 0, 1, 0",
+      ids: ["npc:0,1,0,1"],
+      data: { command: "tile", tileId: "deer", at: { x: 0, y: 1, z: 0 }, count: 1 },
+    },
+    {
+      ok: false,
+      notice: 'No status called "burnt". Try burned, poisoned',
+      refusal: { kind: "unknownStatus", typed: "burnt", known: ["burned", "poisoned"] },
+    },
+  ])("carries every field of a command's reply (ok: $ok)", (reply) => {
+    const message = parseServerMessage(
+      JSON.stringify({ type: "commandReply", requestId: 2, reply }),
+    );
+
+    expect(message).toEqual({ type: "commandReply", requestId: 2, reply });
+  });
+
   const damageEvent = {
     kind: "damage" as const,
     id: "hit-1",

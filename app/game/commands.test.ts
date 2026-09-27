@@ -978,3 +978,38 @@ describe("what a summons announces", () => {
     expect(session.drainTransitions()).toEqual([]);
   });
 });
+
+describe("what a command answers", () => {
+  it("hands back the bodies it brought into the world, by the ids the board gives them", () => {
+    const session = world();
+    const reply = session.runCommand("/tile deer x2 0 1 0", "me");
+
+    const owners = stackAt(session, 0, 1, 0).flatMap((placed) => placed.owner ?? []);
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Deer ×2 appears at 0, 1, 0",
+      ids: owners,
+      data: { command: "tile", tileId: "deer", at: { x: 0, y: 1, z: 0 }, count: 2 },
+    });
+  });
+
+  it("answers with the sentence the author was told, not the one the target was", () => {
+    const session = world(["me", "you"]);
+    const reply = session.runCommand("/mastery arcane 12 you", "me");
+
+    expect(reply).toMatchObject({ ok: true, notice: "Yorick's arcane mastery is now 12" });
+    expect(session.drainNotices("me")).toEqual(["Yorick's arcane mastery is now 12"]);
+  });
+
+  it("answers a refusal with the sentence it says in the chat", () => {
+    const session = world();
+    const reply = session.runCommand("/tile nothing", "me");
+
+    expect(reply).toEqual({
+      ok: false,
+      notice: 'No tile called "nothing"',
+      refusal: { kind: "unknownTile", typed: "nothing" },
+    });
+    expect(session.drainNotices("me")).toEqual(['No tile called "nothing"']);
+  });
+});

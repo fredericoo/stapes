@@ -7347,6 +7347,36 @@ is the line a player is shown when they get one wrong.
   "Salamander cannot be Burned" for a body whose `immuneTo` list holds it. Every
   other caller discards the answer.
 
+### Every command is answered with data as well as a sentence
+
+The sentence is for the person at the keyboard; an agent driving the page, or a
+script driving a world, needs to know whether the command worked and what it
+made without reading the chat. So `runCommand` returns a `CommandReply` as well
+as saying its sentence: `ok`, the sentence the author was told, and either the
+`refusal` or the command's `data` and the `ids` of any bodies it brought into
+the world. `RemoteSession.command(text)` resolves to it, and `say` goes through
+the same method and drops the answer.
+
+- **The frame carries a `requestId`, and the answer is a `commandReply` frame
+  with the same id.** `PROTOCOL_VERSION` went to 23 for it. `say` has no use for
+  the id, but a caller that sends two commands before either answer arrives
+  has to be able to tell the answers apart.
+- **The answer is sent from the tick, after the patch**, not from
+  `webSocketMessage` where the command runs. The command changes the board at
+  once, but the board reaches clients in the next tick's patch, so an answer
+  sent straight away would arrive before the change it reports: a caller that
+  awaited it and then read the board would not find what the command made.
+- **A player with no body on the board is answered too**, with
+  `nowhereToPlace`. The frame used to be dropped on the way in with every
+  other message from a body that is not there, which left a caller waiting for
+  an answer that would never come.
+- **`notice` is the first sentence said to the author while the command ran.**
+  `/mastery sharp 10 <player id>` tells the target one thing and the author another,
+  and the reply is the author's.
+- **The wire reads `refusal` and `data` as loose objects** with only their `kind`
+  or `command` checked, so each variant's fields cross it without a schema per
+  refusal. `v.object` would strip every field it did not name.
+
 ### `/goto` is absolute, `/move` is relative, and that is why they are two
 
 `/tile` spells the difference between a cell of the map and a step from where

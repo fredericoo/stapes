@@ -517,7 +517,34 @@ describe("RemoteSession chat", () => {
     expect(JSON.parse(socket.sent.at(-1)!)).toEqual({
       type: "command",
       text: "/mastery sharp 10",
+      requestId: expect.any(Number),
     });
+  });
+
+  it("hands each caller the reply to its own command, in whatever order they come", async () => {
+    const { socket, session } = connected();
+    const first = session.command("/time 12:00");
+    const second = session.command("/fly");
+    const [asked, askedAgain] = socket.sent
+      .slice(-2)
+      .map((raw) => (JSON.parse(raw) as { requestId: number }).requestId);
+
+    const refused = {
+      ok: false,
+      notice: "There is no /fly command",
+      refusal: { kind: "unknownCommand", typed: "/fly" },
+    };
+    const answered = {
+      ok: true,
+      notice: "It is now 12:00",
+      ids: [],
+      data: { command: "time", minutes: 720 },
+    };
+    socket.deliver({ type: "commandReply", requestId: askedAgain, reply: refused });
+    socket.deliver({ type: "commandReply", requestId: asked, reply: answered });
+
+    await expect(first).resolves.toEqual(answered);
+    await expect(second).resolves.toEqual(refused);
   });
 
   it("still says a sentence with a slash inside it", () => {

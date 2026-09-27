@@ -134,7 +134,9 @@ import {
   TILE_COMMAND,
   TIME_COMMAND,
   type Command,
+  type CommandOutcome,
   type CommandRefusal,
+  type CommandReply,
   type HealthCommand,
   type MasteryCommand,
   type StatusCommand,
@@ -4349,22 +4351,37 @@ export class GameSession implements PlaySession {
     });
   }
 
-  runCommand(raw: string, id: string = LOCAL_ACTOR_ID) {
+  runCommand(raw: string, id: string = LOCAL_ACTOR_ID): CommandReply {
     const parsed = parseCommand(raw);
-    if (!parsed.ok) {
-      this.say(id, commandRefusalNotice(parsed.refusal));
-      return;
-    }
+    if (!parsed.ok) return this.refuse(id, parsed.refusal);
 
-    const refusal = this.runParsedCommand(parsed.command, id);
-    if (refusal) this.say(id, commandRefusalNotice(refusal));
+    const told = this.pendingNotices.length;
+    const outcome = this.runParsedCommand(parsed.command, id);
+    if (!outcome.ok) return this.refuse(id, outcome.refusal);
+
+    const notice = this.pendingNotices.slice(told).find((pending) => pending.actorId === id);
+    return {
+      ok: true,
+      notice: notice?.text ?? null,
+      ids: [...(outcome.ids ?? [])],
+      data: outcome.data,
+    };
   }
 
-  refuseCommand(id: string = LOCAL_ACTOR_ID) {
-    this.say(id, commandRefusalNotice({ kind: "notAdmin" }));
+  refuseCommand(
+    id: string = LOCAL_ACTOR_ID,
+    refusal: CommandRefusal = { kind: "notAdmin" },
+  ): CommandReply {
+    return this.refuse(id, refusal);
   }
 
-  private runParsedCommand(command: Command, id: string): CommandRefusal | null {
+  private refuse(id: string, refusal: CommandRefusal): CommandReply {
+    const notice = commandRefusalNotice(refusal);
+    this.say(id, notice);
+    return { ok: false, notice, refusal };
+  }
+
+  private runParsedCommand(command: Command, id: string): CommandOutcome {
     switch (command.name) {
       case MASTERY_COMMAND:
         return this.runMasteryCommand(command, id);
@@ -4383,10 +4400,10 @@ export class GameSession implements PlaySession {
     }
   }
 
-  private runTimeCommand(command: TimeCommand, id: string): null {
+  private runTimeCommand(command: TimeCommand, id: string): CommandOutcome {
     this.pendingClockSet = command.minutes;
     this.say(id, timeNotice(command.minutes));
-    return null;
+    return { ok: true, data: { command: TIME_COMMAND, minutes: command.minutes } };
   }
 
   private canStandIn(actor: ActorRuntime, to: Coord): boolean {
@@ -4401,12 +4418,12 @@ export class GameSession implements PlaySession {
   private runGotoCommand(
     command: Extract<Command, { name: typeof GOTO_COMMAND }>,
     id: string,
-  ): CommandRefusal | null {
+  ): CommandOutcome {
     const actor = this.actors.get(id);
     const loc = actor ? this.tryLocate(actor) : null;
-    if (!actor || !loc) return { kind: "nowhereToPlace" };
+    if (!actor || !loc) return { ok: false, refusal: { kind: "nowhereToPlace" } };
 
-    return this.putBodyAt(actor, loc, {
+    return this.putBodyAt(GOTO_COMMAND, actor, loc, {
       x: command.at.x,
       y: command.at.y,
       z: command.at.z ?? loc.z,
@@ -4416,38 +4433,47 @@ export class GameSession implements PlaySession {
   private runMoveCommand(
     command: Extract<Command, { name: typeof MOVE_COMMAND }>,
     id: string,
-  ): CommandRefusal | null {
+  ): CommandOutcome {
     const actor = this.actors.get(id);
     const loc = actor ? this.tryLocate(actor) : null;
-    if (!actor || !loc) return { kind: "nowhereToPlace" };
+    if (!actor || !loc) return { ok: false, refusal: { kind: "nowhereToPlace" } };
 
-    return this.putBodyAt(actor, loc, {
+    return this.putBodyAt(MOVE_COMMAND, actor, loc, {
       x: loc.x + command.by.x,
       y: loc.y + command.by.y,
       z: loc.z + command.by.z,
     });
   }
 
-  private putBodyAt(actor: ActorRuntime, loc: ActorLocation, to: Coord): CommandRefusal | null {
-    if (to.x === loc.x && to.y === loc.y && to.z === loc.z) return null;
-    if (!this.canStandIn(actor, to)) return { kind: "noRoom", at: to };
+  private putBodyAt(
+    name: typeof GOTO_COMMAND | typeof MOVE_COMMAND,
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    to: Coord,
+  ): CommandOutcome {
+    const arrived: CommandOutcome = {
+      ok: true,
+      data: { command: name, target: actor.id, at: { x: to.x, y: to.y, z: to.z } },
+    };
+    if (to.x === loc.x && to.y === loc.y && to.z === loc.z) return arrived;
+    if (!this.canStandIn(actor, to)) return { ok: false, refusal: { kind: "noRoom", at: to } };
 
     this.moveThrough(actor, to);
     this.statusOnArrival(actor);
     this.settleBoardNow();
-    return null;
+    return arrived;
   }
 
-  private runMasteryCommand(command: MasteryCommand, id: string): CommandRefusal | null {
+  private runMasteryCommand(command: MasteryCommand, id: string): CommandOutcome {
     const { mastery, level, target } = command;
     const targetId = target ?? id;
     const actor = this.actors.get(targetId);
-    if (!actor) return { kind: "noSuchTarget", typed: targetId };
+    if (!actor) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
 
     if (!this.setMastery(actor, mastery, level)) {
       return {
-        kind: "unteachableTarget",
-        name: this.bodyName(targetId) ?? targetId,
+        ok: false,
+        refusal: { kind: "unteachableTarget", name: this.bodyName(targetId) ?? targetId },
       };
     }
 
@@ -4455,18 +4481,18 @@ export class GameSession implements PlaySession {
     if (actor.id !== id) {
       this.say(id, otherMasteryNotice(this.bodyName(actor.id) ?? actor.id, mastery, level));
     }
-    return null;
+    return { ok: true, data: { command: MASTERY_COMMAND, target: actor.id, mastery, level } };
   }
 
-  private runTileCommand(command: TileCommand, id: string): CommandRefusal | null {
+  private runTileCommand(command: TileCommand, id: string): CommandOutcome {
     const actor = this.actors.get(id);
     const from = actor ? this.tryLocate(actor) : null;
-    if (!from) return { kind: "nowhereToPlace" };
+    if (!from) return { ok: false, refusal: { kind: "nowhereToPlace" } };
 
     const def = this.tilesById[command.tileId];
-    if (!def) return { kind: "unknownTile", typed: command.tileId };
+    if (!def) return { ok: false, refusal: { kind: "unknownTile", typed: command.tileId } };
     if (def.id === PLAYER_TILE_ID) {
-      return { kind: "spawnMarkerTile", typed: command.tileId };
+      return { ok: false, refusal: { kind: "spawnMarkerTile", typed: command.tileId } };
     }
 
     const at = resolveCell(command.at, from);
@@ -4477,7 +4503,7 @@ export class GameSession implements PlaySession {
     let formed: number[] = [];
     for (let placement = 0; placement < command.count; placement++) {
       if (!canPlace(candidate, at.x, at.y, at.z, def, this.tilesById).ok) {
-        return { kind: "noRoom", at };
+        return { ok: false, refusal: { kind: "noRoom", at } };
       }
 
       const stack = getStack(candidate, at.x, at.y, at.z);
@@ -4514,7 +4540,11 @@ export class GameSession implements PlaySession {
     this.reindexCells([at]);
     this.settleBoardNow();
     this.say(id, tileNotice(def.name, at, command.count));
-    return null;
+    return {
+      ok: true,
+      data: { command: TILE_COMMAND, tileId: def.id, at, count: command.count },
+      ids: owners,
+    };
   }
 
   private summonedOwnerId(
@@ -4525,34 +4555,39 @@ export class GameSession implements PlaySession {
     return this.actors.has(home) || alsoTaken.has(home) ? `${home},${crypto.randomUUID()}` : home;
   }
 
-  private runStatusCommand(command: StatusCommand, authorId: string): CommandRefusal | null {
+  private runStatusCommand(command: StatusCommand, authorId: string): CommandOutcome {
     const targetId = command.target ?? authorId;
     const actor = this.actors.get(targetId);
-    if (!actor) return { kind: "noSuchTarget", typed: targetId };
+    if (!actor) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
 
     const { statusId } = command;
     if (statusId === null) {
       actor.statuses = [];
       this.noteStatusReading(actor);
       this.say(authorId, statusesClearedNotice());
-      return null;
+      return {
+        ok: true,
+        data: { command: STATUS_COMMAND, target: actor.id, statusId: null, outcome: "cleared" },
+      };
     }
 
     const def = this.statusDefs[statusId];
     if (!def) {
       return {
-        kind: "unknownStatus",
-        typed: statusId,
-        known: Object.keys(this.statusDefs),
+        ok: false,
+        refusal: { kind: "unknownStatus", typed: statusId, known: Object.keys(this.statusDefs) },
       };
     }
 
     const outcome = this.grantStatus(actor, { id: def.id });
     if (outcome === "refused") {
       return {
-        kind: "immuneTarget",
-        name: this.bodyName(targetId) ?? targetId,
-        status: def.name,
+        ok: false,
+        refusal: {
+          kind: "immuneTarget",
+          name: this.bodyName(targetId) ?? targetId,
+          status: def.name,
+        },
       };
     }
     if (targetId !== authorId) {
@@ -4560,21 +4595,24 @@ export class GameSession implements PlaySession {
     } else if (outcome === "refreshed") {
       this.say(authorId, statusAcquiredNotice(def.name));
     }
-    return null;
+    return {
+      ok: true,
+      data: { command: STATUS_COMMAND, target: actor.id, statusId: def.id, outcome },
+    };
   }
 
-  private runHealthCommand(command: HealthCommand, authorId: string): CommandRefusal | null {
+  private runHealthCommand(command: HealthCommand, authorId: string): CommandOutcome {
     const targetId = command.target ?? authorId;
     const actor = this.actors.get(targetId);
-    if (!actor) return { kind: "noSuchTarget", typed: targetId };
+    if (!actor) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
 
     const change = command.health;
     const stats = this.battlerOf(actor);
     const before = this.hpOf(actor);
     if (!stats || before === null) {
       return {
-        kind: "unharmableTarget",
-        name: this.bodyName(actor.id) ?? actor.id,
+        ok: false,
+        refusal: { kind: "unharmableTarget", name: this.bodyName(actor.id) ?? actor.id },
       };
     }
 
@@ -4590,8 +4628,12 @@ export class GameSession implements PlaySession {
       this.applyHealing(actor, delta);
     }
 
-    this.say(authorId, healthNotice(this.hpOf(actor) ?? 0, stats.maxHp));
-    return null;
+    const hp = this.hpOf(actor) ?? 0;
+    this.say(authorId, healthNotice(hp, stats.maxHp));
+    return {
+      ok: true,
+      data: { command: HEALTH_COMMAND, target: actor.id, hp, maxHp: stats.maxHp },
+    };
   }
 
   private setMastery(actor: ActorRuntime, mastery: Mastery, level: number): boolean {
