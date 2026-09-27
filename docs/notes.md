@@ -4813,8 +4813,8 @@ air.
   `appear` in the new map, found no body, and dropped the whole note — the
   sparks as well, although they need only a place to stand. Only a creature
   with a `disappear` of its own showed anything on a kill. Now, when
-  `markForming` cannot find a struck body, `throwStruckBurst` finds it in
-  `prevMap` (see `struckRemainsSlot`) and plays the hit's particles there, with
+  `markForming` cannot find a struck body, `throwBurstWhereItStood` finds it in
+  `prevMap` (see `formerSlot`) and plays the hit's particles there, with
   no mesh. The sweep and the scale are not played: they are done to a sprite,
   and a copy wearing an `appear` would climb back to whole and then vanish. A
   body's own `disappear` still plays beside the sparks.

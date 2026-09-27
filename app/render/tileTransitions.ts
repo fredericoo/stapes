@@ -72,7 +72,7 @@ export function resolveTransitionSlot(
   return only;
 }
 
-export function struckRemainsSlot(
+export function formerSlot(
   note: TileTransitionNote,
   previousStack: readonly { tileId: string }[],
 ): number | undefined {

@@ -48,7 +48,7 @@ import {
   pixelSnappedQuad,
   rejoinsBatch,
   resolveTransitionSlot,
-  struckRemainsSlot,
+  formerSlot,
   transitionAddress,
   transitionPose,
   noTransitionUniforms,
@@ -2136,7 +2136,7 @@ export class WorldRenderer {
       };
       const played =
         live.note.side === "appear"
-          ? this.markForming(state, view.map) || this.throwStruckBurst(state)
+          ? this.markForming(state, view.map) || this.throwBurstWhereItStood(state)
           : this.playOutCopy(state);
       if (played) this.liveTransitions.set(live.note.id, state);
     }
@@ -2180,12 +2180,12 @@ export class WorldRenderer {
     return items.length > 0;
   }
 
-  private throwStruckBurst(state: TransitionState): boolean {
+  private throwBurstWhereItStood(state: TransitionState): boolean {
     const prev = this.prevMap;
     const { note } = state.live;
     if (!prev) return false;
     const stack = getStack(prev, note.x, note.y, note.z);
-    const slot = struckRemainsSlot(note, stack);
+    const slot = formerSlot(note, stack);
     if (slot === undefined) return false;
     const item = this.cellItems(prev, note.z, note.x, note.y, stack).find(
       (candidate) => candidate.stackIndex === slot,

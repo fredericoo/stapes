@@ -21,7 +21,7 @@ import {
   pixelSnappedQuad,
   rejoinsBatch,
   resolveTransitionSlot,
-  struckRemainsSlot,
+  formerSlot,
   transitionAddress,
   transitionPose,
   transitionUniforms,
@@ -220,7 +220,7 @@ describe("resolveTransitionSlot", () => {
   });
 });
 
-describe("struckRemainsSlot", () => {
+describe("formerSlot", () => {
   const placed = (...ids: string[]) => ids.map((tileId) => ({ tileId }));
   const hit = (struckBy?: string): TileTransitionNote => ({
     id: "t1",
@@ -234,15 +234,15 @@ describe("struckRemainsSlot", () => {
   });
 
   it("finds a killed body where the old board still holds it", () => {
-    expect(struckRemainsSlot(hit("arrow"), placed("grass", "rat"))).toBe(1);
+    expect(formerSlot(hit("arrow"), placed("grass", "rat"))).toBe(1);
   });
 
   it("leaves an appear that is not a hit to be dropped as before", () => {
-    expect(struckRemainsSlot(hit(), placed("grass", "rat"))).toBeUndefined();
+    expect(formerSlot(hit(), placed("grass", "rat"))).toBeUndefined();
   });
 
   it("has nowhere to play when the old board has no such body either", () => {
-    expect(struckRemainsSlot(hit("arrow"), placed("grass"))).toBeUndefined();
+    expect(formerSlot(hit("arrow"), placed("grass"))).toBeUndefined();
   });
 });
 
