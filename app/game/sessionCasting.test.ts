@@ -154,6 +154,10 @@ const props: TileDef[] = [
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
     cooldownMs: MEND_COOLDOWN_MS,
   }),
+  stoneTile("mote-mend-stone", {
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster", projectile: "arcane-mote" },
+    cooldownMs: MEND_COOLDOWN_MS,
+  }),
   stoneTile("bolt-stone", {
     effect: { kind: "bolt", on: "target", damage: 4 },
     cooldownMs: 10_000,
@@ -1236,6 +1240,21 @@ describe("a bolt thrown at somebody", () => {
 
     expect(play.cast(squareSlot("charm"))).toBe(true);
     expect(play.drainProjectiles()).toHaveLength(0);
+  });
+
+  it("dresses its caster in the projectile's hit when the bolt lands on them", () => {
+    const play = session({ charm: "mote-mend-stone" });
+    play.runCommand("/health 10");
+    play.drainTransitions();
+    play.drainProjectiles();
+
+    expect(play.cast(squareSlot("charm"))).toBe(true);
+
+    expect(play.drainProjectiles()).toHaveLength(0);
+    const struck = play.drainTransitions().filter((note) => note.struckBy);
+    expect(struck).toHaveLength(1);
+    expect(struck[0]!.struckBy).toBe("arcane-mote");
+    expect(struck[0]!.tileId).toBe("player");
   });
 
   it("pays the caster for what it actually did", () => {

@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { clamp01, hexToRgb01, oklabToLinearRgb, srgbToOklab } from "./palette";
+import { isOffsetFormula } from "./particleOffset";
 
 export type RampStop = {
   at: number;
@@ -17,9 +18,11 @@ export type ParticleEmitterDef = {
   riseTo: number;
   driftCellsPerSecond: number;
   gravity: number;
-  windX: number;
-  windY: number;
+  offsetX: string;
+  offsetY: string;
+  offsetElev: string;
   lit: boolean;
+  ownDepth: boolean;
   shape: ParticleShape | null;
   radiusFromPx: number;
   radiusToPx: number;
@@ -75,9 +78,11 @@ export const DEFAULT_PARTICLES: ParticleEmitterDef = {
   riseTo: 6,
   driftCellsPerSecond: 0.25,
   gravity: -1.6,
-  windX: 0,
-  windY: 0,
+  offsetX: "",
+  offsetY: "",
+  offsetElev: "",
   lit: true,
+  ownDepth: false,
   shape: null,
   radiusFromPx: 1,
   radiusToPx: 2,
@@ -97,9 +102,11 @@ export const DEFAULT_IMPACT: ParticleEmitterDef = {
   riseTo: 5,
   driftCellsPerSecond: 0.9,
   gravity: -18,
-  windX: 0,
-  windY: 0,
+  offsetX: "",
+  offsetY: "",
+  offsetElev: "",
   lit: false,
+  ownDepth: false,
   shape: null,
   radiusFromPx: 1,
   radiusToPx: 1,
@@ -117,7 +124,7 @@ export const unitIntervalSchema = v.pipe(v.number(), v.minValue(0), v.maxValue(1
 
 const particleTtlMs = v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_TTL_MS));
 
-const wind = v.pipe(v.number(), v.minValue(-32), v.maxValue(32));
+const offsetFormula = v.pipe(v.string(), v.check(isOffsetFormula, "an offset is not a formula"));
 
 const shapeSchema = v.pipe(
   v.array(
@@ -142,9 +149,11 @@ export const particleEmitterSchema = v.pipe(
     riseTo: v.pipe(v.number(), v.minValue(-32), v.maxValue(32)),
     driftCellsPerSecond: v.pipe(v.number(), v.minValue(0), v.maxValue(8)),
     lit: v.optional(v.boolean(), false),
+    ownDepth: v.optional(v.boolean(), false),
     gravity: v.pipe(v.number(), v.minValue(-32), v.maxValue(32)),
-    windX: v.optional(wind, 0),
-    windY: v.optional(wind, 0),
+    offsetX: v.optional(offsetFormula, ""),
+    offsetY: v.optional(offsetFormula, ""),
+    offsetElev: v.optional(offsetFormula, ""),
     shape: v.optional(v.nullable(shapeSchema), null),
     radiusFromPx: radiusPx,
     radiusToPx: radiusPx,
@@ -163,6 +172,23 @@ export const particleEmitterSchema = v.pipe(
   ),
   v.check((raw) => raw.riseTo >= raw.riseFrom, "particle rise range is inverted"),
 );
+
+export function validateParticleEmitter(def: ParticleEmitterDef): string | null {
+  const parsed = v.safeParse(particleEmitterSchema, def);
+  return parsed.success ? null : parsed.issues[0].message;
+}
+
+/** valibot types the defaults of a pipe as undefined, so this asks the object inside it. */
+const EMITTER_DEFAULTS = v.getDefaults(particleEmitterSchema.pipe[0]);
+
+/**
+ * A block read straight from a file can leave out any field the schema has a
+ * default for, whatever its type says. The game only sees blocks that went
+ * through the schema; the editors show a block as it is in the file.
+ */
+export function completeParticles(raw: ParticleEmitterDef): ParticleEmitterDef {
+  return { ...EMITTER_DEFAULTS, ...raw };
+}
 
 /**
  * The table holds linear-light RGB, not the sRGB the stops are written in. The

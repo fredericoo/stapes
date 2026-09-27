@@ -8,7 +8,7 @@ import type { LevelLightUniforms } from "./worldQuads";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { coordKey } from "../lib/types";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
-import { PX_PER_HEIGHT } from "../lib/geometry";
+import { depthBox, depthStackBias, fragDepth, PX_PER_HEIGHT } from "../lib/geometry";
 
 function lightUniforms(): LevelLightUniforms {
   return {
@@ -157,6 +157,66 @@ describe("where a particle lands", () => {
     const absolute = z * HEIGHT_PER_LEVEL + localElev;
     const viaProjection = cell * CELL_SIZE - CELL_SIZE * z - PX_PER_HEIGHT * localElev;
     expect(particleWorldPx(cell, absolute)).toBeCloseTo(viaProjection);
+  });
+});
+
+describe("where a particle sorts", () => {
+  const body = depthBox(3, 4, 0, HEIGHT_PER_LEVEL);
+  const bodyBias = depthStackBias(0, 1);
+  const plumeBias = depthStackBias(0, 2);
+
+  function depthsAt(at: { x: string; y: string; elev: number }, ownDepth: boolean) {
+    const l = layer();
+    l.setEmitters([
+      emitter(
+        { box: depthBox(3, 4, HEIGHT_PER_LEVEL, 2 * HEIGHT_PER_LEVEL), stackBias: plumeBias },
+        {
+          spawnRadiusCells: 0,
+          spawnElevFrom: at.elev,
+          spawnElevTo: at.elev,
+          riseFrom: 0,
+          riseTo: 0,
+          driftCellsPerSecond: 0,
+          gravity: 0,
+          offsetX: at.x,
+          offsetY: at.y,
+          ownDepth,
+        },
+      ),
+    ]);
+    l.update(1_000, undefined);
+    const position = attr(l, "position");
+    const box = attr(l, "aBox");
+    const sx = (position.getX(0) + position.getX(1)) / 2;
+    const sy = (position.getY(0) + position.getY(2)) / 2;
+    const written = {
+      eastPx: box.getX(0),
+      southPx: box.getY(0),
+      foot: box.getZ(0),
+      top: box.getW(0),
+    };
+    return {
+      particle: fragDepth(written, sx, sy, plumeBias),
+      body: fragDepth(body, sx, sy, bodyBias),
+    };
+  }
+
+  const farSide = { x: "-0.9", y: "-0.9", elev: 0.5 };
+  const nearSide = { x: "0.8", y: "0.8", elev: 3 };
+
+  it("draws even the far side of an orbit over the body while the plume sorts as one", () => {
+    const { particle, body: bodyDepth } = depthsAt(farSide, false);
+    expect(particle).toBeLessThan(bodyDepth);
+  });
+
+  it("puts the far side of an orbit behind the body once each particle sorts on its own", () => {
+    const { particle, body: bodyDepth } = depthsAt(farSide, true);
+    expect(particle).toBeGreaterThan(bodyDepth);
+  });
+
+  it("keeps the near side in front of the body when each particle sorts on its own", () => {
+    const { particle, body: bodyDepth } = depthsAt(nearSide, true);
+    expect(particle).toBeLessThan(bodyDepth);
   });
 });
 

@@ -4891,7 +4891,9 @@ air.
   `appear` — a struck body stays on the board and has to end drawn as itself, so
   the blow scatters it and it resolves; a `disappear` would dissolve it away and
   pop it back. Raising it in `ageFlights` as well would play the same effect
-  twice, once in the air and once on the body.
+  twice, once in the air and once on the body. "Always" includes a bolt on its
+  own caster, which throws nothing: its `hit` still plays, on the caster, so a
+  mend can name a projectile for the hit alone.
 - **A killing hit plays its burst where the body stood, and nothing else.**
   `strikeBody` runs before the damage, so a killing blow still sends a hit, but
   `kill` takes the body off the map on the same tick. The renderer looks for an
@@ -10331,10 +10333,37 @@ it crosses the player sprite, which is also mostly white, the two run together.
 
 ### A plume sorts as a two-high tile on top of the affected stack
 
-Not per particle. Every spark of one emitter carries the same depth box, so a
-particle that has drifted a cell away still sorts where the fire is. Boxes
-derived per particle would have sparks crossing the sprite's own depth as they
-rose, and a fire that flickers *behind* the thing on fire reads as a bug.
+Not per particle, unless the emitter asks. Every spark of one emitter carries
+the same depth box, so a particle that has drifted a cell away still sorts where
+the fire is. Boxes derived per particle would have sparks crossing the sprite's
+own depth as they rose, and a fire that flickers *behind* the thing on fire
+reads as a bug.
+
+**An orbit is the exception, and `ownDepth` is how an emitter asks for it.** A
+spiral round a body has to pass behind it on the far side, which is that same
+flicker done on purpose. With `ownDepth` on, `ParticleLayer.boxAtPoint` gives
+each particle a box with no volume whose east and south edges run through the
+particle, so along the ray through its own pixel the box's surface is the
+particle's own elevation, and the depth the world has already written hides it
+wherever something is between it and the camera. That depth is the mask: there
+is no second pass and no extra draw, only four numbers per particle in the box
+attribute every quad already carries. Two things follow from sorting where it
+really is:
+
+- **Behind is the camera's.** It looks from the south-east and above, so a
+  particle west of a body is behind it as much as one north of it, and height
+  counts: one above a head is not hidden by the body under it. A rule on the
+  particle's y alone would get the west side wrong and pop as a particle
+  crossed it.
+- **It sorts against everything, not only its body.** An orbit beside a wall
+  goes behind the wall, and a particle at floor level ties with the floor and
+  fights it, so an emitter that sorts on its own should start a little above
+  the floor.
+- **It only shows where the orbit crosses the sprite.** A particle behind a
+  body draws up and to the left of its cell, two pixels for every unit of
+  height, so an orbit that is already above the head by the time it goes round
+  the back passes beside the sprite, and nothing hides it. The pass behind has
+  to happen low.
 
 Opacity is legal here for one reason: particles are blended into the scene
 target **before** `app/render/palettePass.ts` quantises, so a half-faded spark is
@@ -10362,22 +10391,64 @@ the same rule when it reaches a shader as a number. The dissolve edge
 entry back through `THREE.Color` as the sRGB the scene target stores, so a table
 written in sRGB fails the ramp tests.
 
-### A plume can be blown sideways, and the wind is an acceleration
+### A particle's path is a formula of its age, added to where it would be
 
 `driftCellsPerSecond` is symmetric — a per-axis roll in ±drift, drawn once at
-birth — so it spreads a plume and never moves one. `windX` / `windY` are the
-other thing: cells per second squared along the map's axes, integrated in
-`ParticleSystem.advance` exactly as `gravity` already is on the vertical.
+birth — so it spreads a plume and never moves one. `offsetX`, `offsetY` and
+`offsetElev` are the other thing: formulas (`app/lib/particleOffset.ts`) of the
+particle's age, **added to** wherever rise, drift and gravity carry it — cells
+east, cells south and height units up. Blank is none.
 
-**An acceleration and not a speed**, and the difference is the whole effect: a
-plume that leaves the chimney already travelling reads as a jet, and one that
-leaves it straight and bends over as it climbs reads as smoke in a breeze. Only
-an acceleration draws that curve, which is what `particles.test.ts` asserts —
-the second second of sideways travel has to be longer than the first, not merely
-non-zero.
+**An offset, not a force.** Each formula is read at the particle's current age
+whenever it is drawn and never integrated, so a circle is `0.5 * cos(6 *
+AGE_SEC)` east with `0.5 * sin(6 * AGE_SEC)` south, and it closes on itself at
+any frame rate. Written as a velocity or an acceleration, the same circle is a
+derivative the author has to work out, and summing it frame by frame lets the
+particle wander off the circle by an amount that depends on the frame rate. A
+steady wind is still one line: an acceleration `a` from rest is `a / 2 *
+AGE_SEC * AGE_SEC`. The fires in `data/tiles.json` are `0.175 * AGE_SEC *
+AGE_SEC` east and `-0.1 * AGE_SEC * AGE_SEC` south, so the plume leaves the
+flame straight and bends over as it climbs; only a term that grows faster than
+the age draws that curve, and a term in the age alone is a plume leaning from
+birth.
+
+**The variables** are `AGE_SEC` (seconds since birth), `LIFE` (0 at birth to 1
+at death, the fraction the ramp, radius and opacity are read at), `SEED` and
+`PI`; the functions are the status language's six plus `sin`, `cos`, `sqrt` and
+`pow`.
+`SEED` is drawn once per particle in `[0, 1)`. Without it every particle of one
+emitter starts at the same angle, so a ring is a chain of particles following
+one another round; `2 * PI * SEED` inside the `cos` and the `sin` starts each
+one somewhere of its own. It is held per particle, in a `Float64Array` because a
+float32 rounds a draw just under 1 up to 1, and `swapRemove` has to move it with
+the particle's other fields: leave it behind and a survivor takes the seed of
+the particle that died in its slot, and jumps across the circle.
+
+**The parser is the status formula's.** `app/lib/expression.ts` is the
+arithmetic both languages share, and each is a `Grammar` naming its variables
+and functions. An offset is not rounded, since a particle moves by fractions of
+a cell, and a non-finite result (`sqrt(0 - 1)`, a division by zero) is no offset
+rather than a `NaN` in the vertex buffer. A change to the core changes both
+languages; `formula.test.ts` is what shows the status one did not move.
+
+**They run when a particle is read, not when it moves.** `ParticleSystem.read`
+evaluates them, and the layer reads each live particle once a frame unless its
+plume is hidden; `advance` never does, and a plume with no offsets skips them.
+A full pool of 2,048 particles each running a spiral on all three axes reads in
+about 0.35 ms, against 0.04 ms with none. They are compiled when an emitter
+first appears and again only when their source text changes. The editor hands
+over a new config on every keystroke, and comparing the strings rather than the
+config object means a config rebuilt with the same formulas compiles nothing.
+
+**A formula that does not parse fails the emitter schema**, so it is dropped on
+the terms any malformed plume is (see "A tile emits because it is that tile"
+below), and a status carrying it does not resolve. The editor marks the field
+as it is typed, and neither editor will save it.
 
 Map axes, never screen ones. `+x` is east, `+y` is south, and the projection
-makes the diagonal, the same way it does for `rise`.
+makes the diagonal, the same way it does for `rise`: a circle in `offsetX` and
+`offsetY` is a circle on screen, and one in `offsetX` and `offsetElev` is
+sheared, because height goes up-left.
 
 ### A tile emits because it is that tile, not because something happened to it
 
@@ -10462,6 +10533,15 @@ the terms `clampTileLight` is silent: this is one author's own content, and a
 world that would not load over a smoke plume is worse than a chimney that has
 stopped smoking. The same parse is what fills in a field an authored block
 predates, so the renderer reads a complete emitter and never a partial one.
+
+**The tile editor refuses to save a malformed plume** rather than let the next
+load drop it, which would come back as the Particles switch turned off and the
+whole block gone. `buildSaved` runs `validateParticleEmitter` on the five places
+a tile carries an emitter — its own `particles`, each transition's burst, a
+projectile's hit and an extract's pull — and shows the schema's message. An
+emitter added anywhere else on a tile needs adding to that list. The status editor needs no list: its
+Save is off whenever `resolveStatus` refuses the draft, and the vfx is part of
+that parse.
 
 **The map editor draws no plumes**, tile or status: `/admin/map` is
 `app/editor/EditorRenderer.ts`, a separate renderer from the one play uses, with

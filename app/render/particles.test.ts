@@ -20,6 +20,19 @@ const emitter = (
   ...over,
 });
 
+const STILL: Partial<ParticleEmitterDef> = {
+  ratePerSecond: 1,
+  ttlFromMs: 9_000,
+  ttlToMs: 9_000,
+  spawnRadiusCells: 0,
+  spawnElevFrom: 0,
+  spawnElevTo: 0,
+  riseFrom: 0,
+  riseTo: 0,
+  driftCellsPerSecond: 0,
+  gravity: 0,
+};
+
 const blank = (): ParticleReading => ({
   x: 0,
   y: 0,
@@ -143,31 +156,61 @@ describe("living and dying", () => {
     expect(system.read(0, blank()).elev).toBeLessThan(rising);
   });
 
-  it("bends away under the wind rather than leaning from birth", () => {
+  it("goes round a circle when its offsets are one", () => {
     const system = new ParticleSystem(fixed(0.5));
     system.setEmitters([
       emitter(
         {},
         {
-          ratePerSecond: 1,
-          ttlFromMs: 9_000,
-          ttlToMs: 9_000,
-          driftCellsPerSecond: 0,
-          windX: 2,
-          windY: 0,
+          ...STILL,
+          offsetX: "cos(PI * AGE_SEC)",
+          offsetY: "sin(PI * AGE_SEC)",
         },
       ),
     ]);
     system.advance(1_000);
-    const born = system.read(0, blank());
-    expect(born.x).toBeCloseTo(4.5);
+    const expectAt = (x: number, y: number) => {
+      const p = system.read(0, blank());
+      expect(p.x).toBeCloseTo(x);
+      expect(p.y).toBeCloseTo(y);
+      expect(p.elev).toBeCloseTo(2);
+    };
+    expectAt(5.5, 6.5);
+    system.advance(500);
+    expectAt(4.5, 7.5);
+    system.advance(500);
+    expectAt(3.5, 6.5);
+  });
 
+  it("gives every particle a seed of its own, and keeps it when another dies", () => {
+    let draws = 0;
+    const system = new ParticleSystem(() => (draws++ * 0.137) % 1);
+    const seeded = { ...STILL, offsetElev: "SEED" };
+    const shortLived = emitter({ id: "a" }, { ...seeded, ttlFromMs: 400, ttlToMs: 400 });
+    const lasting = emitter({ id: "b", footElev: 10 }, seeded);
+    system.setEmitters([shortLived, lasting]);
     system.advance(1_000);
-    const first = system.read(0, blank()).x - 4.5;
+    const doomedSeed = system.read(0, blank()).elev - 2;
+    const survivorSeed = system.read(1, blank()).elev - 10;
+    expect(survivorSeed).not.toBeCloseTo(doomedSeed);
+
+    system.setEmitters([lasting]);
+    system.advance(500);
+    expect(system.count).toBe(1);
+    expect(system.read(0, blank()).elev - 10).toBeCloseTo(survivorSeed);
+  });
+
+  it("takes up an edited offset on a plume that is still running", () => {
+    const system = new ParticleSystem(fixed(0.5));
+    system.setEmitters([emitter({}, { ...STILL, ttlFromMs: 2_000, ttlToMs: 2_000 })]);
     system.advance(1_000);
-    const second = system.read(0, blank()).x - 4.5 - first;
-    expect(first).toBeGreaterThan(0);
-    expect(second).toBeGreaterThan(first);
+    system.advance(500);
+    expect(system.read(0, blank()).x).toBeCloseTo(4.5);
+
+    system.setEmitters([
+      emitter({}, { ...STILL, ttlFromMs: 2_000, ttlToMs: 2_000, offsetX: "4 * LIFE" }),
+    ]);
+    expect(system.read(0, blank()).x).toBeCloseTo(5.5);
   });
 
   it("leaves a still plume where the drift put it", () => {

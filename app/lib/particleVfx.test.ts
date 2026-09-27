@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import * as v from "valibot";
 import {
   compileRamp,
+  completeParticles,
   DEFAULT_PARTICLES,
   EMPTY_SHAPE,
+  type ParticleEmitterDef,
   particleEmitterSchema,
   RAMP_LUT_SIZE,
   rampIndexAt,
@@ -125,11 +127,19 @@ describe("what validates", () => {
     );
   });
 
-  it("defaults a plume authored before the wind to still air", () => {
-    const { windX: _x, windY: _y, ...stillAir } = DEFAULT_PARTICLES;
-    const parsed = v.parse(particleEmitterSchema, stillAir);
-    expect(parsed.windX).toBe(0);
-    expect(parsed.windY).toBe(0);
+  it("defaults a plume authored before offsets to none", () => {
+    const { offsetX: _x, offsetY: _y, offsetElev: _elev, ...still } = DEFAULT_PARTICLES;
+    const parsed = v.parse(particleEmitterSchema, still);
+    expect(parsed.offsetX).toBe("");
+    expect(parsed.offsetY).toBe("");
+    expect(parsed.offsetElev).toBe("");
+  });
+
+  it("refuses an offset that is not a formula", () => {
+    const circle = { ...DEFAULT_PARTICLES, offsetX: "cos(AGE_SEC)", offsetY: "sin(AGE_SEC)" };
+    expect(v.safeParse(particleEmitterSchema, circle).success).toBe(true);
+    const typo = { ...DEFAULT_PARTICLES, offsetElev: "cos(AGE_SEC" };
+    expect(v.safeParse(particleEmitterSchema, typo).success).toBe(false);
   });
 
   it("defaults a plume to lighting itself", () => {
@@ -138,6 +148,11 @@ describe("what validates", () => {
       lit: undefined,
     });
     expect(parsed.lit).toBe(false);
+  });
+
+  it("defaults a plume to sorting as one, so a fire never ducks behind its body", () => {
+    const { ownDepth: _ownDepth, ...plume } = DEFAULT_PARTICLES;
+    expect(v.parse(particleEmitterSchema, plume).ownDepth).toBe(false);
   });
 });
 
@@ -170,5 +185,30 @@ describe("a drawn shape", () => {
     const one = toggleShapePixel(EMPTY_SHAPE, 2, 0);
     expect(one).toEqual(["..#..", ".....", ".....", ".....", "....."]);
     expect(toggleShapePixel(one, 2, 0)).toEqual(EMPTY_SHAPE);
+  });
+});
+
+describe("a block straight from a file", () => {
+  it("fills in what it leaves out as the schema does", () => {
+    const leavesOutEveryDefault = {
+      ratePerSecond: 9,
+      ttlFromMs: 800,
+      ttlToMs: 1_600,
+      spawnRadiusCells: 0.35,
+      spawnElevFrom: 0,
+      spawnElevTo: 0,
+      riseFrom: 3,
+      riseTo: 6,
+      driftCellsPerSecond: 0.2,
+      gravity: -1.6,
+      radiusFromPx: 1,
+      radiusToPx: 1,
+      alphaFrom: 0.9,
+      alphaTo: 0,
+      ramp: [{ at: 0, color: "#3c791b" }],
+    } as ParticleEmitterDef;
+    expect(completeParticles(leavesOutEveryDefault)).toEqual(
+      v.parse(particleEmitterSchema, leavesOutEveryDefault),
+    );
   });
 });

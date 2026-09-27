@@ -25266,7 +25266,8 @@
         "effect": {
           "kind": "bolt",
           "on": "caster",
-          "damage": -20
+          "damage": -20,
+          "projectile": "verdant-light"
         },
         "cooldownMs": 30000,
         "castTimeMs": 1500,
@@ -29925,9 +29926,11 @@
       "riseTo": 6,
       "driftCellsPerSecond": 0.18,
       "lit": false,
+      "ownDepth": false,
       "gravity": -0.4,
-      "windX": 0.35,
-      "windY": -0.2,
+      "offsetX": "0.175 * AGE_SEC * AGE_SEC",
+      "offsetY": "-0.1 * AGE_SEC * AGE_SEC",
+      "offsetElev": "",
       "shape": null,
       "radiusFromPx": 1,
       "radiusToPx": 2,
@@ -30052,9 +30055,11 @@
       "riseTo": 6,
       "driftCellsPerSecond": 0.18,
       "lit": false,
+      "ownDepth": false,
       "gravity": -0.4,
-      "windX": 0.35,
-      "windY": -0.2,
+      "offsetX": "0.175 * AGE_SEC * AGE_SEC",
+      "offsetY": "-0.1 * AGE_SEC * AGE_SEC",
+      "offsetElev": "",
       "shape": null,
       "radiusFromPx": 1,
       "radiusToPx": 2,
@@ -30214,8 +30219,9 @@
             "driftCellsPerSecond": 0.9,
             "lit": false,
             "gravity": -18,
-            "windX": 0,
-            "windY": 0,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
             "radiusFromPx": 1,
             "radiusToPx": 1,
             "alphaFrom": 1,
@@ -31122,8 +31128,9 @@
             "driftCellsPerSecond": 3.2,
             "lit": false,
             "gravity": -28,
-            "windX": 0,
-            "windY": 0,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
             "radiusFromPx": 1,
             "radiusToPx": 0,
             "alphaFrom": 1,
@@ -31277,8 +31284,9 @@
             "driftCellsPerSecond": 1.1,
             "lit": false,
             "gravity": -9,
-            "windX": 0,
-            "windY": 0,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
             "radiusFromPx": 1,
             "radiusToPx": 2,
             "alphaFrom": 1,
@@ -31300,6 +31308,88 @@
           }
         }
       }
+    }
+  },
+  {
+    "id": "verdant-light",
+    "name": "Verdant Light",
+    "height": 0,
+    "type": "simple",
+    "kind": "projectile",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 10,
+      "y": 14
+    },
+    "lightPassing": true,
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 8,
+        "hit": {
+          "durationMs": 1200,
+          "particles": {
+            "ratePerSecond": 8,
+            "ttlFromMs": 1600,
+            "ttlToMs": 1600,
+            "spawnRadiusCells": 0,
+            "spawnElevFrom": 0.5,
+            "spawnElevTo": 0.5,
+            "riseFrom": 2,
+            "riseTo": 2,
+            "driftCellsPerSecond": 0,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": 0,
+            "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+            "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+            "offsetElev": "",
+            "shape": null,
+            "radiusFromPx": 2,
+            "radiusToPx": 2,
+            "alphaFrom": 1,
+            "alphaTo": 0.5,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.3,
+                "color": "#91db69"
+              },
+              {
+                "at": 1,
+                "color": "#1ebc73"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 1,
+            "intensity": 0.3,
+            "color": "#91db69"
+          }
+        }
+      ]
     }
   },
   {
@@ -31346,8 +31436,9 @@
             "driftCellsPerSecond": 3.2,
             "lit": false,
             "gravity": -28,
-            "windX": 0,
-            "windY": 0,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
             "radiusFromPx": 1,
             "radiusToPx": 0,
             "alphaFrom": 1,
@@ -31455,8 +31546,9 @@
             "driftCellsPerSecond": 3.2,
             "lit": false,
             "gravity": -28,
-            "windX": 0,
-            "windY": 0,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
             "radiusFromPx": 1,
             "radiusToPx": 0,
             "alphaFrom": 1,
@@ -34199,9 +34291,11 @@
           "riseTo": 3,
           "driftCellsPerSecond": 0.25,
           "lit": true,
+          "ownDepth": false,
           "gravity": -1.6,
-          "windX": 0,
-          "windY": 0,
+          "offsetX": "",
+          "offsetY": "",
+          "offsetElev": "",
           "shape": null,
           "radiusFromPx": 3,
           "radiusToPx": 4,
@@ -35499,8 +35593,9 @@
             "driftCellsPerSecond": 0.8,
             "lit": false,
             "gravity": -14,
-            "windX": 0,
-            "windY": 0,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
             "radiusFromPx": 1,
             "radiusToPx": 1,
             "alphaFrom": 1,
@@ -35545,9 +35640,11 @@
       "riseTo": 6,
       "driftCellsPerSecond": 0.18,
       "lit": false,
+      "ownDepth": false,
       "gravity": -0.4,
-      "windX": 0.35,
-      "windY": -0.2,
+      "offsetX": "0.175 * AGE_SEC * AGE_SEC",
+      "offsetY": "-0.1 * AGE_SEC * AGE_SEC",
+      "offsetElev": "",
       "shape": null,
       "radiusFromPx": 1,
       "radiusToPx": 2,
