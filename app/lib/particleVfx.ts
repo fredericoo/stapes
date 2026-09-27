@@ -164,6 +164,18 @@ export const particleEmitterSchema = v.pipe(
   v.check((raw) => raw.riseTo >= raw.riseFrom, "particle rise range is inverted"),
 );
 
+/** valibot types the defaults of a pipe as undefined, so this asks the object inside it. */
+const EMITTER_DEFAULTS = v.getDefaults(particleEmitterSchema.pipe[0]);
+
+/**
+ * A block read straight from a file can leave out any field the schema has a
+ * default for, whatever its type says. The game only sees blocks that went
+ * through the schema; the editors show a block as it is in the file.
+ */
+export function completeParticles(raw: ParticleEmitterDef): ParticleEmitterDef {
+  return { ...EMITTER_DEFAULTS, ...raw };
+}
+
 /**
  * The table holds linear-light RGB, not the sRGB the stops are written in. The
  * particle shader multiplies it into `diffuseColor`, which three.js keeps linear

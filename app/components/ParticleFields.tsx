@@ -1,4 +1,5 @@
 import {
+  completeParticles,
   EMPTY_SHAPE,
   MAX_PARTICLE_RADIUS_PX,
   MAX_PARTICLE_RATE,
@@ -220,12 +221,13 @@ function ShapeEditor({
 }
 
 export function ParticleFields({
-  particles,
+  particles: raw,
   onChange,
 }: {
   particles: ParticleEmitterDef;
   onChange: (next: ParticleEmitterDef) => void;
 }) {
+  const particles = completeParticles(raw);
   const patch = (fields: Partial<ParticleEmitterDef>) => onChange({ ...particles, ...fields });
 
   return (

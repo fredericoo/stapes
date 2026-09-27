@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { tilesetUrl } from "../lib/api";
 import { baseCellWorldOrigin, depthBox, depthStackBias, spriteWorldOrigin } from "../lib/geometry";
 import { hexToRgb01, STAPES_PALETTE } from "../lib/palette";
+import { completeParticles } from "../lib/particleVfx";
 import { taperedGlow, taperedTint, type StatusVfx } from "../lib/statusVfx";
 import { getFrames } from "../lib/tileResolve";
 import type { Frame, TileDef, TilesetDef } from "../lib/types";
@@ -280,7 +281,7 @@ export class VfxPreview {
     if (particles) {
       specs.push({
         id: PREVIEW_EMITTER_ID,
-        config: particles,
+        config: completeParticles(particles),
         cx: SUBJECT_CELL.x + 0.5,
         cy: SUBJECT_CELL.y + 0.5,
         footElev: 0,
@@ -295,7 +296,7 @@ export class VfxPreview {
     if (burst) {
       specs.push({
         id: PREVIEW_BURST_ID,
-        config: burst,
+        config: completeParticles(burst),
         cx: SUBJECT_CELL.x + 0.5,
         cy: SUBJECT_CELL.y + 0.5,
         footElev: 0,

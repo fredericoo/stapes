@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import * as v from "valibot";
 import {
   compileRamp,
+  completeParticles,
   DEFAULT_PARTICLES,
   EMPTY_SHAPE,
+  type ParticleEmitterDef,
   particleEmitterSchema,
   RAMP_LUT_SIZE,
   rampIndexAt,
@@ -170,5 +172,30 @@ describe("a drawn shape", () => {
     const one = toggleShapePixel(EMPTY_SHAPE, 2, 0);
     expect(one).toEqual(["..#..", ".....", ".....", ".....", "....."]);
     expect(toggleShapePixel(one, 2, 0)).toEqual(EMPTY_SHAPE);
+  });
+});
+
+describe("a block straight from a file", () => {
+  it("fills in what it leaves out as the schema does", () => {
+    const leavesOutEveryDefault = {
+      ratePerSecond: 9,
+      ttlFromMs: 800,
+      ttlToMs: 1_600,
+      spawnRadiusCells: 0.35,
+      spawnElevFrom: 0,
+      spawnElevTo: 0,
+      riseFrom: 3,
+      riseTo: 6,
+      driftCellsPerSecond: 0.2,
+      gravity: -1.6,
+      radiusFromPx: 1,
+      radiusToPx: 1,
+      alphaFrom: 0.9,
+      alphaTo: 0,
+      ramp: [{ at: 0, color: "#3c791b" }],
+    } as ParticleEmitterDef;
+    expect(completeParticles(leavesOutEveryDefault)).toEqual(
+      v.parse(particleEmitterSchema, leavesOutEveryDefault),
+    );
   });
 });
