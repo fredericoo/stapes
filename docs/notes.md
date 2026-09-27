@@ -7930,6 +7930,13 @@ nothing, so it is worth clearing the room or bringing somebody to watch the
 door. This is only how *these* caves work; another dungeon is free to want
 something else.
 
+Every finished pull throws a spray of chips that starts white and runs through
+the crystal's own mint, cyan and blue (`#affcdb`, `#53d5cf`, `#225ac0`), and the
+spray grows with the crystal: about 10, 15 and 22 particles. It is born over
+less than a fifth of a second so the chips leave together and separate. An
+earlier spray, born over 300 ms with twice as many chips, overlapped into one
+white blob on the crystal.
+
 ### The row greys rather than vanishing whenever the refusal is not about the world
 
 **A missing row and a greyed row are different facts, and the list has to say
@@ -9749,6 +9756,14 @@ milliseconds each, so a 700 ms effect is over by the second frame. To look at
 one, raise its duration in `data/tiles.json`, post the file to the dev server
 (which, under `bun dev`, writes the file too — that is the editor's save path),
 and put it back afterwards.
+
+A CDP screencast (`Page.startScreencast`) sees it at its real speed. It hands
+over every frame Chromium composites, and in `/admin/play` an administrator's
+`/tile <id> +1` puts the tile being watched beside them. Headless Chromium
+draws the world in software WebGL at three or four frames a second, so most of
+what the screencast sends are repeats of the same canvas: keep the frames
+whose pixels differ and read those. The editor's preview draws a much smaller
+scene and runs far faster.
 
 ## Fire divides its fuel, which is the only reason a forest survives one
 
