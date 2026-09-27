@@ -8214,6 +8214,13 @@ when they get one wrong.
   a dropped line), "Deer is Burned" when it landed on somebody else, and
   "Salamander cannot be Burned" for a body whose `immuneTo` list holds it. Every
   other caller discards the answer.
+- **`/status <status id> off [body]` takes one status off**, where `/status
+  clear` takes every one. It removes it through `clearStatus`, the same removal
+  a remove-status tile makes, so the reading is re-sent on the same terms.
+  `off` is read only directly after a status id, which is why it cannot be
+  mistaken for a body: no id is `off`. A body that does not have the status is
+  refused with both named, "Deer is not burned", since a quiet success would
+  hide a mistyped id or a status that had already run out.
 
 ### Every command is answered with data as well as a sentence
 

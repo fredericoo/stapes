@@ -26,6 +26,7 @@ export const DESPAWN_COMMAND = "despawn";
 export const GIVE_COMMAND = "give";
 
 export const STATUS_CLEAR_ARGUMENT = "clear";
+export const STATUS_OFF_ARGUMENT = "off";
 
 export type CommandName =
   | typeof MASTERY_COMMAND
@@ -42,7 +43,7 @@ export type CommandName =
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_EARNED_MASTERY}-${MAX_MASTERY}> [player id]`,
   [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [xN] [x] [y] [z]`,
-  [STATUS_COMMAND]: `${COMMAND_PREFIX}${STATUS_COMMAND} <status id | ${STATUS_CLEAR_ARGUMENT}> [player id]`,
+  [STATUS_COMMAND]: `${COMMAND_PREFIX}${STATUS_COMMAND} <status id [${STATUS_OFF_ARGUMENT}] | ${STATUS_CLEAR_ARGUMENT}> [player id]`,
   [HEALTH_COMMAND]: `${COMMAND_PREFIX}${HEALTH_COMMAND} <n | +n | -n> [player id]`,
   [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z] [body]`,
   [MOVE_COMMAND]: `${COMMAND_PREFIX}${MOVE_COMMAND} <east> <south> [up]`,
@@ -89,6 +90,7 @@ export type Command =
   | {
       name: typeof STATUS_COMMAND;
       statusId: string | null;
+      off: boolean;
       target: string | null;
     }
   | {
@@ -157,7 +159,8 @@ export type CommandRefusal =
   | { kind: "wrongSquare"; item: string; slot: GiveSlot }
   | { kind: "squareTaken"; name: string; square: EquipSlot; holding: string }
   | { kind: "noBag"; name: string }
-  | { kind: "bagFull"; name: string };
+  | { kind: "bagFull"; name: string }
+  | { kind: "statusAbsent"; name: string; status: string };
 
 export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
@@ -167,7 +170,7 @@ export type CommandData =
       command: typeof STATUS_COMMAND;
       target: string;
       statusId: string | null;
-      outcome: "acquired" | "refreshed" | "cleared";
+      outcome: "acquired" | "refreshed" | "cleared" | "removed";
     }
   | { command: typeof HEALTH_COMMAND; target: string; hp: number; maxHp: number }
   | { command: typeof MASTERY_COMMAND; target: string; mastery: Mastery; level: number }
@@ -321,22 +324,24 @@ const MIN_STATUS_ARGUMENTS = 1;
 const MAX_STATUS_ARGUMENTS = 2;
 
 function parseStatusArguments(args: string[]): CommandParse {
-  if (args.length < MIN_STATUS_ARGUMENTS || args.length > MAX_STATUS_ARGUMENTS) {
+  const [statusToken = "", second, third] = args;
+  const clearing = statusToken.toLowerCase() === STATUS_CLEAR_ARGUMENT;
+  const off = !clearing && second?.toLowerCase() === STATUS_OFF_ARGUMENT;
+  const most = off ? MAX_STATUS_ARGUMENTS + 1 : MAX_STATUS_ARGUMENTS;
+  if (args.length < MIN_STATUS_ARGUMENTS || args.length > most) {
     return {
       ok: false,
       refusal: { kind: "badArguments", command: STATUS_COMMAND },
     };
   }
 
-  const [statusToken = "", targetToken] = args;
-  const clearing = statusToken.toLowerCase() === STATUS_CLEAR_ARGUMENT;
-
   return {
     ok: true,
     command: {
       name: STATUS_COMMAND,
       statusId: clearing ? null : statusToken,
-      target: targetOf(targetToken),
+      off,
+      target: targetOf(off ? third : second),
     },
   };
 }

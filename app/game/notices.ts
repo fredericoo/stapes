@@ -145,6 +145,8 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return `${refusal.name} has no bag`;
     case "bagFull":
       return `${refusal.name}'s bag is full`;
+    case "statusAbsent":
+      return `${refusal.name} is not ${statusInSentence(refusal.status)}`;
   }
 }
 
@@ -204,6 +206,14 @@ export function statusInSentence(name: string): string {
 
 export function otherStatusNotice(name: string, status: string): string {
   return `${name} is ${statusInSentence(status)}`;
+}
+
+export function statusRemovedNotice(status: string): string {
+  return `You are no longer ${statusInSentence(status)}`;
+}
+
+export function otherStatusRemovedNotice(name: string, status: string): string {
+  return `${name} is no longer ${statusInSentence(status)}`;
 }
 
 export function spawnMarkNotice(): string {

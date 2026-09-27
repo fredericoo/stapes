@@ -123,6 +123,8 @@ import {
   despawnNotice,
   statusAcquiredNotice,
   otherStatusNotice,
+  otherStatusRemovedNotice,
+  statusRemovedNotice,
   statusesClearedNotice,
   tileNotice,
   timeNotice,
@@ -5022,6 +5024,7 @@ export class GameSession implements PlaySession {
         refusal: { kind: "unknownStatus", typed: statusId, known: Object.keys(this.statusDefs) },
       };
     }
+    if (command.off) return this.takeStatusOff(actor, def, authorId);
 
     const outcome = this.grantStatus(actor, { id: def.id });
     if (outcome === "refused") {
@@ -5042,6 +5045,25 @@ export class GameSession implements PlaySession {
     return {
       ok: true,
       data: { command: STATUS_COMMAND, target: actor.id, statusId: def.id, outcome },
+    };
+  }
+
+  private takeStatusOff(actor: ActorRuntime, def: StatusDef, authorId: string): CommandOutcome {
+    const name = this.bodyName(actor.id) ?? actor.id;
+    if (!actor.statuses.some((instance) => instance.defId === def.id)) {
+      return { ok: false, refusal: { kind: "statusAbsent", name, status: def.name } };
+    }
+
+    this.clearStatus(actor, def.id);
+    this.say(
+      authorId,
+      actor.id === authorId
+        ? statusRemovedNotice(def.name)
+        : otherStatusRemovedNotice(name, def.name),
+    );
+    return {
+      ok: true,
+      data: { command: STATUS_COMMAND, target: actor.id, statusId: def.id, outcome: "removed" },
     };
   }
 

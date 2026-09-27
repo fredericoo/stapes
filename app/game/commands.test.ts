@@ -77,15 +77,15 @@ describe("reading a typed line", () => {
   it("reads a status by the id it was written with", () => {
     expect(parseCommand("/status Poison")).toEqual({
       ok: true,
-      command: { name: "status", statusId: "Poison", target: null },
+      command: { name: "status", statusId: "Poison", off: false, target: null },
     });
     expect(parseCommand("/status burned somebody")).toEqual({
       ok: true,
-      command: { name: "status", statusId: "burned", target: "somebody" },
+      command: { name: "status", statusId: "burned", off: false, target: "somebody" },
     });
     expect(parseCommand("/status burned self")).toEqual({
       ok: true,
-      command: { name: "status", statusId: "burned", target: null },
+      command: { name: "status", statusId: "burned", off: false, target: null },
     });
   });
 
@@ -93,9 +93,20 @@ describe("reading a typed line", () => {
     for (const line of ["/status clear", "/status CLEAR"]) {
       expect(parseCommand(line)).toEqual({
         ok: true,
-        command: { name: "status", statusId: null, target: null },
+        command: { name: "status", statusId: null, off: false, target: null },
       });
     }
+  });
+
+  it("reads off after a status as taking that one off, and a body after that", () => {
+    expect(parseCommand("/status burned OFF npc:1,0,0,1")).toEqual({
+      ok: true,
+      command: { name: "status", statusId: "burned", off: true, target: "npc:1,0,0,1" },
+    });
+    expect(parseCommand("/status burned off")).toEqual({
+      ok: true,
+      command: { name: "status", statusId: "burned", off: true, target: null },
+    });
   });
 
   it("hands back the status grammar for a status line, not the mastery one", () => {
@@ -708,6 +719,34 @@ describe("putting a status on by hand", () => {
 
     expect(session.getSnapshot("you").self.statuses[0]?.defId).toBe("burned");
     expect(session.getSnapshot("me").self.statuses).toEqual([]);
+  });
+
+  it("takes one status off and leaves the others on", () => {
+    const session = new GameSession(field(), tiles, {
+      actorIds: ["me"],
+      seed: 1,
+      statuses: { burned: BURN, chilled: { ...BURN, id: "chilled", name: "Chilled" } },
+    });
+    session.runCommand("/status burned", "me");
+    session.runCommand("/status chilled", "me");
+    const reply = session.runCommand("/status burned off", "me");
+
+    expect(session.getSnapshot("me").self.statuses.map((running) => running.defId)).toEqual([
+      "chilled",
+    ]);
+    expect(reply).toEqual({
+      ok: true,
+      notice: "You are no longer burned",
+      ids: [],
+      data: { command: "status", target: "me", statusId: "burned", outcome: "removed" },
+    });
+  });
+
+  it("refuses to take off a status the body does not have, naming both", () => {
+    const session = statusWorld();
+    session.runCommand("/status burned off npc:1,0,0,1", "me");
+
+    expect(session.drainNotices("me")).toEqual(["Deer is not burned"]);
   });
 });
 
