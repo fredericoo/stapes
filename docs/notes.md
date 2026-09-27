@@ -10353,6 +10353,11 @@ every other test.
 daylight; the cost is that a sleeper in a pitch-black room shows its Z's. Where
 it crosses the player sprite, which is also mostly white, the two run together.
 
+**Sleep's Z shrinks from 5 pixels to 1 over its life**, and a shape drawn 1
+pixel across is only its centre character. So the Z ends as the `#` in the
+middle of its middle row, and a Z redrawn without that `#` shows nothing once it
+reaches 1.
+
 ### A plume sorts as a two-high tile on top of the affected stack
 
 Not per particle, unless the emitter asks. Every spark of one emitter carries

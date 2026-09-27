@@ -421,6 +421,8 @@
         "offsetElev": "",
         "lit": false,
         "shape": ["#####", "...#.", "..#..", ".#...", "#####"],
+        "sizeFromPx": 5,
+        "sizeToPx": 1,
         "radiusFromPx": 1,
         "radiusToPx": 1,
         "alphaFrom": 1,
