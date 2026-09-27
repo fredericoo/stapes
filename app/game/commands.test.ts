@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_CONTAINER, DEFAULT_SHIELD, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { MASTERIES, xpForLevel } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
@@ -320,6 +321,35 @@ const tiles: TileDef[] = [
       },
     },
   }),
+  tile({
+    id: "sword",
+    name: "Sword",
+    height: 0,
+    kind: "item",
+    interactions: { item: { ...DEFAULT_WEAPON } },
+  }),
+  tile({
+    id: "greatsword",
+    name: "Greatsword",
+    height: 0,
+    kind: "item",
+    interactions: { item: { ...DEFAULT_WEAPON, twoHanded: true } },
+  }),
+  tile({
+    id: "shield",
+    name: "Shield",
+    height: 0,
+    kind: "item",
+    interactions: { item: { ...DEFAULT_SHIELD } },
+  }),
+  tile({
+    id: "bag",
+    name: "Bag",
+    height: 0,
+    kind: "item",
+    interactions: { item: { ...DEFAULT_CONTAINER, size: 1 } },
+  }),
+  tile({ id: "keeper", name: "Keeper", height: 2, actor: true, walkable: false }),
 ];
 
 function field(): MapFile {
@@ -1019,6 +1049,100 @@ describe("taking a body off the board", () => {
       ok: false,
       refusal: { kind: "badArguments", command: "despawn" },
     });
+  });
+});
+
+describe("giving a body something to carry", () => {
+  it("reads an item, then a square if the next word is one, then a body", () => {
+    expect(parseCommand("/give Sword weapon npc:1,0,0,1")).toEqual({
+      ok: true,
+      command: { name: "give", tileId: "sword", square: "weapon", target: "npc:1,0,0,1" },
+    });
+    expect(parseCommand("/give apple npc:1,0,0,1")).toEqual({
+      ok: true,
+      command: { name: "give", tileId: "apple", square: null, target: "npc:1,0,0,1" },
+    });
+    expect(parseCommand("/give apple hat self")).toEqual({
+      ok: false,
+      refusal: { kind: "unknownSquare", typed: "hat" },
+    });
+  });
+
+  it("mints an item into the square it is worn in, and hands back its id", () => {
+    const session = world();
+    const reply = session.runCommand("/give sword", "me");
+
+    const held = session.equipmentOf("me")?.weapon;
+    expect(held?.id).toMatch(/^itm_/);
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Sword appears in your weapon square",
+      ids: [],
+      data: { command: "give", target: "me", tileId: "sword", itemId: held?.id, slot: "weapon" },
+    });
+  });
+
+  it("reaches somebody else by their id, and tells them both", () => {
+    const session = world(["me", "you"]);
+    session.runCommand("/give sword weapon you", "me");
+
+    expect(session.equipmentOf("you")?.weapon?.tileId).toBe("sword");
+    expect(session.equipmentOf("me")?.weapon).toBeNull();
+    expect(session.drainNotices("you")).toEqual(["Sword appears in your weapon square"]);
+    expect(session.drainNotices("me")).toEqual(["Sword appears in Yorick's weapon square"]);
+  });
+
+  it("puts anything but a bag into the bag, piled with its own kind, until it is full", () => {
+    const session = world();
+    session.runCommand("/give bag", "me");
+    const first = session.runCommand("/give apple", "me");
+    const second = session.runCommand("/give apple bag", "me");
+    session.runCommand("/give sword bag", "me");
+
+    const contents = session.equipmentOf("me")?.bag?.contents;
+    expect(contents).toEqual([{ id: expect.stringMatching(/^itm_/), tileId: "apple", count: 2 }]);
+    expect(first).toMatchObject({ data: { slot: "contents", itemId: contents?.[0]?.id } });
+    expect(second).toMatchObject({ data: { slot: "contents", itemId: contents?.[0]?.id } });
+    expect(session.drainNotices("me").at(-1)).toBe("Mira's bag is full");
+  });
+
+  it("refuses a taken square by what is in it, and destroys nothing", () => {
+    const session = world();
+    session.runCommand("/give shield offhand", "me");
+    const kept = session.equipmentOf("me")?.offhand;
+    session.drainNotices("me");
+    session.runCommand("/give sword offhand", "me");
+    session.runCommand("/give greatsword", "me");
+
+    expect(session.drainNotices("me")).toEqual([
+      "Mira's offhand square holds Shield",
+      "Mira's offhand square holds Shield",
+    ]);
+    expect(session.equipmentOf("me")?.offhand).toBe(kept);
+    expect(session.equipmentOf("me")?.weapon).toBeNull();
+  });
+
+  it("says what it could not give, and to whom", () => {
+    const session = world();
+    session.runCommand("/spawn keeper 2 2", "me");
+    session.drainNotices("me");
+    for (const line of [
+      "/give apple head",
+      "/give apple",
+      "/give grass",
+      "/give apple bag nobody",
+      "/give apple bag npc:2,2,0,1",
+    ]) {
+      session.runCommand(line, "me");
+    }
+
+    expect(session.drainNotices("me")).toEqual([
+      "Apple does not go in the head square",
+      "Mira has no bag",
+      '"grass" is not an item. Put it down with /tile',
+      'Nobody here answers to "nobody"',
+      "Keeper has no equipment",
+    ]);
   });
 });
 

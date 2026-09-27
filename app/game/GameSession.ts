@@ -37,6 +37,7 @@ import {
   isItem,
   isRanged,
   NO_ELEMENTS,
+  resolveContainer,
   type StatusGrant,
   type StoneEffect,
   UNNAMED_SPELL,
@@ -90,6 +91,7 @@ import {
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
+  equipSlotsFor,
   interactiveDefAt,
   reachableAddStatusAt,
   reachableRemoveStatusAt,
@@ -108,6 +110,7 @@ import {
   commandRefusalNotice,
   craftNotice,
   extractNotice,
+  giveNotice,
   masteryNotice,
   otherMasteryNotice,
   otherArrivalNotice,
@@ -131,6 +134,7 @@ import { conjuredName, sparesStander } from "./conjured";
 import { type Combatant, mayHarm } from "./pvp";
 import {
   DESPAWN_COMMAND,
+  GIVE_COMMAND,
   GOTO_COMMAND,
   HEALTH_COMMAND,
   MOVE_COMMAND,
@@ -146,6 +150,8 @@ import {
   type CommandRefusal,
   type CommandReply,
   type DespawnCommand,
+  type GiveCommand,
+  type GiveSlot,
   type HealthCommand,
   type MasteryCommand,
   type SpawnCommand,
@@ -284,6 +290,8 @@ import {
   isBodySlot,
   itemInSlot,
   peelSlot,
+  placeInSlot,
+  slotTakes,
   stashInContainer,
   type ItemMoveResult,
   type SlotRef,
@@ -4680,6 +4688,8 @@ export class GameSession implements PlaySession {
         return this.runSpawnCommand(command, id);
       case DESPAWN_COMMAND:
         return this.runDespawnCommand(command, id);
+      case GIVE_COMMAND:
+        return this.runGiveCommand(command, id);
     }
   }
 
@@ -4839,6 +4849,79 @@ export class GameSession implements PlaySession {
     this.settleBoardNow();
     this.say(id, despawnNotice(name, at));
     return { ok: true, data: { command: DESPAWN_COMMAND, target: actor.id, at } };
+  }
+
+  private runGiveCommand(command: GiveCommand, id: string): CommandOutcome {
+    const targetId = command.target ?? id;
+    const actor = this.actors.get(targetId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
+    const name = this.bodyName(actor.id) ?? actor.id;
+    const body = this.tilesById[loc.placed.tileId];
+    if (!body || !resolveBattler(body)) {
+      return { ok: false, refusal: { kind: "noEquipment", name } };
+    }
+
+    const def = this.tilesById[command.tileId];
+    if (!def) return { ok: false, refusal: { kind: "unknownTile", typed: command.tileId } };
+    if (!isItem(def)) return { ok: false, refusal: { kind: "notAnItem", typed: command.tileId } };
+
+    const slot = giveSlot(def, command.square);
+    const instance: ItemInstance = { id: mintItemId(), tileId: def.id };
+    const { equipment } = actor;
+    const into: SlotRef = slot === "contents" ? { kind: "contents", index: 0 } : { kind: slot };
+    const placed = placeInSlot(this.map, this.tilesById, loc, equipment, into, instance);
+    if (!placed) return { ok: false, refusal: this.refusedGift(equipment, name, def, slot) };
+
+    /**
+     * An item that piles onto one of its own kind becomes part of that pile, as
+     * one picked up does. Either way it is what the square now holds, or the one
+     * bag entry the placement added or replaced, and that is the id handed back.
+     */
+    const landed =
+      slot === "contents"
+        ? placed.equipment.bag?.contents?.find((held) => !equipment.bag?.contents?.includes(held))
+        : placed.equipment[slot];
+    this.setEquipment(actor, placed.equipment);
+    this.say(actor.id, giveNotice(def.name, slot, null));
+    if (actor.id !== id) this.say(id, giveNotice(def.name, slot, name));
+    return {
+      ok: true,
+      data: {
+        command: GIVE_COMMAND,
+        target: actor.id,
+        tileId: def.id,
+        itemId: (landed ?? instance).id,
+        slot,
+      },
+    };
+  }
+
+  private refusedGift(
+    equipment: Equipment,
+    name: string,
+    def: TileDef,
+    slot: GiveSlot,
+  ): CommandRefusal {
+    if (!slotTakes(slot, def)) return { kind: "wrongSquare", item: def.name, slot };
+    if (slot === "contents") {
+      return equipment.bag ? { kind: "bagFull", name } : { kind: "noBag", name };
+    }
+
+    /**
+     * An empty hand is refused only when the other hand is in the way: it holds
+     * a two-handed weapon, or the item is one and needs both.
+     */
+    const square =
+      !equipment[slot] && (slot === "weapon" || slot === "offhand") ? otherHand(slot) : slot;
+    const holding = equipment[square];
+    if (!holding) return { kind: "wrongSquare", item: def.name, slot };
+    return {
+      kind: "squareTaken",
+      name,
+      square,
+      holding: this.tilesById[holding.tileId]?.name ?? holding.tileId,
+    };
   }
 
   private levelOf(id: string): number | null {
@@ -5699,6 +5782,16 @@ export class GameSession implements PlaySession {
     }
     this.map = next;
   }
+}
+
+/**
+ * Named `bag`, a bag goes on the back and anything else goes into the bag.
+ * Named nothing, an item goes where `equipSlotsFor` wears it first, or into the bag.
+ */
+function giveSlot(def: TileDef, square: GiveCommand["square"]): GiveSlot {
+  if (square === null) return equipSlotsFor(def)[0] ?? "contents";
+  if (square === "bag" && !resolveContainer(def)) return "contents";
+  return square;
 }
 
 function slotsAfterInsert(slots: readonly number[], at: number): number[] {

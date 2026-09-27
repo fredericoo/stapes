@@ -8153,9 +8153,10 @@ A line beginning with `/` is an instruction rather than something to say.
 `app/game/commands.ts` owns that one rule and the grammar behind it,
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
-The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/status`, `/health`,
-`/goto`, `/move` and `/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the
-grammar of each, and is the line a player is shown when they get one wrong.
+The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/give`, `/status`,
+`/health`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
+`app/game/commands.ts` is the grammar of each, and is the line a player is shown
+when they get one wrong.
 
 - **Only an administrator runs one.** The gate is in
   `GameServer.webSocketMessage`, on the `command` arm, and it reads `admin` off
@@ -8403,6 +8404,41 @@ its remains on the floor and report a death nobody caused.
   its delay; one taken off anywhere else is not re-armed until the world next
   loads. A creature with no respawn point, and every body `/spawn` or `/tile`
   put down, is gone for good.
+
+### `/give` puts a new item where equipping by hand would
+
+`/give <item> [square] [body]` mints one item, with an item id of its own like
+anything a command makes, and puts it into a square of the body's equipment:
+`head`, `weapon`, `offhand`, `armor`, `charm`, `footwear` or `bag`, the keys of
+`Equipment`. A second word that is a square is the square and anything else is
+the body; with three words the middle one must be a square.
+
+- **`bag` means the back for a bag and the inside of the bag for anything
+  else.** No container can go into a bag's contents (`slotTakes`), so the word
+  never has two readings for one item. The reply's `slot` tells them apart:
+  `bag` is the square, `contents` is inside it.
+- **With no square named, the item goes where `equipSlotsFor` wears it first**,
+  and into the bag when that list is empty. That list is the one equipping by
+  hand reads, so an artifact's square is the off hand: a shard given with no
+  square is held. Name `bag` to carry it.
+- **The rules are the ones a drag onto a square is checked by**: `slotTakes`
+  for what the square accepts, the two-handed rule for the hands, `stowFits`
+  for the bag. `placeInSlot` asks them without the swap a drag can fall back on,
+  which would need somewhere to put what it displaced. What they refuse is
+  refused, never forced.
+- **Nothing is destroyed.** A taken square is refused and the refusal names what
+  is in it. An empty hand refused by the two-handed rule names the other hand
+  and what it holds, since that is what is in the way.
+- **An item that piles onto one already there joins that pile**, as one picked
+  up does, and the pile keeps its own id. The reply's `itemId` is the id of
+  whatever the item is now part of, so a caller finds it under that id; the
+  minted one no longer exists.
+- **A player given something is told, as well as the author**, the way
+  `/mastery` tells both: an item arriving in a panel that is closed has nothing
+  else to show it arrived.
+- **A body with no battler block is refused by name.** That is every
+  shopkeeper: `equipmentForBody` rolls a kit only from a battler block, and such
+  a body never fights or dies, so what it held would never be swung or dropped.
 
 ### `/time` moves the world's clock, for everybody
 
