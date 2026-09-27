@@ -118,6 +118,31 @@ export type CommandRefusal =
 
 export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
+export type CommandData =
+  | { command: typeof TILE_COMMAND; tileId: string; at: Coord; count: number }
+  | {
+      command: typeof STATUS_COMMAND;
+      target: string;
+      statusId: string | null;
+      outcome: "acquired" | "refreshed" | "cleared";
+    }
+  | { command: typeof HEALTH_COMMAND; target: string; hp: number; maxHp: number }
+  | { command: typeof MASTERY_COMMAND; target: string; mastery: Mastery; level: number }
+  | { command: typeof GOTO_COMMAND | typeof MOVE_COMMAND; target: string; at: Coord }
+  | { command: typeof TIME_COMMAND; minutes: MinutesOfDay };
+
+export type CommandOutcome =
+  | { ok: true; data: CommandData; ids?: readonly string[] }
+  | { ok: false; refusal: CommandRefusal };
+
+/**
+ * `notice` is the sentence the author was told in the chat, and `ids` are the
+ * bodies the command brought into the world, so a caller can act on them.
+ */
+export type CommandReply =
+  | { ok: true; notice: string | null; ids: string[]; data: CommandData }
+  | { ok: false; notice: string; refusal: CommandRefusal };
+
 export function parseCommand(raw: string): CommandParse {
   const body = raw.slice(0, MAX_COMMAND_LENGTH).trim();
   if (!isCommand(body)) {

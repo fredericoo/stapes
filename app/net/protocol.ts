@@ -13,7 +13,7 @@ import type { Progress } from "../game/progress";
 import type { Coord, PlacedTile } from "../lib/types";
 import { TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
-import { MAX_COMMAND_LENGTH } from "../game/commands";
+import { MAX_COMMAND_LENGTH, type CommandReply } from "../game/commands";
 
 const coordSchema = v.object({
   x: v.number(),
@@ -335,6 +335,7 @@ export type ServerMessage =
   | { type: "extracting"; extracting: Extraction | null }
   | { type: "nextBlow"; nextBlow: Progress | null }
   | { type: "notice"; text: string }
+  | { type: "commandReply"; requestId: number; reply: CommandReply }
   | { type: "statuses"; statuses: StatusPatch[] }
   | { type: "masteries"; masteryXp: MasteryXp }
   | {
@@ -396,7 +397,7 @@ export type ClientMessage =
       recipe: number;
     }
   | { type: "say"; text: string }
-  | { type: "command"; text: string }
+  | { type: "command"; text: string; requestId: number }
   | { type: "target"; actorId: string | null }
   | { type: "attackMode"; enabled: boolean }
   | { type: "pvp"; enabled: boolean }
@@ -504,6 +505,7 @@ const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("command"),
     text: v.pipe(v.string(), v.maxLength(MAX_COMMAND_LENGTH)),
+    requestId: v.pipe(v.number(), v.integer(), v.minValue(0)),
   }),
   v.object({
     type: v.literal("target"),
@@ -605,6 +607,23 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("notice"),
     text: v.string(),
+  }),
+  v.object({
+    type: v.literal("commandReply"),
+    requestId: v.number(),
+    reply: v.variant("ok", [
+      v.object({
+        ok: v.literal(true),
+        notice: v.nullable(v.string()),
+        ids: v.array(v.string()),
+        data: v.looseObject({ command: v.string() }),
+      }),
+      v.object({
+        ok: v.literal(false),
+        notice: v.string(),
+        refusal: v.looseObject({ kind: v.string() }),
+      }),
+    ]),
   }),
   v.object({
     type: v.literal("clock"),
@@ -791,7 +810,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 23;
 
 export const MAX_STEPS_AHEAD = 8;
 

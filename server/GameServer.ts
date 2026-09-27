@@ -39,6 +39,7 @@ import {
 import { DEFAULT_FACING, listActorOwners } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
+import type { CommandReply } from "../app/game/commands";
 import { resolveRespawn } from "../app/lib/interactions";
 import { battlerIssues } from "../app/lib/battler";
 import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock";
@@ -709,6 +710,7 @@ export class GameServer {
   private sentAfflicted = new Map<string, string>();
   private burning = new Map<string, CellAffliction[]>();
   private events: MotionEvent[] = [];
+  private commandReplies: Array<{ ws: GameSocket; requestId: number; reply: CommandReply }> = [];
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private tickDueAt = 0;
@@ -1464,7 +1466,14 @@ export class GameServer {
       return;
     }
 
-    if (!session.hasActor(actorId)) return;
+    if (!session.hasActor(actorId)) {
+      if (message.type === "command") {
+        const reply = session.refuseCommand(actorId, { kind: "nowhereToPlace" });
+        this.commandReplies.push({ ws, requestId: message.requestId, reply });
+        this.wake();
+      }
+      return;
+    }
 
     if (message.type === "say") {
       this.say(actorId, message.text);
@@ -1505,8 +1514,10 @@ export class GameServer {
     } else if (message.type === "craft") {
       session.craft(message.ref, message.recipe, actorId);
     } else if (message.type === "command") {
-      if (admin) session.runCommand(message.text, actorId);
-      else session.refuseCommand(actorId);
+      const reply = admin
+        ? session.runCommand(message.text, actorId)
+        : session.refuseCommand(actorId);
+      this.commandReplies.push({ ws, requestId: message.requestId, reply });
     } else if (message.type === "drop") {
       session.drop(message.from, message.to, actorId);
     } else {
@@ -1658,6 +1669,20 @@ export class GameServer {
       for (const text of session.drainNotices(actorId)) {
         ws.send(JSON.stringify({ type: "notice", text } satisfies ServerMessage));
       }
+    }
+  }
+
+  /**
+   * Sent from the tick, after its patch, rather than as the command runs: a reply
+   * then reaches its client after the board change the command made, so whoever
+   * awaits it can read the new board straight away.
+   */
+  private flushCommandReplies() {
+    if (this.commandReplies.length === 0) return;
+    const replies = this.commandReplies;
+    this.commandReplies = [];
+    for (const { ws, requestId, reply } of replies) {
+      ws.send(JSON.stringify({ type: "commandReply", requestId, reply } satisfies ServerMessage));
     }
   }
 
@@ -2273,6 +2298,7 @@ export class GameServer {
     this.flushExtracting();
     this.flushNextBlow();
     this.flushNotices();
+    this.flushCommandReplies();
     this.flushMasteries();
     this.flushStatuses();
     this.saveActorsIfDue();

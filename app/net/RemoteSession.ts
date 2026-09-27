@@ -99,7 +99,7 @@ import {
 import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { CHAT_LIFETIME_MS, MAX_CHAT_LENGTH, MAX_CHATS_PER_CELL } from "./chat";
-import { MAX_COMMAND_LENGTH, isCommand } from "../game/commands";
+import { MAX_COMMAND_LENGTH, isCommand, type CommandReply } from "../game/commands";
 import { SOCKET_OPEN, type ClientSocket } from "./socket";
 import {
   parseServerMessage,
@@ -144,6 +144,14 @@ type PredictedStep = {
 const MAX_PREDICTED_STEPS = MAX_STEPS_AHEAD;
 
 export const STEP_CONFIRM_GRACE_MS = 2_000;
+
+export const COMMAND_REPLY_TIMEOUT_MS = 10_000;
+
+type AwaitedReply = {
+  resolve: (reply: CommandReply) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
 
 export class RemoteSession implements PlaySession {
   private serverMap: MapFile = emptyMap();
@@ -195,6 +203,8 @@ export class RemoteSession implements PlaySession {
   private hidden = false;
   private onHidden: ((hidden: boolean) => void) | null = null;
   private onClockSet: ((minutes: MinutesOfDay) => void) | null = null;
+  private nextRequestId = 0;
+  private readonly awaitingReplies = new Map<number, AwaitedReply>();
 
   constructor(
     private readonly socket: ClientSocket,
@@ -288,6 +298,11 @@ export class RemoteSession implements PlaySession {
 
   dispose() {
     this.socket.removeEventListener("message", this.onMessage);
+    for (const awaited of this.awaitingReplies.values()) {
+      clearTimeout(awaited.timer);
+      awaited.reject(new Error("the session closed before the command was answered"));
+    }
+    this.awaitingReplies.clear();
   }
 
   private onMessage = (event: { data: unknown }) => {
@@ -435,6 +450,15 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "notice") {
       this.pendingNotices.push(message.text);
+      return;
+    }
+
+    if (message.type === "commandReply") {
+      const awaited = this.awaitingReplies.get(message.requestId);
+      if (!awaited) return;
+      this.awaitingReplies.delete(message.requestId);
+      clearTimeout(awaited.timer);
+      awaited.resolve(message.reply);
       return;
     }
 
@@ -1105,10 +1129,31 @@ export class RemoteSession implements PlaySession {
     const trimmed = text.trim();
     if (trimmed.length === 0) return;
     if (isCommand(trimmed)) {
-      this.send({ type: "command", text: trimmed.slice(0, MAX_COMMAND_LENGTH) });
+      this.command(trimmed).catch(ignoreUnanswered);
       return;
     }
     this.send({ type: "say", text: trimmed.slice(0, MAX_CHAT_LENGTH) });
+  }
+
+  /**
+   * Resolves once the reply arrives, which the server sends after the board change
+   * the command made, so the session already holds that change.
+   */
+  command(text: string): Promise<CommandReply> {
+    const line = text.trim().slice(0, MAX_COMMAND_LENGTH);
+    if (this.socket.readyState !== SOCKET_OPEN) {
+      return Promise.reject(new Error(`not connected, so ${line} was not sent`));
+    }
+
+    const requestId = this.nextRequestId++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.awaitingReplies.delete(requestId);
+        reject(new Error(`${line} had no answer after ${COMMAND_REPLY_TIMEOUT_MS} ms`));
+      }, COMMAND_REPLY_TIMEOUT_MS);
+      this.awaitingReplies.set(requestId, { resolve, reject, timer });
+      this.send({ type: "command", text: line, requestId });
+    });
   }
 
   getMap(): MapFile {
@@ -1500,6 +1545,9 @@ export class RemoteSession implements PlaySession {
     this.socket.send(payload);
   }
 }
+
+/** A command typed in the chat is answered there by its notice; its reply is for callers that await it. */
+function ignoreUnanswered() {}
 
 const NO_CARRIED_LIGHTS: string[] = [];
 

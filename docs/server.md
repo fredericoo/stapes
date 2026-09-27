@@ -10,3 +10,4 @@
 ## Wire
 
 - `parseServerMessage` uses valibot `v.object` schemas, which strip unknown fields. A field added to a message type but not to its schema is dropped in transit without a type error.
+- `GameServer.flushCommandReplies` runs at the end of `tick`, after `broadcastPatch`. `RemoteSession.command` resolves when the reply arrives and its callers read the board straight after, so a reply sent from `webSocketMessage`, where the command runs, would reach them before the change it reports.

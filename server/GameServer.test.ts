@@ -380,7 +380,7 @@ describe("joining and leaving", () => {
 
     async function hurt(ws: TestSocket) {
       const flagged = messageWithin(ws, "statuses", MESSAGE_TIMEOUT_MS);
-      send(ws, { type: "command", text: "/health -1" });
+      send(ws, { type: "command", text: "/health -1", requestId: 0 });
       expect(await flagged).not.toBeNull();
     }
 
@@ -917,7 +917,7 @@ function say(ws: TestSocket, text: string) {
 }
 
 function command(ws: TestSocket, text: string) {
-  ws.send(JSON.stringify({ type: "command", text }));
+  ws.send(JSON.stringify({ type: "command", text, requestId: 0 }));
 }
 
 async function isTicking(): Promise<boolean> {
@@ -3037,11 +3037,62 @@ describe("statuses across a disconnection", () => {
 });
 
 describe("commands", () => {
+  function framesUntilReply(ws: TestSocket, requestId: number): Promise<Record<string, unknown>[]> {
+    return new Promise((resolve, reject) => {
+      const frames: Record<string, unknown>[] = [];
+      const onMessage = (event: { data: string }) => {
+        const message = JSON.parse(event.data) as Record<string, unknown>;
+        frames.push(message);
+        if (message.type !== "commandReply" || message.requestId !== requestId) return;
+        clearTimeout(timer);
+        ws.removeEventListener("message", onMessage);
+        resolve(frames);
+      };
+      const timer = setTimeout(() => {
+        ws.removeEventListener("message", onMessage);
+        reject(new Error(`no reply to request ${requestId}`));
+      }, MESSAGE_TIMEOUT_MS);
+      ws.addEventListener("message", onMessage);
+    });
+  }
+
+  it("answers the request it was sent after the patch that shows what it made", async () => {
+    const { ws } = await connect(freshPlayer());
+
+    const frames = framesUntilReply(ws, 7);
+    send(ws, { type: "command", text: "/tile cat 2 0 0", requestId: 7 });
+    const seen = await frames;
+
+    const { reply } = seen.at(-1) as { reply: { ok: boolean; ids: string[] } };
+    expect(reply.ok).toBe(true);
+    expect(reply.ids).toHaveLength(1);
+    const [catId] = reply.ids;
+    const shown = seen.find(
+      (frame) => frame.type === "patch" && JSON.stringify(frame.cells).includes(`"${catId}"`),
+    );
+    expect(shown).toBeDefined();
+  });
+
+  it("answers a player with no body on the board rather than dropping the line", async () => {
+    const { ws } = await connect(freshPlayer());
+    send(ws, { type: "command", text: "/health 0", requestId: 1 });
+    await nextMessageOfType(ws, "died");
+
+    const frames = framesUntilReply(ws, 2);
+    send(ws, { type: "command", text: "/mastery sharp 10", requestId: 2 });
+
+    expect((await frames).at(-1)?.reply).toEqual({
+      ok: false,
+      notice: "You are not standing anywhere",
+      refusal: { kind: "nowhereToPlace" },
+    });
+  });
+
   it("answers with what changed and what it now reads", async () => {
     const who = freshPlayer();
     const { ws } = await connect(who);
 
-    send(ws, { type: "command", text: "/mastery sharp 10" });
+    send(ws, { type: "command", text: "/mastery sharp 10", requestId: 0 });
 
     const notice = await nextMessageOfType(ws, "notice");
     expect(notice.text).toBe("Your sharp mastery is now 10");
@@ -3053,7 +3104,7 @@ describe("commands", () => {
     const who = freshPlayer();
     const { ws } = await connect(who);
 
-    send(ws, { type: "command", text: "/mastery blad 10" });
+    send(ws, { type: "command", text: "/mastery blad 10", requestId: 0 });
 
     const notice = await nextMessageOfType(ws, "notice");
     expect(notice.text).toContain("blad");
@@ -3064,7 +3115,7 @@ describe("commands", () => {
     const { ws } = await connect(who);
     const onlooker = await connect(freshPlayer());
 
-    send(ws, { type: "command", text: "/mastery sharp 10" });
+    send(ws, { type: "command", text: "/mastery sharp 10", requestId: 0 });
     await nextMessageOfType(ws, "notice");
 
     expect(await chatWithin(onlooker.ws, QUIET_MS)).toBeNull();
@@ -3075,17 +3126,23 @@ describe("commands", () => {
       const who = freshPlayer();
       const { ws } = await connect(who, { admin: false });
 
-      send(ws, { type: "command", text: "/mastery sharp 100" });
+      const reply = nextMessageOfType(ws, "commandReply");
+      send(ws, { type: "command", text: "/mastery sharp 100", requestId: 0 });
 
       const notice = await nextMessageOfType(ws, "notice");
       expect(notice.text).toBe("Only an administrator can run commands");
+      expect((await reply).reply).toEqual({
+        ok: false,
+        notice: "Only an administrator can run commands",
+        refusal: { kind: "notAdmin" },
+      });
     });
 
     it("leaves the masteries it named exactly where they were", async () => {
       const who = freshPlayer();
       const { ws } = await connect(who, { admin: false });
 
-      send(ws, { type: "command", text: "/mastery sharp 100" });
+      send(ws, { type: "command", text: "/mastery sharp 100", requestId: 0 });
       await nextMessageOfType(ws, "notice");
 
       let stored: unknown;
@@ -3100,7 +3157,7 @@ describe("commands", () => {
       await connect(victim);
       const { ws } = await connect(freshPlayer(), { admin: false });
 
-      send(ws, { type: "command", text: `/health -1 ${victim}` });
+      send(ws, { type: "command", text: `/health -1 ${victim}`, requestId: 0 });
       await nextMessageOfType(ws, "notice");
       await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
 
@@ -3114,7 +3171,7 @@ describe("commands", () => {
     it("still refuses a line that would not have parsed", async () => {
       const { ws } = await connect(freshPlayer(), { admin: false });
 
-      send(ws, { type: "command", text: "/masteyr sharp" });
+      send(ws, { type: "command", text: "/masteyr sharp", requestId: 0 });
 
       const notice = await nextMessageOfType(ws, "notice");
       expect(notice.text).toBe("Only an administrator can run commands");
@@ -3124,7 +3181,7 @@ describe("commands", () => {
       const { ws } = await connect(freshPlayer(), { admin: false });
       const onlooker = await connect(freshPlayer());
 
-      send(ws, { type: "command", text: "/mastery sharp 100" });
+      send(ws, { type: "command", text: "/mastery sharp 100", requestId: 0 });
       await nextMessageOfType(ws, "notice");
 
       expect(await chatWithin(onlooker.ws, QUIET_MS)).toBeNull();
@@ -3471,7 +3528,7 @@ describe("tile transitions", () => {
     });
     await equipmentWithin(alice.ws);
 
-    send(alice.ws, { type: "command", text: "/mastery arcane 10" });
+    send(alice.ws, { type: "command", text: "/mastery arcane 10", requestId: 0 });
     await nextMessageOfType(alice.ws, "masteries");
 
     send(alice.ws, { type: "cast", slot: { from: "square", square: "offhand" } });
@@ -3854,7 +3911,7 @@ describe("an administrator hiding", () => {
 
     const seen = eventsWithin(bob.ws, "damage", 400);
     const felt = eventsWithin(alice.ws, "damage", 400);
-    send(alice.ws, { type: "command", text: "/health -1" });
+    send(alice.ws, { type: "command", text: "/health -1", requestId: 0 });
 
     expect((await felt).map((hit) => hit.targetId)).toEqual(["alice"]);
     expect(await seen).toEqual([]);
