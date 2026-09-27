@@ -675,6 +675,7 @@ export class GameServer {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
       maxOnlinePlayers?: number;
+      seed?: number;
     },
   ) {}
 
@@ -763,6 +764,7 @@ export class GameServer {
         })
       : new GameSession(await store.readMap(), this.tiles, {
           actorIds: [],
+          seed: this.env.seed,
           statuses: this.statusDefs,
           clock: () => this.minutesOfDay(),
         });
@@ -2025,6 +2027,7 @@ export class GameServer {
     const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
     const session = new GameSession(map, tiles, {
       actorIds: [],
+      seed: this.env.seed,
       statuses: statusDefs,
       clock: () => this.minutesOfDay(),
     });
