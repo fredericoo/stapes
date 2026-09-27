@@ -7286,9 +7286,9 @@ A line beginning with `/` is an instruction rather than something to say.
 `app/game/commands.ts` owns that one rule and the grammar behind it,
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
-The verbs are `/mastery`, `/tile`, `/spawn`, `/status`, `/health`, `/goto`,
-`/move` and `/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the grammar of
-each, and is the line a player is shown when they get one wrong.
+The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/status`, `/health`,
+`/goto`, `/move` and `/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the
+grammar of each, and is the line a player is shown when they get one wrong.
 
 - **Only an administrator runs one.** The gate is in
   `GameServer.webSocketMessage`, on the `command` arm, and it reads `admin` off
@@ -7505,6 +7505,26 @@ the one the author stands on.
 - **The sentence names the body's id**: "Wolf appears at -3, 12, 0 as
   npc:-3,12,0,1". Every command that acts on a creature takes that id, and
   nothing else on screen shows it. The reply carries it in `ids`.
+
+### `/despawn` takes a creature off the board, and never a player
+
+`/despawn <body>` removes a body by its id. It goes through `despawn`, the
+method a player's leaving goes through, rather than `kill`: the body plays its
+`disappear` and whatever it carried goes with it. `kill` would drop its kit and
+its remains on the floor and report a death nobody caused.
+
+- **A player's body is refused by name.** It belongs to that player's
+  connection: the server seats it when they enter and takes it off when they
+  leave. Removed from under a connected player, it would leave them with no
+  body until they reconnected, since the server drops every frame from a
+  player with no body on the board.
+- **It is not a death, so the server's respawn bookkeeping does not see it.**
+  `GameServer` re-arms a respawn point when its body dies, when the cell the
+  point was authored in changes, and when the world loads. A creature with an
+  authored respawn point that is taken off its own cell is therefore back after
+  its delay; one taken off anywhere else is not re-armed until the world next
+  loads. A creature with no respawn point, and every body `/spawn` or `/tile`
+  put down, is gone for good.
 
 ### `/time` moves the world's clock, for everybody
 

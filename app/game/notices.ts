@@ -125,6 +125,8 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
         : `No status called "${refusal.typed}". Try ${refusal.known.join(", ")}`;
     case "notABody":
       return `"${refusal.typed}" is not a body. Put it down with ${COMMAND_PREFIX}${TILE_COMMAND}`;
+    case "playerBody":
+      return `${refusal.name} is a player, and leaves the board only by leaving the world`;
   }
 }
 
@@ -139,6 +141,10 @@ export function tileNotice(name: string, at: Coord, count = 1): string {
 
 export function spawnNotice(name: string, at: Coord, id: string): string {
   return `${tileNotice(name, at)} as ${id}`;
+}
+
+export function despawnNotice(name: string, at: Coord): string {
+  return `${name} disappears from ${cellName(at)}`;
 }
 
 export function noRoomToLeaveNotice(name: string): string {

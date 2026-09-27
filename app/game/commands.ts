@@ -21,6 +21,7 @@ export const GOTO_COMMAND = "goto";
 export const MOVE_COMMAND = "move";
 export const TIME_COMMAND = "time";
 export const SPAWN_COMMAND = "spawn";
+export const DESPAWN_COMMAND = "despawn";
 
 export const STATUS_CLEAR_ARGUMENT = "clear";
 
@@ -32,7 +33,8 @@ export type CommandName =
   | typeof GOTO_COMMAND
   | typeof MOVE_COMMAND
   | typeof TIME_COMMAND
-  | typeof SPAWN_COMMAND;
+  | typeof SPAWN_COMMAND
+  | typeof DESPAWN_COMMAND;
 
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_MASTERY}-${MAX_MASTERY}> [player id]`,
@@ -43,6 +45,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   [MOVE_COMMAND]: `${COMMAND_PREFIX}${MOVE_COMMAND} <east> <south> [up]`,
   [TIME_COMMAND]: `${COMMAND_PREFIX}${TIME_COMMAND} <hh:mm>`,
   [SPAWN_COMMAND]: `${COMMAND_PREFIX}${SPAWN_COMMAND} <tile> <x> <y> [z]`,
+  [DESPAWN_COMMAND]: `${COMMAND_PREFIX}${DESPAWN_COMMAND} <body>`,
 };
 
 export type Coordinate = { kind: "absolute"; value: number } | { kind: "relative"; offset: number };
@@ -96,6 +99,10 @@ export type Command =
       name: typeof SPAWN_COMMAND;
       tileId: string;
       at: MapCell;
+    }
+  | {
+      name: typeof DESPAWN_COMMAND;
+      target: string | null;
     };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
@@ -104,6 +111,7 @@ export type StatusCommand = Extract<Command, { name: typeof STATUS_COMMAND }>;
 export type HealthCommand = Extract<Command, { name: typeof HEALTH_COMMAND }>;
 export type TimeCommand = Extract<Command, { name: typeof TIME_COMMAND }>;
 export type SpawnCommand = Extract<Command, { name: typeof SPAWN_COMMAND }>;
+export type DespawnCommand = Extract<Command, { name: typeof DESPAWN_COMMAND }>;
 
 export type HealthChange = { kind: "set"; hp: number } | { kind: "shift"; by: number };
 
@@ -126,7 +134,8 @@ export type CommandRefusal =
   | { kind: "badTime"; typed: string }
   | { kind: "unharmableTarget"; name: string }
   | { kind: "immuneTarget"; name: string; status: string }
-  | { kind: "notABody"; typed: string };
+  | { kind: "notABody"; typed: string }
+  | { kind: "playerBody"; name: string };
 
 export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
@@ -142,7 +151,8 @@ export type CommandData =
   | { command: typeof MASTERY_COMMAND; target: string; mastery: Mastery; level: number }
   | { command: typeof GOTO_COMMAND | typeof MOVE_COMMAND; target: string; at: Coord }
   | { command: typeof TIME_COMMAND; minutes: MinutesOfDay }
-  | { command: typeof SPAWN_COMMAND; tileId: string; at: Coord };
+  | { command: typeof SPAWN_COMMAND; tileId: string; at: Coord }
+  | { command: typeof DESPAWN_COMMAND; target: string; at: Coord };
 
 export type CommandOutcome =
   | { ok: true; data: CommandData; ids?: readonly string[] }
@@ -180,6 +190,8 @@ export function parseCommand(raw: string): CommandParse {
       return parseTimeArguments(args);
     case SPAWN_COMMAND:
       return parseSpawnArguments(args);
+    case DESPAWN_COMMAND:
+      return parseDespawnArguments(args);
     default:
       return {
         ok: false,
@@ -403,6 +415,13 @@ function parseSpawnArguments(args: string[]): CommandParse {
     ok: true,
     command: { name: SPAWN_COMMAND, tileId: tileToken.toLowerCase(), at: parsed.at },
   };
+}
+
+function parseDespawnArguments(args: string[]): CommandParse {
+  if (args.length !== 1) {
+    return { ok: false, refusal: { kind: "badArguments", command: DESPAWN_COMMAND } };
+  }
+  return { ok: true, command: { name: DESPAWN_COMMAND, target: targetOf(args[0]) } };
 }
 
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;

@@ -953,6 +953,38 @@ describe("putting a body at a cell of the map", () => {
   });
 });
 
+describe("taking a body off the board", () => {
+  it("takes a creature off by its id, and says where it was", () => {
+    const session = world();
+    const reply = session.runCommand("/despawn npc:1,0,0,1", "me");
+
+    expect(stackAt(session, 1, 0, 0).map((placed) => placed.tileId)).toEqual(["grass"]);
+    expect(session.hasActor("npc:1,0,0,1")).toBe(false);
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Deer disappears from 1, 0, 0",
+      ids: [],
+      data: { command: "despawn", target: "npc:1,0,0,1", at: { x: 1, y: 0, z: 0 } },
+    });
+  });
+
+  it("refuses a player's body and a body that is not there, by name", () => {
+    const session = world(["me", "you"]);
+    session.runCommand("/despawn you", "me");
+    session.runCommand("/despawn nobody", "me");
+
+    expect(session.drainNotices("me")).toEqual([
+      "Yorick is a player, and leaves the board only by leaving the world",
+      'Nobody here answers to "nobody"',
+    ]);
+    expect(session.hasActor("you")).toBe(true);
+    expect(parseCommand("/despawn")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "despawn" },
+    });
+  });
+});
+
 const MINUTES_PER_HOUR = 60;
 const SIX_PM_MINUTES = 18 * MINUTES_PER_HOUR;
 const HALF_SIX_AM_MINUTES = 6 * MINUTES_PER_HOUR + 30;

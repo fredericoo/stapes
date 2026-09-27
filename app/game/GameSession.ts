@@ -113,6 +113,7 @@ import {
   spawnMarkNotice,
   spawnMarkUnchangedNotice,
   spawnNotice,
+  despawnNotice,
   statusAcquiredNotice,
   otherStatusNotice,
   statusesClearedNotice,
@@ -125,6 +126,7 @@ import { type Blame, causeOfDeath, possessive } from "./blame";
 import { conjuredName, sparesStander } from "./conjured";
 import { type Combatant, mayHarm } from "./pvp";
 import {
+  DESPAWN_COMMAND,
   GOTO_COMMAND,
   HEALTH_COMMAND,
   MOVE_COMMAND,
@@ -139,6 +141,7 @@ import {
   type CommandOutcome,
   type CommandRefusal,
   type CommandReply,
+  type DespawnCommand,
   type HealthCommand,
   type MasteryCommand,
   type SpawnCommand,
@@ -4406,6 +4409,8 @@ export class GameSession implements PlaySession {
         return this.runTimeCommand(command, id);
       case SPAWN_COMMAND:
         return this.runSpawnCommand(command, id);
+      case DESPAWN_COMMAND:
+        return this.runDespawnCommand(command, id);
     }
   }
 
@@ -4538,6 +4543,23 @@ export class GameSession implements PlaySession {
       data: { command: SPAWN_COMMAND, tileId: def.id, at },
       ids: placed.owners,
     };
+  }
+
+  private runDespawnCommand(command: DespawnCommand, id: string): CommandOutcome {
+    const targetId = command.target ?? id;
+    const actor = this.actors.get(targetId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
+
+    const name = this.bodyName(actor.id) ?? actor.id;
+    if (!actor.resident) return { ok: false, refusal: { kind: "playerBody", name } };
+
+    const at = { x: loc.x, y: loc.y, z: loc.z };
+    this.despawn(actor.id);
+    this.reindexCells([at]);
+    this.settleBoardNow();
+    this.say(id, despawnNotice(name, at));
+    return { ok: true, data: { command: DESPAWN_COMMAND, target: actor.id, at } };
   }
 
   private levelOf(id: string): number | null {
