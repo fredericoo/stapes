@@ -259,7 +259,7 @@
         "keepLuma": 0.8
       },
       "particles": {
-        "ratePerSecond": 14,
+        "ratePerSecond": 2,
         "ttlFromMs": 700,
         "ttlToMs": 1500,
         "spawnRadiusCells": 0.35,
