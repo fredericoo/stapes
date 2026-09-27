@@ -13358,6 +13358,58 @@ culled to the drawn frame (`columnTouches`) so it is bounded, not free.
 `renderer.info.autoReset` is turned off while it is on, because a frame here is
 three render passes and the live counter reports whichever went last.
 
+## `bun run verify` is evidence for a PR, and gates nothing
+
+`scripts/verify.ts` is one CLI whose commands show that a change does what its
+PR says, by running the game's own code on the checkout. It is not in CI. A
+check of the shipped content that could fail the build would turn an ordinary
+afternoon of authoring into a red build, which is the same reason no unit test
+reads `data/map.json`. Every command prints the commit it ran on and takes
+`--json`. Code a test could import lives in `app/verify/` and is typed for the
+browser; code that touches files, git or processes lives in `scripts/verify/`.
+
+### `verify content` asks the game's own questions
+
+Each check calls a function the game or the editor already calls, so no rule
+is written twice:
+
+- **Whether a block loads** is its resolver. `RESOLVERS` in
+  `app/verify/content.ts` maps every key of `TileInteractions` to one, and is
+  typed so that a new interaction does not typecheck until it has an entry. A
+  battler also gets `battlerIssues`, statuses go through `resolveStatus` and
+  `statusesById`, and the tile itself through `normalizeTileDef`.
+- **Whether the editor would refuse the tile** is `tileIdentityError` and
+  `tileArtError` (`app/lib/tileSave.ts`, moved out of `TileEditorDialog` so a
+  script can call them), `validateBrain`, `validateDialog` with the catalogue,
+  and `anchorFits` against each sheet's real size, read from its PNG with
+  `readPngSize`.
+- **Whether the map starts and keeps what it holds** is `findPlayers` and
+  `removeUnfitPlacements`, the check every save runs.
+- **Whether an id exists** is read off the resolved blocks. A brain's
+  references come from `brainCatalog.ts`: every parameter of a condition or an
+  action says whether it is a selector, a status, a spell position or a tile,
+  so a new verb is checked without a change here. The statuses a formula asks
+  about come from `statusesNamedIn`, which compiles the formula with a
+  `has_status` that records each id it is called with.
+
+Most of what it finds would otherwise fail without a word. A schema failure
+never throws: `resolveBattler` drops the whole block (the wolf's
+`castTimeMs: 0`, #299), `kitSchema` falls back to an empty kit, `resolveCraft`
+and `resolveExtract` drop a recipe or a slot at a time, `normalizeTileDef`
+drops particles and transitions it cannot parse and reads an unknown kind as a
+prop, and a kit row whose slot will not take the tile never lands. Each of
+these is a finding.
+
+Findings in `data/map.json` are warnings and leave the exit code at 0; errors
+in tiles, statuses and tilesets exit 1. The map is edited from inside the game
+as much as by hand, and saving it already refuses a map without exactly one
+`player` tile and removes what does not fit.
+
+The first run on `main` found two errors, both kit rows that never land: the
+deer's kit puts `raw-meat` in the `armor` slot at 12%, which takes only armour,
+and the rabbit's puts `skin` in the `bag` slot at 25%, which takes only an
+equippable container.
+
 ## Verifying performance work
 
 **Prove the test can fail.** A parity test that passes at every setting is
