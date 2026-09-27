@@ -33,6 +33,8 @@ function burst(over: Record<string, unknown> = {}) {
       offsetY: "",
       offsetElev: "",
       shape: null,
+      sizeFromPx: 5,
+      sizeToPx: null,
       radiusFromPx: 1,
       radiusToPx: 1,
       alphaFrom: 1,

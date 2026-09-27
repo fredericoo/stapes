@@ -10308,9 +10308,31 @@ reading the flicker note above first.
 
 `ParticleEmitterDef.shape` is null (a circle sized by the radius fields) or five
 rows of five characters, `#` for a pixel and `.` for none, top row first. A
-shape is drawn one world pixel per character, so the radius fields are not read
-for it, and the taper does not shrink it; the ramp and the alpha range colour
-and fade it exactly as they do a circle. Sleep's rising Z is the first one.
+shape is sized by `sizeFromPx` and `sizeToPx` instead of the radius fields, read
+over its life and multiplied by the taper exactly as a circle's radius is. The
+ramp and the alpha range colour and fade it exactly as they do a circle. Sleep's
+rising Z is the first one.
+
+**A shape is drawn in whole world pixels at any size.** Its quad is the size in
+pixels across and starts `floor(size / 2)` pixels left of and above the
+particle, so an even size starts on the grid as well. The particle shader
+samples the atlas at the centre of each world pixel rather than at each
+fragment, with the same arithmetic `TRANSITION_GLSL_SNAP` uses for a shrinking
+tile. Once zoomed, a fragment is smaller than a world pixel, and a shape at 7
+sampled per fragment splits world pixels between two of its texels. So 5, 10 and
+15 draw every character as the same square, and any other size doubles or drops
+some rows and columns, as a shrinking tile does. Unlike the transition, the
+sample needs no nudge off a texel edge, because it never lands on one: the
+centre of world pixel `i` in a shape drawn `n` across is `5(2i + 1) / 2n` texels
+in, an odd number over an even one. A circle is drawn one texel per world pixel,
+so its sample lands on the texel it always did.
+
+**A blank `sizeToPx` holds the first size.** Both fields are optional:
+`sizeFromPx` defaults to 5, one world pixel per character, and `sizeToPx` to
+null, which reads as `sizeFromPx` for the whole life. A block written before
+shapes had a size draws as it did, and a shape that keeps one size is one
+number. A second size that defaulted to 5 would instead shrink a shape authored
+at 10 back to 5 over its life. A size that rounds to 0 draws nothing.
 
 **Shapes live in the same atlas as the circles**, so every particle is still one
 material and one draw. `particleLayer.ts` keeps `SHAPE_SLOTS` 5×5 cells under the

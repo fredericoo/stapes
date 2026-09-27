@@ -5,6 +5,7 @@ import {
   EMPTY_SHAPE,
   MAX_PARTICLE_RADIUS_PX,
   MAX_PARTICLE_RATE,
+  MAX_PARTICLE_SIZE_PX,
   MAX_PARTICLE_TTL_MS,
   MAX_RAMP_STOPS,
   PARTICLE_SHAPE_PX,
@@ -14,7 +15,7 @@ import {
   shapeHas,
   toggleShapePixel,
 } from "../lib/particleVfx";
-import { Button, FieldLabel, Input, NumberInput, Switch } from "../ui";
+import { Button, FieldLabel, Input, NumberInput, OptionalNumberInput, Switch } from "../ui";
 
 const UNIT_STEP = 0.05;
 
@@ -465,7 +466,7 @@ export function ParticleFields({
           label="Shape"
           hint={
             particles.shape
-              ? "Drawn pixel for pixel, coloured by the ramp."
+              ? "Coloured by the ramp, sized in pixels."
               : "A circle, sized by the radius."
           }
         >
@@ -485,7 +486,31 @@ export function ParticleFields({
       </Row>
 
       <Row>
-        {particles.shape ? null : (
+        {particles.shape ? (
+          <>
+            <NumberField
+              label="Size from (px)"
+              info="Drawn in whole pixels, so at any size but 5, 10 or 15 a few rows and columns come out doubled or dropped."
+              hint="5 is the shape as drawn; 10 doubles it."
+              value={particles.sizeFromPx}
+              min={0}
+              max={MAX_PARTICLE_SIZE_PX}
+              step={1}
+              onChange={(sizeFromPx) => patch({ sizeFromPx })}
+            />
+            <Field label="To (px)" hint="Blank keeps the first size.">
+              <OptionalNumberInput
+                className="w-24"
+                min={0}
+                max={MAX_PARTICLE_SIZE_PX}
+                step={1}
+                placeholder="Same"
+                value={particles.sizeToPx ?? undefined}
+                onChange={(sizeToPx) => patch({ sizeToPx: sizeToPx ?? null })}
+              />
+            </Field>
+          </>
+        ) : (
           <>
             <NumberField
               label="Radius from (px)"

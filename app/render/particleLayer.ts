@@ -107,7 +107,10 @@ function shapeCellOrigin(slot: number): { x: number; row: number } {
   };
 }
 
-export function shapeSlice(slot: number): {
+export function shapeSlice(
+  slot: number,
+  sizePx: number,
+): {
   u0: number;
   v0: number;
   u1: number;
@@ -120,7 +123,7 @@ export function shapeSlice(slot: number): {
     u1: (x + PARTICLE_SHAPE_PX) / ATLAS_W,
     v0: row / ATLAS_H,
     v1: (row + PARTICLE_SHAPE_PX) / ATLAS_H,
-    sizePx: PARTICLE_SHAPE_PX,
+    sizePx: Math.round(sizePx),
   };
 }
 
@@ -301,12 +304,16 @@ export class ParticleLayer {
     const life = p.life;
     const radius =
       (p.config.radiusFromPx + (p.config.radiusToPx - p.config.radiusFromPx) * life) * p.taper;
+    const sizeFrom = p.config.sizeFromPx;
+    const sizeTo = p.config.sizeToPx ?? sizeFrom;
+    const size = (sizeFrom + (sizeTo - sizeFrom) * life) * p.taper;
     const shapeSlot = p.config.shape ? this.shapeSlotFor(p.config.shape) : null;
-    const slice = shapeSlot === null ? circleSlice(radius) : shapeSlice(shapeSlot);
+    const slice = shapeSlot === null ? circleSlice(radius) : shapeSlice(shapeSlot, size);
     const alpha = p.config.alphaFrom + (p.config.alphaTo - p.config.alphaFrom) * life;
-    if (alpha <= PARTICLE_ALPHA_CUTOFF) return false;
+    if (alpha <= PARTICLE_ALPHA_CUTOFF || slice.sizePx === 0) return false;
 
-    const half = (slice.sizePx - 1) / 2;
+    /** Floored, because `(sizePx - 1) / 2` starts an even size half a pixel off the grid. */
+    const half = Math.floor(slice.sizePx / 2);
     const cx = Math.round(particleWorldPx(p.x, p.elev));
     const cy = Math.round(particleWorldPx(p.y, p.elev));
     const x0 = cx - half;
@@ -453,13 +460,13 @@ export class ParticleLayer {
   }
 }
 
-const PARTICLE_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-particles-v1`;
+const PARTICLE_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-particles-v2`;
 
 /**
- * This must run after `injectWorldShader`. Both patch `#include <common>`,
- * and replacing an include that has already been replaced hits the copy at
- * the head of the previous patch's text, so running second is what puts
- * these declarations in front of the world shader's.
+ * This must run after `injectWorldShader`. Both patch `#include <common>` and
+ * `#include <map_fragment>`, and replacing an include that has already been
+ * replaced hits the copy at the head of the previous patch's text, so running
+ * second is what puts these lines in front of the world shader's.
  */
 function injectParticleShader(shader: { vertexShader: string; fragmentShader: string }) {
   shader.vertexShader = shader.vertexShader
@@ -480,6 +487,20 @@ vParticleColor = aParticleColor;`,
       "#include <common>",
       `#include <common>
 varying vec4 vParticleColor;`,
+    )
+    .replace(
+      "#include <map_fragment>",
+      `#include <map_fragment>
+// Sample the texel under this world pixel's centre, not the fragment's: once
+// zoomed, a shape drawn at a size that is not a multiple of its own would
+// otherwise split one world pixel between two of its texels.
+vec2 particleToCentre = floor(vWorldPx) + 0.5 - vWorldPx;
+diffuseColor = vec4(diffuse, opacity) * texture2D(
+  map,
+  vMapUv +
+    dFdx(vMapUv) * (particleToCentre.x / dFdx(vWorldPx.x)) +
+    dFdy(vMapUv) * (particleToCentre.y / dFdy(vWorldPx.y))
+);`,
     )
     .replace(
       "#include <color_fragment>",
