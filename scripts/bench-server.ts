@@ -78,14 +78,23 @@ type Report = {
   worstTickKb: number;
 };
 
-function runScenario(
+/**
+ * A `WeakRef`'s target stays alive until the event loop gets control back, and
+ * a microtask does not give it back. A loop that never yields keeps alive every
+ * chunk and level `mapData` copied, and full collections grow to seconds.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+async function runScenario(
   name: string,
   positions: ReadonlyArray<Coord | null>,
   map: MapFile,
   tiles: TileDef[],
   statuses: ReturnType<typeof statusesById>,
   seconds: number,
-): Report {
+): Promise<Report> {
   const session = new GameSession(map, tiles, { actorIds: [], statuses });
   positions.forEach((at, index) => {
     session.spawn(`bench:${index}`, at ? { at } : {});
@@ -93,7 +102,10 @@ function runScenario(
   const residents = session.actorSnapshots().length - positions.length;
 
   const warmupTicks = Math.round(2000 / TICK_MS);
-  for (let i = 0; i < warmupTicks; i++) session.tick(TICK_MS);
+  for (let i = 0; i < warmupTicks; i++) {
+    session.tick(TICK_MS);
+    await yieldToEventLoop();
+  }
 
   const ticks = Math.round((seconds * 1000) / TICK_MS);
   const samples: Sample[] = [];
@@ -125,6 +137,7 @@ function runScenario(
         : "";
     const t2 = performance.now();
     broadcastMap = next;
+    await yieldToEventLoop();
     samples.push({
       tickMs: t1 - t0,
       wireMs: t2 - t1,
@@ -174,7 +187,7 @@ async function main() {
 
   const rows: Report[] = [];
   for (const [name, positions] of Object.entries(chosen)) {
-    rows.push(runScenario(name, positions!, map, tiles, statuses, seconds));
+    rows.push(await runScenario(name, positions!, map, tiles, statuses, seconds));
   }
 
   const header = [
