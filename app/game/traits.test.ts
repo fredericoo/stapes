@@ -7,6 +7,7 @@ import { FRAME, tile } from "../lib/testTile";
 import { normalizeTiles } from "../lib/types";
 import {
   brainExpansionIssues,
+  catalogueBreaks,
   checkBrain,
   checkTrait,
   expandBrain,
@@ -622,6 +623,45 @@ describe("a world given the trait catalogue", () => {
 
   it("leaves a creature inert when a trait it calls is missing", () => {
     expect(noisesIn(world())).toEqual([]);
+  });
+});
+
+describe("changing the catalogue", () => {
+  function creature(brain: AuthoredBrain) {
+    return tile({ id: "wolf", height: 2, actor: true, interactions: { brain } });
+  }
+  const predator = creature(
+    wolf([{ trait: "predator", with: { fight: "hunting", target: "prey", leash: 10 } }]),
+  );
+  const { "returns-home": _homing, ...withoutHoming } = CATALOGUE;
+  const firstWords = (issues: { message: string }[]) =>
+    issues.map((issue) => issue.message.split(" ")[0]);
+
+  it("names every brain and trait that would stop working", () => {
+    expect(firstWords(catalogueBreaks([predator], CATALOGUE, withoutHoming))).toEqual([
+      "wolf",
+      "predator",
+    ]);
+  });
+
+  it("leaves out a brain that was broken already", () => {
+    const broken = creature(
+      wolf([
+        { trait: "howls" },
+        { trait: "predator", with: { fight: "hunting", target: "prey", leash: 10 } },
+      ]),
+    );
+
+    expect(firstWords(catalogueBreaks([broken], CATALOGUE, withoutHoming))).toEqual(["predator"]);
+  });
+
+  it("passes an edit every caller survives", () => {
+    const renamed = {
+      ...CATALOGUE,
+      "returns-home": { ...CATALOGUE["returns-home"]!, name: "Home" },
+    };
+
+    expect(catalogueBreaks([predator], CATALOGUE, renamed)).toEqual([]);
   });
 });
 

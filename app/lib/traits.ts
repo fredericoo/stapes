@@ -181,6 +181,15 @@ export function resolveTrait(raw: unknown): TraitDef | null {
   return parsed.success ? (parsed.output as TraitDef) : null;
 }
 
+export function traitShapeProblems(raw: unknown): string[] {
+  const parsed = v.safeParse(traitSchema, raw);
+  if (parsed.success) return [];
+  return parsed.issues.map((issue) => {
+    const path = v.getDotPath(issue);
+    return path ? `${path}: ${issue.message}` : issue.message;
+  });
+}
+
 export function traitsById(raw: readonly unknown[]): Record<string, TraitDef> {
   const out: Record<string, TraitDef> = {};
   for (const entry of raw) {
@@ -1085,7 +1094,7 @@ export function brainExpansionIssues(
 }
 
 export function usesTrait(
-  brain: AuthoredBrain | undefined,
+  brain: Pick<AuthoredBrain, "traits" | "let"> | undefined,
   id: string,
   catalogue: TraitCatalogue,
 ): boolean {
@@ -1103,6 +1112,37 @@ export function usesTrait(
       return def ? visit(callsInside(def)) : false;
     });
   return visit([...(brain.traits ?? []), ...letCalls(brain.let)]);
+}
+
+/**
+ * What changing the catalogue from `before` to `after` would stop working: a
+ * brain that expands now and would not, and a trait that checks clean now and
+ * would not. Something already broken is left out, so a save is refused only
+ * for the harm it does.
+ */
+export function catalogueBreaks(
+  tiles: readonly TileDef[],
+  before: TraitCatalogue,
+  after: TraitCatalogue,
+): TraitIssue[] {
+  const broken: TraitIssue[] = [];
+  for (const def of tiles) {
+    const brain = def.interactions?.brain;
+    if (!needsExpansion(brain)) continue;
+    if (!expandBrain(brain as AuthoredBrain, before, def.id).brain) continue;
+    const next = expandBrain(brain as AuthoredBrain, after, def.id);
+    if (!next.brain) broken.push(...next.issues.filter(isError));
+  }
+  for (const [id, def] of Object.entries(after)) {
+    const was = entryOf(before, id);
+    if (!was || checkTrait(was, before).some(isError)) continue;
+    broken.push(...checkTrait(def, after).filter(isError));
+  }
+  return broken;
+}
+
+function isError(issue: TraitIssue): boolean {
+  return issue.severity === "error";
 }
 
 function callsInside(def: TraitDef): unknown[] {

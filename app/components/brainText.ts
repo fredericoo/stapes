@@ -1,7 +1,7 @@
 import { ANY_STATE, fromStates, isSelector, type BrainDef } from "../lib/brain";
 import { ACTIONS, CONDITIONS, EFFECTS, type ParamSpec } from "../lib/brainCatalog";
 import { isConditionGroup } from "../lib/conditions";
-import { isArgRef, type AuthoredCondition } from "../lib/traits";
+import { isArgRef, type AuthoredCondition, type TraitParam } from "../lib/traits";
 
 export function describeSelector(selector: unknown): string {
   if (isArgRef(selector)) return selector.arg;
@@ -83,4 +83,12 @@ export function describeEffects(effects: unknown): string {
 
 export function describeFrom(from: BrainDef["transitions"][number]["from"]): string {
   return from === ANY_STATE ? "any state" : fromStates(from).join(", ");
+}
+
+export function describeParam(name: string, param: TraitParam): string {
+  const optional = param.optional ? "?" : "";
+  if (!Object.hasOwn(param, "default")) return `${name}${optional}: ${param.kind}`;
+  const fallback =
+    param.kind === "actions" ? describeActions(param.default) : JSON.stringify(param.default);
+  return `${name}${optional}: ${param.kind} = ${fallback}`;
 }

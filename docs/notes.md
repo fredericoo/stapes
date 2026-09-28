@@ -10100,6 +10100,15 @@ parameter is a state and nowhere else, so a slot of the same name keeps its
 name; that is why the editor needs the catalogue to rename. Saving the tile
 runs `checkBrain` with the tile catalogue as its context.
 
+**`/admin/traits` edits a trait as JSON.** The dialog checks the trait as it is
+typed and lists what saving would stop working — `catalogueBreaks`: every
+brain that expands now and would not, and every trait that checks clean now
+and would not — and the route's action checks both again against what the
+server holds before it writes. Something that was already broken does not
+block a save, so a refusal is always for harm the save itself would do. Delete
+is off while anything calls the trait. In development a save writes
+`data/traits.json` itself, as a tile's save writes `data/tiles.json`.
+
 ### What the shipped creatures call
 
 Fourteen of the twenty-five shipped brains call traits, and each expands to a

@@ -17,6 +17,7 @@ export default [
     route("map", "routes/admin/map.tsx"),
     route("tiles", "routes/admin/tiles.tsx"),
     route("statuses", "routes/admin/statuses.tsx"),
+    route("traits", "routes/admin/traits.tsx"),
     route("play", "routes/admin/play.tsx"),
     route("arena", "routes/admin/arena.tsx"),
     route("voxel", "routes/admin/voxel.tsx"),
