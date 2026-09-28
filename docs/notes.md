@@ -5700,7 +5700,10 @@ and a single point, which read as the hair spiking up.
 `STAPES_PALETTE`, and its shadow and highlight are the nearest entries darker
 and lighter in Oklab, weighted towards the same hue. A pixel takes the shadow,
 base or highlight by how squarely it faces a light from above and to the
-south-west. The
+south-west. Anything below the knee drops one tone, because the body above
+keeps it out of the light, which is how the hand-drawn player's legs are dark.
+Where one part passes in front of a part of another material, the pixel behind
+takes its own shadow tone, so a sleeve keeps an edge against a cloak. The
 outline and the ground shadow under the feet are `#2e222f`, the colour the
 hand-drawn sheet outlines in. A pixel with a neighbour much nearer the camera
 is also outlined, which separates a hand from the body behind it.
