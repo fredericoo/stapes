@@ -71,6 +71,27 @@ describe("renderFigureFrame", () => {
     }
   });
 
+  it("keeps the top of the head on a step, a whole pixel lower", () => {
+    const top = (art: Uint8ClampedArray) => {
+      for (let y = 0; y < FRAME_PX; y++) {
+        let row = "";
+        for (let x = 0; x < FRAME_PX; x++) row += art[(y * FRAME_PX + x) * 4 + 3] ? "x" : ".";
+        if (row.includes("x")) return { y, row };
+      }
+      return null;
+    };
+    for (const facing of SHEET_FACINGS) {
+      const standing = top(renderFigureFrame(DEFAULT_LOOK, facing, "stand"))!;
+      for (const pose of ["stepA", "stepB"] as const) {
+        const stepping = top(renderFigureFrame(DEFAULT_LOOK, facing, pose))!;
+        expect(stepping, `${facing}/${pose}`).toEqual({
+          y: standing.y + 1,
+          row: `.${standing.row.slice(0, -1)}`,
+        });
+      }
+    }
+  });
+
   const bald: FigureLook = { ...DEFAULT_LOOK, hair: { ...DEFAULT_LOOK.hair, style: "bald" } };
   const bare: FigureLook = { ...DEFAULT_LOOK, cloak: { ...DEFAULT_LOOK.cloak, style: "none" } };
   const variants: { name: string; look: FigureLook; without: FigureLook }[] = [
