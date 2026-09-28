@@ -8,20 +8,21 @@ import { requireAdmin } from "../../lib/auth";
 import {
   CLOAK_STYLES,
   DEFAULT_LOOK,
+  FIGURE_SWATCHES,
   FRAME_PX,
   HAIR_STYLES,
   LOWER_STYLES,
   SHEET_FACINGS,
   SHEET_HEIGHT_PX,
   SHEET_WIDTH_PX,
+  drawsFromCharacterBlock,
   figureLookSchema,
+  randomLook,
   rampFor,
   renderFigureSheet,
   type FigureLook,
 } from "../../lib/figure";
-import { STAPES_PALETTE } from "../../lib/palette";
 import { rgbaPngBlob, triggerDownload } from "../../lib/pngDownload";
-import { CELL_SIZE } from "../../lib/types";
 import type { Direction, TileDef, TilesetDef } from "../../lib/types";
 import { Button, Dialog, Input, Select, Switch, useToast } from "../../ui";
 
@@ -35,9 +36,6 @@ const WALK_CYCLE = [0, 1, 2, 1];
 
 const FACING_LABEL: Record<Direction, string> = { n: "North", e: "East", s: "South", w: "West" };
 const NO_TILE = "";
-
-/** The first palette entry is the outline colour, and a part drawn in it would vanish into its outline. */
-const SWATCHES = STAPES_PALETTE.slice(1);
 
 export async function clientLoader() {
   await requireAdmin();
@@ -82,34 +80,6 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
   return { ok: true, error: null, tilesetId: id };
 }
 
-/**
- * Whether a tile's walk is drawn from a block laid out like this sheet, so
- * moving its anchor onto the sheet draws a whole character and not pieces of
- * one. A deer or a wolf walks too, from a block of another shape.
- */
-function drawsFromCharacterBlock(tile: TileDef): boolean {
-  const walk = tile.states?.moving?.sprites;
-  if (!walk || !tile.sprites) return false;
-  return [tile.sprites, walk].every((sprites) =>
-    SHEET_FACINGS.every((facing) =>
-      sprites[facing]?.frames.every(({ sprite: { rect, base } }) => {
-        const inBlock =
-          rect.x >= 0 &&
-          rect.y >= 0 &&
-          rect.x + rect.w <= SHEET_WIDTH_PX / CELL_SIZE &&
-          rect.y + rect.h <= SHEET_HEIGHT_PX / CELL_SIZE;
-        return (
-          inBlock &&
-          rect.w * CELL_SIZE === FRAME_PX &&
-          rect.h * CELL_SIZE === FRAME_PX &&
-          base.x === 1 &&
-          base.y === 1
-        );
-      }),
-    ),
-  );
-}
-
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -124,22 +94,6 @@ function loadStoredLook(): FigureLook | null {
   } catch {
     return null;
   }
-}
-
-function pick<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)]!;
-}
-
-function randomLook(): FigureLook {
-  return {
-    skin: pick(["#e6904e", "#cd683d", "#9e4539", "#fbb954", "#694f62"]),
-    hair: { style: pick(HAIR_STYLES), colour: pick(SWATCHES) },
-    beard: Math.random() < 0.25,
-    shirt: pick(SWATCHES),
-    lower: { style: Math.random() < 0.3 ? "robe" : "trousers", colour: pick(SWATCHES) },
-    shoes: pick(SWATCHES),
-    cloak: { style: Math.random() < 0.5 ? "none" : pick(CLOAK_STYLES), colour: pick(SWATCHES) },
-  };
 }
 
 function useSheetCanvas(look: FigureLook): HTMLCanvasElement | null {
@@ -386,7 +340,7 @@ function ColourField({
         </span>
       </legend>
       <div className="grid grid-cols-8 gap-1">
-        {SWATCHES.map((hex) => (
+        {FIGURE_SWATCHES.map((hex) => (
           <button
             key={hex}
             type="button"

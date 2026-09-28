@@ -7,7 +7,7 @@ import {
   srgbToOklab,
 } from "./palette";
 import { CELL_SIZE } from "./types";
-import type { Direction } from "./types";
+import type { Direction, TileDef } from "./types";
 
 export const HAIR_STYLES = ["bald", "short", "bob", "long", "ponytail"] as const;
 
@@ -38,6 +38,27 @@ export const DEFAULT_LOOK: FigureLook = {
   shoes: "#45293f",
   cloak: { style: "none", colour: "#165a4c" },
 };
+
+/** The first palette entry is the outline colour, and a part drawn in it would vanish into its outline. */
+export const FIGURE_SWATCHES: readonly string[] = STAPES_PALETTE.slice(1);
+
+const SKIN_TONES = ["#e6904e", "#cd683d", "#9e4539", "#fbb954", "#694f62"];
+
+export function randomLook(random: () => number = Math.random): FigureLook {
+  const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+  return {
+    skin: pick(SKIN_TONES),
+    hair: { style: pick(HAIR_STYLES), colour: pick(FIGURE_SWATCHES) },
+    beard: random() < 0.25,
+    shirt: pick(FIGURE_SWATCHES),
+    lower: { style: random() < 0.3 ? "robe" : "trousers", colour: pick(FIGURE_SWATCHES) },
+    shoes: pick(FIGURE_SWATCHES),
+    cloak: {
+      style: random() < 0.5 ? "none" : pick(CLOAK_STYLES),
+      colour: pick(FIGURE_SWATCHES),
+    },
+  };
+}
 
 export type WalkPose = "stepA" | "stand" | "stepB";
 
@@ -523,4 +544,32 @@ export function renderFigureSheet(look: FigureLook): Uint8ClampedArray<ArrayBuff
     });
   });
   return sheet;
+}
+
+/**
+ * Whether a tile's walk is drawn from a block laid out like this sheet, so
+ * moving its anchor onto the sheet draws a whole character and not pieces of
+ * one. A deer or a wolf walks too, from a block of another shape.
+ */
+export function drawsFromCharacterBlock(tile: TileDef): boolean {
+  const walk = tile.states?.moving?.sprites;
+  if (!walk || !tile.sprites) return false;
+  return [tile.sprites, walk].every((sprites) =>
+    SHEET_FACINGS.every((facing) =>
+      sprites[facing]?.frames.every(({ sprite: { rect, base } }) => {
+        const inBlock =
+          rect.x >= 0 &&
+          rect.y >= 0 &&
+          rect.x + rect.w <= SHEET_WIDTH_PX / CELL_SIZE &&
+          rect.y + rect.h <= SHEET_HEIGHT_PX / CELL_SIZE;
+        return (
+          inBlock &&
+          rect.w * CELL_SIZE === FRAME_PX &&
+          rect.h * CELL_SIZE === FRAME_PX &&
+          base.x === 1 &&
+          base.y === 1
+        );
+      }),
+    ),
+  );
 }
