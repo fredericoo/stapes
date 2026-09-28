@@ -2,9 +2,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import {
-  FRAME_PX,
-  PART_IDS,
   OUTLINE_COLOUR,
+  PART_IDS,
   PART_EMPTY,
   PART_OUTLINE,
   PART_TONES,
@@ -15,123 +14,18 @@ import {
 import FIGURE_PARTS from "../app/lib/figureParts.json";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
-const PEOPLE = path.join(ROOT, "data", "tilesets", "people.png");
 const PARTS_FILE = path.join(ROOT, "app", "lib", "figureParts.json");
-
-/** The player is the first character block in `people.png` and the naked human the second. */
-const CLOTHED_X = 0;
-const NAKED_X = SHEET_WIDTH_PX;
-
-/** Frame rows above this hold the head, where the naked human's dark hair is. */
-const HEAD_ROWS = 7;
-
-/** Frame rows from this one down hold the feet, where the player's boots are. */
-const FEET_ROW = 11;
-
-const SHADOW = 0;
-const BASE = 1;
-const HIGHLIGHT = 2;
-const OUTLINE = -1;
-
-/** The colours `people.png` draws the two figures in, and the tone each stands for. */
-const SKIN: Record<string, number> = { "#6e2727": SHADOW, "#cd683d": BASE, "#fbb954": HIGHLIGHT };
-const SHIRT: Record<string, number> = { "#9babb2": SHADOW, "#c7dcd0": BASE, "#ffffff": HIGHLIGHT };
-const LEGS: Record<string, number> = { "#694f62": SHADOW, "#7f708a": BASE };
-const TRIM: Record<string, number> = { "#6e2727": SHADOW, "#ae2334": BASE };
-
-const USAGE = `Edit the paper-doll parts in app/lib/figureParts.json.
-
-  bun run figure-parts extract       re-derive body, hair-short, shirt, trim, trousers and shoes from people.png
-  bun run figure-parts export <dir>  write every part to <dir>/<part>.png, to edit in a pixel editor
-  bun run figure-parts import <dir>  read <dir>/<part>.png back for every part found there
-
-An exported part is drawn in the outline colour ${OUTLINE_COLOUR} and three greys, shadow to highlight:
-${["#595959", "#a6a6a6", "#e6e6e6"].join(" ")}. Keep to those four colours when editing; import refuses any other.`;
 
 /** The greys a part is exported in, shadow to highlight, so it can be edited as a picture. */
 const EXPORT_GREYS = ["#595959", "#a6a6a6", "#e6e6e6"];
 
-type Layer = Int8Array;
-const EMPTY = -2;
+const USAGE = `Edit the paper-doll parts in app/lib/figureParts.json.
 
-function layer(): Layer {
-  return new Int8Array(SHEET_WIDTH_PX * SHEET_HEIGHT_PX).fill(EMPTY);
-}
+  bun run figure-parts export <dir>  write every part to <dir>/<part>.png, to edit in a pixel editor
+  bun run figure-parts import <dir>  read <dir>/<part>.png back for every part found there
 
-async function extract() {
-  const png = PNG.sync.read(await fs.readFile(PEOPLE));
-  const colourAt = (sx: number, x: number, y: number): string | null => {
-    if (x < 0 || y < 0 || x >= SHEET_WIDTH_PX || y >= SHEET_HEIGHT_PX) return null;
-    const i = (y * png.width + sx + x) * 4;
-    if (png.data[i + 3] === 0) return null;
-    return `#${[png.data[i]!, png.data[i + 1]!, png.data[i + 2]!].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
-  };
-
-  const layers = {
-    body: layer(),
-    "hair-short": layer(),
-    shirt: layer(),
-    trim: layer(),
-    trousers: layer(),
-    shoes: layer(),
-  };
-
-  for (let y = 0; y < SHEET_HEIGHT_PX; y++) {
-    for (let x = 0; x < SHEET_WIDTH_PX; x++) {
-      const i = y * SHEET_WIDTH_PX + x;
-      const frameRow = y % FRAME_PX;
-      const naked = colourAt(NAKED_X, x, y);
-      const clothed = colourAt(CLOTHED_X, x, y);
-
-      if (naked !== null) {
-        /**
-         * The naked human's hair is drawn in the outline colour. A dark pixel
-         * on the head with nothing transparent beside it is hair rather than
-         * outline, so it becomes skin on the body and a pixel of the hair part.
-         */
-        const enclosed = [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ].every(([dx, dy]) => colourAt(NAKED_X, x + dx!, y + dy!) !== null);
-        if (naked === OUTLINE_COLOUR && enclosed && frameRow < HEAD_ROWS) {
-          layers.body[i] = BASE;
-          layers["hair-short"][i] = BASE;
-        } else {
-          layers.body[i] = naked === OUTLINE_COLOUR ? OUTLINE : (SKIN[naked] ?? BASE);
-        }
-      }
-
-      if (clothed === null || clothed === naked) continue;
-      /** Where the player's skin is shaded differently from the naked human's, the player wins, because a look reproduces the player. */
-      if (clothed in SKIN && !(clothed in TRIM && naked !== null && naked in SKIN))
-        layers.body[i] = SKIN[clothed]!;
-      else if (clothed in SHIRT) layers.shirt[i] = SHIRT[clothed]!;
-      else if (clothed in LEGS) layers.trousers[i] = LEGS[clothed]!;
-      else if (clothed in TRIM) layers.trim[i] = TRIM[clothed]!;
-      else if (clothed === OUTLINE_COLOUR && frameRow >= FEET_ROW) layers.shoes[i] = BASE;
-      else if (clothed === OUTLINE_COLOUR) layers.shirt[i] = OUTLINE;
-    }
-  }
-
-  const parts = { ...(FIGURE_PARTS as Partial<FigureParts>) };
-  for (const [id, pixels] of Object.entries(layers)) {
-    const rows: string[] = [];
-    for (let y = 0; y < SHEET_HEIGHT_PX; y++) {
-      let row = "";
-      for (let x = 0; x < SHEET_WIDTH_PX; x++) {
-        const tone = pixels[y * SHEET_WIDTH_PX + x]!;
-        row += tone === EMPTY ? PART_EMPTY : tone === OUTLINE ? PART_OUTLINE : PART_TONES[tone];
-      }
-      rows.push(row);
-    }
-    parts[id as keyof FigureParts] = rows;
-    console.log(`Extracted ${id}`);
-  }
-  await fs.writeFile(PARTS_FILE, `${JSON.stringify(parts, null, 2)}\n`);
-  console.log(`Wrote ${path.relative(ROOT, PARTS_FILE)}`);
-}
+An exported part is drawn in the outline colour ${OUTLINE_COLOUR} and three greys, shadow to highlight:
+${EXPORT_GREYS.join(" ")}. Keep to those four colours when editing; import refuses any other.`;
 
 function hexOf(data: Uint8Array, i: number): string {
   return `#${[data[i]!, data[i + 1]!, data[i + 2]!].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
@@ -201,7 +95,6 @@ async function importParts(dir: string) {
 
 async function main() {
   const [command, dir] = process.argv.slice(2);
-  if (command === "extract") return extract();
   if (command === "export" && dir) return exportParts(dir);
   if (command === "import" && dir) return importParts(dir);
   console.log(USAGE);

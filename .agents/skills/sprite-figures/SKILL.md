@@ -144,21 +144,21 @@ bun run figure-parts import "$SCRATCH/parts"   # refuses any other colour
   facing, repeated in all three columns. Anything that hangs (long hair, a
   ponytail, a cape's hem) runs down or down-right on screen, because height goes
   up and to the left in this projection.
-- **Outlines.** A drawn part marked `outlined: true` gets outline on every
-  transparent pixel beside it, so draw only its colours. The six parts cut from
-  `people.png` carry the artist's own outline instead and are not `outlined`.
+- **Outlines.** A part marked `outlined: true` (every drawn part, and the
+  boots) gets outline on every transparent pixel beside it, so draw only its
+  colours. The body, shirt, trim and trousers carry the artist's own outline
+  instead, which leaves some edges open on purpose.
 - **A new style** is a new value in `HAIR_STYLES`, `CLOAK_STYLES` or
   `LOWER_STYLES`, a new id in `PART_IDS`, an entry in `PARTS`, a line in
   `partsFor`, and the part's rows in the JSON.
-- `bun run figure-parts extract` re-cuts only body, hair-short, shirt, trim,
-  trousers and shoes from `people.png`. It leaves drawn parts alone.
+- The parts were first cut from `people.png` and have been hand-edited since;
+  `figureParts.json` is the source of truth, and nothing regenerates it.
 
 After a change:
 
 1. Render a few looks with `--preview` and open them. Check every facing, and
    both steps if the part moves.
 2. Run `bun run test:unit -- app/lib/figure.test.ts`. It checks that every part
-   is 64 rows of 48 valid cells, that the player's colours still draw the
-   player in `people.png` pixel for pixel, that output stays in the palette,
-   and that every style shows from at least one facing.
+   is 64 rows of 48 valid cells, that every boot pixel is outlined, that output
+   stays in the palette, and that every style shows from at least one facing.
 3. Run `bun run format` and `bun run lint`.

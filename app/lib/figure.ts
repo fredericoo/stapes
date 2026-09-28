@@ -121,7 +121,7 @@ const PARTS: Record<PartId, { paint: Paint; z: Z; outlined: boolean }> = {
   cloak: { paint: "cloak", z: { s: 0, e: 0, w: 0, n: 90 }, outlined: true },
   body: { paint: "skin", z: everywhere(10), outlined: false },
   trousers: { paint: "lower", z: everywhere(20), outlined: false },
-  shoes: { paint: "shoes", z: everywhere(25), outlined: false },
+  shoes: { paint: "shoes", z: everywhere(25), outlined: true },
   robe: { paint: "lower", z: everywhere(27), outlined: true },
   shirt: { paint: "shirt", z: everywhere(30), outlined: false },
   trim: { paint: "trim", z: everywhere(35), outlined: false },

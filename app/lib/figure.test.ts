@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
 import {
   CLOAK_STYLES,
@@ -11,6 +9,7 @@ import {
   SHEET_POSES,
   SHEET_WIDTH_PX,
   renderFigureFrame,
+  rampFor,
   renderFigureSheet,
   type FigureLook,
 } from "./figure";
@@ -25,18 +24,6 @@ function sameArt(a: Uint8ClampedArray, b: Uint8ClampedArray): boolean {
   return a.every((value, i) => value === b[i]);
 }
 
-/** The colours `people.png` draws its player in, as a look. */
-const PLAYER: FigureLook = {
-  skin: "#cd683d",
-  hair: { style: "short", colour: "#2e222f" },
-  beard: false,
-  shirt: "#c7dcd0",
-  trim: "#ae2334",
-  lower: { style: "trousers", colour: "#7f708a" },
-  shoes: "#2e222f",
-  cloak: { style: "none", colour: "#2e222f" },
-};
-
 describe("figureParts.json", () => {
   it("holds every part as 64 rows of 48 cells", () => {
     const parts = FIGURE_PARTS as Record<string, string[]>;
@@ -49,16 +36,23 @@ describe("figureParts.json", () => {
 });
 
 describe("renderFigureSheet", () => {
-  it("dressed as the player, draws the player in people.png pixel for pixel", () => {
-    const people = PNG.sync.read(readFileSync("data/tilesets/people.png"));
-    const sheet = renderFigureSheet(PLAYER);
+  it("rings every pixel of a boot with outline or another part", () => {
+    const look: FigureLook = { ...DEFAULT_LOOK, shoes: "#53d5cf" };
+    const boot = new Set(rampFor(look.shoes));
+    const sheet = renderFigureSheet(look);
+    const opaque = (x: number, y: number) => sheet[(y * SHEET_WIDTH_PX + x) * 4 + 3] !== 0;
     for (let y = 0; y < SHEET_HEIGHT_PX; y++) {
       for (let x = 0; x < SHEET_WIDTH_PX; x++) {
-        const mine = (y * SHEET_WIDTH_PX + x) * 4;
-        const theirs = (y * people.width + x) * 4;
-        const want = people.data[theirs + 3] ? hexAt(people.data, theirs) : "none";
-        const got = sheet[mine + 3] ? hexAt(sheet, mine) : "none";
-        expect(got, `${x}, ${y}`).toBe(want);
+        const i = (y * SHEET_WIDTH_PX + x) * 4;
+        if (sheet[i + 3] === 0 || !boot.has(hexAt(sheet, i))) continue;
+        for (const [nx, ny] of [
+          [x - 1, y],
+          [x + 1, y],
+          [x, y - 1],
+          [x, y + 1],
+        ] as const) {
+          expect(opaque(nx, ny), `beside ${x}, ${y}`).toBe(true);
+        }
       }
     }
   });

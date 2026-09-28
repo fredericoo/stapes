@@ -5682,30 +5682,32 @@ block, so a wolf or a deer is never offered.
 holds them as 64 strings of 48 cells: `.` empty, `#` outline, `1` to `3` the
 shadow, base and highlight of whatever colour the look gives that part. For
 each facing, the parts a look uses are laid down in the `z` order `PARTS` gives
-that facing, and each tone becomes that step of its colour's ramp. A cape and
-a cloak are behind the body from every side but the back, where they cover it;
-hair and a hood are on top from every side.
+that facing, and each tone becomes that step of its colour's ramp.
 
-**Six parts are cut from `people.png`, and a look can draw its player exactly.**
-`bun run figure-parts extract` takes the naked human (the second block) as the
-body and diffs the player against it: the whites become the shirt, the reds
-the trim, the purples the trousers, and the dark pixels at the feet the shoes.
-The naked human's hair is drawn in the outline colour; a dark pixel on the head
-with nothing transparent beside it is hair, and becomes skin on the body and a
-pixel of `hair-short`. Dressed in the player's own colours, the doll draws the
-player pixel for pixel, and `figure.test.ts` holds it to that, so a change to
-the parts or the ramps that moves a single pixel of him fails. The arm swing and
-the stance in each facing are the artist's, unchanged.
+**The body, the short hair, the trim and the boots' positions were cut from
+`people.png`, and have been hand-edited since.** The naked human (the second
+block) is the body. The player's tunic, trim and boots came from diffing the
+player against it. The file is the source of truth now: the tunic was cut back
+to a shirt that stops at the belt, with trousers from there to the boots, and
+facing south the head's top-left outline pixel became skin so the head is 3×2
+like it is facing north. Cutting the parts again from `people.png` would undo
+that, so there is no command for it.
 
-**The other eight parts are drawn by hand**: three hair styles, a beard, a robe,
-a cape, a cloak and a hood. Each is one mask per facing repeated across its
-three frames, because the head stays on the same pixels through the walk.
-Height goes up and to the left in this projection, so anything that hangs, like
-a ponytail or long hair, runs down or down-right on screen rather than out to
-the side. These parts are marked `outlined`, and a transparent pixel beside one
-becomes outline. The parts cut from `people.png` are not, because the artist
-leaves some edges open on purpose — a hand's tip has no outline — and an
-automatic outline there changed 51 of the player's pixels.
+**Boots always have an outline.** The original draws boots in the outline
+colour, so they needed none; in any other colour a boot at the tip of a foot
+ran straight into the background. `shoes` is `outlined`, and a transparent
+pixel beside a boot becomes outline, so on some frames a boot is a single
+pixel with a ring round it. The pixel between the legs facing south and north
+is outline, a dark gap, as the original draws it.
+
+**The drawn parts are one mask per facing** repeated across its three frames,
+because the head stays on the same pixels through the walk. Height goes up and
+to the left in this projection, so anything that hangs, like a ponytail or long
+hair, runs down or down-right on screen rather than out to the side. The drawn
+parts and the boots are marked `outlined`, and a transparent pixel beside one
+becomes outline. The body, shirt and trim are not, because the artist leaves
+some edges open on purpose — a hand's tip has no outline — and an automatic
+outline there changed 51 of the player's pixels.
 
 **Ramps step one palette entry either way**, the nearest darker and lighter
 entries in Oklab weighted towards the same hue. That is what the shirt and the
@@ -5714,8 +5716,7 @@ written out in `HAND_RAMPS`.
 
 `bun run figure-parts export <dir>` writes every part as a PNG in the outline
 colour and three greys, to edit in a pixel editor, and `import <dir>` reads them
-back and refuses any other colour. `extract` rewrites only the six cut parts, so
-it can be run again after `people.png` changes without losing the drawn ones.
+back and refuses any other colour.
 
 `bun run generate:figure` renders a sheet with no page: it writes through
 `DataStore` over `DiskBlobs` on `data/`, the class the server writes through, so
