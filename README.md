@@ -15,8 +15,9 @@ Open the client URL `bun dev` prints — the game, behind two doors: an account
 opens on the second one.
 
 The authoring tools are all under `/admin`, which opens on the map editor: the
-tile database is at `/admin/tiles`, and `/admin/arena` balances two fighters
-without a world in the way. **They need an `ADMIN` account.** A fresh database
+tile database is at `/admin/tiles`, `/admin/arena` balances two fighters
+without a world in the way, and `/admin/townsfolk` draws a walking character
+sheet from a 3D figure dressed in the colours, hair and cloak you pick. **They need an `ADMIN` account.** A fresh database
 seeds one — username `admin`, password `salem123` — and nothing else grants the
 role: to promote somebody, say so in the database.
 

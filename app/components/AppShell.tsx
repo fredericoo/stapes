@@ -17,6 +17,7 @@ export const ADMIN_DESTINATIONS: Destination[] = [
   { to: "/admin/play", label: "Play" },
   { to: "/admin/arena", label: "Arena" },
   { to: "/admin/voxel", label: "Voxel" },
+  { to: "/admin/townsfolk", label: "Townsfolk" },
   { to: "/admin/actions", label: "Actions" },
   { to: "/", label: "Game" },
 ];
