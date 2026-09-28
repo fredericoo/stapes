@@ -19,6 +19,8 @@ import type { CharacterSheet } from "./GameServer";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
+const SEEDED_TRAITS = [{ id: "yelps", name: "Yelps" }];
+
 let directory: string;
 let world: World;
 let api: ReturnType<typeof createApi>;
@@ -37,6 +39,7 @@ beforeEach(async () => {
   await copyFile("data/tilesets.json", join(seed, "tilesets.json"));
   await copyFile("data/tiles.json", join(seed, "tiles.json"));
   await copyFile("data/statuses.json", join(seed, "statuses.json"));
+  await writeFile(join(seed, "traits.json"), JSON.stringify(SEEDED_TRAITS));
   await writeFile(join(seed, "map.json"), serializeMap(startableMap()));
 
   const config = readConfig({ DATA_DIR: join(directory, "data"), SEED_DIR: seed } as never);
@@ -485,5 +488,33 @@ describe("a player's deaths and kills", () => {
         victim: { id: tobin, name: "Tobin Reed", character: true },
       }),
     ]);
+  });
+});
+
+describe("the trait catalogue", () => {
+  function saveTraits(traits: unknown[], headers: Record<string, string>): Promise<Response> {
+    return api.handle(
+      new Request("http://localhost/api/traits", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ traits }),
+      }),
+    );
+  }
+
+  it("keeps what an administrator saves", async () => {
+    const saved = [{ id: "howls", name: "Howls" }];
+
+    const response = await saveTraits(saved, { cookie });
+
+    expect(response.ok).toBe(true);
+    expect(await world.blobs.readTraits()).toEqual(saved);
+  });
+
+  it("refuses anybody else and leaves the catalogue as it was", async () => {
+    const response = await saveTraits([{ id: "howls", name: "Howls" }], {});
+
+    expect(response.status).toBe(404);
+    expect(await world.blobs.readTraits()).toEqual(SEEDED_TRAITS);
   });
 });

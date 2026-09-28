@@ -56,6 +56,7 @@ import {
   type RemovedPlacement,
 } from "../app/lib/validation";
 import { type StatusDef, statusesById } from "../app/lib/status";
+import { brainExpansionIssues, traitsById, type TraitCatalogue } from "../app/lib/traits";
 import type { StatusInstance } from "../app/game/statuses";
 import type {
   ChunkCells,
@@ -712,6 +713,7 @@ export class GameServer {
   private clockOffsetMinutes = 0;
   private tiles: TileDef[] = [];
   private statusDefs: Record<string, StatusDef> = {};
+  private traits: TraitCatalogue = {};
   private broadcastMap: MapFile | null = null;
   private sentMotion = new Map<string, SentMotion>();
   private readonly announcedActors = new Map<string, Set<string>>();
@@ -789,6 +791,8 @@ export class GameServer {
     this.tiles = await store.readTiles();
     GameServer.warnUnloadableBattlers(this.tiles);
     this.statusDefs = statusesById(await store.readStatuses());
+    this.traits = traitsById(await store.readTraits());
+    GameServer.warnUnloadableBrains(this.tiles, this.traits);
 
     const checkpoint = await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY);
     const board = checkpoint ? await this.checkpointedBoard(checkpoint) : null;
@@ -798,12 +802,14 @@ export class GameServer {
           spawnAt: checkpoint!.spawn,
           seed: checkpoint!.seed,
           statuses: this.statusDefs,
+          traits: this.traits,
           clock: () => this.minutesOfDay(),
         })
       : new GameSession(await store.readMap(), this.tiles, {
           actorIds: [],
           seed: this.env.seed,
           statuses: this.statusDefs,
+          traits: this.traits,
           clock: () => this.minutesOfDay(),
         });
     this.dead = new Set(board ? (checkpoint!.dead ?? []) : []);
@@ -889,6 +895,14 @@ export class GameServer {
       if (issues.length === 0) continue;
       console.warn(
         `stapes: tile "${def.id}" is kind battler but its block does not parse, so it has no hit points or spells:\n  ${issues.join("\n  ")}`,
+      );
+    }
+  }
+
+  private static warnUnloadableBrains(tiles: readonly TileDef[], traits: TraitCatalogue) {
+    for (const issue of brainExpansionIssues(tiles, traits)) {
+      console.warn(
+        `stapes: a brain does not expand, so its creature stands still: ${issue.message}`,
       );
     }
   }
@@ -2235,6 +2249,7 @@ export class GameServer {
     const tiles = await store.readTiles();
     const tilesById = tilesByIdFromList(tiles);
     const statusDefs = statusesById(await store.readStatuses());
+    const traits = traitsById(await store.readTraits());
     const previousSpawn =
       this.session?.getSpawnPoint() ??
       (await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY))?.spawn ??
@@ -2245,6 +2260,7 @@ export class GameServer {
       actorIds: [],
       seed: this.env.seed,
       statuses: statusDefs,
+      traits,
       clock: () => this.minutesOfDay(),
     });
 
@@ -2280,6 +2296,7 @@ export class GameServer {
     }
 
     this.tiles = tiles;
+    this.traits = traits;
     this.session = session;
     this.broadcastMap = this.session.getMap();
     this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesById));

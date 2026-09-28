@@ -186,6 +186,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
 
     .get("/tiles", async () => ({ tiles: await store.readTiles() }))
     .get("/statuses", async () => ({ statuses: await store.readStatuses() }))
+    .get("/traits", async () => ({ traits: await store.readTraits() }))
     .get("/tilesets", async () => ({ tilesets: await store.readTilesets() }))
     .get("/map", async ({ request, status }) => {
       if (!(await admin(request))) return status(404, "Not found");
@@ -239,6 +240,16 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         return { ok: true as const };
       },
       { body: t.Object({ statuses: t.Array(t.Unknown()) }) },
+    )
+    .post(
+      "/traits",
+      async ({ body, request, status }) => {
+        if (!(await admin(request))) return status(404, "Not found");
+        await store.writeTraits(body.traits);
+        await world.server.reloadContent();
+        return { ok: true as const };
+      },
+      { body: t.Object({ traits: t.Array(t.Unknown()) }) },
     )
     .post(
       "/map",

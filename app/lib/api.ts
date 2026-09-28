@@ -45,6 +45,10 @@ export async function fetchStatuses(): Promise<unknown[]> {
   return unwrap(await client.api.statuses.get()).statuses;
 }
 
+export async function fetchTraits(): Promise<unknown[]> {
+  return unwrap(await client.api.traits.get()).traits;
+}
+
 export async function fetchTilesets(): Promise<TilesetDef[]> {
   return unwrap(await client.api.tilesets.get()).tilesets as TilesetDef[];
 }
@@ -59,6 +63,10 @@ export async function saveTiles(tiles: TileDef[]): Promise<void> {
 
 export async function saveStatuses(statuses: unknown[]): Promise<void> {
   unwrap(await client.api.statuses.post({ statuses }));
+}
+
+export async function saveTraits(traits: unknown[]): Promise<void> {
+  unwrap(await client.api.traits.post({ traits }));
 }
 
 export async function saveMapText(map: string): Promise<RemovedPlacement[]> {

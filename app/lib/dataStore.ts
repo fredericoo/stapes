@@ -6,6 +6,7 @@ const MAP_KEY = "map.json";
 const TILES_KEY = "tiles.json";
 const TILESETS_KEY = "tilesets.json";
 const STATUSES_KEY = "statuses.json";
+const TRAITS_KEY = "traits.json";
 const TILESET_PREFIX = "tilesets/";
 
 const JSON_TYPE = "application/json";
@@ -41,6 +42,17 @@ export class DataStore {
 
   async writeStatuses(statuses: unknown[]) {
     await this.blobs.put(STATUSES_KEY, `${JSON.stringify(statuses, null, 2)}\n`, JSON_TYPE);
+  }
+
+  async readTraits(): Promise<unknown[]> {
+    const raw = await this.blobs.getText(TRAITS_KEY);
+    if (raw === null) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  }
+
+  async writeTraits(traits: unknown[]) {
+    await this.blobs.put(TRAITS_KEY, `${JSON.stringify(traits, null, 2)}\n`, JSON_TYPE);
   }
 
   async readTilesets(): Promise<TilesetDef[]> {

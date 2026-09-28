@@ -10076,6 +10076,15 @@ written out is reported against the trait rather than against each creature.
 (`needsExpansion`), so a world built without the catalogue leaves a creature
 that calls a trait inert rather than running its idle states alone.
 
+**The catalogue is `data/traits.json`**, kept on the terms `statuses.json` is:
+`DataStore.readTraits`, `GET /api/traits`, and a `POST` only an administrator
+may make, which reloads the world. `server/seed.ts` lists it among the files a
+deploy copies — a file missing from that list never reaches production — and
+`/admin/play`'s worker reads it through `ApiBlobs`. `GameServer` warns at load
+about every brain that does not expand, since its creature otherwise just
+stands there. A bot expands the tiles it fetches the same way (`takeSeat`),
+because it reads a creature's brain for how far off it notices a player.
+
 ## A status can stop its bearer acting, and damage can end one
 
 Two flags on `StatusDef`, both off unless authored: `incapacitates` and
