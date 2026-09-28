@@ -11391,6 +11391,12 @@ so it meets older rock flush and a cave can be converted a patch at a time.
 static quads are batched per texture within a chunk. Nothing on the shipped map
 uses it yet.
 
+**The cave generator lists it as a rock but still widens every passage to two**
+(`widenToTwo`). It already lays its floor under the rock, so the open half of
+each wall cell shows ground, but a cave generated from `cave-wall` comes out as
+open caverns rather than narrow passages. A passage one cell wide is carved by
+hand for now.
+
 ## A forest is a path and what grows either side of it
 
 The forest generator (`app/editor/forest.ts`) lays a ground tile over the whole
