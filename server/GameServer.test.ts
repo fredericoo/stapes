@@ -3831,6 +3831,23 @@ describe("the pvp switch", () => {
     const second = await connect("alice");
     expect(second.hello.pvp).toEqual([{ actorId: "alice", on: true }]);
   });
+
+  it("stays off for a player who turned it off after a reconnect", async () => {
+    const first = await connect("alice");
+    send(first.ws, { type: "pvp", enabled: true });
+    await messageWithin(first.ws, "patch", MESSAGE_TIMEOUT_MS);
+    first.ws.close();
+    await simulateEviction();
+
+    const second = await connect("alice");
+    send(second.ws, { type: "pvp", enabled: false });
+    await messageWithin(second.ws, "patch", MESSAGE_TIMEOUT_MS);
+    second.ws.close();
+    await simulateEviction();
+
+    const third = await connect("alice");
+    expect(third.hello.pvp).toEqual([]);
+  });
 });
 
 describe("an administrator hiding", () => {
