@@ -8121,6 +8121,14 @@ less than a fifth of a second so the chips leave together and separate. An
 earlier spray, born over 300 ms with twice as many chips, overlapped into one
 white blob on the crystal.
 
+A crystal arrives on a sweep and leaves on a noise dissolve, each 700 ms with
+a mint (`#affcdb`) edge. The sweep starts at the bottom-right corner of the
+sprite, where the crystal stands, and ends at its tip in the top left, so a
+respawned crystal fills in from its base up. The dissolve plays on the pull
+that mines a crystal out, beside the spray. The edge is the crystal's lightest
+colour and is drawn after the light is applied, so it shows at full strength
+in an unlit cave.
+
 ### The row greys rather than vanishing whenever the refusal is not about the world
 
 **A missing row and a greyed row are different facts, and the list has to say
