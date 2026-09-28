@@ -112,3 +112,34 @@ jobs:
           if [ "$LEFT" -lt 21 ]; then
             echo "::warning::origin certificate expires in ${LEFT} days and Cloudflare will not tell you — check ACME renewal on the box"
           fi
+
+  itch:
+    name: itch.io page
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      BUTLER_VERSION: 15.31.0
+      BUTLER_SHA256: 4f2a3f22b12f870923504d4b6935535cad377b45859f5fe9419e3adc0611a48c
+      ITCH_TARGET: fredericoo/the-last-stones:html5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Put the logo beside the page
+        run: |
+          mkdir -p build/itch
+          cp itch/index.html public/logo.png build/itch/
+
+      - name: Install butler
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/butler.zip" \
+            "https://broth.itch.zone/butler/linux-amd64/${BUTLER_VERSION}/archive/default"
+          echo "${BUTLER_SHA256}  $RUNNER_TEMP/butler.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/butler.zip" -d "$RUNNER_TEMP/butler"
+          echo "$RUNNER_TEMP/butler" >> "$GITHUB_PATH"
+
+      - name: Push the page to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: butler push build/itch "$ITCH_TARGET" --userversion "${GITHUB_SHA::7}"
