@@ -3,6 +3,7 @@ import {
   ATTACKER_SELECTOR,
   HOME_SELECTOR,
   SPEAKER_SELECTOR,
+  fromStates,
   isSelector,
   isSpeakerFilter,
   nearest,
@@ -231,14 +232,14 @@ export function renamedState(brain: BrainDef, oldName: string, newName: string):
     states[name === oldName ? newName : name] = state;
   }
   const remap = (n: string) => (n === oldName ? newName : n);
+  const remapFrom = (from: BrainTransitionDef["from"]) => {
+    if (typeof from !== "string") return from.map(remap);
+    return from === ANY_STATE ? from : remap(from);
+  };
   return {
     initial: remap(brain.initial),
     states,
-    transitions: brain.transitions.map((t) => ({
-      ...t,
-      from: t.from === ANY_STATE ? t.from : remap(t.from),
-      to: remap(t.to),
-    })),
+    transitions: brain.transitions.map((t) => ({ ...t, from: remapFrom(t.from), to: remap(t.to) })),
   };
 }
 
@@ -607,7 +608,6 @@ function TransitionRow({
   onRemove: () => void;
 }) {
   const { ref, handleRef, isDragging } = useSortable({ id, index });
-  const fromOptions = [ANY_STATE, ...stateNames].map((n) => ({ value: n, label: n }));
   const toOptions = stateNames.map((n) => ({ value: n, label: n }));
 
   return (
@@ -619,11 +619,10 @@ function TransitionRow({
         <DragHandle handleRef={handleRef} label={`Drag to reorder transition ${index + 1}`} />
         <span className="w-5 text-center font-mono text-[11px] text-muted">{index + 1}</span>
         <span className="text-[10px] uppercase text-muted">from</span>
-        <Select
-          value={transition.from}
-          onValueChange={(v) => v && onChange({ ...transition, from: v })}
-          options={fromOptions}
-          className="min-w-[6rem]"
+        <FromField
+          from={transition.from}
+          stateNames={stateNames}
+          onChange={(from) => onChange({ ...transition, from })}
         />
         <BindField transition={transition} vocab={vocab} onChange={onChange} />
         <span className="text-[10px] uppercase text-muted">to</span>
@@ -647,6 +646,76 @@ function TransitionRow({
         />
       </div>
     </div>
+  );
+}
+
+function FromField({
+  from,
+  stateNames,
+  onChange,
+}: {
+  from: BrainTransitionDef["from"];
+  stateNames: string[];
+  onChange: (next: BrainTransitionDef["from"]) => void;
+}) {
+  const ADD = "";
+  const listed = fromStates(from);
+  const spare = stateNames.filter((name) => !listed.includes(name));
+  const adder =
+    from !== ANY_STATE && spare.length > 0 ? (
+      <Select
+        value={ADD}
+        onValueChange={(name) => name && onChange([...listed, name])}
+        options={[
+          { value: ADD, label: "+ state" },
+          ...spare.map((name) => ({ value: name, label: name })),
+        ]}
+        className="min-w-[5rem]"
+        placeholder="+ state"
+        ariaLabel="Add a state this transition leaves from"
+      />
+    ) : null;
+
+  if (typeof from === "string") {
+    return (
+      <>
+        <Select
+          value={from}
+          onValueChange={(v) => v && onChange(v)}
+          options={[ANY_STATE, ...stateNames].map((n) => ({ value: n, label: n }))}
+          className="min-w-[6rem]"
+        />
+        {adder}
+      </>
+    );
+  }
+
+  const remove = (name: string) => {
+    const kept = from.filter((one) => one !== name);
+    onChange(kept.length === 1 ? kept[0]! : kept);
+  };
+
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {from.map((name) => (
+        <button
+          key={name}
+          type="button"
+          onClick={() => remove(name)}
+          disabled={from.length === 1}
+          className="border-2 border-border bg-paper px-1 text-[11px] disabled:opacity-60"
+          aria-label={
+            from.length === 1
+              ? `${name} — the only state, so it cannot be removed`
+              : `Stop leaving from ${name}`
+          }
+        >
+          {name}
+          {from.length > 1 ? " ✕" : ""}
+        </button>
+      ))}
+      {adder}
+    </span>
   );
 }
 

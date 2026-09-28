@@ -81,6 +81,14 @@ describe("renaming a state", () => {
     };
     expect(renamedState(wild, "flee", "bolt").transitions[0]!.from).toBe("any");
   });
+
+  it("renames a state inside a list of sources", () => {
+    const listed: BrainDef = {
+      ...brain,
+      transitions: [{ from: ["idle", "flee"], if: { cond: "stuck" }, to: "idle" }],
+    };
+    expect(renamedState(listed, "flee", "bolt").transitions[0]!.from).toEqual(["idle", "bolt"]);
+  });
 });
 
 describe("offering selectors", () => {

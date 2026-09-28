@@ -307,6 +307,21 @@ describe("deciding", () => {
     expect(memory.state).toBe("bolt");
   });
 
+  it("leaves from any state on a transition's list, and from no other", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] }, rest: { do: [] }, busy: { do: [] }, bolt: { do: [] } },
+      transitions: [{ from: ["idle", "rest"], if: { cond: "after", ms: 0 }, to: "bolt" }],
+    };
+    const left = (state: string) => {
+      const memory = { ...initialMemory(brain), state };
+      stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+      return memory.state;
+    };
+
+    expect([left("idle"), left("rest"), left("busy")]).toEqual(["bolt", "bolt", "busy"]);
+  });
+
   it("takes the first matching transition, not the best one", () => {
     const brain: BrainDef = {
       initial: "idle",

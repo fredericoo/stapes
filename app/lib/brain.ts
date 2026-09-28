@@ -116,11 +116,23 @@ export type BrainStateDef = {
 };
 
 export type BrainTransitionDef = {
-  from: string;
+  from: string | string[];
   if: BrainCondition;
   bind?: Record<string, Selector>;
   to: string;
 };
+
+export function leavesFrom(from: BrainTransitionDef["from"], state: string): boolean {
+  if (typeof from === "string") return from === ANY_STATE || from === state;
+  return from.includes(state);
+}
+
+export function fromStates(from: BrainTransitionDef["from"]): readonly string[] {
+  if (typeof from !== "string") return from;
+  return from === ANY_STATE ? NO_STATES : [from];
+}
+
+const NO_STATES: readonly string[] = [];
 
 export type BrainDef = {
   initial: string;
@@ -285,7 +297,7 @@ const brainSchema = v.object({
   ),
   transitions: v.array(
     v.object({
-      from: stateName,
+      from: v.union([stateName, v.pipe(v.array(stateName), v.minLength(1))]),
       if: ifSchema,
       bind: v.optional(v.record(v.pipe(v.string(), v.minLength(1)), selectorSchema)),
       to: stateName,
@@ -322,10 +334,11 @@ export function validateBrain(brain: BrainDef): BrainIssue[] {
   }
 
   brain.transitions.forEach((t, i) => {
-    if (t.from !== ANY_STATE && !Object.hasOwn(brain.states, t.from)) {
+    for (const name of fromStates(t.from)) {
+      if (Object.hasOwn(brain.states, name)) continue;
       issues.push({
         severity: "error",
-        message: `Transition ${i + 1}: from "${t.from}", which is not a state.`,
+        message: `Transition ${i + 1}: from "${name}", which is not a state.`,
       });
     }
     if (!Object.hasOwn(brain.states, t.to)) {
@@ -352,7 +365,7 @@ function unreachableStates(brain: BrainDef): string[] {
     grew = false;
     for (const t of brain.transitions) {
       if (!Object.hasOwn(brain.states, t.to) || reached.has(t.to)) continue;
-      const canLeave = t.from === ANY_STATE || reached.has(t.from);
+      const canLeave = t.from === ANY_STATE || fromStates(t.from).some((name) => reached.has(name));
       if (canLeave) {
         reached.add(t.to);
         grew = true;
