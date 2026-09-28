@@ -45,7 +45,7 @@ const SIDES: Array<{ side: TransitionSide; title: string; info: string }> = [
   {
     side: "appear",
     title: "Appear",
-    info: "Played when this tile arrives for a reason the world names: a conjure, or a decay that turns something into it. Placing it in the editor, dropping it or respawning it plays nothing.",
+    info: "Played when this tile arrives for a reason the world names: a conjure, a respawn, or a decay that turns something into it. Placing it in the editor or dropping it plays nothing.",
   },
   {
     side: "disappear",
