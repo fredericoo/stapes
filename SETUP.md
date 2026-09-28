@@ -363,7 +363,10 @@ previews means deleting it and creating it again on the preview box, which gives
 it a new uuid: update `COOLIFY_PREVIEW_APP_UUID` and the `PREVIEW_APP` in both
 cron files below.
 
-- **Domain**: `https://pr-{{pr_id}}.preview.example.com`
+- **Domain**: `https://preview.example.com`, and **Preview URL template**
+  `pr-{{pr_id}}.{{domain}}`. The repository variable `PREVIEW_DOMAIN` must be
+  the same `preview.example.com`, because `preview.yml` builds each preview's
+  address from it rather than asking Coolify.
 - **Preview deployments**: enabled
 - **Memory limit**: `512m` — smaller than production on purpose. Previews are for
   looking at, and the tighter ceiling means a broken branch runs out of room
@@ -381,6 +384,12 @@ cron files below.
   database, and generating a secret per preview is exactly right.
 - **Never deploy the base application.** Only its `pr-N` children are wanted;
   the parent exists to hold the settings and to give `{{domain}}` a value.
+
+Coolify writes a preview's domain once, when the pull request first gets a
+preview, so changing the domain or the template moves only pull requests opened
+afterwards. Move each open one with `PATCH /applications/{uuid}/previews/{pr}`
+and `{"domains": "https://pr-N.preview.example.com"}`, then redeploy it with
+`POST /deploy?uuid={uuid}&pr=N` so its container carries the new routing labels.
 
 An application created through the API has preview deployments off, and the
 create call does not accept the setting. Turn it on afterwards with `PATCH
