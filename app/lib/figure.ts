@@ -87,10 +87,14 @@ const MAX_STEPS = 64;
 const SHADOW_RADIUS = 1.9;
 const CREASE_DEPTH = 1.6;
 
+/** A ray's `t` is also the height it hit at, so this is "below the knee": the shins and shoes, which the body above keeps out of the light. */
+const UNDER_BODY_Z = 1.1;
+const SEPARATE_DEPTH = 0.3;
+
 /** Light from above and to the south-west, so the tops and the south faces read bright. */
 const LIGHT = normalize([-0.35, 0.45, 1]);
-const HIGHLIGHT_ABOVE = 0.8;
-const SHADOW_BELOW = 0.12;
+const HIGHLIGHT_ABOVE = 0.74;
+const SHADOW_BELOW = 0.26;
 
 type Vec3 = [number, number, number];
 
@@ -496,11 +500,13 @@ export function renderFigureFrame(
       const i = py * FRAME_PX + px;
       filled[i] = 1;
       mats[i] = mat;
-      tones[i] = lit > HIGHLIGHT_ABOVE ? HIGHLIGHT : lit < SHADOW_BELOW ? SHADOW : BASE;
+      const tone = lit > HIGHLIGHT_ABOVE ? HIGHLIGHT : lit < SHADOW_BELOW ? SHADOW : BASE;
+      tones[i] = nearest < UNDER_BODY_Z ? Math.max(SHADOW, tone - 1) : tone;
       depth[i] = nearest;
     }
   }
 
+  separate(filled, mats, tones, depth);
   for (let i = 0; i < filled.length; i++) {
     if (filled[i]) writeHex(out, i * 4, ramps[mats[i]!]![tones[i]!]!);
   }
@@ -508,6 +514,31 @@ export function renderFigureFrame(
   crease(out, filled, depth);
   outline(out, filled);
   return out;
+}
+
+/**
+ * Where one part passes in front of another part of a different material,
+ * the pixel behind takes its own shadow tone, so a sleeve against a cloak or
+ * hair against a face keeps an edge without spending an outline pixel on it.
+ */
+function separate(filled: Uint8Array, mats: Uint8Array, tones: Uint8Array, depth: Float32Array) {
+  const marks: number[] = [];
+  for (let py = 0; py < FRAME_PX; py++) {
+    for (let px = 0; px < FRAME_PX; px++) {
+      const i = py * FRAME_PX + px;
+      if (!filled[i]) continue;
+      const infront = (j: number) =>
+        filled[j] === 1 && mats[j] !== mats[i] && depth[j]! - depth[i]! > SEPARATE_DEPTH;
+      if (
+        (px > 0 && infront(i - 1)) ||
+        (px < FRAME_PX - 1 && infront(i + 1)) ||
+        (py > 0 && infront(i - FRAME_PX)) ||
+        (py < FRAME_PX - 1 && infront(i + FRAME_PX))
+      )
+        marks.push(i);
+    }
+  }
+  for (const i of marks) tones[i] = SHADOW;
 }
 
 /**
