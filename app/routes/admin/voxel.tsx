@@ -6,6 +6,7 @@ import { DirectionPreview } from "../../components/voxel/DirectionPreview";
 import { SliceEditor, type SliceTool } from "../../components/voxel/SliceEditor";
 import { fetchTiles, fetchTilesets, saveTiles, saveTilesets, uploadTileset } from "../../lib/api";
 import { readPngSize } from "../../lib/png";
+import { rgbaPngBlob, triggerDownload } from "../../lib/pngDownload";
 import { CELL_SIZE, DIRECTIONS } from "../../lib/types";
 import type { TileDef, TileHeight, TilesetDef } from "../../lib/types";
 import {
@@ -658,27 +659,7 @@ function FrameThumb({
 
 async function sheetPngBlob(project: VoxelProject, render: RenderOptions): Promise<Blob> {
   const { layout, rgba } = renderSheet(project, render);
-  const canvas = document.createElement("canvas");
-  canvas.width = layout.widthPx;
-  canvas.height = layout.heightPx;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("2d context unavailable");
-  ctx.putImageData(new ImageData(rgba, layout.widthPx, layout.heightPx), 0, 0);
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("PNG encode failed"));
-    }, "image/png");
-  });
-}
-
-function triggerDownload(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
+  return rgbaPngBlob(rgba, layout.widthPx, layout.heightPx);
 }
 
 const TILE_HEIGHT_OPTIONS: { value: string; label: string }[] = [
