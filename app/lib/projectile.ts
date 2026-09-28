@@ -23,9 +23,20 @@ const projectileSchema = v.object({
   hit: v.optional(v.unknown()),
 });
 
+const projectileCache = new WeakMap<TileDef, ProjectileBlock | null>();
+
 export function resolveProjectile(def: TileDef | undefined): ProjectileBlock | null {
   if (!def || def.kind !== "projectile") return null;
-  const parsed = v.safeParse(projectileSchema, def.interactions?.projectile);
+  const cached = projectileCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const projectile = parseProjectile(def.interactions?.projectile);
+  projectileCache.set(def, projectile);
+  return projectile;
+}
+
+function parseProjectile(raw: unknown): ProjectileBlock | null {
+  const parsed = v.safeParse(projectileSchema, raw);
   if (!parsed.success) return null;
   const hit = resolveTransition(parsed.output.hit);
   return {
