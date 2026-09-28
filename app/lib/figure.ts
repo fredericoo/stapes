@@ -8,6 +8,7 @@ import {
 } from "./palette";
 import { CELL_SIZE } from "./types";
 import type { Direction, TileDef } from "./types";
+import { FIGURE_RIG } from "./figureRig";
 
 export const HAIR_STYLES = ["bald", "short", "bob", "long", "ponytail"] as const;
 
@@ -79,7 +80,6 @@ const OUTLINE_COLOUR = "#2e222f";
 const FOOT_PX = FRAME_PX - CELL_SIZE / 2;
 
 const SUPERSAMPLE = 4;
-const COVERAGE = 0.5;
 const MARCH_TOP = 9;
 const MARCH_BOTTOM = -0.5;
 const HIT_EPSILON = 0.02;
@@ -87,16 +87,9 @@ const MAX_STEPS = 64;
 const SHADOW_RADIUS = 1.9;
 const CREASE_DEPTH = 1.6;
 
-/** A ray's `t` is also the height it hit at, so this is "below the knee": the shins and shoes, which the body above keeps out of the light. */
-const UNDER_BODY_Z = 1.1;
 const SEPARATE_DEPTH = 0.3;
 
-/** Light from above and to the south-west, so the tops and the south faces read bright. */
-const LIGHT = normalize([-0.35, 0.45, 1]);
-const HIGHLIGHT_ABOVE = 0.74;
-const SHADOW_BELOW = 0.26;
-
-type Vec3 = [number, number, number];
+export type Vec3 = [number, number, number];
 
 const enum Mat {
   Skin,
@@ -188,78 +181,89 @@ function frontOf(y: number) {
   return (p: Vec3) => y - p[1];
 }
 
-type Pose = { stride: number; bob: number; nod: number };
+export type Vec2 = [number, number];
 
-/**
- * `bob` lowers the body on a step and `nod` lowers the head. The nod is a
- * whole pixel so the head lands on the same pixels one step down-right: a
- * fraction of a pixel re-samples the sphere and its top flickers into a point.
- */
-const POSES: Record<WalkPose, Pose> = {
-  stepA: { stride: 1, bob: -0.4, nod: -1 },
-  stand: { stride: 0, bob: 0, nod: 0 },
-  stepB: { stride: -1, bob: -0.4, nod: -1 },
+/** Where one frame puts the body, in the figure's own frame: feet on z = 0, facing +y, one unit per screen pixel. Pairs are the figure's -x side, then its +x side. */
+export type FrameRig = {
+  at: Vec2;
+  hipZ: number;
+  shoulderZ: number;
+  feet: [Vec2, Vec2];
+  elbows: [Vec3, Vec3];
+  hands: [Vec3, Vec3];
 };
 
-/**
- * Heights of the joints, in screen pixels above the ground. The hand-drawn
- * player's head reaches about seven pixels up, a little over the six its
- * tile's three height units make, and nearly half of the body is head.
- */
-const BODY = {
-  footZ: 0.35,
-  hipZ: 2.2,
-  chestZ: 3.25,
-  shoulderZ: 3.85,
-  headZ: 5.5,
-  headR: 1.5,
-  legX: 0.6,
-  shoulderX: 2,
-  stride: 0.9,
+/** The head is set once per facing, so it stays on the same pixels through the walk, as it does in the hand-drawn player. */
+export type FacingRig = { head: Vec3; poses: Record<WalkPose, FrameRig> };
+
+export type FigureBuild = {
+  headR: number;
+  headWidth: number;
+  headHeight: number;
+  torsoWidth: number;
+  torsoDepth: number;
+  legX: number;
+  legR: number;
+  footZ: number;
+  footR: number;
+  shoulderX: number;
+  armR: number;
+  handR: number;
+  lightX: number;
+  lightY: number;
+  highlightAbove: number;
+  shadowBelow: number;
+  underBodyZ: number;
+  coverage: number;
 };
+
+export type FigureRig = { build: FigureBuild; facings: Record<Direction, FacingRig> };
 
 type Add = (mat: Mat, dist: (p: Vec3) => number) => void;
 
-/** The figure in its own frame: feet on z = 0, facing +y, one unit is one screen pixel. */
-function buildFigure(look: FigureLook, pose: WalkPose): Shape[] {
-  const { stride, bob, nod } = POSES[pose];
+function buildFigure(look: FigureLook, facing: FacingRig, pose: WalkPose, b: FigureBuild): Shape[] {
+  const rig = facing.poses[pose];
   const shapes: Shape[] = [];
   const add: Add = (mat, dist) => shapes.push({ mat, dist });
+  const [ax, ay] = rig.at;
+  const step = (rig.feet[1][1] - rig.feet[0][1]) / 2;
 
-  const hipZ = BODY.hipZ + bob;
-  const chestZ = BODY.chestZ + bob;
-  const shoulderZ = BODY.shoulderZ + bob;
-  const headC: Vec3 = [0, 0.15, BODY.headZ + nod];
-  const step = BODY.stride * stride;
-
-  for (const side of [-1, 1] as const) {
-    const forward = step * side;
-    const hip: Vec3 = [BODY.legX * side, 0, hipZ];
-    const ankle: Vec3 = [BODY.legX * side, forward, BODY.footZ + 0.3];
-    add(Mat.Lower, capsule(hip, ankle, 0.62, 0.5));
-    add(Mat.Shoes, ellipsoid([ankle[0], forward + 0.2, BODY.footZ], [0.55, 0.75, 0.42]));
-  }
+  rig.feet.forEach(([fx, fy], i) => {
+    const side = i === 0 ? -1 : 1;
+    const hip: Vec3 = [ax + b.legX * side, ay, rig.hipZ];
+    const ankle: Vec3 = [fx, fy, b.footZ + 0.3];
+    add(Mat.Lower, capsule(hip, ankle, b.legR, b.legR * 0.8));
+    add(Mat.Shoes, ellipsoid([fx, fy + 0.2, b.footZ], [b.footR, b.footR * 1.4, b.footR * 0.8]));
+  });
 
   add(
     Mat.Shirt,
-    roundBox([0, 0, (hipZ + shoulderZ) / 2], [1.45, 0.8, (shoulderZ - hipZ) / 2 + 0.3], 0.6),
+    roundBox(
+      [ax, ay, (rig.hipZ + rig.shoulderZ) / 2],
+      [b.torsoWidth, b.torsoDepth, (rig.shoulderZ - rig.hipZ) / 2 + 0.3],
+      Math.min(0.6, b.torsoDepth),
+    ),
   );
-  if (look.lower.style === "robe")
-    add(Mat.Lower, skirt([0, 0, 0], 0.2, 1.6, hipZ + 0.2, 1.25, 0.8));
-
-  for (const side of [-1, 1] as const) {
-    const swing = -step * side * 1.4;
-    const shoulder: Vec3 = [BODY.shoulderX * side, 0, shoulderZ];
-    const elbow: Vec3 = [(BODY.shoulderX + 0.35) * side, swing * 0.5, shoulderZ - 0.8];
-    const hand: Vec3 = [(BODY.shoulderX + 0.7) * side, swing, hipZ];
-    add(Mat.Shirt, capsule(shoulder, elbow, 0.55, 0.5));
-    add(Mat.Skin, capsule(elbow, hand, 0.45, 0.45));
+  if (look.lower.style === "robe") {
+    add(
+      Mat.Lower,
+      skirt([ax, ay, 0], 0.2, b.torsoWidth + 0.15, rig.hipZ + 0.2, b.torsoWidth - 0.2, 0.8),
+    );
   }
 
-  add(Mat.Skin, ellipsoid(headC, [BODY.headR * 1.1, BODY.headR, BODY.headR * 0.9]));
+  rig.hands.forEach((hand, i) => {
+    const side = i === 0 ? -1 : 1;
+    const shoulder: Vec3 = [ax + b.shoulderX * side, ay, rig.shoulderZ];
+    const elbow = rig.elbows[i]!;
+    add(Mat.Shirt, capsule(shoulder, elbow, b.armR, b.armR * 0.9));
+    add(Mat.Skin, capsule(elbow, hand, b.handR, b.handR));
+  });
 
-  addHair(look, headC, BODY.headR, step, add);
-  addCloak(look, headC, BODY.headR, chestZ, shoulderZ, step, add);
+  const headC = facing.head;
+  add(Mat.Skin, ellipsoid(headC, [b.headR * b.headWidth, b.headR, b.headR * b.headHeight]));
+
+  addHair(look, headC, b.headR, step, add);
+  addCloak(look, headC, b.headR, (rig.hipZ + rig.shoulderZ) / 2, rig.shoulderZ, step, add);
 
   return shapes;
 }
@@ -380,7 +384,13 @@ type Hit = { t: number; mat: Mat; light: number };
  * the same pixel, and the camera is at large `t`. Marching from the top down
  * finds the surface nearest the camera first.
  */
-function castRay(shapes: Shape[], u: number, v: number, facing: Direction): Hit | null {
+function castRay(
+  shapes: Shape[],
+  u: number,
+  v: number,
+  facing: Direction,
+  light: Vec3,
+): Hit | null {
   const inv = 1 / Math.sqrt(3);
   let t = MARCH_TOP;
   for (let i = 0; i < MAX_STEPS && t > MARCH_BOTTOM; i++) {
@@ -388,8 +398,7 @@ function castRay(shapes: Shape[], u: number, v: number, facing: Direction): Hit 
     const { d, mat } = sceneDistance(shapes, toFigure(world, facing));
     if (d < HIT_EPSILON) {
       const n = fromFigure(sceneNormal(shapes, toFigure(world, facing)), facing);
-      const light = n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2];
-      return { t, mat, light };
+      return { t, mat, light: n[0] * light[0] + n[1] * light[1] + n[2] * light[2] };
     }
     t -= Math.max(d * inv, HIT_EPSILON);
   }
@@ -437,9 +446,17 @@ function snapToPalette(hex: string): string {
   return STAPES_PALETTE[nearestPaletteIndex(labOf(hex), PALETTE_LAB)]!;
 }
 
+/**
+ * Ramps `people.png` draws that the one-step rule does not reach: its skin
+ * skips a palette entry either side of the base.
+ */
+const HAND_RAMPS: Record<string, Ramp> = {
+  "#cd683d": ["#6e2727", "#cd683d", "#fbb954"],
+};
+
 export function rampFor(hex: string): Ramp {
   const base = snapToPalette(hex);
-  return [neighbour(base, -0.14), base, neighbour(base, 0.12)];
+  return HAND_RAMPS[base] ?? [neighbour(base, -0.14), base, neighbour(base, 0.12)];
 }
 
 function rampsFor(look: FigureLook): Ramp[] {
@@ -465,9 +482,13 @@ export function renderFigureFrame(
   look: FigureLook,
   facing: Direction,
   pose: WalkPose,
+  rig: FigureRig = FIGURE_RIG,
 ): Uint8ClampedArray<ArrayBuffer> {
-  const shapes = buildFigure(look, pose);
+  const b = rig.build;
+  const shapes = buildFigure(look, rig.facings[facing], pose, b);
   const ramps = rampsFor(look);
+  const bases = ramps.map((ramp) => ramp[BASE]);
+  const sun = normalize([b.lightX, b.lightY, 1]);
   const out = new Uint8ClampedArray(FRAME_PX * FRAME_PX * 4);
   const filled = new Uint8Array(FRAME_PX * FRAME_PX);
   const mats = new Uint8Array(FRAME_PX * FRAME_PX);
@@ -485,7 +506,7 @@ export function renderFigureFrame(
         for (let sx = 0; sx < SUPERSAMPLE; sx++) {
           const u = px + (sx + 0.5) / SUPERSAMPLE - FOOT_PX;
           const v = py + (sy + 0.5) / SUPERSAMPLE - FOOT_PX;
-          const hit = castRay(shapes, u, v, facing);
+          const hit = castRay(shapes, u, v, facing, sun);
           if (!hit) continue;
           hits++;
           votes[hit.mat]!++;
@@ -493,20 +514,19 @@ export function renderFigureFrame(
           nearest = Math.max(nearest, hit.t);
         }
       }
-      if (hits / samples < COVERAGE) continue;
+      if (hits / samples < b.coverage) continue;
       let mat = 0;
       for (let m = 1; m < MATERIAL_COUNT; m++) if (votes[m]! > votes[mat]!) mat = m;
       const lit = light[mat]! / votes[mat]!;
       const i = py * FRAME_PX + px;
       filled[i] = 1;
       mats[i] = mat;
-      const tone = lit > HIGHLIGHT_ABOVE ? HIGHLIGHT : lit < SHADOW_BELOW ? SHADOW : BASE;
-      tones[i] = nearest < UNDER_BODY_Z ? Math.max(SHADOW, tone - 1) : tone;
+      const tone = lit > b.highlightAbove ? HIGHLIGHT : lit < b.shadowBelow ? SHADOW : BASE;
+      tones[i] = nearest < b.underBodyZ ? Math.max(SHADOW, tone - 1) : tone;
       depth[i] = nearest;
     }
   }
 
-  const bases = ramps.map((ramp) => ramp[BASE]);
   separate(
     filled,
     mats.map((m) => bases.indexOf(ramps[m]![BASE])),

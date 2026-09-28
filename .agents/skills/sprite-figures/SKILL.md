@@ -120,17 +120,20 @@ command.
 
 ## Changing the figure itself
 
-The body is in `app/lib/figure.ts`: `BODY` holds the joint heights and widths in
-screen pixels, `POSES` the walk, and `addHair` / `addCloak` the styles. A new
-style is a new entry in `HAIR_STYLES`, `CLOAK_STYLES` or `LOWER_STYLES` plus its
-shapes. `docs/notes.md`, "A townsperson is a 3D figure drawn through the game's
-projection", explains the rendering and why the proportions are what they are.
+The figure is in `app/lib/figure.ts`. `addHair` and `addCloak` build the styles;
+a new style is a new entry in `HAIR_STYLES`, `CLOAK_STYLES` or `LOWER_STYLES`
+plus its shapes. The pose of every facing and frame, and the proportions and
+lighting, live in `app/lib/figureRig.ts`, which `bun run fit:figure` writes by
+fitting them to the naked human in `people.png`. Change the shapes, then fit
+again rather than editing the rig by hand. `docs/notes.md`, "A townsperson is a
+3D figure drawn through the game's projection", explains how the rendering and
+the fit work.
 
 After a change:
 
-1. Render a few looks with `--preview`, and compare them side by side with the
-   player's block (the top-left 48×64 of `data/tilesets/people.png`) at the same
-   zoom. Every facing and both steps should still read as a person.
+1. Run `bun run fit:figure --score --preview "$SCRATCH"` and open `fit.png`: the
+   naked human beside the fitted figure. Then render a few looks with
+   `--preview`. Every facing and both steps should still read as a person.
 2. Run `bun run test:unit -- app/lib/figure.test.ts`. It checks that the output
    stays in the palette, stands on its foot cell, draws every facing and step
    differently, and that every hair, cloak and legs style shows from at least one

@@ -5147,31 +5147,43 @@ block, so a wolf or a deer is never offered.
 per screen pixel with the feet on z = 0, facing south and turned for the other
 facings. Each pixel casts rays along `(1, 1, 1)`, the direction the projection
 collapses (one pixel up-left per pixel of height), at 4×4 samples. A pixel is
-filled when half its samples hit, and it takes the material most of them hit.
-The head's top is about seven pixels up, with nearly half of the body spent on
-the head, which matches the hand-drawn player measured corner to corner along
-the diagonal: 18 pixels including the outline, and about 65 pixels in all.
-Longer limbs made a body that reads as a diagonal stick. The head is a little
-wider than it is tall, because a round head three pixels across rasterises
-with a one-pixel point on top.
+filled when enough of its samples hit, and it takes the material most of them
+hit.
 
-**A step moves the head by a whole pixel.** The body dips 0.4 of a pixel on a
-step and the head a full one, so the head's pixels land one step down-right
-unchanged. The body used to dip a fifth of a pixel with the head on it. That
-re-sampled the head on every step, and its top flickered between a flat edge
-and a single point, which read as the hair spiking up.
+**Every number that places the body is fitted to the naked human.** The
+hand-drawn player is not one pose turned four ways: each facing has its own
+stance, and the arms swing much further on some steps than others. So
+`FigureRig` gives each facing and each frame its own standing offset, hip and
+shoulder heights, feet, elbows and hands, and each facing one head, which stays
+on the same pixels through the walk as it does in the art. `FigureBuild` holds
+what the frames share: the sizes of the parts, the light, the tone thresholds
+and the coverage a pixel needs to be filled. `bun run fit:figure` renders the
+figure bare (every part in `#cd683d` and the hair in the outline colour, which
+is how the second block of `people.png` is drawn), scores each frame against
+that block pixel by pixel, and walks every number by coordinate descent,
+rewriting `app/lib/figureRig.ts`. The figure it settles on is slimmer than the
+hand-set one, and its match stops at about half of the pixels. The remaining
+gap is limbs: the art draws an arm as a single pixel, and a 3D arm that thin
+rarely covers enough of a pixel to fill it.
+
+**The score compares how much of the skin is each tone, as well as where.**
+Tones land in slightly different places however well the shape fits, so a
+pixel-for-pixel score cannot tell a dark figure from a light one, and a fit on
+that alone left the lighting where it started. The term that compares
+proportions is what brought the figure up to the art's mostly light skin.
 
 **Every colour is a palette entry.** A picked colour is snapped to
 `STAPES_PALETTE`, and its shadow and highlight are the nearest entries darker
-and lighter in Oklab, weighted towards the same hue. A pixel takes the shadow,
-base or highlight by how squarely it faces a light from above and to the
-south-west. Anything below the knee drops one tone, because the body above
-keeps it out of the light, which is how the hand-drawn player's legs are dark.
-Where one part passes in front of a part of another material, the pixel behind
-takes its own shadow tone, so a sleeve keeps an edge against a cloak. The
-outline and the ground shadow under the feet are `#2e222f`, the colour the
-hand-drawn sheet outlines in. A pixel with a neighbour much nearer the camera
-is also outlined, which separates a hand from the body behind it.
+and lighter in Oklab, weighted towards the same hue. The skin skips an entry
+either side of `#cd683d`, so that ramp is written out in `HAND_RAMPS`. A pixel
+takes the shadow, base or highlight by how squarely it faces the light. Anything
+below the knee drops one tone, because the body above keeps it out of the
+light, which is how the hand-drawn player's legs are dark. Where one part
+passes in front of a part of another colour, the pixel behind takes its own
+shadow tone, so a sleeve keeps an edge against a cloak. The outline and the
+ground shadow under the feet are `#2e222f`, the colour the hand-drawn sheet
+outlines in. A pixel with a neighbour much nearer the camera is also outlined,
+which separates a hand from the body behind it.
 
 A sheet renders in about 200 ms, so the page re-renders on every change without
 a worker. `bun run generate:figure` is the same renderer with no page: it writes

@@ -73,6 +73,10 @@ an agent drives", lists every call.
   `--name` saves it to `data/tilesets/` and registers it, and `--tile` moves a
   tile onto it; `--batch` takes a JSON list. `--help` lists every flag, and the
   `sprite-figures` skill is the workflow
+- `bun run fit:figure` — fit the 3D figure's pose for every facing and frame,
+  and its proportions and lighting, to the naked human in `people.png`, and
+  rewrite `app/lib/figureRig.ts`. `--score` prints the match and changes
+  nothing; `--preview <dir>` writes the two side by side
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as

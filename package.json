@@ -12,6 +12,7 @@
     "generate:complement": "bun scripts/generate-autotile-complement.ts",
     "generate:npcs": "bun scripts/generate-npc-sheets.ts",
     "generate:figure": "bun scripts/generate-figure.ts",
+    "fit:figure": "bun scripts/fit-figure.ts",
     "generate:respawn": "bun scripts/generate-respawn-tileset.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
     "generate:cave-wall": "bun scripts/generate-cave-wall-tileset.ts",
