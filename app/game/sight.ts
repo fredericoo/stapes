@@ -50,6 +50,18 @@ function sealsAgainstVertical(
   return stackOcclusion(getStack(map, x, y, z), tilesById).sealsLevel;
 }
 
+export function openColumn(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  at: Coord,
+  toZ: number,
+): boolean {
+  for (let z = at.z + 1; z <= toZ; z++) {
+    if (sealsAgainstVertical(map, tilesById, at.x, at.y, z)) return false;
+  }
+  return true;
+}
+
 export function hasLineOfSight(
   map: MapFile,
   tilesById: Record<string, TileDef>,

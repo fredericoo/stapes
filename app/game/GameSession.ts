@@ -325,6 +325,7 @@ import { bodyNameFor } from "./displayName";
 import {
   initialMemory,
   stepBrain,
+  withinSightLevels,
   type BrainMemory,
   type FoundThing,
   type SightLevels,
@@ -348,7 +349,7 @@ import {
   withReservation,
   withoutReservations,
 } from "./extract";
-import { hasLineOfSight } from "./sight";
+import { hasLineOfSight, openColumn } from "./sight";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressurePlates";
@@ -580,8 +581,6 @@ type SlideState = {
   count: number;
   elapsedMs: number;
 };
-
-type PlanCoord = { x: number; y: number };
 
 type Eaten = { consumable: ConsumableItem; name: string };
 
@@ -1435,7 +1434,7 @@ export class GameSession implements PlaySession {
     this.pendingHeard = [];
     this.pendingHurt = new Map();
 
-    const players = this.playerPlans();
+    const players = this.playerCells();
     const dozing: ActorRuntime[] = [];
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
@@ -1645,19 +1644,27 @@ export class GameSession implements PlaySession {
     this.dozeCursor = start + turns;
   }
 
+  /**
+   * A player within reach on the plan counts only on a level where the creature
+   * could notice them or they could see it. Every condition already ignores
+   * anybody outside the creature's sight levels (`within`), and a body below a
+   * player is off their screen once a floor seals its column (`isHiddenFromCamera`).
+   */
   private attentive(
     actor: ActorRuntime,
-    players: readonly PlanCoord[],
+    players: readonly Coord[],
     hurt: ReadonlyMap<string, string[]>,
   ): boolean {
     if (hurt.has(actor.id)) return true;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
     const reach = Math.max(BRAIN_ATTENTION_FLOOR_CELLS, this.reachOf(this.defFor(actor)));
+    let sight: SightLevels | null = null;
     for (const player of players) {
-      if (Math.abs(player.x - loc.x) <= reach && Math.abs(player.y - loc.y) <= reach) {
-        return true;
-      }
+      if (Math.abs(player.x - loc.x) > reach || Math.abs(player.y - loc.y) > reach) continue;
+      sight ??= this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight;
+      if (withinSightLevels(loc, player, sight)) return true;
+      if (openColumn(this.map, this.tilesById, loc, player.z)) return true;
     }
     return false;
   }
@@ -1667,12 +1674,12 @@ export class GameSession implements PlaySession {
     return brain ? brainReach(brain) : 0;
   }
 
-  private playerPlans(): PlanCoord[] {
-    const out: PlanCoord[] = [];
+  private playerCells(): Coord[] {
+    const out: Coord[] = [];
     for (const actor of this.actors.values()) {
       if (actor.resident) continue;
       const loc = this.tryLocate(actor);
-      if (loc) out.push({ x: loc.x, y: loc.y });
+      if (loc) out.push({ x: loc.x, y: loc.y, z: loc.z });
     }
     return out;
   }

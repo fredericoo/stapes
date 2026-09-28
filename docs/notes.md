@@ -2692,17 +2692,17 @@ over would have been ten times that, for the same one player.
 A round is now split in two, and the split is where the cost goes:
 
 - **Attentive** creatures think every round, exactly as before. A creature is
-  attentive while a player is within the furthest distance its *own* brain
-  ever asks about — `brainReach`, the largest `cells` on any condition in any
-  of its transitions — or within a screen (`BRAIN_ATTENTION_FLOOR_CELLS`),
-  whichever is further, on any level. A wolf reaches 22 (it investigates a
-  sound at 22), a troll 30, a deer with no distance in its brain gets the
-  floor. The reach is read off the authored conditions, so longer ears are a
-  longer reach in the same edit. It is also why there is no separate
-  "engaged" flag: every authored chase gives up at some `out_of_range`, and a
-  creature still chasing is by construction inside its own reach of the
-  person it is chasing. Being hit counts too — a blow is delivered by the next
-  round, and dozing through it would drop it rather than delay it.
+  attentive while a player is within the furthest distance its *own* brain ever
+  asks about — `brainReach`, the largest `cells` on any condition in any of its
+  transitions — or within a screen (`BRAIN_ATTENTION_FLOOR_CELLS`), whichever is
+  further, on a level where it could notice them or they could see it (below). A
+  wolf reaches 22 (it investigates a sound at 22), a troll 30, a deer with no
+  distance in its brain gets the floor. The reach is read off the authored
+  conditions, so longer ears are a longer reach in the same edit. It is also why
+  there is no separate "engaged" flag: every authored chase gives up at some
+  `out_of_range`, and a creature still chasing is by construction inside its own
+  reach of the person it is chasing. Being hit counts too — a blow is delivered
+  by the next round, and dozing through it would drop it rather than delay it.
 - **Dozing** creatures — everybody else — share `BRAIN_DOZE_BUDGET` turns a
   round, round-robin. That budget is the only term in a round the *map*
   contributes; the rest is players. What a dozing creature gets is a turn
@@ -2718,14 +2718,30 @@ town: brain round 13.6ms → 3.4ms p95, 42 → 19 changed cells a tick, 112 →
 
 The seams worth knowing:
 
-- Distance is a square on the plan, ignoring level. A superset of every
-  distance a condition reckons in, and a rat three floors under the street is
-  attentive to somebody walking over it. That costs a turn; the other error
-  would cost a creature its chance to notice somebody.
+- Distance is a square on the plan, a superset of every distance a condition
+  reckons in, and the level counts on two terms. A player in that square wakes a
+  creature on a level where the creature could notice them, or where they could
+  see it. Noticing is the creature's sight levels (`sight` on its battler, none
+  either way without one), because every condition already ignores anybody
+  outside them: `within` in `brainRuntime.ts`, whose level test the attention
+  check shares. Seeing is looser, because a creature a player can see has to
+  look alive: the player's own level and anything above it count, and a level
+  below counts unless a floor seals the creature's column between them, which is
+  the half of the renderer's `isHiddenFromCamera` a roof-cut cannot undo. So a
+  rat three floors under the street dozes, and one in a pit you are looking into
+  does not. On `bench:server`'s `spread` scenario, where the den stacks three
+  floors under its mouth, it takes the awake creatures from 120 to 99 and the
+  changed cells a tick from 24.9 to 21.6. What that saves depends on what an
+  awake creature costs: with failed route searches remembered, the tick's p95 at
+  1, 4 and 8 times the shipped residents went from 11.6ms to 9.1ms, from 47ms to
+  35ms and from 80ms to 67ms. Without that, most of the tick at 4 and 8 times is
+  failed searches by creatures on the players' own floors, which the level does
+  not touch.
 - `turnsOver` in `brain.test.ts` counts *noises*, not steps: a creature's
   step can be blocked by another creature's, and a noise cannot. Each of
   those tests was checked red by breaking the rule it pins — dropping the
-  banked time, making everybody attentive, ignoring the reach.
+  banked time, making everybody attentive, ignoring the reach, ignoring the
+  level, ignoring the sight, reading the column in both directions.
 - A round used to be one loop and one clock. It is still one clock: nothing
   here changes `BRAIN_TICK_MS` or the accumulator. What changed later is that
   a round with more than `BRAIN_TURNS_PER_TICK_MIN` turns is spread over the
