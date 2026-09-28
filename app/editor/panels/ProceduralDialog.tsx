@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { TilePreview } from "../../components/TilePreview";
-import { E, W, blobMaskToSlice } from "../../lib/autotile";
+import { E, N, NE, NW, W, blobMaskToSlice } from "../../lib/autotile";
 import type { Direction, TileDef, TilesetDef } from "../../lib/types";
 import { Button, Dialog, FieldLabel, Input, NumberInput, Segmented } from "../../ui";
 import { CAVE_DENSITY_RANGE, CAVE_SHAPES, type CaveConfig, type CaveShape } from "../cave";
@@ -28,13 +28,22 @@ const WALL_TILE_IDS = ["sw2", "brick-wall", "half-wall"];
 const WINDOW_TILE_IDS = ["window-1"];
 const DOOR_TILE_IDS = ["door-closed"];
 
-const ROCK_TILE_IDS = ["half-stone", "stone-wall"];
+const ROCK_TILE_IDS = [
+  "half-stone",
+  "stone-wall",
+  "cave-wall",
+  "cave-wall-sloped",
+  "cave-wall-grey",
+  "cave-wall-sloped-grey",
+];
 
 const LEDGE_TILE_IDS = ["half-stone", "brick-slab"];
 
 const WATER_TILE_IDS = ["water"];
 
 const WALL_RUN_SLICE = blobMaskToSlice(E | W);
+
+const ROCK_EDGE_SLICE = blobMaskToSlice(NW | N | NE | E | W);
 
 const DOOR_ROWS: DoorRow[] = ["north", "centre", "south"];
 const DOOR_COLUMNS: DoorColumn[] = ["west", "centre", "east"];
@@ -836,6 +845,7 @@ function CaveForm({
           onChange={(id) => patch({ wallTileId: id ?? draft.wallTileId })}
           tiles={tiles}
           tilesets={tilesets}
+          autotileSlice={ROCK_EDGE_SLICE}
         />
       </div>
 

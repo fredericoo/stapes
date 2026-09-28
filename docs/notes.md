@@ -11216,7 +11216,9 @@ avoid.
 an oblique projection, so the wall on the near side of a corridor is drawn over
 the floor behind it: a corridor one cell wide has no visible floor at all, and
 neither does whatever is standing in it. Two cells is the narrowest that leaves
-a strip you can see.
+a strip you can see. That is true of rock that fills its cell, which `cave-wall`
+does not: see "`cave-wall` puts the face of the rock on the half line of its
+cell", below.
 
 The rule that gets there is mechanical and lives in `widenToTwo`: **an open cell
 has to be part of some fully open 2×2 square**, and anything else — a spur, a
@@ -11356,6 +11358,116 @@ rectangle, so the pattern is anchored to the map: growing a drag reveals more of
 the same cave instead of reshuffling the one already on screen. The seed is a
 setting with a Re-roll button beside it, so the same rectangle carves the same
 cave until you ask for a different one.
+
+## `cave-wall` puts the face of the rock on the half line of its cell
+
+Between rock that fills its cells, a passage one cell wide shows no floor at all:
+the wall on its south side is drawn over it (see "No passage is ever one cell
+wide"). `cave-wall` is rock that stops half a cell short wherever it meets open
+ground, so the same passage shows a full cell of floor, which is what a two-cell
+passage between `half-stone` columns shows. A body standing in it loses the
+bottom half of its cell behind the near wall, where full blocks cover all of it.
+
+**The shape comes from the eight neighbours, a quarter of the cell at a time.**
+A quarter is rock when the three neighbours around its corner are, which puts the
+outline of a rock mass through cell centres rather than along cell edges. Rock
+one cell thick gets no quarter that way, so it is drawn as a ridge half a cell
+thick toward each rock neighbour, and a cell with no rock around it is a round
+pillar of the same thickness. A ridge beside a filled quarter is left out,
+because it would stick out past that quarter's face and notch a straight wall.
+Both rules read only the neighbours two adjacent cells share, so wherever two
+rock cells meet, the edge is the same from both sides.
+
+**Every corner is an arc, and none is wider than half a cell.** A corner of a
+solid mass falls at a cell's centre and is drawn as a quarter circle centred on
+the cell corner behind it: bulging out where the rock turns a corner, cut in
+where the floor does. Half a cell is the only radius that works, because the
+outline has to cross each cell edge at its midpoint and square to it. The slice
+across that edge cannot see far enough to tell a corner from a straight run, so
+it always draws the run. Ridges end in a round cap and meet other rock through a
+two-pixel fillet, kept two pixels in from the edge for the same reason. Two
+filled quarters on opposite corners stay whole: rounding them would open a
+diagonal gap through a cell nobody can walk into. A rule that reads a neighbour
+the slice across the edge does not share puts a seam on that edge; building
+every pair of neighbouring slices (1,024 each way) and comparing their outlines
+along the shared edge finds one.
+
+**Straight runs stay straight.** Every cell along a straight wall is the same
+slice, so any wobble drawn into one repeats every cell. Varying it would take
+several faces per slice picked by where the cell stands, as a scatter tile's
+are, and an autotile has one.
+
+**`cave-wall-sloped` has the same outline at the ceiling and widens to the
+cell's edge at the floor**, in a straight line, so a pillar is a cone and a wall
+stands on its own slope. It covers the strip of floor `cave-wall` leaves open,
+so a passage one cell wide between two runs of it shows half a cell of floor.
+Where a sloped run meets a plain one, the slope ends in a step at the cell edge,
+because a slice cannot tell which variant its neighbour is.
+
+**`cave-wall-grey` and `cave-wall-sloped-grey` are the same two shapes in grey.**
+The top is the palette's neutral dark grey and the sides are `stone-wall`'s
+greys, each about as light as the red rock's same face, marked with streaks two
+pixels wide a shade darker and single glints a shade lighter where the red rock
+has single flecks. The palette has no neutral grey between the dark and the
+light one, so the sides lean violet. Lit rock is quantised to the palette again,
+so the top's grey shows mostly in daylight: in a cave lit by a lantern, a violet
+top instead of the neutral one changes 0.4% of the pixels.
+
+All four variants are drawn on one sheet, so a cave that mixes them costs no
+more draw calls than a cave of one, and each connects to the others so the rock
+stays whole where they meet. Another variant is one more line in `VARIANTS`, and
+another colour scheme one more `Rock` for it to name.
+
+**A slope widens each piece of the outline, not the finished outline.** Faces
+move out, arcs grow and pockets shrink about the same cell corners, and ridges
+and the disc where they meet widen at half the rate, standing half as far from
+the edge. Widening the finished outline instead let a ridge's slope spill round
+a corner into the next cell, past a diagonal that slice cannot see, and left a
+seam at every such corner. Two rules close the gaps that remain: a ridge running
+beside an edge whose neighbour shows only a quarter's face stops a pixel short
+of that edge, and the pixel at a corner whose four cells are not all rock stays
+empty until the floor. The same edge comparison, repeated at every pixel of
+height for both variants, finds no seam.
+
+**A side is shaded by the way the rock falls away**, read from its height over a
+five-pixel square around the pixel the ray hit, with a third tone between the
+south and east ones. Shading by the single pixel step the ray met alternates
+along a curve and draws a checkerboard, and one layer's outline gives a slope
+that has reached the cell's edge no direction at all.
+
+**It is geometry, generated, not drawn.** `bun run generate:cave-wall` casts the
+view ray through every pixel of each of the 47 neighbourhoods and writes
+`data/tilesets/cave-wall.png`, the slices of every variant and the sheet's
+`tilesets.json` entry together. The red rock's top, south and east faces use
+`half-stone`'s palette entries, so the two can share a cave, and the specks are
+keyed on the screen pixel modulo a cell, so a face that runs across several
+cells has no seam. A hand edit to the sheet is lost the next time the script
+runs. The script rewrites only each tile's `type`, `anchor` and `slices`, and
+adds the other variants to its `connectsTo`; its name and anything else authored
+on it are left alone once the tile exists.
+
+**The open part of the cell shows whatever is under the wall.** Like `sw2`,
+every variant needs a floor beneath it in the stack, or the uncovered part of
+the cell is the level below or void. `scripts/carve-caves.ts` builds its rock
+with nothing under it, so that rock cannot be swapped for any of them without
+adding a floor.
+
+**To everything but the art each is one solid cell.** Movement, sight, light,
+arrows and the depth box treat every variant as a column four units tall, as
+they treat `stone-wall`. They are `walkable: false`, as the building walls are,
+because their tops cover only part of the cell. They connect to `stone-wall` and
+`half-stone`, so they meet older rock flush and a cave can be converted a patch
+at a time.
+
+**Their sheet costs a draw call** in every chunk that uses any variant: static
+quads are batched per texture within a chunk. Nothing on the shipped map uses
+them yet.
+
+**The cave generator lists all four as rock but still widens every passage to
+two** (`widenToTwo`). It already lays its floor under the rock, so the open part
+of each wall cell shows ground, but a cave generated from any of them comes out
+as open caverns rather than narrow passages. A passage one cell wide is carved
+by hand for now.
 
 ## A forest is a path and what grows either side of it
 
@@ -12063,8 +12175,8 @@ because everything in between leaked. That restriction exists only because of
 this bug and can now be relaxed to "anything that seals" — which is most of the
 map's surface rather than the fraction of it that happens to be bare.
 
-Measured on the fixture town, the bake is unchanged: p50 ~44ms either way, p95
-47–50ms against a 65ms budget.
+Measured on the fixture town, the bake is unchanged: p50 ~44ms either way
+against a 65ms budget, p95 47–50ms.
 
 #### The lid belongs to the upper of the two cells
 
@@ -12192,7 +12304,7 @@ square. It exists for two reasons.
 - **A standing scale.** It is sized near the shipped map — 23.0k cells, 29.8k
   quads and 68 emitters against 20.9k / 38.7k / 68 — and measures ~44ms p50 /
   ~46ms p95 on the cold bake where the shipped map measured ~41/42. That is
-  what makes `PERF_BUDGETS.lightingBakeMsP95` mean something a year from now:
+  what makes `PERF_BUDGETS.lightingBakeMsP50` mean something a year from now:
   the budget used to be re-raised every time the world grew, and half of those
   raises were content rather than code. `app/lib/mapData.test.ts` pins the
   fixture's quad count so a future trim cannot silently make the budget pass.
@@ -12363,6 +12475,20 @@ how much and where.
 `WorldRenderer`. `/admin/map` uses `EditorRenderer`, which has its own lighting path
 and does **not** use the chunk cache. Numbers from one say nothing about the
 other.
+
+**The bake's timing gate reads its p50, not its p95.** Claude Code's cloud
+sessions run on VMs that slow to about half speed for stretches of up to a few
+hundred milliseconds, several times in every run. Nothing inside the VM shows
+it: steal time stays at zero and the other vCPUs sit idle, but a fixed
+arithmetic loop timed beside the bake slows by the same factor in the same
+samples. The bake's hundred samples take about six seconds, so a stretch covers
+several of them in a row and the p95 lands inside one on nearly every run. Over
+twelve runs in one container the p95 read 87–113ms, where the fastest sample
+read 48–53ms and the p50 59–72ms. `app/lib/lighting.perf.test.ts` therefore
+gates the bake's p50, which on a quiet machine sits a few milliseconds under
+its p95. The overlay keeps its p95: its hundred samples take about 30ms, so a
+stretch covers all of them or none, and its p95 there is under a tenth of its
+budget.
 
 **Frame counters in a headless or backgrounded browser are meaningless** —
 rAF is throttled, so the loop only advances when something forces a frame.
