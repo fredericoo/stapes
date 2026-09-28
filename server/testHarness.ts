@@ -184,6 +184,8 @@ export class Harness {
     internals.session = null;
     internals.broadcastMap = null;
     internals.checkpointedMap = null;
+    (internals.writtenActors as Map<string, unknown>).clear();
+    (internals.storedVitals as Map<string, unknown>).clear();
   }
 
   async restart(): Promise<Harness> {
