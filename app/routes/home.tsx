@@ -1,0 +1,215 @@
+import { type ReactNode, useEffect, useRef } from "react";
+import { Link } from "react-router";
+import { DoorLogo, SYSTEM_MONO } from "../components/door";
+import type { Route } from "./+types/home";
+
+export function meta(): Route.MetaDescriptors {
+  return [
+    { title: "The Last Stones" },
+    {
+      name: "description",
+      content:
+        "A small MMO that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.",
+    },
+  ];
+}
+
+/**
+ * NF Pixels is `font-display: block`, so the headings are invisible until it
+ * arrives. Preloading it keeps that gap short on a page that is read first.
+ */
+export const links: Route.LinksFunction = () => [
+  {
+    rel: "preload",
+    href: "/fonts/nf-pixels-ascii.woff2",
+    as: "font",
+    type: "font/woff2",
+    crossOrigin: "anonymous",
+  },
+];
+
+/** Only at 20px and 40px: the font's pixels land on whole CSS pixels at multiples of 10. */
+const PIXEL = '"NF Pixels", monospace';
+
+const FEATURES: { title: string; body: string; shot: string }[] = [
+  {
+    title: "No levels. No classes.",
+    body: "You get better at what you do. Swing a sword and your sword skill goes up. Cast fire and your fire gets stronger. Your character is whatever you spent your time on.",
+    shot: "GIF: the masteries panel going up after a fight",
+  },
+  {
+    title: "Animals live their own lives",
+    body: "Wolves hunt deer. Some creatures only come out at night. They listen as well as look, so making noise can bring something to you.",
+    shot: "GIF: a wolf chasing a deer at dusk",
+  },
+  {
+    title: "Some ruins need friends",
+    body: "Under the ground are the ruins of an old city. Some floors only open when enough people stand on the plates at once, and some guardians are too strong for one person.",
+    shot: "Screenshot: a group of players on pressure plates underground",
+  },
+  {
+    title: "The world changes",
+    body: "Trees burn down. Rivers freeze, and you can walk across them. What you change above ground stays changed.",
+    shot: "GIF: fire spreading through a line of trees",
+  },
+  {
+    title: "Phone or computer",
+    body: "It runs in the browser. Same world, same people, whichever you pick up. Start on a laptop and carry on from your phone.",
+    shot: "Photo: the same character on a phone and a laptop",
+  },
+];
+
+const GALLERY = [
+  "Screenshot: a town by day",
+  "Screenshot: a cave by torchlight",
+  "Screenshot: casting a stone",
+  "Screenshot: a fight",
+  "Screenshot: a shop",
+  "Screenshot: night falling over a field",
+];
+
+export default function HomePage() {
+  return (
+    <div className="min-h-dvh bg-ink text-paper" style={{ fontFamily: SYSTEM_MONO }}>
+      <Hero />
+      <main className="mx-auto flex max-w-3xl flex-col gap-24 px-4 py-16 sm:px-6">
+        <section className="flex flex-col gap-16">
+          {FEATURES.map((feature) => (
+            <article key={feature.title} className="flex flex-col gap-4">
+              <Heading>{feature.title}</Heading>
+              <p className="text-sm leading-relaxed text-paper/80">{feature.body}</p>
+              <Shot label={feature.shot} />
+            </article>
+          ))}
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <Heading>The story</Heading>
+          <div className="flex flex-col gap-4 border-2 border-paper/30 p-5 text-sm leading-relaxed text-paper/80">
+            <p>
+              A people called the Arcane learned to command nature by writing on stones. Twelve of
+              them tried a stone meant to open a door to another world. It joined the two worlds
+              into one instead, and what lived on the other side came through.
+            </p>
+            <p>
+              Three survived. Garius froze their city in time, so every sixty days it goes back to
+              how it was. Dieter made new people, us, who remember what happens. Holleg turned
+              himself into forty metres of earth and buried it all.
+            </p>
+            <p>
+              People still call the ground Holleg. You wake up in the one room left near the
+              surface, where Dieter is writing the story on the wall.
+            </p>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <Heading>Pictures</Heading>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {GALLERY.map((label) => (
+              <Shot key={label} label={label} />
+            ))}
+          </div>
+        </section>
+
+        <footer className="flex flex-col items-center gap-6 text-center">
+          <PlayButtons />
+          <p className="text-xs text-paper/40">The Last Stones</p>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+/**
+ * The video is square and the character stays in its centre, so `object-cover`
+ * keeps them in every crop. `object-top` puts them under the buttons on a wide
+ * screen instead of behind the logo. `pixelated` because the recording is the
+ * game's own pixels scaled by a whole number.
+ */
+function Hero() {
+  const video = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const element = video.current;
+    if (!element) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => {
+      if (reduce.matches) element.pause();
+      else void element.play().catch(() => {});
+    };
+    apply();
+    reduce.addEventListener("change", apply);
+    return () => reduce.removeEventListener("change", apply);
+  }, []);
+
+  return (
+    <header className="relative isolate flex min-h-[100svh] flex-col items-center justify-center gap-8 overflow-hidden px-4 py-16 text-center">
+      <video
+        ref={video}
+        className="absolute inset-0 -z-20 h-full w-full object-cover object-top"
+        style={{ imageRendering: "pixelated" }}
+        poster="/home/hero.jpg"
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+      >
+        <source src="/home/hero.webm" type="video/webm" />
+        <source src="/home/hero.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-ink/70 via-ink/40 to-ink" />
+      <DoorLogo />
+      <p
+        className="text-[20px] leading-[30px] text-paper [text-shadow:2px_2px_0_#1a1a1a]"
+        style={{ fontFamily: PIXEL }}
+      >
+        A small MMO that runs in your browser.
+      </p>
+      <p className="max-w-md text-sm leading-relaxed text-paper/90 [text-shadow:1px_1px_0_#1a1a1a]">
+        Walk around, fight, cast, trade and explore with other people. On your phone or your
+        computer, in the same world.
+      </p>
+      <PlayButtons />
+    </header>
+  );
+}
+
+function Heading({ children }: { children: ReactNode }) {
+  return (
+    <h2
+      className="text-[20px] leading-[30px] text-[#ffd23f] sm:text-[40px] sm:leading-[50px]"
+      style={{ fontFamily: PIXEL }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+function PlayButtons() {
+  return (
+    <div className="flex flex-wrap justify-center gap-4">
+      <Link
+        to="/online"
+        className="border-2 border-ink bg-interact px-6 py-3 text-xs uppercase tracking-widest text-ink shadow-[4px_4px_0_0_#f4f0e6] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#f4f0e6]"
+      >
+        Play now
+      </Link>
+      <Link
+        to="/sign-up"
+        className="border-2 border-paper px-6 py-3 text-xs uppercase tracking-widest text-paper hover:bg-paper hover:text-ink"
+      >
+        Make an account
+      </Link>
+    </div>
+  );
+}
+
+function Shot({ label }: { label: string }) {
+  return (
+    <div className="flex aspect-[16/10] w-full items-center justify-center border-2 border-dashed border-paper/30 p-4 text-center text-xs leading-relaxed text-paper/40">
+      {label}
+    </div>
+  );
+}

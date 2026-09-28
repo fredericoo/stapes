@@ -100,10 +100,11 @@ is not one.
   the second closes the first — see "One connection per actor". To play two
   characters, use `localhost` in one and `127.0.0.1` in the other.
 
-## The game is `/`, and every tool is under `/admin`
+## The game is `/online`, and every tool is under `/admin`
 
 `app/routes.ts` has two halves and the split is what a visitor is offered, not
-where the files sit. `/` is the shared world. Everything a person editing the
+where the files sit. `/` is the landing page, prerendered at build time, and
+`/online` is the shared world. Everything a person editing the
 game needs — the map editor, the tile and status catalogues, the voxel editor,
 the arena and the play route — is under `/admin`, and `/admin` itself redirects
 to `/admin/map`.
@@ -148,7 +149,7 @@ administrator's only) and the frame readout.
 | `/characters` | which body, and the account's own two controls |
 | `/characters/new` | what is this one called |
 | `/account/password` | what is the new password |
-| `/` | the world |
+| `/online` | the world |
 
 **Small routes rather than one that does all of it.** `app/routes/game.tsx` used
 to hold all six: the sign-in form, the chooser, the world, and the state machine
@@ -168,7 +169,7 @@ route had by accident and this keeps on purpose. `shouldRevalidate` is off
 because none of it can change under a player: authored content changes when an
 author saves, and a save replaces the world and pushes a fresh `hello`.
 
-**Nothing connects until the world route.** The socket belongs to `/` alone and
+**Nothing connects until the world route.** The socket belongs to `/online` alone and
 is opened as a character, so a tab parked at any other screen costs the world
 nothing — no body standing in a doorway somebody else is walking through.
 
@@ -487,7 +488,7 @@ name across, so the two cannot drift; `GameServer.test.ts` pins it.
 
 ## `/admin/play` runs the server in the tab
 
-`/` and `/admin/play` are **one page** — `app/components/WorldPage.tsx` — against
+`/online` and `/admin/play` are **one page** — `app/components/WorldPage.tsx` — against
 one protocol. The only thing they disagree about is `WorldLink`, which is how
 you are connected:
 
@@ -503,7 +504,7 @@ the other.
 
 ### Why it exists
 
-`/` is growing a login. Hand-testing a change to the game should not mean
+`/online` has a login. Hand-testing a change to the game should not mean
 hand-testing the way in to it first, and a green path that needs an account, a
 server and a database is one people stop running. This one needs a tab.
 
@@ -604,7 +605,7 @@ importing its type into shared code for as long as it has existed.
 
 ## `window.__stapes` is the page an agent drives
 
-The play pages, `/` and `/admin/play`, put one object on the window for anything
+The play pages, `/online` and `/admin/play`, put one object on the window for anything
 that drives a page over the DevTools protocol: Playwright, the Chrome DevTools
 MCP server, the desktop app's browser pane. It is how an agent sets up a scene
 and reads the result without touching the UI. `app/components/stapes.ts` holds
@@ -700,6 +701,20 @@ break by accident:
 - **Upload and activate are separate.** An upload that half-finished must never
   become the live page, and a tab that loaded five minutes ago must still be able
   to fetch *its* chunks — so old builds stay resident and are still served.
+
+### A prerendered route is a file in the build
+
+`/`, the landing page, is rendered to HTML at build time (`prerender` in
+`react-router.config.ts`) so it is not blank before the bundle runs. That makes
+`index.html` the landing page, and React Router writes the shell every other
+route hydrates from to `__spa-fallback.html` instead. `ClientBundle.respond`
+serves a file if there is one, then `<path>/index.html` for any other
+prerendered route, then the fallback. Serving `index.html` as the fallback
+would hand `/online` the landing page.
+
+Every `.html` file is `no-store`, not only `index.html`: a prerendered page
+names hashed chunks exactly as the shell does, so caching it would pin a
+visitor to the build it came from.
 
 ## A field the phone focuses has to be 16px
 
@@ -12412,7 +12427,7 @@ Two rules learned the hard way, which still hold:
 ## `?debug=1` draws the windows the renderer is keeping
 
 **Undocumented in the game and on purpose.** There is no toggle, no menu entry
-and nothing in the UI that mentions it. Add `?debug=1` to `/` or `/admin/play`
+and nothing in the UI that mentions it. Add `?debug=1` to `/online` or `/admin/play`
 and the camera pulls back off the play square; `[` and `]` take it from ×1 to
 ×8. A player who never types it gets exactly the frame they got before this
 existed.

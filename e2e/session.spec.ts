@@ -30,7 +30,7 @@ test.describe("the way in", () => {
     };
     const live = liveWorld(page);
 
-    await page.goto("/", { waitUntil: "networkidle" });
+    await page.goto("/online", { waitUntil: "networkidle" });
     await page.getByLabel("Username").waitFor({ timeout: BOOT_TIMEOUT_MS });
     await landsOn("/sign-in");
     expect(gameSockets).toEqual([]);
@@ -61,7 +61,7 @@ test.describe("the way in", () => {
     await page.getByRole("button", { name: "Create and enter" }).click();
 
     await expect(live).toBeAttached({ timeout: BOOT_TIMEOUT_MS });
-    await landsOn("/");
+    await landsOn("/online");
     await expect.poll(() => openSockets().length, { timeout: 30_000 }).toBe(1);
     expect(openSockets()[0]!.url).toContain("character=");
 
@@ -120,7 +120,7 @@ test.describe("leaving mid-fight", () => {
 
     await warning.getByRole("button", { name: "Stay" }).click();
     await expect(page.locator("canvas").first()).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/");
+    expect(new URL(page.url()).pathname).toBe("/online");
 
     await pressLeaveWorld(page);
     await warning.getByRole("button", { name: "Leave", exact: true }).click();

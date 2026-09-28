@@ -26,7 +26,7 @@ export default function CharactersPage() {
   const enter = (character: Character) => {
     setEntering(character.id);
     rememberCharacter(character);
-    void navigate("/");
+    void navigate("/online");
   };
 
   const leave = () => {

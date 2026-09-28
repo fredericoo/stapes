@@ -18,7 +18,7 @@ export const ADMIN_DESTINATIONS: Destination[] = [
   { to: "/admin/arena", label: "Arena" },
   { to: "/admin/voxel", label: "Voxel" },
   { to: "/admin/actions", label: "Actions" },
-  { to: "/", label: "Game" },
+  { to: "/online", label: "Game" },
 ];
 
 function linkClass(isActive: boolean, block: boolean): string {
