@@ -4453,6 +4453,10 @@ export class GameSession implements PlaySession {
     }
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
+    if (!after) {
+      this.noteTransition("disappear", placed.tileId, ref, ref.stackIndex);
+      if (extract.tileId) this.noteTransition("appear", extract.tileId, ref, ref.stackIndex);
+    }
     return true;
   }
 

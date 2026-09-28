@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import { DEFAULT_PARTICLES } from "./particleVfx";
 import {
   DEFAULT_CLUMP_PX,
@@ -6,11 +7,12 @@ import {
   MAX_DROP_LEVELS,
   MAX_TRANSITION_MS,
   MIN_TRANSITION_MS,
+  TRANSITION_SIDES,
   parseTileTransitions,
   shownFraction,
   transitionOf,
 } from "./tileTransition";
-import { normalizeTileDef } from "./types";
+import { normalizeTileDef, normalizeTiles } from "./types";
 
 const DURATION_MS = 700;
 
@@ -147,6 +149,24 @@ describe("a tile carrying transitions", () => {
     expect(transitionOf(def, "disappear")).toBeDefined();
     expect(transitionOf(def, "appear")).toBeUndefined();
     expect(transitionOf(undefined, "appear")).toBeUndefined();
+  });
+});
+
+describe("the transitions we ship", () => {
+  it("resolves every side that is authored, rather than dropping it unseen", () => {
+    const shipped = tilesJson as Array<{ id: string; transitions?: Record<string, unknown> }>;
+    const byId = new Map(normalizeTiles(shipped).map((def) => [def.id, def]));
+    const authored = shipped.flatMap((raw) =>
+      TRANSITION_SIDES.filter((side) => raw.transitions?.[side] !== undefined).map((side) => ({
+        id: raw.id,
+        side,
+      })),
+    );
+
+    expect(authored.length).toBeGreaterThan(0);
+    for (const { id, side } of authored) {
+      expect(transitionOf(byId.get(id), side), `${id}'s ${side} does not parse`).toBeDefined();
+    }
   });
 });
 

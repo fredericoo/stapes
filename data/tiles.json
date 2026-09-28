@@ -31188,6 +31188,30 @@
           }
         }
       ]
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "sweep",
+          "from": {
+            "x": 1,
+            "y": 1
+          },
+          "clumpPx": 3,
+          "edgeColor": "#affcdb",
+          "edgeWidth": 0.15
+        }
+      },
+      "disappear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#affcdb",
+          "edgeWidth": 0.15
+        }
+      }
     }
   },
   {
@@ -31496,6 +31520,30 @@
           }
         }
       ]
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "sweep",
+          "from": {
+            "x": 1,
+            "y": 1
+          },
+          "clumpPx": 3,
+          "edgeColor": "#affcdb",
+          "edgeWidth": 0.15
+        }
+      },
+      "disappear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#affcdb",
+          "edgeWidth": 0.15
+        }
+      }
     }
   },
   {
@@ -31606,6 +31654,30 @@
           }
         }
       ]
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "sweep",
+          "from": {
+            "x": 1,
+            "y": 1
+          },
+          "clumpPx": 3,
+          "edgeColor": "#affcdb",
+          "edgeWidth": 0.15
+        }
+      },
+      "disappear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#affcdb",
+          "edgeWidth": 0.15
+        }
+      }
     }
   },
   {

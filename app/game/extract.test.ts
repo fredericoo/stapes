@@ -4,6 +4,7 @@ import { extractsLeft, interactionsForSave, pullEffect, resolveExtract } from ".
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../lib/mapData";
 import { DEFAULT_IMPACT } from "../lib/particleVfx";
+import type { TransitionSide } from "../lib/tileTransition";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -42,6 +43,11 @@ const QUICK_PULL_MS = 2_000;
 const WILT_MS = 1_000;
 
 const CHIPS = { durationMs: 200, particles: DEFAULT_IMPACT };
+
+const FADE = {
+  durationMs: 200,
+  dissolve: { pattern: "noise", edgeColor: "#ffffff", edgeWidth: 0.1 },
+};
 
 const tiles = [
   tile({ id: "grass" }),
@@ -136,6 +142,34 @@ const tiles = [
       },
     },
   }),
+  tile({
+    id: "ore",
+    height: 4,
+    transitions: { disappear: FADE },
+    interactions: {
+      extract: {
+        durability: 2,
+        tileId: "",
+        durationMs: EXTRACT_MS,
+        slots: [{ tileId: "shard", chance: 100 }],
+        pulled: CHIPS,
+      },
+    },
+  }),
+  tile({
+    id: "herb",
+    height: 2,
+    transitions: { disappear: FADE },
+    interactions: {
+      extract: {
+        durability: 1,
+        tileId: "cut-herb",
+        durationMs: EXTRACT_MS,
+        slots: [{ tileId: "berry", chance: 100 }],
+      },
+    },
+  }),
+  tile({ id: "cut-herb", height: 2, transitions: { appear: FADE } }),
 ];
 const tilesById = tilesByIdFromList(tiles);
 
@@ -184,6 +218,22 @@ function stackAt(map: MapFile, x: number, y: number) {
 
 function bagTileIds(session: GameSession): string[] {
   return session.getSnapshot().equipment.bag?.contents?.map((i) => i.tileId) ?? [];
+}
+
+function sideAt(side: TransitionSide, tileId: string) {
+  return {
+    id: expect.any(String),
+    side,
+    tileId,
+    x: BUSH.x,
+    y: BUSH.y,
+    z: BUSH.z,
+    stackIndex: BUSH.stackIndex,
+  };
+}
+
+function pulledAt(tileId: string) {
+  return { ...sideAt("appear", tileId), pulled: true };
 }
 
 describe("resolving an extract", () => {
@@ -765,17 +815,6 @@ describe("what it says afterwards", () => {
 });
 
 describe("the effect a finished pull plays", () => {
-  const pulledAt = (tileId: string) => ({
-    id: expect.any(String),
-    side: "appear",
-    tileId,
-    x: BUSH.x,
-    y: BUSH.y,
-    z: BUSH.z,
-    stackIndex: BUSH.stackIndex,
-    pulled: true,
-  });
-
   it("is raised on the resource when the pull lands, and not before", () => {
     const session = new GameSession(board("geode"), tiles);
     session.interact(BUSH);
@@ -818,6 +857,37 @@ describe("the effect a finished pull plays", () => {
 
     expect(bagTileIds(session)).toEqual(["berry"]);
     expect(session.drainTransitions()).toEqual([]);
+  });
+});
+
+describe("the sides a spent resource plays", () => {
+  it("plays its disappear beside its pull effect on the last pull, and not before", () => {
+    const session = new GameSession(board("ore"), tiles);
+    session.interact(BUSH);
+    session.tick(EXTRACT_MS);
+
+    expect(session.drainTransitions()).toEqual([pulledAt("ore")]);
+
+    session.interact(BUSH);
+    session.tick(EXTRACT_MS);
+    const notes = session.drainTransitions();
+
+    expect(stackAt(session.getMap(), 1, 0).map((p) => p.tileId)).toEqual(["grass"]);
+    expect(notes).toHaveLength(2);
+    expect(notes).toEqual(expect.arrayContaining([sideAt("disappear", "ore"), pulledAt("ore")]));
+  });
+
+  it("forms what it turns into in the slot it leaves", () => {
+    const session = new GameSession(board("herb"), tiles);
+    session.interact(BUSH);
+    session.tick(EXTRACT_MS);
+    const notes = session.drainTransitions();
+
+    expect(stackAt(session.getMap(), 1, 0).map((p) => p.tileId)).toEqual(["grass", "cut-herb"]);
+    expect(notes).toHaveLength(2);
+    expect(notes).toEqual(
+      expect.arrayContaining([sideAt("disappear", "herb"), sideAt("appear", "cut-herb")]),
+    );
   });
 });
 
