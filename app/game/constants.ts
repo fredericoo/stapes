@@ -24,6 +24,8 @@ export const BRAIN_ROUND_TICKS = Math.max(1, Math.floor(BRAIN_TICK_MS / TICK_MS)
 
 export const BRAIN_TURNS_PER_TICK_MIN = 16;
 
+export const FAILED_ROUTE_MEMORY_MS = 1_000;
+
 export const MAX_CLIMB_HEIGHT = HEIGHT_PER_LEVEL / 2;
 
 export const DAMAGE_NUMBER_LIFETIME_MS = 900;

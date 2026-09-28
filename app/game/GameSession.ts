@@ -159,6 +159,7 @@ import {
   BRAIN_TURNS_PER_TICK_MIN,
   BRAIN_TICK_MS,
   DAMAGE_NUMBER_LIFETIME_MS,
+  FAILED_ROUTE_MEMORY_MS,
   FALL_MS_PER_HEIGHT,
   NOISE_LIFETIME_MS,
   PLAYER_TILE_ID,
@@ -626,6 +627,13 @@ type BlowInFlight = {
   land: () => void;
 };
 
+type RouteAsked = {
+  from: string;
+  to: string;
+  allowDrops: boolean | undefined;
+  arrive: "beside" | "on";
+};
+
 type ActorRuntime = {
   readonly id: string;
   readonly name: string | null;
@@ -648,6 +656,7 @@ type ActorRuntime = {
     allowDrops: boolean | undefined;
     arrive: "beside" | "on";
   } | null;
+  failedRoute: (RouteAsked & { atMs: number }) | null;
   attackOrder: string | null;
   refuge: Coord | null;
   brainAttentive: boolean;
@@ -742,6 +751,7 @@ export class GameSession implements PlaySession {
   private readonly statusReadings = new Map<string, string>();
   private settledMap: MapFile | null = null;
   private accumulatorMs = 0;
+  private elapsedMs = 0;
   private stoneClockMs = 0;
   private readonly rng: Rng;
   private brainAccumulatorMs = 0;
@@ -899,6 +909,7 @@ export class GameSession implements PlaySession {
       brain: null,
       brainDeferredMs: 0,
       walkOrder: null,
+      failedRoute: null,
       attackOrder: null,
       refuge: null,
       brainAttentive: false,
@@ -1229,6 +1240,7 @@ export class GameSession implements PlaySession {
    * which message happened to arrive first.
    */
   tick(tickMs: number = TICK_MS) {
+    this.elapsedMs += tickMs;
     this.pendingSpeech = [];
     this.pendingDamage = [];
     this.pendingNoise = [];
@@ -3408,6 +3420,8 @@ export class GameSession implements PlaySession {
     allowDrops: boolean | undefined,
     arrive: "beside" | "on" = "beside",
   ): Direction | "arrived" | null {
+    const route: RouteAsked = { from: walkKey(loc), to: walkKey(at), allowDrops, arrive };
+    if (this.failedJustNow(actor, route)) return null;
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
     const def = this.defFor(actor);
     const found = findPath(
@@ -3419,8 +3433,30 @@ export class GameSession implements PlaySession {
       this.statusDefs,
       { drops: allowDrops ? "anywhere" : "never", arrive, avoidWade: !def.swims },
     );
-    if (!found.ok) return null;
+    if (!found.ok) {
+      actor.failedRoute = { ...route, atMs: this.elapsedMs };
+      return null;
+    }
+    actor.failedRoute = null;
     return found.route[0]?.direction ?? "arrived";
+  }
+
+  /**
+   * A search that finds no way costs its whole node budget, and a brain asks
+   * for the same walk every round. The same walk from the same cell is not
+   * searched again for `FAILED_ROUTE_MEMORY_MS`, so a way that opens in that
+   * time is found that much later.
+   */
+  private failedJustNow(actor: ActorRuntime, route: RouteAsked): boolean {
+    const failed = actor.failedRoute;
+    return (
+      failed !== null &&
+      !reached(this.elapsedMs - failed.atMs, FAILED_ROUTE_MEMORY_MS) &&
+      failed.from === route.from &&
+      failed.to === route.to &&
+      failed.allowDrops === route.allowDrops &&
+      failed.arrive === route.arrive
+    );
   }
 
   private setWalkOrder(
