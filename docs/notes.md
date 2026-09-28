@@ -2716,6 +2716,41 @@ Measured with `bun run bench:server` on the den map, one player standing in
 town: brain round 13.6ms → 3.4ms p95, 42 → 19 changed cells a tick, 112 →
 50 KB/s raw — and the 50 that is left is the budget's, not the map's.
 
+**At most `BRAIN_ATTENTIVE_MAX` creatures think every round.** How many were
+attentive used to depend only on how many stood within reach of a player, so a
+crowd, or the same map with more creatures in it, took the tick over budget:
+with the shipped map's residents multiplied by eight, 746 of 1,731 were
+attentive in `bench:server`'s `spread` and the tick's p50 was 30ms. Past the
+cap, the creatures fighting, chasing or talking to a player keep their turns
+first, then those within a screen of one on a level they could be seen from,
+then the rest within reach, and within each rank whoever has waited longest,
+which rotates a crowd through the turns rather than starving its tail. The
+others doze for that round: their orders are not pressed between turns, and they
+share the doze budget with everybody already dozing. Nothing stops moving; a
+crowd bigger than the cap moves at a slower pace instead of taking the tick
+over.
+
+Below the cap nothing changes, and that was checked rather than assumed: the
+awake creatures take their turns in insertion order as before, and at the
+shipped population the bench reports the same deaths, cells and bytes a tick as
+without the cap. At eight and sixteen times the shipped residents the tick's p50
+went from 30ms to 17ms and from 66ms to 24ms. Its p95 stayed near 50–70ms at any
+cap from 150 to 300, because the slowest ticks are route searches, and a count
+of turns does not bound what a search costs: a few nodes take a fifth of a
+millisecond, a full `PATH_MAX_NODES` about 6ms at the shipped population and 9ms
+at sixteen times it.
+
+**Rationing search nodes a tick was tried and left out.** A budget of nodes a
+tick, with a walk that did not fit put off to a later tick, moves searching
+between ticks without doing less of it. At 256 or 384 nodes it took the p95 at
+sixteen times from 69ms to 49–57ms and the p50 from 24ms to 32ms, and at 256 it
+bound often enough to change the simulation at the shipped population. At 1,024
+it bound on 15 ticks in 450 at sixteen times and did not move the p95. One
+distance map per player, shared by everything chasing them, fails on the same
+cost: a map of a screen around a player is about 2,400 nodes, which at 50µs a
+node is more than the dozen searches a tick it would replace. Both wait on a
+search node getting cheaper; see "Known remaining costs".
+
 The seams worth knowing:
 
 - Distance is a square on the plan, a superset of every distance a condition
@@ -12319,6 +12354,17 @@ Not yet fixed, and worth knowing before you profile something else:
   chunk column of dense cave is a handful of chunks at once. `MESH_WINDOW_MARGIN`
   is what buys the warning, and a budget that built one chunk per frame out of a
   queue is the structural answer if it is ever felt.
+- **A route search costs about 50µs a node.** Every neighbour it looks at asks
+  `listStandingSurfaces`, which reads all seventeen levels of the column through
+  `stackOnLevel`, and `canWalk`, which asks it again; each read builds a level,
+  a chunk and a cell key. At sixteen times the shipped residents, with at most
+  `BRAIN_ATTENTIVE_MAX` creatures awake, searching is about a third of an
+  average tick and most of the slowest ones, and it decides how many chasing
+  creatures a tick can afford. A walkability layer per chunk in typed arrays,
+  rebuilt when the chunk object changes, is the structural answer; rationing
+  nodes and sharing distance maps were both measured against the current cost
+  and left out (see "A creature thinks every round only while somebody could
+  notice it").
 - **A respawn sweeps the whole board, and a creature's respawn sweeps it
   twice.** `respawnAt` mints item ids with `mintItemIds` over the whole board
   rather than in the cell it grew: about 26ms on the shipped map and 70ms on a

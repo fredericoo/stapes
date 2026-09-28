@@ -154,6 +154,7 @@ import {
 import { findEntryCell } from "./entry";
 import {
   BRAIN_ATTENTION_FLOOR_CELLS,
+  BRAIN_ATTENTIVE_MAX,
   BRAIN_DOZE_BUDGET,
   BRAIN_ROUND_TICKS,
   BRAIN_TURNS_PER_TICK_MIN,
@@ -611,6 +612,11 @@ const EXTRACT_INTERRUPTED_NOTICE = "You are interrupted";
 type StatusGrantOutcome = "acquired" | "refreshed" | "refused";
 
 type HealthMove = { kind: "harm" | "mend"; amount: number };
+
+const ENGAGED = 0;
+const ON_SCREEN = 1;
+const IN_REACH = 2;
+type Attention = typeof ENGAGED | typeof ON_SCREEN | typeof IN_REACH;
 
 type BrainRound = {
   turns: { actor: ActorRuntime; tickMs: number }[];
@@ -1434,11 +1440,19 @@ export class GameSession implements PlaySession {
     this.pendingHeard = [];
     this.pendingHurt = new Map();
 
-    const players = this.playerCells();
+    const players = this.playersThisRound();
+    const ranked: { actor: ActorRuntime; attention: Attention; order: number }[] = [];
+    for (const actor of this.actors.values()) {
+      if (!actor.resident) continue;
+      const attention = this.attention(actor, players, round.hurt);
+      if (attention !== null) ranked.push({ actor, attention, order: ranked.length });
+    }
+    const awake = this.chooseAwake(ranked);
+
     const dozing: ActorRuntime[] = [];
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
-      actor.brainAttentive = this.attentive(actor, players, round.hurt);
+      actor.brainAttentive = awake.has(actor);
       if (actor.brainAttentive) {
         round.turns.push({ actor, tickMs: BRAIN_TICK_MS + actor.brainDeferredMs });
         actor.brainDeferredMs = 0;
@@ -1645,28 +1659,69 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Past `BRAIN_ATTENTIVE_MAX`, the creatures fighting, chasing or talking to a
+   * player keep their turns first, then those on a player's screen, then the rest,
+   * and within each whoever has waited longest. The others join the dozing ones
+   * for this round, so nobody stops moving.
+   */
+  private chooseAwake(
+    ranked: { actor: ActorRuntime; attention: Attention; order: number }[],
+  ): ReadonlySet<ActorRuntime> {
+    if (ranked.length > BRAIN_ATTENTIVE_MAX) {
+      ranked.sort(
+        (a, b) =>
+          a.attention - b.attention ||
+          b.actor.brainDeferredMs - a.actor.brainDeferredMs ||
+          a.order - b.order,
+      );
+      ranked.length = BRAIN_ATTENTIVE_MAX;
+    }
+    return new Set(ranked.map((entry) => entry.actor));
+  }
+
+  /**
    * A player within reach on the plan counts only on a level where the creature
    * could notice them or they could see it. Every condition already ignores
    * anybody outside the creature's sight levels (`within`), and a body below a
    * player is off their screen once a floor seals its column (`isHiddenFromCamera`).
    */
-  private attentive(
+  private attention(
     actor: ActorRuntime,
-    players: readonly Coord[],
+    players: { cells: readonly Coord[]; talkedTo: ReadonlySet<string> },
     hurt: ReadonlyMap<string, string[]>,
-  ): boolean {
-    if (hurt.has(actor.id)) return true;
+  ): Attention | null {
+    const hitBy = hurt.get(actor.id);
+    if (players.talkedTo.has(actor.id) || this.fightingAPlayer(actor, hitBy)) return ENGAGED;
+    let attention: Attention | null = hitBy ? IN_REACH : null;
     const loc = this.tryLocate(actor);
-    if (!loc) return false;
+    if (!loc) return attention;
     const reach = Math.max(BRAIN_ATTENTION_FLOOR_CELLS, this.reachOf(this.defFor(actor)));
     let sight: SightLevels | null = null;
-    for (const player of players) {
-      if (Math.abs(player.x - loc.x) > reach || Math.abs(player.y - loc.y) > reach) continue;
+    for (const player of players.cells) {
+      const dx = Math.abs(player.x - loc.x);
+      const dy = Math.abs(player.y - loc.y);
+      if (dx > reach || dy > reach) continue;
+      const seen = openColumn(this.map, this.tilesById, loc, player.z);
+      const onScreen = dx <= BRAIN_ATTENTION_FLOOR_CELLS && dy <= BRAIN_ATTENTION_FLOOR_CELLS;
+      if (seen && onScreen) return ON_SCREEN;
+      if (attention !== null) continue;
       sight ??= this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight;
-      if (withinSightLevels(loc, player, sight)) return true;
-      if (openColumn(this.map, this.tilesById, loc, player.z)) return true;
+      if (seen || withinSightLevels(loc, player, sight)) attention = IN_REACH;
     }
-    return false;
+    return attention;
+  }
+
+  private fightingAPlayer(actor: ActorRuntime, hitBy: readonly string[] | undefined): boolean {
+    const goal = actor.walkOrder?.goal;
+    return (
+      this.isPlayer(actor.attackOrder) ||
+      (goal?.of === "body" && this.isPlayer(goal.id)) ||
+      (hitBy?.some((id) => this.isPlayer(id)) ?? false)
+    );
+  }
+
+  private isPlayer(id: string | null): boolean {
+    return id !== null && this.actors.get(id)?.resident === false;
   }
 
   private reachOf(def: TileDef): number {
@@ -1674,14 +1729,16 @@ export class GameSession implements PlaySession {
     return brain ? brainReach(brain) : 0;
   }
 
-  private playerCells(): Coord[] {
-    const out: Coord[] = [];
+  private playersThisRound(): { cells: Coord[]; talkedTo: Set<string> } {
+    const cells: Coord[] = [];
+    const talkedTo = new Set<string>();
     for (const actor of this.actors.values()) {
       if (actor.resident) continue;
+      if (actor.conversation) talkedTo.add(actor.conversation.npcId);
       const loc = this.tryLocate(actor);
-      if (loc) out.push({ x: loc.x, y: loc.y, z: loc.z });
+      if (loc) cells.push({ x: loc.x, y: loc.y, z: loc.z });
     }
-    return out;
+    return { cells, talkedTo };
   }
 
   private tickOneBrain(actor: ActorRuntime, round: BrainRound, tickMs: number) {

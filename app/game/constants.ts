@@ -20,6 +20,8 @@ export const BRAIN_ATTENTION_FLOOR_CELLS = 24;
 
 export const BRAIN_DOZE_BUDGET = 24;
 
+export const BRAIN_ATTENTIVE_MAX = 300;
+
 export const BRAIN_ROUND_TICKS = Math.max(1, Math.floor(BRAIN_TICK_MS / TICK_MS));
 
 export const BRAIN_TURNS_PER_TICK_MIN = 16;
