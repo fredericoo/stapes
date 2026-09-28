@@ -267,6 +267,31 @@ describe("deciding", () => {
     expect(memory.msInState).toBe(0);
   });
 
+  it("waits a drawn time inside a ranged after, different for different dice", () => {
+    const fromMs = BRAIN_TICK_MS * 2;
+    const toMs = BRAIN_TICK_MS * 40;
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] }, done: { do: [] } },
+      transitions: [{ from: "idle", if: { cond: "after", ms: fromMs, toMs }, to: "done" }],
+    };
+    const waits = new Set<number>();
+    for (let seed = 1; seed <= 12; seed++) {
+      const memory = initialMemory(brain);
+      const c = ctx({ rng: new Rng(seed) });
+      let elapsed = 0;
+      while (memory.state === "idle" && elapsed <= toMs) {
+        elapsed += BRAIN_TICK_MS;
+        stepBrain(brain, memory, BRAIN_TICK_MS, c);
+      }
+      expect(memory.state).toBe("done");
+      expect(elapsed).toBeGreaterThanOrEqual(fromMs);
+      expect(elapsed).toBeLessThanOrEqual(toMs + BRAIN_TICK_MS);
+      waits.add(elapsed);
+    }
+    expect(waits.size).toBeGreaterThan(3);
+  });
+
   it("takes a wildcard transition from whatever state it is in", () => {
     const brain: BrainDef = {
       initial: "idle",
@@ -3107,7 +3132,7 @@ describe("the bog imp and the cyclops we ship", () => {
   function field(
     creature: string,
     minutes: number,
-    extras: { flameX?: number; aliceX?: number } = {},
+    extras: { flameX?: number; aliceX?: number; twinX?: number } = {},
   ): GameSession {
     let map = emptyMap();
     for (let x = -20; x <= 20; x++) {
@@ -3116,6 +3141,9 @@ describe("the bog imp and the cyclops we ship", () => {
       }
     }
     map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: creature }]);
+    if (extras.twinX !== undefined) {
+      map = replaceStack(map, extras.twinX, 0, 0, [{ tileId: "dirt" }, { tileId: creature }]);
+    }
     if (extras.flameX !== undefined) {
       map = replaceStack(map, extras.flameX, 0, 0, [{ tileId: "dirt" }, { tileId: "flame" }]);
     }
@@ -3163,7 +3191,7 @@ describe("the bog imp and the cyclops we ship", () => {
 
   it("lights a campfire when no flame is near and puts the imp to sleep beside it", () => {
     const session = field("bog-imp", MIDNIGHT);
-    noisesOver(session, 6000);
+    noisesOver(session, 14000);
 
     const imp = body(session, "bog-imp");
     let campfire: { x: number; y: number } | null = null;
@@ -3176,6 +3204,24 @@ describe("the bog imp and the cyclops we ship", () => {
     }
     expect(campfire).not.toBeNull();
     expect(asleep(session, "bog-imp")).toBe(true);
+  });
+
+  it("gathers two imps at dusk around a single campfire", () => {
+    const session = field("bog-imp", MIDNIGHT, { twinX: 10 });
+    noisesOver(session, 20000);
+
+    const map = session.getMap();
+    let campfires = 0;
+    for (let x = -20; x <= 20; x++) {
+      for (let y = -20; y <= 20; y++) {
+        if (getStack(map, x, y, 0).some((p) => p.tileId === "campfire")) campfires++;
+      }
+    }
+    const imps = session.actorSnapshots().filter((a) => a.tileId === "bog-imp");
+    expect(campfires).toBe(1);
+    expect(imps.every((imp) => session.statusesOf(imp.id)?.some((s) => s.defId === "sleep"))).toBe(
+      true,
+    );
   });
 
   it("opens a hunt by day by throwing a stone at somebody it can see", () => {

@@ -28,6 +28,7 @@ export function boundBody(bound: Bound | null): string | null {
 export type BrainMemory = {
   state: string;
   msInState: number;
+  patience: number | null;
   blackboard: Record<string, Bound>;
   stuck: boolean;
   scratch: Record<number, number>;
@@ -97,6 +98,7 @@ export function initialMemory(brain: BrainDef): BrainMemory {
   return {
     state: brain.initial,
     msInState: 0,
+    patience: null,
     blackboard: {},
     stuck: false,
     scratch: {},
@@ -260,10 +262,26 @@ function holds(condition: BrainCondition, memory: BrainMemory, ctx: BrainContext
   });
 }
 
+/**
+ * A ranged wait draws once per visit to a state, on first reading, and every
+ * ranged `after` in that state shares the draw. Drawing lazily keeps a brain
+ * with no range from ever touching the dice, so adding one to the imp does not
+ * change what any other creature rolls.
+ */
+function afterMs(
+  condition: Extract<BrainConditionDef, { cond: "after" }>,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): number {
+  if (condition.toMs === undefined) return condition.ms;
+  memory.patience ??= ctx.rng.next();
+  return condition.ms + Math.floor(memory.patience * (condition.toMs - condition.ms + 1));
+}
+
 function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: BrainContext): boolean {
   switch (condition.cond) {
     case "after":
-      return memory.msInState >= condition.ms;
+      return memory.msInState >= afterMs(condition, memory, ctx);
     case "stuck":
       return memory.stuck;
     case "in_range": {
@@ -461,6 +479,7 @@ export function stepBrain(
     if (transition.to !== memory.state) {
       memory.state = transition.to;
       memory.msInState = 0;
+      memory.patience = null;
       memory.stuck = false;
       memory.scratch = {};
       runOnEnter(brain, memory, ctx);

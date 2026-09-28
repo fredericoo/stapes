@@ -10,7 +10,14 @@ import {
 import { PLAYER_TILE_ID } from "../game/constants";
 
 export type ParamSpec =
-  | { key: string; kind: "number"; label: string; min?: number; max?: number }
+  | {
+      key: string;
+      kind: "number";
+      label: string;
+      min?: number;
+      max?: number;
+      optional?: boolean;
+    }
   | { key: string; kind: "boolean"; label: string }
   | { key: string; kind: "selector"; label: string }
   | { key: string; kind: "speaker"; label: string }
@@ -43,8 +50,11 @@ export const DEFAULT_THING = thing(PLAYER_TILE_ID);
 export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainConditionDef>> = {
   after: {
     label: "after",
-    hint: "This long has passed in the current state.",
-    params: [{ key: "ms", kind: "number", label: "ms", min: 0 }],
+    hint: "This long has passed in the current state. With a to ms, the wait is drawn from that range each time the state is entered.",
+    params: [
+      { key: "ms", kind: "number", label: "ms", min: 0 },
+      { key: "toMs", kind: "number", label: "to ms", min: 0, optional: true },
+    ],
     make: () => ({ cond: "after", ms: 1000 }),
   },
   in_range: {
