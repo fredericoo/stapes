@@ -17,16 +17,16 @@ const DEFAULT_SECONDS = 30;
 const SCENARIOS: Record<string, ReadonlyArray<Coord | null>> = {
   empty: [],
   town: [null],
-  mouth: [{ x: 10, y: 20, z: 0 }],
-  den1: [{ x: -10, y: 23, z: -1 }],
-  den3: [{ x: -10, y: 19, z: -3 }],
+  forest: [{ x: -109, y: -13, z: 0 }],
+  ratcave: [{ x: -79, y: -40, z: -3 }],
+  trolls: [{ x: -104, y: 4, z: -4 }],
   spread: [
     null,
-    { x: 10, y: 20, z: 0 },
-    { x: -10, y: 23, z: -1 },
-    { x: -14, y: 5, z: -2 },
-    { x: -10, y: 19, z: -3 },
-    { x: -14, y: 72, z: -3 },
+    { x: -109, y: -13, z: 0 },
+    { x: -10, y: -110, z: 0 },
+    { x: -79, y: -40, z: -3 },
+    { x: -104, y: 4, z: -4 },
+    { x: -120, y: -6, z: -5 },
   ],
 };
 

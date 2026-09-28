@@ -11341,6 +11341,13 @@ cells that are neither path nor water.
 `bun run import:rookgaard <dir>` replaces `data/map.json` with Rookgaard, the
 island Tibia starts every character on, translated from Tibia's own map.
 
+**`data/map.json` is its output.** It replaced the hand-built town, its forests
+and the animal den, so the coordinates older sections of these notes give — the
+cottage at (12,3), the den mouth at (10,20), the crossing at (32–34, 11–13) —
+describe a world that is no longer in the file. The `SYSTEM` block in
+`scripts/carve-caves.ts` describes that den too: run it and it carves the old
+den into Rookgaard, and `--verify` looks for a mouth that is not there.
+
 **The source is the 7.72 real map an OTHire datapack ships**, which was
 converted from CipSoft's own 7.7 files: an OTBM world, the `items.otb` and
 `items.xml` that say what each item id is, and the spawn file. The one the
