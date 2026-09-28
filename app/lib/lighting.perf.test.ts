@@ -7,14 +7,16 @@ import type { TileDef } from "./types";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { requireSinglePlayer } from "../game/player";
 
-const BAKE_MS =
-  process.env.CI || process.env.PERF_SKIP_TIMING === "1"
-    ? PERF_BUDGETS.lightingBakeMsP95Ci
-    : PERF_BUDGETS.lightingBakeMsP95;
-const OVERLAY_MS =
-  process.env.CI || process.env.PERF_SKIP_TIMING === "1"
-    ? PERF_BUDGETS.lightingOverlayMsP95Ci
-    : PERF_BUDGETS.lightingOverlayMsP95;
+/** Claude Code's cloud sessions run on shared VMs, as CI does, but do not set `CI`. */
+const CI_BUDGETS =
+  !!process.env.CI ||
+  process.env.CLAUDE_CODE_REMOTE === "true" ||
+  process.env.PERF_SKIP_TIMING === "1";
+
+const BAKE_MS = CI_BUDGETS ? PERF_BUDGETS.lightingBakeMsP95Ci : PERF_BUDGETS.lightingBakeMsP95;
+const OVERLAY_MS = CI_BUDGETS
+  ? PERF_BUDGETS.lightingOverlayMsP95Ci
+  : PERF_BUDGETS.lightingOverlayMsP95;
 
 const WARMUP_RUNS = 3;
 
