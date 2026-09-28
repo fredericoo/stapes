@@ -12309,6 +12309,555 @@
     }
   },
   {
+    "id": "low-roof-red",
+    "name": "Low Roof",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 8,
+      "y": 0
+    },
+    "intangible": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "low-roof-red-ridge",
+    "name": "Low Roof",
+    "height": 1,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 16,
+      "y": 0
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "low-roof-yellow",
+    "name": "Low Roof",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 8,
+      "y": 2
+    },
+    "intangible": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "low-roof-yellow-ridge",
+    "name": "Low Roof",
+    "height": 1,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 16,
+      "y": 2
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "low-roof-blue",
+    "name": "Low Roof",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 8,
+      "y": 4
+    },
+    "intangible": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "low-roof-blue-ridge",
+    "name": "Low Roof",
+    "height": 1,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 16,
+      "y": 4
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "plaster",
     "name": "Roof",
     "height": 2,

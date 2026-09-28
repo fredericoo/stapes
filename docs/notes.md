@@ -11135,6 +11135,21 @@ which is why those two are worth keeping intact.
   which are the red, yellow and blue caps for the `roof-1`/`roof-2`/`roof-4`
   eaves. So a five-wide roof is three levels and a six-wide one is three as
   well, ending in two opposing eaves rather than a cap.
+- **A low roof steps in two cells a side per level**, which is what the pitch
+  setting's `low` does, so a building gets half the height of roof and a wide
+  hall stops wearing a roof taller than itself. Its eave (`low-roof-<colour>`)
+  rises two units across its cell rather than four, so the first cell in wears it
+  on the ground of the level and the second wears it on one `plaster`, which
+  carries the slope to the four units the next level stands on. The ridge
+  (`low-roof-<colour>-ridge`) is one unit on the same pitch, alone when one cell
+  is left and on a `plaster` when three are. The steep roof hides its north and
+  west slopes edge-on; at this pitch they show as a shaded strip.
+- **The low roof is drawn by `bun run generate:low-roofs`**, not by hand. A
+  one-in-two slope and the gable under it rasterise to different diagonals, so
+  two sprites drawn separately leave a line of gable between neighbours along the
+  ridge. The script runs each slope one pixel past its north or west edge, over
+  the gable of the cell before it; editing one sprite by hand brings the line
+  back.
 - **A window is drawn on the face the camera can see.** `window-1` has two
   sprites wearing four names: `n`/`s` is the face of a wall running east-west,
   `e`/`w` the face of one running north-south. North walls get windows like any

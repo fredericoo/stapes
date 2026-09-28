@@ -47,6 +47,11 @@ an agent drives", lists every call.
 - `bun run generate:water` — rebuild the water autotile from two masks: the wave
   frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
   Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
+- `bun run generate:low-roofs` — draw the low-pitch roof into the free right-hand
+  side of `data/tilesets/roofs.png` and write its six tiles: `low-roof-<colour>`,
+  an eave rising two units across its cell, and `low-roof-<colour>-ridge`, a
+  one-unit ridge on the same pitch, in red, yellow and blue. Geometry drawn
+  through the game's own projection, shaded with `roof-1`'s shingle pattern
 - `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
   shape and its palette entries live in the script where a diff can read them
