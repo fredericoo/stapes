@@ -5683,18 +5683,27 @@ per screen pixel with the feet on z = 0, facing south and turned for the other
 facings. Each pixel casts rays along `(1, 1, 1)`, the direction the projection
 collapses (one pixel up-left per pixel of height), at 4×4 samples. A pixel is
 filled when half its samples hit, and it takes the material most of them hit.
-The whole body is about six pixels tall, the three height units the player's
-tile is, with nearly half of that spent on the head. Longer limbs made a body
-that reads as a diagonal stick.
+The head's top is about seven pixels up, with nearly half of the body spent on
+the head, which matches the hand-drawn player measured corner to corner along
+the diagonal: 18 pixels including the outline, and about 65 pixels in all.
+Longer limbs made a body that reads as a diagonal stick. The head is a little
+wider than it is tall, because a round head three pixels across rasterises
+with a one-pixel point on top.
+
+**A step moves the head by a whole pixel.** The body dips 0.4 of a pixel on a
+step and the head a full one, so the head's pixels land one step down-right
+unchanged. The body used to dip a fifth of a pixel with the head on it. That
+re-sampled the head on every step, and its top flickered between a flat edge
+and a single point, which read as the hair spiking up.
 
 **Every colour is a palette entry.** A picked colour is snapped to
 `STAPES_PALETTE`, and its shadow and highlight are the nearest entries darker
 and lighter in Oklab, weighted towards the same hue. A pixel takes the shadow,
 base or highlight by how squarely it faces a light from above and to the
-south-west. The outline and the ground shadow under the feet are `#2e222f`,
-the colour the hand-drawn sheet outlines in. A pixel with a neighbour much
-nearer the camera is also outlined, which separates a hand from the body
-behind it.
+south-west. The
+outline and the ground shadow under the feet are `#2e222f`, the colour the
+hand-drawn sheet outlines in. A pixel with a neighbour much nearer the camera
+is also outlined, which separates a hand from the body behind it.
 
 A sheet renders in about 200 ms, so the page re-renders on every change without
 a worker. `bun run generate:figure` is the same renderer with no page: it writes
