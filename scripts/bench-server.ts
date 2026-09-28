@@ -115,12 +115,52 @@ function countMoving(actors: readonly ActorSnapshot[]): number {
   return moving;
 }
 
+type BrainWork = { rounds: number; awake: number; routes: number; failedRoutes: number };
+
+type Internals = Record<string, unknown> & {
+  actors: Map<string, { resident: boolean; brainAttentive: boolean }>;
+};
+
+function afterEachCall(owner: Internals, name: string, then: (result: unknown) => void) {
+  const original = owner[name];
+  if (typeof original !== "function") throw new Error(`GameSession has no ${name} to count`);
+  owner[name] = function (this: unknown, ...args: unknown[]) {
+    const result = (original as (...a: unknown[]) => unknown).apply(this, args);
+    then(result);
+    return result;
+  };
+}
+
+/**
+ * Counted through two of the session's private methods, by name, the way
+ * `bench:crowd` times its phases, so a rename throws here rather than
+ * reporting zeros.
+ */
+function countBrainWork(session: GameSession): BrainWork {
+  const work: BrainWork = { rounds: 0, awake: 0, routes: 0, failedRoutes: 0 };
+  const internals = session as unknown as Internals;
+  afterEachCall(internals, "planBrainRound", () => {
+    work.rounds++;
+    for (const actor of internals.actors.values()) {
+      if (actor.resident && actor.brainAttentive) work.awake++;
+    }
+  });
+  afterEachCall(internals, "routeStep", (direction) => {
+    work.routes++;
+    if (direction === null) work.failedRoutes++;
+  });
+  return work;
+}
+
 type Sample = { tickMs: number; wireMs: number; bytes: number; cells: number; moving: number };
 
 type Report = {
   scenario: string;
   players: number;
   residents: number;
+  awake: number;
+  routesPerTick: number;
+  failedRoutesPerTick: number;
   deaths: number;
   tickP50: number;
   tickP95: number;
@@ -154,12 +194,14 @@ async function runScenario(
     session.spawn(`bench:${index}`, at ? { at } : {});
   });
   const residents = session.actorSnapshots().length - positions.length;
+  const work = countBrainWork(session);
 
   const warmupTicks = Math.round(2000 / TICK_MS);
   for (let i = 0; i < warmupTicks; i++) {
     session.tick(TICK_MS);
     await yieldToEventLoop();
   }
+  Object.assign(work, { rounds: 0, awake: 0, routes: 0, failedRoutes: 0 });
 
   const ticks = Math.round((seconds * 1000) / TICK_MS);
   const samples: Sample[] = [];
@@ -208,6 +250,9 @@ async function runScenario(
     scenario: name,
     players: positions.length,
     residents,
+    awake: work.rounds > 0 ? work.awake / work.rounds : 0,
+    routesPerTick: work.routes / ticks,
+    failedRoutesPerTick: work.failedRoutes / ticks,
     deaths,
     tickP50: percentile(tickTimes, 0.5),
     tickP95: percentile(tickTimes, 0.95),
@@ -259,6 +304,7 @@ async function main() {
     "scenario",
     "players",
     "residents",
+    "awake",
     "deaths",
     "tick p50",
     "tick p95",
@@ -266,6 +312,8 @@ async function main() {
     "wire p50",
     "cells/tick",
     "moving/tick",
+    "routes/tick",
+    "failed routes/tick",
     "KB/s",
     "worst tick KB",
   ];
@@ -277,6 +325,7 @@ async function main() {
         r.scenario,
         r.players,
         r.residents,
+        fmt(r.awake, 0),
         r.deaths,
         `${fmt(r.tickP50, 2)}ms`,
         `${fmt(r.tickP95, 2)}ms`,
@@ -284,6 +333,8 @@ async function main() {
         `${fmt(r.wireP50, 2)}ms`,
         fmt(r.cellsPerTick),
         fmt(r.movingPerTick),
+        fmt(r.routesPerTick),
+        fmt(r.failedRoutesPerTick),
         fmt(r.kbPerSecond),
         fmt(r.worstTickKb),
       ].join(" | ")} |`,
