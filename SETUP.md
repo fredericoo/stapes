@@ -101,13 +101,20 @@ hostname — so production and every preview share port 443 without conflicting.
 
 ### Which records are proxied, and why it matters
 
-- **`stapes.frederic.ooo` is orange (proxied), SSL/TLS mode Full (strict).**
-  Cloudflare gives it a hidden origin IP, bot and DDoS filtering, and edge
-  caching for the content-hashed client assets — which is the CDN this
-  single-region deployment otherwise gives up. WebSockets pass through it fine;
-  verified with a live `wss://` handshake.
+- **`thelaststones.com` and `www.thelaststones.com` are orange (proxied),
+  SSL/TLS mode Full (strict).** Cloudflare gives them a hidden origin IP, bot
+  and DDoS filtering, and edge caching for the content-hashed client assets —
+  which is the CDN this single-region deployment otherwise gives up. WebSockets
+  pass through it fine; verified with a live `wss://` handshake.
+- **`stapes.frederic.ooo` is the old public name.** It is still orange and
+  still on the production app's domains, but it is no longer `PUBLIC_ORIGIN`,
+  so signing in there works and changing a password is refused.
 - **Everything else stays grey.** The Coolify panel gains nothing from being
   proxied, and `next.stapes` needs an unobstructed ACME renewal.
+
+A new public name goes in grey first. Traefik cannot answer the ACME challenge
+through the proxy until Full (strict) has a certificate to verify, so turn it
+orange only once `https://<name>/api/health` answers with a valid certificate.
 
 **Never use Flexible.** It sends Cloudflare→origin in plaintext, so the traffic
 is encrypted for only half its journey, and the origin would see `http` and stop
@@ -212,7 +219,8 @@ leaks.
 `PUBLIC_ORIGIN` gains a second job here: it is the only origin allowed to post
 to the account routes, which is the whole of the cross-site request protection.
 Point it at the name people actually type, or sign-in works and changing a
-password does not.
+password does not. In production that is `https://thelaststones.com`, which is
+a different value from GitHub's `PUBLIC_ORIGIN` in step 5.
 
 Add a second persistent storage while you are here — name `stapes-backups`,
 destination `/backups`. A backup on the volume it is protecting is not a backup,
@@ -262,7 +270,9 @@ ORIGIN_IP=<the box's address>
 it at a name that reaches the box **directly**. Behind Cloudflare the upload
 inherits the proxy's body-size and request-time limits for no benefit — nothing
 about this step wants a CDN. It is also the host the deploy's certificate-expiry
-warning inspects, so a grey name reports on Traefik's own renewal.
+warning inspects, so a grey name reports on Traefik's own renewal. It is not
+the app's own `PUBLIC_ORIGIN` from step 4: that one is the proxied public name,
+and moving this one to match it would send every upload through Cloudflare.
 
 `ORIGIN_IP` is only read by that warning, which connects by address so it sees
 what the origin serves rather than what Cloudflare serves.
