@@ -9984,6 +9984,98 @@ that — see *A walk cycle in the wrong row is a bug only a person can see* —
 and the facings want looking at in the game. The cyclops's 4×4 frames stand
 on base cell (3, 3), the bottom-right.
 
+## A trait is part of a brain, called with typed arguments
+
+`app/lib/traits.ts`. A trait is a fragment of a brain — the states it brings,
+the triggers that enter them, the rows that leave them — with parameters, and
+a brain calls it the way code calls a function:
+`{ "trait": "returns-home", "with": { "leash": 10 } }`. A trait can call
+other traits, so a bundle such as a predator is a fight, a hunt and a leash in
+one call. `expandBrain` writes every call out into the flat machine `stepBrain`
+has always run, when a world is built (`GameSession` applies `withTraits` to
+its tiles), so nothing that reads `resolveBrain` knows traits exist.
+
+**Why.** The shipped brains were a dozen behaviours copied by hand — `homing`
+was the same state in six brains and the four shopkeepers the same brain — and
+49 of their 193 rows only repeated another row with a different `from`, which
+is how a flat table says "this interrupts those states".
+
+**A state holds at a band, and a trigger fires at one.** The bands are
+`idle < roam < errand < need < rest < fight < danger`. A trigger is a row with
+no `from`: it may take the body from any state whose band is below its own and
+from no other, so a sleep trait never pulls a creature out of a fight whatever
+the creature calls its states. The expansion writes that as one row with a list
+in `from`. When several triggers hold in one round, the higher band wins and a
+tie goes to the order of the calls. The brain's own states are `idle` unless
+they say otherwise, and a state argument can raise the state it is handed: a
+fight trait's `fight` holds at `fight` whatever the brain wrote.
+
+**The two bands are separate because one number cannot say what the wolf
+does.** Meat it can see beats a hunt, and a fresh blow beats the meat. Its
+feeding trigger fires at `danger` and `feeding` holds at `need`, so the meal
+takes it off a fight and an attack takes it back. A trigger's band defaults to
+its state's.
+
+**A trait ends by going to `rest`, the brain's `initial`.** Every shipped
+behaviour already handed back to the idle state. The one that did not — the
+wolf going from its slink back to its fight once healed — is a state argument.
+
+**`retarget` is a trigger re-pointing what it bound** while the body is already
+in its state, which is how a fight turns on whoever hit it last. It is off by
+default: a creature following a sound should not turn to every sound after it.
+The re-point comes before the state's own rows, as the `from: any` row it
+replaces did, and while it holds none of those rows is asked. The bat depends
+on that: while it can see its prey its dive keeps re-firing, and
+`diving → veering` never gets a turn. Put after the state's rows, the veer ran
+every 1.4 seconds with the flight's flood fill behind it, and the den's ticks
+went from about 3.4ms to 5.5ms (`bench-server.ts`, `den3`).
+
+**Arguments are typed.** A parameter is a number with its unit (`cells`, `ms`,
+`percent`, `hour`, `level`, `steps`), a tile list (`bodies`, `things`), `item`,
+`consumable`, `status`, `spell`, `selector`, `condition`, `actions`, `band`,
+`state` or `slot`. In the body, `{ "arg": "leash" }` stands wherever a value
+goes, and what a position wants is read off `brainCatalog.ts` — `in_range`'s
+`cells` is a distance — so a time passed where a distance goes is refused in
+the trait that wrote it. States and slots are named directly where a state or
+a slot goes. An optional argument left out takes the list element it stood in
+with it: the condition rule, the action, the `onEnter` effect, the row. A
+state left out takes every trigger and row into it. A number the catalogue
+marks optional goes alone instead, so an `after` whose `toMs` was left out is
+a fixed wait rather than no row at all.
+
+**A trait's states and slots are private to each call.** `homing` becomes
+`returns-home/homing`, or `predator/returns-home/homing` inside a bundle, a
+second call gets `#2`, and a private slot gets the call's number. Sharing goes
+through arguments: the wolf's slink reads the `prey` its fight bound because
+both calls are handed `prey`. A trait's state that nothing reaches is pruned
+with its rows, which is how an optional part of a trait disappears when a call
+leaves its distance out.
+
+**A routine is a trait that `returns` a state**, and a call to one goes where a
+state goes: handing a fight trait `{ "trait": "flee", ... }` as its `fight`
+makes a creature that runs when it is hit. A `let` names a value once for the
+whole brain or trait that declares it — its own states and rows, its triggers
+and its calls: a condition several calls share, or one routine two triggers
+enter.
+
+**Calls are expanded, never run**, so there is no recursion: a trait that
+reaches itself is refused, and `MAX_TRAIT_DEPTH` bounds how deep calls nest.
+
+**Checking answers with the path.** `checkTrait` and `checkBrain` return
+`{ severity, message }` with the call chain in the message —
+`wolf › call 1 › predator leash: needs a distance in cells`. Besides kinds,
+names and missing arguments they check a tile list against the catalogue, a
+spell against the body's own, and a slot's body-or-thing against what uses it:
+`attack` wants a body, `extract`, `switch` and `consume` a thing. The flat
+editor only annotates that last one, because a row being re-pointed is
+half-edited; a typed argument is not. `checkTrait` then expands the trait once in a
+throwaway brain with sample values, so a body that only goes wrong once it is
+written out is reported against the trait rather than against each creature.
+
+**`resolveBrain` refuses a brain that still has calls in it**
+(`needsExpansion`), so a world built without the catalogue leaves a creature
+that calls a trait inert rather than running its idle states alone.
+
 ## A status can stop its bearer acting, and damage can end one
 
 Two flags on `StatusDef`, both off unless authored: `incapacitates` and

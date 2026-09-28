@@ -309,6 +309,28 @@ function isCoherent(brain: BrainDef): boolean {
   return !validateBrain(brain).some((issue) => issue.severity === "error");
 }
 
+export function brainShapeProblems(raw: unknown): string[] {
+  const parsed = v.safeParse(brainSchema, raw);
+  if (parsed.success) return [];
+  return parsed.issues.map((issue) => {
+    const path = v.getDotPath(issue);
+    return path ? `${path}: ${issue.message}` : issue.message;
+  });
+}
+
+const AUTHORED_ONLY = ["traits", "triggers", "let"] as const;
+
+/**
+ * A brain carrying any of these is still in its authored form, which
+ * `expandBrain` in `./traits` turns into a `BrainDef`. The schema here would
+ * strip them and parse the idle states alone, so `resolveBrain` refuses the
+ * brain instead.
+ */
+export function needsExpansion(raw: unknown): boolean {
+  if (typeof raw !== "object" || raw === null) return false;
+  return AUTHORED_ONLY.some((key) => Object.hasOwn(raw, key));
+}
+
 export type BrainIssue = {
   severity: "error" | "warn";
   message: string;
@@ -397,7 +419,7 @@ export function resolveBrain(def: TileDef): BrainDef | null {
   if (cached !== undefined) return cached;
 
   const raw = def.interactions?.brain;
-  const parsed = raw == null ? null : v.safeParse(brainSchema, raw);
+  const parsed = raw == null || needsExpansion(raw) ? null : v.safeParse(brainSchema, raw);
   const brain =
     parsed?.success && isCoherent(parsed.output as BrainDef) ? (parsed.output as BrainDef) : null;
   brainCache.set(def, brain);

@@ -543,7 +543,7 @@ export function TileEditorDialog({
 
     const brain = draft.interactions?.brain;
     if (brain) {
-      const fatal = validateBrain(brain).find((i) => i.severity === "error");
+      const fatal = validateBrain(brain as BrainDef).find((i) => i.severity === "error");
       if (fatal) {
         setError(`Brain: ${fatal.message}`);
         return null;
@@ -1418,7 +1418,7 @@ export function TileEditorDialog({
 
           <TabPanel value={TAB_BRAIN} className="flex flex-col gap-3">
             <BrainEditor
-              brain={draft.interactions?.brain}
+              brain={draft.interactions?.brain as BrainDef | undefined}
               tiles={tiles}
               statusDefs={statusDefs}
               spells={draft.interactions?.battler?.spells}

@@ -51,6 +51,22 @@ describe("the kind filter", () => {
     expect(matchesTileFilter(troll, "item")).toBe(false);
   });
 
+  it("reads a brain built from traits as an NPC before anything expands it", () => {
+    const wolf = normalizeTileDef({
+      id: "wolf",
+      name: "Wolf",
+      height: 2,
+      type: "simple",
+      kind: "prop",
+      sprite: { frames: [FRAME] },
+      attributes: {},
+      interactions: {
+        brain: { ...wanderBrain, traits: [{ trait: "returns-home", with: { leash: 10 } }] },
+      },
+    });
+    expect(matchesTileFilter(wolf, "npc")).toBe(true);
+  });
+
   it("does not call a tile with a malformed brain an NPC", () => {
     const broken = normalizeTileDef({
       id: "broken",

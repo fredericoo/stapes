@@ -402,6 +402,7 @@ import {
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { settleAllSpans, settleSpans, spanAnchor } from "../lib/footprint";
+import { withTraits, type TraitCatalogue } from "../lib/traits";
 import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
@@ -845,6 +846,7 @@ export class GameSession implements PlaySession {
       spawnAt,
       seed,
       statuses: statusDefs = {},
+      traits = {},
       clock = () => DEFAULT_PLAY_MINUTES,
     }: {
       actorIds?: readonly string[];
@@ -852,11 +854,12 @@ export class GameSession implements PlaySession {
       spawnAt?: Coord & { stackIndex: number };
       seed?: number;
       statuses?: Record<string, StatusDef>;
+      traits?: TraitCatalogue;
       clock?: () => MinutesOfDay;
     } = {},
   ) {
     this.clock = clock;
-    this.tilesById = tilesByIdFromList(tiles);
+    this.tilesById = tilesByIdFromList(withTraits(tiles, traits));
     this.board = settleAllSpans(structuredClone(map), this.tilesById);
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
