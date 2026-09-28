@@ -26,7 +26,7 @@ const DATA = path.join(ROOT, "data");
 const PREVIEW_ZOOM = 6;
 const PREVIEW_BACKDROP = [0x23, 0x90, 0x63];
 
-const USAGE = `Render a walking character sheet from the 3D figure in app/lib/figure.ts.
+const USAGE = `Render a walking character sheet from the paper-doll parts in app/lib/figureParts.json.
 
   bun run generate:figure --name baker --hair bob --hair-colour fbb954 --legs robe
   bun run generate:figure --random --seed 7 --out /tmp/someone.png --preview /tmp
@@ -45,6 +45,7 @@ The look starts from the default, or from --look or --random, and the flags belo
   --hair-colour <hex>
   --beard, --no-beard
   --shirt <hex>
+  --trim <hex>           the collar and belt
   --legs <${LOWER_STYLES.join("|")}>
   --legs-colour <hex>
   --shoes <hex>
@@ -65,6 +66,7 @@ type PartialLook = {
   hair?: Partial<FigureLook["hair"]>;
   beard?: boolean;
   shirt?: string;
+  trim?: string;
   lower?: Partial<FigureLook["lower"]>;
   shoes?: string;
   cloak?: Partial<FigureLook["cloak"]>;
@@ -143,6 +145,7 @@ async function main() {
       beard: { type: "boolean" },
       "no-beard": { type: "boolean" },
       shirt: { type: "string" },
+      trim: { type: "string" },
       legs: { type: "string" },
       "legs-colour": { type: "string" },
       shoes: { type: "string" },
@@ -189,6 +192,7 @@ async function main() {
     const flags: PartialLook = {
       skin: hex(values.skin),
       shirt: hex(values.shirt),
+      trim: hex(values.trim),
       shoes: hex(values.shoes),
       beard: values["no-beard"] ? false : values.beard,
       hair: {

@@ -187,6 +187,11 @@ export default function TownsfolkPage() {
             value={look.shirt}
             onChange={(shirt) => setLook((l) => ({ ...l, shirt }))}
           />
+          <ColourField
+            label="Trim"
+            value={look.trim}
+            onChange={(trim) => setLook((l) => ({ ...l, trim }))}
+          />
           <StyleField
             label="Legs"
             value={look.lower.style}
