@@ -185,10 +185,13 @@ function stepsApart(a: Coord, b: Coord): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
-export function within(self: Coord, other: Coord, cells: number, sight: SightLevels): boolean {
+export function withinSightLevels(self: Coord, other: Coord, sight: SightLevels): boolean {
   const dz = other.z - self.z;
-  if (dz > sight.up || -dz > sight.down) return false;
-  return stepsApart(self, other) <= cells;
+  return dz <= sight.up && -dz <= sight.down;
+}
+
+export function within(self: Coord, other: Coord, cells: number, sight: SightLevels): boolean {
+  return withinSightLevels(self, other, sight) && stepsApart(self, other) <= cells;
 }
 
 function inSight(at: Coord | null, cells: number, ctx: BrainContext): at is Coord {
