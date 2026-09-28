@@ -5668,6 +5668,38 @@ animate a walk: a sign, a roof and an anvil all draw north and south from one
 rect and there is nothing to tell apart, while a body has a front. A repeated
 facing on a body is always a row somebody copied and forgot to move.
 
+### A townsperson is a 3D figure drawn through the game's projection
+
+`app/lib/figure.ts` draws a character block in the layout of the player's in
+`people.png` — rows facing south, east, west and north; columns a step, standing,
+the other step; every frame 2×2 cells with its base at (1, 1). A tile that walks
+with the player's frames therefore wears a generated sheet by moving its anchor
+and nothing else, which is what `/admin/townsfolk`'s *Save as tileset* does to
+the tile picked there. The picker lists only tiles whose frames all fit that
+block, so a wolf or a deer is never offered.
+
+**The figure is a set of signed-distance shapes on a posed skeleton**, one unit
+per screen pixel with the feet on z = 0, facing south and turned for the other
+facings. Each pixel casts rays along `(1, 1, 1)`, the direction the projection
+collapses (one pixel up-left per pixel of height), at 4×4 samples. A pixel is
+filled when half its samples hit, and it takes the material most of them hit.
+The whole body is about six pixels tall, the three height units the player's
+tile is, with nearly half of that spent on the head. Longer limbs made a body
+that reads as a diagonal stick.
+
+**Every colour is a palette entry.** A picked colour is snapped to
+`STAPES_PALETTE`, and its shadow and highlight are the nearest entries darker
+and lighter in Oklab, weighted towards the same hue. A pixel takes the shadow,
+base or highlight by how squarely it faces a light from above and to the
+south-west. The outline and the ground shadow under the feet are `#2e222f`,
+the colour the hand-drawn sheet outlines in. A pixel with a neighbour much
+nearer the camera is also outlined, which separates a hand from the body
+behind it.
+
+A sheet renders in about 200 ms, so the page re-renders on every change without
+a worker. The hand-drawn player and `bun run generate:npcs`'s recolours of it
+are untouched; a generated sheet is a separate tileset.
+
 ## Magic is a stone you carry, and there is nothing else to it
 
 There is no mana, no spell book and no spell slots. What a caster can do is
