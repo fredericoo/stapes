@@ -100,7 +100,7 @@ export const PART_IDS = [
   "robe",
   "shoes",
   "cape",
-  "cloak",
+  "cloak-front",
   "hood",
 ] as const;
 export type PartId = (typeof PART_IDS)[number];
@@ -113,12 +113,13 @@ const everywhere = (z: number): Z => ({ s: z, e: z, w: z, n: z });
 
 /**
  * Parts are drawn in increasing `z` for the facing. A cape hangs behind the
- * body except from behind, where it covers the back, and hair and hoods sit on
- * top of the head from every side.
+ * body facing south and east; facing west and north it covers the back, over
+ * the shirt and under the hair. A cloak is the cape with a front panel over
+ * the chest, and a hood goes over everything on the head.
  */
 const PARTS: Record<PartId, { paint: Paint; z: Z; outlined: boolean }> = {
-  cape: { paint: "cloak", z: { s: 0, e: 0, w: 0, n: 90 }, outlined: true },
-  cloak: { paint: "cloak", z: { s: 0, e: 0, w: 0, n: 90 }, outlined: true },
+  cape: { paint: "cloak", z: { s: 0, e: 0, w: 40, n: 40 }, outlined: true },
+  "cloak-front": { paint: "cloak", z: everywhere(38), outlined: true },
   body: { paint: "skin", z: everywhere(10), outlined: false },
   trousers: { paint: "lower", z: everywhere(20), outlined: false },
   shoes: { paint: "shoes", z: everywhere(25), outlined: true },
@@ -140,9 +141,9 @@ function partsFor(look: FigureLook): PartId[] {
   if (look.hair.style !== "bald" && look.hair.style !== "short")
     ids.push(`hair-${look.hair.style}`);
   if (look.beard) ids.push("beard");
-  if (look.cloak.style === "cape") ids.push("cape");
-  if (look.cloak.style === "cloak") ids.push("cloak");
-  if (look.cloak.style === "hooded") ids.push("cloak", "hood");
+  if (look.cloak.style !== "none") ids.push("cape");
+  if (look.cloak.style === "cloak" || look.cloak.style === "hooded") ids.push("cloak-front");
+  if (look.cloak.style === "hooded") ids.push("hood");
   return ids;
 }
 

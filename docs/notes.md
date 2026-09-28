@@ -5700,6 +5700,12 @@ pixel beside a boot becomes outline, so on some frames a boot is a single
 pixel with a ring round it. The pixel between the legs facing south and north
 is outline, a dark gap, as the original draws it.
 
+**A cloak is three parts.** `cape` hangs behind the body facing south and
+east, where only its edges show past the body; facing west and north it covers
+the back, over the shirt and under the head. `cloak-front` covers both sides of
+the chest and leaves the middle open. `hood` covers the head except the face. A
+cape look draws the first, a cloak the first two, and a hooded cloak all three.
+
 **The drawn parts are one mask per facing** repeated across its three frames,
 because the head stays on the same pixels through the walk. Height goes up and
 to the left in this projection, so anything that hangs, like a ponytail or long

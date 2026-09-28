@@ -77,8 +77,10 @@ command.
      A dark shirt, dark legs and dark hair merge into one shape.
    - Hair in `#45293f`, `#3e3546` or `#313638` is nearly the outline colour, and
      the head reads as a hole. Pick a brown (`6e2727`, `9e4539`) instead.
-   - A cloak covers most of the figure from behind, and a `hooded` one covers the
-     hair. The cloak colour is the main colour of the whole character.
+   - A `cape` shows at the edges facing south and east and covers the back
+     facing west and north. A `cloak` adds a front panel either side of the
+     chest, and `hooded` adds a hood over the hair. The cloak colour is the main
+     colour of the whole character from behind.
    - Skin close to the shirt or cloak colour loses the hands and face.
 
 3. **Save it for real.** `--name <name>` writes
@@ -150,7 +152,8 @@ bun run figure-parts import "$SCRATCH/parts"   # refuses any other colour
   instead, which leaves some edges open on purpose.
 - **A new style** is a new value in `HAIR_STYLES`, `CLOAK_STYLES` or
   `LOWER_STYLES`, a new id in `PART_IDS`, an entry in `PARTS`, a line in
-  `partsFor`, and the part's rows in the JSON.
+  `partsFor`, and the part's rows in the JSON. A style made of several parts,
+  like `hooded` (cape, cloak-front, hood), lists each in `partsFor`.
 - The parts were first cut from `people.png` and have been hand-edited since;
   `figureParts.json` is the source of truth, and nothing regenerates it.
 
@@ -160,5 +163,6 @@ After a change:
    both steps if the part moves.
 2. Run `bun run test:unit -- app/lib/figure.test.ts`. It checks that every part
    is 64 rows of 48 valid cells, that every boot pixel is outlined, that output
-   stays in the palette, and that every style shows from at least one facing.
+   stays in the palette, that every style shows from at least one facing, and
+   that a cloak differs from a cape and a hood from a cloak.
 3. Run `bun run format` and `bun run lint`.

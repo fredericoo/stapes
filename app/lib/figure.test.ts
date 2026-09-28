@@ -92,6 +92,10 @@ describe("renderFigureFrame", () => {
 
   const bald: FigureLook = { ...DEFAULT_LOOK, hair: { ...DEFAULT_LOOK.hair, style: "bald" } };
   const bare: FigureLook = { ...DEFAULT_LOOK, cloak: { ...DEFAULT_LOOK.cloak, style: "none" } };
+  const wearing = (style: FigureLook["cloak"]["style"]): FigureLook => ({
+    ...bare,
+    cloak: { ...bare.cloak, style },
+  });
   const variants: { name: string; look: FigureLook; without: FigureLook }[] = [
     ...HAIR_STYLES.filter((s) => s !== "bald").map((style) => ({
       name: `${style} hair`,
@@ -100,9 +104,11 @@ describe("renderFigureFrame", () => {
     })),
     ...CLOAK_STYLES.filter((s) => s !== "none").map((style) => ({
       name: `a ${style}`,
-      look: { ...bare, cloak: { ...bare.cloak, style } },
+      look: wearing(style),
       without: bare,
     })),
+    { name: "a cloak's front over a cape", look: wearing("cloak"), without: wearing("cape") },
+    { name: "a hood over a cloak", look: wearing("hooded"), without: wearing("cloak") },
     { name: "a beard", look: { ...DEFAULT_LOOK, beard: true }, without: DEFAULT_LOOK },
     {
       name: "a robe",
