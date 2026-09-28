@@ -3670,6 +3670,31 @@ const attention: TileDef[] = [
     interactions: { brain: tickerBrain() },
   }),
   tile({
+    id: "ticker-looking-up",
+    height: 2,
+    kind: "battler",
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: {
+      brain: tickerBrain(),
+      battler: {
+        baseHp: 8,
+        masteries: { toughness: 8 },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 0,
+          def: 0,
+          accuracy: 50,
+          variance: 50,
+          spd: 20,
+          mastery: "fist",
+        },
+        sight: { up: 1, down: 0 },
+      },
+    },
+  }),
+  tile({
     id: "ticker-far-sighted",
     height: 2,
     actor: true,
@@ -3873,6 +3898,39 @@ describe("who gets a turn", () => {
 
     expect(turns.get(`${farSighted.x},${farSighted.y}`)).toBe(ROUNDS);
     expect(turns.get(`${shortSighted.x},${shortSighted.y}`)).toBeLessThan(ROUNDS);
+  });
+
+  describe("on another floor", () => {
+    const NEAR = { x: -ATTENTION_FIELD + 5, y: -ATTENTION_FIELD };
+
+    function floorsApart(z: number, tileId: string, opening = false): GameSession {
+      let map = withRow(
+        field(ATTENTION_FIELD),
+        "ticker",
+        FAR_ROW_Y,
+        FAR_ROW_X0,
+        BRAIN_DOZE_BUDGET * 3,
+      );
+      map = replaceStack(map, NEAR.x, NEAR.y, z, [{ tileId: "grass" }, { tileId }]);
+      if (opening) map = replaceStack(map, NEAR.x, NEAR.y, 0, []);
+      return new GameSession(map, attention, { actorIds: ["alice"] });
+    }
+
+    it("dozes under the floor somebody stands on when it cannot see up", () => {
+      const turns = turnsOver(floorsApart(-1, "ticker"), ROUNDS);
+
+      expect(turns.get(`${NEAR.x},${NEAR.y}`)).toBeLessThan(ROUNDS);
+    });
+
+    it.each([
+      ["under somebody it can see up to", -1, "ticker-looking-up", false],
+      ["under an opening in their floor", -1, "ticker", true],
+      ["on the floor above them", 1, "ticker", false],
+    ])("gives every turn to a creature %s", (_, z, tileId, opening) => {
+      const turns = turnsOver(floorsApart(z, tileId, opening), ROUNDS);
+
+      expect(turns.get(`${NEAR.x},${NEAR.y}`)).toBe(ROUNDS);
+    });
   });
 
   it("stops when the state that gave the order does", () => {
