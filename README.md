@@ -10,9 +10,9 @@ bun run generate   # regenerate tilesets + demo map into data/
 bun dev
 ```
 
-Open the client URL `bun dev` prints — the game, behind two doors: an account
-(`/sign-in`), then which of its characters to play (`/characters`). The socket
-opens on the second one.
+Open the client URL `bun dev` prints for the landing page. The game is at
+`/online`, behind two doors: an account (`/sign-in`), then which of its
+characters to play (`/characters`). The socket opens on the second one.
 
 The authoring tools are all under `/admin`, which opens on the map editor: the
 tile database is at `/admin/tiles`, and `/admin/arena` balances two fighters
@@ -114,7 +114,7 @@ Deploying is in [SETUP.md](SETUP.md).
 
 ## Multiplayer
 
-`/` joins a shared world. Everyone spawns where the map's `player` tile is
+`/online` joins a shared world. Everyone spawns where the map's `player` tile is
 placed; you appear to each other as tiles and can push the same objects.
 Closing the tab removes your tile.
 
@@ -124,8 +124,8 @@ up to three characters, nobody else can play yours, and a character's name is
 typed once and never changes.
 
 Each of those is its own route, and each asks one question: `/sign-in`,
-`/sign-up`, `/characters`, `/characters/new`, `/account/password`, and `/` for
-the world. They share one layout, which fetches the catalogues and decodes the
+`/sign-up`, `/characters`, `/characters/new`, `/account/password`, and `/online`
+for the world. They share one layout, which fetches the catalogues and decodes the
 tilesets once per tab — while you are still typing — so splitting them up costs
 nothing on the way in.
 

@@ -36,7 +36,7 @@ export default function NewCharacterPage() {
       return;
     }
     rememberCharacter(made.value);
-    void navigate("/");
+    void navigate("/online");
   };
 
   return (
