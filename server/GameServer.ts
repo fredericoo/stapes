@@ -1066,6 +1066,21 @@ export class GameServer {
     return saved?.on;
   }
 
+  /**
+   * Written whatever `writtenActors` holds, because a player seated from storage
+   * has no entry there and `saveActors` would compare "off" against its default
+   * of off and leave a stored "on" in place.
+   */
+  private savePvp(actorId: string, on: boolean) {
+    const written = this.writtenActors.get(actorId);
+    if (written) written.pvp = on;
+    this.ctx.storage
+      .put(this.pvpKey(actorId), { on, savedAt: this.now() } satisfies SavedPvp, {
+        allowUnconfirmed: true,
+      })
+      .catch(GameServer.reportWriteFailure("pvp write"));
+  }
+
   private hiddenKey(actorId: string): string {
     return `${HIDDEN_KEY_PREFIX}${actorId}`;
   }
@@ -1501,7 +1516,7 @@ export class GameServer {
       session.cancelCast(actorId);
     } else if (message.type === "pvp") {
       session.setPvp(message.enabled, actorId);
-      this.saveActors([actorId], true);
+      this.savePvp(actorId, session.pvpOf(actorId));
     } else if (message.type === "hidden") {
       if (admin) this.setHidden(actorId, message.enabled);
     } else if (message.type === "attackMode") {
