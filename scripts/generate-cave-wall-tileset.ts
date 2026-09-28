@@ -28,27 +28,77 @@ const SLICES_PER_ROW = 8;
 const VARIANT_ROWS = Math.ceil(AUTOTILE_SLICE_COUNT / SLICES_PER_ROW) * SPRITE_CELLS;
 const FRAME_MS = 200;
 
+type Face = "top" | "south" | "bevel" | "east";
+
+/** A speck `width` pixels wide covers `percent` of the positions it can start at. */
+type Speck = { index: number; percent: number; width?: number };
+type Ink = { base: number; specks: Speck[]; salt: number };
+type Rock = Record<Face, Ink>;
+
+/**
+ * Palette indices of `half-stone`'s three faces, so the two can share a cave,
+ * plus the entry between its south and east tones for a wall turning between them.
+ */
+const RED: Rock = {
+  top: { base: 3, specks: [{ index: 11, percent: 12 }], salt: 1 },
+  south: { base: 18, specks: [{ index: 11, percent: 16 }], salt: 2 },
+  bevel: { base: 13, specks: [{ index: 11, percent: 14 }], salt: 4 },
+  east: { base: 11, specks: [{ index: 3, percent: 12 }], salt: 3 },
+};
+
+/**
+ * The palette's neutral dark grey on top and `stone-wall`'s greys on the sides,
+ * each about as light as the red rock's same face, marked with streaks two
+ * pixels wide a shade darker and single glints a shade lighter.
+ */
+const GREY: Rock = {
+  top: {
+    base: 1,
+    specks: [
+      { index: 8, percent: 7 },
+      { index: 0, percent: 5 },
+    ],
+    salt: 5,
+  },
+  south: {
+    base: 25,
+    specks: [
+      { index: 22, percent: 10, width: 2 },
+      { index: 27, percent: 5 },
+    ],
+    salt: 6,
+  },
+  bevel: {
+    base: 22,
+    specks: [
+      { index: 8, percent: 8, width: 2 },
+      { index: 25, percent: 4 },
+    ],
+    salt: 7,
+  },
+  east: {
+    base: 8,
+    specks: [
+      { index: 4, percent: 5, width: 2 },
+      { index: 4, percent: 6 },
+      { index: 22, percent: 3 },
+    ],
+    salt: 8,
+  },
+};
+
 /**
  * Every variant shares one sheet, so a cave that mixes them costs no more draw
  * calls than a cave of one, and each connects to the others so the rock stays
  * whole where they meet. All have the same outline at the ceiling; `spread` is
  * how much wider the rock is at the floor.
  */
-const VARIANTS: { tileId: string; name: string; spread: number }[] = [
-  { tileId: "cave-wall", name: "Cave Wall", spread: 0 },
-  { tileId: "cave-wall-sloped", name: "Sloped Cave Wall", spread: HALF },
+const VARIANTS: { tileId: string; name: string; spread: number; rock: Rock }[] = [
+  { tileId: "cave-wall", name: "Cave Wall", spread: 0, rock: RED },
+  { tileId: "cave-wall-sloped", name: "Sloped Cave Wall", spread: HALF, rock: RED },
+  { tileId: "cave-wall-grey", name: "Grey Cave Wall", spread: 0, rock: GREY },
+  { tileId: "cave-wall-sloped-grey", name: "Grey Sloped Cave Wall", spread: HALF, rock: GREY },
 ];
-
-type Ink = { base: number; fleck: number; fleckPercent: number; salt: number };
-
-/**
- * Palette indices of `half-stone`'s three faces, so the two can share a cave,
- * plus the entry between its south and east tones for a wall turning between them.
- */
-const TOP: Ink = { base: 3, fleck: 11, fleckPercent: 12, salt: 1 };
-const SOUTH: Ink = { base: 18, fleck: 11, fleckPercent: 16, salt: 2 };
-const BEVEL: Ink = { base: 13, fleck: 11, fleckPercent: 14, salt: 4 };
-const EAST: Ink = { base: 11, fleck: 3, fleckPercent: 12, salt: 3 };
 
 const NORMAL_REACH = 2;
 
@@ -282,15 +332,15 @@ function hitAt(
   layers: boolean[][][],
   sx: number,
   sy: number,
-): (Point & { layer: number; face: Ink }) | null {
+): (Point & { layer: number; face: Face }) | null {
   const rock = (layer: number, x: number, y: number) =>
     x >= 0 && y >= 0 && x < CELL && y < CELL && layers[layer]![y]![x]!;
   for (let layer = RISE - 1; layer >= 0; layer--) {
     const x = sx - (RISE - 1 - layer);
     const y = sy - (RISE - 1 - layer);
-    if (rock(layer, x, y)) return { x, y, layer, face: layer === RISE - 1 ? TOP : SOUTH };
-    if (rock(layer, x, y - 1)) return { x, y: y - 1, layer, face: SOUTH };
-    if (rock(layer, x - 1, y - 1)) return { x: x - 1, y: y - 1, layer, face: EAST };
+    if (rock(layer, x, y)) return { x, y, layer, face: layer === RISE - 1 ? "top" : "south" };
+    if (rock(layer, x, y - 1)) return { x, y: y - 1, layer, face: "south" };
+    if (rock(layer, x - 1, y - 1)) return { x: x - 1, y: y - 1, layer, face: "east" };
   }
   return null;
 }
@@ -303,7 +353,7 @@ function hitAt(
  * direction. Past the edge the edge pixel is read again, since every outline
  * crosses it square on.
  */
-function sideInk(heights: number[][], x: number, y: number, step: Ink): Ink {
+function sideFace(heights: number[][], x: number, y: number, step: Face): Face {
   let nx = 0;
   let ny = 0;
   for (let dy = -NORMAL_REACH; dy <= NORMAL_REACH; dy++) {
@@ -316,23 +366,27 @@ function sideInk(heights: number[][], x: number, y: number, step: Ink): Ink {
   }
   if (nx === 0 && ny === 0) return step;
   const angle = Math.atan2(ny, nx);
-  if (angle > (3 * Math.PI) / 8) return SOUTH;
-  if (angle < Math.PI / 8) return EAST;
-  return BEVEL;
+  if (angle > (3 * Math.PI) / 8) return "south";
+  if (angle < Math.PI / 8) return "east";
+  return "bevel";
 }
 
 /**
  * Keyed on the screen pixel modulo a cell, so every slice agrees on where the
- * flecks fall and a face that runs across several cells has no seam.
+ * specks fall and a face that runs across several cells has no seam. A speck
+ * two pixels wide hashes the pair it covers, and a cell's width holds whole pairs.
  */
-function flecked(sx: number, sy: number, ink: Ink): boolean {
-  let h =
-    Math.imul((sx % CELL) + 1, 0x27d4eb2d) ^
-    Math.imul((sy % CELL) + 1, 0x165667b1) ^
-    Math.imul(ink.salt, 0x9e3779b9);
-  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
-  h ^= h >>> 13;
-  return (h >>> 0) % 100 < ink.fleckPercent;
+function inkAt(sx: number, sy: number, ink: Ink): number {
+  for (const [i, { index, percent, width = 1 }] of ink.specks.entries()) {
+    let h =
+      Math.imul(Math.floor((sx % CELL) / width) + 1, 0x27d4eb2d) ^
+      Math.imul((sy % CELL) + 1, 0x165667b1) ^
+      Math.imul(ink.salt + 16 * i, 0x9e3779b9);
+    h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+    h ^= h >>> 13;
+    if ((h >>> 0) % 100 < percent) return index;
+  }
+  return ink.base;
 }
 
 function rgba(index: number): [number, number, number, number] {
@@ -342,7 +396,13 @@ function rgba(index: number): [number, number, number, number] {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, 255];
 }
 
-function drawSlice(sheet: PNG, originX: number, originY: number, mask: number, spread: number) {
+function drawSlice(
+  sheet: PNG,
+  originX: number,
+  originY: number,
+  mask: number,
+  { spread, rock }: { spread: number; rock: Rock },
+) {
   const layers = crossSections(mask, spread);
   const heights = layers[0]!.map((row, y) =>
     row.map((_, x) => layers.filter((layer) => layer[y]![x]).length),
@@ -352,8 +412,8 @@ function drawSlice(sheet: PNG, originX: number, originY: number, mask: number, s
     for (let sx = 0; sx < size; sx++) {
       const hit = hitAt(layers, sx, sy);
       if (!hit) continue;
-      const ink = hit.face === TOP ? TOP : sideInk(heights, hit.x, hit.y, hit.face);
-      const colour = rgba(flecked(sx, sy, ink) ? ink.fleck : ink.base);
+      const face = hit.face === "top" ? "top" : sideFace(heights, hit.x, hit.y, hit.face);
+      const colour = rgba(inkAt(sx, sy, rock[face]));
       const i = (sheet.width * (originY + sy) + originX + sx) << 2;
       for (let c = 0; c < 4; c++) sheet.data[i + c] = colour[c]!;
     }
@@ -386,13 +446,14 @@ async function main() {
 
   const tilesPath = path.join(DATA, "tiles.json");
   const tiles = await readJson<TileDef[]>(tilesPath);
-  VARIANTS.forEach(({ tileId, name, spread }, v) => {
+  VARIANTS.forEach((variant, v) => {
+    const { tileId, name } = variant;
     const anchor = { tilesetId: TILESET_ID, x: 0, y: v * VARIANT_ROWS };
     const slices: Record<number, TileSprite> = {};
     for (let slice = 0; slice < AUTOTILE_SLICE_COUNT; slice++) {
       const rect = sliceRect(slice);
       const mask = AUTOTILE_SLICE_MASKS[slice]!;
-      drawSlice(sheet, rect.x * CELL, (anchor.y + rect.y) * CELL, mask, spread);
+      drawSlice(sheet, rect.x * CELL, (anchor.y + rect.y) * CELL, mask, variant);
       slices[slice] = {
         frames: [{ sprite: { rect, base: { x: 1, y: 1 } }, durationMs: FRAME_MS }],
       };

@@ -54,7 +54,8 @@ an agent drives", lists every call.
   slices of the cave walls on it: `cave-wall`, rock whose face stands on the half
   line of its cell wherever it meets open ground, so a passage one cell wide
   shows a cell of floor, and `cave-wall-sloped`, the same outline at the ceiling
-  widening to the cell's edge at the floor. Every corner is rounded. Geometry
+  widening to the cell's edge at the floor, each in red rock and in grey
+  (`cave-wall-grey`, `cave-wall-sloped-grey`). Every corner is rounded. Geometry
   too, drawn through the game's own projection; the variants, the shape rules
   and the palette entries are constants in the script
 - `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
