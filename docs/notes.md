@@ -5668,7 +5668,7 @@ animate a walk: a sign, a roof and an anvil all draw north and south from one
 rect and there is nothing to tell apart, while a body has a front. A repeated
 facing on a body is always a row somebody copied and forgot to move.
 
-### A townsperson is a 3D figure drawn through the game's projection
+### A townsperson is paper-doll parts cut from the player
 
 `app/lib/figure.ts` draws a character block in the layout of the player's in
 `people.png` — rows facing south, east, west and north; columns a step, standing,
@@ -5678,43 +5678,52 @@ and nothing else, which is what `/admin/townsfolk`'s *Save as tileset* does to
 the tile picked there. The picker lists only tiles whose frames all fit that
 block, so a wolf or a deer is never offered.
 
-**The figure is a set of signed-distance shapes on a posed skeleton**, one unit
-per screen pixel with the feet on z = 0, facing south and turned for the other
-facings. Each pixel casts rays along `(1, 1, 1)`, the direction the projection
-collapses (one pixel up-left per pixel of height), at 4×4 samples. A pixel is
-filled when half its samples hit, and it takes the material most of them hit.
-The head's top is about seven pixels up, with nearly half of the body spent on
-the head, which matches the hand-drawn player measured corner to corner along
-the diagonal: 18 pixels including the outline, and about 65 pixels in all.
-Longer limbs made a body that reads as a diagonal stick. The head is a little
-wider than it is tall, because a round head three pixels across rasterises
-with a one-pixel point on top.
+**A look is a stack of parts, each a whole 48×64 sheet.** `app/lib/figureParts.json`
+holds them as 64 strings of 48 cells: `.` empty, `#` outline, `1` to `3` the
+shadow, base and highlight of whatever colour the look gives that part. For
+each facing, the parts a look uses are laid down in the `z` order `PARTS` gives
+that facing, and each tone becomes that step of its colour's ramp. A cape and
+a cloak are behind the body from every side but the back, where they cover it;
+hair and a hood are on top from every side.
 
-**A step moves the head by a whole pixel.** The body dips 0.4 of a pixel on a
-step and the head a full one, so the head's pixels land one step down-right
-unchanged. The body used to dip a fifth of a pixel with the head on it. That
-re-sampled the head on every step, and its top flickered between a flat edge
-and a single point, which read as the hair spiking up.
+**Six parts are cut from `people.png`, and a look can draw its player exactly.**
+`bun run figure-parts extract` takes the naked human (the second block) as the
+body and diffs the player against it: the whites become the shirt, the reds
+the trim, the purples the trousers, and the dark pixels at the feet the shoes.
+The naked human's hair is drawn in the outline colour; a dark pixel on the head
+with nothing transparent beside it is hair, and becomes skin on the body and a
+pixel of `hair-short`. Dressed in the player's own colours, the doll draws the
+player pixel for pixel, and `figure.test.ts` holds it to that, so a change to
+the parts or the ramps that moves a single pixel of him fails. The arm swing and
+the stance in each facing are the artist's, unchanged.
 
-**Every colour is a palette entry.** A picked colour is snapped to
-`STAPES_PALETTE`, and its shadow and highlight are the nearest entries darker
-and lighter in Oklab, weighted towards the same hue. A pixel takes the shadow,
-base or highlight by how squarely it faces a light from above and to the
-south-west. Anything below the knee drops one tone, because the body above
-keeps it out of the light, which is how the hand-drawn player's legs are dark.
-Where one part passes in front of a part of another material, the pixel behind
-takes its own shadow tone, so a sleeve keeps an edge against a cloak. The
-outline and the ground shadow under the feet are `#2e222f`, the colour the
-hand-drawn sheet outlines in. A pixel with a neighbour much nearer the camera
-is also outlined, which separates a hand from the body behind it.
+**The other eight parts are drawn by hand**: three hair styles, a beard, a robe,
+a cape, a cloak and a hood. Each is one mask per facing repeated across its
+three frames, because the head stays on the same pixels through the walk.
+Height goes up and to the left in this projection, so anything that hangs, like
+a ponytail or long hair, runs down or down-right on screen rather than out to
+the side. These parts are marked `outlined`, and a transparent pixel beside one
+becomes outline. The parts cut from `people.png` are not, because the artist
+leaves some edges open on purpose — a hand's tip has no outline — and an
+automatic outline there changed 51 of the player's pixels.
 
-A sheet renders in about 200 ms, so the page re-renders on every change without
-a worker. `bun run generate:figure` is the same renderer with no page: it writes
-through `DataStore` over `DiskBlobs` on `data/`, the class the server writes
-through, so `tiles.json` and `tilesets.json` keep the server's formatting and an
-anchor move is a one-line diff. It checks every `--tile` before it writes
-anything, so a refused tile leaves no orphan sheet behind. The hand-drawn player and `bun run generate:npcs`'s recolours of it
-are untouched; a generated sheet is a separate tileset.
+**Ramps step one palette entry either way**, the nearest darker and lighter
+entries in Oklab weighted towards the same hue. That is what the shirt and the
+trousers use. The skin skips an entry either side of `#cd683d`, so that ramp is
+written out in `HAND_RAMPS`.
+
+`bun run figure-parts export <dir>` writes every part as a PNG in the outline
+colour and three greys, to edit in a pixel editor, and `import <dir>` reads them
+back and refuses any other colour. `extract` rewrites only the six cut parts, so
+it can be run again after `people.png` changes without losing the drawn ones.
+
+`bun run generate:figure` renders a sheet with no page: it writes through
+`DataStore` over `DiskBlobs` on `data/`, the class the server writes through, so
+`tiles.json` and `tilesets.json` keep the server's formatting and an anchor move
+is a one-line diff. It checks every `--tile` before it writes anything, so a
+refused tile leaves no orphan sheet behind. The hand-drawn player and
+`bun run generate:npcs`'s recolours of it are untouched; a generated sheet is a
+separate tileset.
 
 ## Magic is a stone you carry, and there is nothing else to it
 

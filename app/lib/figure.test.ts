@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
+import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
 import {
   CLOAK_STYLES,
   DEFAULT_LOOK,
-  FRAME_PX,
   HAIR_STYLES,
+  PART_IDS,
   SHEET_FACINGS,
   SHEET_HEIGHT_PX,
   SHEET_POSES,
@@ -12,10 +14,10 @@ import {
   renderFigureSheet,
   type FigureLook,
 } from "./figure";
+import FIGURE_PARTS from "./figureParts.json";
 import { STAPES_PALETTE } from "./palette";
-import { CELL_SIZE } from "./types";
 
-function hexAt(rgba: Uint8ClampedArray, i: number): string {
+function hexAt(rgba: Uint8Array | Uint8ClampedArray, i: number): string {
   return `#${[rgba[i]!, rgba[i + 1]!, rgba[i + 2]!].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
 
@@ -23,37 +25,60 @@ function sameArt(a: Uint8ClampedArray, b: Uint8ClampedArray): boolean {
   return a.every((value, i) => value === b[i]);
 }
 
-describe("renderFigureSheet", () => {
-  const sheet = renderFigureSheet(DEFAULT_LOOK);
+/** The colours `people.png` draws its player in, as a look. */
+const PLAYER: FigureLook = {
+  skin: "#cd683d",
+  hair: { style: "short", colour: "#2e222f" },
+  beard: false,
+  shirt: "#c7dcd0",
+  trim: "#ae2334",
+  lower: { style: "trousers", colour: "#7f708a" },
+  shoes: "#2e222f",
+  cloak: { style: "none", colour: "#2e222f" },
+};
 
-  it("fills a block the size of one character in people.png", () => {
-    expect(sheet.length).toBe(SHEET_WIDTH_PX * SHEET_HEIGHT_PX * 4);
-    expect([SHEET_WIDTH_PX, SHEET_HEIGHT_PX]).toEqual([48, 64]);
+describe("figureParts.json", () => {
+  it("holds every part as 64 rows of 48 cells", () => {
+    const parts = FIGURE_PARTS as Record<string, string[]>;
+    expect(Object.keys(parts).sort()).toEqual([...PART_IDS].sort());
+    for (const id of PART_IDS) {
+      expect(parts[id], id).toHaveLength(SHEET_HEIGHT_PX);
+      for (const row of parts[id]!) expect(row, id).toMatch(/^[.#123]{48}$/);
+    }
+  });
+});
+
+describe("renderFigureSheet", () => {
+  it("dressed as the player, draws the player in people.png pixel for pixel", () => {
+    const people = PNG.sync.read(readFileSync("data/tilesets/people.png"));
+    const sheet = renderFigureSheet(PLAYER);
+    for (let y = 0; y < SHEET_HEIGHT_PX; y++) {
+      for (let x = 0; x < SHEET_WIDTH_PX; x++) {
+        const mine = (y * SHEET_WIDTH_PX + x) * 4;
+        const theirs = (y * people.width + x) * 4;
+        const want = people.data[theirs + 3] ? hexAt(people.data, theirs) : "none";
+        const got = sheet[mine + 3] ? hexAt(sheet, mine) : "none";
+        expect(got, `${x}, ${y}`).toBe(want);
+      }
+    }
   });
 
   it("draws only palette colours", () => {
     const palette = new Set(STAPES_PALETTE);
+    const sheet = renderFigureSheet({
+      ...DEFAULT_LOOK,
+      hair: { style: "long", colour: "#fbb954" },
+      beard: true,
+      cloak: { style: "hooded", colour: "#165a4c" },
+    });
     for (let i = 0; i < sheet.length; i += 4) {
       if (sheet[i + 3] === 0) continue;
-      expect(sheet[i + 3]).toBe(255);
       expect(palette.has(hexAt(sheet, i))).toBe(true);
     }
   });
 });
 
 describe("renderFigureFrame", () => {
-  it("stands on the bottom-right cell, which a base of (1, 1) puts on the map cell", () => {
-    for (const facing of SHEET_FACINGS) {
-      const frame = renderFigureFrame(DEFAULT_LOOK, facing, "stand");
-      let lowest = -1;
-      for (let y = 0; y < FRAME_PX; y++) {
-        for (let x = 0; x < FRAME_PX; x++) if (frame[(y * FRAME_PX + x) * 4 + 3]) lowest = y;
-      }
-      expect(lowest).toBeGreaterThanOrEqual(CELL_SIZE);
-      expect(lowest).toBeLessThan(FRAME_PX);
-    }
-  });
-
   it("draws every facing and every step of the walk differently", () => {
     const frames = SHEET_FACINGS.flatMap((facing) =>
       SHEET_POSES.map((pose) => ({
@@ -67,27 +92,6 @@ describe("renderFigureFrame", () => {
           sameArt(frames[a]!.art, frames[b]!.art),
           `${frames[a]!.key} vs ${frames[b]!.key}`,
         ).toBe(false);
-      }
-    }
-  });
-
-  it("keeps the top of the head on a step, a whole pixel lower", () => {
-    const top = (art: Uint8ClampedArray) => {
-      for (let y = 0; y < FRAME_PX; y++) {
-        let row = "";
-        for (let x = 0; x < FRAME_PX; x++) row += art[(y * FRAME_PX + x) * 4 + 3] ? "x" : ".";
-        if (row.includes("x")) return { y, row };
-      }
-      return null;
-    };
-    for (const facing of SHEET_FACINGS) {
-      const standing = top(renderFigureFrame(DEFAULT_LOOK, facing, "stand"))!;
-      for (const pose of ["stepA", "stepB"] as const) {
-        const stepping = top(renderFigureFrame(DEFAULT_LOOK, facing, pose))!;
-        expect(stepping, `${facing}/${pose}`).toEqual({
-          y: standing.y + 1,
-          row: `.${standing.row.slice(0, -1)}`,
-        });
       }
     }
   });

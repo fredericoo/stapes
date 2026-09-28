@@ -8,6 +8,7 @@ import {
 } from "./palette";
 import { CELL_SIZE } from "./types";
 import type { Direction, TileDef } from "./types";
+import FIGURE_PARTS from "./figureParts.json";
 
 export const HAIR_STYLES = ["bald", "short", "bob", "long", "ponytail"] as const;
 
@@ -22,6 +23,7 @@ export const figureLookSchema = v.object({
   hair: v.object({ style: v.picklist(HAIR_STYLES), colour }),
   beard: v.boolean(),
   shirt: colour,
+  trim: colour,
   lower: v.object({ style: v.picklist(LOWER_STYLES), colour }),
   shoes: colour,
   cloak: v.object({ style: v.picklist(CLOAK_STYLES), colour }),
@@ -34,6 +36,7 @@ export const DEFAULT_LOOK: FigureLook = {
   hair: { style: "short", colour: "#6e2727" },
   beard: false,
   shirt: "#c7dcd0",
+  trim: "#ae2334",
   lower: { style: "trousers", colour: "#7f708a" },
   shoes: "#45293f",
   cloak: { style: "none", colour: "#165a4c" },
@@ -51,6 +54,7 @@ export function randomLook(random: () => number = Math.random): FigureLook {
     hair: { style: pick(HAIR_STYLES), colour: pick(FIGURE_SWATCHES) },
     beard: random() < 0.25,
     shirt: pick(FIGURE_SWATCHES),
+    trim: pick(FIGURE_SWATCHES),
     lower: { style: random() < 0.3 ? "robe" : "trousers", colour: pick(FIGURE_SWATCHES) },
     shoes: pick(FIGURE_SWATCHES),
     cloak: {
@@ -70,337 +74,98 @@ export const FRAME_PX = 2 * CELL_SIZE;
 export const SHEET_WIDTH_PX = SHEET_POSES.length * FRAME_PX;
 export const SHEET_HEIGHT_PX = SHEET_FACINGS.length * FRAME_PX;
 
-const OUTLINE_COLOUR = "#2e222f";
+export const OUTLINE_COLOUR = "#2e222f";
 
 /**
- * The foot sits at the centre of the sprite's bottom-right cell, which is the
- * cell a `base` of (1, 1) stands on the map.
+ * A part is 64 rows of 48 characters, in the layout of `SHEET_FACINGS` by
+ * `SHEET_POSES`: `.` is empty, `#` is outline, and `1` to `3` are the shadow,
+ * base and highlight of the ramp of whichever colour the look gives the part.
  */
-const FOOT_PX = FRAME_PX - CELL_SIZE / 2;
+export const PART_TONES = "123";
+export const PART_OUTLINE = "#";
+export const PART_EMPTY = ".";
 
-const SUPERSAMPLE = 4;
-const COVERAGE = 0.5;
-const MARCH_TOP = 9;
-const MARCH_BOTTOM = -0.5;
-const HIT_EPSILON = 0.02;
-const MAX_STEPS = 64;
-const SHADOW_RADIUS = 1.9;
-const CREASE_DEPTH = 1.6;
+type Paint = "skin" | "hair" | "shirt" | "trim" | "lower" | "shoes" | "cloak";
 
-/** A ray's `t` is also the height it hit at, so this is "below the knee": the shins and shoes, which the body above keeps out of the light. */
-const UNDER_BODY_Z = 1.1;
-const SEPARATE_DEPTH = 0.3;
+export const PART_IDS = [
+  "body",
+  "hair-short",
+  "hair-bob",
+  "hair-long",
+  "hair-ponytail",
+  "beard",
+  "shirt",
+  "trim",
+  "trousers",
+  "robe",
+  "shoes",
+  "cape",
+  "cloak",
+  "hood",
+] as const;
+export type PartId = (typeof PART_IDS)[number];
 
-/** Light from above and to the south-west, so the tops and the south faces read bright. */
-const LIGHT = normalize([-0.35, 0.45, 1]);
-const HIGHLIGHT_ABOVE = 0.74;
-const SHADOW_BELOW = 0.26;
+export type FigureParts = Record<PartId, readonly string[]>;
 
-type Vec3 = [number, number, number];
+type Z = Record<Direction, number>;
 
-const enum Mat {
-  Skin,
-  Hair,
-  Shirt,
-  Lower,
-  Shoes,
-  Cloak,
-}
-
-const MATERIAL_COUNT = 6;
-
-type Shape = {
-  mat: Mat;
-  dist: (p: Vec3) => number;
-};
-
-function normalize([x, y, z]: Vec3): Vec3 {
-  const l = Math.hypot(x, y, z);
-  return [x / l, y / l, z / l];
-}
-
-function sphere(c: Vec3, r: number) {
-  return (p: Vec3) => Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) - r;
-}
-
-/** Ellipsoid bound from Iñigo Quilez: exact on the axes, a close underestimate elsewhere. */
-function ellipsoid(c: Vec3, r: Vec3) {
-  return (p: Vec3) => {
-    const x = (p[0] - c[0]) / r[0];
-    const y = (p[1] - c[1]) / r[1];
-    const z = (p[2] - c[2]) / r[2];
-    const k0 = Math.hypot(x, y, z);
-    const k1 = Math.hypot(x / r[0], y / r[1], z / r[2]);
-    return k1 === 0 ? -Math.min(...r) : (k0 * (k0 - 1)) / k1;
-  };
-}
-
-function capsule(a: Vec3, b: Vec3, ra: number, rb = ra) {
-  const ba: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-  const len2 = ba[0] * ba[0] + ba[1] * ba[1] + ba[2] * ba[2];
-  return (p: Vec3) => {
-    const pa0 = p[0] - a[0];
-    const pa1 = p[1] - a[1];
-    const pa2 = p[2] - a[2];
-    const h = Math.max(0, Math.min(1, (pa0 * ba[0] + pa1 * ba[1] + pa2 * ba[2]) / len2));
-    return Math.hypot(pa0 - ba[0] * h, pa1 - ba[1] * h, pa2 - ba[2] * h) - (ra + (rb - ra) * h);
-  };
-}
-
-function roundBox(c: Vec3, half: Vec3, r: number) {
-  return (p: Vec3) => {
-    const qx = Math.abs(p[0] - c[0]) - half[0] + r;
-    const qy = Math.abs(p[1] - c[1]) - half[1] + r;
-    const qz = Math.abs(p[2] - c[2]) - half[2] + r;
-    const outside = Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0));
-    return outside + Math.min(Math.max(qx, qy, qz), 0) - r;
-  };
-}
-
-/** A cone frustum around the vertical axis, from radius `r0` at `z0` to `r1` at `z1`, squashed front-to-back by `depth`. */
-function skirt(c: Vec3, z0: number, r0: number, z1: number, r1: number, depth: number) {
-  return (p: Vec3) => {
-    const t = Math.max(0, Math.min(1, (p[2] - z0) / (z1 - z0)));
-    const r = r0 + (r1 - r0) * t;
-    const radial = Math.hypot(p[0] - c[0], (p[1] - c[1]) / depth) - r;
-    const vertical = Math.max(z0 - p[2], p[2] - z1);
-    return Math.max(radial * depth, vertical);
-  };
-}
-
-function intersect(a: (p: Vec3) => number, b: (p: Vec3) => number) {
-  return (p: Vec3) => Math.max(a(p), b(p));
-}
-
-function subtract(a: (p: Vec3) => number, b: (p: Vec3) => number) {
-  return (p: Vec3) => Math.max(a(p), -b(p));
-}
-
-function above(z: number) {
-  return (p: Vec3) => z - p[2];
-}
-
-function below(z: number) {
-  return (p: Vec3) => p[2] - z;
-}
-
-function frontOf(y: number) {
-  return (p: Vec3) => y - p[1];
-}
-
-type Pose = { stride: number; bob: number; nod: number };
+const everywhere = (z: number): Z => ({ s: z, e: z, w: z, n: z });
 
 /**
- * `bob` lowers the body on a step and `nod` lowers the head. The nod is a
- * whole pixel so the head lands on the same pixels one step down-right: a
- * fraction of a pixel re-samples the sphere and its top flickers into a point.
+ * Parts are drawn in increasing `z` for the facing. A cape hangs behind the
+ * body except from behind, where it covers the back, and hair and hoods sit on
+ * top of the head from every side.
  */
-const POSES: Record<WalkPose, Pose> = {
-  stepA: { stride: 1, bob: -0.4, nod: -1 },
-  stand: { stride: 0, bob: 0, nod: 0 },
-  stepB: { stride: -1, bob: -0.4, nod: -1 },
+const PARTS: Record<PartId, { paint: Paint; z: Z; outlined: boolean }> = {
+  cape: { paint: "cloak", z: { s: 0, e: 0, w: 0, n: 90 }, outlined: true },
+  cloak: { paint: "cloak", z: { s: 0, e: 0, w: 0, n: 90 }, outlined: true },
+  body: { paint: "skin", z: everywhere(10), outlined: false },
+  trousers: { paint: "lower", z: everywhere(20), outlined: false },
+  shoes: { paint: "shoes", z: everywhere(25), outlined: false },
+  robe: { paint: "lower", z: everywhere(27), outlined: true },
+  shirt: { paint: "shirt", z: everywhere(30), outlined: false },
+  trim: { paint: "trim", z: everywhere(35), outlined: false },
+  "hair-short": { paint: "hair", z: everywhere(50), outlined: false },
+  "hair-bob": { paint: "hair", z: everywhere(50), outlined: true },
+  "hair-long": { paint: "hair", z: everywhere(50), outlined: true },
+  "hair-ponytail": { paint: "hair", z: everywhere(50), outlined: true },
+  beard: { paint: "hair", z: everywhere(55), outlined: true },
+  hood: { paint: "cloak", z: everywhere(95), outlined: true },
 };
 
-/**
- * Heights of the joints, in screen pixels above the ground. The hand-drawn
- * player's head reaches about seven pixels up, a little over the six its
- * tile's three height units make, and nearly half of the body is head.
- */
-const BODY = {
-  footZ: 0.35,
-  hipZ: 2.2,
-  chestZ: 3.25,
-  shoulderZ: 3.85,
-  headZ: 5.5,
-  headR: 1.5,
-  legX: 0.6,
-  shoulderX: 2,
-  stride: 0.9,
-};
-
-type Add = (mat: Mat, dist: (p: Vec3) => number) => void;
-
-/** The figure in its own frame: feet on z = 0, facing +y, one unit is one screen pixel. */
-function buildFigure(look: FigureLook, pose: WalkPose): Shape[] {
-  const { stride, bob, nod } = POSES[pose];
-  const shapes: Shape[] = [];
-  const add: Add = (mat, dist) => shapes.push({ mat, dist });
-
-  const hipZ = BODY.hipZ + bob;
-  const chestZ = BODY.chestZ + bob;
-  const shoulderZ = BODY.shoulderZ + bob;
-  const headC: Vec3 = [0, 0.15, BODY.headZ + nod];
-  const step = BODY.stride * stride;
-
-  for (const side of [-1, 1] as const) {
-    const forward = step * side;
-    const hip: Vec3 = [BODY.legX * side, 0, hipZ];
-    const ankle: Vec3 = [BODY.legX * side, forward, BODY.footZ + 0.3];
-    add(Mat.Lower, capsule(hip, ankle, 0.62, 0.5));
-    add(Mat.Shoes, ellipsoid([ankle[0], forward + 0.2, BODY.footZ], [0.55, 0.75, 0.42]));
-  }
-
-  add(
-    Mat.Shirt,
-    roundBox([0, 0, (hipZ + shoulderZ) / 2], [1.45, 0.8, (shoulderZ - hipZ) / 2 + 0.3], 0.6),
-  );
-  if (look.lower.style === "robe")
-    add(Mat.Lower, skirt([0, 0, 0], 0.2, 1.6, hipZ + 0.2, 1.25, 0.8));
-
-  for (const side of [-1, 1] as const) {
-    const swing = -step * side * 1.4;
-    const shoulder: Vec3 = [BODY.shoulderX * side, 0, shoulderZ];
-    const elbow: Vec3 = [(BODY.shoulderX + 0.35) * side, swing * 0.5, shoulderZ - 0.8];
-    const hand: Vec3 = [(BODY.shoulderX + 0.7) * side, swing, hipZ];
-    add(Mat.Shirt, capsule(shoulder, elbow, 0.55, 0.5));
-    add(Mat.Skin, capsule(elbow, hand, 0.45, 0.45));
-  }
-
-  add(Mat.Skin, ellipsoid(headC, [BODY.headR * 1.1, BODY.headR, BODY.headR * 0.9]));
-
-  addHair(look, headC, BODY.headR, step, add);
-  addCloak(look, headC, BODY.headR, chestZ, shoulderZ, step, add);
-
-  return shapes;
+function partsFor(look: FigureLook): PartId[] {
+  const ids: PartId[] = ["body", "shirt", "trim", "shoes"];
+  ids.push(look.lower.style === "robe" ? "robe" : "trousers");
+  if (look.hair.style !== "bald") ids.push("hair-short");
+  if (look.hair.style !== "bald" && look.hair.style !== "short")
+    ids.push(`hair-${look.hair.style}`);
+  if (look.beard) ids.push("beard");
+  if (look.cloak.style === "cape") ids.push("cape");
+  if (look.cloak.style === "cloak") ids.push("cloak");
+  if (look.cloak.style === "hooded") ids.push("cloak", "hood");
+  return ids;
 }
 
-function addHair(look: FigureLook, headC: Vec3, headR: number, step: number, add: Add) {
-  const [hx, hy, hz] = headC;
-  const shell = ellipsoid(
-    [hx, hy - 0.15, hz + 0.05],
-    [headR * 1.1 + 0.2, headR + 0.2, headR * 0.9 + 0.2],
-  );
-  /** The shell minus the face: everything above the brow, plus the whole back of the head. */
-  const cap = subtract(shell, intersect(frontOf(hy - 0.1), below(hz + 0.85)));
-  /** Hair that hangs lags the stride and swings to the side of the leg going back. */
-  const sway = -step;
-
-  switch (look.hair.style) {
-    case "bald":
-      break;
-    case "short":
-      add(Mat.Hair, intersect(cap, above(hz - 0.3)));
-      break;
-    case "bob":
-      add(Mat.Hair, intersect(cap, above(hz - 1.1)));
-      break;
-    case "long":
-      add(Mat.Hair, cap);
-      add(Mat.Hair, roundBox([hx + sway * 0.5, hy - 0.75, hz - 1.5], [1.3, 0.55, 1.3], 0.5));
-      break;
-    case "ponytail":
-      add(Mat.Hair, intersect(cap, above(hz - 0.3)));
-      add(Mat.Hair, capsule([hx, hy - 1.4, hz + 0.1], [hx + sway, hy - 1.9, hz - 1.9], 0.5, 0.35));
-      break;
+function paintFor(look: FigureLook, paint: Paint): string {
+  switch (paint) {
+    case "skin":
+      return look.skin;
+    case "hair":
+      return look.hair.colour;
+    case "shirt":
+      return look.shirt;
+    case "trim":
+      return look.trim;
+    case "lower":
+      return look.lower.colour;
+    case "shoes":
+      return look.shoes;
+    case "cloak":
+      return look.cloak.colour;
   }
-
-  if (look.beard) add(Mat.Hair, ellipsoid([hx, hy + 0.95, hz - 0.8], [0.95, 0.5, 0.65]));
-}
-
-function addCloak(
-  look: FigureLook,
-  headC: Vec3,
-  headR: number,
-  chestZ: number,
-  shoulderZ: number,
-  step: number,
-  add: Add,
-) {
-  const style = look.cloak.style;
-  if (style === "none") return;
-  const flutter = Math.abs(step) * 0.4;
-
-  if (style === "cape") {
-    add(Mat.Cloak, capsule([0, -0.95, shoulderZ], [0, -1.2 - flutter, 0.9], 1.35, 1.7));
-    return;
-  }
-
-  /** A cloak is open at the front below the collar, so the shirt and legs show through. */
-  const body = subtract(
-    skirt([0, -0.1, 0], 0.4, 2.05, shoulderZ + 0.35, 1.65, 0.75),
-    intersect(frontOf(0.3), below(chestZ)),
-  );
-  add(Mat.Cloak, body);
-  add(Mat.Cloak, capsule([0, -1 - flutter, 0.8], [0, -0.9, shoulderZ], 1.5, 1.4));
-
-  if (style === "hooded") {
-    const [hx, hy, hz] = headC;
-    const hood = sphere([hx, hy - 0.2, hz + 0.1], headR + 0.35);
-    const face = intersect(sphere([hx, hy + 1, hz - 0.2], headR), frontOf(hy + 0.2));
-    add(Mat.Cloak, subtract(hood, face));
-  }
-}
-
-function sceneDistance(shapes: Shape[], p: Vec3): { d: number; mat: Mat } {
-  let d = Infinity;
-  let mat = Mat.Skin;
-  for (const s of shapes) {
-    const sd = s.dist(p);
-    if (sd < d) {
-      d = sd;
-      mat = s.mat;
-    }
-  }
-  return { d, mat };
-}
-
-function sceneNormal(shapes: Shape[], p: Vec3): Vec3 {
-  const e = 0.05;
-  const at = (x: number, y: number, z: number) => sceneDistance(shapes, [x, y, z]).d;
-  return normalize([
-    at(p[0] + e, p[1], p[2]) - at(p[0] - e, p[1], p[2]),
-    at(p[0], p[1] + e, p[2]) - at(p[0], p[1] - e, p[2]),
-    at(p[0], p[1], p[2] + e) - at(p[0], p[1], p[2] - e),
-  ]);
-}
-
-const TURN: Record<Direction, [number, number]> = {
-  s: [1, 0],
-  e: [0, 1],
-  n: [-1, 0],
-  w: [0, -1],
-};
-
-/** World to figure: undo the facing's turn, so the figure is always modelled facing south. */
-function toFigure(p: Vec3, facing: Direction): Vec3 {
-  const [c, s] = TURN[facing];
-  return [c * p[0] - s * p[1], s * p[0] + c * p[1], p[2]];
-}
-
-function fromFigure(v: Vec3, facing: Direction): Vec3 {
-  const [c, s] = TURN[facing];
-  return [c * v[0] + s * v[1], -s * v[0] + c * v[1], v[2]];
-}
-
-type Hit = { t: number; mat: Mat; light: number };
-
-/**
- * A screen pixel is the ray `(u + t, v + t, t)`: the projection moves one
- * pixel up and one left per pixel of height, so every point on it lands on
- * the same pixel, and the camera is at large `t`. Marching from the top down
- * finds the surface nearest the camera first.
- */
-function castRay(shapes: Shape[], u: number, v: number, facing: Direction): Hit | null {
-  const inv = 1 / Math.sqrt(3);
-  let t = MARCH_TOP;
-  for (let i = 0; i < MAX_STEPS && t > MARCH_BOTTOM; i++) {
-    const world: Vec3 = [u + t, v + t, t];
-    const { d, mat } = sceneDistance(shapes, toFigure(world, facing));
-    if (d < HIT_EPSILON) {
-      const n = fromFigure(sceneNormal(shapes, toFigure(world, facing)), facing);
-      const light = n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2];
-      return { t, mat, light };
-    }
-    t -= Math.max(d * inv, HIT_EPSILON);
-  }
-  return null;
 }
 
 type Ramp = [shadow: string, base: string, highlight: string];
-
-const SHADOW = 0;
-const BASE = 1;
-const HIGHLIGHT = 2;
 
 const PALETTE_LAB = paletteOklab(STAPES_PALETTE);
 
@@ -437,20 +202,17 @@ function snapToPalette(hex: string): string {
   return STAPES_PALETTE[nearestPaletteIndex(labOf(hex), PALETTE_LAB)]!;
 }
 
+/**
+ * Ramps `people.png` draws that the one-step rule does not reach: its skin
+ * skips a palette entry either side of the base.
+ */
+const HAND_RAMPS: Record<string, Ramp> = {
+  "#cd683d": ["#6e2727", "#cd683d", "#fbb954"],
+};
+
 export function rampFor(hex: string): Ramp {
   const base = snapToPalette(hex);
-  return [neighbour(base, -0.14), base, neighbour(base, 0.12)];
-}
-
-function rampsFor(look: FigureLook): Ramp[] {
-  const ramps: Ramp[] = new Array(MATERIAL_COUNT);
-  ramps[Mat.Skin] = rampFor(look.skin);
-  ramps[Mat.Hair] = rampFor(look.hair.colour);
-  ramps[Mat.Shirt] = rampFor(look.shirt);
-  ramps[Mat.Lower] = rampFor(look.lower.colour);
-  ramps[Mat.Shoes] = rampFor(look.shoes);
-  ramps[Mat.Cloak] = rampFor(look.cloak.colour);
-  return ramps;
+  return HAND_RAMPS[base] ?? [neighbour(base, -0.14), base, neighbour(base, 0.12)];
 }
 
 function writeHex(out: Uint8ClampedArray, i: number, hex: string) {
@@ -461,140 +223,79 @@ function writeHex(out: Uint8ClampedArray, i: number, hex: string) {
   out[i + 3] = 255;
 }
 
+/**
+ * Lays the look's parts over each other in `z` order for each facing, turning
+ * every tone into the matching step of its part's ramp. The parts taken
+ * from `people.png` carry the outline its artist drew, which leaves some edges
+ * open on purpose, such as the tip of a hand. A part drawn later, like a cape
+ * or long hair, marks `outlined`, and a transparent pixel beside it becomes
+ * outline so it gets an edge of its own.
+ */
+export function renderFigureSheet(
+  look: FigureLook,
+  parts: FigureParts = FIGURE_PARTS as FigureParts,
+): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(SHEET_WIDTH_PX * SHEET_HEIGHT_PX * 4);
+  const coloured = new Uint8Array(SHEET_WIDTH_PX * SHEET_HEIGHT_PX);
+  const chosen = partsFor(look);
+  const ramps = new Map(chosen.map((id) => [id, rampFor(paintFor(look, PARTS[id].paint))]));
+
+  SHEET_FACINGS.forEach((facing, row) => {
+    const order = [...chosen].sort((a, b) => PARTS[a].z[facing] - PARTS[b].z[facing]);
+    for (const id of order) {
+      const rows = parts[id];
+      const ramp = ramps.get(id)!;
+      for (let y = row * FRAME_PX; y < (row + 1) * FRAME_PX; y++) {
+        for (let x = 0; x < SHEET_WIDTH_PX; x++) {
+          const cell = rows[y]?.[x] ?? PART_EMPTY;
+          if (cell === PART_EMPTY) continue;
+          const tone = PART_TONES.indexOf(cell);
+          const i = y * SHEET_WIDTH_PX + x;
+          writeHex(out, i * 4, tone >= 0 ? ramp[tone]! : OUTLINE_COLOUR);
+          coloured[i] = tone >= 0 && PARTS[id].outlined ? 1 : 0;
+        }
+      }
+    }
+  });
+
+  outlineEdges(out, coloured);
+  return out;
+}
+
+function outlineEdges(out: Uint8ClampedArray, coloured: Uint8Array) {
+  for (let y = 0; y < SHEET_HEIGHT_PX; y++) {
+    for (let x = 0; x < SHEET_WIDTH_PX; x++) {
+      const i = y * SHEET_WIDTH_PX + x;
+      if (out[i * 4 + 3] !== 0) continue;
+      const inFrame = (nx: number, ny: number) =>
+        Math.floor(nx / FRAME_PX) === Math.floor(x / FRAME_PX) &&
+        Math.floor(ny / FRAME_PX) === Math.floor(y / FRAME_PX);
+      const touches = [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ].some(([nx, ny]) => inFrame(nx!, ny!) && coloured[ny! * SHEET_WIDTH_PX + nx!] === 1);
+      if (touches) writeHex(out, i * 4, OUTLINE_COLOUR);
+    }
+  }
+}
+
 export function renderFigureFrame(
   look: FigureLook,
   facing: Direction,
   pose: WalkPose,
+  parts: FigureParts = FIGURE_PARTS as FigureParts,
 ): Uint8ClampedArray<ArrayBuffer> {
-  const shapes = buildFigure(look, pose);
-  const ramps = rampsFor(look);
-  const out = new Uint8ClampedArray(FRAME_PX * FRAME_PX * 4);
-  const filled = new Uint8Array(FRAME_PX * FRAME_PX);
-  const mats = new Uint8Array(FRAME_PX * FRAME_PX);
-  const tones = new Uint8Array(FRAME_PX * FRAME_PX);
-  const depth = new Float32Array(FRAME_PX * FRAME_PX);
-  const samples = SUPERSAMPLE * SUPERSAMPLE;
-
-  for (let py = 0; py < FRAME_PX; py++) {
-    for (let px = 0; px < FRAME_PX; px++) {
-      const votes = new Array<number>(MATERIAL_COUNT).fill(0);
-      const light = new Array<number>(MATERIAL_COUNT).fill(0);
-      let hits = 0;
-      let nearest = -Infinity;
-      for (let sy = 0; sy < SUPERSAMPLE; sy++) {
-        for (let sx = 0; sx < SUPERSAMPLE; sx++) {
-          const u = px + (sx + 0.5) / SUPERSAMPLE - FOOT_PX;
-          const v = py + (sy + 0.5) / SUPERSAMPLE - FOOT_PX;
-          const hit = castRay(shapes, u, v, facing);
-          if (!hit) continue;
-          hits++;
-          votes[hit.mat]!++;
-          light[hit.mat]! += hit.light;
-          nearest = Math.max(nearest, hit.t);
-        }
-      }
-      if (hits / samples < COVERAGE) continue;
-      let mat = 0;
-      for (let m = 1; m < MATERIAL_COUNT; m++) if (votes[m]! > votes[mat]!) mat = m;
-      const lit = light[mat]! / votes[mat]!;
-      const i = py * FRAME_PX + px;
-      filled[i] = 1;
-      mats[i] = mat;
-      const tone = lit > HIGHLIGHT_ABOVE ? HIGHLIGHT : lit < SHADOW_BELOW ? SHADOW : BASE;
-      tones[i] = nearest < UNDER_BODY_Z ? Math.max(SHADOW, tone - 1) : tone;
-      depth[i] = nearest;
-    }
+  const sheet = renderFigureSheet(look, parts);
+  const row = SHEET_FACINGS.indexOf(facing);
+  const col = SHEET_POSES.indexOf(pose);
+  const frame = new Uint8ClampedArray(FRAME_PX * FRAME_PX * 4);
+  for (let y = 0; y < FRAME_PX; y++) {
+    const src = ((row * FRAME_PX + y) * SHEET_WIDTH_PX + col * FRAME_PX) * 4;
+    frame.set(sheet.subarray(src, src + FRAME_PX * 4), y * FRAME_PX * 4);
   }
-
-  separate(filled, mats, tones, depth);
-  for (let i = 0; i < filled.length; i++) {
-    if (filled[i]) writeHex(out, i * 4, ramps[mats[i]!]![tones[i]!]!);
-  }
-
-  crease(out, filled, depth);
-  outline(out, filled);
-  return out;
-}
-
-/**
- * Where one part passes in front of another part of a different material,
- * the pixel behind takes its own shadow tone, so a sleeve against a cloak or
- * hair against a face keeps an edge without spending an outline pixel on it.
- */
-function separate(filled: Uint8Array, mats: Uint8Array, tones: Uint8Array, depth: Float32Array) {
-  const marks: number[] = [];
-  for (let py = 0; py < FRAME_PX; py++) {
-    for (let px = 0; px < FRAME_PX; px++) {
-      const i = py * FRAME_PX + px;
-      if (!filled[i]) continue;
-      const infront = (j: number) =>
-        filled[j] === 1 && mats[j] !== mats[i] && depth[j]! - depth[i]! > SEPARATE_DEPTH;
-      if (
-        (px > 0 && infront(i - 1)) ||
-        (px < FRAME_PX - 1 && infront(i + 1)) ||
-        (py > 0 && infront(i - FRAME_PX)) ||
-        (py < FRAME_PX - 1 && infront(i + FRAME_PX))
-      )
-        marks.push(i);
-    }
-  }
-  for (const i of marks) tones[i] = SHADOW;
-}
-
-/**
- * A pixel with a neighbour much nearer the camera is where one part passes in
- * front of another, such as an arm over the body, and is drawn in the
- * outline colour so the two do not merge into one shape.
- */
-function crease(out: Uint8ClampedArray, filled: Uint8Array, depth: Float32Array) {
-  const marks: number[] = [];
-  for (let py = 0; py < FRAME_PX; py++) {
-    for (let px = 0; px < FRAME_PX; px++) {
-      const i = py * FRAME_PX + px;
-      if (!filled[i]) continue;
-      const nearer = (j: number) => filled[j] === 1 && depth[j]! - depth[i]! > CREASE_DEPTH;
-      if (
-        (px > 0 && nearer(i - 1)) ||
-        (px < FRAME_PX - 1 && nearer(i + 1)) ||
-        (py > 0 && nearer(i - FRAME_PX)) ||
-        (py < FRAME_PX - 1 && nearer(i + FRAME_PX))
-      )
-        marks.push(i);
-    }
-  }
-  for (const i of marks) writeHex(out, i * 4, OUTLINE_COLOUR);
-}
-
-/** A one-pixel outline round the silhouette, and a shadow on the ground under the feet in the same colour. */
-function outline(out: Uint8ClampedArray, filled: Uint8Array) {
-  for (let py = 0; py < FRAME_PX; py++) {
-    for (let px = 0; px < FRAME_PX; px++) {
-      const i = py * FRAME_PX + px;
-      if (filled[i]) continue;
-      const edge =
-        (px > 0 && filled[i - 1] === 1) ||
-        (px < FRAME_PX - 1 && filled[i + 1] === 1) ||
-        (py > 0 && filled[i - FRAME_PX] === 1) ||
-        (py < FRAME_PX - 1 && filled[i + FRAME_PX] === 1);
-      const ground = Math.hypot(px + 0.5 - FOOT_PX, py + 0.5 - FOOT_PX) < SHADOW_RADIUS;
-      if (edge || ground) writeHex(out, i * 4, OUTLINE_COLOUR);
-    }
-  }
-}
-
-export function renderFigureSheet(look: FigureLook): Uint8ClampedArray<ArrayBuffer> {
-  const sheet = new Uint8ClampedArray(SHEET_WIDTH_PX * SHEET_HEIGHT_PX * 4);
-  SHEET_FACINGS.forEach((facing, row) => {
-    SHEET_POSES.forEach((pose, col) => {
-      const frame = renderFigureFrame(look, facing, pose);
-      for (let y = 0; y < FRAME_PX; y++) {
-        const src = y * FRAME_PX * 4;
-        const dst = ((row * FRAME_PX + y) * SHEET_WIDTH_PX + col * FRAME_PX) * 4;
-        sheet.set(frame.subarray(src, src + FRAME_PX * 4), dst);
-      }
-    });
-  });
-  return sheet;
+  return frame;
 }
 
 /**

@@ -57,8 +57,8 @@ so accounts need no configuration. See [SETUP.md](SETUP.md).
 - `/admin/map` — the map editor, which `/admin` opens on
 - `/admin/tiles` and `/admin/statuses` — the tile and status catalogues
 - `/admin/voxel` — builds a sprite out of voxels and exports it as a tileset
-- `/admin/townsfolk` — draws a walking character sheet from a 3D figure dressed
-  in the colours, hair and cloak you pick
+- `/admin/townsfolk` — draws a walking character sheet from paper-doll parts
+  cut from the player, dressed in the colours, hair and cloak you pick
 - `/admin/arena` — two fighters without a world in the way, for balancing
 - `/admin/play` — the game with the world running in the tab
 - `/admin/actions` — acting on the running world: **Close world**, for
@@ -149,12 +149,16 @@ an agent drives", lists every call.
 - `bun run generate:npcs` — recolour the one humanoid in `people.png` into a
   sheet per NPC, so nobody in town is the player's twin. Writes
   `data/tilesets/townsfolk.png`, `smith.png`, `armourer.png` and `guard.png`
-- `bun run generate:figure` — render a walking character sheet from the 3D
-  figure in `app/lib/figure.ts`, dressed by flags (`--hair bob --legs robe
-  --cloak hooded …`), without a server. `--out` writes one PNG anywhere;
-  `--name` saves it to `data/tilesets/` and registers it, and `--tile` moves a
-  tile onto it; `--batch` takes a JSON list. `--help` lists every flag, and the
-  `sprite-figures` skill is the workflow
+- `bun run generate:figure` — render a walking character sheet from the
+  paper-doll parts in `app/lib/figureParts.json`, dressed by flags (`--hair bob
+  --legs robe --cloak hooded …`), without a server. `--out` writes one PNG
+  anywhere; `--name` saves it to `data/tilesets/` and registers it, and `--tile`
+  moves a tile onto it; `--batch` takes a JSON list. `--help` lists every flag,
+  and the `sprite-figures` skill is the workflow
+- `bun run figure-parts` — edit those parts. `extract` cuts the body, short
+  hair, shirt, trim, trousers and shoes out of `people.png` again; `export <dir>`
+  writes every part as a PNG in three greys and the outline colour, and
+  `import <dir>` reads edited ones back
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as
