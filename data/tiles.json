@@ -29932,6 +29932,8 @@
       "offsetY": "-0.1 * AGE_SEC * AGE_SEC",
       "offsetElev": "",
       "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
       "radiusFromPx": 1,
       "radiusToPx": 2,
       "alphaFrom": 1,
@@ -30061,6 +30063,8 @@
       "offsetY": "-0.1 * AGE_SEC * AGE_SEC",
       "offsetElev": "",
       "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
       "radiusFromPx": 1,
       "radiusToPx": 2,
       "alphaFrom": 1,
@@ -32824,6 +32828,7 @@
       "y": 7
     },
     "lightPassing": true,
+    "affectedByGravity": true,
     "interactions": {
       "item": {
         "type": "artifact"
@@ -34297,6 +34302,8 @@
           "offsetY": "",
           "offsetElev": "",
           "shape": null,
+          "sizeFromPx": 5,
+          "sizeToPx": null,
           "radiusFromPx": 3,
           "radiusToPx": 4,
           "alphaFrom": 0.2,
@@ -35646,6 +35653,8 @@
       "offsetY": "-0.1 * AGE_SEC * AGE_SEC",
       "offsetElev": "",
       "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
       "radiusFromPx": 1,
       "radiusToPx": 2,
       "alphaFrom": 1,
