@@ -8269,11 +8269,17 @@ shows the resource being worked, not what came out of it.
   carries `pulled: true`, and `transitionForNote` reads the effect off the
   extract block rather than off the tile's own `appear`, since a tile may
   author both.
-- **The last pull plays only the burst, where the resource stood.** The same
-  tick removes the crystal, or swaps the bush for `picked-bush`, so
-  `markForming` finds nothing to dress and `throwBurstWhereItStood` finds the
-  resource in `prevMap` through `formerSlot` — the path a killing hit already
-  takes. A dissolve or a scale on that pull has no sprite left to act on.
+- **The last pull plays the pull effect's burst where the resource stood, and
+  the resource's own disappear.** The same tick removes the crystal, or swaps
+  the bush for `picked-bush`, so `markForming` finds nothing to dress and
+  `throwBurstWhereItStood` finds the resource in `prevMap` through
+  `formerSlot` — the path a killing hit already takes. A dissolve or a scale
+  on the pull effect has no sprite left to act on. The resource leaving is
+  shown by its own `disappear` instead, which `spendPull` raises along with an
+  `appear` for what the resource turns into: the two notes a decay raises. A
+  switch or a plate plays nothing when it swaps a tile, because what it swaps
+  in is the same object in another state. A last pull spends the resource, as
+  a decay spends a tile.
 - **A new field on a motion event needs the schema as well.** `v.object`
   strips a key it does not name, so without `pulled` in `serverMessageSchema`
   the flag disappears on the client and the note plays the tile's own `appear`
@@ -9805,12 +9811,13 @@ rule is **anything that was not on the board and now is plays its appear**:
 `castConjure`, `/tile` (each placement a count makes — a pour into a pile
 makes none), `respawnAt`, `spawn` placing a player's body (a join, a rebirth,
 a wake whose body was reaped — not the re-seat after an editor save, which
-passes `announce: false`), and what a decay turns into. A disappear is a
-decay, a death (`kill`, where the body fell) or a player leaving (`despawn`). A thing that moved — a drop, a pickup, loot out of a kit, gravity
-— existed all along and plays nothing, and neither does a tile swapped in
-place by a switch, a plate or an extraction. A finished pull plays the
-resource's own pull effect instead of either side (see "A finished pull
-plays the resource's pull effect"). All of it only when the tile
+passes `announce: false`), and what a decay or a resource's last pull turns
+into. A disappear is a decay, a resource's last pull (`spendPull`), a death
+(`kill`, where the body fell) or a player leaving (`despawn`). A thing that
+moved — a drop, a pickup, loot out of a kit, gravity — existed all along and
+plays nothing, and neither does a tile swapped in place by a switch or a
+plate. Every finished pull also plays the resource's own pull effect (see "A
+finished pull plays the resource's pull effect"). All of it only when the tile
 has that side authored; everything else changes instantly, which is what
 every tile did before this existed, and costs the wire nothing.
 
@@ -9864,8 +9871,9 @@ merged batches carry nothing extra. Three consequences worth knowing:
   the input path can go out before the tick that carries the event. By then the
   tile may already be in the batch, and the batch's merged-signature compare
   cannot see the difference, so a tile the drawn board already holds has its
-  chunk rebuilt at once. A disappear cannot be late: decay only happens on a
-  tick, and a tick's events ride with its patch.
+  chunk rebuilt at once. A disappear cannot be late: decay and a timed pull
+  end on a tick, whose events ride with its patch, and an untimed pull's note
+  is queued for the same patch as its cells.
 - **A body forms by its name, not its cell.** A placement with an owner or an
   item id (`placementIdentity`) is found by that, so a creature that steps in
   the first half-second of its respawn goes on forming in the next cell. Its

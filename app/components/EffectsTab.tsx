@@ -50,12 +50,12 @@ const SIDES: Array<{ side: TransitionSide; title: string; info: string }> = [
   {
     side: "disappear",
     title: "Disappear",
-    info: "Played when this tile decays away. Picking it up or moving it plays nothing. Its light fades with it.",
+    info: "Played when this tile decays away, or when the last use of its Extract finishes. Picking it up or moving it plays nothing. Its light fades with it.",
   },
 ];
 
 const PULLED_INFO =
-  "Played on this tile each time a use of its Extract finishes, whatever the roll came up with. The use that spends the last of it removes the tile or turns it into its depleted tile, so that one plays only the burst, where the tile stood.";
+  "Played on this tile each time a use of its Extract finishes, whatever the roll came up with. The use that spends the last of it removes the tile or turns it into its depleted tile, so that one plays only the burst, where the tile stood. The tile's own Disappear plays at the same time.";
 
 const STARTER_PULL_MS = 300;
 
