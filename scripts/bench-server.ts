@@ -1,11 +1,14 @@
+import { listResidentBodies } from "../app/game/actors";
 import { GameSession } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
 import type { ActorSnapshot } from "../app/game/GameSession";
-import { changedCellsOnLevel, getStack, parseMap } from "../app/lib/mapData";
+import { Rng } from "../app/game/rng";
+import { changedCellsOnLevel, getStack, parseMap, setStacks } from "../app/lib/mapData";
+import type { StackEdit } from "../app/lib/mapData";
 import { statusesById } from "../app/lib/status";
-import { tilesByIdFromList } from "../app/lib/validation";
+import { canPlace, tilesByIdFromList } from "../app/lib/validation";
 import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../app/lib/types";
-import type { Coord, MapFile, TileDef } from "../app/lib/types";
+import type { Coord, MapFile, PlacedTile, TileDef } from "../app/lib/types";
 import type { CellPatch } from "../app/net/protocol";
 
 const MAP_PATH = "data/map.json";
@@ -13,6 +16,10 @@ const TILES_PATH = "data/tiles.json";
 const STATUSES_PATH = "data/statuses.json";
 
 const DEFAULT_SECONDS = 30;
+
+const SCALE_SEED = 1;
+const SCALE_SPREAD_CELLS = 6;
+const SCALE_ATTEMPTS = 40;
 
 const SCENARIOS: Record<string, ReadonlyArray<Coord | null>> = {
   empty: [],
@@ -51,6 +58,53 @@ function diffCells(prev: MapFile, next: MapFile): CellPatch[] {
     }
   }
   return out;
+}
+
+function tileIdsOf(stack: readonly PlacedTile[]): string {
+  return stack.map((placed) => placed.tileId).join(" ");
+}
+
+/**
+ * A copy goes on a nearby cell of the same level whose stack is exactly the
+ * floor the original stands on, so every kind lives on the ground its author
+ * put it on rather than in a wall or a pond.
+ */
+function scaleResidents(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  scale: number,
+): { map: MapFile; unplaced: number } {
+  if (scale === 1) return { map, unplaced: 0 };
+  const rng = new Rng(SCALE_SEED);
+  const taken = new Set<string>();
+  const edits: StackEdit[] = [];
+  let unplaced = 0;
+  for (const body of listResidentBodies(map, tilesById)) {
+    const def = tilesById[body.placed.tileId]!;
+    const floor = tileIdsOf(
+      getStack(map, body.x, body.y, body.z).filter((_, index) => index !== body.stackIndex),
+    );
+    if (!floor) {
+      unplaced += scale - 1;
+      continue;
+    }
+    for (let copy = 1; copy < scale; copy++) {
+      let placed = false;
+      for (let attempt = 0; attempt < SCALE_ATTEMPTS && !placed; attempt++) {
+        const x = body.x + rng.int(SCALE_SPREAD_CELLS * 2 + 1) - SCALE_SPREAD_CELLS;
+        const y = body.y + rng.int(SCALE_SPREAD_CELLS * 2 + 1) - SCALE_SPREAD_CELLS;
+        const cell = `${x},${y},${body.z}`;
+        const stack = getStack(map, x, y, body.z);
+        if (taken.has(cell) || tileIdsOf(stack) !== floor) continue;
+        if (!canPlace(map, x, y, body.z, def, tilesById).ok) continue;
+        taken.add(cell);
+        edits.push({ x, y, z: body.z, stack: [...stack, { ...body.placed }] });
+        placed = true;
+      }
+      if (!placed) unplaced++;
+    }
+  }
+  return { map: setStacks(map, edits), unplaced };
 }
 
 function countMoving(actors: readonly ActorSnapshot[]): number {
@@ -178,11 +232,22 @@ async function main() {
     throw new Error(`no scenario "${only}"; one of ${Object.keys(SCENARIOS).join(", ")}`);
   }
 
-  const map = parseMap(await Bun.file(MAP_PATH).text());
+  const scale = Number(argValue("--scale") ?? 1);
+  if (!Number.isInteger(scale) || scale < 1) {
+    throw new Error(`--scale takes a whole number from 1, not "${argValue("--scale")}"`);
+  }
+
   const tiles: TileDef[] = (JSON.parse(await Bun.file(TILES_PATH).text()) as unknown[]).map((raw) =>
     normalizeTileDef(raw),
   );
-  tilesByIdFromList(tiles);
+  const tilesById = tilesByIdFromList(tiles);
+  const scaled = scaleResidents(parseMap(await Bun.file(MAP_PATH).text()), tilesById, scale);
+  const map = scaled.map;
+  if (scaled.unplaced > 0) {
+    console.error(
+      `--scale ${scale}: ${scaled.unplaced} copies found no free cell and were left out`,
+    );
+  }
   const statuses = statusesById(JSON.parse(await Bun.file(STATUSES_PATH).text()) as unknown[]);
 
   const rows: Report[] = [];
