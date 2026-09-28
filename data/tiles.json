@@ -33344,7 +33344,7 @@
   {
     "id": "miner",
     "name": "Miner",
-    "height": 4,
+    "height": 3,
     "type": "directional",
     "kind": "prop",
     "attributes": {},
@@ -33358,17 +33358,61 @@
     "walkable": false,
     "interactions": {
       "brain": {
-        "initial": "idle",
+        "initial": "sitting",
         "states": {
-          "idle": {
+          "sitting": {
             "do": [
               {
                 "action": "hold"
               }
             ]
           },
-          "serving": {
+          "chatting": {
             "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "to_bar": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "thing",
+                  "data": {
+                    "tileIds": [
+                      "counter-top"
+                    ]
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "at_bar": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Barkeep! *hic* Same again!"
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "returning": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
               {
                 "action": "hold"
               }
@@ -33377,14 +33421,14 @@
         },
         "transitions": [
           {
-            "from": "idle",
+            "from": "any",
             "if": {
               "cond": "talking"
             },
-            "to": "serving"
+            "to": "chatting"
           },
           {
-            "from": "serving",
+            "from": "chatting",
             "if": {
               "combinator": "and",
               "not": true,
@@ -33394,7 +33438,98 @@
                 }
               ]
             },
-            "to": "idle"
+            "to": "returning"
+          },
+          {
+            "from": "sitting",
+            "if": {
+              "cond": "after",
+              "ms": 25000,
+              "toMs": 60000
+            },
+            "to": "to_bar"
+          },
+          {
+            "from": "to_bar",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "counter-top"
+                  ]
+                }
+              },
+              "cells": 1
+            },
+            "to": "at_bar"
+          },
+          {
+            "from": "to_bar",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "counter-top"
+                  ]
+                }
+              },
+              "cells": 12
+            },
+            "to": "returning"
+          },
+          {
+            "from": "to_bar",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "returning"
+          },
+          {
+            "from": "to_bar",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "returning"
+          },
+          {
+            "from": "at_bar",
+            "if": {
+              "cond": "after",
+              "ms": 4000,
+              "toMs": 8000
+            },
+            "to": "returning"
+          },
+          {
+            "from": "returning",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 0
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "returning",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "returning",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "sitting"
           }
         ]
       },
@@ -33814,12 +33949,13 @@
           }
         ]
       }
-    }
+    },
+    "walkDurationMs": 700
   },
   {
     "id": "peat-cutter",
     "name": "Peat Cutter",
-    "height": 4,
+    "height": 3,
     "type": "directional",
     "kind": "prop",
     "attributes": {},
@@ -33833,17 +33969,61 @@
     "walkable": false,
     "interactions": {
       "brain": {
-        "initial": "idle",
+        "initial": "sitting",
         "states": {
-          "idle": {
+          "sitting": {
             "do": [
               {
                 "action": "hold"
               }
             ]
           },
-          "serving": {
+          "chatting": {
             "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "to_bar": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "thing",
+                  "data": {
+                    "tileIds": [
+                      "counter-top"
+                    ]
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "at_bar": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "'Nother one... *hic* 'nother one, please."
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "returning": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
               {
                 "action": "hold"
               }
@@ -33852,14 +34032,14 @@
         },
         "transitions": [
           {
-            "from": "idle",
+            "from": "any",
             "if": {
               "cond": "talking"
             },
-            "to": "serving"
+            "to": "chatting"
           },
           {
-            "from": "serving",
+            "from": "chatting",
             "if": {
               "combinator": "and",
               "not": true,
@@ -33869,7 +34049,98 @@
                 }
               ]
             },
-            "to": "idle"
+            "to": "returning"
+          },
+          {
+            "from": "sitting",
+            "if": {
+              "cond": "after",
+              "ms": 25000,
+              "toMs": 60000
+            },
+            "to": "to_bar"
+          },
+          {
+            "from": "to_bar",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "counter-top"
+                  ]
+                }
+              },
+              "cells": 1
+            },
+            "to": "at_bar"
+          },
+          {
+            "from": "to_bar",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "counter-top"
+                  ]
+                }
+              },
+              "cells": 12
+            },
+            "to": "returning"
+          },
+          {
+            "from": "to_bar",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "returning"
+          },
+          {
+            "from": "to_bar",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "returning"
+          },
+          {
+            "from": "at_bar",
+            "if": {
+              "cond": "after",
+              "ms": 4000,
+              "toMs": 8000
+            },
+            "to": "returning"
+          },
+          {
+            "from": "returning",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 0
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "returning",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "returning",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "sitting"
           }
         ]
       },
@@ -34277,7 +34548,8 @@
           }
         ]
       }
-    }
+    },
+    "walkDurationMs": 700
   },
   {
     "id": "skull-troll",
