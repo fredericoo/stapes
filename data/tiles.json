@@ -35774,7 +35774,7 @@
     "affectedByGravity": true,
     "walkable": false,
     "swims": true,
-    "walkDurationMs": 200,
+    "walkDurationMs": 300,
     "interactions": {
       "brain": {
         "initial": "roaming",
@@ -36935,7 +36935,7 @@
                     "y": 1
                   }
                 },
-                "durationMs": 100
+                "durationMs": 300
               },
               {
                 "sprite": {
@@ -36950,7 +36950,7 @@
                     "y": 1
                   }
                 },
-                "durationMs": 100
+                "durationMs": 300
               }
             ]
           },
@@ -36969,7 +36969,7 @@
                     "y": 1
                   }
                 },
-                "durationMs": 100
+                "durationMs": 300
               },
               {
                 "sprite": {
@@ -36984,7 +36984,7 @@
                     "y": 1
                   }
                 },
-                "durationMs": 100
+                "durationMs": 300
               }
             ]
           },
@@ -37003,7 +37003,7 @@
                     "y": 1
                   }
                 },
-                "durationMs": 100
+                "durationMs": 300
               },
               {
                 "sprite": {
@@ -37018,7 +37018,7 @@
                     "y": 1
                   }
                 },
-                "durationMs": 100
+                "durationMs": 300
               }
             ]
           },
@@ -37037,7 +37037,7 @@
                     "y": 1
                   }
                 },
-                "durationMs": 100
+                "durationMs": 300
               },
               {
                 "sprite": {
@@ -37052,7 +37052,7 @@
                     "y": 1
                   }
                 },
-                "durationMs": 100
+                "durationMs": 300
               }
             ]
           }
