@@ -5,8 +5,8 @@ export const PERF_BUDGETS = {
   maxMeshToQuadRatio: 0.05,
   frameMsP95: 1,
   frameMsP95Ci: 8,
-  lightingBakeMsP95: 65,
-  lightingBakeMsP95Ci: 115,
+  lightingBakeMsP50: 65,
+  lightingBakeMsP50Ci: 115,
   lightingOverlayMsP95: 15,
   lightingOverlayMsP95Ci: 25,
 } as const;

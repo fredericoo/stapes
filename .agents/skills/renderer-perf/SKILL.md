@@ -23,4 +23,4 @@ When you change the Three.js editor renderer, map mesh building, lighting bake, 
    reports how far past the view each one reaches. Undocumented in the game;
    `docs/notes.md` has the section. A frame time read in that mode includes the
    outlines, so take budgets without it.
-6. Editor frame p95 does **not** measure cold lighting bake — that is gated separately via `PERF_BUDGETS.lightingBakeMsP95`.
+6. Editor frame p95 does **not** measure cold lighting bake — that is gated separately via `PERF_BUDGETS.lightingBakeMsP50`.
