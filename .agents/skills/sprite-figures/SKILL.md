@@ -1,11 +1,12 @@
 ---
 name: sprite-figures
 description: >
-  Generates walking character sprite sheets (townsfolk, NPCs, outfits) from the
-  3D figure in app/lib/figure.ts, from the command line with
-  `bun run generate:figure` — no dev server needed. Use when asked to make,
-  dress, recolour or add a townsperson, NPC, villager or character sprite, to
-  give a tile a new look, or when changing the figure model itself.
+  Generates walking character sprite sheets (townsfolk, NPCs, outfits) by
+  recolouring and stacking paper-doll parts cut from the player in people.png,
+  from the command line with `bun run generate:figure` — no dev server needed.
+  Use when asked to make, dress, recolour or add a townsperson, NPC, villager or
+  character sprite, to give a tile a new look, or when adding or editing a part
+  (a hair style, a cloak, an outfit piece).
 ---
 
 # Generating character sprites
@@ -13,9 +14,10 @@ description: >
 A character sheet here is a 48×64 PNG laid out like the player's block in
 `data/tilesets/people.png`: rows face **south, east, west, north**; columns are
 **step, stand, step**; each frame is 16×16 (2×2 cells) with its base at (1, 1).
-`app/lib/figure.ts` renders one from a small 3D figure through the game's
-oblique projection, so any tile that walks with the player's frames wears it by
-moving its `anchor` and nothing else.
+`app/lib/figure.ts` builds one by stacking parts from `app/lib/figureParts.json`
+(body, hair, shirt, trim, trousers, shoes, cloak…) and recolouring each, so any
+tile that walks with the player's frames wears it by moving its `anchor` and
+nothing else. Dressed in the player's own colours it draws the player exactly.
 
 Two front ends share that renderer:
 
@@ -32,6 +34,7 @@ Two front ends share that renderer:
 | Hair  | `--hair <style>`, `--hair-colour <hex>`   | `bald` `short` `bob` `long` `ponytail` |
 | Beard | `--beard` / `--no-beard`                  | drawn in the hair colour               |
 | Shirt | `--shirt <hex>`                           | also colours the upper arms            |
+| Trim  | `--trim <hex>`                            | the collar and belt                    |
 | Legs  | `--legs <style>`, `--legs-colour <hex>`   | `trousers` `robe`                      |
 | Shoes | `--shoes <hex>`                           |                                        |
 | Cloak | `--cloak <style>`, `--cloak-colour <hex>` | `none` `cape` `cloak` `hooded`         |
@@ -118,22 +121,44 @@ command.
 - Don't leave trial sheets in `data/tilesets/`. Draft with `--out`, and
   `git checkout data && git clean -f data/tilesets` if a trial went there.
 
-## Changing the figure itself
+## Adding or editing a part
 
-The body is in `app/lib/figure.ts`: `BODY` holds the joint heights and widths in
-screen pixels, `POSES` the walk, and `addHair` / `addCloak` the styles. A new
-style is a new entry in `HAIR_STYLES`, `CLOAK_STYLES` or `LOWER_STYLES` plus its
-shapes. `docs/notes.md`, "A townsperson is a 3D figure drawn through the game's
-projection", explains the rendering and why the proportions are what they are.
+A part is a whole 48×64 sheet stored as text in `app/lib/figureParts.json`: 64
+strings of 48 cells, `.` empty, `#` outline, `1` `2` `3` the shadow, base and
+highlight of the colour the look gives that part. `PARTS` in
+`app/lib/figure.ts` says which colour each part takes, its `z` in each facing
+(higher is drawn later), and whether it is `outlined`. `partsFor` says which
+parts a look uses. `docs/notes.md`, "A townsperson is paper-doll parts cut from
+the player", explains why these choices were made.
+
+To draw in a pixel editor instead of in text:
+
+```sh
+bun run figure-parts export "$SCRATCH/parts"   # one PNG per part: outline #2e222f and greys #595959 #a6a6a6 #e6e6e6
+# edit, keeping to those four colours
+bun run figure-parts import "$SCRATCH/parts"   # refuses any other colour
+```
+
+- **Draw against the body.** The head stays on the same pixels through a facing's
+  three frames, so anything on the head (hair, a hat, a hood) is one mask per
+  facing, repeated in all three columns. Anything that hangs (long hair, a
+  ponytail, a cape's hem) runs down or down-right on screen, because height goes
+  up and to the left in this projection.
+- **Outlines.** A drawn part marked `outlined: true` gets outline on every
+  transparent pixel beside it, so draw only its colours. The six parts cut from
+  `people.png` carry the artist's own outline instead and are not `outlined`.
+- **A new style** is a new value in `HAIR_STYLES`, `CLOAK_STYLES` or
+  `LOWER_STYLES`, a new id in `PART_IDS`, an entry in `PARTS`, a line in
+  `partsFor`, and the part's rows in the JSON.
+- `bun run figure-parts extract` re-cuts only body, hair-short, shirt, trim,
+  trousers and shoes from `people.png`. It leaves drawn parts alone.
 
 After a change:
 
-1. Render a few looks with `--preview`, and compare them side by side with the
-   player's block (the top-left 48×64 of `data/tilesets/people.png`) at the same
-   zoom. Every facing and both steps should still read as a person.
-2. Run `bun run test:unit -- app/lib/figure.test.ts`. It checks that the output
-   stays in the palette, stands on its foot cell, draws every facing and step
-   differently, and that every hair, cloak and legs style shows from at least one
-   facing. A style whose shapes have a sign error renders nothing, and that last
-   test catches it.
+1. Render a few looks with `--preview` and open them. Check every facing, and
+   both steps if the part moves.
+2. Run `bun run test:unit -- app/lib/figure.test.ts`. It checks that every part
+   is 64 rows of 48 valid cells, that the player's colours still draw the
+   player in `people.png` pixel for pixel, that output stays in the palette,
+   and that every style shows from at least one facing.
 3. Run `bun run format` and `bun run lint`.
