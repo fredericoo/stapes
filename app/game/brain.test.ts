@@ -3407,6 +3407,37 @@ describe("knowing where it belongs", () => {
   });
 });
 
+describe("walking home", () => {
+  const homebody = tile({
+    id: "homebody",
+    height: 2,
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: {
+      brain: {
+        initial: "homing",
+        states: { homing: { do: [{ action: "step_toward", of: { type: "home" } }] } },
+        transitions: [],
+      },
+    },
+  });
+
+  it("stands on its home cell rather than beside it", () => {
+    let map = field(6);
+    map = replaceStack(map, 4, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "homebody", owner: "npc:0,0,0,1" },
+    ]);
+    const session = new GameSession(map, [...tiles, homebody], { actorIds: ["alice"] });
+
+    advance(session, BRAIN_TICK_MS * 12);
+
+    const body = session.actorSnapshots().find((actor) => actor.tileId === "homebody")!;
+    expect(`${body.x},${body.y}`).toBe("0,0");
+  });
+});
+
 describe("the vermin we ship", () => {
   const authored = normalizeTiles(tilesJson as unknown[]);
 
