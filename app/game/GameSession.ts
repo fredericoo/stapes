@@ -3528,7 +3528,8 @@ export class GameSession implements PlaySession {
     goal: WalkGoal,
     allowDrops: boolean | undefined,
   ): WalkOrderState {
-    actor.walkOrder = { goal, allowDrops, arrive: "beside" };
+    const arrive = goal.of === "cell" && goal.arrive === "on" ? "on" : "beside";
+    actor.walkOrder = { goal, allowDrops, arrive };
     if (!this.idle(actor)) return "walking";
     return this.driveWalkOrder(actor);
   }

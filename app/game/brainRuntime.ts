@@ -41,7 +41,7 @@ export type ActionStatus = "success" | "failure" | "running";
 
 export type WalkGoal =
   | { readonly of: "body"; readonly id: string }
-  | { readonly of: "cell"; readonly at: Coord };
+  | { readonly of: "cell"; readonly at: Coord; readonly arrive?: "on" };
 
 export type WalkOrderState = "walking" | "arrived" | "blocked";
 
@@ -175,7 +175,7 @@ function whereIs(bound: Bound | null, ctx: BrainContext): Coord | null {
 
 function aim(selector: Selector, memory: BrainMemory, ctx: BrainContext): WalkGoal | null {
   if (selector.type === "home") {
-    return ctx.home ? { of: "cell", at: ctx.home } : null;
+    return ctx.home ? { of: "cell", at: ctx.home, arrive: "on" } : null;
   }
   const bound = identify(selector, memory, ctx);
   if (!bound) return null;
