@@ -506,7 +506,13 @@ export function renderFigureFrame(
     }
   }
 
-  separate(filled, mats, tones, depth);
+  const bases = ramps.map((ramp) => ramp[BASE]);
+  separate(
+    filled,
+    mats.map((m) => bases.indexOf(ramps[m]![BASE])),
+    tones,
+    depth,
+  );
   for (let i = 0; i < filled.length; i++) {
     if (filled[i]) writeHex(out, i * 4, ramps[mats[i]!]![tones[i]!]!);
   }
@@ -517,18 +523,19 @@ export function renderFigureFrame(
 }
 
 /**
- * Where one part passes in front of another part of a different material,
- * the pixel behind takes its own shadow tone, so a sleeve against a cloak or
- * hair against a face keeps an edge without spending an outline pixel on it.
+ * Where one part passes in front of another part of a different colour, the
+ * pixel behind takes its own shadow tone, so a sleeve against a cloak or hair
+ * against a face keeps an edge without spending an outline pixel on it.
+ * `colours` numbers each pixel's colour, so two parts in one colour do not.
  */
-function separate(filled: Uint8Array, mats: Uint8Array, tones: Uint8Array, depth: Float32Array) {
+function separate(filled: Uint8Array, colours: Uint8Array, tones: Uint8Array, depth: Float32Array) {
   const marks: number[] = [];
   for (let py = 0; py < FRAME_PX; py++) {
     for (let px = 0; px < FRAME_PX; px++) {
       const i = py * FRAME_PX + px;
       if (!filled[i]) continue;
       const infront = (j: number) =>
-        filled[j] === 1 && mats[j] !== mats[i] && depth[j]! - depth[i]! > SEPARATE_DEPTH;
+        filled[j] === 1 && colours[j] !== colours[i] && depth[j]! - depth[i]! > SEPARATE_DEPTH;
       if (
         (px > 0 && infront(i - 1)) ||
         (px < FRAME_PX - 1 && infront(i + 1)) ||
