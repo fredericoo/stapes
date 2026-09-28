@@ -14,8 +14,6 @@ export const HAIR_STYLES = ["bald", "short", "bob", "long", "ponytail"] as const
 
 export const CLOAK_STYLES = ["none", "cape", "cloak", "hooded"] as const;
 
-export const LOWER_STYLES = ["trousers", "robe"] as const;
-
 const colour = v.pipe(v.string(), v.regex(/^#[0-9a-f]{6}$/i));
 
 export const figureLookSchema = v.object({
@@ -24,7 +22,7 @@ export const figureLookSchema = v.object({
   beard: v.boolean(),
   shirt: colour,
   trim: colour,
-  lower: v.object({ style: v.picklist(LOWER_STYLES), colour }),
+  trousers: colour,
   shoes: colour,
   cloak: v.object({ style: v.picklist(CLOAK_STYLES), colour }),
 });
@@ -37,7 +35,7 @@ export const DEFAULT_LOOK: FigureLook = {
   beard: false,
   shirt: "#c7dcd0",
   trim: "#ae2334",
-  lower: { style: "trousers", colour: "#7f708a" },
+  trousers: "#7f708a",
   shoes: "#45293f",
   cloak: { style: "none", colour: "#165a4c" },
 };
@@ -55,7 +53,7 @@ export function randomLook(random: () => number = Math.random): FigureLook {
     beard: random() < 0.25,
     shirt: pick(FIGURE_SWATCHES),
     trim: pick(FIGURE_SWATCHES),
-    lower: { style: random() < 0.3 ? "robe" : "trousers", colour: pick(FIGURE_SWATCHES) },
+    trousers: pick(FIGURE_SWATCHES),
     shoes: pick(FIGURE_SWATCHES),
     cloak: {
       style: random() < 0.5 ? "none" : pick(CLOAK_STYLES),
@@ -85,7 +83,7 @@ export const PART_TONES = "123";
 export const PART_OUTLINE = "#";
 export const PART_EMPTY = ".";
 
-type Paint = "skin" | "hair" | "shirt" | "trim" | "lower" | "shoes" | "cloak";
+type Paint = "skin" | "hair" | "shirt" | "trim" | "trousers" | "shoes" | "cloak";
 
 export const PART_IDS = [
   "body",
@@ -97,7 +95,6 @@ export const PART_IDS = [
   "shirt",
   "trim",
   "trousers",
-  "robe",
   "shoes",
   "cape",
   "cloak-front",
@@ -121,9 +118,8 @@ const PARTS: Record<PartId, { paint: Paint; z: Z; outlined: boolean }> = {
   cape: { paint: "cloak", z: { s: 0, e: 0, w: 40, n: 40 }, outlined: true },
   "cloak-front": { paint: "cloak", z: everywhere(38), outlined: true },
   body: { paint: "skin", z: everywhere(10), outlined: false },
-  trousers: { paint: "lower", z: everywhere(20), outlined: false },
+  trousers: { paint: "trousers", z: everywhere(20), outlined: false },
   shoes: { paint: "shoes", z: everywhere(25), outlined: true },
-  robe: { paint: "lower", z: everywhere(27), outlined: true },
   shirt: { paint: "shirt", z: everywhere(30), outlined: false },
   trim: { paint: "trim", z: everywhere(35), outlined: false },
   "hair-short": { paint: "hair", z: everywhere(50), outlined: false },
@@ -135,8 +131,7 @@ const PARTS: Record<PartId, { paint: Paint; z: Z; outlined: boolean }> = {
 };
 
 function partsFor(look: FigureLook): PartId[] {
-  const ids: PartId[] = ["body", "shirt", "trim", "shoes"];
-  ids.push(look.lower.style === "robe" ? "robe" : "trousers");
+  const ids: PartId[] = ["body", "shirt", "trim", "trousers", "shoes"];
   if (look.hair.style !== "bald") ids.push("hair-short");
   if (look.hair.style !== "bald" && look.hair.style !== "short")
     ids.push(`hair-${look.hair.style}`);
@@ -157,8 +152,8 @@ function paintFor(look: FigureLook, paint: Paint): string {
       return look.shirt;
     case "trim":
       return look.trim;
-    case "lower":
-      return look.lower.colour;
+    case "trousers":
+      return look.trousers;
     case "shoes":
       return look.shoes;
     case "cloak":

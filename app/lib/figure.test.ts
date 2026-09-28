@@ -110,11 +110,6 @@ describe("renderFigureFrame", () => {
     { name: "a cloak's front over a cape", look: wearing("cloak"), without: wearing("cape") },
     { name: "a hood over a cloak", look: wearing("hooded"), without: wearing("cloak") },
     { name: "a beard", look: { ...DEFAULT_LOOK, beard: true }, without: DEFAULT_LOOK },
-    {
-      name: "a robe",
-      look: { ...DEFAULT_LOOK, lower: { ...DEFAULT_LOOK.lower, style: "robe" } },
-      without: DEFAULT_LOOK,
-    },
   ];
 
   it.each(variants)("shows $name from at least one facing", ({ look, without }) => {

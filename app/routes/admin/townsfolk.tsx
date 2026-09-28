@@ -11,7 +11,6 @@ import {
   FIGURE_SWATCHES,
   FRAME_PX,
   HAIR_STYLES,
-  LOWER_STYLES,
   SHEET_FACINGS,
   SHEET_HEIGHT_PX,
   SHEET_WIDTH_PX,
@@ -192,16 +191,10 @@ export default function TownsfolkPage() {
             value={look.trim}
             onChange={(trim) => setLook((l) => ({ ...l, trim }))}
           />
-          <StyleField
-            label="Legs"
-            value={look.lower.style}
-            options={LOWER_STYLES}
-            onChange={(style) => setLook((l) => ({ ...l, lower: { ...l.lower, style } }))}
-          />
           <ColourField
-            label={look.lower.style === "robe" ? "Robe colour" : "Trousers colour"}
-            value={look.lower.colour}
-            onChange={(colour) => setLook((l) => ({ ...l, lower: { ...l.lower, colour } }))}
+            label="Trousers"
+            value={look.trousers}
+            onChange={(trousers) => setLook((l) => ({ ...l, trousers }))}
           />
           <ColourField
             label="Shoes"

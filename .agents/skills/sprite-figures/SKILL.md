@@ -35,7 +35,7 @@ Two front ends share that renderer:
 | Beard | `--beard` / `--no-beard`                  | drawn in the hair colour               |
 | Shirt | `--shirt <hex>`                           | also colours the upper arms            |
 | Trim  | `--trim <hex>`                            | the collar and belt                    |
-| Legs  | `--legs <style>`, `--legs-colour <hex>`   | `trousers` `robe`                      |
+| Legs  | `--trousers <hex>`                        | trousers from the belt to the boots    |
 | Shoes | `--shoes <hex>`                           |                                        |
 | Cloak | `--cloak <style>`, `--cloak-colour <hex>` | `none` `cape` `cloak` `hooded`         |
 
@@ -64,7 +64,7 @@ command.
 
    ```sh
    bun run generate:figure --out "$SCRATCH/baker.png" --preview "$SCRATCH" \
-     --hair bob --hair-colour fbb954 --shirt ffffff --legs robe --legs-colour cf657f \
+     --hair bob --hair-colour fbb954 --shirt ffffff --trousers cf657f \
      --print-look
    ```
 
@@ -150,10 +150,10 @@ bun run figure-parts import "$SCRATCH/parts"   # refuses any other colour
   boots) gets outline on every transparent pixel beside it, so draw only its
   colours. The body, shirt, trim and trousers carry the artist's own outline
   instead, which leaves some edges open on purpose.
-- **A new style** is a new value in `HAIR_STYLES`, `CLOAK_STYLES` or
-  `LOWER_STYLES`, a new id in `PART_IDS`, an entry in `PARTS`, a line in
-  `partsFor`, and the part's rows in the JSON. A style made of several parts,
-  like `hooded` (cape, cloak-front, hood), lists each in `partsFor`.
+- **A new style** is a new value in `HAIR_STYLES` or `CLOAK_STYLES`,
+  a new id in `PART_IDS`, an entry in `PARTS`, a line in `partsFor`, and the
+  part's rows in the JSON. A style made of several parts, like `hooded`
+  (cape, cloak-front, hood), lists each in `partsFor`.
 - The parts were first cut from `people.png` and have been hand-edited since;
   `figureParts.json` is the source of truth, and nothing regenerates it.
 

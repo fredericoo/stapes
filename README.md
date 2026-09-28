@@ -151,7 +151,7 @@ an agent drives", lists every call.
   `data/tilesets/townsfolk.png`, `smith.png`, `armourer.png` and `guard.png`
 - `bun run generate:figure` — render a walking character sheet from the
   paper-doll parts in `app/lib/figureParts.json`, dressed by flags (`--hair bob
-  --legs robe --cloak hooded …`), without a server. `--out` writes one PNG
+  --trousers cf657f --cloak hooded …`), without a server. `--out` writes one PNG
   anywhere; `--name` saves it to `data/tilesets/` and registers it, and `--tile`
   moves a tile onto it; `--batch` takes a JSON list. `--help` lists every flag,
   and the `sprite-figures` skill is the workflow

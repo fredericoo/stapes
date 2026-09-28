@@ -9,7 +9,6 @@ import {
   CLOAK_STYLES,
   DEFAULT_LOOK,
   HAIR_STYLES,
-  LOWER_STYLES,
   SHEET_HEIGHT_PX,
   SHEET_WIDTH_PX,
   drawsFromCharacterBlock,
@@ -28,7 +27,7 @@ const PREVIEW_BACKDROP = [0x23, 0x90, 0x63];
 
 const USAGE = `Render a walking character sheet from the paper-doll parts in app/lib/figureParts.json.
 
-  bun run generate:figure --name baker --hair bob --hair-colour fbb954 --legs robe
+  bun run generate:figure --name baker --hair bob --hair-colour fbb954 --trousers cf657f
   bun run generate:figure --random --seed 7 --out /tmp/someone.png --preview /tmp
   bun run generate:figure --batch looks.json
 
@@ -46,8 +45,7 @@ The look starts from the default, or from --look or --random, and the flags belo
   --beard, --no-beard
   --shirt <hex>
   --trim <hex>           the collar and belt
-  --legs <${LOWER_STYLES.join("|")}>
-  --legs-colour <hex>
+  --trousers <hex>
   --shoes <hex>
   --cloak <${CLOAK_STYLES.join("|")}>
   --cloak-colour <hex>
@@ -67,7 +65,7 @@ type PartialLook = {
   beard?: boolean;
   shirt?: string;
   trim?: string;
-  lower?: Partial<FigureLook["lower"]>;
+  trousers?: string;
   shoes?: string;
   cloak?: Partial<FigureLook["cloak"]>;
 };
@@ -99,7 +97,6 @@ function overlay(base: FigureLook, over: PartialLook): FigureLook {
     ...base,
     ...over,
     hair: { ...base.hair, ...over.hair },
-    lower: { ...base.lower, ...over.lower },
     cloak: { ...base.cloak, ...over.cloak },
   };
   const parsed = v.safeParse(figureLookSchema, merged);
@@ -146,8 +143,7 @@ async function main() {
       "no-beard": { type: "boolean" },
       shirt: { type: "string" },
       trim: { type: "string" },
-      legs: { type: "string" },
-      "legs-colour": { type: "string" },
+      trousers: { type: "string" },
       shoes: { type: "string" },
       cloak: { type: "string" },
       "cloak-colour": { type: "string" },
@@ -199,10 +195,7 @@ async function main() {
         style: values.hair as FigureLook["hair"]["style"],
         colour: hex(values["hair-colour"]),
       },
-      lower: {
-        style: values.legs as FigureLook["lower"]["style"],
-        colour: hex(values["legs-colour"]),
-      },
+      trousers: hex(values.trousers),
       cloak: {
         style: values.cloak as FigureLook["cloak"]["style"],
         colour: hex(values["cloak-colour"]),
