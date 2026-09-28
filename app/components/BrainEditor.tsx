@@ -45,7 +45,7 @@ import { ConditionTreeEditor } from "./ConditionTreeEditor";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
-import { Button, Input, NumberInput, Segmented, Select, Switch } from "../ui";
+import { Button, Input, NumberInput, OptionalNumberInput, Segmented, Select, Switch } from "../ui";
 
 type Props = {
   brain: BrainDef | undefined;
@@ -1020,6 +1020,22 @@ function ParamField({
         options={vocab.tiles[spec.tiles]}
         onChange={onChange}
       />
+    );
+  }
+  if (spec.kind === "number" && spec.optional) {
+    return (
+      <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+        {spec.label}
+        <OptionalNumberInput
+          min={spec.min}
+          max={spec.max}
+          value={typeof value === "number" ? value : undefined}
+          onChange={onChange}
+          className="w-20"
+          placeholder="none"
+          aria-label={spec.label}
+        />
+      </label>
     );
   }
   if (spec.kind === "number") {

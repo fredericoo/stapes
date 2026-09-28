@@ -62,7 +62,7 @@ function sameTiles(a: readonly string[], b: readonly string[]): boolean {
 export type SpeakerFilter = { match: "is" | "not"; of: Selector };
 
 export type BrainConditionDef =
-  | { cond: "after"; ms: number }
+  | { cond: "after"; ms: number; toMs?: number }
   | { cond: "in_range"; of: Selector; cells: number }
   | { cond: "out_of_range"; of: Selector; cells: number }
   | { cond: "in_los"; of: Selector; cells: number }
@@ -166,7 +166,10 @@ const speakerFilterSchema = v.object({
 });
 
 const leafSchema = v.variant("cond", [
-  v.object({ cond: v.literal("after"), ms: durationMs }),
+  v.pipe(
+    v.object({ cond: v.literal("after"), ms: durationMs, toMs: v.optional(durationMs) }),
+    v.check((c) => c.toMs === undefined || c.toMs >= c.ms, "after toMs must be at least ms"),
+  ),
   v.object({ cond: v.literal("in_range"), of: selectorSchema, cells }),
   v.object({ cond: v.literal("out_of_range"), of: selectorSchema, cells }),
   v.object({ cond: v.literal("in_los"), of: selectorSchema, cells }),

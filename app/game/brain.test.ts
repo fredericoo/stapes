@@ -267,6 +267,31 @@ describe("deciding", () => {
     expect(memory.msInState).toBe(0);
   });
 
+  it("waits a drawn time inside a ranged after, different for different dice", () => {
+    const fromMs = BRAIN_TICK_MS * 2;
+    const toMs = BRAIN_TICK_MS * 40;
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] }, done: { do: [] } },
+      transitions: [{ from: "idle", if: { cond: "after", ms: fromMs, toMs }, to: "done" }],
+    };
+    const waits = new Set<number>();
+    for (let seed = 1; seed <= 12; seed++) {
+      const memory = initialMemory(brain);
+      const c = ctx({ rng: new Rng(seed) });
+      let elapsed = 0;
+      while (memory.state === "idle" && elapsed <= toMs) {
+        elapsed += BRAIN_TICK_MS;
+        stepBrain(brain, memory, BRAIN_TICK_MS, c);
+      }
+      expect(memory.state).toBe("done");
+      expect(elapsed).toBeGreaterThanOrEqual(fromMs);
+      expect(elapsed).toBeLessThanOrEqual(toMs + BRAIN_TICK_MS);
+      waits.add(elapsed);
+    }
+    expect(waits.size).toBeGreaterThan(3);
+  });
+
   it("takes a wildcard transition from whatever state it is in", () => {
     const brain: BrainDef = {
       initial: "idle",

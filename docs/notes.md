@@ -8887,6 +8887,26 @@ nobody in one way: it never touches `actor.targetId`.
   row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
   selector no control displays.
 
+## A ranged `after` staggers creatures that decide on the same round
+
+`after` takes an optional `toMs`. With it, the wait is somewhere from `ms` to
+`toMs`, drawn once per visit to the state. Every creature in a brain round reads
+the clock the same round, so a fixed wait makes every one of them act on the
+same tick. That is the bog imps at dusk: all of them find no fire, all of them
+start `Make fire` together, and none sees another's fire until its own is lit.
+A drawn wait lets the first to finish light it and the rest see it first.
+
+- **One draw per visit, shared.** `BrainMemory.patience` is a roll in `[0, 1)`,
+  cleared on every state change and drawn the first time a ranged `after` is
+  read. Two ranged `after`s in one state scale the same roll, so the shorter
+  range always fires first, which is what an author reading them expects.
+- **Drawn lazily, from the world's dice.** A brain with no ranged `after` never
+  draws, so authoring one on the imp does not change what any other creature
+  rolls. It costs a draw even when both ends are equal, for the reason decay's
+  does.
+- **Inverted is malformed.** `toMs` below `ms` fails the schema, as a decay
+  range does.
+
 ## `attack_range` stands where the weapon strikes from
 
 `step_toward` walks until it is beside somebody, which is right for a sword and

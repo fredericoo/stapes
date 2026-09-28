@@ -145,6 +145,15 @@ describe("the shapes a condition can grow", () => {
     expect(resolveBrain(tileWithBrain(brain))).toBeNull();
   });
 
+  it("refuses an after whose range ends before it starts", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] } },
+      transitions: [{ from: "idle", if: { cond: "after", ms: 5000, toMs: 1000 }, to: "idle" }],
+    };
+    expect(resolveBrain(tileWithBrain(brain))).toBeNull();
+  });
+
   it("round-trips a nested group of conditions", () => {
     const brain: BrainDef = {
       initial: "idle",
