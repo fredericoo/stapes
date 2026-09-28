@@ -11180,7 +11180,9 @@ avoid.
 an oblique projection, so the wall on the near side of a corridor is drawn over
 the floor behind it: a corridor one cell wide has no visible floor at all, and
 neither does whatever is standing in it. Two cells is the narrowest that leaves
-a strip you can see.
+a strip you can see. That is true of rock that fills its cell, which `cave-wall`
+does not: see "`cave-wall` puts the face of the rock on the half line of its
+cell", below.
 
 The rule that gets there is mechanical and lives in `widenToTwo`: **an open cell
 has to be part of some fully open 2×2 square**, and anything else — a spur, a
@@ -11320,6 +11322,74 @@ rectangle, so the pattern is anchored to the map: growing a drag reveals more of
 the same cave instead of reshuffling the one already on screen. The seed is a
 setting with a Re-roll button beside it, so the same rectangle carves the same
 cave until you ask for a different one.
+
+## `cave-wall` puts the face of the rock on the half line of its cell
+
+Between rock that fills its cells, a passage one cell wide shows no floor at all:
+the wall on its south side is drawn over it (see "No passage is ever one cell
+wide"). `cave-wall` is rock that stops half a cell short wherever it meets open
+ground, so the same passage shows a full cell of floor, which is what a two-cell
+passage between `half-stone` columns shows. A body standing in it loses the
+bottom half of its cell behind the near wall, where full blocks cover all of it.
+
+**The shape comes from the eight neighbours, a quarter of the cell at a time.**
+A quarter is rock when the three neighbours around its corner are, which puts the
+outline of a rock mass through cell centres rather than along cell edges. Rock
+one cell thick gets no quarter that way, so it is drawn as a ridge half a cell
+thick toward each rock neighbour, and a cell with no rock around it is a round
+pillar of the same thickness. A ridge beside a filled quarter is left out,
+because it would stick out past that quarter's face and notch a straight wall.
+Both rules read only the neighbours two adjacent cells share, so wherever two
+rock cells meet, the edge is the same from both sides.
+
+**Every corner is an arc, and none is wider than half a cell.** A corner of a
+solid mass falls at a cell's centre and is drawn as a quarter circle centred on
+the cell corner behind it: bulging out where the rock turns a corner, cut in
+where the floor does. Half a cell is the only radius that works, because the
+outline has to cross each cell edge at its midpoint and square to it. The slice
+across that edge cannot see far enough to tell a corner from a straight run, so
+it always draws the run. Ridges end in a round cap and meet other rock through a
+two-pixel fillet, kept two pixels in from the edge for the same reason. Two
+filled quarters on opposite corners stay whole: rounding them would open a
+diagonal gap through a cell nobody can walk into. A rule that reads a neighbour
+the slice across the edge does not share puts a seam on that edge; building
+every pair of neighbouring slices (1,024 each way) and comparing their outlines
+along the shared edge finds one.
+
+**Straight runs stay straight.** Every cell along a straight wall is the same
+slice, so any wobble drawn into one repeats every cell. Varying it would take
+several faces per slice picked by where the cell stands, as a scatter tile's
+are, and an autotile has one.
+
+**A side is shaded by the way the outline faces**, read over a five-pixel square
+around the pixel the ray hit, with a third tone between the south and east ones.
+Shading by the single pixel step the ray met alternates along a curve and draws
+a checkerboard.
+
+**It is geometry, generated, not drawn.** `bun run generate:cave-wall` casts the
+view ray through every pixel of each of the 47 neighbourhoods and writes
+`data/tilesets/cave-wall.png`, the tile's slices and its `tilesets.json` entry
+together. The top, south and east faces use `half-stone`'s palette entries, so
+the two can share a cave, and the flecks are keyed on the screen pixel modulo a
+cell, so a face that runs across several cells has no seam. A hand edit to the
+sheet is lost the next time the script runs. The script rewrites only the tile's
+`type`, `anchor` and `slices`; its name, `connectsTo` and anything else authored
+on it are left alone once the tile exists.
+
+**The open part of the cell shows whatever is under the wall.** Like `sw2`, it
+needs a floor beneath it in the stack, or that half of the cell is the level
+below or void. `scripts/carve-caves.ts` builds its rock with nothing under it,
+so that rock cannot be swapped for this one without adding a floor.
+
+**To everything but the art it is one solid cell.** Movement, sight, light,
+arrows and the depth box treat it as a column four units tall, as they treat
+`stone-wall`. It is `walkable: false`, as the building walls are, because its
+top covers only part of the cell. It connects to `stone-wall` and `half-stone`,
+so it meets older rock flush and a cave can be converted a patch at a time.
+
+**It has its own sheet, so it costs a draw call** in every chunk that has it:
+static quads are batched per texture within a chunk. Nothing on the shipped map
+uses it yet.
 
 ## A forest is a path and what grows either side of it
 
