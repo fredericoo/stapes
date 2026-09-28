@@ -28,7 +28,7 @@ const WALL_TILE_IDS = ["sw2", "brick-wall", "half-wall"];
 const WINDOW_TILE_IDS = ["window-1"];
 const DOOR_TILE_IDS = ["door-closed"];
 
-const ROCK_TILE_IDS = ["half-stone", "stone-wall", "cave-wall"];
+const ROCK_TILE_IDS = ["half-stone", "stone-wall", "cave-wall", "cave-wall-sloped"];
 
 const LEDGE_TILE_IDS = ["half-stone", "brick-slab"];
 

@@ -51,10 +51,12 @@ an agent drives", lists every call.
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
   shape and its palette entries live in the script where a diff can read them
 - `bun run generate:cave-wall` — redraw `data/tilesets/cave-wall.png` and the
-  `cave-wall` tile's 47 slices: rock whose face stands on the half line of its
-  cell wherever it meets open ground, so a passage one cell wide shows a cell of
-  floor, with every corner rounded. Geometry too, drawn through the game's own
-  projection; the shape rules and the palette entries are constants in the script
+  slices of the cave walls on it: `cave-wall`, rock whose face stands on the half
+  line of its cell wherever it meets open ground, so a passage one cell wide
+  shows a cell of floor, and `cave-wall-sloped`, the same outline at the ceiling
+  widening to the cell's edge at the floor. Every corner is rounded. Geometry
+  too, drawn through the game's own projection; the variants, the shape rules
+  and the palette entries are constants in the script
 - `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
   spinner: a crystal modelled in Three.js, rendered in headless Chromium and
   snapped to the logo's sixteen colours. Shape, light and timing are constants

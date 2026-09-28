@@ -11361,41 +11361,65 @@ slice, so any wobble drawn into one repeats every cell. Varying it would take
 several faces per slice picked by where the cell stands, as a scatter tile's
 are, and an autotile has one.
 
-**A side is shaded by the way the outline faces**, read over a five-pixel square
-around the pixel the ray hit, with a third tone between the south and east ones.
-Shading by the single pixel step the ray met alternates along a curve and draws
-a checkerboard.
+**`cave-wall-sloped` has the same outline at the ceiling and widens to the
+cell's edge at the floor**, in a straight line, so a pillar is a cone and a wall
+stands on its own slope. It covers the strip of floor `cave-wall` leaves open,
+so a passage one cell wide between two runs of it shows half a cell of floor.
+Both variants are drawn on one sheet, so a cave that mixes them costs no more
+draw calls than a cave of one, and each connects to the other so the rock stays
+whole where they meet. Where a sloped run meets a plain one, the slope ends in a
+step at the cell edge, because a slice cannot tell which variant its neighbour
+is. Another variant is one more line in `VARIANTS`.
+
+**A slope widens each piece of the outline, not the finished outline.** Faces
+move out, arcs grow and pockets shrink about the same cell corners, and ridges
+and the disc where they meet widen at half the rate, standing half as far from
+the edge. Widening the finished outline instead let a ridge's slope spill round
+a corner into the next cell, past a diagonal that slice cannot see, and left a
+seam at every such corner. Two rules close the gaps that remain: a ridge running
+beside an edge whose neighbour shows only a quarter's face stops a pixel short
+of that edge, and the pixel at a corner whose four cells are not all rock stays
+empty until the floor. The same edge comparison, repeated at every pixel of
+height for both variants, finds no seam.
+
+**A side is shaded by the way the rock falls away**, read from its height over a
+five-pixel square around the pixel the ray hit, with a third tone between the
+south and east ones. Shading by the single pixel step the ray met alternates
+along a curve and draws a checkerboard, and one layer's outline gives a slope
+that has reached the cell's edge no direction at all.
 
 **It is geometry, generated, not drawn.** `bun run generate:cave-wall` casts the
 view ray through every pixel of each of the 47 neighbourhoods and writes
-`data/tilesets/cave-wall.png`, the tile's slices and its `tilesets.json` entry
-together. The top, south and east faces use `half-stone`'s palette entries, so
+`data/tilesets/cave-wall.png`, the slices of every variant and the sheet's
+`tilesets.json` entry together. The top, south and east faces use `half-stone`'s palette entries, so
 the two can share a cave, and the flecks are keyed on the screen pixel modulo a
 cell, so a face that runs across several cells has no seam. A hand edit to the
-sheet is lost the next time the script runs. The script rewrites only the tile's
-`type`, `anchor` and `slices`; its name, `connectsTo` and anything else authored
-on it are left alone once the tile exists.
+sheet is lost the next time the script runs. The script rewrites only each
+tile's `type`, `anchor` and `slices`, and adds the other variants to its
+`connectsTo`; its name and anything else authored on it are left alone once the
+tile exists.
 
-**The open part of the cell shows whatever is under the wall.** Like `sw2`, it
-needs a floor beneath it in the stack, or that half of the cell is the level
-below or void. `scripts/carve-caves.ts` builds its rock with nothing under it,
+**The open part of the cell shows whatever is under the wall.** Like `sw2`,
+either variant needs a floor beneath it in the stack, or the uncovered part of
+the cell is the level below or void. `scripts/carve-caves.ts` builds its rock with nothing under it,
 so that rock cannot be swapped for this one without adding a floor.
 
-**To everything but the art it is one solid cell.** Movement, sight, light,
-arrows and the depth box treat it as a column four units tall, as they treat
-`stone-wall`. It is `walkable: false`, as the building walls are, because its
-top covers only part of the cell. It connects to `stone-wall` and `half-stone`,
-so it meets older rock flush and a cave can be converted a patch at a time.
+**To everything but the art each is one solid cell.** Movement, sight, light,
+arrows and the depth box treat both variants as a column four units tall, as
+they treat `stone-wall`. They are `walkable: false`, as the building walls are,
+because their tops cover only part of the cell. They connect to `stone-wall` and
+`half-stone`, so they meet older rock flush and a cave can be converted a patch
+at a time.
 
-**It has its own sheet, so it costs a draw call** in every chunk that has it:
-static quads are batched per texture within a chunk. Nothing on the shipped map
-uses it yet.
+**Their sheet costs a draw call** in every chunk that uses either variant: static
+quads are batched per texture within a chunk. Nothing on the shipped map uses
+them yet.
 
-**The cave generator lists it as a rock but still widens every passage to two**
-(`widenToTwo`). It already lays its floor under the rock, so the open half of
-each wall cell shows ground, but a cave generated from `cave-wall` comes out as
-open caverns rather than narrow passages. A passage one cell wide is carved by
-hand for now.
+**The cave generator lists both as rock but still widens every passage to two**
+(`widenToTwo`). It already lays its floor under the rock, so the open part of
+each wall cell shows ground, but a cave generated from either comes out as open
+caverns rather than narrow passages. A passage one cell wide is carved by hand
+for now.
 
 ## A forest is a path and what grows either side of it
 
