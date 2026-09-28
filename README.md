@@ -62,6 +62,14 @@ an agent drives", lists every call.
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as
   it stands without touching it
+- `bun run import:rookgaard <dir>` — replace `data/map.json` with Rookgaard,
+  translated from Tibia's 7.72 map onto our tiles, then walk the result from
+  the spawn and fail if a staircase climbs nowhere or a shopkeeper cannot be
+  talked to. `<dir>` is an OTHire datapack's `data/`. The one it was written
+  against is [peonso/tibialegacyserver](https://github.com/peonso/tibialegacyserver)'s
+  `server/data` at `7a9fe88`, whose `world/world.7z` has to be unpacked into
+  `world/world.otbm` first. `docs/notes.md`, "`import:rookgaard` translates
+  Tibia's Rookgaard onto our tiles", has what it keeps and what it leaves out
 - `bun run bench:server` — tick the world headless against `data/map.json`
   with players standing in a few scenarios, and print what a tick costs and
   how many bytes it puts on the wire. `--scenario <name>` for one,

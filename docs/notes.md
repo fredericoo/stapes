@@ -11336,6 +11336,86 @@ runs into a tree takes the tree out, and `cutFords` then breaks it wherever it
 would otherwise cut the wood in two. Undergrowth is the same scatter pass, on
 cells that are neither path nor water.
 
+## `import:rookgaard` translates Tibia's Rookgaard onto our tiles
+
+`bun run import:rookgaard <dir>` replaces `data/map.json` with Rookgaard, the
+island Tibia starts every character on, translated from Tibia's own map.
+
+**The source is the 7.72 real map an OTHire datapack ships**, which was
+converted from CipSoft's own 7.7 files: an OTBM world, the `items.otb` and
+`items.xml` that say what each item id is, and the spawn file. The one the
+script was written against is `peonso/tibialegacyserver`'s `server/data` at
+`7a9fe88`. None of it is in this repository, and the script reads it from a
+directory given on the command line.
+
+**The island is the land joined to the temple without crossing water**, plus 20
+cells of sea around it, plus every other floor within 4 cells of that land. The
+temple at Tibia's (32097, 32219, 7) is (0, 0) on level 0, and a Tibia floor
+`z` is level `7 - z`, so the island's towers and caves fit between -8 and 8
+with room over.
+
+**An item becomes a tile by its name** (`scripts/rookgaard/catalogue.ts`),
+because Tibia has dozens of ids for every kind of grass, wall and tree and one
+name for all of them. The flags in `items.otb` answer the few things a name
+cannot: whether an item is ground, which way a staircase climbs, whether a
+wall runs east-west or north-south. Anything drawn over the ground as a
+border is dropped, since our autotiles draw their own edges; a shore border is
+the exception and makes its cell water, because Tibia's coast tiles are ones
+nobody can stand on. A tile keeps its floor and at most one thing on it, and
+the loose things lying about — weapons, food, bones, rubbish — are left out.
+
+What had to change on the way in, and why:
+
+- **Stairs get the empty cell over them that a ramp needs** (see "A ramp
+  between two levels needs a hole above it"). Tibia draws a ramp across two
+  tiles and only the upper one changes floor, so the lower one is plain ground
+  here; translated as a second ramp, it climbed into the first.
+- **Every way between floors is a pair of ladders.** Tibia drops you through a
+  hole and pulls you back up with a rope, or sends you down a grate onto a
+  ladder. Our ladders go straight up and down between `ladder-up` and
+  `ladder-top` in one column, so whichever end Tibia marked, both are written.
+- **Water is laid on a floor**, grass on the surface and dirt underground, as
+  every pond in the old map was. Water lets light through, and Tibia runs caves
+  under its sea: before the floor went in, 2,803 of the 4,937 cave cells on
+  level -1 caught daylight at noon. Now the only lit caves are the few cells
+  round each stairwell that opens onto the surface.
+- **Tibia's solid earth is kept only where it touches a cave**, as one cell of
+  rock. That walls every cave in, for walking and for light, and leaves the rest
+  of the underground empty rather than writing out an island of stone.
+- **Flat roofs become pitched ones**, in the grammar the house generator
+  builds (see "The grammar is the one the two example buildings already
+  define"), one per connected patch of roof, stepping in across its short axis.
+  A patch wider than eight cells is roofed as parallel gables, because one gable
+  rises a level per cell and the widest hall carried a roof six storeys tall. A
+  patch that a ladder or staircase comes out on stays flat, as a terrace.
+- **Half of each kind of monster is put down.** Tibia's island holds about 800,
+  and a creature here thinks every round while a player is within its brain's
+  reach on the plan, on any level, so a player over Rookgaard's stacked caves
+  kept 200 awake. Measured with `bun run bench:server` on the translated map,
+  six players spread over the island took a tick's p95 from 27ms at half to
+  65ms at full, against a 33ms tick.
+- **Each monster is the nearest creature here** in size and threat, and the
+  five shopkeepers whose trade matches one of ours are those NPCs: Obi the
+  blacksmith, Dixi the armourer, Al Dee the torch seller, Hyacinth the potion
+  seller and Willie the pie maker. They stand behind their counters as in Tibia,
+  which is within talking reach (`TALK_REACH_CELLS`), so the check the script
+  makes is that somebody can get near enough to talk, not onto their cell.
+
+**What is not carried over.** Every other NPC, including Cipfried and the
+Oracle; chest contents and quest rewards; which doors are locked,
+so every door opens; protection zones and house ownership; the difference
+between swamp and mud, so the swamps are walkable. A Tibia sign keeps its text
+as the sign's inscription.
+
+**The script checks its own output the way `carve:caves --verify` does.** It
+builds a `GameSession` from the map before writing it, then walks it from the
+spawn with `canWalk`, every door open and every ladder and portal taken, and
+exits non-zero if a staircase climbs nowhere or a shopkeeper cannot be reached
+to talk to. What the walk cannot reach is reported per level. Above ground it
+is nearly all roof. Below ground it is 4–10% of each floor's cells, which have
+not been traced one by one: Tibia opens some passages with a lever or a quest,
+and neither is translated.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is

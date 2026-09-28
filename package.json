@@ -15,6 +15,7 @@
     "generate:water": "bun scripts/generate-water-tileset.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
+    "import:rookgaard": "bun scripts/import-rookgaard.ts",
     "bench:server": "bun scripts/bench-server.ts",
     "bench:crowd": "bun scripts/bench-crowd.ts",
     "test": "bun run test:unit && bun run test:server && bun run test:perf",
