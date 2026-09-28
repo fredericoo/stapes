@@ -22,7 +22,8 @@ import { DEFAULT_STATUS_SOURCE, type StatusDef, statusesById } from "../lib/stat
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
-import { initialMemory, stepBrain, type WalkGoal, type WalkOrderState } from "./brainRuntime";
+import { initialMemory, stepBrain, type BrainContext, type WalkOrderState } from "./brainRuntime";
+import { brainContext } from "./testBrainContext";
 import { fightingStats, resolveBattler } from "../lib/battler";
 import { attackIntervalMs } from "./combat";
 import {
@@ -115,31 +116,6 @@ function advance(session: GameSession, ms: number) {
   }
 }
 
-function openRoute(self: Coord, at: Coord): Direction | "arrived" | null {
-  const dx = at.x - self.x;
-  const dy = at.y - self.y;
-  if (at.z === self.z && Math.abs(dx) + Math.abs(dy) <= 1) return "arrived";
-  if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? "e" : "w";
-  return dy > 0 ? "s" : "n";
-}
-
-function standingOrder(ctx: Parameters<typeof stepBrain>[3], goal: WalkGoal): WalkOrderState {
-  if (ctx.busy) return "walking";
-  const at = goal.of === "cell" ? goal.at : ctx.positionOf(goal.id);
-  if (!at) return "blocked";
-  const direction = openRoute(ctx.self, at);
-  if (direction === null) return "blocked";
-  if (direction === "arrived") return "arrived";
-  return ctx.step(direction) ? "walking" : "blocked";
-}
-
-function runningOrder(ctx: Parameters<typeof stepBrain>[3], threat: Coord): WalkOrderState {
-  if (ctx.busy) return "walking";
-  const away = openRoute(threat, ctx.self);
-  if (away === null || away === "arrived") return "blocked";
-  return ctx.step(away) ? "walking" : "blocked";
-}
-
 function deerCell(session: GameSession): string {
   const deer = session.actorSnapshots().find((actor) => actor.tileId !== "player");
   return deer ? `${deer.x},${deer.y}` : "gone";
@@ -194,47 +170,7 @@ describe("authoring a brain", () => {
 });
 
 describe("deciding", () => {
-  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
-    const self = overrides.self ?? { x: 0, y: 0, z: 0 };
-    const built = {
-      busy: false,
-      rng: new Rng(1),
-      self,
-      home: null,
-      nearestOnTile: () => null,
-      nearestThing: () => null,
-      thingStillThere: () => false,
-      positionOf: () => null,
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
-      walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
-      fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
-      step: vi.fn(() => true),
-      say: vi.fn(),
-      noise: vi.fn(),
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      hurtBy: () => [],
-      attack: vi.fn(() => false),
-      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
-      extract: vi.fn(() => false),
-      switchThing: vi.fn(() => false),
-      consume: vi.fn(() => false),
-      consumeOn: vi.fn(() => false),
-      carrying: () => false,
-      hasStatus: () => false,
-      standOff: () => null,
-      health: () => 1,
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
-      ...overrides,
-    } satisfies Parameters<typeof stepBrain>[3];
-    return built;
-  }
+  const ctx = brainContext;
 
   it("stays put until its condition holds", () => {
     const brain = wanderingBrain();
@@ -1455,47 +1391,7 @@ describe("watching where it puts its feet", () => {
 });
 
 describe("actions that take time", () => {
-  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
-    const self = overrides.self ?? { x: 0, y: 0, z: 0 };
-    const built = {
-      busy: false,
-      rng: new Rng(1),
-      self,
-      home: null,
-      nearestOnTile: () => null,
-      nearestThing: () => null,
-      thingStillThere: () => false,
-      positionOf: () => null,
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
-      walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
-      fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
-      step: vi.fn(() => true),
-      say: vi.fn(),
-      noise: vi.fn(),
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      hurtBy: () => [],
-      attack: vi.fn(() => false),
-      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
-      extract: vi.fn(() => false),
-      switchThing: vi.fn(() => false),
-      consume: vi.fn(() => false),
-      consumeOn: vi.fn(() => false),
-      carrying: () => false,
-      hasStatus: () => false,
-      standOff: () => null,
-      health: () => 1,
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
-      ...overrides,
-    } satisfies Parameters<typeof stepBrain>[3];
-    return built;
-  }
+  const ctx = brainContext;
 
   const GRAZE_MS = BRAIN_TICK_MS * 3;
   const STROLL_STEPS = 4;
@@ -2553,46 +2449,12 @@ describe("hearing a sound", () => {
 });
 
 describe("composing conditions", () => {
-  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
-    const built = {
-      busy: false,
-      rng: new Rng(1),
-      self: { x: 0, y: 0, z: 0 },
-      home: null,
-      nearestOnTile: () => null,
-      nearestThing: () => null,
-      thingStillThere: () => false,
+  const ctx = (overrides: Partial<BrainContext> = {}) =>
+    brainContext({
       positionOf: () => ({ x: 0, y: 0, z: 0 }),
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "arrived",
-      fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
-      step: vi.fn(() => true),
-      say: vi.fn(),
-      noise: vi.fn(),
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      hurtBy: () => [],
-      attack: vi.fn(() => false),
-      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
-      extract: vi.fn(() => false),
-      switchThing: vi.fn(() => false),
-      consume: vi.fn(() => false),
-      consumeOn: vi.fn(() => false),
-      carrying: () => false,
-      hasStatus: () => false,
-      standOff: () => null,
-      health: () => 1,
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
       ...overrides,
-    } satisfies Parameters<typeof stepBrain>[3];
-    return built;
-  }
+    });
 
   function watching(condition: BrainCondition): BrainDef {
     return {
@@ -3388,47 +3250,8 @@ describe("knowing where it belongs", () => {
   const HOME: Selector = { type: "home" };
   const BURROW = { x: 4, y: 0, z: 0 };
 
-  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
-    const self = overrides.self ?? { x: 0, y: 0, z: 0 };
-    const built = {
-      busy: false,
-      rng: new Rng(1),
-      self,
-      home: BURROW,
-      nearestOnTile: () => null,
-      nearestThing: () => null,
-      thingStillThere: () => false,
-      positionOf: () => null,
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
-      walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
-      fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
-      step: vi.fn(() => true),
-      say: vi.fn(),
-      noise: vi.fn(),
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      hurtBy: () => [],
-      attack: vi.fn(() => false),
-      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
-      extract: vi.fn(() => false),
-      switchThing: vi.fn(() => false),
-      consume: vi.fn(() => false),
-      consumeOn: vi.fn(() => false),
-      carrying: () => false,
-      hasStatus: () => false,
-      standOff: () => null,
-      health: () => 1,
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
-      ...overrides,
-    } satisfies Parameters<typeof stepBrain>[3];
-    return built;
-  }
+  const ctx = (overrides: Partial<BrainContext> = {}) =>
+    brainContext({ home: BURROW, ...overrides });
 
   function leashed(cells: number): BrainDef {
     return {
@@ -4582,47 +4405,16 @@ describe("lighting the lamps", () => {
 describe("naming a thing", () => {
   const BUSH_AT = { x: 2, y: 0, z: 0 };
 
-  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
-    const built = {
-      busy: false,
-      rng: new Rng(1),
-      self: { x: 0, y: 0, z: 0 },
-      home: null,
-      nearestOnTile: () => null,
+  const ctx = (overrides: Partial<BrainContext> = {}) =>
+    brainContext({
       nearestThing: (tileIds: readonly string[]) =>
         tileIds.includes("bush") ? { at: BUSH_AT, tileId: "bush" } : null,
       thingStillThere: () => true,
-      positionOf: () => null,
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "walking",
       fleeFrom: (): WalkOrderState => "walking",
-      step: () => true,
-      say: vi.fn(),
-      noise: vi.fn(),
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      hurtBy: () => [],
-      attack: vi.fn(() => false),
-      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => true),
-      switchThing: vi.fn(() => false),
-      consume: vi.fn(() => false),
-      consumeOn: vi.fn(() => false),
-      carrying: () => false,
-      hasStatus: () => false,
-      standOff: () => null,
-      health: () => 1,
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
       ...overrides,
-    } satisfies Parameters<typeof stepBrain>[3];
-    return built;
-  }
+    });
 
   function bindingBrain(action: BrainActionDef): BrainDef {
     return {
@@ -4743,46 +4535,16 @@ describe("what a slot turns out to hold", () => {
 });
 
 describe("asking what a body is under", () => {
-  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
-    const built = {
-      busy: false,
-      rng: new Rng(1),
-      self: { x: 0, y: 0, z: 0 },
-      home: null,
-      nearestOnTile: () => null,
-      nearestThing: () => null,
+  const ctx = (overrides: Partial<BrainContext> = {}) =>
+    brainContext({
       thingStillThere: () => true,
-      positionOf: () => null,
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "walking",
       fleeFrom: (): WalkOrderState => "walking",
-      step: () => true,
-      say: vi.fn(),
-      noise: vi.fn(),
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      hurtBy: () => [],
-      attack: vi.fn(() => false),
-      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
-      extract: vi.fn(() => false),
-      switchThing: vi.fn(() => false),
-      consume: vi.fn(() => false),
       consumeOn: vi.fn(() => true),
-      carrying: () => false,
       hasStatus: vi.fn(() => false),
-      standOff: () => null,
       health: vi.fn((): number | null => 1),
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
       ...overrides,
-    } satisfies Parameters<typeof stepBrain>[3];
-    return built;
-  }
+    });
 
   function watching(condition: BrainCondition): BrainDef {
     return {
@@ -4939,46 +4701,16 @@ describe("asking what a body is under", () => {
 });
 
 describe("casting a spell of its own", () => {
-  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
-    const built = {
-      busy: false,
-      rng: new Rng(1),
-      self: { x: 0, y: 0, z: 0 },
-      home: null,
+  const ctx = (overrides: Partial<BrainContext> = {}) =>
+    brainContext({
       nearestOnTile: () => "player",
-      nearestThing: () => null,
       thingStillThere: () => true,
       positionOf: () => ({ x: 2, y: 0, z: 0 }),
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
       walkTo: vi.fn((): WalkOrderState => "walking"),
       fleeFrom: (): WalkOrderState => "walking",
-      step: () => true,
-      say: vi.fn(),
-      noise: vi.fn(),
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      hurtBy: () => [],
-      attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "cast"),
-      extract: vi.fn(() => false),
-      switchThing: vi.fn(() => false),
-      consume: vi.fn(() => false),
-      consumeOn: vi.fn(() => false),
-      carrying: () => false,
-      hasStatus: () => false,
-      standOff: () => null,
-      health: () => 1,
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
       ...overrides,
-    } satisfies Parameters<typeof stepBrain>[3];
-    return built;
-  }
+    });
 
   const casting: BrainDef = {
     initial: "hunting",
