@@ -32973,16 +32973,56 @@
                     "text": "There's a cyclops living in the old tower up north. Taller than you and me stood on each other."
                   },
                   {
-                    "kind": "say",
-                    "text": "It sleeps from dusk till dawn. In the day it walks about up there, and it'll come for you if you get within a few steps."
+                    "kind": "anchor",
+                    "name": "cyclops"
                   },
                   {
-                    "kind": "say",
-                    "text": "It takes a lot of killing, and it hits like a falling wall. Some that went up came back with a blank arcane stone. Most came back with less than they went with."
-                  },
-                  {
-                    "kind": "goto",
-                    "name": "main"
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Is it ever asleep?",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "From dusk till dawn. In the day it walks about up there, and it'll come for you if you get within a few steps."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "cyclops"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Why would anyone go up there?",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Some that went up came back with a blank arcane stone. Most came back with less than they went with."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "It takes a lot of killing, and it hits like a falling wall."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "cyclops"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Anything else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ]
               },
@@ -33537,7 +33577,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "Shiddown, shiddown. *hic* You look like shomeone who wantsh to hear 'bout the troll."
+            "text": "Shiddown, shiddown. *hic* You look like shomeone who wantsh a shtory."
           },
           {
             "kind": "anchor",
@@ -33547,52 +33587,135 @@
             "kind": "choices",
             "options": [
               {
-                "label": "The troll?",
+                "label": "What story?",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "There'sh a cave troll in a den three floorsh down, shouth-easht of town. *hic* I dug my way into it once. Onsh. Once."
+                    "text": "I wash down in the cavesh, diggin' for shardsh. *hic* Deep down. Dark ash the inshide of your boot."
                   },
                   {
                     "kind": "say",
-                    "text": "It can barely shee — you could shtand a few pashes off an' it wouldn't know you. *hic* But it hearsh everything. Eat, or casht a shtone, an' it comesh lookin'."
+                    "text": "An' I shee a flame. Down there! Where no flame shoulda been. Sho I follow it."
                   },
                   {
                     "kind": "say",
-                    "text": "An' it breathesh embersh at you from 'crossh the room. They can shet you alight. *hic*"
+                    "text": "Round a corner an'... *hic* a troll. A huge one. Biggesht thing I ever shaw. An' the shtink of it! Like a dead goat in a bog."
                   },
                   {
-                    "kind": "say",
-                    "text": "It carriesh a troll shkull, an' now an' then a blank arcane shtone. Tha'sh why anybody goesh down there."
+                    "kind": "anchor",
+                    "name": "troll"
                   },
                   {
-                    "kind": "goto",
-                    "name": "main"
-                  }
-                ]
-              },
-              {
-                "label": "Arcane stones?",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "Take a blank shtone to the shtone forge in the shquare an' forge it. *hic* It comesh out ash shomething — Spark mosht often, Cinder, Sleet or Barbs less, Flame hardly ever."
-                  },
-                  {
-                    "kind": "say",
-                    "text": "Two o' the shame kind forge into one better one. Two Cinders make Ember, two Sleets make Frost, two Barbs make Thorns, two Sparks make Bolt. *hic*"
-                  },
-                  {
-                    "kind": "say",
-                    "text": "Two o' thoshe again an' you get Pyre, Rime, Bramble or Lance. But one time in four it failsh, an' you loshe both shtones. Both! *hic*"
-                  },
-                  {
-                    "kind": "say",
-                    "text": "An' one Frost with one Thorns makesh Verdance. Tha' one healsh you. Healsh you right up."
-                  },
-                  {
-                    "kind": "goto",
-                    "name": "main"
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Where are these caves?",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Shtraight shouth o' town. Pasht the shnakesh — there'sh a few, mind — there'sh a hole in the ground. *hic*"
+                          },
+                          {
+                            "kind": "say",
+                            "text": "Down you go, an' keep goin' down. The troll'sh three floorsh under."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "troll"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "How did you get away?",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "It can barely shee — I wash a few pashesh off an' it didn't know I wash there. *hic* But it hearsh everything."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "Sho I kept my mouth shut an' didn't eat a crumb, or cast a shtone, till I wash out. Eat near it an' it comesh lookin'."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "An' it breathesh embersh. Shaw it shet a rat alight from 'crossh the cave. *hic*"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "troll"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Why dig for shards?",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Shardsh buy ale. *hic* Obvioushly."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "Blank arcane shtonesh, though — you don't dig them. Shomethin' big hash to drop one when it diesh. Shomethin' like a troll."
+                          },
+                          {
+                            "kind": "anchor",
+                            "name": "stones"
+                          },
+                          {
+                            "kind": "choices",
+                            "options": [
+                              {
+                                "label": "What do I do with a blank stone?",
+                                "then": [
+                                  {
+                                    "kind": "say",
+                                    "text": "Take it to the shtone forge in the shquare an' forge it. *hic* It comesh out ash shomething — Spark mosht often, Cinder, Sleet or Barbs less, Flame hardly ever."
+                                  },
+                                  {
+                                    "kind": "say",
+                                    "text": "Two o' the shame kind forge into one better one. Two Cinders make Ember, two Sleets make Frost, two Barbs make Thorns, two Sparks make Bolt. *hic*"
+                                  },
+                                  {
+                                    "kind": "say",
+                                    "text": "Two o' thoshe again an' you get Pyre, Rime, Bramble or Lance. But one time in four it failsh, an' you loshe both shtones. Both!"
+                                  },
+                                  {
+                                    "kind": "say",
+                                    "text": "An' one Frost with one Thorns makesh Verdance. Tha' one healsh you. Healsh you right up."
+                                  },
+                                  {
+                                    "kind": "goto",
+                                    "name": "stones"
+                                  }
+                                ]
+                              },
+                              {
+                                "label": "Back",
+                                "then": [
+                                  {
+                                    "kind": "say",
+                                    "text": "Where wash I? *hic* The troll."
+                                  },
+                                  {
+                                    "kind": "goto",
+                                    "name": "troll"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Thanks",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "G'wan then. *hic* Keep quiet near that den."
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ]
               },
@@ -33601,7 +33724,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "G'wan then. *hic* Keep quiet near that den."
+                    "text": "Shuit yourshelf. *hic*"
                   }
                 ]
               }
@@ -34162,36 +34285,90 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Bog imps. *hic* Li'l ones, 'n' quick t'anger. In daylight they go for anythin' tha' walks near 'em, 'n' they throw stones 'fore they even get t'ya."
+                    "text": "Bog imps. *hic* Tall, skinny things. All arms 'n' legs, 'n' quick t'anger."
                   },
                   {
                     "kind": "say",
-                    "text": "They live on berries 'n' whatever meat they c'n catch. *hic* Strip a bush bare, they will. Baaare."
+                    "text": "In daylight they go for anythin' tha' walks near 'em, 'n' they throw stones 'fore they even get t'ya."
                   },
                   {
-                    "kind": "goto",
-                    "name": "main"
-                  }
-                ]
-              },
-              {
-                "label": "And at night?",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "Come nightfall they all gather up, light a campfire 'n' sleep round it till mornin'. *hic*"
+                    "kind": "anchor",
+                    "name": "imps"
                   },
                   {
-                    "kind": "say",
-                    "text": "So if ya see a flame out in the bog after dark... thass prob'ly them. Go round it. Go aaall the way round."
-                  },
-                  {
-                    "kind": "say",
-                    "text": "Leave 'em be till mornin'. Hit one 'n' it wakes up angry. *hic* Angrier'n a wet cat."
-                  },
-                  {
-                    "kind": "goto",
-                    "name": "main"
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "What do they eat?",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Berries 'n' whatever meat they c'n catch. *hic* Strip a bush bare, they will. Baaare."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "imps"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "And at night?",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Come nightfall they all gather up, light a campfire 'n' sleep round it till mornin'. *hic*"
+                          },
+                          {
+                            "kind": "say",
+                            "text": "So if ya see a flame out in the bog after dark... thass prob'ly them. Go round it. Go aaall the way round."
+                          },
+                          {
+                            "kind": "anchor",
+                            "name": "night"
+                          },
+                          {
+                            "kind": "choices",
+                            "options": [
+                              {
+                                "label": "What if one wakes up?",
+                                "then": [
+                                  {
+                                    "kind": "say",
+                                    "text": "Hit one 'n' it wakes up angry. *hic* Angrier'n a wet cat. Leave 'em be till mornin'."
+                                  },
+                                  {
+                                    "kind": "goto",
+                                    "name": "night"
+                                  }
+                                ]
+                              },
+                              {
+                                "label": "Back",
+                                "then": [
+                                  {
+                                    "kind": "say",
+                                    "text": "Wha' else? *hic*"
+                                  },
+                                  {
+                                    "kind": "goto",
+                                    "name": "imps"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Thanks",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Shtay outta the bog after dark. *hic* 'M serious."
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ]
               },
@@ -34200,7 +34377,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Shtay outta the bog after dark. *hic* 'M serious."
+                    "text": "Suit yerself. *hic*"
                   }
                 ]
               }
