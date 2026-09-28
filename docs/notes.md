@@ -12281,6 +12281,17 @@ other.
 rAF is throttled, so the loop only advances when something forces a frame.
 Measure in Node, or read the in-game counter on a real screen.
 
+**A loop of ticks has to give the event loop control between ticks.** The engine
+keeps a `WeakRef`'s target alive until the event loop gets control back, and
+every chunk or level that `mapData` copies holds a `WeakRef` to the one it was
+copied from. `bench:server` used to run its ticks in one synchronous loop, so
+every version of every chunk the run wrote stayed alive: on the shipped map's
+`spread` scenario (Bun 1.4.2) the heap grew from 56MB to 218MB in 40 seconds,
+and the worst tick, a full collection, took 6.5 seconds. Awaiting a microtask
+changes nothing. `setImmediate` does: the same run keeps its heap under 90MB,
+and its worst tick is 30ms. The server is not affected, because each of its
+ticks starts from a timer.
+
 ## Known remaining costs
 
 Not yet fixed, and worth knowing before you profile something else:

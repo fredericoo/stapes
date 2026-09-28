@@ -65,7 +65,8 @@ an agent drives", lists every call.
 - `bun run bench:server` — tick the world headless against `data/map.json`
   with players standing in a few scenarios, and print what a tick costs and
   how many bytes it puts on the wire. `--scenario <name>` for one,
-  `--seconds <n>` for a shorter run
+  `--seconds <n>` for a shorter run, `--scale <n>` to put `n` of every resident
+  on the map, each copy on a nearby cell with the same floor
 - `bun run bench:crowd` — seat a crowd of walking players on a real
   `GameServer` against `data/map.json`, and print the tick rate the world
   keeps, what a tick costs and which parts of it cost that. `--players <n>`
