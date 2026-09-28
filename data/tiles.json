@@ -33537,7 +33537,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "Sit down, sit down. You look like you want to hear about the troll."
+            "text": "Shiddown, shiddown. *hic* You look like shomeone who wantsh to hear 'bout the troll."
           },
           {
             "kind": "anchor",
@@ -33551,19 +33551,19 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "There's a cave troll in a den three floors down, south-east of town. I dug my way into it once. Once."
+                    "text": "There'sh a cave troll in a den three floorsh down, shouth-easht of town. *hic* I dug my way into it once. Onsh. Once."
                   },
                   {
                     "kind": "say",
-                    "text": "It can barely see — you could stand a few paces off and it wouldn't know you. But it hears everything. Eat, or cast a stone, and it'll come looking."
+                    "text": "It can barely shee — you could shtand a few pashes off an' it wouldn't know you. *hic* But it hearsh everything. Eat, or casht a shtone, an' it comesh lookin'."
                   },
                   {
                     "kind": "say",
-                    "text": "And it breathes embers at you from across the room. They can set you alight."
+                    "text": "An' it breathesh embersh at you from 'crossh the room. They can shet you alight. *hic*"
                   },
                   {
                     "kind": "say",
-                    "text": "It carries a troll skull, and now and then a blank arcane stone. That's why anybody goes down there."
+                    "text": "It carriesh a troll shkull, an' now an' then a blank arcane shtone. Tha'sh why anybody goesh down there."
                   },
                   {
                     "kind": "goto",
@@ -33576,19 +33576,19 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Take a blank stone to the stone forge in the square and forge it. It comes out as something — Spark most often, Cinder, Sleet or Barbs less, Flame hardly ever."
+                    "text": "Take a blank shtone to the shtone forge in the shquare an' forge it. *hic* It comesh out ash shomething — Spark mosht often, Cinder, Sleet or Barbs less, Flame hardly ever."
                   },
                   {
                     "kind": "say",
-                    "text": "Two of the same forge into one better: two Cinders make Ember, two Sleets make Frost, two Barbs make Thorns, two Sparks make Bolt."
+                    "text": "Two o' the shame kind forge into one better one. Two Cinders make Ember, two Sleets make Frost, two Barbs make Thorns, two Sparks make Bolt. *hic*"
                   },
                   {
                     "kind": "say",
-                    "text": "Two of those again and you get Pyre, Rime, Bramble or Lance. That forging fails one time in four, and you lose both stones."
+                    "text": "Two o' thoshe again an' you get Pyre, Rime, Bramble or Lance. But one time in four it failsh, an' you loshe both shtones. Both! *hic*"
                   },
                   {
                     "kind": "say",
-                    "text": "And one Frost with one Thorns makes Verdance. That one heals you."
+                    "text": "An' one Frost with one Thorns makesh Verdance. Tha' one healsh you. Healsh you right up."
                   },
                   {
                     "kind": "goto",
@@ -33601,7 +33601,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Go on then. Keep quiet near that den."
+                    "text": "G'wan then. *hic* Keep quiet near that den."
                   }
                 ]
               }
@@ -34148,7 +34148,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "You're heading north? Past the bog? Then listen."
+            "text": "Yooou're headin' north? *hic* Paaast the bog? Then lissen. Lissen t'me."
           },
           {
             "kind": "anchor",
@@ -34162,11 +34162,11 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Bog imps. Small, and quick to anger. In daylight they go for anything that walks near them, and they throw stones before they get to you."
+                    "text": "Bog imps. *hic* Li'l ones, 'n' quick t'anger. In daylight they go for anythin' tha' walks near 'em, 'n' they throw stones 'fore they even get t'ya."
                   },
                   {
                     "kind": "say",
-                    "text": "They live on berries and whatever meat they can catch. They'll strip a bush bare."
+                    "text": "They live on berries 'n' whatever meat they c'n catch. *hic* Strip a bush bare, they will. Baaare."
                   },
                   {
                     "kind": "goto",
@@ -34179,15 +34179,15 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "At nightfall they gather together, light a campfire and sleep round it until morning."
+                    "text": "Come nightfall they all gather up, light a campfire 'n' sleep round it till mornin'. *hic*"
                   },
                   {
                     "kind": "say",
-                    "text": "So if you see a flame out in the bog after dark, it's probably them. Go round it."
+                    "text": "So if ya see a flame out in the bog after dark... thass prob'ly them. Go round it. Go aaall the way round."
                   },
                   {
                     "kind": "say",
-                    "text": "Leave them be until morning. Hit one and it wakes up angry."
+                    "text": "Leave 'em be till mornin'. Hit one 'n' it wakes up angry. *hic* Angrier'n a wet cat."
                   },
                   {
                     "kind": "goto",
@@ -34200,7 +34200,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Stay out of the bog after dark."
+                    "text": "Shtay outta the bog after dark. *hic* 'M serious."
                   }
                 ]
               }
