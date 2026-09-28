@@ -149,6 +149,12 @@ an agent drives", lists every call.
 - `bun run generate:npcs` — recolour the one humanoid in `people.png` into a
   sheet per NPC, so nobody in town is the player's twin. Writes
   `data/tilesets/townsfolk.png`, `smith.png`, `armourer.png` and `guard.png`
+- `bun run generate:figure` — render a walking character sheet from the 3D
+  figure in `app/lib/figure.ts`, dressed by flags (`--hair bob --legs robe
+  --cloak hooded …`), without a server. `--out` writes one PNG anywhere;
+  `--name` saves it to `data/tilesets/` and registers it, and `--tile` moves a
+  tile onto it; `--batch` takes a JSON list. `--help` lists every flag, and the
+  `sprite-figures` skill is the workflow
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as
