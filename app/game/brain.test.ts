@@ -31,6 +31,7 @@ import {
   BRAIN_ROUND_TICKS,
   BRAIN_TURNS_PER_TICK_MIN,
   BRAIN_TICK_MS,
+  FAILED_ROUTE_MEMORY_MS,
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
@@ -631,6 +632,18 @@ describe("chasing round an obstacle", () => {
     };
   }
 
+  function stalkBrain(): BrainDef {
+    const hunt = huntBrain();
+    return {
+      ...hunt,
+      states: {
+        ...hunt.states,
+        hunt: { do: [{ action: "step_toward", of: slot("prey") }, { action: "hold" }] },
+      },
+      transitions: hunt.transitions.filter((transition) => transition.to !== "giving_up"),
+    };
+  }
+
   const hunters: TileDef[] = [
     ...tiles,
     tile({
@@ -641,6 +654,15 @@ describe("chasing round an obstacle", () => {
       walkable: false,
       interactions: { brain: huntBrain() },
     }),
+    tile({
+      id: "stalker",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: stalkBrain() },
+    }),
+    tile({ id: "plank", height: 1 }),
     tile({
       id: "swimming-hunter",
       height: 2,
@@ -736,6 +758,28 @@ describe("chasing round an obstacle", () => {
     const session = acrossRiver("swimming-hunter");
 
     advance(session, BRAIN_TICK_MS * 10);
+
+    expect(between(session)).toBe(1);
+  });
+
+  it("sets off at once when somebody it could not reach stands where it can", () => {
+    const session = acrossRiver("stalker");
+    advance(session, BRAIN_TICK_MS * 3);
+    expect(between(session)).toBe(3);
+
+    session.runCommand("/goto 0 3 0", "alice");
+    advance(session, BRAIN_TICK_MS * 2);
+
+    expect(between(session)).toBeLessThan(3);
+  });
+
+  it("crosses a way that opened after it found none", () => {
+    const session = acrossRiver("stalker");
+    advance(session, BRAIN_TICK_MS * 3);
+    expect(between(session)).toBe(3);
+
+    session.runCommand("/tile plank 1 0 0", "alice");
+    advance(session, FAILED_ROUTE_MEMORY_MS + BRAIN_TICK_MS * 6);
 
     expect(between(session)).toBe(1);
   });

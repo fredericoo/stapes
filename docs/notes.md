@@ -2267,11 +2267,31 @@ percentage. `PATH_DETOUR_SLACK` is now in the same units as the cost — sixteen
 steps' worth of time, not sixteen cells. `bun scripts/bench-server.ts
 --scenario spread` read 2.01ms at p50 before and 1.99ms after.
 
-**Nothing is kept between two decisions.** A route is recomputed for every leg
-rather than followed, because a kept plan is a plan about a world that has
-since moved — the target walked on, a crate was shoved into the third step,
-another creature filled the fourth. At one search per step the check that a
-kept route was still true would cost about what recomputing it does.
+**Nothing is kept between two decisions, except a failure.** A route is
+recomputed for every leg rather than followed, because a kept plan is a plan
+about a world that has since moved — the target walked on, a crate was shoved
+into the third step, another creature filled the fourth. At one search per step
+the check that a kept route was still true would cost about what recomputing it
+does.
+
+A search that finds nothing is the exception, because it is the expensive one:
+it spends all of `PATH_MAX_NODES`, and a brain asks for the same walk every
+round, so a creature watching somebody it had no way to reach paid for the whole
+search five times a second for as long as it watched. `routeStep` remembers its
+last failure — from which cell, to which cell, with which drops and arrival —
+and answers that there is no way without searching until
+`FAILED_ROUTE_MEMORY_MS` has passed. Anything that changes the question searches
+at once: the creature moving, its target moving, a different goal. What it costs
+is a way that opens while nothing moved, a door opened or a plank laid, which is
+found up to a second late. `brain.test.ts` pins both halves, in "sets off at
+once when somebody it could not reach stands where it can" and "crosses a way
+that opened after it found none".
+
+On `bench:server`'s `spread` scenario (Bun 1.4.2), with the shipped map's
+residents multiplied by 1, 4 and 8, the tick's p95 went from 20ms to 12ms, from
+67ms to 38ms and from 129ms to 68ms. The search still copies the board to take
+the searcher off it (`removeTileAt` at the top of `findPath`), and that copy was
+0.2% of the tick at eight times the residents, so it stays.
 
 **Fleeing used to be greedy, and this section used to argue that it should be.**
 The argument was that "away" is a direction rather than a place, so the question
@@ -12272,14 +12292,6 @@ Not yet fixed, and worth knowing before you profile something else:
   chunk column of dense cave is a handful of chunks at once. `MESH_WINDOW_MARGIN`
   is what buys the warning, and a budget that built one chunk per frame out of a
   queue is the structural answer if it is ever felt.
-- **A creature that has bound a target it cannot reach re-proves it every brain
-  tick.** A route search that fails costs the full `PATH_MAX_NODES` — about five
-  milliseconds on the shipped map, against well under one for a route it finds —
-  and brains all tick on the same frame, so a roomful of creatures watching
-  somebody through a window pay it together. The authored way out is a `stuck`
-  transition, which every shipped brain has; the structural one would be
-  remembering the failure for a few ticks, which is the only piece of route
-  state worth keeping and has not been needed yet.
 - **A respawn sweeps the whole board, and a creature's respawn sweeps it
   twice.** `respawnAt` mints item ids with `mintItemIds` over the whole board
   rather than in the cell it grew: about 26ms on the shipped map and 70ms on a
