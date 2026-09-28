@@ -57,6 +57,8 @@ so accounts need no configuration. See [SETUP.md](SETUP.md).
 - `/admin/map` — the map editor, which `/admin` opens on
 - `/admin/tiles` and `/admin/statuses` — the tile and status catalogues
 - `/admin/voxel` — builds a sprite out of voxels and exports it as a tileset
+- `/admin/townsfolk` — draws a walking character sheet from a 3D figure dressed
+  in the colours, hair and cloak you pick
 - `/admin/arena` — two fighters without a world in the way, for balancing
 - `/admin/play` — the game with the world running in the tab
 - `/admin/actions` — acting on the running world: **Close world**, for
