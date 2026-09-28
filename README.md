@@ -85,6 +85,11 @@ an agent drives", lists every call.
   smaller crowd. Run it with `BUN_OPTIONS=` empty if your shell sets `--smol`,
   which collects garbage far more often than production does. `docs/notes.md`,
   "A thousand players, profiled", has what it measured and how to compare runs
+- `node scripts/record-hero.ts <client url>` — record the landing page's hero
+  video, a walk through town with no interface, into `public/home/` as WebM,
+  MP4 and a poster. Needs `bun dev` running and `ffmpeg` installed. Runs the page
+  at a tenth of real time so software WebGL still gives a smooth video; the
+  script says how
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says

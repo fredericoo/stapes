@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { Link } from "react-router";
 import { DoorLogo, SYSTEM_MONO } from "../components/door";
 import type { Route } from "./+types/home";
@@ -121,14 +121,53 @@ export default function HomePage() {
   );
 }
 
+/**
+ * The video is square and the character stays in its centre, so `object-cover`
+ * keeps them in every crop. `object-top` puts them under the buttons on a wide
+ * screen instead of behind the logo. `pixelated` because the recording is the
+ * game's own pixels scaled by a whole number.
+ */
 function Hero() {
+  const video = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const element = video.current;
+    if (!element) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => {
+      if (reduce.matches) element.pause();
+      else void element.play().catch(() => {});
+    };
+    apply();
+    reduce.addEventListener("change", apply);
+    return () => reduce.removeEventListener("change", apply);
+  }, []);
+
   return (
-    <header className="flex min-h-[100svh] flex-col items-center justify-center gap-8 px-4 py-16 text-center">
+    <header className="relative isolate flex min-h-[100svh] flex-col items-center justify-center gap-8 overflow-hidden px-4 py-16 text-center">
+      <video
+        ref={video}
+        className="absolute inset-0 -z-20 h-full w-full object-cover object-top"
+        style={{ imageRendering: "pixelated" }}
+        poster="/home/hero.jpg"
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+      >
+        <source src="/home/hero.webm" type="video/webm" />
+        <source src="/home/hero.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-ink/70 via-ink/40 to-ink" />
       <DoorLogo />
-      <p className="text-[20px] leading-[30px] text-paper" style={{ fontFamily: PIXEL }}>
+      <p
+        className="text-[20px] leading-[30px] text-paper [text-shadow:2px_2px_0_#1a1a1a]"
+        style={{ fontFamily: PIXEL }}
+      >
         A small MMO that runs in your browser.
       </p>
-      <p className="max-w-md text-sm leading-relaxed text-paper/80">
+      <p className="max-w-md text-sm leading-relaxed text-paper/90 [text-shadow:1px_1px_0_#1a1a1a]">
         Walk around, fight, cast, trade and explore with other people. On your phone or your
         computer, in the same world.
       </p>
