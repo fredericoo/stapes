@@ -5162,7 +5162,11 @@ nearer the camera is also outlined, which separates a hand from the body
 behind it.
 
 A sheet renders in about 200 ms, so the page re-renders on every change without
-a worker. The hand-drawn player and `bun run generate:npcs`'s recolours of it
+a worker. `bun run generate:figure` is the same renderer with no page: it writes
+through `DataStore` over `DiskBlobs` on `data/`, the class the server writes
+through, so `tiles.json` and `tilesets.json` keep the server's formatting and an
+anchor move is a one-line diff. It checks every `--tile` before it writes
+anything, so a refused tile leaves no orphan sheet behind. The hand-drawn player and `bun run generate:npcs`'s recolours of it
 are untouched; a generated sheet is a separate tileset.
 
 ## Magic is a stone you carry, and there is nothing else to it
