@@ -11114,7 +11114,8 @@ cause.
 ### The grammar is the one the two example buildings already define
 
 Copied from the cottage at (12,3) and the shop at (7,-8) in `data/map.json`,
-which is why those two are worth keeping intact.
+which is why those two are worth keeping intact. Their roofs are the `low`
+pitch; the `steep` one is the same grammar climbing a level for every cell.
 
 - **A storey is a ring of `[floor, wall]` around an inside of `[floor]`.** The
   door replaces the wall in one ground-floor cell; a window replaces it in
