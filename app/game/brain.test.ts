@@ -27,6 +27,7 @@ import { fightingStats, resolveBattler } from "../lib/battler";
 import { attackIntervalMs } from "./combat";
 import {
   BRAIN_ATTENTION_FLOOR_CELLS,
+  BRAIN_ATTENTIVE_MAX,
   BRAIN_DOZE_BUDGET,
   BRAIN_ROUND_TICKS,
   BRAIN_TURNS_PER_TICK_MIN,
@@ -3942,6 +3943,64 @@ describe("who gets a turn", () => {
 
     expect(turns.get(`${farSighted.x},${farSighted.y}`)).toBe(ROUNDS);
     expect(turns.get(`${shortSighted.x},${shortSighted.y}`)).toBeLessThan(ROUNDS);
+  });
+
+  describe("with more awake than it can wake", () => {
+    const OVER = 60;
+
+    function crowdAround(player: { x: number; y: number }): MapFile {
+      const map = replaceStack(field(ATTENTION_FIELD), -ATTENTION_FIELD, -ATTENTION_FIELD, 0, [
+        { tileId: "grass" },
+      ]);
+      return withPlayerAt(map, player.x, player.y);
+    }
+
+    it("spends the most it may wake and the doze budget each round, and no more", () => {
+      const player = { x: -ATTENTION_FIELD + 2, y: -ATTENTION_FIELD + 2 };
+      let map = crowdAround(player);
+      const perRow = BRAIN_ATTENTION_FLOOR_CELLS;
+      const count = BRAIN_ATTENTIVE_MAX + OVER;
+      for (let placed = 0, row = 0; placed < count; row++) {
+        const inRow = Math.min(perRow, count - placed);
+        map = withRow(map, "ticker", player.y + 2 + row, player.x, inRow);
+        placed += inRow;
+      }
+      const session = new GameSession(map, attention, {
+        actorIds: ["alice"],
+        spawnAt: { x: -ATTENTION_FIELD, y: -ATTENTION_FIELD, z: 0, stackIndex: 1 },
+      });
+
+      alignToRounds(session);
+      for (let round = 0; round < ROUNDS; round++) {
+        const turns = new Map<string, number>();
+        roundOfTurns(session, turns);
+        expect([...turns.values()].reduce((sum, n) => sum + n, 0)).toBe(
+          BRAIN_ATTENTIVE_MAX + BRAIN_DOZE_BUDGET,
+        );
+      }
+    });
+
+    it("keeps every turn for a creature on somebody's screen, however late it was placed", () => {
+      const player = { x: ATTENTION_FIELD - 5, y: ATTENTION_FIELD - 5 };
+      let map = crowdAround(player);
+      const perRow = 34;
+      const count = BRAIN_ATTENTIVE_MAX + OVER;
+      for (let placed = 0, row = 0; placed < count; row++) {
+        const inRow = Math.min(perRow, count - placed);
+        map = withRow(map, "ticker-far-sighted", -15 + row, -19, inRow);
+        placed += inRow;
+      }
+      const onScreen = { x: player.x, y: player.y - 4 };
+      map = withDeer(map, onScreen.x, onScreen.y, "ticker");
+      const session = new GameSession(map, attention, {
+        actorIds: ["alice"],
+        spawnAt: { x: -ATTENTION_FIELD, y: -ATTENTION_FIELD, z: 0, stackIndex: 1 },
+      });
+
+      const turns = turnsOver(session, ROUNDS);
+
+      expect(turns.get(`${onScreen.x},${onScreen.y}`)).toBe(ROUNDS);
+    });
   });
 
   describe("on another floor", () => {
