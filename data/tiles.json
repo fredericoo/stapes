@@ -35709,8 +35709,8 @@
       },
       "decay": {
         "tileId": "",
-        "fromMs": 600000,
-        "toMs": 780000
+        "fromMs": 420000,
+        "toMs": 540000
       }
     },
     "sprite": {
@@ -35966,6 +35966,24 @@
                 "action": "hold"
               }
             ]
+          },
+          "gathering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "nearest",
+                  "data": {
+                    "tileIds": [
+                      "bog-imp"
+                    ]
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -36182,7 +36200,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "making_fire"
+            "to": "gathering"
           },
           {
             "from": "feeding",
@@ -36229,7 +36247,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "making_fire"
+            "to": "gathering"
           },
           {
             "from": "browsing",
@@ -36276,7 +36294,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "making_fire"
+            "to": "gathering"
           },
           {
             "from": "chewing",
@@ -36323,7 +36341,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "making_fire"
+            "to": "gathering"
           },
           {
             "from": "homing",
@@ -36370,7 +36388,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "making_fire"
+            "to": "gathering"
           },
           {
             "from": "casting",
@@ -36417,7 +36435,59 @@
               "fromHour": 19,
               "toHour": 6
             },
+            "to": "gathering"
+          },
+          {
+            "from": "gathering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "flame",
+                    "campfire"
+                  ]
+                }
+              },
+              "cells": 16
+            },
+            "bind": {
+              "fire": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "flame",
+                    "campfire"
+                  ]
+                }
+              }
+            },
+            "to": "to_fire"
+          },
+          {
+            "from": "gathering",
+            "if": {
+              "cond": "after",
+              "ms": 2000,
+              "toMs": 10000
+            },
             "to": "making_fire"
+          },
+          {
+            "from": "gathering",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 19,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "roaming"
           },
           {
             "from": "making_fire",
@@ -36432,7 +36502,7 @@
                   ]
                 }
               },
-              "cells": 3
+              "cells": 16
             },
             "bind": {
               "fire": {
