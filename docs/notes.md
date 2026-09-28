@@ -10088,6 +10088,18 @@ about every brain that does not expand, since its creature otherwise just
 stands there. A bot expands the tiles it fetches the same way (`takeSeat`),
 because it reads a creature's brain for how far off it notices a player.
 
+**The Brain tab calls traits the way it writes rows.** Each call is a card with
+a field per parameter, typed by its kind: a list of bodies is chips, a
+condition is the same tree a row's `if` is. A `let` holding a condition is
+offered in every condition picker in the brain, beside the conditions. Each
+state has a band, and a card whose state a trait raises says so — the wolf's
+`hunting` is written at `idle` and holds at `fight`, because the predator's
+`fight` parameter raises whatever it is handed. *What it runs* shows the
+expanded table. Renaming a state renames it in every call argument whose
+parameter is a state and nowhere else, so a slot of the same name keeps its
+name; that is why the editor needs the catalogue to rename. Saving the tile
+runs `checkBrain` with the tile catalogue as its context.
+
 ### What the shipped creatures call
 
 Fourteen of the twenty-five shipped brains call traits, and each expands to a

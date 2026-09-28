@@ -205,7 +205,7 @@ export function isArgRef(value: unknown): value is ArgRef {
   );
 }
 
-function isCall(value: unknown): value is TraitCall {
+export function isCall(value: unknown): value is TraitCall {
   return isRecord(value) && typeof value.trait === "string";
 }
 
@@ -919,9 +919,15 @@ class Build {
 /**
  * `table` is what the calls expanded to even when something is wrong with it,
  * for the editor to show; `brain` is that table only when nothing is, and is
- * what a world runs.
+ * what a world runs. `bands` is the band each of the table's states holds at,
+ * after any state argument raised it.
  */
-export type Expansion = { brain: BrainDef | null; table: BrainDef; issues: TraitIssue[] };
+export type Expansion = {
+  brain: BrainDef | null;
+  table: BrainDef;
+  issues: TraitIssue[];
+  bands: Record<string, Band>;
+};
 
 export function expandBrain(
   authored: AuthoredBrain,
@@ -965,7 +971,10 @@ export function expandBrain(
     }
   }
   const fatal = issues.some((issue) => issue.severity === "error");
-  return { brain: fatal ? null : table, table, issues };
+  const bands = Object.fromEntries(
+    Object.keys(table.states).map((name) => [name, build.bands.get(name) ?? "idle"]),
+  );
+  return { brain: fatal ? null : table, table, issues, bands };
 }
 
 function assemble(build: Build, authored: AuthoredBrain): BrainDef {
