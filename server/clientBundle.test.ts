@@ -49,6 +49,29 @@ describe("serving a build", () => {
     expect(await text(bundle.respond("/admin/map"))).toContain("aaa");
   });
 
+  it("serves a prerendered route's own page, and never caches it", async () => {
+    const files = build("aaa");
+    files.set("about/index.html", new TextEncoder().encode("<title>about</title>"));
+    await bundle.store("aaa", files);
+    await bundle.activate("aaa");
+
+    expect(await text(bundle.respond("/about"))).toContain("about");
+    expect(await text(bundle.respond("/about/"))).toContain("about");
+    expect(bundle.respond("/about")!.headers.get("Cache-Control")).toBe("no-store");
+    expect(await text(bundle.respond("/admin/map"))).toContain("aaa");
+  });
+
+  it("falls through to the SPA fallback when / itself was prerendered", async () => {
+    const files = build("aaa");
+    files.set("__spa-fallback.html", new TextEncoder().encode("<title>shell</title>"));
+    await bundle.store("aaa", files);
+    await bundle.activate("aaa");
+
+    expect(await text(bundle.respond("/"))).toContain("aaa");
+    expect(await text(bundle.respond("/online"))).toContain("shell");
+    expect(bundle.respond("/online")!.headers.get("Cache-Control")).toBe("no-store");
+  });
+
   it("caches hashed assets forever and index.html never", async () => {
     await bundle.store("aaa", build("aaa"));
     await bundle.activate("aaa");

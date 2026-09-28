@@ -123,9 +123,14 @@ export class ClientBundle {
   respond(pathname: string): Response | null {
     if (!this.activeBuildId) return null;
     const path = pathname.replace(/^\/+/, "") || "index.html";
+    const active = this.builds.get(this.activeBuildId)!;
 
-    const fromActive = this.builds.get(this.activeBuildId)!.get(path);
+    const fromActive = active.get(path);
     if (fromActive) return toResponse(fromActive, path);
+
+    const page = `${path.replace(/\/+$/, "")}/index.html`;
+    const prerendered = active.get(page);
+    if (prerendered) return toResponse(prerendered, page);
 
     for (const [id, assets] of this.builds) {
       if (id === this.activeBuildId) continue;
@@ -133,10 +138,16 @@ export class ClientBundle {
       if (asset) return toResponse(asset, path);
     }
 
-    const index = this.builds.get(this.activeBuildId)!.get("index.html")!;
-    return toResponse(index, "index.html");
+    const fallback = active.get(SPA_FALLBACK) ?? active.get("index.html")!;
+    return toResponse(fallback, "index.html");
   }
 }
+
+/**
+ * The shell every route that was not prerendered hydrates from. React Router
+ * writes it here instead of to `index.html` once `/` itself is prerendered.
+ */
+const SPA_FALLBACK = "__spa-fallback.html";
 
 const POINTER_FILE = "active";
 
@@ -187,7 +198,7 @@ async function walk(directory: string): Promise<string[]> {
 }
 
 function toResponse(asset: Asset, path: string): Response {
-  const immutable = path !== "index.html";
+  const immutable = !path.endsWith(".html");
   return new Response(asset.bytes as unknown as BodyInit, {
     headers: {
       "Content-Type": asset.contentType,
