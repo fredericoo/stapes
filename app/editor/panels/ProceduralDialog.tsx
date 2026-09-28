@@ -19,6 +19,7 @@ import {
   type DoorRow,
   type HouseConfig,
   type RoofColour,
+  type RoofPitch,
 } from "../house";
 import { GENERATORS, type GeneratorId, type ProceduralSettings } from "../procedural";
 import { STOREY_RANGE } from "../proceduralSettings";
@@ -137,11 +138,13 @@ function TileChoiceRow({
 
 function RoofColourRow({
   value,
+  pitch,
   onChange,
   tiles,
   tilesets,
 }: {
   value: RoofColour | null;
+  pitch: RoofPitch;
   onChange: (colour: RoofColour | null) => void;
   tiles: TileDef[];
   tilesets: TilesetDef[];
@@ -163,7 +166,8 @@ function RoofColourRow({
         <span>None</span>
       </button>
       {ROOF_COLOUR_IDS.map((colour) => {
-        const { label, eaveTileId, ridgeTileId } = ROOF_COLOURS[colour];
+        const { label } = ROOF_COLOURS[colour];
+        const { eaveTileId, ridgeTileId } = ROOF_COLOURS[colour][pitch];
         const eave = tiles.find((t) => t.id === eaveTileId) ?? null;
         const ridge = tiles.find((t) => t.id === ridgeTileId) ?? null;
         const active = value === colour;
@@ -403,6 +407,27 @@ function HouseForm({
             ]}
           />
         </div>
+
+        <div
+          className={[
+            "flex flex-col items-start gap-1",
+            draft.roofColour ? "" : "pointer-events-none opacity-50",
+          ].join(" ")}
+          aria-hidden={draft.roofColour ? undefined : true}
+        >
+          <FieldLabel info="Steep climbs a level for every cell it steps in. Low climbs a level every two cells, so a wide building gets half the height of roof.">
+            Roof pitch
+          </FieldLabel>
+          <Segmented
+            ariaLabel="Roof pitch"
+            value={draft.roofPitch}
+            onChange={(roofPitch) => patch({ roofPitch })}
+            options={[
+              { value: "steep", label: "Steep" },
+              { value: "low", label: "Low" },
+            ]}
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -411,6 +436,7 @@ function HouseForm({
         </FieldLabel>
         <RoofColourRow
           value={draft.roofColour}
+          pitch={draft.roofPitch}
           onChange={(roofColour) => patch({ roofColour })}
           tiles={tiles}
           tilesets={tilesets}

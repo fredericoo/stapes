@@ -22,6 +22,7 @@ const BASE: HouseConfig = {
   storeys: 1,
   roofOrientation: "vertical",
   roofColour: "red",
+  roofPitch: "steep",
   wallTileId: "sw2",
   floorTileId: "wooden-floor",
   windowTileId: "window-1",
@@ -75,6 +76,15 @@ describe("roofLevelsFor", () => {
     expect(roofLevelsFor(3)).toBe(2);
     expect(roofLevelsFor(2)).toBe(1);
     expect(roofLevelsFor(1)).toBe(1);
+  });
+});
+
+describe("roofLevelsFor a low pitch", () => {
+  it("climbs a level for every two cells it steps in from each side", () => {
+    expect(roofLevelsFor(9, "low")).toBe(3);
+    expect(roofLevelsFor(8, "low")).toBe(2);
+    expect(roofLevelsFor(5, "low")).toBe(2);
+    expect(roofLevelsFor(4, "low")).toBe(1);
   });
 });
 
@@ -347,6 +357,47 @@ describe("planHouse", () => {
     expect(ids(built, 2, 2, 1)).toEqual(["plaster", "plaster"]);
     expect(ids(built, 2, 2, 3)).toEqual(["roof-3"]);
     expect(facing(built, 2, 2, 3)).toBe("e");
+  });
+
+  it("roofs a nine-wide building in three levels with a low pitch", () => {
+    const map = siteMap(-2, -2, 14, 10);
+    const built = build(map, { x0: 0, y0: 0, x1: 8, y1: 4 }, { roofPitch: "low" });
+
+    expect(ids(built, 0, 2, 1)).toEqual(["low-roof-red"]);
+    expect(facing(built, 0, 2, 1)).toBe("e");
+    expect(ids(built, 1, 2, 1)).toEqual(["plaster", "low-roof-red"]);
+    expect(facing(built, 1, 2, 1)).toBe("e");
+    expect(ids(built, 4, 2, 1)).toEqual(["plaster", "plaster"]);
+    expect(ids(built, 7, 2, 1)).toEqual(["plaster", "low-roof-red"]);
+    expect(facing(built, 7, 2, 1)).toBe("w");
+    expect(ids(built, 8, 2, 1)).toEqual(["low-roof-red"]);
+    expect(facing(built, 8, 2, 1)).toBe("w");
+
+    expect(getStack(built, 1, 2, 2)).toEqual([]);
+    expect(ids(built, 2, 2, 2)).toEqual(["low-roof-red"]);
+    expect(ids(built, 3, 2, 2)).toEqual(["plaster", "low-roof-red"]);
+
+    expect(ids(built, 4, 2, 3)).toEqual(["low-roof-red-ridge"]);
+    expect(facing(built, 4, 2, 3)).toBe("s");
+    expect(getStack(built, 3, 2, 3)).toEqual([]);
+    expect(getStack(built, 4, 2, 4)).toEqual([]);
+  });
+
+  it("stands a low ridge on plaster when three cells are left", () => {
+    const map = siteMap(-2, -2, 10, 12);
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 4, y1: 6 },
+      { roofOrientation: "horizontal", roofPitch: "low", roofColour: "yellow" },
+    );
+
+    expect(ids(built, 2, 2, 2)).toEqual(["low-roof-yellow"]);
+    expect(facing(built, 2, 2, 2)).toBe("s");
+    expect(ids(built, 2, 3, 2)).toEqual(["plaster", "low-roof-yellow-ridge"]);
+    expect(facing(built, 2, 3, 2)).toBe("e");
+    expect(ids(built, 2, 4, 2)).toEqual(["low-roof-yellow"]);
+    expect(facing(built, 2, 4, 2)).toBe("n");
+    expect(getStack(built, 2, 3, 3)).toEqual([]);
   });
 
   it("stacks storeys of wall and starts the roof above the top one", () => {

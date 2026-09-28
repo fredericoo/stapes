@@ -26,13 +26,28 @@ export function resolveRoofOrientation(
 
 export type RoofColour = "red" | "yellow" | "blue";
 
-export const ROOF_COLOURS: Record<
-  RoofColour,
-  { label: string; eaveTileId: string; ridgeTileId: string }
-> = {
-  red: { label: "Red", eaveTileId: "roof-1", ridgeTileId: "roof-3" },
-  yellow: { label: "Yellow", eaveTileId: "roof-2", ridgeTileId: "roof-5" },
-  blue: { label: "Blue", eaveTileId: "roof-4", ridgeTileId: "roof-6" },
+export type RoofPitch = "steep" | "low";
+
+export const ROOF_PITCHES: RoofPitch[] = ["steep", "low"];
+
+type RoofTiles = { eaveTileId: string; ridgeTileId: string };
+
+export const ROOF_COLOURS: Record<RoofColour, { label: string } & Record<RoofPitch, RoofTiles>> = {
+  red: {
+    label: "Red",
+    steep: { eaveTileId: "roof-1", ridgeTileId: "roof-3" },
+    low: { eaveTileId: "low-roof-red", ridgeTileId: "low-roof-red-ridge" },
+  },
+  yellow: {
+    label: "Yellow",
+    steep: { eaveTileId: "roof-2", ridgeTileId: "roof-5" },
+    low: { eaveTileId: "low-roof-yellow", ridgeTileId: "low-roof-yellow-ridge" },
+  },
+  blue: {
+    label: "Blue",
+    steep: { eaveTileId: "roof-4", ridgeTileId: "roof-6" },
+    low: { eaveTileId: "low-roof-blue", ridgeTileId: "low-roof-blue-ridge" },
+  },
 };
 
 export const ROOF_COLOUR_IDS = Object.keys(ROOF_COLOURS) as RoofColour[];
@@ -47,6 +62,7 @@ export type HouseConfig = {
   storeys: number;
   roofOrientation: RoofOrientationSetting;
   roofColour: RoofColour | null;
+  roofPitch: RoofPitch;
   wallTileId: string;
   floorTileId: string;
   windowTileId: string | null;
@@ -68,8 +84,10 @@ const WINDOW_MIN_FROM_DOOR = 2;
 
 export const WINDOW_SPACING_RANGE = { min: 2, max: 12 } as const;
 
-export function roofLevelsFor(span: number): number {
-  return Math.max(0, Math.ceil(span / 2));
+const ROOF_INSET_PER_LEVEL: Record<RoofPitch, number> = { steep: 1, low: 2 };
+
+export function roofLevelsFor(span: number, pitch: RoofPitch = "steep"): number {
+  return Math.max(0, Math.ceil(span / (2 * ROOF_INSET_PER_LEVEL[pitch])));
 }
 
 /**
@@ -216,6 +234,30 @@ function storeyEdits(
   return edits;
 }
 
+/**
+ * The stack one roof cell holds, `fromEdge` cells in from the nearer eave of a
+ * level whose span is `span` cells. A low eave rises two units, so the second
+ * cell in stands it on a `plaster` to carry the slope on up to the next level,
+ * and a low ridge is one unit on the same pitch.
+ */
+function roofStack(
+  pitch: RoofPitch,
+  fromEdge: number,
+  span: number,
+  eave: PlacedTile,
+  ridge: PlacedTile,
+): PlacedTile[] {
+  const fill = { tileId: ROOF_FILL_TILE_ID };
+  const middle = fromEdge * 2 + 1 === span;
+  if (pitch === "steep") {
+    if (fromEdge > 0) return [{ ...fill }, { ...fill }];
+    return [middle ? ridge : eave];
+  }
+  if (fromEdge > 1) return [{ ...fill }, { ...fill }];
+  const top = middle ? ridge : eave;
+  return fromEdge === 0 ? [top] : [{ ...fill }, top];
+}
+
 function roofEdits(
   bounds: Bounds,
   baseLevel: number,
@@ -226,35 +268,32 @@ function roofEdits(
   if (!config.roofColour) return [];
 
   const { minX, maxX, minY, maxY } = bounds;
-  const { eaveTileId, ridgeTileId } = ROOF_COLOURS[config.roofColour];
+  const pitch = config.roofPitch;
+  const { eaveTileId, ridgeTileId } = ROOF_COLOURS[config.roofColour][pitch];
+  const inset = ROOF_INSET_PER_LEVEL[pitch];
   const vertical = orientation === "vertical";
   const span = vertical ? maxX - minX + 1 : maxY - minY + 1;
-  const fill: PlacedTile[] = [{ tileId: ROOF_FILL_TILE_ID }, { tileId: ROOF_FILL_TILE_ID }];
+  const ridge = placed(ridgeTileId, tilesById, vertical ? "s" : "e");
+  const lowEave = placed(eaveTileId, tilesById, vertical ? "e" : "s");
+  const highEave = placed(eaveTileId, tilesById, vertical ? "w" : "n");
   const edits: StackEdit[] = [];
 
-  for (let step = 0; step < roofLevelsFor(span); step++) {
+  for (let step = 0; step < roofLevelsFor(span, pitch); step++) {
     const z = baseLevel + step;
-    const lo = (vertical ? minX : minY) + step;
-    const hi = (vertical ? maxX : minY + span - 1) - step;
+    const lo = (vertical ? minX : minY) + step * inset;
+    const hi = (vertical ? maxX : maxY) - step * inset;
     const acrossLo = vertical ? minY : minX;
     const acrossHi = vertical ? maxY : maxX;
 
-    const put = (at: number, across: number, stack: PlacedTile[]) => {
-      edits.push(vertical ? { x: at, y: across, z, stack } : { x: across, y: at, z, stack });
-    };
-
-    for (let across = acrossLo; across <= acrossHi; across++) {
-      if (lo === hi) {
-        put(lo, across, [placed(ridgeTileId, tilesById, vertical ? "s" : "e")]);
-        continue;
-      }
-      put(lo, across, [placed(eaveTileId, tilesById, vertical ? "e" : "s")]);
-      put(hi, across, [placed(eaveTileId, tilesById, vertical ? "w" : "n")]);
-      for (let at = lo + 1; at < hi; at++) {
-        put(
-          at,
-          across,
-          fill.map((p) => ({ ...p })),
+    for (let at = lo; at <= hi; at++) {
+      const fromLo = at - lo;
+      const fromHi = hi - at;
+      const eave = fromLo <= fromHi ? lowEave : highEave;
+      const stack = roofStack(pitch, Math.min(fromLo, fromHi), hi - lo + 1, eave, ridge);
+      for (let across = acrossLo; across <= acrossHi; across++) {
+        const cell = stack.map((p) => ({ ...p }));
+        edits.push(
+          vertical ? { x: at, y: across, z, stack: cell } : { x: across, y: at, z, stack: cell },
         );
       }
     }
@@ -353,7 +392,9 @@ export function planHouse(
   const roofBase = z + config.storeys;
   const orientation = resolveRoofOrientation(config.roofOrientation, width, depth);
   const roofSpan = orientation === "vertical" ? width : depth;
-  const topLevel = config.roofColour ? roofBase + roofLevelsFor(roofSpan) - 1 : roofBase - 1;
+  const topLevel = config.roofColour
+    ? roofBase + roofLevelsFor(roofSpan, config.roofPitch) - 1
+    : roofBase - 1;
   if (topLevel > MAX_LEVEL) {
     return {
       ok: false,

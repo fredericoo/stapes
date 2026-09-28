@@ -7,7 +7,14 @@ import {
   PATH_WIDTH_RANGE,
   type ForestConfig,
 } from "./forest";
-import { ROOF_COLOUR_IDS, WINDOW_SPACING_RANGE, type HouseConfig, type RoofColour } from "./house";
+import {
+  ROOF_COLOUR_IDS,
+  ROOF_PITCHES,
+  WINDOW_SPACING_RANGE,
+  type HouseConfig,
+  type RoofColour,
+  type RoofPitch,
+} from "./house";
 import type { GeneratorId, ProceduralSettings } from "./procedural";
 
 const STORAGE_KEY = "stapes:procedural:v2";
@@ -21,6 +28,7 @@ export const DEFAULT_HOUSE_CONFIG: HouseConfig = {
   storeys: 1,
   roofOrientation: "auto",
   roofColour: "red",
+  roofPitch: "steep",
   wallTileId: "sw2",
   floorTileId: "wooden-floor",
   windowTileId: "window-1",
@@ -81,6 +89,7 @@ const HouseConfigSchema = v.object({
   storeys: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_STOREYS)),
   roofOrientation: v.picklist(["auto", "vertical", "horizontal"]),
   roofColour: v.nullable(v.picklist(ROOF_COLOUR_IDS as [RoofColour, ...RoofColour[]])),
+  roofPitch: v.optional(v.picklist(ROOF_PITCHES as [RoofPitch, ...RoofPitch[]]), "steep"),
   wallTileId: v.string(),
   floorTileId: v.string(),
   windowTileId: v.nullable(v.string()),
