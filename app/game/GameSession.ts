@@ -1784,6 +1784,7 @@ export class GameSession implements PlaySession {
       noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
       talking: () => this.anyoneTalkingTo(actor.id),
+      inHarm: () => this.standsInHarm(actor, loc),
       sight,
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
@@ -5117,6 +5118,13 @@ export class GameSession implements PlaySession {
       if (!spared) return { placed, def, statusId: addStatus.statusId };
     }
     return null;
+  }
+
+  private standsInHarm(actor: ActorRuntime, loc: ActorLocation): boolean {
+    if (this.hpOf(actor) === null) return false;
+    const grant = this.standingGrant(actor, loc);
+    if (!grant || this.statusDefs[grant.statusId]?.tone !== "bad") return false;
+    return !isImmune(resolveBattler(this.defFor(actor)), grant.statusId);
   }
 
   private tickStandingStatuses(tickMs: number) {

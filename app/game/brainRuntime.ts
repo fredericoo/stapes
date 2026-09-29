@@ -59,6 +59,7 @@ export type BrainContext = {
   positionOf(actorId: string): Coord | null;
   thingStillThere(at: Coord, tileId: string): boolean;
   talking(): boolean;
+  inHarm(): boolean;
   wouldDrop(direction: Direction): boolean;
   wouldStepIntoHazard(direction: Direction): boolean;
   step(direction: Direction): boolean;
@@ -304,6 +305,8 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       return struckBy(memory, ctx);
     case "talking":
       return ctx.talking();
+    case "in_harm":
+      return ctx.inHarm();
     case "carrying":
       return ctx.carrying(condition.tileId);
     case "status":

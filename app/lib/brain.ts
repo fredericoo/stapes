@@ -78,6 +78,7 @@ export type BrainConditionDef =
   | { cond: "attacked" }
   | { cond: "stuck" }
   | { cond: "talking" }
+  | { cond: "in_harm" }
   | { cond: "carrying"; tileId?: string }
   | { cond: "status"; id: string; atLeastMs?: number }
   | { cond: "health"; atMostPercent: number }
@@ -189,6 +190,7 @@ const leafSchema = v.variant("cond", [
   v.object({ cond: v.literal("stuck") }),
   v.object({ cond: v.literal("attacked") }),
   v.object({ cond: v.literal("talking") }),
+  v.object({ cond: v.literal("in_harm") }),
   v.object({
     cond: v.literal("carrying"),
     tileId: v.optional(v.pipe(v.string(), v.minLength(1))),

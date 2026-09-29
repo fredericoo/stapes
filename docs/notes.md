@@ -2361,6 +2361,13 @@ carry it.
     spread` reads 0.79ms at p50 with the rule and 0.78–0.85ms across baseline
     runs, which is the noise. A wander pays one `canWalk` per direction it has
     not already refused as a ledge, against the up-to-128 nodes a chase pays.
+  - *A brain can ask whether it is standing in one.* `in_harm` holds when the
+    tile under the body would grant it a `bad` status on the standing clock:
+    the same `standingGrant` the clock burns it with, less what would not
+    reach it (a spared caster, a body with no hit points, one immune to the
+    status). Leaving is authored, not built in: a line of `step_random`, which
+    already refuses flames and portals, is the way out. A brain that never asks
+    is never moved, which is what a training dummy wants.
 
 **Two caps, doing two different jobs, and it is worth not confusing them.**
 `PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not

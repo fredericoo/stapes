@@ -217,6 +217,7 @@ describe("deciding", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
@@ -1041,6 +1042,7 @@ describe("giving up", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: () => false,
       cast: (): "cast" | "casting" | "no" => "no",
@@ -1326,6 +1328,113 @@ describe("watching where it puts its feet", () => {
 
     expect(visited.has(`${CORRIDOR_END},0`)).toBe(true);
   });
+
+  const HOLDING: BrainDef = {
+    initial: "holding",
+    states: { holding: { do: [{ action: "hold" }] } },
+    transitions: [],
+  };
+
+  const ESCAPING: BrainDef = {
+    initial: "holding",
+    states: {
+      holding: { do: [{ action: "hold" }] },
+      escaping: { do: [{ action: "step_random" }, { action: "hold" }] },
+    },
+    transitions: [
+      { from: "any", if: { cond: "in_harm" }, to: "escaping" },
+      { from: "escaping", if: group("and", [{ cond: "in_harm" }], true), to: "holding" },
+    ],
+  };
+
+  const HURTABLE = {
+    baseHp: 8,
+    masteries: { toughness: 8 },
+    naturalWeapon: {
+      type: "weapon",
+      damage: 0,
+      def: 0,
+      accuracy: 50,
+      variance: 50,
+      spd: 20,
+      mastery: "fist",
+    },
+  };
+
+  function stander(id: string, brain: BrainDef, battler: Record<string, unknown>): TileDef {
+    return tile({
+      id,
+      height: 2,
+      kind: "battler",
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain, battler },
+    });
+  }
+
+  const FLAME_RING: Coord[] = [
+    { x: 0, y: -1, z: 0 },
+    { x: 1, y: 0, z: 0 },
+    { x: 0, y: 1, z: 0 },
+  ];
+  const WAY_OUT: Coord = { x: -1, y: 0, z: 0 };
+  const STEP_OUT_MS = BRAIN_TICK_MS * 4;
+
+  function standingOn(standerId: string, underfoot = "flame"): GameSession {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: underfoot },
+      { tileId: standerId },
+    ]);
+    for (const cell of FLAME_RING) {
+      map = replaceStack(map, cell.x, cell.y, 0, [{ tileId: "grass" }, { tileId: "flame" }]);
+    }
+    map = replaceStack(map, WAY_OUT.x, WAY_OUT.y, 0, [{ tileId: "grass" }]);
+    map = withPlayerAt(map, 0, WATCHER_Y);
+    return new GameSession(
+      map,
+      [
+        ...hazardTiles,
+        stander("escaper", ESCAPING, HURTABLE),
+        stander("salamander", ESCAPING, { ...HURTABLE, immuneTo: ["burned"] }),
+        stander("post", HOLDING, HURTABLE),
+      ],
+      { actorIds: ["alice"], statuses },
+    );
+  }
+
+  it("steps out of a flame when its brain asks whether it is standing in harm", () => {
+    const session = standingOn("escaper");
+
+    advance(session, STEP_OUT_MS);
+
+    expect(deerCell(session)).toBe(`${WAY_OUT.x},${WAY_OUT.y}`);
+  });
+
+  it("is not standing in harm on a shrine, whose status is a good one", () => {
+    const session = standingOn("escaper", "shrine");
+
+    advance(session, STEP_OUT_MS);
+
+    expect(deerCell(session)).toBe("0,0");
+  });
+
+  it("is not standing in harm in a flame it is immune to", () => {
+    const session = standingOn("salamander");
+
+    advance(session, STEP_OUT_MS);
+
+    expect(deerCell(session)).toBe("0,0");
+  });
+
+  it("stays in a flame when its brain never asks", () => {
+    const session = standingOn("post");
+
+    advance(session, STEP_OUT_MS);
+
+    expect(deerCell(session)).toBe("0,0");
+  });
 });
 
 describe("actions that take time", () => {
@@ -1352,6 +1461,7 @@ describe("actions that take time", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
@@ -1757,6 +1867,7 @@ describe("a deer that yelps", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: () => false,
       cast: (): "cast" | "casting" | "no" => "no",
@@ -1834,6 +1945,7 @@ describe("a deer that yelps", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: () => false,
       cast: (): "cast" | "casting" | "no" => "no",
@@ -2443,6 +2555,7 @@ describe("composing conditions", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
@@ -3277,6 +3390,7 @@ describe("knowing where it belongs", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
@@ -4376,6 +4490,7 @@ describe("naming a thing", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
@@ -4534,6 +4649,7 @@ describe("asking what a body is under", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
@@ -4728,6 +4844,7 @@ describe("casting a spell of its own", () => {
       heard: () => [],
       heardNoise: () => [],
       talking: () => false,
+      inHarm: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "cast"),
