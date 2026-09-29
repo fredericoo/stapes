@@ -5309,6 +5309,11 @@ rather than being enumerated: a pure ward is a bolt with a status and no damage,
 a pure mend is a bolt with damage and no status, and a brand is both. A bolt with
 *neither* is refused: it is a spell that spends a cooldown to do nothing.
 
+A bolt may also carry `cures`, a list of status ids taken off whoever it lands
+on. That counts as doing something, so a cure alone is a valid bolt. It runs
+after the health moves and before `statuses` is rolled, so a stone that cures
+and grants the same status leaves it on.
+
 **The chance is the stone's own and no mastery moves it**, on the same argument
 a weapon's is under: Arcane and the elements have already had their say twice —
 on how deep the bolt ran and on what the wheel made of it — and scaling the

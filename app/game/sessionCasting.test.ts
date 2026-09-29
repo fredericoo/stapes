@@ -344,6 +344,10 @@ const props: TileDef[] = [
     },
     cooldownMs: 10_000,
   }),
+  stoneTile("cleansing-stone", {
+    effect: { kind: "bolt", on: "caster", cures: ["burned"] },
+    cooldownMs: MEND_COOLDOWN_MS,
+  }),
   stoneTile("ward-stone", {
     effect: {
       kind: "bolt",
@@ -906,6 +910,29 @@ describe("conjuring", () => {
 
     expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain("conjured-flame");
+  });
+});
+
+describe("a stone that cures", () => {
+  const defIds = (play: GameSession) => (play.statusesOf("local") ?? []).map((s) => s.defId);
+
+  it("takes the status it names off whoever it lands on", () => {
+    const play = session({ charm: "cleansing-stone" });
+    play.runCommand("/status burned");
+
+    play.cast(squareSlot("charm"));
+
+    expect(defIds(play)).not.toContain("burned");
+  });
+
+  it("leaves every other status where it was", () => {
+    const play = session({ charm: "cleansing-stone" });
+    play.runCommand("/status burned");
+    play.runCommand("/status warded");
+
+    play.cast(squareSlot("charm"));
+
+    expect(defIds(play)).toContain("warded");
   });
 });
 

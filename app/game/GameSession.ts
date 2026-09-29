@@ -3116,6 +3116,7 @@ export class GameSession implements PlaySession {
         projectile,
         move,
         grants,
+        cures: effect.cures ?? [],
         elements,
         spell,
         caster,
@@ -3131,6 +3132,7 @@ export class GameSession implements PlaySession {
     projectile: string | null | undefined;
     move: HealthMove | null;
     grants: readonly StatusGrant[];
+    cures: readonly string[];
     elements: readonly Element[];
     spell: string;
     caster: string | null;
@@ -3150,6 +3152,7 @@ export class GameSession implements PlaySession {
     }
 
     if ((this.hpOf(subject) ?? 0) <= 0) return;
+    for (const statusId of bolt.cures) this.clearStatus(subject, statusId);
     for (const grant of bolt.grants) {
       this.grantStatus(subject, grant, bolt.casterId, bolt.elements, {
         source: this.statusName(grant.id),

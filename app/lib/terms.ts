@@ -19,6 +19,7 @@ export const TERMS = {
   cooldown: { label: "Cooldown" },
   subject: { label: "Hits" },
   conjure: { label: "Puts" },
+  cures: { label: "Cures" },
 } as const satisfies Record<string, Term>;
 
 export type TermKey = keyof typeof TERMS;

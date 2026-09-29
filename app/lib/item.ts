@@ -103,6 +103,7 @@ export type StoneEffect =
       variance?: number;
       projectile?: string;
       statuses?: WeaponStatus[];
+      cures?: string[];
     }
   | { kind: "conjure"; tileId: string };
 
@@ -391,7 +392,7 @@ const shieldSchema = v.object({
   elements: v.optional(elementsSchema),
 });
 
-const EMPTY_BOLT_MESSAGE = "A bolt has to move health or leave a status behind.";
+const EMPTY_BOLT_MESSAGE = "A bolt has to move health, leave a status behind or cure one.";
 
 const stoneEffectSchema = v.variant("kind", [
   v.pipe(
@@ -410,9 +411,11 @@ const stoneEffectSchema = v.variant("kind", [
       variance: v.optional(percent),
       projectile: v.optional(projectileSchema),
       statuses: v.optional(v.array(weaponStatusSchema)),
+      cures: v.optional(v.array(v.pipe(v.string(), v.trim(), v.minLength(1)))),
     }),
     v.check(
-      (raw) => raw.damage !== undefined || (raw.statuses?.length ?? 0) > 0,
+      (raw) =>
+        raw.damage !== undefined || (raw.statuses?.length ?? 0) > 0 || (raw.cures?.length ?? 0) > 0,
       EMPTY_BOLT_MESSAGE,
     ),
   ),
@@ -690,6 +693,7 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     return { kind: "conjure", tileId: effect.tileId.trim() };
   }
   const statuses = statusGrantsForSave(effect.statuses);
+  const cures = [...new Set(effect.cures?.map((id) => id.trim()).filter(Boolean))];
   return {
     kind: "bolt",
     on: effect.on,
@@ -697,5 +701,6 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     ...(effect.variance ? { variance: Math.round(effect.variance) } : {}),
     ...(effect.projectile?.trim() ? { projectile: effect.projectile.trim() } : {}),
     ...(statuses ? { statuses } : {}),
+    ...(cures.length > 0 ? { cures } : {}),
   };
 }
