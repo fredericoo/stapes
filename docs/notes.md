@@ -8587,9 +8587,9 @@ therefore be held, chilled or burned by a spell and notice nothing — a rabbit
 stood still while a snake wound round it, because the hold takes no health and
 there was no swing to read.
 
-`castBolt` notes it too now, on the swing's own terms: before anything lands, so
-a killing bolt still tells whoever was hit who did it, and only for a bolt at
-somebody *other* than its caster.
+`landBolt` notes it too now, on the swing's own terms: as the bolt arrives and
+before its damage or status is applied, so a killing bolt still tells whoever
+was hit who did it, and only for a bolt at somebody *other* than its caster.
 
 **Any bolt, rather than only one that takes health.** A spell whose whole effect
 is the status it leaves is exactly the case this exists for, so "did it hurt" is
