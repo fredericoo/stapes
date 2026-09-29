@@ -4044,6 +4044,25 @@ the same draws a bare one does — the same rule everything in a fight is under.
 The one draw defence *does* take is the guard below, and it is taken whether or
 not the defender is wearing anything.
 
+### Armour worn short of its requirements costs speed, never protection
+
+`ArmorItem.requirements` asks for masteries the way a weapon's does, and the
+catalogue follows three families: light pieces ask Agility, heavy ones
+Toughness, and magical ones Arcane plus the element they are attuned to. The
+starter pieces — Cloth Tunic, Worn Boots, Copper Ring, Bone Charm — ask nothing.
+
+**Nothing refuses the piece.** `armorShortfall` sums every point short across
+everything worn, and `encumbrance` turns it into a share of attack speed
+(`haste`) and of evasion (`flee`) taken away: `ENCUMBRANCE_PER_POINT_SHORT` a
+point, capped at `MAX_ENCUMBRANCE`. It is summed rather than taken per piece so
+the item card can show each piece's own cost and the costs add up to what the
+body pays until the cap. Defence and resists are never scaled: wearing plate too
+early is meant to be a trade — harder to hurt, slower to act — not a trap.
+
+It is applied in `effectiveBattler`, so the world, the Arena and the stats panel
+all read the same figure. A weapon's `weaponHandling` is applied separately
+inside `fightingStats`; the two multiply.
+
 ### Armour is a draw, and immunity is a rung rather than a threshold
 
 `defenceAgainst` says how deep a body's guard is; **what a blow actually meets is

@@ -124,6 +124,20 @@ export function weaponHandling(shortfall: number): number {
   return Math.max(MIN_HANDLING, 1 - HANDLING_PER_POINT_SHORT * Math.max(0, shortfall));
 }
 
+export const ENCUMBRANCE_PER_POINT_SHORT = 0.02;
+
+export const MAX_ENCUMBRANCE = 0.75;
+
+export function encumbrance(shortfall: number): number {
+  return Math.min(MAX_ENCUMBRANCE, ENCUMBRANCE_PER_POINT_SHORT * Math.max(0, shortfall));
+}
+
+export function encumbered(stats: FightingStats, share: number): FightingStats {
+  if (share <= 0) return stats;
+  const kept = 1 - share;
+  return { ...stats, haste: stats.haste * kept, flee: Math.round(stats.flee * kept) };
+}
+
 export const MASTERY_DAMAGE_BONUS = 0.25;
 export const DAMAGE_AT_MAX_MASTERY = 20;
 export const MASTERY_ACCURACY_BONUS = 0.25;

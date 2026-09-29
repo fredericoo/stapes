@@ -1,5 +1,5 @@
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BASE_HP, fightingStats } from "../lib/battler";
+import { DEFAULT_BASE_HP, encumbrance, fightingStats } from "../lib/battler";
 import {
   armorSlotOf,
   consumeVerb,
@@ -32,6 +32,7 @@ import {
   type Masteries,
   type Mastery,
   type MasteryXp,
+  requirementShortfall,
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
@@ -210,14 +211,20 @@ function toneOf(yours: number, own: number): ItemCardTone {
   return "plain";
 }
 
-function armorStats(armor: ArmorItem): ItemCardStat[] {
-  return [
+function armorStats(armor: ArmorItem, masteries: BattlerDef["masteries"]): ItemCardStat[] {
+  const stats: ItemCardStat[] = [
     {
       term: "defence",
       value: `${armor.def}`,
       tone: "good",
     },
   ];
+  const share = encumbrance(requirementShortfall(masteries, armor.requirements));
+  if (share <= 0) return stats;
+  const cost = `${MINUS}${percent(share)}%`;
+  stats.push({ term: "attackSpeed", value: cost, tone: "bad" });
+  stats.push({ term: "evasion", value: cost, tone: "bad" });
+  return stats;
 }
 
 function resistsFrom(armor: ArmorItem): ItemCardResist[] {
@@ -305,7 +312,9 @@ function effectsTitleFor(item: ItemDef): string {
 }
 
 function demandsOf(item: ItemDef): Masteries | undefined {
-  if (item.type === "weapon" || item.type === "stone") return item.requirements;
+  if (item.type === "weapon" || item.type === "stone" || item.type === "armor") {
+    return item.requirements;
+  }
   return undefined;
 }
 
@@ -335,7 +344,7 @@ function statsFor(
   statusDefs: Record<string, StatusDef>,
 ): ItemCardStat[] {
   if (item.type === "weapon") return weaponStats(item, masteries);
-  if (item.type === "armor") return armorStats(item);
+  if (item.type === "armor") return armorStats(item, masteries);
   if (item.type === "shield") return shieldStats(item);
   if (item.type === "stone") return stoneStats(item, statusDefs);
   if (item.type === "consumable") return consumableStats(item);

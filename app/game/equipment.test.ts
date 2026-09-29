@@ -4,6 +4,8 @@ import type { BattlerDef } from "../lib/battler";
 import {
   DEFAULT_BATTLER,
   ACCURACY_AT_MAX_MASTERY,
+  ENCUMBRANCE_PER_POINT_SHORT,
+  MAX_ENCUMBRANCE,
   bodyDefence,
   DAMAGE_AT_MAX_MASTERY,
   defFrom,
@@ -211,6 +213,66 @@ describe("effectiveBattler", () => {
       ),
     );
     expect(base).toEqual(snapshot);
+  });
+});
+
+describe("armour worn short of its requirements", () => {
+  const TOUGHNESS_SHORT = 10;
+  const AGILITY_SHORT = 4;
+  const PLATE_DEF = 5;
+  const tiles = tilesByIdFromList([
+    itemTile("plate", {
+      type: "armor",
+      def: PLATE_DEF,
+      requirements: { toughness: base.masteries.toughness! + TOUGHNESS_SHORT },
+    }),
+    itemTile("cap", {
+      type: "armor",
+      slot: "head",
+      def: 1,
+      requirements: { agility: base.masteries.agility! + AGILITY_SHORT },
+    }),
+    itemTile("tunic", {
+      type: "armor",
+      def: 1,
+      requirements: { toughness: base.masteries.toughness! },
+    }),
+    itemTile("anvil", {
+      type: "armor",
+      def: 1,
+      requirements: { toughness: MAX_MASTERY },
+    }),
+  ]);
+  const wearing = (armor: string | null, head: string | null = null): Equipment => ({
+    ...emptyEquipment(),
+    armor: armor ? { id: `itm_${armor}`, tileId: armor } : null,
+    head: head ? { id: `itm_${head}`, tileId: head } : null,
+  });
+  const naked = effectiveBattler(base, null, tiles, null);
+
+  it("costs nothing when the requirements are met", () => {
+    const out = effectiveBattler(base, wearing("tunic"), tiles, null);
+    expect(out.haste).toBe(naked.haste);
+    expect(out.flee).toBe(naked.flee);
+  });
+
+  it("slows the swing and the dodge by the same share, and leaves defence alone", () => {
+    const out = effectiveBattler(base, wearing("plate"), tiles, null);
+    const kept = 1 - TOUGHNESS_SHORT * ENCUMBRANCE_PER_POINT_SHORT;
+    expect(out.haste).toBeCloseTo(naked.haste * kept);
+    expect(out.flee).toBe(Math.round(naked.flee * kept));
+    expect(out.def).toBe(naked.def + PLATE_DEF);
+  });
+
+  it("adds the points short across every piece worn", () => {
+    const out = effectiveBattler(base, wearing("plate", "cap"), tiles, null);
+    const kept = 1 - (TOUGHNESS_SHORT + AGILITY_SHORT) * ENCUMBRANCE_PER_POINT_SHORT;
+    expect(out.haste).toBeCloseTo(naked.haste * kept);
+  });
+
+  it("never takes more than the cap", () => {
+    const out = effectiveBattler(base, wearing("anvil"), tiles, null);
+    expect(out.haste).toBeCloseTo(naked.haste * (1 - MAX_ENCUMBRANCE));
   });
 });
 

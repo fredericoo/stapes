@@ -33,7 +33,14 @@ import {
 } from "../lib/item";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import { SLOT_LABELS } from "../lib/kit";
-import { MASTERY_LABELS, WEAPON_MASTERIES } from "../lib/mastery";
+import { ENCUMBRANCE_PER_POINT_SHORT, MAX_ENCUMBRANCE } from "../lib/battler";
+import {
+  MASTERIES,
+  MASTERY_LABELS,
+  MAX_MASTERY,
+  MIN_MASTERY,
+  WEAPON_MASTERIES,
+} from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { FieldLabel, Input, SectionTitle, Segmented, Select, SwitchField } from "../ui";
@@ -55,6 +62,8 @@ const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> = ARMOR_SLO
   value: slot,
   label: SLOT_LABELS[slot],
 }));
+
+const ARMOR_REQUIREMENTS_INFO = `Zero asks nothing. It can be worn short of them: every point short, summed across everything worn, costs ${Math.round(ENCUMBRANCE_PER_POINT_SHORT * 100)}% of attack speed and of evasion, up to ${Math.round(MAX_ENCUMBRANCE * 100)}%. Defence and resists are never scaled by them.`;
 
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "weapon", label: "Weapon" },
@@ -247,6 +256,26 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                     />
                   );
                 })}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+              <FieldLabel info={ARMOR_REQUIREMENTS_INFO}>Requirements</FieldLabel>
+              <div className="flex flex-wrap gap-4">
+                {MASTERIES.map((mastery) => (
+                  <StatField
+                    key={mastery}
+                    label={MASTERY_LABELS[mastery]}
+                    value={item.requirements?.[mastery] ?? 0}
+                    min={MIN_MASTERY}
+                    max={MAX_MASTERY}
+                    onChange={(level) =>
+                      patchArmor({
+                        requirements: { ...item.requirements, [mastery]: level },
+                      })
+                    }
+                  />
+                ))}
               </div>
             </div>
           </div>

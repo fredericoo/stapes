@@ -289,6 +289,36 @@ describe("itemCard", () => {
       expect(card.requirements).toEqual([]);
     });
 
+    it("lists what it asks of the wearer", () => {
+      const card = itemCard(
+        tileWith({ type: "armor", def: 4, requirements: { toughness: 12 } }),
+        null,
+        { toughness: xpForLevel(5) },
+      )!;
+      expect(card.requirements).toEqual([
+        { mastery: "toughness", required: 12, have: 5, met: false },
+      ]);
+    });
+
+    it("prices wearing it short as attack speed and evasion lost", () => {
+      const card = itemCard(
+        tileWith({ type: "armor", def: 4, requirements: { toughness: 12 } }),
+        null,
+        { toughness: xpForLevel(2) },
+      )!;
+      expect(statAt(card.stats, "attackSpeed")).toMatchObject({ value: "\u221220%", tone: "bad" });
+      expect(statAt(card.stats, "evasion")).toMatchObject({ value: "\u221220%", tone: "bad" });
+    });
+
+    it("prices nothing once the wearer is up to it", () => {
+      const card = itemCard(
+        tileWith({ type: "armor", def: 4, requirements: { toughness: 12 } }),
+        null,
+        { toughness: xpForLevel(12) },
+      )!;
+      expect(card.stats.map((row) => row.term)).toEqual(["defence"]);
+    });
+
     it("gives a resistance as the total, best first", () => {
       const card = itemCard(
         tileWith({ type: "armor", def: 4, resist: { blunt: 2, sharp: 5 } }),

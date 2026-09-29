@@ -1,5 +1,11 @@
 import type { BattlerDef, FightingStats } from "../lib/battler";
-import { bodyDefence, fightingStats, NO_RESISTANCES } from "../lib/battler";
+import {
+  bodyDefence,
+  encumbered,
+  encumbrance,
+  fightingStats,
+  NO_RESISTANCES,
+} from "../lib/battler";
 import type {
   ArcaneStoneItem,
   ArmorItem,
@@ -25,7 +31,12 @@ import {
 } from "../lib/item";
 import { type Element, ELEMENTS } from "../lib/element";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
-import { type Masteries, meetsRequirements, WEAPON_MASTERIES } from "../lib/mastery";
+import {
+  type Masteries,
+  meetsRequirements,
+  requirementShortfall,
+  WEAPON_MASTERIES,
+} from "../lib/mastery";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 
@@ -239,15 +250,31 @@ export function effectiveBattler(
   tilesById: Record<string, TileDef>,
   hand: Hand | null,
 ): FightingStats {
-  const stats = fightingStats(base, weaponInHand(base, equipment, tilesById, hand));
+  const stats = encumbered(
+    fightingStats(base, weaponInHand(base, equipment, tilesById, hand)),
+    encumbrance(armorShortfall(base.masteries, equipment, tilesById)),
+  );
   const guard = wornDefence(base, equipment, tilesById) + bodyDefence(base);
   const resist = armorResistances(equipment, tilesById);
   if (guard === stats.def && resist === NO_RESISTANCES) return stats;
   return { ...stats, def: guard, resist };
 }
 
+export function armorShortfall(
+  masteries: Masteries,
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): number {
+  const worn = wornArmor(equipment, tilesById);
+  let missing = 0;
+  for (let i = 0; i < worn.length; i++) {
+    missing += requirementShortfall(masteries, worn[i]!.requirements);
+  }
+  return missing;
+}
+
 /**
- * Indexed rather than `for...of`, here and in `armorDefence` and `requirementShortfall`:
+ * Indexed rather than `for...of`, here and in `armorDefence`, `armorShortfall` and `requirementShortfall`:
  * Bun's JIT deoptimises a `for...of` whose body did not run while it was being compiled.
  */
 export function armorResistances(
