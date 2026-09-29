@@ -4,22 +4,25 @@ export const MIN_CHARACTER_NAME_LENGTH = 2;
 
 export const MAX_CHARACTERS_PER_ACCOUNT = 3;
 
-const LETTERS_ONLY = /^[A-Za-z]+$/;
+const WORDS_OF_LETTERS = /^[A-Za-z]+( [A-Za-z]+)*$/;
 
 export function normaliseCharacterName(raw: string): string {
-  const trimmed = raw.trim();
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  return raw
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 export function characterNameProblem(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return "A character needs a name.";
-  if (!LETTERS_ONLY.test(trimmed)) return "Letters only — A to Z, nothing else.";
-  if (trimmed.length < MIN_CHARACTER_NAME_LENGTH) {
+  const collapsed = raw.trim().replace(/\s+/g, " ");
+  if (collapsed.length === 0) return "A character needs a name.";
+  if (!WORDS_OF_LETTERS.test(collapsed)) return "Letters and spaces only — A to Z.";
+  if (collapsed.length < MIN_CHARACTER_NAME_LENGTH) {
     return `At least ${MIN_CHARACTER_NAME_LENGTH} letters.`;
   }
-  if (trimmed.length > MAX_CHARACTER_NAME_LENGTH) {
-    return `At most ${MAX_CHARACTER_NAME_LENGTH} letters.`;
+  if (collapsed.length > MAX_CHARACTER_NAME_LENGTH) {
+    return `At most ${MAX_CHARACTER_NAME_LENGTH} characters, spaces included.`;
   }
   return null;
 }

@@ -86,6 +86,7 @@ describe("the seeded administrator", () => {
       id: expect.any(String),
       username: SEEDED_ADMIN_USERNAME,
       role: "ADMIN",
+      guest: false,
     });
   });
 

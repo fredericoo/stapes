@@ -442,13 +442,35 @@ sentence a pre-flight lookup would have produced.
 Losing the count race gives one account four characters. Losing the name race
 would give two people the same name for ever.
 
+### A guest is an account without a username
+
+`POST /api/guest` takes a character name and, if nobody has it, makes an
+account, signs the browser in to it and creates the character in one request.
+The account is Better Auth's `anonymous` plugin: a user row with
+`isAnonymous = 1`, a placeholder email and no credential. Its own
+`/api/auth/sign-in/anonymous` route is refused, so a guest never exists without
+its character, and `/api/characters` refuses a guest, so it never has a second.
+
+`POST /api/account/claim` saves a guest in place: it adds a password credential
+and fills in username and email on the same user row. The user id does not
+change, so the character, the session and an open socket carry on untouched.
+The email is not verified — it is only required.
+
+`disableDeleteAnonymousUser` is on for a reason that is easy to undo by
+accident. Without it the plugin deletes a guest as soon as the same browser
+signs in to any other account, and the delete cascades to the character.
+
+Guests are never swept. An abandoned guest keeps its row and its name.
+
 ## A name is typed once and never again
 
 `app/lib/characterName.ts` holds the rules and both halves run them: the form so
 a refusal arrives while somebody is still typing, the server because the socket
-is the boundary. Letters only, two to twenty, stored capitalised — `arthur`,
-`ARTHUR` and `aRtHuR` are all a request to be called `Arthur`, which is what
-makes the unique index mean anything.
+is the boundary. Letters and single spaces between words, two to twenty with
+the spaces counted, each word stored capitalised — `arthur dent`, `ARTHUR  DENT`
+and `aRtHuR dEnT` are all a request to be called `Arthur Dent`, which is what
+makes the unique index mean anything. The index is `COLLATE NOCASE` over the
+stored form, so `Arthur Dent` and `Arthurdent` are two different names.
 
 Refused rather than stripped. Somebody who typed `Ka1n` and was silently given
 `Kan` was not told anything, and there is no second chance: a name is the one

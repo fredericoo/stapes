@@ -4,7 +4,7 @@ import type { Role } from "../../server/auth";
 import type { MaintenanceState } from "../../server/maintenance";
 
 export type Me = {
-  user: { id: string; username: string; role: Role } | null;
+  user: { id: string; username: string; role: Role; guest: boolean } | null;
   characters: Character[];
   maintenance: MaintenanceState | null;
 };
@@ -56,6 +56,19 @@ export function signUp(
   password: string,
 ): Promise<Attempt<unknown>> {
   return post("/api/account", { username, email, password });
+}
+
+export async function startGuest(name: string): Promise<Attempt<Character>> {
+  const started = await post<{ character: Character }>("/api/guest", { name });
+  return started.ok ? { ok: true, value: started.value.character } : started;
+}
+
+export function claimAccount(
+  username: string,
+  email: string,
+  password: string,
+): Promise<Attempt<unknown>> {
+  return post("/api/account/claim", { username, email, password });
 }
 
 export function signIn(username: string, password: string): Promise<Attempt<unknown>> {

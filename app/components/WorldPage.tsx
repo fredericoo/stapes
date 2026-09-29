@@ -74,6 +74,7 @@ export function WorldPage({
   statuses,
   destinations,
   menuExtras,
+  menuAttention = false,
   admin = false,
   onLeave,
   onRefused,
@@ -84,6 +85,7 @@ export function WorldPage({
   statuses: unknown[];
   destinations?: Destination[];
   menuExtras?: React.ReactNode;
+  menuAttention?: boolean;
   admin?: boolean;
   onLeave?: () => void;
   onRefused?: () => void;
@@ -475,6 +477,7 @@ export function WorldPage({
             </>
           }
           menuInPage
+          menuAttention={menuAttention}
         >
           <InkDocument />
           <div className="relative h-full w-full">

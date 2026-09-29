@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { anonymous } from "better-auth/plugins/anonymous";
 import { username } from "better-auth/plugins/username";
 import { MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH, MIN_USERNAME_LENGTH } from "../app/lib/account";
 import { TursoDialect } from "./authDialect";
@@ -11,12 +12,15 @@ export type Viewer = {
   id: string;
   username: string;
   role: Role;
+  guest: boolean;
 };
 
 export const SEEDED_ADMIN_USERNAME = "admin";
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
 const SEEDED_ADMIN_EMAIL = "admin@stapes.invalid";
+
+const GUEST_EMAIL_DOMAIN = "guest.stapes.invalid";
 
 export function createAuth(db: Database, config: Config, secret: string) {
   return betterAuth({
@@ -60,6 +64,14 @@ export function createAuth(db: Database, config: Config, secret: string) {
         maxUsernameLength: MAX_USERNAME_LENGTH,
         displayUsername: false,
       }),
+      anonymous({
+        emailDomainName: GUEST_EMAIL_DOMAIN,
+        /**
+         * Left on, the plugin deletes a guest the moment its browser signs in to
+         * any other account, and the delete cascades to the guest's character.
+         */
+        disableDeleteAnonymousUser: true,
+      }),
     ],
   });
 }
@@ -73,11 +85,13 @@ export async function viewerOf(auth: Auth, headers: Headers): Promise<Viewer | n
     id: string;
     username?: string | null;
     role?: string | null;
+    isAnonymous?: boolean | null;
   };
   return {
     id: user.id,
     username: user.username ?? user.id,
     role: user.role === "ADMIN" ? "ADMIN" : "USER",
+    guest: user.isAnonymous === true,
   };
 }
 
