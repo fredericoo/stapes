@@ -319,6 +319,42 @@ describe("itemCard", () => {
       expect(card.stats.map((row) => row.term)).toEqual(["defence"]);
     });
 
+    it("says a magical piece does nothing for a wearer short of it", () => {
+      const amulet = tileWith({
+        type: "armor",
+        slot: "charm",
+        def: 0,
+        resist: { arcane: 5 },
+        requirements: { arcane: 10 },
+      });
+      const short = itemCard(amulet, null, { arcane: xpForLevel(9) })!;
+      expect(short.dormant).toBe("Does nothing until you reach Arcane 10.");
+      expect(short.speech).toContain("Does nothing until you reach Arcane 10");
+      expect(itemCard(amulet, null, { arcane: xpForLevel(10) })!.dormant).toBeNull();
+    });
+
+    it("names every magic requirement still missing", () => {
+      const tunic = tileWith({ type: "armor", def: 2, requirements: { arcane: 8, fire: 5 } });
+      expect(itemCard(tunic, null, NOTHING_LEARNT)!.dormant).toBe(
+        "Does nothing until you reach Arcane 8 and Fire 5.",
+      );
+    });
+
+    it("never calls a piece dormant for want of toughness", () => {
+      const plate = tileWith({ type: "armor", def: 5, requirements: { toughness: 20 } });
+      expect(itemCard(plate, null, NOTHING_LEARNT)!.dormant).toBeNull();
+    });
+
+    it("prices a shield worn short the way it prices armour", () => {
+      const card = itemCard(
+        tileWith({ type: "shield", def: 3, requirements: { toughness: 12 } }),
+        null,
+        { toughness: xpForLevel(2) },
+      )!;
+      expect(statAt(card.stats, "attackSpeed")).toMatchObject({ value: "\u221220%" });
+      expect(card.requirements).toHaveLength(1);
+    });
+
     it("gives a resistance as the total, best first", () => {
       const card = itemCard(
         tileWith({ type: "armor", def: 4, resist: { blunt: 2, sharp: 5 } }),

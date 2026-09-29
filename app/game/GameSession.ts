@@ -212,6 +212,7 @@ import {
 import type { Equipment, Hand } from "./equipment";
 import {
   bodyElements,
+  magicDormant,
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
@@ -2097,7 +2098,8 @@ export class GameSession implements PlaySession {
     if (!held) return null;
     const def = this.tilesById[held.tileId];
     const item = def ? resolveCharm(def) : null;
-    return item ? { itemId: held.id, item } : null;
+    if (!item || magicDormant(def!, this.bodyOf(actor)?.masteries ?? {})) return null;
+    return { itemId: held.id, item };
   }
 
   private spendCharm(actor: ActorRuntime, charm: CharmItem) {

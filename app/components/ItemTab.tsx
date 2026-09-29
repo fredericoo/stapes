@@ -35,6 +35,7 @@ import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import { SLOT_LABELS } from "../lib/kit";
 import { ENCUMBRANCE_PER_POINT_SHORT, MAX_ENCUMBRANCE } from "../lib/battler";
 import {
+  type Masteries,
   MASTERIES,
   MASTERY_LABELS,
   MAX_MASTERY,
@@ -63,7 +64,33 @@ const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> = ARMOR_SLO
   label: SLOT_LABELS[slot],
 }));
 
-const ARMOR_REQUIREMENTS_INFO = `Zero asks nothing. It can be worn short of them: every point short, summed across everything worn, costs ${Math.round(ENCUMBRANCE_PER_POINT_SHORT * 100)}% of attack speed and of evasion, up to ${Math.round(MAX_ENCUMBRANCE * 100)}%. Defence and resists are never scaled by them.`;
+const WORN_REQUIREMENTS_INFO = `Zero asks nothing. Short of Arcane or an element, the piece does nothing at all: no defence, resists, element or charm effect. Short of anything else, it still works, but every point short, summed across everything worn, costs ${Math.round(ENCUMBRANCE_PER_POINT_SHORT * 100)}% of attack speed and of evasion, up to ${Math.round(MAX_ENCUMBRANCE * 100)}%.`;
+
+function WornRequirements({
+  requirements,
+  onChange,
+}: {
+  requirements: Masteries | undefined;
+  onChange: (requirements: Masteries) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+      <FieldLabel info={WORN_REQUIREMENTS_INFO}>Requirements</FieldLabel>
+      <div className="flex flex-wrap gap-4">
+        {MASTERIES.map((mastery) => (
+          <StatField
+            key={mastery}
+            label={MASTERY_LABELS[mastery]}
+            value={requirements?.[mastery] ?? 0}
+            min={MIN_MASTERY}
+            max={MAX_MASTERY}
+            onChange={(level) => onChange({ ...requirements, [mastery]: level })}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "weapon", label: "Weapon" },
@@ -259,25 +286,10 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-              <FieldLabel info={ARMOR_REQUIREMENTS_INFO}>Requirements</FieldLabel>
-              <div className="flex flex-wrap gap-4">
-                {MASTERIES.map((mastery) => (
-                  <StatField
-                    key={mastery}
-                    label={MASTERY_LABELS[mastery]}
-                    value={item.requirements?.[mastery] ?? 0}
-                    min={MIN_MASTERY}
-                    max={MAX_MASTERY}
-                    onChange={(level) =>
-                      patchArmor({
-                        requirements: { ...item.requirements, [mastery]: level },
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            </div>
+            <WornRequirements
+              requirements={item.requirements}
+              onChange={(requirements) => patchArmor({ requirements })}
+            />
           </div>
         ) : item.type === "consumable" ? (
           <div className="flex flex-col gap-3">
@@ -381,17 +393,29 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
         ) : item.type === "stone" ? (
           <StoneFields stone={item} onChange={patchStone} tiles={tiles} statusDefs={statusDefs} />
         ) : item.type === "charm" ? (
-          <CharmFields charm={item} onChange={patchCharm} statusDefs={statusDefs} />
+          <div className="flex flex-col gap-3">
+            <CharmFields charm={item} onChange={patchCharm} statusDefs={statusDefs} />
+            <WornRequirements
+              requirements={item.requirements}
+              onChange={(requirements) => patchCharm({ requirements })}
+            />
+          </div>
         ) : item.type === "shield" ? (
-          <StatField
-            label="Defence"
-            info="Subtracted from every blow that lands, whatever struck it."
-            value={item.def}
-            min={0}
-            max={MAX_ARMOR_DEF}
-            onChange={(def) => patchShield({ def })}
-            readout={describeDefence(item.def)}
-          />
+          <div className="flex flex-col gap-3">
+            <StatField
+              label="Defence"
+              info="Subtracted from every blow that lands, whatever struck it."
+              value={item.def}
+              min={0}
+              max={MAX_ARMOR_DEF}
+              onChange={(def) => patchShield({ def })}
+              readout={describeDefence(item.def)}
+            />
+            <WornRequirements
+              requirements={item.requirements}
+              onChange={(requirements) => patchShield({ requirements })}
+            />
+          </div>
         ) : (
           <div className="flex flex-wrap items-start gap-4">
             <StatField

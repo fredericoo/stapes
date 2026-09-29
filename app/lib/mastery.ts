@@ -16,6 +16,12 @@ export const BODY_MASTERIES: BodyMastery[] = ["toughness", "agility"];
 
 export const MASTERIES: Mastery[] = [...WEAPON_MASTERIES, ...BODY_MASTERIES, ...ELEMENTS];
 
+export const MAGIC_MASTERIES: Mastery[] = ["arcane", ...ELEMENTS];
+
+export const PHYSICAL_MASTERIES: Mastery[] = MASTERIES.filter(
+  (mastery) => !MAGIC_MASTERIES.includes(mastery),
+);
+
 export const MASTERY_LABELS: Record<Mastery, string> = {
   fist: "Fist",
   sharp: "Sharp",
@@ -55,6 +61,16 @@ export function meetsRequirements(
   );
 }
 
+export function meetsMagicRequirements(
+  masteries: Masteries,
+  requirements: Masteries | undefined,
+): boolean {
+  if (!requirements) return true;
+  return MAGIC_MASTERIES.every(
+    (mastery) => masteryLevel(masteries, mastery) >= (requirements[mastery] ?? 0),
+  );
+}
+
 export function requirementShare(
   masteries: Masteries,
   requirements: Masteries | undefined,
@@ -83,6 +99,22 @@ export function requirementShortfall(
   let missing = 0;
   for (let i = 0; i < MASTERIES.length; i++) {
     const mastery = MASTERIES[i]!;
+    const required = requirements[mastery] ?? 0;
+    if (required <= 0) continue;
+    missing += Math.max(0, required - masteryLevel(masteries, mastery));
+  }
+  return missing;
+}
+
+export function physicalShortfall(
+  masteries: Masteries,
+  requirements: Masteries | undefined,
+): number {
+  if (!requirements) return 0;
+
+  let missing = 0;
+  for (let i = 0; i < PHYSICAL_MASTERIES.length; i++) {
+    const mastery = PHYSICAL_MASTERIES[i]!;
     const required = requirements[mastery] ?? 0;
     if (required <= 0) continue;
     missing += Math.max(0, required - masteryLevel(masteries, mastery));

@@ -93,6 +93,7 @@ export type ArtifactItem = {
 export type ShieldItem = {
   type: "shield";
   def: number;
+  requirements?: Masteries;
   elements?: Element[];
 };
 
@@ -133,6 +134,7 @@ export type CharmItem = {
   everyMs: number;
   hp?: number;
   statuses?: StatusGrant[];
+  requirements?: Masteries;
   elements?: Element[];
 };
 
@@ -391,6 +393,7 @@ const artifactSchema = v.object({
 const shieldSchema = v.object({
   type: v.literal("shield"),
   def: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF)),
+  requirements: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
 });
 
@@ -456,6 +459,7 @@ const charmSchema = v.object({
   ),
   hp: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CHARM_HP))),
   statuses: v.optional(v.array(statusGrantSchema)),
+  requirements: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
 });
 
@@ -525,6 +529,12 @@ export function itemElements(def: TileDef): readonly Element[] {
 }
 
 export const NO_ELEMENTS: readonly Element[] = [];
+
+export function itemRequirements(def: TileDef): Masteries | undefined {
+  const item = resolveItem(def);
+  if (!item || !("requirements" in item)) return undefined;
+  return item.requirements;
+}
 
 export function isRanged(weapon: { projectile?: string | null }): boolean {
   return weapon.projectile != null;
@@ -634,7 +644,12 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
     return { type: "artifact", ...(pile > MIN_PILE ? { pile } : {}) };
   }
   if (item.type === "shield") {
-    return { type: "shield", def: item.def, ...elementsForSave(item.elements) };
+    return {
+      type: "shield",
+      def: item.def,
+      ...requirementsForSave(item.requirements),
+      ...elementsForSave(item.elements),
+    };
   }
   if (item.type === "stone") return stoneForSave(item);
   if (item.type === "charm") return charmForSave(item);
@@ -651,6 +666,7 @@ function charmForSave(charm: CharmItem): CharmItem {
     everyMs: Math.round(charm.everyMs),
     ...(charm.hp ? { hp: Math.round(charm.hp) } : {}),
     ...(charm.statuses?.length ? { statuses: statusGrantsForSave(charm.statuses) } : {}),
+    ...requirementsForSave(charm.requirements),
     ...elementsForSave(charm.elements),
   };
 }

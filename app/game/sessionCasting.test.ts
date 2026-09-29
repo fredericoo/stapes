@@ -386,6 +386,11 @@ const props: TileDef[] = [
     requirements: { arcane: ADEPT_LEVEL },
   }),
   charmTile("life-charm", { everyMs: CHARM_INTERVAL_MS, hp: CHARM_HP }),
+  charmTile("scholar-charm", {
+    everyMs: CHARM_INTERVAL_MS,
+    hp: CHARM_HP,
+    requirements: { arcane: ADEPT_LEVEL },
+  }),
   charmTile("beacon-charm", {
     everyMs: CHARM_INTERVAL_MS,
     hp: CHARM_HP,
@@ -1493,6 +1498,12 @@ describe("a charm worn on the charm square", () => {
     const { play, before } = hurt("life-charm");
     runMs(play, CHARM_INTERVAL_MS * 3);
     expect(hpOf(play)).toBe(before + CHARM_HP * 3);
+  });
+
+  it("does nothing for a wearer short of its arcane", () => {
+    const { play, before } = hurt("scholar-charm");
+    runMs(play, CHARM_INTERVAL_MS * 3);
+    expect(hpOf(play)).toBe(before);
   });
 
   it("stops at a full health bar", () => {

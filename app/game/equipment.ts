@@ -10,6 +10,9 @@ import type {
   ArcaneStoneItem,
   ArmorItem,
   ArmorSlot,
+  CharmItem,
+  ItemDef,
+  ShieldItem,
   WeaponItem,
   WeaponResistances,
 } from "../lib/item";
@@ -33,8 +36,9 @@ import { type Element, ELEMENTS } from "../lib/element";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import {
   type Masteries,
+  meetsMagicRequirements,
   meetsRequirements,
-  requirementShortfall,
+  physicalShortfall,
   WEAPON_MASTERIES,
 } from "../lib/mastery";
 import { resolveLight } from "../lib/tileResolve";
@@ -255,7 +259,7 @@ export function effectiveBattler(
     encumbrance(armorShortfall(base.masteries, equipment, tilesById)),
   );
   const guard = wornDefence(base, equipment, tilesById) + bodyDefence(base);
-  const resist = armorResistances(equipment, tilesById);
+  const resist = armorResistances(equipment, tilesById, base.masteries);
   if (guard === stats.def && resist === NO_RESISTANCES) return stats;
   return { ...stats, def: guard, resist };
 }
@@ -265,24 +269,43 @@ export function armorShortfall(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): number {
-  const worn = wornArmor(equipment, tilesById);
+  if (!equipment) return 0;
   let missing = 0;
-  for (let i = 0; i < worn.length; i++) {
-    missing += requirementShortfall(masteries, worn[i]!.requirements);
+  for (let i = 0; i < EQUIPMENT_SLOTS.length; i++) {
+    const instance = equipment[EQUIPMENT_SLOTS[i]!];
+    const def = instance ? tilesById[instance.tileId] : undefined;
+    const item = def ? resolveItem(def) : null;
+    if (!item || !isProtective(item)) continue;
+    missing += physicalShortfall(masteries, item.requirements);
   }
   return missing;
 }
 
+function isProtective(item: ItemDef): item is ArmorItem | ShieldItem | CharmItem {
+  return item.type === "armor" || item.type === "shield" || item.type === "charm";
+}
+
 /**
- * Indexed rather than `for...of`, here and in `armorDefence`, `armorShortfall` and `requirementShortfall`:
+ * Only armour, shields and charms go dormant. A weapon short of its arcane or
+ * element requirements still swings, at the handling `weaponHandling` gives it.
+ */
+export function magicDormant(def: TileDef, masteries: Masteries): boolean {
+  const item = resolveItem(def);
+  if (!item || !isProtective(item)) return false;
+  return !meetsMagicRequirements(masteries, item.requirements);
+}
+
+/**
+ * Indexed rather than `for...of`, here and in `armorDefence`, `armorShortfall` and `physicalShortfall`:
  * Bun's JIT deoptimises a `for...of` whose body did not run while it was being compiled.
  */
 export function armorResistances(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  masteries: Masteries,
 ): WeaponResistances {
   let summed: WeaponResistances | null = null;
-  const worn = wornArmor(equipment, tilesById);
+  const worn = wornArmor(equipment, tilesById, masteries);
   for (let i = 0; i < worn.length; i++) {
     const armor = worn[i]!;
     if (!armor.resist) continue;
@@ -305,7 +328,7 @@ export function bodyElements(
   if (equipment) {
     for (const instance of wornInstances(equipment)) {
       const def = tilesById[instance.tileId];
-      if (def) sources.push(itemElements(def));
+      if (def && !magicDormant(def, base.masteries)) sources.push(itemElements(def));
     }
   }
 
@@ -319,9 +342,9 @@ export function wornDefence(
   tilesById: Record<string, TileDef>,
 ): number {
   return (
-    heldDefence(equipment, tilesById) +
+    heldDefence(equipment, tilesById, base.masteries) +
     natureDefence(base, equipment, tilesById) +
-    armorDefence(equipment, tilesById)
+    armorDefence(equipment, tilesById, base.masteries)
   );
 }
 
@@ -336,14 +359,19 @@ function natureDefence(
 export function armorDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  masteries: Masteries,
 ): number {
-  const worn = wornArmor(equipment, tilesById);
+  const worn = wornArmor(equipment, tilesById, masteries);
   let total = 0;
   for (let i = 0; i < worn.length; i++) total += worn[i]!.def;
   return total;
 }
 
-function wornArmor(equipment: Equipment | null, tilesById: Record<string, TileDef>): ArmorItem[] {
+function wornArmor(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+  masteries: Masteries,
+): ArmorItem[] {
   if (!equipment) return [];
   const out: ArmorItem[] = [];
   for (const slot of ARMOR_SLOTS) {
@@ -351,7 +379,7 @@ function wornArmor(equipment: Equipment | null, tilesById: Record<string, TileDe
     if (!instance) continue;
     const def = tilesById[instance.tileId];
     const armor = def ? armorForSlot(slot, def) : null;
-    if (armor) out.push(armor);
+    if (armor && meetsMagicRequirements(masteries, armor.requirements)) out.push(armor);
   }
   return out;
 }
@@ -364,13 +392,14 @@ export function armorForSlot(slot: ArmorSlot, def: TileDef): ArmorItem | null {
 export function heldDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  masteries: Masteries,
 ): number {
   let total = 0;
   for (const hand of HANDS) {
     const held = equipment?.[hand];
     if (!held) continue;
     const def = tilesById[held.tileId];
-    if (!def) continue;
+    if (!def || magicDormant(def, masteries)) continue;
     total += resolveWeapon(def)?.def ?? resolveShield(def)?.def ?? 0;
   }
   return total;
@@ -431,6 +460,7 @@ export function takesEffect(
   if (!instance) return false;
   const def = tilesById[instance.tileId];
   if (!def) return false;
+  if (magicDormant(def, masteries)) return false;
 
   if (itemElements(def).length > 0) return true;
   if (resolveLight(def, { direction: instance.direction })) return true;
