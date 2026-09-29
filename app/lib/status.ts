@@ -41,6 +41,7 @@ export type StatusDef = {
   modifiers: StatusModifiers;
   walkSpeedPercent: number;
   incapacitates: boolean;
+  cannotWalk: boolean;
   endsOnDamage: boolean;
   vfx: StatusVfx;
 };
@@ -64,6 +65,7 @@ export const DEFAULT_STATUS_SOURCE = {
   modifiers: {},
   walkSpeedPercent: 0,
   incapacitates: false,
+  cannotWalk: false,
   endsOnDamage: false,
   vfx: { tint: null, particles: null, light: null, taperMs: 0 },
 };
@@ -128,6 +130,7 @@ const statusSourceSchema = v.pipe(
       0,
     ),
     incapacitates: v.optional(v.boolean(), false),
+    cannotWalk: v.optional(v.boolean(), false),
     endsOnDamage: v.optional(v.boolean(), false),
     vfx: v.optional(statusVfxSchema, () => ({
       tint: null,
@@ -177,6 +180,7 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     modifiers,
     walkSpeedPercent: raw.walkSpeedPercent,
     incapacitates: raw.incapacitates,
+    cannotWalk: raw.cannotWalk,
     endsOnDamage: raw.endsOnDamage,
     vfx: resolveStatusVfx(raw.vfx),
   };
@@ -210,6 +214,7 @@ export const COMBAT_STATUS: StatusDef = {
   modifiers: {},
   walkSpeedPercent: 0,
   incapacitates: false,
+  cannotWalk: false,
   endsOnDamage: false,
   vfx: NO_VFX,
 };

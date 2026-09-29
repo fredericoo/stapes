@@ -486,6 +486,7 @@ describe("itemCard", () => {
         modifiers: {},
         walkSpeedPercent: 0,
         incapacitates: false,
+        cannotWalk: false,
         endsOnDamage: false,
         vfx: { tint: null, particles: null, light: null, taperMs: 0 },
       };
@@ -577,6 +578,7 @@ describe("itemCard", () => {
         modifiers: {},
         walkSpeedPercent: 0,
         incapacitates: false,
+        cannotWalk: false,
         endsOnDamage: false,
         vfx: { tint: null, particles: null, light: null, taperMs: 0 },
       };
@@ -646,6 +648,7 @@ describe("itemCard", () => {
       modifiers: {},
       walkSpeedPercent: 0,
       incapacitates: false,
+      cannotWalk: false,
       endsOnDamage: false,
       vfx: { tint: null, particles: null, light: null, taperMs: 0 },
     };

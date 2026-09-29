@@ -359,6 +359,7 @@ const BURN: StatusDef = {
   modifiers: {},
   walkSpeedPercent: 0,
   incapacitates: false,
+  cannotWalk: false,
   endsOnDamage: false,
   vfx: NO_VFX,
 };

@@ -337,6 +337,19 @@ export function StatusEditorDialog({
             </span>
           </label>
           <label className="flex flex-col gap-0.5">
+            <span className="text-[11px] font-bold uppercase text-muted">Can't walk</span>
+            <Switch
+              checked={status.cannotWalk ?? false}
+              onCheckedChange={(cannotWalk) => patch({ cannotWalk })}
+              ariaLabel="The bearer cannot take a step while this runs"
+            />
+            <span className="text-[11px] text-muted">
+              {status.cannotWalk
+                ? "No steps. The bearer can still fight, cast and use things."
+                : "The bearer walks as usual."}
+            </span>
+          </label>
+          <label className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">Ends on damage</span>
             <Switch
               checked={status.endsOnDamage ?? false}

@@ -381,6 +381,7 @@ import {
   incapacitated,
   inCombat,
   NO_STATUSES,
+  walkingStopped,
   type StatusInstance,
   statusReading,
   walkSpeedPercentFrom,
@@ -1633,6 +1634,10 @@ export class GameSession implements PlaySession {
 
   private incapacitated(actor: ActorRuntime): boolean {
     return incapacitated(actor.statuses, this.statusDefs);
+  }
+
+  private walkingStopped(actor: ActorRuntime): boolean {
+    return walkingStopped(this.defFor(actor), actor.statuses, this.statusDefs);
   }
 
   private canSeeFrom(actor: ActorRuntime, loc: ActorLocation, at: Coord): boolean {
@@ -5420,7 +5425,7 @@ export class GameSession implements PlaySession {
 
   private applyStepRequest(actor: ActorRuntime, request: StepRequest): boolean {
     if (request.directions.length === 0) return false;
-    if (this.incapacitated(actor)) return false;
+    if (this.incapacitated(actor) || this.walkingStopped(actor)) return false;
     const loc = this.locate(actor);
     const choice = chooseStep(
       this.map,

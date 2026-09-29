@@ -10,6 +10,7 @@ const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 const TICKS_PER_SECOND = Math.round(1_000 / TICK_MS);
 const SLEEP_MS = 10_000;
 const BURN_MS = 3_000;
+const TRAP_MS = 2_000;
 
 function body(id: string, extra: Record<string, unknown> = {}): TileDef {
   return tile({
@@ -81,6 +82,17 @@ const catalogue = statusesById([
     stacks: false,
     maxMs: SLEEP_MS,
     incapacitates: true,
+  },
+  {
+    id: "trapped",
+    name: "Trapped",
+    description: "Held fast.",
+    tone: "bad",
+    fromMs: TRAP_MS,
+    toMs: TRAP_MS,
+    stacks: false,
+    maxMs: TRAP_MS,
+    cannotWalk: true,
   },
   {
     id: "burned",
@@ -245,5 +257,20 @@ describe("a status that only incapacitates", () => {
     play.runCommand("/status daze");
     run(play, TICKS_PER_SECOND);
     expect(held(play)).toContain("daze");
+  });
+});
+
+describe("a status that stops walking", () => {
+  it("keeps its bearer where it stands, and lets it walk once it runs out", () => {
+    const play = session();
+    play.runCommand("/status trapped");
+    const trappedAt = playerOf(play).y;
+
+    walk(play, "n", 1);
+    expect(playerOf(play).y).toBe(trappedAt);
+
+    run(play, (TRAP_MS / 1000 + 1) * TICKS_PER_SECOND);
+    walk(play, "n", 1);
+    expect(playerOf(play).y).toBe(trappedAt - 1);
   });
 });

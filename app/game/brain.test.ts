@@ -1201,6 +1201,22 @@ describe("watching its footing", () => {
   });
 });
 
+describe("a body that cannot walk", () => {
+  const WANDER_MS = BRAIN_TICK_MS * 40;
+
+  it("stays where it was placed, whatever its brain asks", () => {
+    const deer = tiles.find((def) => def.id === "deer")!;
+    const session = new GameSession(withDeer(field(3), 0, 0, "rooted-deer"), [
+      ...tiles,
+      { ...deer, id: "rooted-deer", cannotWalk: true },
+    ]);
+
+    advance(session, WANDER_MS);
+
+    expect(deerCell(session)).toBe("0,0");
+  });
+});
+
 describe("watching where it puts its feet", () => {
   const hazardTiles: TileDef[] = [
     ...tiles,

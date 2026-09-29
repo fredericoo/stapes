@@ -151,6 +151,7 @@ export type TileDef = StateSprites & {
   actor?: boolean;
   walkDurationMs?: number;
   swims?: boolean;
+  cannotWalk?: boolean;
   walkSpeedPercent?: number;
   wade?: boolean;
   climbFrom?: Partial<Record<FacingKey, Partial<Record<Direction, boolean>>>>;

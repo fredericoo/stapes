@@ -9299,6 +9299,26 @@ tick, something harmful eaten, `/hp` — because they all come through there. Th
 lands. In `tickStatuses` the advanced list is written back before the hp changes
 are applied, so a poison tick that wakes a sleeper is not undone by the write.
 
+## A body or a status can stop walking
+
+`cannotWalk` is a flag on a body's tile and on a `StatusDef`, off unless
+authored, and `statuses.ts`'s `walkingStopped(body, list, catalogue)` is true
+when either sets it. A trap is a status that sets it; the training dummy is a
+body that does.
+
+**It is a separate flag from `incapacitates` because it stops less.** A trapped
+body still swings, casts, uses things and talks; only steps are refused.
+
+**It is checked where a step starts, not where speed is worked out.** Slowing
+is a percentage clamped at `MIN_WALK_SPEED_PERCENT` so that no status or ground
+stops somebody walking off it, and a pace of zero would be a walk that never
+lands. `GameSession.applyStepRequest` refuses the request instead, before it
+turns the body, which covers held keys, a client's `requestStep`, a brain's
+steps and walk orders, and anything else that moves a body on purpose. Being
+shoved and falling are not steps and still happen. `RemoteSession` asks the
+same function before predicting a step, so a trapped player's keys draw nothing
+the server drags back.
+
 ## A status can be a gamble, and a body can be immune to one
 
 Two changes to how a condition is handed over, both forced by one item.

@@ -9,6 +9,7 @@ import {
 } from "../game/constants";
 import {
   incapacitated,
+  walkingStopped,
   inCombat,
   UNKNOWN_REMAINING_MS,
   type StatusInstance,
@@ -979,7 +980,7 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
-    if (this.incapacitated()) return;
+    if (this.incapacitated() || walkingStopped(def, this.statuses, this.statusDefs)) return;
 
     const choice = chooseStep(this.map, loc, this.held, def, this.tilesById, (to) =>
       this.destinationTaken(to),

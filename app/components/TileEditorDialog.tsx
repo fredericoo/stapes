@@ -800,6 +800,7 @@ export function TileEditorDialog({
       actor: draft.actor ? true : undefined,
       walkDurationMs: isActor ? draft.walkDurationMs : undefined,
       swims: isActor && draft.swims ? true : undefined,
+      cannotWalk: isActor && draft.cannotWalk ? true : undefined,
       walkSpeedPercent: draft.walkSpeedPercent || undefined,
       wade: draft.wade ? true : undefined,
       connectsTo:
@@ -1826,6 +1827,21 @@ export function TileEditorDialog({
                   className="hard-checkbox"
                 />
                 Swims
+              </label>
+            ) : null}
+
+            {isActor ? (
+              <label
+                className="flex items-center gap-2 text-sm"
+                title="It never takes a step, whatever its brain or its keys ask. It can still be shoved, and still falls."
+              >
+                <input
+                  type="checkbox"
+                  checked={draft.cannotWalk ?? false}
+                  onChange={(e) => setDraft({ ...draft, cannotWalk: e.target.checked })}
+                  className="hard-checkbox"
+                />
+                Can't walk
               </label>
             ) : null}
 

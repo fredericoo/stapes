@@ -1,3 +1,4 @@
+import type { TileDef } from "../lib/types";
 import type { FightingStats } from "../lib/battler";
 import type { Element } from "../lib/element";
 import type { FormulaScope } from "../lib/formula";
@@ -259,6 +260,15 @@ export function incapacitated(
   catalogue: Record<string, StatusDef>,
 ): boolean {
   return statuses.some((instance) => catalogue[instance.defId]?.incapacitates === true);
+}
+
+export function walkingStopped(
+  body: Pick<TileDef, "cannotWalk"> | undefined,
+  statuses: readonly StatusInstance[],
+  catalogue: Record<string, StatusDef>,
+): boolean {
+  if (body?.cannotWalk === true) return true;
+  return statuses.some((instance) => catalogue[instance.defId]?.cannotWalk === true);
 }
 
 export function endOnDamage(
