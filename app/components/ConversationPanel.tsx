@@ -45,6 +45,8 @@ export const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:borde
 export const CLOSE_BUTTON_CLASS =
   "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 export const LABEL_CLASS = "truncate text-[11px] leading-snug font-medium tracking-tight";
+const CHOICE_LABEL_CLASS = "text-[11px] leading-snug font-medium tracking-tight";
+const TURN_GAP_CLASS = "mt-1.5";
 
 type Props = {
   conversation: Conversation;
@@ -138,7 +140,13 @@ export function ConversationPanel({
       >
         <ol role="log" aria-live="polite" className="flex flex-col gap-1">
           {conversation.transcript.map((entry, i) => (
-            <TranscriptLine key={i} index={i} entry={entry} speaker={title} />
+            <TranscriptLine
+              key={i}
+              index={i}
+              entry={entry}
+              speaker={title}
+              newTurn={i > 0 && entry.who !== conversation.transcript[i - 1]!.who}
+            />
           ))}
         </ol>
         {waiting?.kind === "choices" ? (
@@ -146,7 +154,7 @@ export function ConversationPanel({
             {waiting.options.map((option, index) => (
               <PanelButton key={index} onPress={() => onTalk({ kind: "choose", index })}>
                 {hotkeys ? <KeyHint label={numberKeyLabel(index)} /> : null}
-                <span className={LABEL_CLASS}>{option.label}</span>
+                <span className={CHOICE_LABEL_CLASS}>{option.label}</span>
               </PanelButton>
             ))}
           </div>
@@ -173,14 +181,17 @@ function TranscriptLine({
   index,
   entry,
   speaker,
+  newTurn,
 }: {
   index: number;
   entry: TranscriptEntry;
   speaker: string;
+  newTurn: boolean;
 }) {
+  const gap = newTurn ? TURN_GAP_CLASS : "";
   if (entry.who === "npc") {
     return (
-      <li data-line={index} className="text-[12px] leading-snug text-paper">
+      <li data-line={index} className={`text-[12px] leading-snug text-paper ${gap}`}>
         <span className="sr-only">{speaker}: </span>
         {entry.text}
       </li>
@@ -188,13 +199,16 @@ function TranscriptLine({
   }
   if (entry.who === "you") {
     return (
-      <li data-line={index} className="self-end text-right text-[11px] leading-snug text-paper/60">
+      <li
+        data-line={index}
+        className={`self-end text-right text-[11px] leading-snug text-paper/60 ${gap}`}
+      >
         <span className="sr-only">You: </span>› {entry.text}
       </li>
     );
   }
   return (
-    <li data-line={index} className="text-[11px] italic leading-snug text-paper/50">
+    <li data-line={index} className={`text-[11px] italic leading-snug text-paper/50 ${gap}`}>
       {entry.text}
     </li>
   );
