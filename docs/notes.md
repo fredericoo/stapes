@@ -410,8 +410,9 @@ the socket. Those are the two doors, and they are both server-side checks; the
 `/admin` route guard in the client is a courtesy to somebody who mistyped a URL,
 because the pages behind it are static files anybody can fetch.
 
-A fresh database seeds one account — `admin` / `salem123`, both written down in
-this repository and therefore known to everybody. **The seed creates and never
+A fresh database seeds one account — `SEEDED_ADMIN_USERNAME` with
+`SEEDED_ADMIN_PASSWORD`, in `server/auth.ts`, both written down in this
+repository and therefore known to everybody. **The seed creates and never
 updates**, which is the whole reason it is safe to leave in: change that
 password in a running deployment and the next boot sees the username already
 there and does nothing. `server/accounts.test.ts` pins that, because it is the
