@@ -3,7 +3,10 @@ import type { WeaponItem } from "../lib/item";
 import type { Mastery, MasteryXp } from "../lib/mastery";
 import type { AttackOutcome } from "./combat";
 
-export const XP_PER_DAMAGE = 2;
+export const XP_RATE = 0.5;
+
+const BASE_XP_PER_DAMAGE = 2;
+export const XP_PER_DAMAGE = BASE_XP_PER_DAMAGE * XP_RATE;
 
 export const AGILITY_SHARE_OF_OFFENCE = 0.2;
 
@@ -60,7 +63,8 @@ export function defenderEarnings(
   return outcome.dodged ? { agility: earned } : { toughness: earned };
 }
 
-export const XP_PER_CAST = 1;
+const BASE_XP_PER_CAST = 1;
+export const XP_PER_CAST = BASE_XP_PER_CAST * XP_RATE;
 
 export function practiceEarnings(elements: readonly Element[] = []): MasteryXp {
   const earnings: MasteryXp = { arcane: XP_PER_CAST };

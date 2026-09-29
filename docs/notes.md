@@ -4605,6 +4605,12 @@ It applies to the Agility row too. A dodge you never needed to make is worth as
 little as a blow you cannot feel, and exempting Agility would have left the whole
 thing standing one mastery over.
 
+Every figure in this section was measured before `XP_RATE` halved every payout
+in `app/game/experience.ts`, so each level now takes about twice the fights.
+The rate multiplies the two base payouts, per point of damage and per cast, so
+it moves how fast everything is learnt without moving what anything is worth
+against anything else.
+
 ### A fight opens with an approach, half an interval long
 
 Reach alone used to decide the opening blow: a body that came within reach of
@@ -7251,7 +7257,8 @@ which is the shape it should be. From Sharp 5, on rats alone:
 ```
 
 Five rats to get going; six thousand to get nowhere. Going and finding harder
-things is still the fast way up — this is a way *in*.
+things is still the fast way up — this is a way *in*. The counts predate
+`XP_RATE`, which halved every payout, so each is now about twice as many rats.
 
 **`potentialDamage` is deliberately left whole.** It is what the blow threatened
 rather than what it took, which is the question the defensive payout asks:
