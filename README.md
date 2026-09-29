@@ -1,36 +1,75 @@
 # The Last Stones
 
-Mini Tibia-inspired tile/map editor. Each tile is 8×8 pixels, rendered with an oblique cabinet projection in Three.js.
+A multiplayer tile game, and the editors that make its world. Each tile is 8×8
+pixels, drawn in an oblique cabinet projection with Three.js. One Bun process
+holds the world (`server/`); the client is a static bundle that runs in the tab
+(`app/`).
 
 ## Setup
 
 ```bash
 bun install
-bun run generate   # regenerate tilesets + demo map into data/
 bun dev
 ```
 
-Open the client URL `bun dev` prints for the landing page. The game is at
-`/online`, behind two doors: an account (`/sign-in`), then which of its
-characters to play (`/characters`). The socket opens on the second one.
+`bun dev` prints two URLs; open the client one. `/` is the landing page. The
+game is at `/online`, behind two doors: an account (`/sign-in`), then which of
+its characters to play (`/characters`). The socket opens on the second one.
 
-The authoring tools are all under `/admin`, which opens on the map editor: the
-tile database is at `/admin/tiles`, and `/admin/arena` balances two fighters
-without a world in the way. **They need an `ADMIN` account.** A fresh database
-seeds one — username `admin`, password `salem123` — and nothing else grants the
-role: to promote somebody, say so in the database.
+The world, its accounts and its characters live in `.dev/stapes.db`, inside the
+checkout, so every worktree has its own. `rm -rf .dev` deletes all three, and
+the next `bun dev` starts again from `data/` with only the seeded administrator.
+
+## Signing in
+
+**Every `/admin` page but `/admin/sign-in` needs an `ADMIN` account**,
+`/admin/play` included.
+A fresh database seeds one: its username and password are
+`SEEDED_ADMIN_USERNAME` and `SEEDED_ADMIN_PASSWORD` in `server/auth.ts`. Sign in
+with them at `/admin/sign-in`, or at `/sign-in` to play as that account.
+
+**Agents sign in with the seeded account too.** An agent driving a local world
+in a browser can type those two values into `/admin/sign-in`, or post them to
+`/api/auth/sign-in/username` the way `signInAsAdmin` in `e2e/accounts.ts` does.
+Both values are in this repository and so known to everybody, which is why
+SETUP.md has you change the password on a deployment before anything else.
+
+Nothing else grants the role. To promote somebody, stop the server — it holds
+the database file exclusively — and say so in the database:
 
 ```sql
 UPDATE user SET role = 'ADMIN' WHERE username = 'someone';
 ```
 
-A deployment needs nothing new: session cookies are signed with `AUTH_SECRET`
-when it is set, and with a secret the server generates on its first boot and
-keeps in its own database when it is not. See [SETUP.md](SETUP.md).
+Session cookies are signed with `AUTH_SECRET` when it is set, and otherwise with
+a secret the server generates on its first boot and keeps in its own database,
+so accounts need no configuration. See [SETUP.md](SETUP.md).
 
-`/admin/play` is the same game with the world running in the tab — the real
-`GameServer` in a worker, the real protocol, no socket and nothing to log in to.
-It is the path to open when the question is whether the game still works.
+## Pages
+
+- `/` — the landing page, prerendered at build time
+- `/online` — the shared world, reached through `/sign-in` or `/sign-up`, then
+  `/characters` or `/characters/new`. `/account/password` is reached from the
+  character chooser
+- `/admin/map` — the map editor, which `/admin` opens on
+- `/admin/tiles` and `/admin/statuses` — the tile and status catalogues
+- `/admin/voxel` — builds a sprite out of voxels and exports it as a tileset
+- `/admin/arena` — two fighters without a world in the way, for balancing
+- `/admin/play` — the game with the world running in the tab
+- `/admin/actions` — acting on the running world: **Close world**, for
+  maintenance
+- `/admin/sign-in` — the one `/admin` page that does not ask for the role
+
+**`/admin/play` is the game with the world running in the tab** — the real
+`GameServer` in a worker, the real protocol, and no socket. It is the path to
+open when the question is whether the game still works. One world per tab, kept
+in IndexedDB between visits, with a Reset world button where the shared world
+has `POST /api/reset`.
+
+It needs no character, but it does need the `ADMIN` sign-in, and `bun dev`
+running: the worker reads the map and the catalogues over `/api`, and
+`GET /api/map` answers only an administrator's session. See `docs/notes.md`,
+"`/admin/play` runs the server in the tab".
 
 Both play pages put `window.__stapes` on the page, for a script or an agent to
 drive the game over the DevTools protocol: run a chat command and get its answer,
@@ -42,8 +81,40 @@ an agent drives", lists every call.
 
 - `bun dev` — both halves at once: Vite for the client, `bun --watch` for the
   server, on ports it asks the OS for so several worktrees can run together.
-  Prints both URLs; open the client one
-- `bun run generate` — regenerate placeholder tileset + seed JSON in `data/`
+  `STAPES_CLIENT_PORT` and `STAPES_SERVER_PORT` pin them. Prints both URLs; open
+  the client one
+- `bun run start` — the server alone, which is what the Docker image runs
+- `bun run build` — the client bundle, into `build/client`. Deploying uploads it
+  to the running server, which switches to it once the new server is healthy
+- `bun run test` — the three suites below, one after another
+- `bun run test:unit` — `app/` logic, in vitest
+- `bun run test:server` — the world and its accounts, on Bun, against a real
+  database file
+- `bun run test:perf` — the app in a real browser, in Playwright: renderer
+  budgets, the landing page, the way in, the world in a tab, the phone controls
+  and `window.__stapes`. It starts its own `bun dev` on ports 5174 and 5175 against
+  the same `.dev/stapes.db` as yours, so stop your `bun dev` in that worktree
+  first: only one process can hold the database. `CHROMIUM_PATH` overrides the
+  browser it launches, for a machine whose installed Chromium is not the build
+  this version of Playwright downloads
+- `bun run typecheck` — route typegen, then all three tsconfigs
+- `bun run lint` — oxlint, run under Bun so it can load the TypeScript plugin
+  in `lint/plugin.ts`, whose `stapes/no-comments` rule rejects every comment
+  but `/** */` blocks and directives. The built-in rules it turns off each have
+  their reason in `docs/tooling.md`
+- `bun run format` — oxfmt, configured in `.oxfmtrc.json`.
+  `bun run format:check` is the same question without writing, which is what
+  CI asks. Markdown is not formatted, and neither are `data/map.json` or
+  `data/tiles.json`, whose writers own their shape — `docs/tooling.md` has a
+  paragraph on each
+- `bun run generate` — overwrite `data/tilesets.json`, `data/tiles.json`,
+  `data/map.json` and `data/tilesets/basic.png` with an eight-by-eight test
+  world. It replaces the authored world rather than adding to it, so it is not a
+  setup step
+- `bun run generate:complement` — paint the inverse of an autotile block into
+  another block of the same sheet: each cell gets the source block's full cell
+  wherever the source cell is transparent. Which blocks, on which sheet, is the `JOBS`
+  list at the top of the script
 - `bun run generate:water` — rebuild the water autotile from two masks: the wave
   frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
   Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
@@ -75,6 +146,11 @@ an agent drives", lists every call.
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as
   it stands without touching it
+- `bun run seed` — copy `data/` into the `blob` table of the database in
+  `DATA_DIR`. The server has to be stopped, since it holds the file, and the
+  world keeps its checkpoint. Rarely needed: every deploy already does this
+  through `POST /api/seed`, which also rebuilds the world's board, and `bun dev`
+  reads `data/` directly
 - `bun run bench:server` — tick the world headless against `data/map.json`
   with players standing in a few scenarios, and print what a tick costs and
   how many bytes it puts on the wire. `--scenario <name>` for one,
@@ -95,38 +171,28 @@ an agent drives", lists every call.
   `app/components/home/media/` as WebM, MP4 and a poster. Needs `bun dev`
   running and `ffmpeg` installed. Runs the page at a tenth of real time so
   software WebGL still gives a smooth video; the script says how
+- `bun scripts/dump-quads.ts <x0> <x1> <y0> <y1> <zMin> <zMax>` — print, as
+  JSON, the sprite quads the renderer would build for that box of cells in
+  `data/map.json`, with their depth boxes, to work out draw order without a GPU.
+  An optional seventh argument stacks extra tiles first, as
+  `x,y,z,tileId[,direction]` separated by `;`. It re-derives the renderer's
+  placement rather than calling it, so the two can disagree
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says
   what would change. `normalizeTileDef` still migrates the old encoding on load,
   so this only exists to keep the file readable
-- `bun run seed` — load `data/` into a database that already has content. Rarely
-  needed: a fresh one seeds itself on boot
-- `bun run lint` — oxlint, run under Bun so it can load the TypeScript plugin
-  in `lint/plugin.ts`, whose `stapes/no-comments` rule rejects every comment
-  but `/** */` blocks and directives. Four built-in rules are off and
-  `docs/tooling.md` says why
-- `bun run format` — oxfmt, at a print width of 100. `bun run format:check`
-  is the same question without writing, which is what CI asks. Markdown is not
-  formatted, and neither are `data/map.json` or `data/tiles.json`, whose
-  writers own their shape — `.oxfmtrc.json` has a paragraph on each
-- `bun run typecheck` — route typegen, then all three tsconfigs
-- `bun run test:unit` — `app/` logic, in vitest
-- `bun run test:server` — the world and its accounts, on Bun, against a real
-  database file
-- `bun run test:perf` — the app in a real browser, in Playwright: renderer
-  budgets, the way in, and the world in a tab. `CHROMIUM_PATH` overrides the
-  browser it launches, for a machine whose installed Chromium is not the build
-  this version of Playwright downloads
-- `bun run build` — the client bundle, which CI pushes to the bucket
+- `scripts/cap-previews.sh` and `scripts/prune-preview-volumes.sh` — run by cron
+  on the preview server, not here. SETUP.md, "Previews, on their own box",
+  installs them
 
 Deploying is in [SETUP.md](SETUP.md).
 
 ## Multiplayer
 
-`/online` joins a shared world. Everyone spawns where the map's `player` tile is
-placed; you appear to each other as tiles and can push the same objects.
-Closing the tab removes your tile.
+`/online` is one world shared by everybody connected. A new character starts
+where the map's `player` tile is placed, and a returning one where it left.
+Players see each other and can push the same objects.
 
 **Two words, kept apart everywhere.** You *sign in* and *sign out* of an
 **account**; a **character** *enters* and *leaves* the world. An account holds
@@ -141,18 +207,16 @@ nothing on the way in.
 
 The account's own controls, Sign out and Change password, are reachable from the
 character chooser and from nowhere else; the game's menu has neither. What it
-has is **Leave world**, beside the lighting switch: it closes the socket and
-puts the chooser back, leaving the session alone, so coming back to that
-character is the same body standing where you left it. It warns first only when
-you are in a fight, because a body in combat stays on the board for a minute
-after its socket goes.
+has is **Leave world**: it closes the socket and puts the chooser back, leaving
+the session alone, so coming back to that character is the same body standing
+where you left it. It warns first only when you are in a fight, because a body
+in a fight stays in the world, standing still, until it has gone a minute
+without fighting — a swing, a hit or a harmful spell involving it — and for
+fifteen minutes at most.
 
 Which character you are is a query parameter on the socket, checked against the
 signed session cookie — so naming somebody else's character is a refusal, not a
 way into their body.
-
-Saving in `/admin/map` writes the map and restarts the world: everyone re-enters a
-fresh game on the new map.
 
 Deploying the server also restarts the world, and that is announced: the page
 shows that the world is updating, and puts you back where you were standing a
@@ -166,39 +230,45 @@ three at once. Two tabs on the *same* character are the same player, and the
 newest connection wins. To test two accounts locally, open one on `localhost`
 and one on `127.0.0.1` — different hosts, different cookie jars.
 
-**`/admin/play` is the same page against a world in the tab.** One world per
-tab, kept in IndexedDB between visits, with a Reset world button where the
-shared world has `POST /api/reset`. It reads the map and the catalogues over
-`/api` like every other page, so it still wants `bun dev` — what it does not
-want is a socket, an account or anything to sign in to. See `docs/notes.md`,
-"`/admin/play` runs the server in the tab".
-
 ## Data
 
-Authored content is:
+Authored content is `data/`:
 
 - `tilesets/*.png` + `tilesets.json`
 - `tiles.json` — tile definitions
+- `statuses.json` — status definitions
 - `map.json` — sparse stacked map (levels -8..+8)
 
 It has two homes behind one interface (`app/lib/dataStore.ts`):
 
 - **In dev, `data/` on disk is the source of truth.** A tileset edited in an
-  external tool is live on the next request, and the map editor's Save writes
-  `data/map.json` — so changes show up in `git diff` and stay reviewable.
+  external tool is live on the next request, and the editors write straight
+  back to it — the map, the tiles, the statuses and the tilesets alike — so
+  changes show up in `git diff` and stay reviewable.
 - **Deployed, the `blob` table** in `stapes.db`, at keys mirroring the same
   paths. A fresh deployment fills it from the `data/` in its image on first
-  boot, so there is nothing to seed by hand.
+  boot, and every deploy copies that `data/` over it again with
+  `POST /api/seed`.
 
-The whole of a deployment is one directory on one volume: `stapes.db` and its
-write-ahead log, plus `clients/` holding the last few client builds. That is
-everything worth backing up, and it is what `POST /api/backup` snapshots.
+Map edits are in-memory until you hit **Save** (or Cmd/Ctrl+S). Tile and status
+edits save immediately.
 
-There is a third source of truth that seeding cannot reach: the world people are
-actually in. It prefers its own checkpoint to the authored content, so a seeded
-map changes nothing anybody can see, and it deliberately carries each player's
-kit, tags and masteries across a save. `POST /api/reset` is the way out — it
-destroys every position, kit, reward and mastery, and needs `ADMIN_SECRET`.
+`serializeMap` round-trips byte-for-byte, so saving an unmodified map leaves
+`git status` clean rather than reformatting the file.
+
+**The world people are in is a third source of truth.** It prefers its own
+checkpoint to the authored content, and carries each player's kit, tags,
+masteries, statuses and health across a change of map. Three things replace its
+board with the authored map:
+
+- **Every deploy**, through `POST /api/seed`. Players stay where they are
+  standing. The map, tiles, statuses and tilesets saved in a deployed editor
+  since the last deploy are overwritten by `data/`, so an edit made there lasts
+  until the next deploy unless it is committed too.
+- **Save in `/admin/map`.** Players in the world go back to the spawn; a
+  character that was away comes back near where it left.
+- **`POST /api/reset`**, with the `ADMIN_SECRET` bearer token, which also
+  destroys every position, kit, reward and mastery.
 
 To keep players out without a deploy — for a fix, a reset, or an alpha that is
 only open some hours — use maintenance mode: `POST /api/maintenance` with the
@@ -209,11 +279,10 @@ Accounts and characters are a fourth, and none of the above touches them. They
 are their own tables rather than keys in the world's checkpoint, so a reset
 hands everybody a fresh body under the name they already have.
 
-Map edits are in-memory until you hit **Save** (or Cmd/Ctrl+S). Tile DB edits
-save immediately.
-
-`serializeMap` round-trips byte-for-byte, so saving an unmodified map leaves
-`git status` clean rather than reformatting the file.
+A deployment keeps all of this in one directory on one volume: `stapes.db` and
+its write-ahead log, plus `clients/`, the last few client builds.
+`POST /api/backup` snapshots the database into `BACKUP_DIR`, and every deploy
+calls it before replacing the server.
 
 ## TypeScript
 
@@ -221,7 +290,7 @@ Three configs, because the code spans three places:
 
 - `tsconfig.json` — `app/`, typed for a browser tab. No Node types
 - `tsconfig.server.json` — `server/`, plus the modules it shares with `app/`
-- `tsconfig.node.json` — `scripts/`, `e2e/` and the `*.config.ts` files
+- `tsconfig.node.json` — `scripts/`, `e2e/`, `lint/` and the `*.config.ts` files
 
 ## Third-party assets
 
