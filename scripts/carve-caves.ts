@@ -62,10 +62,22 @@ const AUTHORED_HOLES = [
   { x: 55, y: -12 },
 ] as const;
 
-const ROCK: Placed[] = [{ tileId: "half-stone" }, { tileId: "half-stone" }];
 const CAVE_FLOOR: Placed[] = [{ tileId: "dirt" }];
 
-const OVERWRITABLE = new Set(["dirt", "half-stone", "grass-2", "grass"]);
+/**
+ * A conic wall covers only part of its cell, so it stands on the cave floor or
+ * the uncovered part shows the level below. The deepest level is grey so a
+ * glance tells it from the red floors above.
+ */
+function rockFor(z: number): Placed[] {
+  const wall = z === SYSTEM.levels.at(-1) ? "cave-wall-sloped-grey" : "cave-wall-sloped";
+  return [...CAVE_FLOOR, { tileId: wall }];
+}
+
+const ROCK_TILES = new Set(["half-stone", "cave-wall-sloped", "cave-wall-sloped-grey"]);
+const isRock = (stack: readonly Placed[]) => stack.some((t) => ROCK_TILES.has(t.tileId));
+
+const OVERWRITABLE = new Set(["dirt", "grass-2", "grass", ...ROCK_TILES]);
 
 const EXISTING_CAVE_BUFFER = 3;
 
@@ -211,7 +223,7 @@ const SEALED_ROOF: Mask = (() => {
 function isExistingOpen(z: number, x: number, y: number): boolean {
   const stack = getStack(z, x, y);
   if (stack.length === 0) return false;
-  return !stack.some((t) => t.tileId === "half-stone");
+  return !isRock(stack);
 }
 
 const INSIDE_THE_MAP: Mask = (() => {
@@ -751,12 +763,7 @@ function writeSystem(carved: Carved) {
       if (carved.rampHoles.has(`${floor.z}:${c}`) || carved.pits.has(`${floor.z}:${c}`)) continue;
       const here = at(c);
       if (getStack(floor.z, here.x, here.y).length > 0) continue;
-      setStack(
-        floor.z,
-        here.x,
-        here.y,
-        ROCK.map((t) => ({ ...t })),
-      );
+      setStack(floor.z, here.x, here.y, rockFor(floor.z));
       placed.rock++;
     }
   }
@@ -799,12 +806,7 @@ function writeSystem(carved: Carved) {
     if (SEALED_ROOF[c] || !nearCaves[c]) continue;
     const here = at(c);
     if (getStack(lidLevel, here.x, here.y).length > 0) continue;
-    setStack(
-      lidLevel,
-      here.x,
-      here.y,
-      ROCK.map((t) => ({ ...t })),
-    );
+    setStack(lidLevel, here.x, here.y, rockFor(lidLevel));
     placed.lid++;
   }
 
@@ -857,7 +859,7 @@ function checkWritten(carved?: Carved): string[] {
   const bodies: Array<{ x: number; y: number; z: number; def: TileDef }> = [];
   for (const z of SYSTEM.levels) {
     for (const { x, y, stack } of listCoords(live, z)) {
-      if (stack.some((p) => p.tileId === "half-stone")) continue;
+      if (isRock(stack)) continue;
       if (!stack.some((p) => p.tileId === "dirt")) continue;
       if (ours && !ours.has(`${x},${y},${z}`)) continue;
       denCells.add(`${x},${y},${z}`);

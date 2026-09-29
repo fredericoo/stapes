@@ -11845,9 +11845,10 @@ on it are left alone once the tile exists.
 
 **The open part of the cell shows whatever is under the wall.** Like `sw2`,
 every variant needs a floor beneath it in the stack, or the uncovered part of
-the cell is the level below or void. `scripts/carve-caves.ts` builds its rock
-with nothing under it, so that rock cannot be swapped for any of them without
-adding a floor.
+the cell is the level below or void. `scripts/carve-caves.ts` builds its walls
+of `cave-wall-sloped`, or `cave-wall-sloped-grey` on the last level in
+`SYSTEM.levels`, and lays `dirt` under every one. Every wall in the shipped caves
+stands on `dirt`, grass or a wooden floor.
 
 **To everything but the art each is one solid cell.** Movement, sight, light,
 arrows and the depth box treat every variant as a column four units tall, as
@@ -11856,9 +11857,22 @@ because their tops cover only part of the cell. They connect to `stone-wall` and
 `half-stone`, so they meet older rock flush and a cave can be converted a patch
 at a time.
 
+**An empty cell stands on the top of the stack below it**, and a `half-stone`
+pair's top is walkable where these are not. Swapping that rock for any variant
+leaves the empty cell above it with nowhere to stand, so give it ground first.
+`carve:caves --verify` reports such a cell only when it is a cave cell; comparing
+the cells it walked to before and after the swap finds the rest.
+
 **Their sheet costs a draw call** in every chunk that uses any variant: static
-quads are batched per texture within a chunk. Nothing on the shipped map uses
-them yet.
+quads are batched per texture within a chunk. Every cave on the shipped map uses
+them: `cave-wall-sloped` on L-1 and L-2, and `cave-wall-sloped-grey` on L-3, so
+the deepest floor reads as deeper at a glance.
+
+**Stalagmites are single sloped walls on open floor**, which the autotile draws
+as a cone. Each stands where every cell within two of it is bare `dirt`, so it
+never narrows a passage below three cells or touches a creature, ramp, ladder or
+hole, and never under a hole in the level above. They are at least seven cells apart,
+about one per ninety cells of open floor.
 
 **The cave generator lists all four as rock but still widens every passage to
 two** (`widenToTwo`). It already lays its floor under the rock, so the open part
