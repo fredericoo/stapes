@@ -6,6 +6,7 @@ import { emptyMap, getStack, replaceStack, serializeMap } from "../app/lib/mapDa
 import type { MapFile } from "../app/lib/types";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import { createApi } from "./api";
+import { FEEDBACK_PER_WINDOW } from "./feedback";
 import { SEEDED_ADMIN_USERNAME } from "./auth";
 import { ClientBundle } from "./clientBundle";
 import { readConfig } from "./config";
@@ -208,5 +209,74 @@ describe("saving a guest to an account", () => {
   it("refuses an account that is already saved", async () => {
     const response = await call("/account/claim", claim, cookie);
     expect(response.status).toBe(400);
+  });
+});
+
+async function feedbackList(from: string): Promise<Response> {
+  return api.handle(new Request("http://localhost/api/feedback", { headers: { cookie: from } }));
+}
+
+describe("feedback", () => {
+  it("reaches an administrator with who sent it, from which character, and what their browser said", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const [character] = (await me(guest)).characters;
+
+    const sent = await call(
+      "/feedback",
+      {
+        message: "  I got stuck behind the well  ",
+        characterId: character!.id,
+        context: { position: { x: 3, y: 4, z: 0 }, viewport: "390x844" },
+      },
+      guest,
+    );
+    expect(sent.status).toBe(200);
+
+    const { entries } = (await (await feedbackList(cookie)).json()) as {
+      entries: Record<string, unknown>[];
+    };
+    expect(entries).toEqual([
+      expect.objectContaining({
+        message: "I got stuck behind the well",
+        guest: true,
+        username: null,
+        characterName: "Maren Ormstead",
+        context: expect.objectContaining({
+          position: { x: 3, y: 4, z: 0 },
+          viewport: "390x844",
+        }),
+      }),
+    ]);
+  });
+
+  it("names no character that is not the sender's own", async () => {
+    const theirs = await startGuest("Maren Ormstead");
+    const [character] = (await me(theirs)).characters;
+    const mine = await startGuest("Garan Normore");
+
+    await call("/feedback", { message: "hello", characterId: character!.id }, mine);
+
+    const { entries } = (await (await feedbackList(cookie)).json()) as {
+      entries: { characterName: string | null }[];
+    };
+    expect(entries[0]!.characterName).toBeNull();
+  });
+
+  it("is listed for administrators only", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    expect((await feedbackList(guest)).status).toBe(404);
+  });
+
+  it("refuses a browser that is not signed in, and a message with nothing in it", async () => {
+    expect((await call("/feedback", { message: "hello" })).status).toBe(401);
+    expect((await call("/feedback", { message: "   " }, cookie)).status).toBe(400);
+  });
+
+  it("stops one account sending more than a few in a minute", async () => {
+    const statuses: number[] = [];
+    for (let sent = 0; sent <= FEEDBACK_PER_WINDOW; sent++) {
+      statuses.push((await call("/feedback", { message: `note ${sent}` }, cookie)).status);
+    }
+    expect(statuses).toEqual([...Array<number>(FEEDBACK_PER_WINDOW).fill(200), 429]);
   });
 });

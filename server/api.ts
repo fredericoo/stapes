@@ -9,6 +9,14 @@ import type { World } from "./world";
 import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
 import { MAINTENANCE_MESSAGE_MAX_LENGTH } from "./maintenance";
+import {
+  FEEDBACK_PER_WINDOW,
+  FEEDBACK_WINDOW_MS,
+  MAX_FEEDBACK_CONTEXT_BYTES,
+  MAX_FEEDBACK_LENGTH,
+} from "./feedback";
+
+const FEEDBACK_LIST_LIMIT = 500;
 
 const GUEST_SIGN_IN_PATH = "/api/auth/sign-in/anonymous";
 
@@ -115,6 +123,55 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       },
       { body: t.Object({ name: t.String() }) },
     )
+
+    .post(
+      "/feedback",
+      async ({ body, request, status }) => {
+        const viewer = await signedIn(request);
+        if (!viewer) return status(401, "Sign in first");
+
+        const message = body.message.trim();
+        if (!message) return status(400, "Write something first.");
+        if (message.length > MAX_FEEDBACK_LENGTH) {
+          return status(400, `Keep it under ${MAX_FEEDBACK_LENGTH} characters.`);
+        }
+        const context = body.context ?? {};
+        if (JSON.stringify(context).length > MAX_FEEDBACK_CONTEXT_BYTES) {
+          return status(400, "That report carried too much detail to store.");
+        }
+
+        const now = Date.now();
+        const recent = await world.feedback.sentSince(viewer.id, now - FEEDBACK_WINDOW_MS);
+        if (recent >= FEEDBACK_PER_WINDOW) {
+          return status(429, "You have sent a lot just now. Try again in a minute.");
+        }
+
+        const character = body.characterId
+          ? await world.characters.ownedBy(body.characterId, viewer.id)
+          : null;
+        await world.feedback.add({
+          at: now,
+          userId: viewer.id,
+          username: viewer.guest ? null : viewer.username,
+          guest: viewer.guest,
+          characterName: character?.name ?? null,
+          message,
+          context: { ...context, userAgentHeader: request.headers.get("user-agent") },
+        });
+        return { ok: true as const };
+      },
+      {
+        body: t.Object({
+          message: t.String(),
+          characterId: t.Optional(t.Nullable(t.String())),
+          context: t.Optional(t.Record(t.String(), t.Unknown())),
+        }),
+      },
+    )
+    .get("/feedback", async ({ request, status }) => {
+      if (!(await admin(request))) return status(404, "Not found");
+      return { entries: await world.feedback.recent(FEEDBACK_LIST_LIMIT) };
+    })
 
     .get("/tiles", async () => ({ tiles: await store.readTiles() }))
     .get("/statuses", async () => ({ statuses: await store.readStatuses() }))

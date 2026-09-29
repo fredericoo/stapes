@@ -96,6 +96,17 @@ const MIGRATIONS: readonly string[] = [
      since_ms INTEGER NOT NULL
    )`,
   `ALTER TABLE user ADD COLUMN isAnonymous INTEGER NOT NULL DEFAULT 0`,
+  `CREATE TABLE IF NOT EXISTS feedback (
+     id             INTEGER PRIMARY KEY AUTOINCREMENT,
+     at             INTEGER NOT NULL,
+     user_id        TEXT NOT NULL,
+     username       TEXT,
+     guest          INTEGER NOT NULL,
+     character_name TEXT,
+     message        TEXT NOT NULL,
+     context        TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS feedback_user_at ON feedback(user_id, at)`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

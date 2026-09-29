@@ -13,6 +13,7 @@ import { Maintenance, type MaintenanceState } from "./maintenance";
 import { CLOSE_MAINTENANCE, KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
 import type { Database } from "./db";
+import { Feedback } from "./feedback";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -31,6 +32,7 @@ export class World {
     readonly auth: Auth,
     readonly characters: Characters,
     readonly maintenance: Maintenance,
+    readonly feedback: Feedback,
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
@@ -68,6 +70,7 @@ export class World {
       auth,
       characters,
       await Maintenance.load(db),
+      new Feedback(db),
       blobs,
       db,
       config,
