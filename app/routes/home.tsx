@@ -7,7 +7,6 @@ import { media } from "../components/home/content";
 import { Hero } from "../components/home/Hero";
 import { NAV_HEIGHT_PX, NavBar } from "../components/home/NavBar";
 import { PlaybackProvider, usePlayback } from "../components/home/playback";
-import { Story } from "../components/home/Story";
 import { useOnScreen } from "../components/home/useOnScreen";
 import type { Route } from "./+types/home";
 import "./home.css";
@@ -89,7 +88,6 @@ export default function HomePage() {
         <Hero heroRef={heroRef} />
         <main>
           <FeatureTour />
-          <Story />
           <Gallery />
           <FinalCall />
         </main>

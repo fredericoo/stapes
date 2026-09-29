@@ -174,38 +174,3 @@ export const SHOTS: Shot[] = [
     pixelated: true,
   },
 ];
-
-/**
- * What the picture behind a paragraph shows. `home.css` styles each by name:
- * the door to the other world, the city Garius froze, and the city under
- * Holleg with the room near the surface.
- */
-export type StoryScene = "door" | "frozen" | "buried";
-
-type StoryBeat = {
-  text: string;
-  scene: StoryScene;
-  /** Share of the scroll through the story, from 0 to 1, at which this paragraph takes over. */
-  from: number;
-};
-
-export const STORY: StoryBeat[] = [
-  {
-    text: "A people called the Arcane learned to command nature by writing on stones. Twelve of them tried a stone meant to open a door to another world. It joined the two worlds into one instead, and what lived on the other side came through.",
-    scene: "door",
-    from: 0,
-  },
-  {
-    text: "Three survived. Garius froze their city in time, so every sixty days it goes back to how it was. Dieter made new people, us, who remember what happens. Holleg turned himself into forty metres of earth and buried it all.",
-    scene: "frozen",
-    from: 0.33,
-  },
-  {
-    text: "People still call the ground Holleg. You wake up in the one room left near the surface, where Dieter is writing the story on the wall.",
-    scene: "buried",
-    from: 0.68,
-  },
-];
-
-/** Holleg's depth in the story's second paragraph, which the gauge counts up to as the earth rises. */
-export const BURIED_DEPTH_M = 40;

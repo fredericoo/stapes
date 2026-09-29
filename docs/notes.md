@@ -769,13 +769,11 @@ takes.
 
 ### The page asks its own layout
 
-The tour's reading line and the story's scroll-driven stage both depend on
-which layout `home.css` chose, and both find out by asking whether an element
-is `position: sticky` rather than by repeating its breakpoints in TypeScript.
-So the layouts for a phone, for a screen too short to stick anything (a phone
-on its side, a page zoomed in far) and for reduced motion are CSS alone: the
-story is laid out still, every paragraph at once, and the code that drives it
-draws it finished.
+The tour's reading line depends on which layout `home.css` chose, and it finds
+out by asking whether the screen column is `position: sticky` rather than by
+repeating its breakpoints in TypeScript. So the layouts for a phone and for a
+screen too short to stick anything (a phone on its side, a page zoomed in far)
+are CSS alone.
 
 ### What the world does, and what that means for staging
 
