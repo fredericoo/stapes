@@ -863,9 +863,9 @@ describe("the authored creatures", () => {
     const left = new Set<string>();
     for (const def of authored) {
       const stone = def.interactions?.item as
-        | { type?: string; effect?: { statuses?: { id: string }[] } }
+        | { type?: string; effect?: { on?: string; statuses?: { id: string }[] } }
         | undefined;
-      if (stone?.type !== "stone") continue;
+      if (stone?.type !== "stone" || stone.effect?.on === "caster") continue;
       for (const status of stone.effect?.statuses ?? []) left.add(status.id);
     }
     const immune = resolveBattler(byId.cyclops!)!.immuneTo ?? [];

@@ -6080,18 +6080,23 @@ a status, for a second mastery and five more Arcane to be let near the stone.
 Pressing one trains Arcane alone, because the flat per-cast fee goes to Arcane
 and to each element the spell is *made of* — and this one is made of nothing.
 
-**The neutral rung one asks exactly what the `player` tile is seeded with**,
-which is the whole of "everybody can cast on their first day": Arcane 5 is what a
-new body is authored to start at, and Spark asks that and nothing else. The
-elemental rung beside it asks five more, so the first thing a new player casts is
-always a neutral stone, and casting it is how the Arcane to reach fire is earned.
+**The neutral rung one asks exactly what the `player` tile is seeded with**:
+Arcane 5 is what a new body is authored to start at, and Spark asks that and
+nothing else. It is not what "everybody can cast on their first day" rests on
+any more. Spark comes from the forge rather than the tutorial chest, and a death
+can take a new player below Arcane 5, so that promise is Light's, which asks
+`MIN_EARNED_MASTERY` (see *Light is beside the ladder too* below). The elemental
+rung beside Spark asks five more Arcane, so the first thing a new player casts
+is always a neutral stone, and casting it is how the Arcane to reach fire is
+earned.
 
-The element half of an elemental rung is still exactly the seed — one point of
-Fire, Water and Nature — so what stands between a new player and their first fire
-spell is Arcane alone. That matters because casting a stone is the *only* thing
-in the game that pays element experience: an element gate above the seed would be
-a wait for something nothing pays. If the seed and the neutral rung move apart, an
-arcanist has no way to begin at all.
+The element half of an elemental rung is exactly the floor — one point of Fire,
+Water and Nature, which every player has — so what stands between a new player
+and their first fire spell is Arcane alone. That matters because casting a
+stone is the *only* thing in the game that pays element experience: an element
+gate above the floor would be a wait for something nothing pays. If the bottom
+elemental rung ever asks more than `MIN_EARNED_MASTERY` of its element, an
+arcanist has no way into that element at all.
 
 ##### An element is a character, and the three come to the same rate
 
@@ -6159,6 +6164,19 @@ times the whole ladder — because what it leaves behind is a light source that
 cooks, burns whoever steps in it, and outlives every attack stone's cooldown. It
 is fire's utility, not fire's rung one; Cinder is that, so an arcanist has
 something to practise Fire *with*.
+
+**Light is beside the ladder too, below its foot.** It asks Arcane 1, which is
+`MIN_EARNED_MASTERY` and so a level no death can take, and puts `luminous` on
+the caster at Spark's cooldown and cast time. It is what the quest chest just
+past the tutorial's portal gives, in place of Spark. The reason is what a death
+costs: 5% of the experience takes a new player from Arcane 5 to 4, where Spark
+is out of reach, and a stone that can always be pressed pays the flat fee on
+every press, so Light is the way back up to Spark. The chest's `rewardTag`
+changed with its stone (`tutorial-light-stone`), so every player who already
+took Spark from it can take Light once as well. The chest gives it once, so the
+stone forge makes it from a blank stone too, at Spark's weight: a Light lost
+with a looted pack can be replaced, and without that a player below Arcane 5
+who lost theirs could never cast again.
 
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
@@ -8046,7 +8064,7 @@ single-element forges (`stone-forge-cinder`, `-flame`, `-spark`, `-bolt`,
 
 | spends                  | gives                                                         |
 | ----------------------- | ------------------------------------------------------------- |
-| 1 blank stone           | one of: Spark 3, Cinder 2, Sleet 2, Barbs 2, Flame 1 (weights) |
+| 1 blank stone           | one of: Spark 3, Light 3, Cinder 2, Sleet 2, Barbs 2, Flame 1 (weights) |
 | 2 Cinder / Sleet / Barbs / Spark | Ember / Frost / Thorns / Bolt, 100%                  |
 | 2 Ember / Frost / Thorns / Bolt  | Pyre / Rime / Bramble / Lance, 75%                   |
 | 1 Frost + 1 Thorns      | Verdance, 100%                                                |

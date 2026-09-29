@@ -4,10 +4,11 @@ import tilesJson from "../../data/tiles.json";
 import { ARMOR_SLOTS, resolveCharm, resolveItem, resolveStone } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { spellElements } from "../lib/mastery";
+import { resolveCraft } from "../lib/interactions";
 import { resolveProjectile } from "../lib/projectile";
 import { statusesById } from "../lib/status";
 import { resolveBattler } from "../lib/battler";
-import { type Masteries, MAX_MASTERY, meetsRequirements } from "../lib/mastery";
+import { type Masteries, MAX_MASTERY, meetsRequirements, MIN_EARNED_MASTERY } from "../lib/mastery";
 import { type Element, ELEMENTS } from "../lib/element";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
@@ -608,10 +609,13 @@ const NEUTRAL_LADDER = [
 
 const ELEMENTAL_ARCANE_GAP = 5;
 
+const LIGHT = "arcane-stone-of-light";
+
 const BESIDE_THE_LADDER = [
   "arcane-stone-of-flame",
   "arcane-stone-of-verdance",
   "arcane-stone-of-bloom",
+  LIGHT,
 ];
 
 describe("the stones we ship", () => {
@@ -861,6 +865,25 @@ describe("the stones we ship", () => {
       expect(asks[element], element).toBe(seeded[element]);
       expect(asks.arcane, element).toBeGreaterThan(seeded.arcane!);
     }
+  });
+
+  it("asks nothing for Light that a death can take away", () => {
+    const light = resolveStone(shipped[LIGHT]!)!;
+    expect(light.requirements).toEqual({ arcane: MIN_EARNED_MASTERY });
+    expect(light.effect).toMatchObject({ kind: "bolt", on: "caster" });
+    if (light.effect.kind !== "bolt") return;
+    for (const status of light.effect.statuses ?? []) {
+      expect(statusDefs[status.id], status.id).toBeDefined();
+    }
+  });
+
+  it("forges Light from a blank stone, so one lost with a pack can be replaced", () => {
+    const forge = resolveCraft(shipped["stone-forge"]!)!;
+    const fromBlank = forge.recipes.filter((recipe) =>
+      recipe.inputs.some((input) => input.tileId === "arcane-stone"),
+    );
+    const outputs = fromBlank.flatMap((recipe) => recipe.output.items.map((item) => item.tileId));
+    expect(outputs).toContain(LIGHT);
   });
 
   it("keeps Flame beside the ladder rather than on it", () => {
