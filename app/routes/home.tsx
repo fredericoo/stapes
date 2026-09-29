@@ -12,14 +12,45 @@ import { useOnScreen } from "../components/home/useOnScreen";
 import type { Route } from "./+types/home";
 import "./home.css";
 
+const TITLE = "The Last Stones";
+const DESCRIPTION =
+  "A small MMO that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.";
+
+/**
+ * Link previews on Reddit, Instagram and the rest are fetched by crawlers that
+ * need an absolute image URL, and this page is prerendered, so the origin is
+ * written down rather than read. @see docs/deploy.md
+ */
+const CANONICAL_ORIGIN = "https://thelaststones.com";
+/**
+ * The share image is in `public/` under a name with a version in it, not
+ * imported: a card keeps pointing at the URL it was scraped with, and a build's
+ * hashed files stop being served a few deploys later. A new picture gets a new
+ * name.
+ */
+const SHARE_IMAGE = { src: `${CANONICAL_ORIGIN}/share/landing-1.jpg`, width: 1200, height: 630 };
+
 export function meta(): Route.MetaDescriptors {
   return [
-    { title: "The Last Stones" },
+    { title: TITLE },
+    { name: "description", content: DESCRIPTION },
+    { tagName: "link", rel: "canonical", href: `${CANONICAL_ORIGIN}/` },
+    { property: "og:type", content: "website" },
+    { property: "og:site_name", content: TITLE },
+    { property: "og:title", content: TITLE },
+    { property: "og:description", content: DESCRIPTION },
+    { property: "og:url", content: `${CANONICAL_ORIGIN}/` },
+    { property: "og:image", content: SHARE_IMAGE.src },
+    { property: "og:image:width", content: String(SHARE_IMAGE.width) },
+    { property: "og:image:height", content: String(SHARE_IMAGE.height) },
     {
-      name: "description",
-      content:
-        "A small MMO that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.",
+      property: "og:image:alt",
+      content: "The Last Stones logo over the Gilded Barrel inn at midday, in pixel art.",
     },
+    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:title", content: TITLE },
+    { name: "twitter:description", content: DESCRIPTION },
+    { name: "twitter:image", content: SHARE_IMAGE.src },
   ];
 }
 
