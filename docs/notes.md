@@ -11845,9 +11845,9 @@ on it are left alone once the tile exists.
 
 **The open part of the cell shows whatever is under the wall.** Like `sw2`,
 every variant needs a floor beneath it in the stack, or the uncovered part of
-the cell is the level below or void. `scripts/carve-caves.ts` builds its rock
-with nothing under it, so that rock cannot be swapped for any of them without
-adding a floor.
+the cell is the level below or void. `scripts/carve-caves.ts` builds its walls
+of `cave-wall-sloped`, or `cave-wall-sloped-grey` on the last level in
+`SYSTEM.levels`, and lays `dirt` under every one.
 
 **To everything but the art each is one solid cell.** Movement, sight, light,
 arrows and the depth box treat every variant as a column four units tall, as
