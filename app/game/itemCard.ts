@@ -332,11 +332,12 @@ function statsFor(
   item: ItemDef,
   instance: ItemInstance | null,
   masteries: BattlerDef["masteries"],
+  statusDefs: Record<string, StatusDef>,
 ): ItemCardStat[] {
   if (item.type === "weapon") return weaponStats(item, masteries);
   if (item.type === "armor") return armorStats(item);
   if (item.type === "shield") return shieldStats(item);
-  if (item.type === "stone") return stoneStats(item);
+  if (item.type === "stone") return stoneStats(item, statusDefs);
   if (item.type === "consumable") return consumableStats(item);
   if (item.type === "charm") return charmStats(item);
   if (item.type === "container") return containerStats(item, instance);
@@ -353,7 +354,7 @@ function shieldStats(shield: ShieldItem): ItemCardStat[] {
   ];
 }
 
-function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
+function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef>): ItemCardStat[] {
   const stats: ItemCardStat[] = [];
 
   if (stone.effect.kind === "bolt") {
@@ -372,6 +373,10 @@ function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
       value: on === "caster" ? "You" : "Your target",
       tone: "plain",
     });
+    const cures = (stone.effect.cures ?? []).map((id) => statusDefs[id]?.name ?? id);
+    if (cures.length > 0) {
+      stats.push({ term: "cures", value: cures.join(", "), tone: "good" });
+    }
   } else {
     stats.push({
       term: "conjure",
@@ -413,7 +418,7 @@ export function itemCard(
     kind: kindOf(item),
     inscription: instance?.inscription?.trim() || null,
     description: instance?.description?.trim() || null,
-    stats: statsFor(item, instance, masteries),
+    stats: statsFor(item, instance, masteries, statusDefs),
     requirements: requirementsFrom(demandsOf(item), masteries),
     effects: effectsFrom(grantsOn(item), statusDefs),
     resists: item.type === "armor" ? resistsFrom(item) : [],

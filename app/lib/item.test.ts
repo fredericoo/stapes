@@ -528,6 +528,12 @@ describe("itemForSave", () => {
     expect(
       resolveItem(tile("item", { item: { ...empty, effect: { ...empty.effect, statuses: [] } } })),
     ).toBeNull();
+    expect(
+      resolveItem(tile("item", { item: { ...empty, effect: { ...empty.effect, cures: [] } } })),
+    ).toBeNull();
+
+    const cleanse = { ...empty, effect: { ...empty.effect, cures: ["burned"] } };
+    expect(resolveItem(tile("item", { item: cleanse }))).toEqual(cleanse);
   });
 
   it("round-trips a bolt that does both halves", () => {

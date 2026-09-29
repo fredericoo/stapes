@@ -31,7 +31,7 @@ import { beats, EFFECTIVENESS_EDGE, type Element, ELEMENTS } from "../lib/elemen
 import type { StatusDef } from "../lib/status";
 import { projectileTiles, resolveProjectile } from "../lib/projectile";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
+import { FieldLabel, Input, Segmented, Select, SwitchField, Toggle } from "../ui";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -205,7 +205,15 @@ export function StoneFields({
               })
             }
             blank={(id) => ({ id, chance: DEFAULT_STONE_STATUS_CHANCE })}
-            info="Rolled once per entry per cast, on whoever it landed on. Armour eating the damage does not stop it; only a body that is not there, or one the cast killed, escapes. No mastery moves the chance. A bolt needs damage or a status — with neither it will not save."
+            info="Rolled once per entry per cast, on whoever it landed on. Armour eating the damage does not stop it; only a body that is not there, or one the cast killed, escapes. No mastery moves the chance. A bolt needs damage, a status or a cure — with none it will not save."
+          />
+
+          <StatusCures
+            cures={effect.cures ?? []}
+            statusDefs={statusDefs}
+            onChange={(cures) =>
+              onChange({ effect: { ...effect, cures: cures.length ? cures : undefined } })
+            }
           />
         </div>
       ) : (
@@ -387,5 +395,45 @@ function ElementReading({ elements, harms }: { elements: Element[]; harms: boole
       A <strong>{named(elements)}</strong> spell: {edge}% harder on {named(strong)} bodies
       {weak.length > 0 ? <>, softer on {named(weak)}</> : null}.
     </p>
+  );
+}
+
+function StatusCures({
+  cures,
+  statusDefs,
+  onChange,
+}: {
+  cures: string[];
+  statusDefs: Record<string, StatusDef>;
+  onChange: (cures: string[]) => void;
+}) {
+  const catalogue = Object.values(statusDefs);
+  const toggle = (id: string, on: boolean) =>
+    onChange(
+      catalogue
+        .map((def) => def.id)
+        .filter((candidate) => (candidate === id ? on : cures.includes(candidate))),
+    );
+
+  return (
+    <div className="flex flex-col gap-1.5 border-t-2 border-border pt-3">
+      <FieldLabel info="Taken off whoever it landed on, after the health moves and before any status above is rolled. A body the cast killed keeps nothing to cure.">
+        Cures
+      </FieldLabel>
+      <div className="flex flex-wrap gap-2">
+        {catalogue.map((def) => (
+          <Toggle
+            key={def.id}
+            size="sm"
+            variant="secondary"
+            pressed={cures.includes(def.id)}
+            onPressedChange={(on) => toggle(def.id, on)}
+            ariaLabel={`Cures ${def.name}`}
+          >
+            {def.name}
+          </Toggle>
+        ))}
+      </div>
+    </div>
   );
 }

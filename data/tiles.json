@@ -25848,6 +25848,64 @@
     }
   },
   {
+    "id": "arcane-stone-of-bloom",
+    "name": "Bloom",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 5,
+      "y": 19
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "damage": -35,
+          "projectile": "verdant-light",
+          "cures": [
+            "burned",
+            "poison",
+            "chilled"
+          ]
+        },
+        "cooldownMs": 30000,
+        "castTimeMs": 2000,
+        "requirements": {
+          "arcane": 38,
+          "water": 15,
+          "nature": 15
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "arcane-stone-of-cinder",
     "name": "Cinder",
     "height": 0,
@@ -32658,6 +32716,24 @@
                 {
                   "tileId": "arcane-stone-of-verdance",
                   "chance": 100
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Bloom",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-verdance",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-bloom",
+                  "chance": 75
                 }
               ]
             }
