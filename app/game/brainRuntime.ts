@@ -321,9 +321,9 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
 }
 
 function struckBy(memory: BrainMemory, ctx: BrainContext): boolean {
-  const [first] = ctx.hurtBy();
-  if (first === undefined) return false;
-  memory.hurtBy = first;
+  const latest = ctx.hurtBy().at(-1);
+  if (latest === undefined) return false;
+  memory.hurtBy = latest;
   return true;
 }
 

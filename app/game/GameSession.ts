@@ -627,7 +627,6 @@ type BrainRound = {
   perTick: number;
   sounds: readonly Sound[];
   heard: readonly Utterance[];
-  hurt: ReadonlyMap<string, string[]>;
   minutesOfDay: MinutesOfDay;
 };
 type BlowInFlight = {
@@ -767,7 +766,7 @@ export class GameSession implements PlaySession {
   private pendingSpeech: ChatBubble[] = [];
   private nextSpeechId = 0;
   private pendingHeard: Utterance[] = [];
-  private pendingHurt = new Map<string, string[]>();
+  private readonly pendingHurt = new Map<string, string[]>();
   private pendingSound: Sound[] = [];
   private brainRound: BrainRound | null = null;
   private pendingDamage: DamageNumber[] = [];
@@ -1029,6 +1028,7 @@ export class GameSession implements PlaySession {
     this.cancelCasting(leaving);
     this.forgetWalk(leaving);
     this.actors.delete(id);
+    this.pendingHurt.delete(id);
     const loc = this.tryLocate(leaving);
     this.forgetTileIndex();
     if (loc && !leaving.hidden) {
@@ -1436,18 +1436,16 @@ export class GameSession implements PlaySession {
       perTick: 0,
       sounds: this.pendingSound,
       heard: this.pendingHeard,
-      hurt: this.pendingHurt,
       minutesOfDay: this.clock(),
     };
     this.pendingSound = [];
     this.pendingHeard = [];
-    this.pendingHurt = new Map();
 
     const players = this.playersThisRound();
     const ranked: { actor: ActorRuntime; attention: Attention; order: number }[] = [];
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
-      const attention = this.attention(actor, players, round.hurt);
+      const attention = this.attention(actor, players);
       if (attention !== null) ranked.push({ actor, attention, order: ranked.length });
     }
     const awake = this.chooseAwake(ranked);
@@ -1691,9 +1689,8 @@ export class GameSession implements PlaySession {
   private attention(
     actor: ActorRuntime,
     players: { cells: readonly Coord[]; talkedTo: ReadonlySet<string> },
-    hurt: ReadonlyMap<string, string[]>,
   ): Attention | null {
-    const hitBy = hurt.get(actor.id);
+    const hitBy = this.pendingHurt.get(actor.id);
     if (players.talkedTo.has(actor.id) || this.fightingAPlayer(actor, hitBy)) return ENGAGED;
     let attention: Attention | null = hitBy ? IN_REACH : null;
     const loc = this.tryLocate(actor);
@@ -1752,6 +1749,7 @@ export class GameSession implements PlaySession {
       actor.walkOrder = null;
       return;
     }
+    const hurt = this.takeHurt(actor);
 
     const brain = resolveBrain(this.defFor(actor));
     if (!brain) return;
@@ -1789,7 +1787,7 @@ export class GameSession implements PlaySession {
       sight,
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
-      hurtBy: () => this.visibleAttackers(round.hurt.get(actor.id)),
+      hurtBy: () => hurt,
       attack: (id) => this.orderAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
@@ -1802,6 +1800,19 @@ export class GameSession implements PlaySession {
       minutesOfDay: round.minutesOfDay,
       nameOf: (id) => this.bodyName(id),
     });
+  }
+
+  /**
+   * Hurt waits in `pendingHurt` for a turn in which its body can act, rather than
+   * being copied into one round: a creature asleep when it was struck reads it
+   * once it wakes, and one woken mid-round reads it on that round's own turn
+   * instead of curling back up first. A name whose body has since left is dropped.
+   */
+  private takeHurt(actor: ActorRuntime): readonly string[] {
+    const attackers = this.pendingHurt.get(actor.id);
+    if (!attackers) return EMPTY_ATTACKERS;
+    this.pendingHurt.delete(actor.id);
+    return this.visibleAttackers(attackers.filter((id) => this.actors.has(id)));
   }
 
   private bodyName(id: string): string | null {
@@ -2549,7 +2560,12 @@ export class GameSession implements PlaySession {
     this.cancelCasting(actor);
   }
 
+  /**
+   * Only a resident takes a brain turn to read its hurt, so a name queued for a
+   * player would never leave `pendingHurt` and would keep `isAtRest` false.
+   */
   private notePendingHurt(targetId: string, attackerId: string) {
+    if (!this.actors.get(targetId)?.resident) return;
     const attackers = this.pendingHurt.get(targetId);
     if (attackers) attackers.push(attackerId);
     else this.pendingHurt.set(targetId, [attackerId]);
@@ -3316,6 +3332,7 @@ export class GameSession implements PlaySession {
       ...(elements.length ? { castElements: [...elements] } : {}),
     };
     const stack = getStack(this.map, at.x, at.y, at.z);
+    const stoodId = where.under == null ? undefined : stack[where.under]?.owner;
     const next = [...stack];
     const stackIndex = where.under ?? next.length;
     next.splice(stackIndex, 0, placed);
@@ -3324,9 +3341,10 @@ export class GameSession implements PlaySession {
     this.reindexCells([at]);
     this.settleBoardNow();
 
-    const stood =
-      where.under != null && actor.targetId ? this.actors.get(actor.targetId) : undefined;
-    if (stood) this.statusOnArrival(stood);
+    const stood = stoodId ? this.actors.get(stoodId) : undefined;
+    if (!stood) return;
+    if (stood !== actor) this.notePendingHurt(stood.id, actor.id);
+    this.statusOnArrival(stood);
   }
 
   statusesOf(id: string): readonly StatusInstance[] | null {
