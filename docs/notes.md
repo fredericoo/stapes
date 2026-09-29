@@ -6002,7 +6002,12 @@ something to practise Fire *with*.
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
 what it trains and never weighed, because a mend has nobody on the other end of
 it — and it now comes back in thirty seconds so it is a decision inside a fight
-rather than once per fight. The Necklace of Life is no longer `automatic`: a
+rather than once per fight. Bloom is its second rung, forged from two Verdance
+at 75% like every other rung two: a mend of thirty-five over two seconds, asking
+Arcane 38, Water 15 and Nature 15, and the only shipped stone with `cures` — it
+takes Burned, Poison and Chilled off the caster, one status for each element's
+attack ladder. Status ticks do not break a cast, so it can be cast while the
+thing it cures is still burning. The Necklace of Life is no longer `automatic`: a
 charm that spent itself the moment you were scratched was a charm that was never
 ready when it mattered, and pressing it is a decision. Nothing shipped is
 automatic now, and `automaticFires` stays for authors who want one.
@@ -7860,6 +7865,7 @@ single-element forges (`stone-forge-cinder`, `-flame`, `-spark`, `-bolt`,
 | 2 Cinder / Sleet / Barbs / Spark | Ember / Frost / Thorns / Bolt, 100%                  |
 | 2 Ember / Frost / Thorns / Bolt  | Pyre / Rime / Bramble / Lance, 75%                   |
 | 1 Frost + 1 Thorns      | Verdance, 100%                                                |
+| 2 Verdance              | Bloom, 75%                                                    |
 
 Blank stones come from the cave troll's kit at 10% (it was 100%), and once per
 player from a quest chest (`troll-stone`) where the troll's own forge used to

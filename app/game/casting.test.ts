@@ -606,7 +606,11 @@ const NEUTRAL_LADDER = [
 
 const ELEMENTAL_ARCANE_GAP = 5;
 
-const BESIDE_THE_LADDER = ["arcane-stone-of-flame", "arcane-stone-of-verdance"];
+const BESIDE_THE_LADDER = [
+  "arcane-stone-of-flame",
+  "arcane-stone-of-verdance",
+  "arcane-stone-of-bloom",
+];
 
 describe("the stones we ship", () => {
   const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
@@ -663,6 +667,19 @@ describe("the stones we ship", () => {
     expect(first.on).toBe("target");
     expect(first.damage).toBeGreaterThan(0);
     expect(resolveProjectile(shipped[first.projectile!])).not.toBeNull();
+  });
+
+  it("makes Bloom a Verdance that mends more and cures what every element leaves", () => {
+    const verdance = resolveStone(shipped["arcane-stone-of-verdance"]!)!;
+    const bloom = resolveStone(shipped["arcane-stone-of-bloom"]!)!;
+    if (verdance.effect.kind !== "bolt" || bloom.effect.kind !== "bolt") {
+      throw new Error("Verdance and Bloom are bolts");
+    }
+
+    expect(bloom.effect.on).toBe("caster");
+    expect(bloom.effect.damage!).toBeLessThan(verdance.effect.damage!);
+    expect([...(bloom.effect.cures ?? [])].sort()).toEqual(Object.values(LEAVES).sort());
+    for (const id of bloom.effect.cures ?? []) expect(statusDefs[id], id).toBeDefined();
   });
 
   it("gives every stone a cast time", () => {
