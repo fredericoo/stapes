@@ -1557,6 +1557,13 @@ export class GameServer {
     this.flushConversations();
     this.flushExtracting();
     this.flushSpawnMarks();
+    /**
+     * A message can kill on the spot (a consume, `/health 0`). Left for the tick,
+     * a close before it skips the death's rows and a rejoin seats the body from
+     * the rows the death was about to overwrite. After `flushSpawnMarks`, as in
+     * `tick`.
+     */
+    this.noteDeaths(session);
     this.flushNextBlow();
     this.flushNotices();
     this.flushClock();
@@ -2030,6 +2037,11 @@ export class GameServer {
     this.queuedIntents.delete(actorId);
     this.lastSaidAt.delete(actorId);
     this.silenced.delete(actorId);
+    this.forgetDeathNotice(actorId);
+  }
+
+  private forgetDeathNotice(actorId: string) {
+    this.justDied = this.justDied.filter((death) => death.id !== actorId);
   }
 
   private leaveWorld(actorId: string, closing?: GameSocket) {
@@ -2447,6 +2459,7 @@ export class GameServer {
   private async seatActor(actorId: string) {
     this.dead.delete(actorId);
     this.silenced.delete(actorId);
+    this.forgetDeathNotice(actorId);
     await this.rememberSpawn(actorId);
     const spawn = this.spawns.get(actorId);
     const restored = await this.restoredActor(actorId);

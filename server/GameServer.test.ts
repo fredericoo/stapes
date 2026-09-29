@@ -2871,6 +2871,89 @@ describe("dying and coming back", () => {
     expect(stored?.masteries.fist).toBeCloseTo(before!.fist! * (1 - XP_SHARE_LOST_ON_DEATH), 10);
   });
 
+  type Carried = { id: string; tileId: string; contents?: Carried[] };
+
+  async function carriedSwordId(actorId: string): Promise<string> {
+    return await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { equipmentOf(actorId: string): Record<string, Carried | null> | null };
+      };
+      const worn = Object.values(internals.session.equipmentOf(actorId) ?? {});
+      const carried = worn.flatMap((item) => (item ? [item, ...(item.contents ?? [])] : []));
+      const sword = carried.find((item) => item.tileId === SWORD);
+      expect(sword).toBeDefined();
+      return sword!.id;
+    });
+  }
+
+  async function saveEveryone() {
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { actorIds(): Iterable<string> };
+        saveActors(actorIds: Iterable<string>, force: boolean): void;
+      };
+      internals.saveActors(internals.session.actorIds(), true);
+    });
+  }
+
+  async function killByCommand(pair: Pair) {
+    await stub().webSocketMessage(
+      pair.server,
+      JSON.stringify({ type: "command", text: "/health 0", requestId: 1 }),
+    );
+  }
+
+  async function tickNow() {
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      (instance as unknown as { tick(): void }).tick();
+    });
+  }
+
+  async function floorAtDeath(): Promise<string> {
+    return await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as { session: { getMap(): MapFile } };
+      return JSON.stringify(getStack(internals.session.getMap(), AWAY_FROM_SPAWN, 0, 0));
+    });
+  }
+
+  it("writes a death from a message down when the socket closes before the tick", async () => {
+    const alice = await armedAlice();
+    const swordId = await carriedSwordId("alice");
+    await saveEveryone();
+    const before = await savedMasteries("alice");
+    expect(before?.fist).toBeGreaterThan(0);
+
+    await killByCommand(alice.pair);
+    await disconnect(alice.pair);
+    await tickNow();
+
+    expect(await floorAtDeath()).toContain(swordId);
+    const { position, equipment } = await storedRows("alice");
+    expect(JSON.stringify(equipment)).not.toContain(swordId);
+    expect(position?.x).toBe(SPAWN_CELL);
+    expect((await storedBody("alice")).hp?.hp).toBeNull();
+    expect((await savedMasteries("alice"))?.fist).toBeCloseTo(
+      before!.fist! * (1 - XP_SHARE_LOST_ON_DEATH),
+      10,
+    );
+  });
+
+  it("seats a player who rejoins before the tick without the kit they died with", async () => {
+    const alice = await armedAlice();
+    const swordId = await carriedSwordId("alice");
+    await saveEveryone();
+
+    await killByCommand(alice.pair);
+    const again = await connect("alice");
+    const seen = record(again.ws);
+    await tickNow();
+
+    expect(JSON.stringify(again.hello.map)).toContain(swordId);
+    expect(JSON.stringify(again.hello.equipment)).not.toContain(swordId);
+    expect(seen.types()).not.toContain("died");
+    expect(seen.types()).toContain("patch");
+  });
+
   it("brings them back under nothing, on full health", async () => {
     const alice = await armedAlice();
     await hurtAndPoisoned("alice");

@@ -4306,6 +4306,15 @@ itself down before it destroys the only copy of what it knew.
   there anyone to hand this back to" — and it keeps a world that respawns
   wildlife from writing a position and a kit per rat. The same test decides who
   is *told*: see the death screen below.
+- **A message that kills is noted before the message returns.** Most deaths
+  happen inside `tick`, but `consume` (a food with negative `hp`) and admin
+  commands like `/health 0` kill on the spot. Left for the next tick, a close in
+  between took the socket the test above asks about, so the death was never
+  written: the kit lay on the floor *and* stayed in the stored `equip:` row. A
+  rejoin in between seated the body from those pre-death rows. So
+  `webSocketMessage` calls `noteDeaths` itself, and `seatActor` drops any `died`
+  still queued for the body it seats, or the reborn player would be told they
+  died and silenced.
 
 **The client picks the target; the server decides when a blow lands.** A `target`
 message names who, and that is all a client is trusted with. Attack speed is the
