@@ -1133,6 +1133,27 @@ html:has(.home-lightbox[open]) {
   color: var(--home-text-faint);
 }
 
+.home-footer p + p {
+  margin-top: 8px;
+}
+
+.home-footer a {
+  display: inline-block;
+  padding: 12px 4px;
+  color: var(--home-text-quiet);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.home-footer a:hover {
+  color: var(--home-text);
+}
+
+.home-footer a:focus-visible {
+  outline: 2px solid var(--home-arcane);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-rise,
   .home-scroll-cue svg,

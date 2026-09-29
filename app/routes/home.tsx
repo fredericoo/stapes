@@ -28,6 +28,13 @@ const CANONICAL_ORIGIN = "https://thelaststones.com";
  * name.
  */
 const SHARE_IMAGE = { src: `${CANONICAL_ORIGIN}/share/landing-1.jpg`, width: 1200, height: 630 };
+const MAKER = {
+  name: "Freddie",
+  profiles: [
+    { label: "GitHub", href: "https://github.com/fredericoo" },
+    { label: "X", href: "https://x.com/frederic_ooo" },
+  ],
+};
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -91,7 +98,20 @@ export default function HomePage() {
           <Gallery />
           <FinalCall />
         </main>
-        <footer className="home-footer">The Last Stones</footer>
+        <footer className="home-footer">
+          <p>The Last Stones</p>
+          <p>
+            Made by {MAKER.name}
+            {MAKER.profiles.map((profile) => (
+              <span key={profile.href}>
+                {" · "}
+                <a href={profile.href} rel="me noreferrer" target="_blank">
+                  {profile.label}
+                </a>
+              </span>
+            ))}
+          </p>
+        </footer>
       </HomeRoot>
     </PlaybackProvider>
   );
