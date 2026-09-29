@@ -25378,7 +25378,10 @@
       "item": {
         "type": "charm",
         "everyMs": 10000,
-        "hp": 1
+        "hp": 1,
+        "requirements": {
+          "arcane": 8
+        }
       }
     },
     "sprite": {
@@ -26307,7 +26310,10 @@
     "interactions": {
       "item": {
         "type": "shield",
-        "def": 1
+        "def": 1,
+        "requirements": {
+          "agility": 5
+        }
       }
     },
     "sprite": {
@@ -26348,7 +26354,10 @@
     "interactions": {
       "item": {
         "type": "shield",
-        "def": 2
+        "def": 2,
+        "requirements": {
+          "toughness": 5
+        }
       }
     },
     "sprite": {
@@ -26389,7 +26398,10 @@
     "interactions": {
       "item": {
         "type": "shield",
-        "def": 3
+        "def": 3,
+        "requirements": {
+          "toughness": 12
+        }
       }
     },
     "sprite": {
