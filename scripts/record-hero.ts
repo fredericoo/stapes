@@ -1,7 +1,8 @@
 /**
- * Records `public/home/hero.webm`, `hero.mp4` and `hero.jpg` from `/admin/play`,
- * a walk through town with the labels hidden. Run under Node, not Bun: under Bun,
- * Playwright's request context fails to parse the sign-in cookie.
+ * Records the landing page's `hero.webm`, `hero.mp4` and `hero.jpg` into
+ * `app/components/home/media/` from `/admin/play`: a walk through town with the
+ * labels hidden. Run under Node, not Bun: under Bun, Playwright's request
+ * context fails to parse the sign-in cookie.
  */
 import { chromium } from "@playwright/test";
 import { spawn } from "node:child_process";
@@ -42,7 +43,7 @@ const CHAT_BAR_PX = 48;
 const FPS = 30;
 
 const ADMIN = { username: "admin", password: "salem123" };
-const OUT_DIR = join(import.meta.dirname, "..", "public", "home");
+const OUT_DIR = join(import.meta.dirname, "..", "app", "components", "home", "media");
 
 const base = process.argv[2];
 if (!base) {
