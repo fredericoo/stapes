@@ -1824,6 +1824,20 @@ describe("a cast that takes time", () => {
     expect(play.drainNotices()).toContain("Your cast is broken");
   });
 
+  it("is not broken by a burn ticking, which is not a blow", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${PLAYER_MAX_HP - MEND_HP}`);
+    play.runCommand("/status burned");
+    play.cast(squareSlot("charm"));
+    play.drainNotices();
+
+    run(play, CAST_TICKS);
+
+    expect(hpOf(play)).toBeLessThan(PLAYER_MAX_HP);
+    expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
+    expect(play.drainNotices()).not.toContain("Your cast is broken");
+  });
+
   it("is not broken by being healed, which is not a blow", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);

@@ -5573,6 +5573,11 @@ far" below
   a bar vanishing is exactly what a *finished* cast looks like. A caster may
   turn and be shoved while casting, and making it depend on standing still as
   well would be a rule nobody could guess at from watching.
+- **A status ticking is not a blow.** `tickStatuses` calls `applyDamage` with
+  `interrupts: false`, so a burn or a poison breaks neither a cast nor a pull.
+  When it did, a five-second burn ticking every second made every spell with a
+  cast time uncastable for as long as it lasted — including the one that would
+  have healed through it.
 - **So does losing the target, every tick.** `advanceCasting` asks
   `targetInReach` (`app/game/casting.ts`, the same `canReach` the button dims
   on) of a cast aimed at somebody, and breaks it with "Your target is out of
