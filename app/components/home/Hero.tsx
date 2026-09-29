@@ -41,7 +41,11 @@ export function Hero({ heroRef }: { heroRef: RefObject<HTMLElement | null> }) {
         </p>
         <p className="home-rise home-hero-lede" style={rise("lede")}>
           Walk around, fight, cast, trade and explore with other people. On your phone or your
-          computer, in the same world.
+          computer, in the same world. Be warned: it is hard, and{" "}
+          <a href="#dangers" className="home-hero-warning">
+            most things can kill you
+          </a>
+          .
         </p>
         <div className="home-rise" style={rise("buttons")}>
           <PlayButtons />
