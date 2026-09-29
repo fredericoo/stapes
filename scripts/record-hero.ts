@@ -176,7 +176,12 @@ try {
       );
     });
   const frameInput = ["-f", "concat", "-safe", "0", "-i", listFile];
-  const video = ["-vf", `${crop},${upscale},fps=${FPS}`, "-an"];
+  /**
+   * The frames are JPEGs, which are full range, and ffmpeg carries that range
+   * into the video unless told otherwise. A full-range VP9 stream failed to
+   * decode in Chromium on macOS, so both videos are converted to limited range.
+   */
+  const video = ["-vf", `${crop},${upscale},scale=out_range=tv,fps=${FPS}`, "-an"];
   /** VP9 as well as H.264, because Playwright's open-source Chromium cannot decode H.264. */
   await ffmpeg([
     ...frameInput,
