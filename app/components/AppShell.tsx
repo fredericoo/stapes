@@ -5,6 +5,7 @@ import { NavLink } from "react-router";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./actionButton";
 import { Tooltip } from "../ui/Tooltip";
+import { AttentionDot } from "./AttentionDot";
 
 const NARROW_VIEWPORT = "(max-width: 767px)";
 
@@ -35,7 +36,8 @@ const AppMenuContents = createContext<{
   destinations: Destination[];
   extras: React.ReactNode;
   inPage: boolean;
-}>({ destinations: [], extras: null, inPage: false });
+  attention: boolean;
+}>({ destinations: [], extras: null, inPage: false, attention: false });
 
 export function MenuRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -89,7 +91,7 @@ function AppMenuPopup({
 }
 
 export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
-  const { destinations, extras, inPage } = useContext(AppMenuContents);
+  const { destinations, extras, inPage, attention } = useContext(AppMenuContents);
   const [open, setOpen] = useState(false);
 
   if (!inPage) return null;
@@ -101,13 +103,14 @@ export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
         <Popover.Trigger
           aria-label="Menu"
           className={[
-            "flex items-center justify-center border-2 shadow-hard",
+            "relative flex items-center justify-center border-2 shadow-hard",
             ACTION_BUTTON_SIZE_CLASS[size],
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             "border-paper/40 bg-transparent text-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink",
           ].join(" ")}
         >
           <IconSettings size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+          {attention ? <AttentionDot className="absolute -top-1.5 -right-1.5" /> : null}
         </Popover.Trigger>
       </Tooltip>
       <Popover.Portal>
@@ -129,19 +132,28 @@ export function AppShell({
   trailing,
   menuExtras,
   menuInPage = false,
+  menuAttention = false,
 }: {
   children: React.ReactNode;
   destinations?: Destination[];
   trailing?: React.ReactNode;
   menuExtras?: React.ReactNode;
   menuInPage?: boolean;
+  menuAttention?: boolean;
 }) {
   const narrow = useMediaQuery(NARROW_VIEWPORT);
   const [menuOpen, setMenuOpen] = useState(false);
   const headerHidden = menuInPage;
 
   return (
-    <AppMenuContents.Provider value={{ destinations, extras: menuExtras, inPage: headerHidden }}>
+    <AppMenuContents.Provider
+      value={{
+        destinations,
+        extras: menuExtras,
+        inPage: headerHidden,
+        attention: menuAttention,
+      }}
+    >
       <div
         className="flex h-full flex-col"
         style={{

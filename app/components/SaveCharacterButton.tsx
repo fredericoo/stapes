@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MIN_PASSWORD_LENGTH } from "../lib/account";
 import { claimAccount } from "../lib/auth";
 import { Button, Dialog, Input } from "../ui";
+import { AttentionDot } from "./AttentionDot";
 
 export function SaveCharacterButton({ onSaved }: { onSaved: () => void }) {
   const [open, setOpen] = useState(false);
@@ -30,6 +31,7 @@ export function SaveCharacterButton({ onSaved }: { onSaved: () => void }) {
       <Button variant="ghost-inverse" size="sm" onClick={() => setOpen(true)}>
         <IconDeviceFloppy size={16} stroke={2} aria-hidden="true" />
         Save your character
+        <AttentionDot />
       </Button>
       <Dialog
         open={open}

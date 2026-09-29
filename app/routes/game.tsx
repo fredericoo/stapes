@@ -40,6 +40,7 @@ export default function GamePage() {
           </div>
         ) : null
       }
+      menuAttention={guest}
       onLeave={leave}
       onRefused={leave}
     />
