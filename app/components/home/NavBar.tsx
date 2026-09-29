@@ -17,7 +17,7 @@ export function NavBar({ shown }: { shown: boolean }) {
         <Link to="/sign-in" className="home-nav-link">
           Sign in
         </Link>
-        <Link to="/online" className="home-btn home-btn--primary home-btn--compact">
+        <Link to="/guest" className="home-btn home-btn--primary home-btn--compact">
           Play now
         </Link>
       </div>
