@@ -3113,6 +3113,26 @@ describe("dying and coming back", () => {
     expect(seen.types()).toContain("patch");
   });
 
+  it("tells a player whose socket closed before the tick about a death from a message", async () => {
+    const alice = await armedAlice();
+
+    await killByCommand(alice.pair);
+    await disconnect(alice.pair);
+    await tickNow();
+    const { hello } = await connect("alice");
+
+    expect(hello.diedAway).toMatchObject({ packLeft: true });
+  });
+
+  it("tells a player who rejoined before the tick about a death from a message", async () => {
+    const alice = await armedAlice();
+
+    await killByCommand(alice.pair);
+    const again = await connect("alice");
+
+    expect(again.hello.diedAway).toMatchObject({ packLeft: true });
+  });
+
   it("brings them back under nothing, on full health", async () => {
     const alice = await armedAlice();
     await hurtAndPoisoned("alice");

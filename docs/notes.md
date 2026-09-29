@@ -4651,7 +4651,9 @@ itself down before it destroys the only copy of what it knew.
   rejoin in between seated the body from those pre-death rows. So
   `webSocketMessage` calls `noteDeaths` itself, and `seatActor` drops any `died`
   still queued for the body it seats, or the reborn player would be told they
-  died and silenced.
+  died and silenced. A queued `died` dropped either way, by that seat or by the
+  close, is written as a `diedAway:` row instead, so the player is still told on
+  their next `hello` (see the death screen below).
 
 **The client picks the target; the server decides when a blow lands.** A `target`
 message names who, and that is all a client is trusted with. Attack speed is the

@@ -2177,8 +2177,21 @@ export class GameServer {
     this.forgetDeathNotice(actorId);
   }
 
+  /**
+   * The death's rows were written as told when it was queued, so a `died` that
+   * will now never be sent leaves its cost as a `diedAway:` row for the next
+   * `hello` instead.
+   */
   private forgetDeathNotice(actorId: string) {
-    this.justDied = this.justDied.filter((death) => death.id !== actorId);
+    const untold = this.justDied.find((death) => death.id === actorId);
+    if (!untold) return;
+    this.justDied = this.justDied.filter((death) => death !== untold);
+    this.ctx.storage
+      .put(this.diedAwayKey(actorId), {
+        cost: untold.cost ?? NOTHING_LOST,
+        savedAt: this.now(),
+      } satisfies SavedDiedAway)
+      .catch(GameServer.reportWriteFailure("died-away write"));
   }
 
   private leaveWorld(actorId: string, closing?: GameSocket) {
