@@ -716,6 +716,84 @@ Every `.html` file is `no-store`, not only `index.html`: a prerendered page
 names hashed chunks exactly as the shell does, so caching it would pin a
 visitor to the build it came from.
 
+## The landing page is footage of a staged world
+
+`app/routes/home.tsx` and `app/components/home/` are the page at `/`. Everything
+moving on it is a recording of the real game, staged with the admin commands
+in a local world and filmed by an administrator with **Invisible** on, so the
+camera is never a body in the frame. `scripts/record-hero.ts` still records the
+hero; the other clips and stills were staged by hand, and this is what that
+takes.
+
+### How it is filmed
+
+- **`/online` as the seeded admin, not `/admin/play`.** Only the online page
+  offers the Invisible switch. Two characters of one account can be in the
+  world at once from two tabs (see "One connection per actor"), so one hidden
+  character films while the others act.
+- **Headless Chrome on the Mac's GPU runs the game at 120 frames a second**
+  (`--use-angle=metal`), and CDP's `Page.startScreencast` delivers about 99 of
+  them, so nothing needs slowing down the way `record-hero.ts` slows
+  SwiftShader. Its frames come at CSS pixel size whatever `deviceScaleFactor`
+  says, so the canvas is laid out at six times the view (a viewport 1152px
+  tall, 1104px of canvas) and `--world-label-size` is raised to 60px to keep
+  the labels in proportion with the world.
+- **Encode with `scale=out_range=tv`.** The frames are full-range JPEGs, and a
+  full-range VP9 file failed to decode in Chromium on macOS.
+- **The invisible body is still a body.** It cannot be put where nothing
+  stands (`/goto` answers "Nothing will fit"), and it can be in a creature's
+  way. Creatures ignore it otherwise, which is the point.
+
+### How the files are served
+
+- **The media are imported, not put in `public/`.** `ClientBundle` caches
+  every file that is not a page for a year, as immutable, which is only safe
+  for a name that changes with the contents. The build gives an imported file
+  such a name, so a clip recorded again reaches everybody. A file in `public/`
+  keeps its name, and a browser that already has it never asks again.
+  `content.ts` looks every file up by name through one `import.meta.glob`.
+  The share image is the exception, in `public/share/` under a name with a
+  version in it: a link preview keeps the URL it was scraped with, and a
+  build's hashed files stop being served a few deploys after they change.
+- **Video ships at 1104px square**, six video pixels to a world pixel. WebKit
+  ignores `image-rendering: pixelated` on `<video>`, so a 184px clip scaled up
+  by the browser is soft on every iPhone. Pictures are a different case: an
+  `<img>` does scale crisply there, so the stills could be small, and ship at
+  full and half size as WebP.
+- **Only the hero loads with the page.** The tour begins at the fold, so its
+  footage waits until it is a tenth of a screen in, and then clips are fetched
+  up to the one after the step being read (`preload="auto"`), the rest showing
+  their posters. With the videos paused, which is how a visitor who asked for
+  reduced motion arrives, the posters load and no footage does until they
+  press Play.
+
+### The page asks its own layout
+
+The tour's reading line and the story's scroll-driven stage both depend on
+which layout `home.css` chose, and both find out by asking whether an element
+is `position: sticky` rather than by repeating its breakpoints in TypeScript.
+So the layouts for a phone, for a screen too short to stick anything (a phone
+on its side, a page zoomed in far) and for reduced motion are CSS alone: the
+story is laid out still, every paragraph at once, and the code that drives it
+draws it finished.
+
+### What the world does, and what that means for staging
+
+- **Wolves on the surface only hunt from 19:00 to 06:00.** 05:20 to 05:40 is
+  twilight light with the wolves still hunting, which is the chase on the page.
+- **One flame burns its own ground and passes on what is left**, divided, so a
+  single Flame scorches a tree and rarely fells it (see "Fire divides its
+  fuel"). With a flame either side, the trees between get heat from both, and
+  the clip on the page fells three of them.
+- **The cyclops's tower** (`-25, -185, 1`) opens the way in only while
+  somebody stands on the plate outside, and shuts it when they step off; the
+  plate inside opens the way out.
+- **A new character dies to a wolf.** Toughness 25 and chain mail keep one
+  standing long enough to take Sharp from 3 to 6.
+- **`/tile` reads a signed coordinate as an offset**, so a flame at a negative
+  cell is placed relative to the camera; `/goto` and `/spawn` take absolute
+  cells.
+
 ## A field the phone focuses has to be 16px
 
 Safari on iOS zooms the page in when it focuses a text field whose font is
