@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { redirect, useNavigate } from "react-router";
-import { Door, DoorButton, DoorError, DoorField, DoorNote, DoorTitle } from "../components/door";
+import { CharacterNameField } from "../components/CharacterNameField";
+import { Door, DoorButton, DoorError, DoorNote, DoorTitle } from "../components/door";
 import {
   MAX_CHARACTERS_PER_ACCOUNT,
   MAX_CHARACTER_NAME_LENGTH,
@@ -12,7 +13,7 @@ import { rememberCharacter } from "../lib/playing";
 export async function clientLoader() {
   const me = await fetchMe();
   if (!me.user) throw redirect("/sign-in");
-  if (me.characters.length >= MAX_CHARACTERS_PER_ACCOUNT) {
+  if (me.user.guest || me.characters.length >= MAX_CHARACTERS_PER_ACCOUNT) {
     throw redirect("/characters");
   }
   return null;
@@ -49,18 +50,7 @@ export default function NewCharacterPage() {
           void submit();
         }}
       >
-        <DoorField
-          label="Name"
-          autoFocus
-          autoCapitalize="words"
-          autoCorrect="off"
-          spellCheck={false}
-          autoComplete="off"
-          maxLength={MAX_CHARACTER_NAME_LENGTH}
-          value={name}
-          disabled={busy}
-          onChange={(event) => setName(event.target.value)}
-        />
+        <CharacterNameField value={name} disabled={busy} onChange={setName} />
         <DoorButton type="submit" disabled={busy || !name || typedProblem !== null}>
           {busy ? "Just a moment…" : "Create and enter"}
         </DoorButton>
