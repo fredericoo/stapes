@@ -2533,14 +2533,16 @@ export class GameSession implements PlaySession {
     else this.pendingHurt.set(targetId, [attackerId]);
   }
 
-  private applyDamage(target: ActorRuntime, amount: number, blame?: Blame) {
+  private applyDamage(
+    target: ActorRuntime,
+    amount: number,
+    blame?: Blame,
+    { interrupts = true }: { interrupts?: boolean } = {},
+  ) {
     const before = this.hpOf(target);
     if (before === null) return;
 
-    if (amount > 0) this.cancelExtraction(target, EXTRACT_INTERRUPTED_NOTICE);
-    if (amount > 0 && target.casting && !target.casting.uninterruptible) {
-      this.cancelCasting(target, CAST_INTERRUPTED_NOTICE);
-    }
+    if (amount > 0 && interrupts) this.interrupt(target);
     if (amount > 0) this.flagCombat(target);
     if (amount > 0) this.endStatusesOnDamage(target);
 
@@ -2549,6 +2551,13 @@ export class GameSession implements PlaySession {
     const after = before - amount;
     target.hp = Math.max(0, after);
     if (target.hp === 0) this.kill(target, blame);
+  }
+
+  private interrupt(target: ActorRuntime) {
+    this.cancelExtraction(target, EXTRACT_INTERRUPTED_NOTICE);
+    if (target.casting && !target.casting.uninterruptible) {
+      this.cancelCasting(target, CAST_INTERRUPTED_NOTICE);
+    }
   }
 
   private applyHealing(target: ActorRuntime, amount: number): number {
@@ -2816,7 +2825,12 @@ export class GameSession implements PlaySession {
       for (const change of hpChanges) {
         if (change.amount < 0) {
           const damage = this.elementalDamage(actor, -change.amount, change.elements);
-          this.applyDamage(actor, damage, change.blame);
+          /**
+           * A burn or a poison ticking is not a blow: it would otherwise break
+           * every cast and every gather for as long as it lasts, and a cure
+           * could never be cast while the thing it cures is on you.
+           */
+          this.applyDamage(actor, damage, change.blame, { interrupts: false });
           this.awardCausedDamage(actor, change.causedBy, damage, change.elements ?? NO_ELEMENTS);
           const causer = change.causedBy ? this.actors.get(change.causedBy) : undefined;
           if (causer && damage > 0) this.flagCombat(causer);

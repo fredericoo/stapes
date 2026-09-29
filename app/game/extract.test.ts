@@ -4,6 +4,7 @@ import { extractsLeft, interactionsForSave, pullEffect, resolveExtract } from ".
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../lib/mapData";
 import { DEFAULT_IMPACT } from "../lib/particleVfx";
+import { statusesById } from "../lib/status";
 import type { TransitionSide } from "../lib/tileTransition";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
@@ -37,6 +38,21 @@ function tile(partial: Record<string, unknown>): TileDef {
 }
 
 const EXTRACT_MS = 4_000;
+
+const BURN_PER_SECOND = 1;
+
+const BURNING = statusesById([
+  {
+    id: "burned",
+    name: "Burned",
+    description: "Searing.",
+    tone: "bad",
+    fromMs: EXTRACT_MS * 2,
+    toMs: EXTRACT_MS * 2,
+    everyMs: 1_000,
+    effects: { hp: `0 - ${BURN_PER_SECOND}` },
+  },
+]);
 
 const QUICK_PULL_MS = 2_000;
 
@@ -708,6 +724,18 @@ describe("losing a pull", () => {
     expect(session.getSnapshot().extracting).toBeNull();
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsReserved).toBeUndefined();
     expect(session.drainNotices()).toContain("You are interrupted");
+  });
+
+  it("keeps going through a burn ticking, which is not a blow", () => {
+    const session = new GameSession(board(), tiles, { statuses: BURNING });
+    session.runCommand("/status burned");
+    session.interact(BUSH);
+    session.drainNotices();
+
+    for (let tick = 0; tick < Math.ceil(EXTRACT_MS / TICK_MS); tick++) session.tick(TICK_MS);
+
+    expect(session.drainNotices()).not.toContain("You are interrupted");
+    expect(bagTileIds(session)).toHaveLength(1);
   });
 
   it("frees it for the person who was refused a moment ago", () => {
