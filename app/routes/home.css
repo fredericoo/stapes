@@ -100,17 +100,6 @@
   box-shadow: 0 0 0 0 var(--color-paper);
 }
 
-.home-btn--secondary {
-  border-color: var(--color-paper);
-  background: color-mix(in srgb, var(--color-ink) 40%, transparent);
-  color: var(--color-paper);
-}
-
-.home-btn--secondary:hover {
-  background: var(--color-paper);
-  color: var(--color-ink);
-}
-
 .home-btn--compact {
   min-height: var(--home-control-h);
   padding: 8px 14px;
