@@ -3,7 +3,7 @@ import { dirname, join, normalize, sep } from "node:path";
 import type { Config } from "./config";
 
 export class ClientBundle {
-  private readonly builds = new Map<string, Map<string, Asset>>();
+  private readonly builds = new Map<string, Map<string, Blob>>();
   private activeBuildId: string | null = null;
   private readonly root: string;
 
@@ -80,19 +80,21 @@ export class ClientBundle {
     await this.collectGarbage();
   }
 
-  private async read(buildId: string): Promise<Map<string, Asset>> {
+  /**
+   * Each file is held as a `Blob` because Bun sends a `Blob` body as it is and
+   * copies a `Uint8Array` body for every response, so the process would grow by
+   * every download in flight at once.
+   */
+  private async read(buildId: string): Promise<Map<string, Blob>> {
     const directory = join(this.root, buildId);
-    const assets = new Map<string, Asset>();
+    const assets = new Map<string, Blob>();
 
     for (const path of await walk(directory)) {
       const relative = path
         .slice(directory.length + 1)
         .split(sep)
         .join("/");
-      assets.set(relative, {
-        bytes: new Uint8Array(await readFile(path)),
-        contentType: contentTypeFor(relative),
-      });
+      assets.set(relative, new Blob([await readFile(path)], { type: contentTypeFor(relative) }));
     }
 
     if (!assets.has("index.html")) {
@@ -154,8 +156,6 @@ const POINTER_FILE = "active";
 const MAX_RESIDENT_BUILDS = 3;
 const KEPT_BUILDS_ON_DISK = 5;
 
-type Asset = { bytes: Uint8Array; contentType: string };
-
 const SAFE_BUILD_ID = /^[a-zA-Z0-9._-]{1,64}$/;
 
 function assertSafeId(buildId: string) {
@@ -197,11 +197,11 @@ async function walk(directory: string): Promise<string[]> {
   return out;
 }
 
-function toResponse(asset: Asset, path: string): Response {
+function toResponse(asset: Blob, path: string): Response {
   const immutable = !path.endsWith(".html");
-  return new Response(asset.bytes as unknown as BodyInit, {
+  return new Response(asset, {
     headers: {
-      "Content-Type": asset.contentType,
+      "Content-Type": asset.type,
       "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-store",
     },
   });
