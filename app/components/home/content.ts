@@ -79,6 +79,43 @@ export const FEATURES: Feature[] = [
   },
 ];
 
+export type Danger = {
+  id: string;
+  title: string;
+  body: string;
+  sprite: string;
+  /** The sprite's size in the game's 8px cells, so each one is scaled by the same amount. */
+  widthCells: number;
+  heightCells: number;
+};
+
+export const DANGERS: Danger[] = [
+  {
+    id: "fire",
+    title: "Fire burns",
+    body: "Walk into a flame and you catch fire. A new character can burn to death in a few seconds.",
+    sprite: sprite("danger-flame"),
+    widthCells: 2,
+    heightCells: 2,
+  },
+  {
+    id: "food",
+    title: "Food goes bad",
+    body: "Raw meat will probably poison you, and berries and cheese go off within the hour. Food poisoning can kill. Cook your meat and eat things fresh.",
+    sprite: sprite("danger-raw-meat"),
+    widthCells: 1,
+    heightCells: 1,
+  },
+  {
+    id: "rats",
+    title: "Rats come in numbers",
+    body: "One rat is easy. But rats go for anyone they see, and where there is one there are usually more. Enough of them at once will kill you.",
+    sprite: sprite("danger-rat"),
+    widthCells: 2,
+    heightCells: 1,
+  },
+];
+
 export type ShotSpan = "big" | "wide" | "one";
 
 export type Shot = {
