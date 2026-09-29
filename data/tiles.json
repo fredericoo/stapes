@@ -32738,7 +32738,103 @@
               ]
             }
           }
-        ]
+        ],
+        "succeeded": {
+          "durationMs": 900,
+          "particles": {
+            "ratePerSecond": 36,
+            "ttlFromMs": 1500,
+            "ttlToMs": 1700,
+            "spawnRadiusCells": 0,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 0,
+            "riseFrom": 12,
+            "riseTo": 12,
+            "driftCellsPerSecond": 0,
+            "gravity": 0,
+            "offsetX": "0.7 * (1 - 0.5 * LIFE) * cos(9 * AGE_SEC + PI * floor(2 * SEED))",
+            "offsetY": "0.7 * (1 - 0.5 * LIFE) * sin(9 * AGE_SEC + PI * floor(2 * SEED))",
+            "offsetElev": "",
+            "lit": false,
+            "ownDepth": true,
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#d8fbff"
+              },
+              {
+                "at": 0.3,
+                "color": "#04f7fb"
+              },
+              {
+                "at": 0.7,
+                "color": "#3b7dd8"
+              },
+              {
+                "at": 1,
+                "color": "#225ac0"
+              }
+            ]
+          }
+        },
+        "failed": {
+          "durationMs": 300,
+          "particles": {
+            "ratePerSecond": 80,
+            "ttlFromMs": 600,
+            "ttlToMs": 1000,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 4,
+            "spawnElevTo": 6,
+            "riseFrom": 8,
+            "riseTo": 14,
+            "driftCellsPerSecond": 5,
+            "gravity": -32,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "lit": false,
+            "ownDepth": true,
+            "shape": [
+              "#...#",
+              ".#.#.",
+              "..#..",
+              ".#.#.",
+              "#...#"
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": 1,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ff8a8a"
+              },
+              {
+                "at": 0.2,
+                "color": "#ff3030"
+              },
+              {
+                "at": 0.6,
+                "color": "#9a1a1a"
+              },
+              {
+                "at": 1,
+                "color": "#2b1616"
+              }
+            ]
+          }
+        }
       }
     }
   },
