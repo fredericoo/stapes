@@ -504,9 +504,12 @@ the other.
 
 ### Why it exists
 
-`/online` has a login. Hand-testing a change to the game should not mean
-hand-testing the way in to it first, and a green path that needs an account, a
-server and a database is one people stop running. This one needs a tab.
+`/online` has two doors, an account and then a character, and a socket to the
+shared world behind them. Hand-testing a change to the game should not mean
+hand-testing the way in to it first. `/admin/play` has one door, the `ADMIN`
+sign-in every `/admin` page has, and a fresh database seeds the account for it
+(`SEEDED_ADMIN_USERNAME` and `SEEDED_ADMIN_PASSWORD` in `server/auth.ts`). Past
+it there is no character to make or pick, and the world is in the tab.
 
 It replaced the single-player page that used to be here, which ran a local
 `GameSession` with no server in the picture. That page was a different game: no
@@ -588,7 +591,10 @@ a third `Blobs` beside `DiskBlobs` and `SqliteBlobs`, reading the map, the tiles
 and the statuses over the same endpoints every other page reads them over.
 **So `/admin/play` is not a standalone page**: `bun dev` runs both halves and the
 content API is one of them. What it does not need is the *world* — no socket, no
-actor cookie, no checkpoint on the volume, and nothing to log in to.
+character and no checkpoint on the volume. It does need an administrator's
+session: the route's `clientLoader` sends anybody else to `/admin/sign-in`, and
+`GET /api/map` returns 404 to anybody else, so the worker could not load the map
+without one.
 
 It is a reader, and refuses to be anything else. Nothing in a tab authors
 content: the map editor still saves through `POST /api/map` to the real server,
