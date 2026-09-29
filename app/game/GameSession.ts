@@ -3305,6 +3305,7 @@ export class GameSession implements PlaySession {
       ...(elements.length ? { castElements: [...elements] } : {}),
     };
     const stack = getStack(this.map, at.x, at.y, at.z);
+    const stoodId = where.under == null ? undefined : stack[where.under]?.owner;
     const next = [...stack];
     const stackIndex = where.under ?? next.length;
     next.splice(stackIndex, 0, placed);
@@ -3313,9 +3314,10 @@ export class GameSession implements PlaySession {
     this.reindexCells([at]);
     this.settleBoardNow();
 
-    const stood =
-      where.under != null && actor.targetId ? this.actors.get(actor.targetId) : undefined;
-    if (stood) this.statusOnArrival(stood);
+    const stood = stoodId ? this.actors.get(stoodId) : undefined;
+    if (!stood) return;
+    if (stood !== actor) this.notePendingHurt(stood.id, actor.id);
+    this.statusOnArrival(stood);
   }
 
   statusesOf(id: string): readonly StatusInstance[] | null {

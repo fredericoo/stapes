@@ -5437,7 +5437,9 @@ much: `canWalk` says yes to a cell somebody is standing in — that is how you w
 into something to swing at it — so a flame cast with nobody targeted, at the
 creature directly in front, landed on top of that creature. It is read off the
 cell now (`lowestBodyIn`), under the lowest body there, so both ways of aiming
-put the tile in the same slot.
+put the tile in the same slot. `castConjure` reads the body out of that slot
+before placing the tile, so whichever way it was aimed, that body takes the
+tile's status on landing and has the conjure noted as an attack on it.
 
 #### An appear on a projectile has to be shorter than its flight
 
@@ -8600,6 +8602,28 @@ strip's colour and sort order, not for deciding who to be angry at. A mend throw
 at somebody else is authorable, reads as provocation, and is a strange enough
 thing to author that being glared at for it is fair.
 
+**A conjure that lands under somebody else is an attack too.** `castConjure`
+notes hurt for the body its tile lands under, whether it was cast at that body
+or landed under whoever stood in front, on the bolt's terms: before the tile
+grants its status, and only for a body other than the caster. A conjured
+flame does all its damage through Burned, and a status's payout notes nothing,
+so without this a creature standing in one never learned who put it there. A
+sleeper reads the note on its first turn after the first payout wakes it; see
+"Hurt waits for a body that cannot act".
+
+**A payout is not an attack of its own.** A burn or a poison outlasts the moment
+it was dealt, and its causer may have walked off or died by the time it pays
+out. A creature that counted each payout would go after that causer again every
+250ms of Burned, re-entering its hunt and making its `onEnter` noise each time
+the causer was out of range.
+
+**Known gap:** a creature woken in a flame can still die of it, because its brain
+acts from where it stands before anything moves it out. The bog imp's hunt opens
+with Throw stone, a 500ms cast, so it throws before it steps out, and the extra
+second in the flame stacks a second Burned on the first; at 29 hp it does not
+outlive the two. The wolf steps out toward a caster beyond its reach and fights
+from inside the flame against one within it. The cyclops is immune to Burned.
+
 ### A brain aims by pointing
 
 The `cast` action resolves its selector to a body, sets the creature's
@@ -8889,11 +8913,14 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
 - **`denned` casts the wolf's own spell, Curl up, then holds.** Curl up is a
   bolt `on: "caster"` that applies the `sleep` status, so the wolf heals, cannot
   act, and its brain stops until the status runs out or it takes damage. Then
-  the brain runs again: by day it is still `denned` and casts again; at night
-  the row out of `denned` fires first. The line names no `of`, which is how a
-  `cast` says "no target" — see the next section. The spell has no
-  `castTimeMs`, because the minimum is 200ms and an instant cast is the absent
-  field — and one invalid spell drops the wolf's whole battler block.
+  the brain runs again. If anybody attacked it in its sleep — a blow, a bolt, a
+  conjure under it — `attacked` fires first, below, unless the `slinking` row
+  above it holds; otherwise by day it is still
+  `denned` and casts again, and at night the row out of `denned` fires first.
+  The line names no `of`, which is how a `cast` says "no target" — see the next
+  section. The spell has no `castTimeMs`, because the minimum is 200ms and an
+  instant cast is the absent field — and one invalid spell drops the wolf's
+  whole battler block.
 - **The sight rows are gated on awake**: hunting a player or a deer it can see,
   and going for meat it can see. A sleeping wolf with somebody standing in front
   of it does nothing.
@@ -9169,8 +9196,8 @@ are applied, so a poison tick that wakes a sleeper is not undone by the write.
 
 ### Hurt waits for a body that cannot act
 
-A swing and a bolt note their attacker in `pendingHurt` under the body they
-hit, and the name waits there until that body takes a turn in which it
+A swing, a bolt and a conjure note their attacker in `pendingHurt` under the
+body they hit, and the name waits there until that body takes a turn in which it
 can act: `takeHurt` hands the names to the turn and clears them. `attacked` binds
 the most recent, so a creature struck in its sleep by one body and woken by
 another turns on the second. A name can be as old as the sleep, so one whose
@@ -9191,8 +9218,10 @@ round lost it twice:
   attacker, found it asleep and dropped the name. Reading the queue on the turn
   itself closes the gap.
 - **An attack that does not wake the body was forgotten.** A miss, a blow its
-  armour soaks and a bolt that only leaves a status all note hurt and end
-  nothing. The body reads them when it wakes, however long that takes.
+  armour soaks, a bolt that only leaves a status and a conjure under it all note
+  hurt and end nothing. The body reads them when it wakes, however long that
+  takes. A flame conjured under a sleeper is the case that matters: its first
+  Burned payout is what wakes it.
 
 ## A status can be a gamble, and a body can be immune to one
 

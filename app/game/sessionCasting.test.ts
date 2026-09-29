@@ -2184,6 +2184,7 @@ describe("a creature that puts itself to sleep", () => {
   const FLEE_WITHIN_MS = 3_000;
   const NUDGE_COOLDOWN_MS = 10_000;
   const NUDGE_REACH = { cells: 3, height: 2 };
+  const LOW_BODY = { height: 1, walkable: true };
   const WAKER = "waker";
   const WAKER_X = 4;
   const SLEEPER_X = 2;
@@ -2214,8 +2215,8 @@ describe("a creature that puts itself to sleep", () => {
     reach: NUDGE_REACH,
   });
 
-  function sleeperTile(sleepMs: number): TileDef {
-    const tile = body("sleeper", RAT_TOUGHNESS, { actor: true });
+  function sleeperTile(sleepMs: number, shape: Record<string, unknown> = {}): TileDef {
+    const tile = body("sleeper", RAT_TOUGHNESS, { actor: true, ...shape });
     const battler = tile.interactions!.battler as Record<string, unknown>;
     battler.spells = [
       {
@@ -2252,16 +2253,21 @@ describe("a creature that puts itself to sleep", () => {
     return tile;
   }
 
-  type Sleeper = { stone: string; sleepMs: number; x?: number };
+  type Sleeper = { stone: string; sleepMs: number; shape?: Record<string, unknown>; x?: number };
 
-  function besideASleeper({ stone, sleepMs, x = NEXT_TO_PLAYER_X }: Sleeper): GameSession {
+  function besideASleeper({ stone, sleepMs, shape, x = NEXT_TO_PLAYER_X }: Sleeper): GameSession {
     const map = replaceStack(world(), x, 0, 0, [
       { tileId: "grass" },
       { tileId: "sleeper", direction: "w" },
     ]);
     const play = new GameSession(
       map,
-      [...props, nudgeStone, playerTile([{ slot: "charm", tileId: stone }]), sleeperTile(sleepMs)],
+      [
+        ...props,
+        nudgeStone,
+        playerTile([{ slot: "charm", tileId: stone }]),
+        sleeperTile(sleepMs, shape),
+      ],
       { statuses: sleepCatalogue },
     );
     runMs(play, FALL_ASLEEP_MS);
@@ -2299,6 +2305,34 @@ describe("a creature that puts itself to sleep", () => {
     play.setTarget(sleeper(play).id, caster);
     expect(play.cast(squareSlot("charm"), caster)).toBe(true);
   }
+
+  it("runs from a flame somebody conjured under it, rather than curling back up", () => {
+    const play = besideASleeper({ stone: "flame-stone", sleepMs: LONG_SLEEP_MS });
+    expect(holding(play)).toEqual(["asleep"]);
+    const before = sleeper(play).x;
+
+    castAtSleeper(play);
+    runMs(play, FLEE_WITHIN_MS);
+
+    expect(holding(play)).not.toContain("asleep");
+    expect(sleeper(play).x).toBeGreaterThan(before);
+  });
+
+  it("runs from a flame conjured under it with nobody targeted", () => {
+    const play = besideASleeper({ stone: "flame-stone", sleepMs: LONG_SLEEP_MS, shape: LOW_BODY });
+    const before = sleeper(play).x;
+
+    expect(play.cast(squareSlot("charm"))).toBe(true);
+    expect(getStack(play.getMap(), before, 0, 0).map((placed) => placed.tileId)).toEqual([
+      "grass",
+      "conjured-flame",
+      "sleeper",
+    ]);
+    runMs(play, FLEE_WITHIN_MS);
+
+    expect(holding(play)).not.toContain("asleep");
+    expect(sleeper(play).x).toBeGreaterThan(before);
+  });
 
   it("runs from a bolt that did not wake it, once the sleep runs out", () => {
     const play = besideASleeper({ stone: "nudge-stone", sleepMs: NAP_MS });
