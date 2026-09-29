@@ -129,8 +129,12 @@ export function ChatButton({
         </Popover.Trigger>
       </Tooltip>
       <Popover.Portal>
+        {/**
+         * The popup is the screen width less the bar's own `px-3` gutter on
+         * each side, and starts at the trigger, which sits on that gutter.
+         */}
         <Popover.Positioner sideOffset={8} align="start">
-          <Popover.Popup className="z-50 flex w-80 max-w-[calc(100vw-1.5rem)] items-center gap-2 border-2 border-border bg-ink p-2 text-paper shadow-hard">
+          <Popover.Popup className="z-50 flex w-[calc(100vw-1.5rem)] items-center gap-2 border-2 border-border bg-ink p-2 text-paper shadow-hard">
             <ChatComposer
               onSay={onSay}
               onTypingChange={onTypingChange}
