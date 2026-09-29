@@ -4252,7 +4252,8 @@ itself down before it destroys the only copy of what it knew.
   owns — are written to different keys, and a half-dropped kit has no single true
   answer to give either of them.
 - **The `Death` carries what the runtime knew**, because `GameSession.kill`
-  deletes it: what is left of the kit, its tags and its masteries. Nothing
+  deletes it: what is left of the kit, its tags, its experience less the share
+  a death takes, and for a player what the death cost (`DeathCost`). Nothing
   downstream can re-derive any of it.
 - **A reload or a `rebirth` puts them back at the spawn point, with what they
   kept and a bag on their back.** The position row is *overwritten* with
@@ -6639,7 +6640,8 @@ watched and wants to ask about has to be the same fight when they run it again.
 
 Being dead is the one state a client cannot infer. A body missing from the board
 is what an ordinary stale patch looks like, so `died` is a message: sent to the
-one socket, carrying the kit, and the last thing that socket hears.
+one socket, carrying the kit, the experience and what the death cost, and the
+last thing that socket hears.
 
 **Three things happen in an order, and the order is the whole design.**
 
@@ -6657,7 +6659,24 @@ is read off a live runtime and a death is exactly what deletes it, so a dropped
 pack would never be announced and the panel would go on showing a bag that is
 on the floor. Normally everything but the pack; the whole kit when the cell
 refused the pack. The fresh bag a rebirth puts on is not in it: that is written
-to storage, and arrives with the `hello`.
+to storage, and arrives with the `hello`. The experience rides with it for the
+same reason, already less the share a death takes, so the stats panel behind
+the screen agrees with what the screen says.
+
+**The screen says what the death cost, and the server says it.** `kill` builds
+a `DeathCost` (`app/game/deathCost.ts`) from the body as it was and as it is
+leaving: whether the pack went, and each mastery that dropped a level, with
+where from and where to. It rides on `died` as `cost`, and `DeathScreen` draws
+it beside one sentence of rule that reads `XP_SHARE_LOST_ON_DEATH`, so tuning
+the share changes the words too. The client could have worked the levels out
+by comparing the `died` block with the last `masteries` one, and that is the
+diff *One source, and the client infers nothing* already argued against: the
+client's copy can be a tick behind, and a blow that paid experience in the
+killing tick never reaches it. Only levels are listed. Every mastery loses
+experience on every death, so a row per mastery would say the same thing once
+per mastery, and a mastery that lost experience but kept its level has nothing
+to show. The list's heading says "Masteries lowered" rather than naming a level,
+by the rule on notices below: there are no levels in the game's own words.
 
 **Statuses come down without being sent**, and the asymmetry with the kit is the
 point. What is left in a bag is a real question with two possible answers, so

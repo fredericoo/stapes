@@ -15,7 +15,7 @@ import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { resolvePush } from "../app/lib/interactions";
 import { chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
 import { BODY_REACH_ON_LEVEL, INTEREST_REACH_CHUNKS } from "../app/net/interest";
-import { xpForLevel } from "../app/lib/mastery";
+import { levelForXp, xpForLevel } from "../app/lib/mastery";
 import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
@@ -2948,6 +2948,25 @@ describe("dying and coming back", () => {
     const equipment = died.equipment as Record<string, Worn>;
     expect(equipment.armor).toEqual(before.armor);
     expect(equipment.bag).toBeNull();
+  });
+
+  it("tells the dying player what the death cost, and the experience it left", async () => {
+    const alice = await armedAlice();
+    const seen = record(alice.ws);
+
+    await killAndTick("alice");
+
+    const died = seen.of("died")[0]!;
+    const stored = await runInDurableObject(stub(), async (_instance, state) =>
+      state.storage.get<{ masteries: Record<string, number> }>("mast:alice"),
+    );
+    expect(died.masteryXp).toEqual(stored?.masteries);
+    const cost = died.cost as { packLeft: boolean; levelsLost: { mastery: string; to: number }[] };
+    expect(cost.packLeft).toBe(true);
+    expect(cost.levelsLost.length).toBeGreaterThan(0);
+    for (const row of cost.levelsLost) {
+      expect(row.to).toBe(levelForXp(stored!.masteries[row.mastery]!));
+    }
   });
 
   it("stops talking to a dead socket, while the world goes on for everyone else", async () => {

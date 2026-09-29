@@ -8,6 +8,7 @@ import {
 } from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { emptyEquipment } from "../game/equipment";
+import { xpForLevel } from "../lib/mastery";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
 import { CHAT_LIFETIME_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_GRACE_MS } from "./RemoteSession";
@@ -1243,6 +1244,25 @@ describe("RemoteSession death", () => {
     session.setOnDead((dead) => seen.push(dead));
 
     expect(seen).toEqual([true]);
+  });
+
+  it("takes what the death cost, and the experience it left, off the death itself", () => {
+    const { socket, session } = connected();
+    const cost = { packLeft: true, levelsLost: [{ mastery: "sharp", from: 10, to: 9 }] };
+
+    socket.deliver({ ...died(), masteryXp: { sharp: xpForLevel(9) }, cost });
+
+    expect(session.deathCost()).toEqual(cost);
+    expect(session.getSnapshot().masteryXp).toEqual({ sharp: xpForLevel(9) });
+  });
+
+  it("forgets what the death cost on the hello that answers it", () => {
+    const { socket, session } = connected();
+    socket.deliver({ ...died(), cost: { packLeft: true, levelsLost: [] } });
+
+    socket.deliver(helloAgain());
+
+    expect(session.deathCost()).toBeNull();
   });
 
   it("takes the emptied kit off the death itself", () => {

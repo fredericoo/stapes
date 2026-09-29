@@ -251,6 +251,7 @@ import { type Progress, windProgress } from "./progress";
 import { countDown, reached, TICK_SLACK_MS } from "./ticks";
 import { type Attributes, attributesOf } from "./attributes";
 import { equipmentForBody } from "./battlerKit";
+import { type DeathCost, deathCost } from "./deathCost";
 import {
   attackerEarnings,
   casterEarnings,
@@ -733,6 +734,7 @@ export type Death = {
   equipment: Equipment;
   masteryXp: MasteryXp | null;
   tags: readonly string[];
+  cost: DeathCost | null;
 };
 
 export class GameSession implements PlaySession {
@@ -2640,18 +2642,30 @@ export class GameSession implements PlaySession {
       actor.assailants?.delete(target.id);
     }
 
-    const equipment = loc ? this.dropBelongings(target, loc) : target.equipment;
+    const kept = loc ? this.dropBelongings(target, loc) : target.equipment;
 
     if (loc) this.dropRemains(target, loc, blame);
 
-    this.pendingDeaths.push({
-      id: target.id,
-      equipment,
-      masteryXp: target.masteryXp && experienceAfterDeath(target.masteryXp),
-      tags: target.tags,
-    });
+    this.pendingDeaths.push(this.deathOf(target, kept));
 
     if (loc) this.reindexCells([{ x: loc.x, y: loc.y, z: loc.z }]);
+  }
+
+  private deathOf(target: ActorRuntime, kept: Equipment): Death {
+    const masteryXp = target.masteryXp && experienceAfterDeath(target.masteryXp);
+    return {
+      id: target.id,
+      equipment: kept,
+      masteryXp,
+      tags: target.tags,
+      cost: target.resident
+        ? null
+        : deathCost(
+            { equipment: target.equipment, masteryXp: target.masteryXp ?? {} },
+            { equipment: kept, masteryXp: masteryXp ?? {} },
+            this.tilesById,
+          ),
+    };
   }
 
   private dropBelongings(target: ActorRuntime, at: Coord): Equipment {

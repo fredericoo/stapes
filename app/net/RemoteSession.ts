@@ -53,6 +53,7 @@ import { canBeginExtract, type Extraction, type ExtractionProgress } from "../ga
 import { type Progress, windProgress } from "../game/progress";
 import { gravityPullOn } from "../game/gravity";
 import { type Equipment, emptyEquipment } from "../game/equipment";
+import type { DeathCost } from "../game/deathCost";
 import { type Attributes, attributesOf } from "../game/attributes";
 import {
   castability,
@@ -196,6 +197,7 @@ export class RemoteSession implements PlaySession {
   private ready = false;
   private onReady: (() => void) | null = null;
   private dead = false;
+  private death: DeathCost | null = null;
   private onDead: ((dead: boolean) => void) | null = null;
   private onRestarting: (() => void) | null = null;
   private onOutdated: ((serverVersion: number) => void) | null = null;
@@ -242,6 +244,10 @@ export class RemoteSession implements PlaySession {
 
   isDead(): boolean {
     return this.dead;
+  }
+
+  deathCost(): DeathCost | null {
+    return this.death;
   }
 
   rebirth() {
@@ -389,6 +395,7 @@ export class RemoteSession implements PlaySession {
       this.applyCastings(message.castings);
       this.resetAfflicted(message.afflicted);
       this.setPlayers(message.playerCount ?? null);
+      this.death = null;
       this.setDead(false);
       this.ready = true;
       this.onReady?.();
@@ -480,7 +487,9 @@ export class RemoteSession implements PlaySession {
     }
 
     if (message.type === "died") {
+      this.death = message.cost;
       this.equipment = message.equipment;
+      if (message.masteryXp) this.masteryXp = message.masteryXp;
       this.spellCooldowns = {};
       this.held = { directions: [] };
       this.pending = [];

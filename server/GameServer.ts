@@ -29,6 +29,7 @@ import {
   type SpawnPoint,
   withMigratedItemIds,
 } from "../app/game/respawn";
+import { NOTHING_LOST } from "../app/game/deathCost";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
 import { DEFAULT_FACING, listActorOwners } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
@@ -2432,7 +2433,12 @@ export class GameServer {
   private announceDeaths() {
     if (this.justDied.length === 0) return;
     for (const death of this.justDied) {
-      this.sendTo(death.id, { type: "died", equipment: death.equipment });
+      this.sendTo(death.id, {
+        type: "died",
+        equipment: death.equipment,
+        masteryXp: death.masteryXp,
+        cost: death.cost ?? NOTHING_LOST,
+      });
       this.silenced.add(death.id);
     }
     this.justDied = [];
