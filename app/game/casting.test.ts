@@ -37,6 +37,8 @@ import {
 } from "./equipment";
 import { tile } from "../lib/testTile";
 
+const UNTRAINED: Masteries = {};
+
 function stoneTile(id: string, item: Record<string, unknown>): TileDef {
   return tile({
     id,
@@ -484,7 +486,7 @@ describe("the rotation, unchanged", () => {
       ...emptyEquipment(),
       weapon: instance("mend-stone"),
     };
-    expect(weaponSwungBy(kit, tilesById, "weapon")).toBeNull();
+    expect(weaponSwungBy(kit, tilesById, "weapon", UNTRAINED)).toBeNull();
   });
 
   it("swings the weapon every turn beside a stone", () => {
@@ -493,8 +495,8 @@ describe("the rotation, unchanged", () => {
       weapon: instance("sword"),
       offhand: instance("mend-stone"),
     };
-    expect(handToSwing(kit, tilesById, "weapon")).toBe("weapon");
-    expect(handToSwing(kit, tilesById, "offhand")).toBe("weapon");
+    expect(handToSwing(kit, tilesById, "weapon", UNTRAINED)).toBe("weapon");
+    expect(handToSwing(kit, tilesById, "offhand", UNTRAINED)).toBe("weapon");
   });
 
   it("falls back to the natural weapon with two stones", () => {
@@ -503,7 +505,7 @@ describe("the rotation, unchanged", () => {
       weapon: instance("mend-stone"),
       offhand: instance("ward-stone"),
     };
-    expect(handToSwing(kit, tilesById, "weapon")).toBeNull();
+    expect(handToSwing(kit, tilesById, "weapon", UNTRAINED)).toBeNull();
   });
 });
 

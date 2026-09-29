@@ -9,7 +9,7 @@ import {
   type WeaponStatus,
 } from "../lib/item";
 import { absoluteStandingElevation, getStack } from "../lib/mapData";
-import type { WeaponMastery } from "../lib/mastery";
+import type { Masteries, WeaponMastery } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
@@ -286,10 +286,11 @@ export function rangedWeaponReaches(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   equipment: Equipment | null,
+  masteries: Masteries,
   from: { x: number; y: number; z: number; stackIndex: number },
   to: { x: number; y: number; z: number; stackIndex: number },
 ): boolean {
-  const ranged = HANDS.map((hand) => weaponSwungBy(equipment, tilesById, hand)).filter(
+  const ranged = HANDS.map((hand) => weaponSwungBy(equipment, tilesById, hand, masteries)).filter(
     (weapon): weapon is WeaponItem => weapon !== null && isRanged(weapon),
   );
   if (ranged.length === 0) return false;

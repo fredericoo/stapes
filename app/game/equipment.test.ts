@@ -4,6 +4,8 @@ import type { BattlerDef } from "../lib/battler";
 import {
   DEFAULT_BATTLER,
   ACCURACY_AT_MAX_MASTERY,
+  ENCUMBRANCE_PER_POINT_SHORT,
+  MAX_ENCUMBRANCE,
   bodyDefence,
   DAMAGE_AT_MAX_MASTERY,
   defFrom,
@@ -25,7 +27,7 @@ import {
   resolveWeapon,
 } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import { MAX_MASTERY } from "../lib/mastery";
+import { type Masteries, MASTERIES, MAX_MASTERY } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -55,8 +57,10 @@ import {
   wornDefence,
 } from "./equipment";
 
+const MASTERED: Masteries = Object.fromEntries(MASTERIES.map((mastery) => [mastery, MAX_MASTERY]));
+
 function firstHand(equipment: Equipment | null, tiles: Record<string, TileDef>): Hand | null {
-  return handToSwing(equipment, tiles, HANDS[0]);
+  return handToSwing(equipment, tiles, HANDS[0], MASTERED);
 }
 
 const CLAWS = {
@@ -211,6 +215,153 @@ describe("effectiveBattler", () => {
       ),
     );
     expect(base).toEqual(snapshot);
+  });
+});
+
+describe("armour worn short of its requirements", () => {
+  const TOUGHNESS_SHORT = 10;
+  const AGILITY_SHORT = 4;
+  const PLATE_DEF = 5;
+  const tiles = tilesByIdFromList([
+    itemTile("plate", {
+      type: "armor",
+      def: PLATE_DEF,
+      requirements: { toughness: base.masteries.toughness! + TOUGHNESS_SHORT },
+    }),
+    itemTile("cap", {
+      type: "armor",
+      slot: "head",
+      def: 1,
+      requirements: { agility: base.masteries.agility! + AGILITY_SHORT },
+    }),
+    itemTile("tunic", {
+      type: "armor",
+      def: 1,
+      requirements: { toughness: base.masteries.toughness! },
+    }),
+    itemTile("anvil", {
+      type: "armor",
+      def: 1,
+      requirements: { toughness: MAX_MASTERY },
+    }),
+  ]);
+  const wearing = (armor: string | null, head: string | null = null): Equipment => ({
+    ...emptyEquipment(),
+    armor: armor ? { id: `itm_${armor}`, tileId: armor } : null,
+    head: head ? { id: `itm_${head}`, tileId: head } : null,
+  });
+  const naked = effectiveBattler(base, null, tiles, null);
+
+  it("costs nothing when the requirements are met", () => {
+    const out = effectiveBattler(base, wearing("tunic"), tiles, null);
+    expect(out.haste).toBe(naked.haste);
+    expect(out.flee).toBe(naked.flee);
+  });
+
+  it("slows the swing and the dodge by the same share, and leaves defence alone", () => {
+    const out = effectiveBattler(base, wearing("plate"), tiles, null);
+    const kept = 1 - TOUGHNESS_SHORT * ENCUMBRANCE_PER_POINT_SHORT;
+    expect(out.haste).toBeCloseTo(naked.haste * kept);
+    expect(out.flee).toBe(Math.round(naked.flee * kept));
+    expect(out.def).toBe(naked.def + PLATE_DEF);
+  });
+
+  it("adds the points short across every piece worn", () => {
+    const out = effectiveBattler(base, wearing("plate", "cap"), tiles, null);
+    const kept = 1 - (TOUGHNESS_SHORT + AGILITY_SHORT) * ENCUMBRANCE_PER_POINT_SHORT;
+    expect(out.haste).toBeCloseTo(naked.haste * kept);
+  });
+
+  it("never takes more than the cap", () => {
+    const out = effectiveBattler(base, wearing("anvil"), tiles, null);
+    expect(out.haste).toBeCloseTo(naked.haste * (1 - MAX_ENCUMBRANCE));
+  });
+});
+
+describe("magic worn short of its arcane or element", () => {
+  const WARD_DEF = 2;
+  const WARD_RESIST = 5;
+  const ARCANE_ASKED = 10;
+  const tiles = tilesByIdFromList([
+    itemTile("ward", {
+      type: "armor",
+      slot: "charm",
+      def: WARD_DEF,
+      resist: { arcane: WARD_RESIST },
+      elements: ["water"],
+      requirements: { arcane: ARCANE_ASKED, toughness: base.masteries.toughness! + 5 },
+    }),
+    itemTile("aegis", { type: "shield", def: 3, requirements: { arcane: ARCANE_ASKED } }),
+    itemTile("staff", { ...DEFAULT_WEAPON, def: 1, requirements: { arcane: ARCANE_ASKED } }),
+  ]);
+  const short: BattlerDef = { ...base, masteries: { ...base.masteries, arcane: ARCANE_ASKED - 1 } };
+  const met: BattlerDef = { ...base, masteries: { ...base.masteries, arcane: ARCANE_ASKED } };
+  const warded: Equipment = { ...emptyEquipment(), charm: { id: "itm_ward", tileId: "ward" } };
+
+  it("gives no defence, resist or element one point short", () => {
+    const naked = effectiveBattler(short, null, tiles, null);
+    const out = effectiveBattler(short, warded, tiles, null);
+    expect(out.def).toBe(naked.def);
+    expect(out.resist).toEqual({});
+    expect(bodyElements(short, warded, tiles)).toEqual([]);
+  });
+
+  it("gives all of them once the requirement is met", () => {
+    const naked = effectiveBattler(met, null, tiles, null);
+    const out = effectiveBattler(met, warded, tiles, null);
+    expect(out.def).toBe(naked.def + WARD_DEF);
+    expect(out.resist).toEqual({ arcane: WARD_RESIST });
+    expect(bodyElements(met, warded, tiles)).toEqual(["water"]);
+  });
+
+  it("still encumbers for the physical part of what it asks", () => {
+    const naked = effectiveBattler(short, null, tiles, null);
+    expect(effectiveBattler(short, warded, tiles, null).haste).toBeLessThan(naked.haste);
+  });
+
+  it("switches a shield off the same way", () => {
+    const shielded = { ...emptyEquipment(), offhand: { id: "itm_aegis", tileId: "aegis" } };
+    expect(heldDefence(shielded, tiles, short.masteries)).toBe(0);
+    expect(takesEffect("offhand", shielded.offhand, tiles, short.masteries)).toBe(false);
+  });
+
+  it("holds a weapon like a torch, falling back on the body's own", () => {
+    const held = { id: "itm_staff", tileId: "staff" };
+    const armed = { ...emptyEquipment(), weapon: held };
+    expect(takesEffect("weapon", held, tiles, short.masteries)).toBe(false);
+    expect(heldDefence(armed, tiles, short.masteries)).toBe(0);
+    expect(handToSwing(armed, tiles, "weapon", short.masteries)).toBeNull();
+    expect(weaponInHand(short, armed, tiles, "weapon")).toBe(short.naturalWeapon);
+    expect(effectiveBattler(short, armed, tiles, null).def).toBe(
+      effectiveBattler(short, null, tiles, null).def,
+    );
+  });
+
+  it("swings the weapon once the requirement is met", () => {
+    const held = { id: "itm_staff", tileId: "staff" };
+    const armed = { ...emptyEquipment(), weapon: held };
+    expect(handToSwing(armed, tiles, "weapon", met.masteries)).toBe("weapon");
+  });
+});
+
+describe("a shield worn short of its requirements", () => {
+  const tiles = tilesByIdFromList([
+    itemTile("tower", {
+      type: "shield",
+      def: 3,
+      requirements: { toughness: base.masteries.toughness! + 10 },
+    }),
+  ]);
+
+  it("slows the swing like armour does", () => {
+    const naked = effectiveBattler(base, null, tiles, null);
+    const out = effectiveBattler(
+      base,
+      { ...emptyEquipment(), offhand: { id: "itm_tower", tileId: "tower" } },
+      tiles,
+      null,
+    );
+    expect(out.haste).toBeCloseTo(naked.haste * (1 - 10 * ENCUMBRANCE_PER_POINT_SHORT));
   });
 });
 
@@ -594,9 +745,9 @@ describe("the off hand", () => {
   });
 
   it("turns nothing aside when it is empty or holding a torch", () => {
-    expect(heldDefence(holding(null), shipped)).toBe(0);
-    expect(heldDefence(holding("hand-lantern"), shipped)).toBe(0);
-    expect(heldDefence(null, shipped)).toBe(0);
+    expect(heldDefence(holding(null), shipped, MASTERED)).toBe(0);
+    expect(heldDefence(holding("hand-lantern"), shipped, MASTERED)).toBe(0);
+    expect(heldDefence(null, shipped, MASTERED)).toBe(0);
   });
 
   it("restores a kit that predates it", () => {
@@ -637,8 +788,8 @@ describe("the body", () => {
     const kit = wearing("chain-mail", "shield");
 
     expect(wornDefence(player, kit, tiles)).toBe(3 + 3);
-    expect(armorDefence(kit, tiles)).toBe(3);
-    expect(heldDefence(kit, tiles)).toBe(3);
+    expect(armorDefence(kit, tiles, MASTERED)).toBe(3);
+    expect(heldDefence(kit, tiles, MASTERED)).toBe(3);
   });
 
   it("leaves what you swing with entirely alone", () => {
@@ -662,9 +813,9 @@ describe("the body", () => {
   });
 
   it("turns nothing aside when it is bare, or when the tile is gone", () => {
-    expect(armorDefence(wearing(null), shipped)).toBe(0);
-    expect(armorDefence(null, shipped)).toBe(0);
-    expect(armorDefence(wearing("no-such-tile"), shipped)).toBe(0);
+    expect(armorDefence(wearing(null), shipped, MASTERED)).toBe(0);
+    expect(armorDefence(null, shipped, MASTERED)).toBe(0);
+    expect(armorDefence(wearing("no-such-tile"), shipped, MASTERED)).toBe(0);
   });
 
   it("comes back empty when what was saved in it is not armour", () => {
@@ -705,8 +856,8 @@ describe("taking turns between two hands", () => {
   it("swings whichever hand it is up to, and then the other", () => {
     const both = held("sword", "rusty-sword");
 
-    expect(handToSwing(both, tiles, "weapon")).toBe("weapon");
-    expect(handToSwing(both, tiles, "offhand")).toBe("offhand");
+    expect(handToSwing(both, tiles, "weapon", MASTERED)).toBe("weapon");
+    expect(handToSwing(both, tiles, "offhand", MASTERED)).toBe("offhand");
     expect(otherHand("weapon")).toBe("offhand");
     expect(otherHand("offhand")).toBe("weapon");
   });
@@ -736,7 +887,7 @@ describe("taking turns between two hands", () => {
   it("never takes a turn with an empty hand", () => {
     for (const kit of [held("rusty-sword", null), held(null, "rusty-sword")]) {
       for (const preferred of HANDS) {
-        const hand = handToSwing(kit, tiles, preferred);
+        const hand = handToSwing(kit, tiles, preferred, MASTERED);
         expect(hand).not.toBeNull();
         expect(weaponInHand(base, kit, tiles, hand).damage).toBe(
           resolveWeapon(tiles["rusty-sword"]!)!.damage,
@@ -748,14 +899,14 @@ describe("taking turns between two hands", () => {
   it("skips a hand holding a shield, a torch or a loaf", () => {
     for (const inert of ["shield", "hand-lantern", "bread"]) {
       const kit = held("rusty-sword", inert);
-      expect(weaponSwungBy(kit, tiles, "offhand")).toBeNull();
-      expect(handToSwing(kit, tiles, "offhand")).toBe("weapon");
+      expect(weaponSwungBy(kit, tiles, "offhand", MASTERED)).toBeNull();
+      expect(handToSwing(kit, tiles, "offhand", MASTERED)).toBe("weapon");
     }
   });
 
   it("falls back to what the body was born with", () => {
     for (const kit of [emptyEquipment(), held("shield", "hand-lantern")]) {
-      expect(handToSwing(kit, tiles, "weapon")).toBeNull();
+      expect(handToSwing(kit, tiles, "weapon", MASTERED)).toBeNull();
       expect(weaponInHand(base, kit, tiles, null)).toEqual(base.naturalWeapon);
     }
   });
@@ -767,25 +918,25 @@ describe("taking turns between two hands", () => {
     it("takes the turn of a hand whose weapon cannot be used", () => {
       const both = held("sword", "rusty-sword");
       for (const preferred of HANDS) {
-        expect(handToSwing(both, tiles, preferred, onlyTheMainHand)).toBe("weapon");
+        expect(handToSwing(both, tiles, preferred, MASTERED, onlyTheMainHand)).toBe("weapon");
       }
     });
 
     it("does not simply refuse when the preferred hand is the useless one", () => {
       const both = held("sword", "rusty-sword");
-      expect(handToSwing(both, tiles, "offhand", onlyTheMainHand)).toBe("weapon");
+      expect(handToSwing(both, tiles, "offhand", MASTERED, onlyTheMainHand)).toBe("weapon");
     });
 
     it("answers null when no hand's weapon works, and still counts as armed", () => {
       const both = held("sword", "rusty-sword");
-      expect(handToSwing(both, tiles, "weapon", neither)).toBeNull();
-      expect(fightsWithAHand(both, tiles)).toBe(true);
+      expect(handToSwing(both, tiles, "weapon", MASTERED, neither)).toBeNull();
+      expect(fightsWithAHand(both, tiles, MASTERED)).toBe(true);
     });
 
     it("is not asked of a hand with nothing to swing in it", () => {
       const kit = held("sword", "hand-lantern");
       const asked: Hand[] = [];
-      handToSwing(kit, tiles, "offhand", (_weapon, hand) => {
+      handToSwing(kit, tiles, "offhand", MASTERED, (_weapon, hand) => {
         asked.push(hand);
         return true;
       });
@@ -794,21 +945,21 @@ describe("taking turns between two hands", () => {
 
     it("leaves a body with no filter exactly as it was", () => {
       const both = held("sword", "rusty-sword");
-      expect(handToSwing(both, tiles, "offhand")).toBe("offhand");
+      expect(handToSwing(both, tiles, "offhand", MASTERED)).toBe("offhand");
     });
   });
 
   describe("fightsWithAHand", () => {
     it("is true for one weapon and for two", () => {
-      expect(fightsWithAHand(held("sword", null), tiles)).toBe(true);
-      expect(fightsWithAHand(held(null, "sword"), tiles)).toBe(true);
-      expect(fightsWithAHand(held("sword", "rusty-sword"), tiles)).toBe(true);
+      expect(fightsWithAHand(held("sword", null), tiles, MASTERED)).toBe(true);
+      expect(fightsWithAHand(held(null, "sword"), tiles, MASTERED)).toBe(true);
+      expect(fightsWithAHand(held("sword", "rusty-sword"), tiles, MASTERED)).toBe(true);
     });
 
     it("is false for empty hands and for hands holding things nobody swings", () => {
-      expect(fightsWithAHand(emptyEquipment(), tiles)).toBe(false);
-      expect(fightsWithAHand(held("shield", "hand-lantern"), tiles)).toBe(false);
-      expect(fightsWithAHand(null, tiles)).toBe(false);
+      expect(fightsWithAHand(emptyEquipment(), tiles, MASTERED)).toBe(false);
+      expect(fightsWithAHand(held("shield", "hand-lantern"), tiles, MASTERED)).toBe(false);
+      expect(fightsWithAHand(null, tiles, MASTERED)).toBe(false);
     });
   });
 
@@ -879,7 +1030,7 @@ describe("a weapon that needs both hands", () => {
   it("takes every turn itself", () => {
     const kit = held("greatsword", null);
     for (const preferred of HANDS) {
-      expect(handToSwing(kit, tiles, preferred)).toBe("weapon");
+      expect(handToSwing(kit, tiles, preferred, MASTERED)).toBe("weapon");
     }
     expect(effectiveBattler(base, kit, tiles, "weapon").mastery).toBe("sharp");
   });
@@ -973,7 +1124,9 @@ describe("the other worn squares", () => {
       charm: on("copper-ring"),
     });
 
-    expect(armorDefence(dressed, shipped)).toBe(helm.def + mail.def + boots.def + ring.def);
+    expect(armorDefence(dressed, shipped, MASTERED)).toBe(
+      helm.def + mail.def + boots.def + ring.def,
+    );
     const bare = effectiveBattler(
       player,
       emptyEquipment(),
@@ -981,25 +1134,25 @@ describe("the other worn squares", () => {
       firstHand(emptyEquipment(), shipped),
     );
     expect(effectiveBattler(player, dressed, shipped, firstHand(dressed, shipped)).def).toBe(
-      bare.def + armorDefence(dressed, shipped),
+      bare.def + armorDefence(dressed, shipped, MASTERED),
     );
   });
 
   it("sums the resistances too, kind by kind", () => {
     const both = worn({ head: on("iron-helm"), armor: on("chain-mail") });
-    expect(armorResistances(both, shipped)).toEqual({ blunt: 2, sharp: 4 });
+    expect(armorResistances(both, shipped, MASTERED)).toEqual({ blunt: 2, sharp: 4 });
 
     const doubled = worn({
       head: on("knights-helm"),
       footwear: on("steel-sabatons"),
     });
-    expect(armorResistances(doubled, shipped).sharp).toBe(3 + 2);
+    expect(armorResistances(doubled, shipped, MASTERED).sharp).toBe(3 + 2);
   });
 
   it("lets a square be a choice rather than a rung", () => {
     const charmed = worn({ charm: on("jade-amulet") });
-    expect(armorDefence(charmed, shipped)).toBe(0);
-    expect(armorResistances(charmed, shipped)).toEqual({ arcane: 5 });
+    expect(armorDefence(charmed, shipped, MASTERED)).toBe(0);
+    expect(armorResistances(charmed, shipped, MASTERED)).toEqual({ arcane: 5 });
   });
 
   it("refuses armour authored for a different square", () => {
@@ -1008,7 +1161,7 @@ describe("the other worn squares", () => {
       footwear: on("iron-helm"),
       charm: on("steel-sabatons"),
     });
-    expect(armorDefence(muddled, shipped)).toBe(0);
+    expect(armorDefence(muddled, shipped, MASTERED)).toBe(0);
 
     const restored = restoredEquipment(muddled, shipped);
     expect(restored.head).toBeNull();
@@ -1066,9 +1219,9 @@ describe("resisting a kind of blow", () => {
   });
 
   it("says nothing for a bare chest or for armour with no opinion", () => {
-    expect(armorResistances(null, shipped)).toEqual({});
-    expect(armorResistances(emptyEquipment(), shipped)).toEqual({});
-    expect(armorResistances(wearing("cloth-tunic"), shipped)).toEqual({});
+    expect(armorResistances(null, shipped, MASTERED)).toEqual({});
+    expect(armorResistances(emptyEquipment(), shipped, MASTERED)).toEqual({});
+    expect(armorResistances(wearing("cloth-tunic"), shipped, MASTERED)).toEqual({});
   });
 
   it("is authored differently across the armours we ship", () => {

@@ -1,5 +1,5 @@
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BASE_HP, fightingStats } from "../lib/battler";
+import { DEFAULT_BASE_HP, encumbrance, fightingStats } from "../lib/battler";
 import {
   armorSlotOf,
   consumeVerb,
@@ -32,6 +32,8 @@ import {
   type Masteries,
   type Mastery,
   type MasteryXp,
+  MAGIC_MASTERIES,
+  physicalShortfall,
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
@@ -82,6 +84,7 @@ export type ItemCard = {
   description: string | null;
   stats: ItemCardStat[];
   requirements: ItemCardRequirement[];
+  dormant: string | null;
   effects: ItemCardEffect[];
   effectsTitle: string;
   resists: ItemCardResist[];
@@ -210,14 +213,51 @@ function toneOf(yours: number, own: number): ItemCardTone {
   return "plain";
 }
 
-function armorStats(armor: ArmorItem): ItemCardStat[] {
+function armorStats(
+  armor: ArmorItem | ShieldItem,
+  masteries: BattlerDef["masteries"],
+): ItemCardStat[] {
   return [
     {
       term: "defence",
       value: `${armor.def}`,
       tone: "good",
     },
+    ...encumbranceStats(armor.requirements, masteries),
   ];
+}
+
+function encumbranceStats(
+  requirements: Masteries | undefined,
+  masteries: BattlerDef["masteries"],
+): ItemCardStat[] {
+  const share = encumbrance(physicalShortfall(masteries, requirements));
+  if (share <= 0) return [];
+  const cost = `${MINUS}${percent(share)}%`;
+  return [
+    { term: "attackSpeed", value: cost, tone: "bad" },
+    { term: "evasion", value: cost, tone: "bad" },
+  ];
+}
+
+function dormancyOf(item: ItemDef, masteries: BattlerDef["masteries"]): string | null {
+  if (
+    item.type !== "weapon" &&
+    item.type !== "armor" &&
+    item.type !== "shield" &&
+    item.type !== "charm"
+  ) {
+    return null;
+  }
+  const short = MAGIC_MASTERIES.filter(
+    (mastery) => masteryLevel(masteries, mastery) < (item.requirements?.[mastery] ?? 0),
+  );
+  if (short.length === 0) return null;
+  const needs = short.map((mastery) => `${MASTERY_LABELS[mastery]} ${item.requirements![mastery]}`);
+  const until = needs.join(" and ");
+  return item.type === "weapon"
+    ? `You fight with your bare hands until you reach ${until}.`
+    : `Does nothing until you reach ${until}.`;
 }
 
 function resistsFrom(armor: ArmorItem): ItemCardResist[] {
@@ -244,7 +284,7 @@ function consumableStats(consumable: ConsumableItem): ItemCardStat[] {
   ];
 }
 
-function charmStats(charm: CharmItem): ItemCardStat[] {
+function charmStats(charm: CharmItem, masteries: BattlerDef["masteries"]): ItemCardStat[] {
   const stats: ItemCardStat[] = [];
   if (charm.hp) {
     stats.push({
@@ -258,7 +298,7 @@ function charmStats(charm: CharmItem): ItemCardStat[] {
     value: seconds(charm.everyMs),
     tone: "plain",
   });
-  return stats;
+  return [...stats, ...encumbranceStats(charm.requirements, masteries)];
 }
 
 function containerStats(container: ContainerItem, instance: ItemInstance | null): ItemCardStat[] {
@@ -305,8 +345,10 @@ function effectsTitleFor(item: ItemDef): string {
 }
 
 function demandsOf(item: ItemDef): Masteries | undefined {
-  if (item.type === "weapon" || item.type === "stone") return item.requirements;
-  return undefined;
+  if (item.type === "consumable" || item.type === "container" || item.type === "artifact") {
+    return undefined;
+  }
+  return item.requirements;
 }
 
 function grantsOn(item: ItemDef): readonly (StatusGrant & { chance?: number })[] | undefined {
@@ -335,23 +377,13 @@ function statsFor(
   statusDefs: Record<string, StatusDef>,
 ): ItemCardStat[] {
   if (item.type === "weapon") return weaponStats(item, masteries);
-  if (item.type === "armor") return armorStats(item);
-  if (item.type === "shield") return shieldStats(item);
+  if (item.type === "armor") return armorStats(item, masteries);
+  if (item.type === "shield") return armorStats(item, masteries);
   if (item.type === "stone") return stoneStats(item, statusDefs);
   if (item.type === "consumable") return consumableStats(item);
-  if (item.type === "charm") return charmStats(item);
+  if (item.type === "charm") return charmStats(item, masteries);
   if (item.type === "container") return containerStats(item, instance);
   return [];
-}
-
-function shieldStats(shield: ShieldItem): ItemCardStat[] {
-  return [
-    {
-      term: "defence",
-      value: `${shield.def}`,
-      tone: "good",
-    },
-  ];
 }
 
 function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef>): ItemCardStat[] {
@@ -420,6 +452,7 @@ export function itemCard(
     description: instance?.description?.trim() || null,
     stats: statsFor(item, instance, masteries, statusDefs),
     requirements: requirementsFrom(demandsOf(item), masteries),
+    dormant: dormancyOf(item, masteries),
     effects: effectsFrom(grantsOn(item), statusDefs),
     resists: item.type === "armor" ? resistsFrom(item) : [],
     effectsTitle: effectsTitleFor(item),
@@ -444,6 +477,7 @@ function speak(card: ItemCard): string {
   if (card.elements.length > 0) {
     lines.push(`Attuned to ${card.elements.join(" and ")}`);
   }
+  if (card.dormant) lines.push(card.dormant);
   if (card.inscription) lines.push(card.inscription);
   if (card.description) lines.push(card.description);
   for (const stat of card.stats) {

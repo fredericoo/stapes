@@ -1,9 +1,18 @@
 import type { BattlerDef, FightingStats } from "../lib/battler";
-import { bodyDefence, fightingStats, NO_RESISTANCES } from "../lib/battler";
+import {
+  bodyDefence,
+  encumbered,
+  encumbrance,
+  fightingStats,
+  NO_RESISTANCES,
+} from "../lib/battler";
 import type {
   ArcaneStoneItem,
   ArmorItem,
   ArmorSlot,
+  CharmItem,
+  ItemDef,
+  ShieldItem,
   WeaponItem,
   WeaponResistances,
 } from "../lib/item";
@@ -14,6 +23,7 @@ import {
   armorSlotOf,
   isTwoHanded,
   itemElements,
+  itemRequirements,
   NO_ELEMENTS,
   resolveArmor,
   resolveCharm,
@@ -25,7 +35,13 @@ import {
 } from "../lib/item";
 import { type Element, ELEMENTS } from "../lib/element";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
-import { type Masteries, meetsRequirements, WEAPON_MASTERIES } from "../lib/mastery";
+import {
+  type Masteries,
+  meetsMagicRequirements,
+  meetsRequirements,
+  physicalShortfall,
+  WEAPON_MASTERIES,
+} from "../lib/mastery";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 
@@ -175,31 +191,36 @@ export function weaponInHand(
   tilesById: Record<string, TileDef>,
   hand: Hand | null,
 ): WeaponItem {
-  const held = hand ? equipment?.[hand] : null;
-  if (!held) return base.naturalWeapon;
-  const def = tilesById[held.tileId];
-  return (def ? resolveWeapon(def) : null) ?? base.naturalWeapon;
+  if (!hand) return base.naturalWeapon;
+  return weaponSwungBy(equipment, tilesById, hand, base.masteries) ?? base.naturalWeapon;
 }
 
+/**
+ * A weapon short of its arcane or element requirements is held like a torch:
+ * it swings nothing, so the body falls back on its natural weapon.
+ */
 export function weaponSwungBy(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
   hand: Hand,
+  masteries: Masteries,
 ): WeaponItem | null {
   const held = equipment?.[hand];
   if (!held) return null;
   const def = tilesById[held.tileId];
-  return def ? resolveWeapon(def) : null;
+  if (!def || magicDormant(def, masteries)) return null;
+  return resolveWeapon(def);
 }
 
 export function handToSwing(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
   preferred: Hand,
+  masteries: Masteries,
   usable?: (weapon: WeaponItem, hand: Hand) => boolean,
 ): Hand | null {
   for (const hand of [preferred, otherHand(preferred)]) {
-    const weapon = weaponSwungBy(equipment, tilesById, hand);
+    const weapon = weaponSwungBy(equipment, tilesById, hand, masteries);
     if (weapon && (!usable || usable(weapon, hand))) return hand;
   }
   return null;
@@ -208,8 +229,9 @@ export function handToSwing(
 export function fightsWithAHand(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  masteries: Masteries,
 ): boolean {
-  return HANDS.some((hand) => weaponSwungBy(equipment, tilesById, hand));
+  return HANDS.some((hand) => weaponSwungBy(equipment, tilesById, hand, masteries));
 }
 
 export function twoHandedHand(
@@ -239,23 +261,52 @@ export function effectiveBattler(
   tilesById: Record<string, TileDef>,
   hand: Hand | null,
 ): FightingStats {
-  const stats = fightingStats(base, weaponInHand(base, equipment, tilesById, hand));
+  const stats = encumbered(
+    fightingStats(base, weaponInHand(base, equipment, tilesById, hand)),
+    encumbrance(armorShortfall(base.masteries, equipment, tilesById)),
+  );
   const guard = wornDefence(base, equipment, tilesById) + bodyDefence(base);
-  const resist = armorResistances(equipment, tilesById);
+  const resist = armorResistances(equipment, tilesById, base.masteries);
   if (guard === stats.def && resist === NO_RESISTANCES) return stats;
   return { ...stats, def: guard, resist };
 }
 
+export function armorShortfall(
+  masteries: Masteries,
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): number {
+  if (!equipment) return 0;
+  let missing = 0;
+  for (let i = 0; i < EQUIPMENT_SLOTS.length; i++) {
+    const instance = equipment[EQUIPMENT_SLOTS[i]!];
+    const def = instance ? tilesById[instance.tileId] : undefined;
+    const item = def ? resolveItem(def) : null;
+    if (!item || !isProtective(item)) continue;
+    missing += physicalShortfall(masteries, item.requirements);
+  }
+  return missing;
+}
+
+function isProtective(item: ItemDef): item is ArmorItem | ShieldItem | CharmItem {
+  return item.type === "armor" || item.type === "shield" || item.type === "charm";
+}
+
+export function magicDormant(def: TileDef, masteries: Masteries): boolean {
+  return !meetsMagicRequirements(masteries, itemRequirements(def));
+}
+
 /**
- * Indexed rather than `for...of`, here and in `armorDefence` and `requirementShortfall`:
+ * Indexed rather than `for...of`, here and in `armorDefence`, `armorShortfall` and `physicalShortfall`:
  * Bun's JIT deoptimises a `for...of` whose body did not run while it was being compiled.
  */
 export function armorResistances(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  masteries: Masteries,
 ): WeaponResistances {
   let summed: WeaponResistances | null = null;
-  const worn = wornArmor(equipment, tilesById);
+  const worn = wornArmor(equipment, tilesById, masteries);
   for (let i = 0; i < worn.length; i++) {
     const armor = worn[i]!;
     if (!armor.resist) continue;
@@ -278,7 +329,7 @@ export function bodyElements(
   if (equipment) {
     for (const instance of wornInstances(equipment)) {
       const def = tilesById[instance.tileId];
-      if (def) sources.push(itemElements(def));
+      if (def && !magicDormant(def, base.masteries)) sources.push(itemElements(def));
     }
   }
 
@@ -292,9 +343,9 @@ export function wornDefence(
   tilesById: Record<string, TileDef>,
 ): number {
   return (
-    heldDefence(equipment, tilesById) +
+    heldDefence(equipment, tilesById, base.masteries) +
     natureDefence(base, equipment, tilesById) +
-    armorDefence(equipment, tilesById)
+    armorDefence(equipment, tilesById, base.masteries)
   );
 }
 
@@ -303,20 +354,25 @@ function natureDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): number {
-  return fightsWithAHand(equipment, tilesById) ? 0 : base.naturalWeapon.def;
+  return fightsWithAHand(equipment, tilesById, base.masteries) ? 0 : base.naturalWeapon.def;
 }
 
 export function armorDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  masteries: Masteries,
 ): number {
-  const worn = wornArmor(equipment, tilesById);
+  const worn = wornArmor(equipment, tilesById, masteries);
   let total = 0;
   for (let i = 0; i < worn.length; i++) total += worn[i]!.def;
   return total;
 }
 
-function wornArmor(equipment: Equipment | null, tilesById: Record<string, TileDef>): ArmorItem[] {
+function wornArmor(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+  masteries: Masteries,
+): ArmorItem[] {
   if (!equipment) return [];
   const out: ArmorItem[] = [];
   for (const slot of ARMOR_SLOTS) {
@@ -324,7 +380,7 @@ function wornArmor(equipment: Equipment | null, tilesById: Record<string, TileDe
     if (!instance) continue;
     const def = tilesById[instance.tileId];
     const armor = def ? armorForSlot(slot, def) : null;
-    if (armor) out.push(armor);
+    if (armor && meetsMagicRequirements(masteries, armor.requirements)) out.push(armor);
   }
   return out;
 }
@@ -337,13 +393,14 @@ export function armorForSlot(slot: ArmorSlot, def: TileDef): ArmorItem | null {
 export function heldDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  masteries: Masteries,
 ): number {
   let total = 0;
   for (const hand of HANDS) {
     const held = equipment?.[hand];
     if (!held) continue;
     const def = tilesById[held.tileId];
-    if (!def) continue;
+    if (!def || magicDormant(def, masteries)) continue;
     total += resolveWeapon(def)?.def ?? resolveShield(def)?.def ?? 0;
   }
   return total;
@@ -404,6 +461,7 @@ export function takesEffect(
   if (!instance) return false;
   const def = tilesById[instance.tileId];
   if (!def) return false;
+  if (magicDormant(def, masteries)) return false;
 
   if (itemElements(def).length > 0) return true;
   if (resolveLight(def, { direction: instance.direction })) return true;

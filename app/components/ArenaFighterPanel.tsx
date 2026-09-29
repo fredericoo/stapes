@@ -208,7 +208,7 @@ function WeaponsInHand({
   const body = bodyOf(fighter, tilesById);
   if (!body) return null;
   const equipment = equipmentOf(fighter, tilesById);
-  const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand));
+  const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand, body.masteries));
   const rotation: (Hand | null)[] = hands.length > 0 ? hands : [null];
 
   return (

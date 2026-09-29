@@ -10,6 +10,7 @@ export const TERMS = {
   defence: { label: "Defence" },
   hit: { label: "Hit", spoken: "chance to land" },
   swing: { label: "Swing", spoken: "a blow every" },
+  attackSpeed: { label: "Attack speed" },
   range: { label: "Range" },
   evasion: { label: "Evasion" },
   move: { label: "Move" },

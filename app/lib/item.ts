@@ -79,6 +79,7 @@ export type ArmorItem = {
   slot?: ArmorSlot;
   def: number;
   resist?: WeaponResistances;
+  requirements?: Masteries;
   elements?: Element[];
 };
 
@@ -92,6 +93,7 @@ export type ArtifactItem = {
 export type ShieldItem = {
   type: "shield";
   def: number;
+  requirements?: Masteries;
   elements?: Element[];
 };
 
@@ -132,6 +134,7 @@ export type CharmItem = {
   everyMs: number;
   hp?: number;
   statuses?: StatusGrant[];
+  requirements?: Masteries;
   elements?: Element[];
 };
 
@@ -378,6 +381,7 @@ const armorSchema = v.object({
   slot: v.optional(v.picklist(ARMOR_SLOTS)),
   def: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF)),
   resist: v.optional(weaponResistancesSchema),
+  requirements: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
 });
 
@@ -389,6 +393,7 @@ const artifactSchema = v.object({
 const shieldSchema = v.object({
   type: v.literal("shield"),
   def: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF)),
+  requirements: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
 });
 
@@ -454,6 +459,7 @@ const charmSchema = v.object({
   ),
   hp: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CHARM_HP))),
   statuses: v.optional(v.array(statusGrantSchema)),
+  requirements: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
 });
 
@@ -524,6 +530,12 @@ export function itemElements(def: TileDef): readonly Element[] {
 
 export const NO_ELEMENTS: readonly Element[] = [];
 
+export function itemRequirements(def: TileDef): Masteries | undefined {
+  const item = resolveItem(def);
+  if (!item || !("requirements" in item)) return undefined;
+  return item.requirements;
+}
+
 export function isRanged(weapon: { projectile?: string | null }): boolean {
   return weapon.projectile != null;
 }
@@ -548,13 +560,6 @@ export function reachForSave(reach: Reach): Reach {
 }
 
 export function weaponForSave(weapon: WeaponItem): WeaponItem {
-  const requirements = Object.fromEntries(
-    MASTERIES.filter((mastery) => (weapon.requirements?.[mastery] ?? 0) > 0).map((mastery) => [
-      mastery,
-      weapon.requirements?.[mastery],
-    ]),
-  );
-
   const statuses = statusGrantsForSave(weapon.statuses);
 
   const name = weapon.name?.trim();
@@ -571,7 +576,7 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     mastery: weapon.mastery,
     ...(weapon.projectile?.trim() ? { projectile: weapon.projectile.trim() } : {}),
     ...(weapon.twoHanded ? { twoHanded: true } : {}),
-    ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
+    ...requirementsForSave(weapon.requirements),
     ...(statuses ? { statuses } : {}),
     ...elementsForSave(weapon.elements),
   };
@@ -610,6 +615,7 @@ function armorForSave(armor: ArmorItem): ArmorItem {
     ...(slot === DEFAULT_ARMOR_SLOT ? {} : { slot }),
     def: armor.def,
     ...(Object.keys(resist).length > 0 ? { resist } : {}),
+    ...requirementsForSave(armor.requirements),
     ...elementsForSave(armor.elements),
   };
 }
@@ -638,7 +644,12 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
     return { type: "artifact", ...(pile > MIN_PILE ? { pile } : {}) };
   }
   if (item.type === "shield") {
-    return { type: "shield", def: item.def, ...elementsForSave(item.elements) };
+    return {
+      type: "shield",
+      def: item.def,
+      ...requirementsForSave(item.requirements),
+      ...elementsForSave(item.elements),
+    };
   }
   if (item.type === "stone") return stoneForSave(item);
   if (item.type === "charm") return charmForSave(item);
@@ -655,8 +666,19 @@ function charmForSave(charm: CharmItem): CharmItem {
     everyMs: Math.round(charm.everyMs),
     ...(charm.hp ? { hp: Math.round(charm.hp) } : {}),
     ...(charm.statuses?.length ? { statuses: statusGrantsForSave(charm.statuses) } : {}),
+    ...requirementsForSave(charm.requirements),
     ...elementsForSave(charm.elements),
   };
+}
+
+function requirementsForSave(requirements: Masteries | undefined): { requirements?: Masteries } {
+  const kept = Object.fromEntries(
+    MASTERIES.filter((mastery) => (requirements?.[mastery] ?? 0) > 0).map((mastery) => [
+      mastery,
+      requirements?.[mastery],
+    ]),
+  );
+  return Object.keys(kept).length > 0 ? { requirements: kept } : {};
 }
 
 function elementsForSave(elements: Element[] | undefined) {
@@ -666,13 +688,6 @@ function elementsForSave(elements: Element[] | undefined) {
 }
 
 export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
-  const requirements = Object.fromEntries(
-    MASTERIES.filter((mastery) => (stone.requirements?.[mastery] ?? 0) > 0).map((mastery) => [
-      mastery,
-      stone.requirements?.[mastery],
-    ]),
-  );
-
   const sound = stone.sound?.trim();
 
   return {
@@ -682,7 +697,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     ...(stone.castTimeMs ? { castTimeMs: Math.round(stone.castTimeMs) } : {}),
     ...(stone.uninterruptible ? { uninterruptible: true } : {}),
     ...(sound ? { sound } : {}),
-    ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
+    ...requirementsForSave(stone.requirements),
     ...(stone.reach ? { reach: reachForSave(stone.reach) } : {}),
     ...elementsForSave(stone.elements),
   };

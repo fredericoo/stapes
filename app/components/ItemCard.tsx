@@ -71,6 +71,12 @@ export function ItemCard({
         </span>
       </header>
 
+      {card.dormant ? (
+        <p className="border-l-2 border-danger pl-1.5 text-[11px] font-bold leading-snug text-danger">
+          {card.dormant}
+        </p>
+      ) : null}
+
       {card.inscription || card.description ? (
         <div className="flex flex-col gap-0.5 border-l-2 border-ink/20 pl-1.5 text-[11px] leading-snug text-ink/70 italic">
           {card.inscription ? <p>{card.inscription}</p> : null}

@@ -24584,6 +24584,9 @@
         "def": 2,
         "resist": {
           "blunt": 4
+        },
+        "requirements": {
+          "toughness": 5
         }
       }
     },
@@ -24629,6 +24632,9 @@
         "resist": {
           "sharp": 2,
           "ranged": 2
+        },
+        "requirements": {
+          "agility": 10
         }
       }
     },
@@ -24673,6 +24679,9 @@
         "def": 1,
         "resist": {
           "arcane": 6
+        },
+        "requirements": {
+          "arcane": 10
         }
       }
     },
@@ -24717,6 +24726,9 @@
         "def": 3,
         "resist": {
           "sharp": 4
+        },
+        "requirements": {
+          "toughness": 12
         }
       }
     },
@@ -24762,6 +24774,9 @@
         "resist": {
           "sharp": 3,
           "ranged": 3
+        },
+        "requirements": {
+          "toughness": 20
         }
       }
     },
@@ -24804,6 +24819,10 @@
       "item": {
         "type": "armor",
         "def": 2,
+        "requirements": {
+          "arcane": 8,
+          "fire": 5
+        },
         "elements": [
           "fire"
         ]
@@ -24848,6 +24867,10 @@
       "item": {
         "type": "armor",
         "def": 2,
+        "requirements": {
+          "arcane": 8,
+          "nature": 5
+        },
         "elements": [
           "nature"
         ]
@@ -24893,6 +24916,10 @@
         "type": "armor",
         "slot": "charm",
         "def": 0,
+        "requirements": {
+          "arcane": 8,
+          "water": 5
+        },
         "elements": [
           "water"
         ]
@@ -24937,7 +24964,10 @@
       "item": {
         "type": "armor",
         "slot": "head",
-        "def": 1
+        "def": 1,
+        "requirements": {
+          "agility": 3
+        }
       }
     },
     "sprite": {
@@ -24982,6 +25012,9 @@
         "def": 2,
         "resist": {
           "blunt": 2
+        },
+        "requirements": {
+          "toughness": 8
         }
       }
     },
@@ -25027,6 +25060,9 @@
         "def": 3,
         "resist": {
           "sharp": 3
+        },
+        "requirements": {
+          "toughness": 15
         }
       }
     },
@@ -25114,6 +25150,9 @@
         "def": 1,
         "resist": {
           "blunt": 3
+        },
+        "requirements": {
+          "toughness": 5
         }
       }
     },
@@ -25159,6 +25198,9 @@
         "def": 2,
         "resist": {
           "sharp": 2
+        },
+        "requirements": {
+          "toughness": 12
         }
       }
     },
@@ -25246,6 +25288,9 @@
         "def": 0,
         "resist": {
           "arcane": 5
+        },
+        "requirements": {
+          "arcane": 10
         }
       }
     },
@@ -25333,7 +25378,10 @@
       "item": {
         "type": "charm",
         "everyMs": 10000,
-        "hp": 1
+        "hp": 1,
+        "requirements": {
+          "arcane": 8
+        }
       }
     },
     "sprite": {
@@ -26262,7 +26310,10 @@
     "interactions": {
       "item": {
         "type": "shield",
-        "def": 1
+        "def": 1,
+        "requirements": {
+          "agility": 5
+        }
       }
     },
     "sprite": {
@@ -26303,7 +26354,10 @@
     "interactions": {
       "item": {
         "type": "shield",
-        "def": 2
+        "def": 2,
+        "requirements": {
+          "toughness": 5
+        }
       }
     },
     "sprite": {
@@ -26344,7 +26398,10 @@
     "interactions": {
       "item": {
         "type": "shield",
-        "def": 3
+        "def": 3,
+        "requirements": {
+          "toughness": 12
+        }
       }
     },
     "sprite": {
