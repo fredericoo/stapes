@@ -2657,15 +2657,19 @@ describe("dying and coming back", () => {
     }));
   }
 
-  it("writes a kit holding nothing they died with, in the batch that drops the body", async () => {
-    await armedAlice();
+  type Worn = { id: string; tileId: string; contents?: unknown[] } | null;
+
+  it("writes what they kept and a fresh empty bag, in the batch that drops the body", async () => {
+    const alice = await armedAlice();
+    const before = alice.hello.equipment as Record<string, Worn>;
 
     await killAndTick("alice");
 
     const { equipment } = await storedRows("alice");
-    expect(equipment?.equipment.weapon).toBeNull();
-    const bag = equipment?.equipment.bag as { contents?: unknown[] } | null;
-    expect(bag?.contents ?? []).toEqual([]);
+    const after = equipment?.equipment as Record<string, Worn>;
+    expect(after.armor).toEqual(before.armor);
+    expect(after.bag?.id).not.toBe(before.bag!.id);
+    expect(after.bag?.contents ?? []).toEqual([]);
   });
 
   it("writes a bystander's changed kit in the batch that drops a body", async () => {
@@ -2914,16 +2918,16 @@ describe("dying and coming back", () => {
     expect(types.indexOf("patch")).toBeLessThan(types.indexOf("died"));
   });
 
-  it("hands the emptied kit over on the death itself", async () => {
+  it("hands over what they kept on the death itself, which is all but the pack", async () => {
     const alice = await armedAlice();
+    const before = alice.hello.equipment as Record<string, Worn>;
     const seen = record(alice.ws);
 
     await killAndTick("alice");
 
     const died = seen.of("died")[0]!;
-    const equipment = died.equipment as Record<string, unknown>;
-    expect(equipment.weapon).toBeNull();
-    expect(equipment.offhand).toBeNull();
+    const equipment = died.equipment as Record<string, Worn>;
+    expect(equipment.armor).toEqual(before.armor);
     expect(equipment.bag).toBeNull();
   });
 

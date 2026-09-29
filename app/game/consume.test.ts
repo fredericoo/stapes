@@ -202,7 +202,7 @@ describe("eating off the floor", () => {
     expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
 
     expect(session.actorSnapshots()).toEqual([]);
-    expect(tilesAt(session, 0, 0)).toEqual(["grass"]);
+    expect(tilesAt(session, 0, 0)).toEqual(["grass", BAG_TILE_ID]);
   });
 
   it("refuses one two cells away", () => {

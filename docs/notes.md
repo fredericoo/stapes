@@ -2104,7 +2104,7 @@ floor, and what keeps a body out of that cell is the fit check.
 
 Because the topmost tile decides, a berry dropped on a bush would make the bush
 walkable. The rule is enforced where a *player* acts — `dropDestinationAt` in
-`app/game/affordances.ts`, and `dropKit` in `GameSession`, which is a body
+`app/game/affordances.ts`, and `dropOnFloor` in `GameSession`, which is a body
 dying — and deliberately not in `canReplaceStack`, which the editor asks too.
 An author stacking a plank on a fence is building a bridge deck, and that is
 the same stack shape.
@@ -2113,9 +2113,9 @@ The other ways a thing reaches a cell need nothing: an `extract` yield goes
 into the puller's kit rather than onto the board, and `push` picks its
 destination from `listStandingSurfaces`, which has no entry for a cell with no
 standing surface. A body dies where it was standing, which is walkable by
-definition, so the `dropKit` check only fires for a death somewhere a body
-arrived by falling — into water, most likely — and it keeps the kit rather than
-spilling it.
+definition, so the `dropOnFloor` check only fires for a death somewhere a body
+arrived by falling — into water, most likely — and the body keeps what would
+have dropped.
 
 ### A body in a `wade` tile is drawn wading, and nothing else changes
 
@@ -4233,18 +4233,19 @@ people and one for everything else.
   That gate used to be "only a kit with something in it", which came to the same
   thing while every creature had an empty one and stopped the day a rat could be
   authored carrying meat.
-- **Dying drops it, and that is one function.** `kill` → `dropKit` never asked
-  who the body belonged to, so wildlife dropping its kit needed no new path —
-  which is the whole of "a player is just another battler" holding up under a
-  feature that could easily have grown a second one.
+- **Dying drops it, and a player is the one exception.** `kill` → `dropKit`
+  never asked who the body belonged to, so wildlife dropping its kit needed no
+  new path. A player goes through `dropPack` instead, which leaves the pack and
+  nothing else — see *A dead player leaves their pack, whole, and keeps the rest*.
 
 **A death is the moment the session stops being able to answer for somebody**,
 and everything a reload hands back is read from storage — so a death has to write
 itself down before it destroys the only copy of what it knew.
 
-- **The kit does not die with the body.** `kill` drops it onto the corpse's cell
-  first, all of it or none of it: a sword somebody picked up a moment ago is
-  still a sword in the world, findable and theirs again if they walk back for it.
+- **What drops does not die with the body.** `kill` drops it onto the corpse's
+  cell first — a creature's whole kit, a player's pack — all of it or none of
+  it: a sword somebody picked up a moment ago is still a sword in the world,
+  findable and theirs again if they walk back for it.
   The alternative is not "death costs you your things", it is the world quietly
   being one sword lighter with nothing in it able to put that right. All-or-
   nothing because the two halves — what is on the board and what the body still
@@ -4253,18 +4254,20 @@ itself down before it destroys the only copy of what it knew.
 - **The `Death` carries what the runtime knew**, because `GameSession.kill`
   deletes it: what is left of the kit, its tags and its masteries. Nothing
   downstream can re-derive any of it.
-- **A reload or a `rebirth` puts them back at the spawn point, with a fresh empty
-  bag.** The
-  position row is *overwritten* with `spawn:<id>` rather than left alone —
-  leaving it is what put people back wherever the last flush caught them, up to
-  a whole `ACTOR_FLUSH_INTERVAL_MS` of walking ago. The kit is the starting one
-  rather than the emptied one, because coming back with no bag at all leaves
-  somebody unable to pick their own corpse up. It is written rather than deleted
-  — a missing row already means "give them the starting kit", but a delete
-  cannot ride in the batch, and a second call is a second moment at which the
-  board and the kit can disagree. What they still *own* wins over both: a kit
-  the floor refused was never dropped, so writing a fresh one over it would
-  destroy what the refusal saved.
+- **A reload or a `rebirth` puts them back at the spawn point, with what they
+  kept and a bag on their back.** The position row is *overwritten* with
+  `spawn:<id>` rather than left alone — leaving it is what put people back
+  wherever the last flush caught them, up to a whole `ACTOR_FLUSH_INTERVAL_MS`
+  of walking ago. The kit row is `GameSession.rebirthKit`: what they still own,
+  and the starting kit's bag, emptied, when they own no pack at all. Nothing
+  sells a bag, so without it a player whose pack somebody else picked up would
+  never carry more than two things again. A player can still come back to a new
+  bag by dying with none, and the experience a death costs is what keeps that
+  from being a way to collect them. The row is written rather than deleted — a
+  missing row already means "give them the starting kit", but a delete cannot
+  ride in the batch, and a second call is a second moment at which the board and
+  the kit can disagree. A pack the floor refused was never dropped, so
+  `rebirthKit` hands that one back rather than a second.
 - **Hit points need nothing.** They are rebuilt from the tile on every load, so a
   respawned body is at full health by construction rather than by a reset.
 - **`noteDeaths` forces a flush**, rather than leaving it to the next one. This
@@ -5656,8 +5659,10 @@ shared by the whole world, so its phase against any one cast is arbitrary.
 down. This is the second cross-cutting square rule after the two-handed weapon,
 and it lives beside it in `app/game/equipment.ts`. Without it a caster carries
 six stones in a bag and rotates through them, and the cooldown decides nothing.
-The lock is on *player-initiated* moves only — a death drops the whole kit
-regardless, and what lands is ready. It is also the only refusal in the item
+The lock is on *player-initiated* moves only — a creature's death drops its
+whole kit regardless, and what lands is ready. A player's squares stay on the
+body through a death, so a stone there is still cooling when they come back. It
+is also the only refusal in the item
 model that says anything out loud, because it is the only one where a player can
 plainly see something in a square and plainly cannot empty it.
 
@@ -5953,8 +5958,8 @@ The two sources **union** rather than sum, because an element is a fact and not 
 quantity: two flaming rings are not more fire than one. Only the four things a
 body wears or holds carry one — weapon, armour, shield, stone — and **only the
 squares, never the bag**: a tunic of flames in your pack is a tunic in a pack,
-which is the same line `wornInstances` already draws for light and for what a
-death leaves on the floor. The answer comes back in `ELEMENTS`' own order, so a
+which is the same line `wornInstances` already draws for light. The answer
+comes back in `ELEMENTS`' own order, so a
 body that is fire and water is not a different thing for having swapped hands.
 
 A stone's `elements` and its `requirements` are deliberately separate fields
@@ -6639,7 +6644,7 @@ one socket, carrying the kit, and the last thing that socket hears.
 **Three things happen in an order, and the order is the whole design.**
 
 1. The tick that killed them broadcasts its patch *including* to them. That
-   frame is the honest one — their body gone from the cell, their kit lying in
+   frame is the honest one — their body gone from the cell, their pack lying in
    it — and it is what the death screen is drawn over.
 2. `announceDeaths` sends `died` and only then adds them to `silenced`, so the
    message is not the first casualty of the rule it announces.
@@ -6648,9 +6653,11 @@ one socket, carrying the kit, and the last thing that socket hears.
    patch of it is bandwidth spent on somebody who cannot act.
 
 **The kit rides on `died` rather than on an `equipment` message.** That message
-is read off a live runtime and a death is exactly what deletes it, so an emptied
-bag would never be announced and the panel would go on showing a sword that is
-on the floor. Normally empty; the whole kit when the cell refused the pile.
+is read off a live runtime and a death is exactly what deletes it, so a dropped
+pack would never be announced and the panel would go on showing a bag that is
+on the floor. Normally everything but the pack; the whole kit when the cell
+refused the pack. The fresh bag a rebirth puts on is not in it: that is written
+to storage, and arrives with the `hello`.
 
 **Statuses come down without being sent**, and the asymmetry with the kit is the
 point. What is left in a bag is a real question with two possible answers, so
@@ -9747,7 +9754,7 @@ The editor previews every formula against a body that is under nothing, so
 `has_status('combat')` reads 0 there, and the snapped cadence it reports is the calm
 one.
 
-## A dead body's bag is destroyed and its contents spill
+## A dead creature's bag is destroyed and its contents spill
 
 Dropping the pack whole was the simpler rule and it made a killing a single
 pickup: one bag on the ground, everything inside it, gone in one gesture and
@@ -9757,12 +9764,29 @@ walk over it rather than a tap.
 
 The bag slot alone, though a hand may hold a container too. That slot is not a
 place a container happens to be, it *is* the inventory — a pack carried in a hand
-is a thing you are holding on exactly the terms a crate is, and widening this
-would mean a player who died carrying a chest lost the chest. Nothing nests, so
-one level of spilling is the whole of it.
+is a thing you are holding on exactly the terms a crate is. Nothing nests, so
+one level of spilling is the whole of it. A deer that had picked a bush leaves
+the berries it was carrying.
 
-It applies to players exactly as it does to a deer, which is the point: there is
-one death, and a deer that had picked a bush leaves the berries it was carrying.
+### A dead player leaves their pack, whole, and keeps the rest
+
+A player used to die on exactly those terms. That did not make people quit,
+but it made it hard for anybody to build up, since every death sent them back
+to the starting kit. So a player's death now costs the pack and nothing else.
+`dropPack` lays the bag down as it is, contents and all, the same placement a
+drop from the bag slot makes; the hands, the armour, the accessory square and
+the rest stay on the body and ride out on the `Death`.
+
+It brings back, for players only, the single pickup the rule above removed: the
+pack is one thing, and whoever reaches it first takes all of it at once. That is
+accepted, because what is at stake is the contents of one bag rather than
+everything the player owned.
+
+A pack held in a hand drops too. `packSlots` counts an equippable bag in either
+hand as a pack, on the back's terms rather than a crate's, because otherwise
+moving the pack into a hand before a fight would keep it, and the rebirth would
+still put a new one on the bare back. Anything else held, a chest included,
+stays with the player.
 
 ## A sign is read to you; everything else waits to be asked
 
@@ -9812,7 +9836,7 @@ version lives on the file rather than in a one-off sweep at load.
 
 ## A body leaves what its tile says it leaves, and it says who and by what
 
-A death already put everything a body owned on the floor. What it did not leave
+A death already put a body's belongings on the floor. What it did not leave
 was any trace of *whose* death it had been: walk past the cell an hour later and
 there is a sword and a loaf of bread, exactly as there would be if somebody had
 dropped their bag. So a body may now leave one more thing.

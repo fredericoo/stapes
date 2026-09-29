@@ -61,6 +61,11 @@ describe("the placement ↔ instance round trip", () => {
     expect(instanceFromPlacement({ tileId: "grass" })).toBeNull();
   });
 
+  it("never carries a cooldown onto the board", () => {
+    const cooling: ItemInstance = { id: "itm_1", tileId: "mend-stone", cooldownMs: 5_000 };
+    expect(placementFromInstance(cooling)).not.toHaveProperty("cooldownMs");
+  });
+
   it("never carries an owner back onto the board", () => {
     const placed: PlacedTile = {
       tileId: "basic-bag",
