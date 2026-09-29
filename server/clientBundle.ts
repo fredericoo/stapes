@@ -122,26 +122,26 @@ export class ClientBundle {
     }
   }
 
-  respond(pathname: string): Response | null {
+  respond(pathname: string, rangeHeader: string | null = null): Response | null {
     if (!this.activeBuildId) return null;
     const path = pathname.replace(/^\/+/, "") || "index.html";
     const active = this.builds.get(this.activeBuildId)!;
 
     const fromActive = active.get(path);
-    if (fromActive) return toResponse(fromActive, path);
+    if (fromActive) return toResponse(fromActive, path, rangeHeader);
 
     const page = `${path.replace(/\/+$/, "")}/index.html`;
     const prerendered = active.get(page);
-    if (prerendered) return toResponse(prerendered, page);
+    if (prerendered) return toResponse(prerendered, page, rangeHeader);
 
     for (const [id, assets] of this.builds) {
       if (id === this.activeBuildId) continue;
       const asset = assets.get(path);
-      if (asset) return toResponse(asset, path);
+      if (asset) return toResponse(asset, path, rangeHeader);
     }
 
     const fallback = active.get(SPA_FALLBACK) ?? active.get("index.html")!;
-    return toResponse(fallback, "index.html");
+    return toResponse(fallback, "index.html", rangeHeader);
   }
 }
 
@@ -197,14 +197,72 @@ async function walk(directory: string): Promise<string[]> {
   return out;
 }
 
-function toResponse(asset: Blob, path: string): Response {
+/**
+ * Safari on iOS asks for video in byte ranges, and Apple requires a media
+ * server to answer them, so a single `bytes=` range is answered with just those
+ * bytes. A header this does not understand, several ranges among them, is
+ * ignored and the whole file is sent, which HTTP allows.
+ */
+function toResponse(asset: Blob, path: string, rangeHeader: string | null): Response {
   const immutable = !path.endsWith(".html");
-  return new Response(asset, {
-    headers: {
-      "Content-Type": asset.type,
-      "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-store",
-    },
-  });
+  const headers = {
+    "Content-Type": asset.type,
+    "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-store",
+    "Accept-Ranges": "bytes",
+  };
+  const range = byteRange(rangeHeader, asset.size);
+
+  switch (range.kind) {
+    case "whole":
+      return new Response(asset, { headers });
+    case "unsatisfiable":
+      return new Response(null, {
+        status: RANGE_NOT_SATISFIABLE,
+        headers: {
+          ...headers,
+          "Cache-Control": "no-store",
+          "Content-Range": `bytes */${asset.size}`,
+        },
+      });
+    case "part":
+      return new Response(asset.slice(range.start, range.end + 1), {
+        status: PARTIAL_CONTENT,
+        headers: { ...headers, "Content-Range": `bytes ${range.start}-${range.end}/${asset.size}` },
+      });
+  }
+}
+
+const PARTIAL_CONTENT = 206;
+const RANGE_NOT_SATISFIABLE = 416;
+
+type ByteRange =
+  | { kind: "whole" }
+  | { kind: "part"; start: number; end: number }
+  | { kind: "unsatisfiable" };
+
+const WHOLE: ByteRange = { kind: "whole" };
+const UNSATISFIABLE: ByteRange = { kind: "unsatisfiable" };
+
+const SINGLE_RANGE = /^bytes=(\d*)-(\d*)$/;
+
+/** Which bytes of a file `byteLength` long `header` asks for; `end` is inclusive, as HTTP writes it. */
+function byteRange(header: string | null, byteLength: number): ByteRange {
+  const match = header ? SINGLE_RANGE.exec(header.trim()) : null;
+  if (!match) return WHOLE;
+  const [, first = "", last = ""] = match;
+  if (first === "" && last === "") return WHOLE;
+
+  if (first === "") {
+    const suffix = Number(last);
+    if (suffix === 0 || byteLength === 0) return UNSATISFIABLE;
+    return { kind: "part", start: Math.max(0, byteLength - suffix), end: byteLength - 1 };
+  }
+
+  const start = Number(first);
+  const requestedEnd = last === "" ? Infinity : Number(last);
+  if (requestedEnd < start) return WHOLE;
+  if (start >= byteLength) return UNSATISFIABLE;
+  return { kind: "part", start, end: Math.min(requestedEnd, byteLength - 1) };
 }
 
 const CONTENT_TYPES: Record<string, string> = {

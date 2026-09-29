@@ -82,6 +82,39 @@ describe("serving a build", () => {
     );
   });
 
+  it("answers a byte range with those bytes, which Safari on iOS needs to play a video", async () => {
+    const files = build("aaa");
+    files.set("home/clip.mp4", new TextEncoder().encode("0123456789"));
+    await bundle.store("aaa", files);
+    await bundle.activate("aaa");
+
+    const cases: [range: string, status: number, body: string, contentRange: string | null][] = [
+      ["bytes=0-1", 206, "01", "bytes 0-1/10"],
+      ["bytes=4-", 206, "456789", "bytes 4-9/10"],
+      ["bytes=-3", 206, "789", "bytes 7-9/10"],
+      ["bytes=-99", 206, "0123456789", "bytes 0-9/10"],
+      ["bytes=8-99", 206, "89", "bytes 8-9/10"],
+      ["bytes=10-", 416, "", "bytes */10"],
+      ["bytes=-0", 416, "", "bytes */10"],
+      ["bytes=5-2", 200, "0123456789", null],
+      ["bytes=-", 200, "0123456789", null],
+      ["bytes=0-1,4-5", 200, "0123456789", null],
+    ];
+    for (const [range, status, body, contentRange] of cases) {
+      const response = bundle.respond("/home/clip.mp4", range)!;
+      expect({
+        range,
+        status: response.status,
+        body: await response.text(),
+        contentRange: response.headers.get("Content-Range"),
+      }).toEqual({ range, status, body, contentRange });
+    }
+    expect(bundle.respond("/home/clip.mp4")!.headers.get("Accept-Ranges")).toBe("bytes");
+    expect(bundle.respond("/home/clip.mp4", "bytes=10-")!.headers.get("Cache-Control")).toBe(
+      "no-store",
+    );
+  });
+
   it("names video by its type, not as a download", async () => {
     const files = build("aaa");
     files.set("home/clip.mp4", new Uint8Array(1));
