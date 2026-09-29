@@ -96,9 +96,11 @@ is not one.
   and the page reconnects to where you were standing. The most safety-critical
   path in the system is therefore exercised constantly by people not thinking
   about it.
-- **Two browser tabs share a cookie**, so they are the same actor, and opening
-  the second closes the first — see "One connection per actor". To play two
-  characters, use `localhost` in one and `127.0.0.1` in the other.
+- **Two browser tabs share the session cookie but not the character**, which
+  each tab keeps in its own `sessionStorage` (`app/lib/playing.ts`). Two tabs on
+  the same character are one actor, and opening the second closes the first —
+  see "One connection per actor". To play two accounts, use `localhost` in one
+  and `127.0.0.1` in the other.
 
 ## The game is `/online`, and every tool is under `/admin`
 
