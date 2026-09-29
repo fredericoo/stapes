@@ -2716,8 +2716,8 @@ A round is now split in two, and the split is where the cost goes:
   conditions, so longer ears are a longer reach in the same edit. It is also why
   there is no separate "engaged" flag: every authored chase gives up at some
   `out_of_range`, and a creature still chasing is by construction inside its own
-  reach of the person it is chasing. Being hit counts too — a blow is delivered
-  by the next round, and dozing through it would drop it rather than delay it.
+  reach of the person it is chasing. Being hit counts too: a creature with hurt
+  waiting in `pendingHurt` is attentive until a turn of its own reads it.
 - **Dozing** creatures — everybody else — share `BRAIN_DOZE_BUDGET` turns a
   round, round-robin. That budget is the only term in a round the *map*
   contributes; the rest is players. What a dozing creature gets is a turn
@@ -2866,11 +2866,12 @@ brains off entirely put the world at full speed with a 9ms median tick.
 - **A round of decisions is spread over the ticks it covers.** It used to be
   taken whole on the tick it fell due, one tick in six three times over
   budget and the five after it idle. It is planned on that tick — who is
-  awake, whose dozing turn it is, and the speech, blows and sounds it will
-  deliver — and taken a share per tick after that, at least
-  `BRAIN_TURNS_PER_TICK_MIN` a tick so a small world is exactly what it was.
-  Speech, blows and sounds that arrive while a round is being worked through
-  belong to the next round, which is the rule sounds already followed.
+  awake, whose dozing turn it is, and the speech and sounds it will deliver —
+  and taken a share per tick after that, at least `BRAIN_TURNS_PER_TICK_MIN` a
+  tick so a small world is exactly what it was. Speech and sounds that arrive
+  while a round is being worked through belong to the next round, which is the
+  rule sounds already followed. Blows do not: each waits for its victim's own
+  next turn — see "Hurt waits for a body that cannot act".
 - **Scoping reuses a client's set of known bodies when nobody came or went**,
   and works each body's chunk out once a tick rather than once per client.
 
@@ -9136,7 +9137,8 @@ status on the list has `incapacitates`. The gates:
   covers held input, a client's `requestStep`, and a creature's walk order.
 - `tickOneBrain` returns before the brain is stepped and drops the standing walk
   order and attack order. The brain's clocks stop, so it picks up where it left
-  off.
+  off, and its hurt stays queued for its first turn awake — see "Hurt waits for
+  a body that cannot act".
 - `tryAttack` refuses and disengages, so auto-attack, a brain's `attack` and an
   attack order pressed between turns all stop. The target stays picked.
 - `castability` refuses with `incapacitated` (`CastContext.incapacitated`), so
@@ -9164,6 +9166,33 @@ to nothing do not wake anybody. Any source counts — a blow, a bolt, a status
 tick, something harmful eaten, `/hp` — because they all come through there. The damage itself still
 lands. In `tickStatuses` the advanced list is written back before the hp changes
 are applied, so a poison tick that wakes a sleeper is not undone by the write.
+
+### Hurt waits for a body that cannot act
+
+A swing and a bolt note their attacker in `pendingHurt` under the body they
+hit, and the name waits there until that body takes a turn in which it
+can act: `takeHurt` hands the names to the turn and clears them. `attacked` binds
+the most recent, so a creature struck in its sleep by one body and woken by
+another turns on the second. A name can be as old as the sleep, so one whose
+body has left the world by then is dropped. Only residents are noted, because
+only a resident takes a brain turn to clear its entry.
+
+Speech and sounds are copied into the round that follows them, and hurt used to
+be too. It is news for one body rather than for everybody, and copying it per
+round lost it twice:
+
+- **A creature that puts itself to sleep curled straight back up.** The wolf,
+  the bog imp and the cyclops cast Curl up from a state that does nothing else,
+  so a creature woken by damage is still in that state, and its next turn casts
+  Curl up again unless `attacked` fires first. A round's turns are spread over
+  several ticks once more than `BRAIN_TURNS_PER_TICK_MIN` creatures are taking
+  them, so a blow could wake a creature after its round's copy was taken and
+  before its turn. That turn cast Curl up, and the next round, which named the
+  attacker, found it asleep and dropped the name. Reading the queue on the turn
+  itself closes the gap.
+- **An attack that does not wake the body was forgotten.** A miss, a blow its
+  armour soaks and a bolt that only leaves a status all note hurt and end
+  nothing. The body reads them when it wakes, however long that takes.
 
 ## A status can be a gamble, and a body can be immune to one
 

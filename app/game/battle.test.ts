@@ -1696,6 +1696,27 @@ describe("being outnumbered", () => {
   });
 });
 
+describe("a player hit by another", () => {
+  const SETTLE_MS = COMBAT_DURATION_MS + ONE_ROUND_MS * 2;
+
+  it("leaves the world free to rest once the fight is over", () => {
+    const session = new GameSession(field(), tiles, { actorIds: ["me"], seed: 1 });
+    session.setPvp(true, "me");
+    session.spawn("foe", { at: { x: 1, y: 0, z: 0 } });
+    session.setPvp(true, "foe");
+    session.setTarget("me", "foe");
+    session.setAttackMode(true, "foe");
+    advance(session, ONE_ROUND_MS * SURROUNDING_CELLS.length);
+    expect(hpOfMe(session)).toBeLessThan(PLAYER_MAX_HP);
+
+    session.setAttackMode(false, "foe");
+    session.setTarget(null, "foe");
+    advance(session, SETTLE_MS);
+
+    expect(session.isAtRest()).toBe(true);
+  });
+});
+
 describe("being in combat", () => {
   const ONE_SECOND_MS = 1000;
 

@@ -7,7 +7,8 @@ import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { naturalSlot, squareSlot } from "./casting";
 import { guardBand, MIN_GUARD_SHARE } from "./combat";
-import { TICK_MS } from "./constants";
+import { BRAIN_ROUND_TICKS, BRAIN_TURNS_PER_TICK_MIN, TICK_MS } from "./constants";
+import { emptyEquipment } from "./equipment";
 import { casterEarnings, practiceEarnings, XP_PER_CAST, XP_PER_DAMAGE } from "./experience";
 import { GameSession } from "./GameSession";
 import type { SlotRef } from "./itemMoves";
@@ -497,6 +498,10 @@ function cool(play: GameSession, square: Square, cooldownMs: number) {
 
 function run(play: GameSession, ticks: number) {
   for (let i = 0; i < ticks; i++) play.tick(TICK_MS);
+}
+
+function runMs(play: GameSession, ms: number) {
+  for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) play.tick(TICK_MS);
 }
 
 const TICKS_PER_SECOND = Math.ceil(1000 / TICK_MS);
@@ -1467,10 +1472,6 @@ describe("a cast refused for want of a target", () => {
 });
 
 describe("a charm worn on the charm square", () => {
-  function runMs(play: GameSession, ms: number) {
-    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) play.tick(TICK_MS);
-  }
-
   function hurt(charm: string, by = 5) {
     const play = session({ charm });
     play.runCommand(`/health -${by}`);
@@ -2172,6 +2173,175 @@ describe("what a bolt tells the body it lands on", () => {
     run(play, TICKS_PER_SECOND * 2);
 
     expect(skittish(play).x).toBe(before);
+  });
+});
+
+describe("a creature that puts itself to sleep", () => {
+  const CURL_UP_COOLDOWN_MS = 1_000;
+  const LONG_SLEEP_MS = 60_000;
+  const NAP_MS = 2_000;
+  const FALL_ASLEEP_MS = 1_000;
+  const FLEE_WITHIN_MS = 3_000;
+  const NUDGE_COOLDOWN_MS = 10_000;
+  const NUDGE_REACH = { cells: 3, height: 2 };
+  const WAKER = "waker";
+  const WAKER_X = 4;
+  const SLEEPER_X = 2;
+  const NEXT_TO_PLAYER_X = 1;
+  const CROWD_ROWS = [2, 3];
+
+  const sleepCatalogue = {
+    ...catalogue,
+    ...statusesById([
+      {
+        id: "asleep",
+        name: "Asleep",
+        description: "Still.",
+        tone: "good",
+        fromMs: LONG_SLEEP_MS,
+        toMs: LONG_SLEEP_MS,
+        stacks: false,
+        maxMs: LONG_SLEEP_MS,
+        incapacitates: true,
+        endsOnDamage: true,
+      },
+    ]),
+  };
+
+  const nudgeStone = stoneTile("nudge-stone", {
+    effect: { kind: "bolt", on: "target", statuses: [{ id: "warded", chance: 100 }] },
+    cooldownMs: NUDGE_COOLDOWN_MS,
+    reach: NUDGE_REACH,
+  });
+
+  function sleeperTile(sleepMs: number): TileDef {
+    const tile = body("sleeper", RAT_TOUGHNESS, { actor: true });
+    const battler = tile.interactions!.battler as Record<string, unknown>;
+    battler.spells = [
+      {
+        type: "stone",
+        name: "Curl up",
+        effect: {
+          kind: "bolt",
+          on: "caster",
+          statuses: [{ id: "asleep", chance: 100, fromMs: sleepMs, toMs: sleepMs }],
+        },
+        cooldownMs: CURL_UP_COOLDOWN_MS,
+      },
+    ];
+    tile.interactions!.brain = {
+      initial: "sleeping",
+      states: {
+        sleeping: { do: [{ action: "cast", spell: 1 }, { action: "hold" }] },
+        fleeing: {
+          do: [
+            { action: "step_away_from", of: { type: "slot", data: { name: "spooked" } } },
+            { action: "hold" },
+          ],
+        },
+      },
+      transitions: [
+        {
+          from: "any",
+          if: { cond: "attacked" },
+          bind: { spooked: { type: "attacker" } },
+          to: "fleeing",
+        },
+      ],
+    };
+    return tile;
+  }
+
+  type Sleeper = { stone: string; sleepMs: number; x?: number };
+
+  function besideASleeper({ stone, sleepMs, x = NEXT_TO_PLAYER_X }: Sleeper): GameSession {
+    const map = replaceStack(world(), x, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "sleeper", direction: "w" },
+    ]);
+    const play = new GameSession(
+      map,
+      [...props, nudgeStone, playerTile([{ slot: "charm", tileId: stone }]), sleeperTile(sleepMs)],
+      { statuses: sleepCatalogue },
+    );
+    runMs(play, FALL_ASLEEP_MS);
+    return play;
+  }
+
+  function asleepInACrowd(): GameSession {
+    let map = world();
+    for (const y of CROWD_ROWS) {
+      for (let x = 0; x < BRAIN_TURNS_PER_TICK_MIN; x++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "rat" }]);
+      }
+    }
+    const play = new GameSession(
+      map,
+      [
+        ...props,
+        playerTile([{ slot: "charm", tileId: "ember-bolt-stone" }]),
+        sleeperTile(LONG_SLEEP_MS),
+      ],
+      { statuses: sleepCatalogue },
+    );
+    expect(play.runCommand(`/spawn sleeper ${SLEEPER_X} 0`).ok).toBe(true);
+    runMs(play, FALL_ASLEEP_MS);
+    return play;
+  }
+
+  const sleeper = (play: GameSession) =>
+    play.actorSnapshots().find((actor) => actor.tileId === "sleeper")!;
+
+  const holding = (play: GameSession) =>
+    (play.statusesOf(sleeper(play).id) ?? []).map((status) => status.defId).sort();
+
+  function castAtSleeper(play: GameSession, caster = "local") {
+    play.setTarget(sleeper(play).id, caster);
+    expect(play.cast(squareSlot("charm"), caster)).toBe(true);
+  }
+
+  it("runs from a bolt that did not wake it, once the sleep runs out", () => {
+    const play = besideASleeper({ stone: "nudge-stone", sleepMs: NAP_MS });
+    const before = sleeper(play).x;
+
+    castAtSleeper(play);
+    expect(holding(play)).toEqual(["asleep", "warded"]);
+
+    runMs(play, NAP_MS + FLEE_WITHIN_MS);
+
+    expect(sleeper(play).x).toBeGreaterThan(before);
+  });
+
+  it("runs from whoever woke it, not from whoever struck it earlier in its sleep", () => {
+    const play = besideASleeper({ stone: "nudge-stone", sleepMs: LONG_SLEEP_MS, x: SLEEPER_X });
+    play.spawn(WAKER, {
+      at: { x: WAKER_X, y: 0, z: 0, direction: "w" },
+      carrying: { ...emptyEquipment(), charm: { id: "waker-stone", tileId: "ember-bolt-stone" } },
+    });
+    const before = sleeper(play).x;
+
+    castAtSleeper(play);
+    runMs(play, FALL_ASLEEP_MS);
+    expect(holding(play)).toEqual(["asleep", "warded"]);
+
+    castAtSleeper(play, WAKER);
+    runMs(play, FLEE_WITHIN_MS);
+
+    expect(sleeper(play).x).toBeLessThan(before);
+  });
+
+  it("runs from a blow that wakes it partway through a crowded round", () => {
+    for (let lateTicks = 0; lateTicks < BRAIN_ROUND_TICKS; lateTicks++) {
+      const play = asleepInACrowd();
+      run(play, lateTicks);
+      expect(holding(play)).toEqual(["asleep"]);
+      const before = sleeper(play).x;
+
+      castAtSleeper(play);
+      runMs(play, FLEE_WITHIN_MS);
+
+      expect(sleeper(play).x, `struck ${lateTicks} ticks later`).toBeGreaterThan(before);
+    }
   });
 });
 
