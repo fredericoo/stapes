@@ -9,6 +9,7 @@ import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ADMIN_PASSWORD, ADMIN_USERNAME } from "../e2e/accounts.ts";
 
 /** Hour of day. Daylight is flat from 09:00 to 16:00 (`app/lib/clock.ts`). */
 const TIME = "13:00";
@@ -42,7 +43,6 @@ const VIEW_PX = 184;
 const CHAT_BAR_PX = 48;
 const FPS = 30;
 
-const ADMIN = { username: "admin", password: "salem123" };
 const OUT_DIR = join(import.meta.dirname, "..", "app", "components", "home", "media");
 
 const base = process.argv[2];
@@ -107,7 +107,7 @@ try {
   const page = await context.newPage();
 
   const signIn = await page.request.post(new URL("/api/auth/sign-in/username", base).href, {
-    data: ADMIN,
+    data: { username: ADMIN_USERNAME, password: ADMIN_PASSWORD },
   });
   if (!signIn.ok()) throw new Error(`signing in failed: ${signIn.status()}`);
   await page.goto(new URL("/admin/play", base).href, { waitUntil: "load", timeout: real(60_000) });
