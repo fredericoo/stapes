@@ -257,6 +257,7 @@ import {
   defenderEarnings,
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
+  experienceAfterDeath,
   practiceEarnings,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
@@ -2646,7 +2647,7 @@ export class GameSession implements PlaySession {
     this.pendingDeaths.push({
       id: target.id,
       equipment,
-      masteryXp: target.masteryXp,
+      masteryXp: target.masteryXp && experienceAfterDeath(target.masteryXp),
       tags: target.tags,
     });
 

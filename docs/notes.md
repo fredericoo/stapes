@@ -9788,6 +9788,30 @@ moving the pack into a hand before a fight would keep it, and the rebirth would
 still put a new one on the bare back. Anything else held, a chest included,
 stays with the player.
 
+The other half of what a death costs is experience, below.
+
+### A death takes a share of every mastery's experience
+
+`kill` hands the `Death` the player's experience after `experienceAfterDeath`,
+which takes `XP_SHARE_LOST_ON_DEATH` (5%) off every mastery's total, and
+`GameServer` writes that to the `mast:` row in the batch that drops the body.
+It is a share of the whole total rather than of the progress into the current
+level, so it costs more the further a mastery has come. The curve is squared,
+so 5% of the experience is about 2.5% of the level: a player exactly at 10
+drops to 9, at 40 to 38, and at 100 to 97. One far enough into a level can
+lose the same share and keep the level.
+
+There is no floor of its own. `levelForXp` never reads below
+`MIN_EARNED_MASTERY`, which is what stops a death taking the last point of an
+element (see *Experience never reads below level 1*), so this rule does not
+have to know about elements. A new player at Arcane 5 drops to 4 on their first
+death.
+
+The share is taken off the `Death` rather than off the runtime, because the
+runtime is deleted in the same call. So no live body ever holds the reduced
+figure, and `grantExperience`, which is where a level-up is said, is never
+asked about a level going down.
+
 ## A sign is read to you; everything else waits to be asked
 
 A placement had one text on it, `description`, and two things read it: a look,

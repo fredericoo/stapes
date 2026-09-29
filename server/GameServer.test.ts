@@ -24,6 +24,7 @@ import { CLOSE_REPLACED, MAX_STEPS_AHEAD } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
 import { fightingStats, resolveBattler } from "../app/lib/battler";
 import { swingWindupMs } from "../app/game/combat";
+import { XP_SHARE_LOST_ON_DEATH } from "../app/game/experience";
 import { CHAT_LOG_MAX_ROWS, MAX_REMEMBERED_ACTORS, type GameServer } from "./GameServer";
 
 const BAG_TILE_ID = "basic-bag";
@@ -2850,6 +2851,24 @@ describe("dying and coming back", () => {
     const after = await storedBody("alice");
     expect(after.hp?.hp).toBeNull();
     expect(after.statuses?.statuses).toEqual([]);
+  });
+
+  it("writes down the experience they died with, less the share a death takes", async () => {
+    await armedAlice();
+    const before = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { masteryXpOf(id: string): Record<string, number> | null };
+      };
+      return internals.session.masteryXpOf("alice");
+    });
+    expect(before?.fist).toBeGreaterThan(0);
+
+    await killAndTick("alice");
+
+    const stored = await runInDurableObject(stub(), async (_instance, state) =>
+      state.storage.get<{ masteries: Record<string, number> }>("mast:alice"),
+    );
+    expect(stored?.masteries.fist).toBeCloseTo(before!.fist! * (1 - XP_SHARE_LOST_ON_DEATH), 10);
   });
 
   it("brings them back under nothing, on full health", async () => {
