@@ -1,0 +1,1170 @@
+/* Every size given to NF Pixels is a multiple of 10px, where its pixels land
+   on whole CSS pixels, and `--o` beside it is one of those pixels: the width
+   of the game's outline around the text. */
+
+/* The page reads the game's own colours from `@theme` in app.css and mixes
+   its lighter shades from them. `--home-arcane` is the edge an arcane flame
+   dissolves with in `data/tiles.json`, and marks focus and magic here. */
+.home {
+  --home-arcane: #8ce6ff;
+  --home-ease: cubic-bezier(0.2, 0, 0, 1);
+  --home-control-h: 36px;
+  --home-text: color-mix(in srgb, var(--color-paper) 90%, transparent);
+  --home-text-quiet: color-mix(in srgb, var(--color-paper) 65%, transparent);
+  --home-text-faint: color-mix(in srgb, var(--color-paper) 55%, transparent);
+  --home-rule: color-mix(in srgb, var(--color-paper) 35%, transparent);
+  --home-rule-faint: color-mix(in srgb, var(--color-paper) 12%, transparent);
+  --home-deep: color-mix(in srgb, var(--color-ink) 55%, #000);
+  --home-deep-veil: color-mix(in srgb, var(--home-deep) 80%, transparent);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  overflow-x: clip;
+}
+
+.home-pixel {
+  font-family: "NF Pixels", monospace;
+  font-weight: 400;
+}
+
+/* The outline the game draws around a label: the glyph copied one pixel out
+   in each of the eight directions. See `.world-label` in app.css. */
+.home-outline {
+  --o: 2px;
+  --on: calc(var(--o) * -1);
+  text-shadow:
+    var(--on) var(--on) 0 #000,
+    0 var(--on) 0 #000,
+    var(--o) var(--on) 0 #000,
+    var(--on) 0 0 #000,
+    var(--o) 0 0 #000,
+    var(--on) var(--o) 0 #000,
+    0 var(--o) 0 #000,
+    var(--o) var(--o) 0 #000;
+}
+
+.home-section-title {
+  font-size: 40px;
+  line-height: 50px;
+  color: var(--color-label);
+}
+
+@media (min-width: 768px) {
+  .home-section-title {
+    font-size: 60px;
+    line-height: 70px;
+  }
+}
+
+.home-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.home-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 24px;
+  border: 2px solid;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition-property: translate, box-shadow, background-color, color;
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+.home-btn:focus-visible {
+  outline: 2px solid var(--home-arcane);
+  outline-offset: 4px;
+}
+
+.home-btn--primary {
+  border-color: var(--color-ink);
+  background: var(--color-interact);
+  color: var(--color-ink);
+  box-shadow: 4px 4px 0 0 var(--color-paper);
+}
+
+.home-btn--primary:hover {
+  translate: 2px 2px;
+  box-shadow: 2px 2px 0 0 var(--color-paper);
+}
+
+.home-btn--primary:active {
+  translate: 4px 4px;
+  box-shadow: 0 0 0 0 var(--color-paper);
+}
+
+.home-btn--compact {
+  min-height: var(--home-control-h);
+  padding: 8px 14px;
+  font-size: 0.6875rem;
+  box-shadow: 3px 3px 0 0 var(--color-paper);
+}
+
+.home-btn--compact:active {
+  translate: 3px 3px;
+}
+
+.home-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--home-control-h);
+  padding: 6px 10px;
+  border: 2px solid var(--home-rule);
+  background: var(--home-deep-veil);
+  color: var(--color-paper);
+  font-size: 0.6875rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  transition-property: border-color;
+  transition-duration: 120ms;
+}
+
+.home-toggle:hover {
+  border-color: var(--color-paper);
+}
+
+.home-toggle:focus-visible {
+  outline: 2px solid var(--home-arcane);
+  outline-offset: 2px;
+}
+
+.home-nav {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: var(--home-nav-h);
+  padding: 0 16px;
+  border-bottom: 2px solid var(--home-rule-faint);
+  background: color-mix(in srgb, var(--home-deep) 94%, transparent);
+  transform: translateY(-100%);
+  transition: transform 200ms ease-out;
+}
+
+.home-nav[data-shown="true"],
+.home-nav:focus-within {
+  transform: none;
+}
+
+.home :is(a, button, [tabindex]) {
+  scroll-margin-top: calc(var(--home-nav-h) + 16px);
+}
+
+.home-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.home-nav-name {
+  font-size: 20px;
+  line-height: 20px;
+  color: var(--color-label);
+  white-space: nowrap;
+}
+
+.home-nav-link {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--home-text-quiet);
+}
+
+.home-nav-link:hover {
+  color: var(--color-paper);
+}
+
+.home-nav-progress {
+  position: absolute;
+  inset: auto 0 -2px 0;
+  height: 2px;
+  background: var(--color-interact);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+@media (max-width: 479px) {
+  .home-nav-link {
+    display: none;
+  }
+}
+
+.home-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100svh;
+  padding: 88px 16px 128px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.home-hero-media {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+}
+
+/* The video is square and the character stays in its centre, so
+   `object-fit: cover` keeps them in every crop. `object-position: top` puts
+   them under the buttons on a wide screen instead of behind the logo. */
+.home-hero-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.home-hero-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      ellipse at 50% 42%,
+      color-mix(in srgb, var(--color-ink) 30%, transparent),
+      color-mix(in srgb, var(--color-ink) 70%, transparent) 78%
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-ink) 60%, transparent),
+      color-mix(in srgb, var(--color-ink) 20%, transparent) 35%,
+      color-mix(in srgb, var(--color-ink) 80%, transparent) 82%,
+      var(--color-ink)
+    );
+}
+
+.home-hero-lift {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  max-width: 44rem;
+}
+
+.home-tagline {
+  --o: 2px;
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--color-paper);
+}
+
+.home-hero-lede {
+  max-width: 30rem;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--home-text);
+  text-shadow: 1px 1px 0 var(--color-ink);
+}
+
+@media (min-width: 768px) {
+  .home-tagline {
+    --o: 3px;
+    font-size: 30px;
+    line-height: 40px;
+  }
+
+  .home-hero-lede {
+    font-size: 0.9375rem;
+  }
+}
+
+.home-scroll-cue {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  translate: -50% 0;
+  font-size: 0.6875rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--home-text-quiet);
+}
+
+.home-scroll-cue:hover {
+  color: var(--color-paper);
+}
+
+.home-scroll-cue:focus-visible {
+  outline: 2px solid var(--home-arcane);
+  outline-offset: 4px;
+}
+
+.home-scroll-cue svg {
+  animation: home-bob 1.2s steps(2, jump-none) infinite;
+}
+
+.home[data-playing="false"] .home-scroll-cue svg {
+  animation-play-state: paused;
+}
+
+.home-hero-toggle {
+  position: absolute;
+  right: 16px;
+  bottom: 24px;
+}
+
+@media (max-width: 479px) {
+  .home-toggle span {
+    display: none;
+  }
+}
+
+.home-rise {
+  animation: home-rise 600ms var(--home-ease) both;
+  animation-delay: calc(150ms + var(--rise-order, 0) * 100ms);
+}
+
+@keyframes home-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(4px);
+  }
+}
+
+@keyframes home-bob {
+  50% {
+    translate: 0 4px;
+  }
+}
+
+@keyframes home-lift {
+  to {
+    transform: translateY(-80px);
+    opacity: 0;
+  }
+}
+
+@keyframes home-zoom {
+  to {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes home-progress {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Scroll-linked motion is an enhancement: without a scroll timeline the
+   hero simply scrolls away and the progress bar stays empty. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .home-hero-lift {
+      animation: home-lift linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 90vh;
+    }
+
+    .home-hero-video {
+      animation: home-zoom linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 100vh;
+    }
+
+    .home-nav-progress {
+      animation: home-progress linear both;
+      animation-timeline: scroll(root);
+    }
+  }
+}
+
+/* On a phone the screen holds the top of the page and the steps scroll
+   underneath it; from 1024px they sit side by side. */
+
+/* The screen, the bar of stones under it and, on a wide screen, its caption
+   are sized together: `--tour-chrome` is everything in the column that is not
+   the screen, so the screen takes what the viewport has left. */
+.home-tour {
+  --tour-gap: 10px;
+  --tour-caption-h: 60px;
+  --tour-margin: 28px;
+  --tour-phone-text-h: 360px;
+  --tour-chrome: calc(
+    var(--home-control-h) + var(--tour-caption-h) + 2 * var(--tour-gap) + 2 * var(--tour-margin)
+  );
+  position: relative;
+  display: grid;
+  grid-template-areas:
+    "screen"
+    "steps";
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.home-tour-screen-col {
+  grid-area: screen;
+  position: sticky;
+  top: var(--home-nav-h);
+  z-index: 2;
+  padding: 12px 0 14px;
+  background: linear-gradient(to bottom, var(--color-ink) calc(100% - 14px), transparent);
+}
+
+.home-tour-sticky {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--tour-gap);
+}
+
+/* On a phone the screen gives up height before the step's text does:
+   `--tour-phone-text-h` is what the bar above the page, the stones and the
+   text under the screen need. */
+.home-screen,
+.home-screen-caption {
+  width: min(100%, 40svh, max(160px, calc(100svh - var(--tour-phone-text-h))));
+}
+
+.home-screen {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: #000;
+  outline: 2px solid var(--home-rule);
+  box-shadow: 6px 6px 0 0 #000;
+}
+
+.home-layer {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  clip-path: inset(0 0 100% 0);
+  transition:
+    clip-path 0s linear 480ms,
+    visibility 0s linear 480ms;
+}
+
+/* The incoming layer wipes down over the outgoing one in eight hard steps,
+   the way the game dissolves a tile in; the outgoing one holds still until
+   it is covered. */
+.home-layer[data-active="true"] {
+  z-index: 1;
+  visibility: visible;
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 480ms steps(8, end);
+}
+
+.home-layer-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Under a phone's screen the stones and the pause button are centred across
+   the column, which is wider than the screen; beside it they span the screen. */
+.home-screen-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  width: 100%;
+}
+
+.home-screen-caption {
+  display: none;
+}
+
+.home-rail {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-rail-stone {
+  display: grid;
+  place-items: center;
+  width: var(--home-control-h);
+  height: var(--home-control-h);
+  border: 2px solid transparent;
+  background: transparent;
+  filter: grayscale(0.85);
+  transition-property: filter, border-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+.home-rail-stone img {
+  width: 24px;
+  height: 24px;
+}
+
+.home-rail-stone:hover {
+  filter: grayscale(0.3);
+}
+
+.home-rail-stone[data-active="true"] {
+  border-color: var(--home-rule);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--home-arcane) 60%, transparent));
+}
+
+@media (forced-colors: active) {
+  .home-rail-stone {
+    border-color: Canvas;
+  }
+
+  .home-rail-stone[data-active="true"] {
+    border-color: Highlight;
+  }
+}
+
+.home-rail-stone:focus-visible {
+  outline: 2px solid var(--home-arcane);
+  outline-offset: 2px;
+}
+
+.home-tour-steps {
+  grid-area: steps;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-step {
+  min-height: 100svh;
+  opacity: 0.6;
+  transition: opacity 250ms ease-out;
+}
+
+.home-step[data-active="true"] {
+  opacity: 1;
+}
+
+.home-step-card {
+  position: sticky;
+  top: var(--home-reading-top, 60vh);
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 4px 0 16px;
+}
+
+.home-step-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.2em;
+  color: var(--home-text-quiet);
+}
+
+.home-step-stone {
+  width: 24px;
+  height: 24px;
+  scale: 0.8;
+  transition:
+    scale 300ms var(--home-ease),
+    filter 300ms ease-out;
+}
+
+.home-step[data-active="true"] .home-step-stone {
+  scale: 1;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--home-arcane) 55%, transparent));
+}
+
+.home-step-title {
+  margin-top: 10px;
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--color-label);
+}
+
+.home-step-body {
+  margin-top: 12px;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--home-text);
+}
+
+/* A screen too short to hold the stuck screen and the text under it, a phone
+   on its side or a page zoomed in far, lets both scroll with the page. */
+@media (max-width: 1023px) and (max-height: 30em) {
+  .home-tour-screen-col,
+  .home-step-card {
+    position: static;
+  }
+
+  .home-screen,
+  .home-screen-bar,
+  .home-screen-caption {
+    width: min(100%, 20rem);
+  }
+
+  .home-step {
+    min-height: auto;
+    padding: 24px 0;
+  }
+}
+
+/* A step's caption is read out everywhere and shown only on a tablet: under a
+   phone's screen there is no room for it, and beside a wide one the screen's
+   own caption says the same. */
+.home-step-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .home-step-title {
+    font-size: 30px;
+    line-height: 40px;
+  }
+
+  .home-step-caption {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 16px 0 0;
+    padding: 0 0 0 12px;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    border-left: 2px solid color-mix(in srgb, var(--home-arcane) 50%, transparent);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--home-text-quiet);
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-tour {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    grid-template-areas: "steps screen";
+    column-gap: 64px;
+    padding: 0 32px;
+  }
+
+  .home-tour-screen-col {
+    position: relative;
+    top: auto;
+    padding: 0;
+    background: none;
+  }
+
+  .home-tour-sticky {
+    position: sticky;
+    top: var(--home-nav-h);
+    justify-content: center;
+    height: calc(100vh - var(--home-nav-h));
+  }
+
+  .home-screen,
+  .home-screen-bar,
+  .home-screen-caption {
+    width: min(100%, calc(100vh - var(--home-nav-h) - var(--tour-chrome)));
+  }
+
+  .home-screen-bar {
+    justify-content: space-between;
+  }
+
+  .home-screen-caption {
+    --o: 2px;
+    display: block;
+    min-height: var(--tour-caption-h);
+    font-size: 20px;
+    line-height: 30px;
+    color: var(--color-paper);
+  }
+
+  .home-step {
+    display: flex;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .home-step-card {
+    position: static;
+    margin: 0;
+    padding: 0;
+  }
+
+  .home-step-title {
+    font-size: 40px;
+    line-height: 50px;
+  }
+
+  .home-step-stone {
+    width: 40px;
+    height: 40px;
+  }
+
+  .home-step-body {
+    font-size: 1rem;
+  }
+}
+
+.home-devices {
+  --device-bezel: #0a0a0b;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 42% 38%, #26303a, #0f0f12 72%);
+}
+
+.home-laptop {
+  position: absolute;
+  top: 17%;
+  left: 7%;
+  width: 78%;
+}
+
+.home-laptop-screen {
+  overflow: hidden;
+  border: 6px solid var(--device-bezel);
+  background: #000;
+  outline: 2px solid #3a3a42;
+}
+
+.home-laptop-base {
+  height: 14px;
+  margin: 0 -7%;
+  background: linear-gradient(#55555e, #2c2c32);
+  clip-path: polygon(0 0, 100% 0, 96% 100%, 4% 100%);
+}
+
+.home-phone {
+  position: absolute;
+  right: 6%;
+  bottom: 7%;
+  width: 25%;
+  filter: drop-shadow(8px 8px 0 rgb(0 0 0 / 0.6));
+}
+
+/* Rounded in three hard steps, as a sprite would be: the house style keeps
+   every corner square, and this is the one that should read as a phone. */
+.home-phone-screen {
+  overflow: hidden;
+  border: 5px solid var(--device-bezel);
+  background: var(--device-bezel);
+  clip-path: polygon(
+    9px 0,
+    calc(100% - 9px) 0,
+    calc(100% - 9px) 3px,
+    calc(100% - 6px) 3px,
+    calc(100% - 6px) 6px,
+    calc(100% - 3px) 6px,
+    calc(100% - 3px) 9px,
+    100% 9px,
+    100% calc(100% - 9px),
+    calc(100% - 3px) calc(100% - 9px),
+    calc(100% - 3px) calc(100% - 6px),
+    calc(100% - 6px) calc(100% - 6px),
+    calc(100% - 6px) calc(100% - 3px),
+    calc(100% - 9px) calc(100% - 3px),
+    calc(100% - 9px) 100%,
+    9px 100%,
+    9px calc(100% - 3px),
+    6px calc(100% - 3px),
+    6px calc(100% - 6px),
+    3px calc(100% - 6px),
+    3px calc(100% - 9px),
+    0 calc(100% - 9px),
+    0 9px,
+    3px 9px,
+    3px 6px,
+    6px 6px,
+    6px 3px,
+    9px 3px
+  );
+}
+
+.home-laptop-screen img,
+.home-phone-screen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-gallery {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 112px 16px 96px;
+}
+
+.home-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 1024px) {
+  .home-gallery {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+
+  .home-gallery-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+.home-shot {
+  aspect-ratio: 1;
+}
+
+.home-shot[data-span="big"] {
+  grid-row: span 2;
+  grid-column: span 2;
+}
+
+.home-shot[data-span="wide"] {
+  grid-column: span 2;
+  aspect-ratio: 2 / 1;
+}
+
+.home-shot-button {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #000;
+  outline: 1px solid oklch(1 0 0 / 0.1);
+  cursor: zoom-in;
+}
+
+.home-shot-button:focus-visible {
+  outline: 2px solid var(--home-arcane);
+  outline-offset: 3px;
+}
+
+.home-shot-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: scale 300ms var(--home-ease);
+}
+
+.home-shot-button:hover .home-shot-image {
+  scale: 1.04;
+}
+
+.home-shot-caption {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 28px 12px 10px;
+  background: linear-gradient(rgb(0 0 0 / 0), rgb(0 0 0 / 0.8) 28px);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-align: left;
+  color: var(--color-paper);
+  opacity: 0;
+  translate: 0 8px;
+  transition:
+    opacity 200ms ease-out,
+    translate 200ms ease-out;
+}
+
+.home-shot-button:hover .home-shot-caption,
+.home-shot-button:focus-visible .home-shot-caption {
+  opacity: 1;
+  translate: 0 0;
+}
+
+@media (hover: none) {
+  .home-shot-caption {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.home-shot-play {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--home-rule);
+  background: var(--home-deep-veil);
+  color: var(--color-paper);
+}
+
+html:has(.home-lightbox[open]) {
+  overflow: hidden;
+}
+
+/* The picture is as tall as the dialog leaves it once the close button's row,
+   the caption under the picture and the bottom padding are taken off. Its
+   width is capped at its own, which the figure is handed as `--picture-width`. */
+.home-lightbox {
+  --lightbox-top: 64px;
+  --lightbox-bottom: 24px;
+  --lightbox-caption-h: 56px;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: var(--lightbox-top) 16px var(--lightbox-bottom);
+  border: 0;
+  background: color-mix(in srgb, var(--home-deep) 95%, transparent);
+  color: var(--color-paper);
+}
+
+.home-lightbox[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-lightbox::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.home-lightbox-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0;
+  touch-action: pan-y pinch-zoom;
+}
+
+.home-lightbox-media {
+  display: block;
+  width: auto;
+  max-width: min(100%, var(--picture-width));
+  height: auto;
+  max-height: calc(
+    100dvh - var(--lightbox-top) - var(--lightbox-bottom) - var(--lightbox-caption-h)
+  );
+  outline: 1px solid oklch(1 0 0 / 0.1);
+  animation: home-fade 200ms ease-out;
+}
+
+@keyframes home-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.home-lightbox-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  max-width: var(--picture-width);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--home-text);
+}
+
+.home-lightbox-count {
+  flex-shrink: 0;
+  color: var(--home-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-lightbox-button {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--home-rule);
+  background: var(--home-deep-veil);
+  color: var(--color-paper);
+  transition-property: border-color;
+  transition-duration: 120ms;
+}
+
+.home-lightbox-button:hover {
+  border-color: var(--color-paper);
+}
+
+.home-lightbox-button:focus-visible {
+  outline: 2px solid var(--home-arcane);
+  outline-offset: 2px;
+}
+
+.home-lightbox-close {
+  top: 10px;
+  right: 10px;
+}
+
+.home-lightbox-prev,
+.home-lightbox-next {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+.home-lightbox-prev {
+  left: 10px;
+}
+
+.home-lightbox-next {
+  right: 10px;
+}
+
+/* On a phone the arrows move under the picture, out of the way of a swipe. */
+@media (max-width: 767px) {
+  .home-lightbox {
+    --lightbox-bottom: 72px;
+  }
+
+  .home-lightbox-prev,
+  .home-lightbox-next {
+    top: auto;
+    bottom: 14px;
+    translate: none;
+  }
+}
+
+/* View transition pseudo-elements hang off the root element, outside `.home`,
+   so the page's variables do not reach them: the curve is `--home-ease`
+   written out. */
+::view-transition-group(home-lightbox-picture) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+::view-transition-old(home-lightbox-picture),
+::view-transition-new(home-lightbox-picture) {
+  image-rendering: pixelated;
+}
+
+.home-final {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  min-height: 92svh;
+  padding: 96px 16px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.home-final-media {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+}
+
+.home-final-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-final-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--color-ink) 30%, transparent),
+      color-mix(in srgb, var(--color-ink) 85%, transparent) 80%
+    ),
+    linear-gradient(
+      var(--color-ink),
+      color-mix(in srgb, var(--color-ink) 0%, transparent) 22%,
+      color-mix(in srgb, var(--color-ink) 0%, transparent) 78%,
+      var(--color-ink)
+    );
+}
+
+.home-final-toggle {
+  position: absolute;
+  right: 16px;
+  bottom: 24px;
+}
+
+.home-final-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.home-footer {
+  padding: 32px 16px 48px;
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--home-text-faint);
+}
+
+.home-footer p + p {
+  margin-top: 8px;
+}
+
+.home-footer a {
+  display: inline-block;
+  padding: 12px 4px;
+  color: var(--home-text-quiet);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.home-footer a:hover {
+  color: var(--home-text);
+}
+
+.home-footer a:focus-visible {
+  outline: 2px solid var(--home-arcane);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-rise,
+  .home-scroll-cue svg,
+  .home-lightbox-media {
+    animation: none;
+  }
+
+  .home-layer,
+  .home-layer[data-active="true"],
+  .home-shot-image,
+  .home-nav {
+    transition: none;
+  }
+}

@@ -29,6 +29,9 @@
      the same reason `--color-interact` matches `HOVER_COLOR`. */
   --color-reward: #b15cff;
   --color-look: #3fa9ff;
+  /* The yellow the world writes names and noises in, and the landing page its
+     headings. */
+  --color-label: #ffd23f;
   --color-border: #1a1a1a;
   --shadow-hard: 2px 2px 0 0 #1a1a1a;
 }
@@ -139,7 +142,6 @@ body {
      100-unit grid, so any other size puts block edges on half pixels, which
      the browser antialiases into grey. */
   --world-label-size: 20px;
-  --label-yellow: #ffd23f;
   /* Exactly one of the font's own pixels, since the em is 10 of them. */
   --world-label-brick: calc(var(--world-label-size) / 10);
   font-size: var(--world-label-size);
@@ -233,12 +235,12 @@ body {
 }
 
 .world-label--name {
-  color: var(--label-yellow);
+  color: var(--color-label);
   z-index: 0;
 }
 
 .world-label--noise {
-  color: var(--label-yellow);
+  color: var(--color-label);
 }
 
 .world-label__bar {

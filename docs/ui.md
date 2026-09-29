@@ -3,6 +3,7 @@
 ## Values kept in sync by hand
 
 - The `theme-color` meta in `app/root.tsx` copies `--color-ink`; a `<meta>` cannot read a custom property.
+- The landing page switches layout at 1024px in `app/routes/home.css`, and `Gallery.tsx`'s `sizes` names the same width; an `<img>` attribute cannot read a stylesheet.
 
 ## Touch
 

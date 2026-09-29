@@ -22,3 +22,9 @@ const COARSE_POINTER = "(pointer: coarse)";
 export function useCoarsePointer(): boolean {
   return useMediaQuery(COARSE_POINTER);
 }
+
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+export function useReducedMotion(): boolean {
+  return useMediaQuery(REDUCED_MOTION);
+}
