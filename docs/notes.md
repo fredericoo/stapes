@@ -2361,6 +2361,17 @@ carry it.
     spread` reads 0.79ms at p50 with the rule and 0.78–0.85ms across baseline
     runs, which is the noise. A wander pays one `canWalk` per direction it has
     not already refused as a ledge, against the up-to-128 nodes a chase pays.
+  - *A brain can ask whether it is standing in one.* `in_harm` holds when the
+    tile under the body would grant it a `bad` status on the standing clock:
+    the same `standingGrant` the clock burns it with, less what would not
+    reach it (a spared caster, a body with no hit points, one immune to the
+    status). Leaving is authored, not built in: a line of `step_random`, which
+    already refuses flames and portals, is the way out. A brain that never asks
+    is never moved, which is what a training dummy wants. The bog imp's first
+    row is `in_harm` and `attacked` together, binding its prey to the attacker
+    and stepping out before it answers: its hunt opens with a 500ms cast, and
+    a second standing grant in that time is more than it survives. Once out,
+    it goes back to hunting if its prey is within 14 cells, or to roaming.
 
 **Two caps, doing two different jobs, and it is worth not confusing them.**
 `PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not
@@ -8858,12 +8869,11 @@ out. A creature that counted each payout would go after that causer again every
 250ms of Burned, re-entering its hunt and making its `onEnter` noise each time
 the causer was out of range.
 
-**Known gap:** a creature woken in a flame can still die of it, because its brain
-acts from where it stands before anything moves it out. The bog imp's hunt opens
-with Throw stone, a 500ms cast, so it throws before it steps out, and the extra
-second in the flame stacks a second Burned on the first; at 29 hp it does not
-outlive the two. The wolf steps out toward a caster beyond its reach and fights
-from inside the flame against one within it. The cyclops is immune to Burned.
+A creature woken in a flame leaves it only if its brain says so. The bog imp
+asks `in_harm` before it answers and steps out; see "A brain can ask whether it
+is standing in one". The wolf does not ask: it steps out toward a caster beyond
+its reach and fights from inside the flame against one within it. The cyclops is
+immune to Burned.
 
 ### A brain aims by pointing
 

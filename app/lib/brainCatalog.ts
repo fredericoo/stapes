@@ -131,6 +131,12 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     params: [],
     make: () => ({ cond: "talking" }),
   },
+  in_harm: {
+    label: "standing in harm",
+    hint: "The tile under this body would give it a bad status it is not immune to, such as a flame's burn. Pair it with a random step, which never lands on a flame or a portal.",
+    params: [],
+    make: () => ({ cond: "in_harm" }),
+  },
   status: {
     label: "status",
     hint: "This body is under a named condition, with at least this long left. Leave the time at zero to ask only whether it is running. Its `not` is how hunger is authored — a wolf with no fed left, or none at all.",

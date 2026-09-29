@@ -38773,9 +38773,39 @@
                 "action": "hold"
               }
             ]
+          },
+          "escaping": {
+            "do": [
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_harm"
+                },
+                {
+                  "cond": "attacked"
+                }
+              ]
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "escaping"
+          },
           {
             "from": "any",
             "if": {
@@ -38787,6 +38817,13 @@
               }
             },
             "to": "hunting"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "in_harm"
+            },
+            "to": "escaping"
           },
           {
             "from": "any",
@@ -39639,6 +39676,33 @@
             "if": {
               "cond": "after",
               "ms": 700
+            },
+            "to": "roaming"
+          },
+          {
+            "from": "escaping",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 14
+            },
+            "to": "hunting"
+          },
+          {
+            "from": "escaping",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "in_harm"
+                }
+              ]
             },
             "to": "roaming"
           }
