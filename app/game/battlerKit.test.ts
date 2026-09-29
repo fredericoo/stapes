@@ -10,9 +10,12 @@ import { equipmentForBody, equipmentFromKit } from "./battlerKit";
 import type { Equipment, Hand } from "./equipment";
 import { effectiveBattler, emptyEquipment, HANDS, handToSwing, wornInstances } from "./equipment";
 import { Rng } from "./rng";
+import type { Masteries } from "../lib/mastery";
+
+const UNTRAINED: Masteries = {};
 
 function firstHand(equipment: Equipment | null, tiles: Record<string, TileDef>): Hand | null {
-  return handToSwing(equipment, tiles, HANDS[0]);
+  return handToSwing(equipment, tiles, HANDS[0], UNTRAINED);
 }
 
 function tile(id: string, extra: Record<string, unknown> = {}): TileDef {

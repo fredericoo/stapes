@@ -4044,7 +4044,7 @@ the same draws a bare one does — the same rule everything in a fight is under.
 The one draw defence *does* take is the guard below, and it is taken whether or
 not the defender is wearing anything.
 
-### Worn gear short of its requirements: slower if physical, dormant if magical
+### Gear short of its requirements: slower if physical, dormant if magical
 
 `ArmorItem`, `ShieldItem` and `CharmItem` take `requirements` the way a weapon
 does, and the catalogue follows three families: light pieces ask Agility, heavy
@@ -4061,15 +4061,18 @@ nothing.
   `ENCUMBRANCE_PER_POINT_SHORT` a point, capped at `MAX_ENCUMBRANCE`. Defence
   and resists are never scaled. Summing rather than taking the worst piece is
   what lets the item card show each piece's own cost and have them add up.
-- **Magic short: it does nothing.** `magicDormant` switches off the piece's
+- **Magic short: it does nothing.** `magicDormant` switches off the item's
   defence, resists, elements (`bodyElements`) and charm tick
   (`GameSession.wornCharm`); `takesEffect` reports it, so the slot dims like an
   unmet stone's, and the card says what is missing. Encumbrance is not charged
   for the magic half — a piece that already does nothing is penalty enough.
 
-**Weapons are not covered by `magicDormant`.** A staff short of Arcane still
-swings, at the handling `weaponHandling` gives it; turning it off would leave the
-wielder unable to attack at all.
+**A weapon short of its magic is held like a torch.** `weaponSwungBy` answers
+`null` for it, so `handToSwing` skips the hand and `weaponInHand` falls back on
+the body's natural weapon, and its `def` stops counting too. That is why
+`weaponSwungBy`, `handToSwing` and `fightsWithAHand` take the wielder's
+masteries: which hand swings depends on who is holding what. The physical half
+of a weapon's requirements is still `weaponHandling`, as before.
 
 It is applied in `effectiveBattler`, so the world, the Arena and the stats panel
 all read the same figure. `weaponHandling` is applied separately inside

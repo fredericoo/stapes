@@ -60,7 +60,7 @@ import {
 const MASTERED: Masteries = Object.fromEntries(MASTERIES.map((mastery) => [mastery, MAX_MASTERY]));
 
 function firstHand(equipment: Equipment | null, tiles: Record<string, TileDef>): Hand | null {
-  return handToSwing(equipment, tiles, HANDS[0]);
+  return handToSwing(equipment, tiles, HANDS[0], MASTERED);
 }
 
 const CLAWS = {
@@ -325,10 +325,22 @@ describe("magic worn short of its arcane or element", () => {
     expect(takesEffect("offhand", shielded.offhand, tiles, short.masteries)).toBe(false);
   });
 
-  it("leaves a weapon swinging, however short", () => {
+  it("holds a weapon like a torch, falling back on the body's own", () => {
     const held = { id: "itm_staff", tileId: "staff" };
-    expect(takesEffect("weapon", held, tiles, short.masteries)).toBe(true);
-    expect(heldDefence({ ...emptyEquipment(), weapon: held }, tiles, short.masteries)).toBe(1);
+    const armed = { ...emptyEquipment(), weapon: held };
+    expect(takesEffect("weapon", held, tiles, short.masteries)).toBe(false);
+    expect(heldDefence(armed, tiles, short.masteries)).toBe(0);
+    expect(handToSwing(armed, tiles, "weapon", short.masteries)).toBeNull();
+    expect(weaponInHand(short, armed, tiles, "weapon")).toBe(short.naturalWeapon);
+    expect(effectiveBattler(short, armed, tiles, null).def).toBe(
+      effectiveBattler(short, null, tiles, null).def,
+    );
+  });
+
+  it("swings the weapon once the requirement is met", () => {
+    const held = { id: "itm_staff", tileId: "staff" };
+    const armed = { ...emptyEquipment(), weapon: held };
+    expect(handToSwing(armed, tiles, "weapon", met.masteries)).toBe("weapon");
   });
 });
 
@@ -844,8 +856,8 @@ describe("taking turns between two hands", () => {
   it("swings whichever hand it is up to, and then the other", () => {
     const both = held("sword", "rusty-sword");
 
-    expect(handToSwing(both, tiles, "weapon")).toBe("weapon");
-    expect(handToSwing(both, tiles, "offhand")).toBe("offhand");
+    expect(handToSwing(both, tiles, "weapon", MASTERED)).toBe("weapon");
+    expect(handToSwing(both, tiles, "offhand", MASTERED)).toBe("offhand");
     expect(otherHand("weapon")).toBe("offhand");
     expect(otherHand("offhand")).toBe("weapon");
   });
@@ -875,7 +887,7 @@ describe("taking turns between two hands", () => {
   it("never takes a turn with an empty hand", () => {
     for (const kit of [held("rusty-sword", null), held(null, "rusty-sword")]) {
       for (const preferred of HANDS) {
-        const hand = handToSwing(kit, tiles, preferred);
+        const hand = handToSwing(kit, tiles, preferred, MASTERED);
         expect(hand).not.toBeNull();
         expect(weaponInHand(base, kit, tiles, hand).damage).toBe(
           resolveWeapon(tiles["rusty-sword"]!)!.damage,
@@ -887,14 +899,14 @@ describe("taking turns between two hands", () => {
   it("skips a hand holding a shield, a torch or a loaf", () => {
     for (const inert of ["shield", "hand-lantern", "bread"]) {
       const kit = held("rusty-sword", inert);
-      expect(weaponSwungBy(kit, tiles, "offhand")).toBeNull();
-      expect(handToSwing(kit, tiles, "offhand")).toBe("weapon");
+      expect(weaponSwungBy(kit, tiles, "offhand", MASTERED)).toBeNull();
+      expect(handToSwing(kit, tiles, "offhand", MASTERED)).toBe("weapon");
     }
   });
 
   it("falls back to what the body was born with", () => {
     for (const kit of [emptyEquipment(), held("shield", "hand-lantern")]) {
-      expect(handToSwing(kit, tiles, "weapon")).toBeNull();
+      expect(handToSwing(kit, tiles, "weapon", MASTERED)).toBeNull();
       expect(weaponInHand(base, kit, tiles, null)).toEqual(base.naturalWeapon);
     }
   });
@@ -906,25 +918,25 @@ describe("taking turns between two hands", () => {
     it("takes the turn of a hand whose weapon cannot be used", () => {
       const both = held("sword", "rusty-sword");
       for (const preferred of HANDS) {
-        expect(handToSwing(both, tiles, preferred, onlyTheMainHand)).toBe("weapon");
+        expect(handToSwing(both, tiles, preferred, MASTERED, onlyTheMainHand)).toBe("weapon");
       }
     });
 
     it("does not simply refuse when the preferred hand is the useless one", () => {
       const both = held("sword", "rusty-sword");
-      expect(handToSwing(both, tiles, "offhand", onlyTheMainHand)).toBe("weapon");
+      expect(handToSwing(both, tiles, "offhand", MASTERED, onlyTheMainHand)).toBe("weapon");
     });
 
     it("answers null when no hand's weapon works, and still counts as armed", () => {
       const both = held("sword", "rusty-sword");
-      expect(handToSwing(both, tiles, "weapon", neither)).toBeNull();
-      expect(fightsWithAHand(both, tiles)).toBe(true);
+      expect(handToSwing(both, tiles, "weapon", MASTERED, neither)).toBeNull();
+      expect(fightsWithAHand(both, tiles, MASTERED)).toBe(true);
     });
 
     it("is not asked of a hand with nothing to swing in it", () => {
       const kit = held("sword", "hand-lantern");
       const asked: Hand[] = [];
-      handToSwing(kit, tiles, "offhand", (_weapon, hand) => {
+      handToSwing(kit, tiles, "offhand", MASTERED, (_weapon, hand) => {
         asked.push(hand);
         return true;
       });
@@ -933,21 +945,21 @@ describe("taking turns between two hands", () => {
 
     it("leaves a body with no filter exactly as it was", () => {
       const both = held("sword", "rusty-sword");
-      expect(handToSwing(both, tiles, "offhand")).toBe("offhand");
+      expect(handToSwing(both, tiles, "offhand", MASTERED)).toBe("offhand");
     });
   });
 
   describe("fightsWithAHand", () => {
     it("is true for one weapon and for two", () => {
-      expect(fightsWithAHand(held("sword", null), tiles)).toBe(true);
-      expect(fightsWithAHand(held(null, "sword"), tiles)).toBe(true);
-      expect(fightsWithAHand(held("sword", "rusty-sword"), tiles)).toBe(true);
+      expect(fightsWithAHand(held("sword", null), tiles, MASTERED)).toBe(true);
+      expect(fightsWithAHand(held(null, "sword"), tiles, MASTERED)).toBe(true);
+      expect(fightsWithAHand(held("sword", "rusty-sword"), tiles, MASTERED)).toBe(true);
     });
 
     it("is false for empty hands and for hands holding things nobody swings", () => {
-      expect(fightsWithAHand(emptyEquipment(), tiles)).toBe(false);
-      expect(fightsWithAHand(held("shield", "hand-lantern"), tiles)).toBe(false);
-      expect(fightsWithAHand(null, tiles)).toBe(false);
+      expect(fightsWithAHand(emptyEquipment(), tiles, MASTERED)).toBe(false);
+      expect(fightsWithAHand(held("shield", "hand-lantern"), tiles, MASTERED)).toBe(false);
+      expect(fightsWithAHand(null, tiles, MASTERED)).toBe(false);
     });
   });
 
@@ -1018,7 +1030,7 @@ describe("a weapon that needs both hands", () => {
   it("takes every turn itself", () => {
     const kit = held("greatsword", null);
     for (const preferred of HANDS) {
-      expect(handToSwing(kit, tiles, preferred)).toBe("weapon");
+      expect(handToSwing(kit, tiles, preferred, MASTERED)).toBe("weapon");
     }
     expect(effectiveBattler(base, kit, tiles, "weapon").mastery).toBe("sharp");
   });

@@ -41,7 +41,7 @@ export function attributesOf({
     body,
     equipment,
     tilesById,
-    handToSwing(equipment, tilesById, REPORTED_HAND),
+    handToSwing(equipment, tilesById, REPORTED_HAND, body.masteries),
   );
   const stats = withStatusModifiers(base, statuses, statusDefs, hp ?? base.maxHp);
 

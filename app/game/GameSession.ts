@@ -2172,10 +2172,15 @@ export class GameSession implements PlaySession {
     const fromPoint = this.reachPointOf(from);
     const toPoint = this.reachPointOf(to);
 
-    const hand = handToSwing(attacker.equipment, this.tilesById, attacker.nextHand, (weapon) =>
-      canReach(this.map, this.tilesById, fromPoint, toPoint, weapon.reach),
+    const masteries = this.bodyOf(attacker)?.masteries ?? {};
+    const hand = handToSwing(
+      attacker.equipment,
+      this.tilesById,
+      attacker.nextHand,
+      masteries,
+      (weapon) => canReach(this.map, this.tilesById, fromPoint, toPoint, weapon.reach),
     );
-    if (hand === null && fightsWithAHand(attacker.equipment, this.tilesById)) {
+    if (hand === null && fightsWithAHand(attacker.equipment, this.tilesById, masteries)) {
       this.outOfReach(attacker, targetId);
       return false;
     }
@@ -2745,7 +2750,12 @@ export class GameSession implements PlaySession {
   }
 
   private handOf(actor: ActorRuntime): Hand | null {
-    return handToSwing(actor.equipment, this.tilesById, actor.nextHand);
+    return handToSwing(
+      actor.equipment,
+      this.tilesById,
+      actor.nextHand,
+      this.bodyOf(actor)?.masteries ?? {},
+    );
   }
 
   private statusName(id: string): string {
@@ -3859,8 +3869,9 @@ export class GameSession implements PlaySession {
   }
 
   private strikingReach(actor: ActorRuntime): Reach | null {
+    const masteries = this.bodyOf(actor)?.masteries ?? {};
     for (const hand of HANDS) {
-      const weapon = weaponSwungBy(actor.equipment, this.tilesById, hand);
+      const weapon = weaponSwungBy(actor.equipment, this.tilesById, hand, masteries);
       if (weapon) return weapon.reach;
     }
     return this.battlerOf(actor)?.reach ?? null;

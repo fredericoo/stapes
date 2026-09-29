@@ -18,7 +18,7 @@ import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor, bodyNameIn, fightingName, sizedUpName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { Conversation } from "../game/dialogRuntime";
-import type { MasteryXp } from "../lib/mastery";
+import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import { sameAttributes } from "../game/attributes";
 import type { Vitals } from "../game/GameSession";
@@ -1642,7 +1642,10 @@ export class GameRenderer {
     if (self.casting?.targetId) return null;
     const target = snap.actors.find((a) => a.id === snap.targetId);
     if (!target) return null;
-    if (!rangedWeaponReaches(snap.map, this.tilesById, snap.equipment, self, target)) return null;
+    const masteries = masteriesFromXp(snap.masteryXp);
+    if (!rangedWeaponReaches(snap.map, this.tilesById, snap.equipment, masteries, self, target)) {
+      return null;
+    }
     if (!this.isVisibleCell(snap, self, cut) || !this.isVisibleCell(snap, target, cut)) {
       return null;
     }

@@ -34,6 +34,9 @@ import { TICK_MS } from "./constants";
 import { MELEE_REACH, type Reach } from "../lib/item";
 import { planDistanceSq } from "./distance";
 import { Rng } from "./rng";
+import type { Masteries } from "../lib/mastery";
+
+const UNTRAINED: Masteries = {};
 
 const BARE_HANDED = fightingStats(DEFAULT_BATTLER, DEFAULT_BATTLER.naturalWeapon);
 
@@ -749,27 +752,33 @@ describe("rangedWeaponReaches", () => {
   }
 
   it("reaches a target inside the bow's reach", () => {
-    expect(rangedWeaponReaches(row(8), catalogue, holding("simple-bow"), at(0), at(4))).toBe(true);
+    expect(
+      rangedWeaponReaches(row(8), catalogue, holding("simple-bow"), UNTRAINED, at(0), at(4)),
+    ).toBe(true);
   });
 
   it("does not reach a target inside the bow's minimum", () => {
-    expect(rangedWeaponReaches(row(8), catalogue, holding("simple-bow"), at(0), at(1))).toBe(false);
+    expect(
+      rangedWeaponReaches(row(8), catalogue, holding("simple-bow"), UNTRAINED, at(0), at(1)),
+    ).toBe(false);
   });
 
   it("does not reach past the bow's reach", () => {
-    expect(rangedWeaponReaches(row(12), catalogue, holding("simple-bow"), at(0), at(10))).toBe(
-      false,
-    );
+    expect(
+      rangedWeaponReaches(row(12), catalogue, holding("simple-bow"), UNTRAINED, at(0), at(10)),
+    ).toBe(false);
   });
 
   it("does not reach through a wall", () => {
     const map = row(8, [2]);
-    expect(rangedWeaponReaches(map, catalogue, holding("simple-bow"), at(0), at(4))).toBe(false);
+    expect(
+      rangedWeaponReaches(map, catalogue, holding("simple-bow"), UNTRAINED, at(0), at(4)),
+    ).toBe(false);
   });
 
   it("does not count a melee weapon", () => {
-    expect(rangedWeaponReaches(row(8), catalogue, holding("rusty-sword"), at(0), at(1))).toBe(
-      false,
-    );
+    expect(
+      rangedWeaponReaches(row(8), catalogue, holding("rusty-sword"), UNTRAINED, at(0), at(1)),
+    ).toBe(false);
   });
 });

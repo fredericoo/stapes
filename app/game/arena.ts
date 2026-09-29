@@ -65,8 +65,12 @@ export function statsOf(
   return swingsOf(fighter, tilesById)[0] ?? null;
 }
 
-function rotationOf(equipment: Equipment, tilesById: Record<string, TileDef>): (Hand | null)[] {
-  const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand));
+function rotationOf(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  masteries: Masteries,
+): (Hand | null)[] {
+  const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand, masteries));
   return hands.length > 0 ? hands : [null];
 }
 
@@ -77,15 +81,16 @@ export function swingsOf(
   const body = bodyOf(fighter, tilesById);
   if (!body) return [];
   const equipment = equipmentOf(fighter, tilesById);
-  return rotationOf(equipment, tilesById).map((hand) =>
+  return rotationOf(equipment, tilesById, body.masteries).map((hand) =>
     effectiveBattler(body, equipment, tilesById, hand),
   );
 }
 
 export function swingNamesOf(fighter: ArenaFighter, tilesById: Record<string, TileDef>): string[] {
-  if (!bodyOf(fighter, tilesById)) return [];
+  const body = bodyOf(fighter, tilesById);
+  if (!body) return [];
   const equipment = equipmentOf(fighter, tilesById);
-  return rotationOf(equipment, tilesById).map((hand) => {
+  return rotationOf(equipment, tilesById, body.masteries).map((hand) => {
     const held = hand ? equipment[hand] : null;
     return held ? (tilesById[held.tileId]?.name ?? held.tileId) : "Natural weapon";
   });

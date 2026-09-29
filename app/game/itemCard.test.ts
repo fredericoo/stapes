@@ -340,6 +340,14 @@ describe("itemCard", () => {
       );
     });
 
+    it("says a magic weapon leaves you bare-handed while you are short of it", () => {
+      const staff = tileWith({ ...SWORD, mastery: "arcane", requirements: { arcane: 5 } });
+      expect(itemCard(staff, null, NOTHING_LEARNT)!.dormant).toBe(
+        "You fight with your bare hands until you reach Arcane 5.",
+      );
+      expect(itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!.dormant).toBeNull();
+    });
+
     it("never calls a piece dormant for want of toughness", () => {
       const plate = tileWith({ type: "armor", def: 5, requirements: { toughness: 20 } });
       expect(itemCard(plate, null, NOTHING_LEARNT)!.dormant).toBeNull();

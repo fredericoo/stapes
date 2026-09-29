@@ -23,6 +23,7 @@ import {
   armorSlotOf,
   isTwoHanded,
   itemElements,
+  itemRequirements,
   NO_ELEMENTS,
   resolveArmor,
   resolveCharm,
@@ -190,31 +191,36 @@ export function weaponInHand(
   tilesById: Record<string, TileDef>,
   hand: Hand | null,
 ): WeaponItem {
-  const held = hand ? equipment?.[hand] : null;
-  if (!held) return base.naturalWeapon;
-  const def = tilesById[held.tileId];
-  return (def ? resolveWeapon(def) : null) ?? base.naturalWeapon;
+  if (!hand) return base.naturalWeapon;
+  return weaponSwungBy(equipment, tilesById, hand, base.masteries) ?? base.naturalWeapon;
 }
 
+/**
+ * A weapon short of its arcane or element requirements is held like a torch:
+ * it swings nothing, so the body falls back on its natural weapon.
+ */
 export function weaponSwungBy(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
   hand: Hand,
+  masteries: Masteries,
 ): WeaponItem | null {
   const held = equipment?.[hand];
   if (!held) return null;
   const def = tilesById[held.tileId];
-  return def ? resolveWeapon(def) : null;
+  if (!def || magicDormant(def, masteries)) return null;
+  return resolveWeapon(def);
 }
 
 export function handToSwing(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
   preferred: Hand,
+  masteries: Masteries,
   usable?: (weapon: WeaponItem, hand: Hand) => boolean,
 ): Hand | null {
   for (const hand of [preferred, otherHand(preferred)]) {
-    const weapon = weaponSwungBy(equipment, tilesById, hand);
+    const weapon = weaponSwungBy(equipment, tilesById, hand, masteries);
     if (weapon && (!usable || usable(weapon, hand))) return hand;
   }
   return null;
@@ -223,8 +229,9 @@ export function handToSwing(
 export function fightsWithAHand(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  masteries: Masteries,
 ): boolean {
-  return HANDS.some((hand) => weaponSwungBy(equipment, tilesById, hand));
+  return HANDS.some((hand) => weaponSwungBy(equipment, tilesById, hand, masteries));
 }
 
 export function twoHandedHand(
@@ -285,14 +292,8 @@ function isProtective(item: ItemDef): item is ArmorItem | ShieldItem | CharmItem
   return item.type === "armor" || item.type === "shield" || item.type === "charm";
 }
 
-/**
- * Only armour, shields and charms go dormant. A weapon short of its arcane or
- * element requirements still swings, at the handling `weaponHandling` gives it.
- */
 export function magicDormant(def: TileDef, masteries: Masteries): boolean {
-  const item = resolveItem(def);
-  if (!item || !isProtective(item)) return false;
-  return !meetsMagicRequirements(masteries, item.requirements);
+  return !meetsMagicRequirements(masteries, itemRequirements(def));
 }
 
 /**
@@ -353,7 +354,7 @@ function natureDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): number {
-  return fightsWithAHand(equipment, tilesById) ? 0 : base.naturalWeapon.def;
+  return fightsWithAHand(equipment, tilesById, base.masteries) ? 0 : base.naturalWeapon.def;
 }
 
 export function armorDefence(

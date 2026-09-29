@@ -241,13 +241,23 @@ function encumbranceStats(
 }
 
 function dormancyOf(item: ItemDef, masteries: BattlerDef["masteries"]): string | null {
-  if (item.type !== "armor" && item.type !== "shield" && item.type !== "charm") return null;
+  if (
+    item.type !== "weapon" &&
+    item.type !== "armor" &&
+    item.type !== "shield" &&
+    item.type !== "charm"
+  ) {
+    return null;
+  }
   const short = MAGIC_MASTERIES.filter(
     (mastery) => masteryLevel(masteries, mastery) < (item.requirements?.[mastery] ?? 0),
   );
   if (short.length === 0) return null;
   const needs = short.map((mastery) => `${MASTERY_LABELS[mastery]} ${item.requirements![mastery]}`);
-  return `Does nothing until you reach ${needs.join(" and ")}.`;
+  const until = needs.join(" and ");
+  return item.type === "weapon"
+    ? `You fight with your bare hands until you reach ${until}.`
+    : `Does nothing until you reach ${until}.`;
 }
 
 function resistsFrom(armor: ArmorItem): ItemCardResist[] {

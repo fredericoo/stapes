@@ -4,8 +4,8 @@ import {
   DAMAGE_AT_MAX_MASTERY,
   damageAtMastery,
   hitChanceFrom,
+  HANDLING_PER_POINT_SHORT,
   MIN_HANDLING,
-  weaponHandling,
 } from "../lib/battler";
 import { TICK_MS } from "../game/constants";
 import type { Reach, WeaponItem } from "../lib/item";
@@ -102,7 +102,7 @@ export function describeFlight(reach: Reach, projectile: { cellsPerSecond: numbe
   return `Longest shot: ${(ms / 1000).toFixed(2)}s in the air.`;
 }
 
-const REQUIREMENTS_INFO = `Zero asks nothing. Requirements are pooled, and falling short costs accuracy and swing rate only — damage is never scaled by them. Handling runs straight from ${Math.round(MIN_HANDLING * 100)}% at nothing brought to 100% at everything brought, so 90% brought handles at ${Math.round(weaponHandling(0.9) * 100)}% and half brought at ${Math.round(weaponHandling(0.5) * 100)}%. Meeting a requirement is worth full handling and exceeding it is worth nothing more. Nothing here scales the experience the weapon earns.`;
+const REQUIREMENTS_INFO = `Zero asks nothing. Short of Arcane or an element, the weapon cannot be swung at all: the wielder fights with their natural weapon, as if holding a torch. Short of anything else, every point short costs ${Math.round(HANDLING_PER_POINT_SHORT * 100)}% of accuracy and swing rate, down to ${Math.round(MIN_HANDLING * 100)}%; damage is never scaled. Meeting a requirement is worth full handling and exceeding it is worth nothing more. Nothing here scales the experience the weapon earns.`;
 
 export function WeaponFields({
   weapon,
