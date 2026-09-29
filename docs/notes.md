@@ -299,7 +299,7 @@ only do that on a socket that opened.
 does with an actor id is unchanged — what arrived is a row saying who the id
 belongs to.
 
-**A character id *is* an actor id.** Every `pos:`, `equip:`, `mast:` and `hp:`
+**A character id *is* an actor id.** Every `pos:`, `equip:`, `mast:`, `hp:` and `diedAway:`
 key in `kv` is keyed by it, and so is the body in the `chunk:` rows. That is why
 this was a day's work rather than a rewrite: the simulation was already about a
 stable opaque id, and accounts only had to decide where the id comes from.
@@ -7086,6 +7086,24 @@ per mastery, and a mastery that lost experience but kept its level has nothing
 to show. The list's heading says "Masteries lowered" rather than naming a level,
 by the rule on notices below: there are no levels in the game's own words.
 
+**A death nobody was connected for is told on the next `hello`.** A lingering
+body (see *Closing the tab does not end a fight*) can die with no socket to send
+`died` to, and the rows are written all the same: the player comes back at
+their spawn with a fresh bag and lower levels. So the death batch in
+`saveActors` also writes a `diedAway:` row holding the `DeathCost`, only for a
+death that was not announced, and `seatJoiner` reads and deletes it and puts it
+on the `hello` as `diedAway`. It is deleted on the read, not once the screen has
+been seen: there is no acknowledgement to wait for, and keeping it until one
+arrived would show the same death on every join.
+
+The client draws the same screen from it, with a different title and
+"Continue" in place of "Rebirth", and nothing on it goes back to the server. The
+body is already seated at the spawn, so `RemoteSession.rebirth` clears the death
+locally and returns `false`, and the page shows no wait. Input is held while the
+screen is up, on the same terms as a live death, so the player stands still at
+the spawn until they close it. Unlike a live death, the socket is not silenced,
+because there is a body to show the world to.
+
 **Statuses come down without being sent**, and the asymmetry with the kit is the
 point. What is left in a bag is a real question with two possible answers, so
 the server has to answer it. What a body off the board is still poisoned with is
@@ -7281,6 +7299,9 @@ nobody, so it freezes with the rest of the world.
   first would take it out of `lingering` before `noteDeaths` could see it there
   and write its death down — and a kit on the floor that storage still said
   was in the bag is an item existing twice.
+- A death while lingering is written down like any other, and is told to the
+  player on their next join — see *Dying is a screen, and the socket goes quiet
+  behind it*.
 - `left` is sent when the body goes, not when the socket did. A client forgets
   everything about an actor on `left`, and a body still standing there without
   its name or health bar is a body nobody can tell is still there.

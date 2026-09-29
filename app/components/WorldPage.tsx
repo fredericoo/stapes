@@ -132,12 +132,10 @@ export function WorldPage({
   const [status, setStatus] = useState<Status>("connecting");
   const [dead, setDead] = useState(false);
   const [death, setDeath] = useState<DeathCost | null>(null);
+  const [diedAway, setDiedAway] = useState(false);
   const [rebirthing, setRebirthing] = useState(false);
   const rebirth = useCallback(() => {
-    const session = sessionRef.current;
-    if (!session?.isDead()) return;
-    session.rebirth();
-    setRebirthing(true);
+    if (sessionRef.current?.rebirth()) setRebirthing(true);
   }, []);
   const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(DEFAULT_PLAY_MINUTES);
   const [stats, setStats] = useState<FrameStats | null>(null);
@@ -279,6 +277,7 @@ export function WorldPage({
       setPainted(false);
       setDead(false);
       setDeath(null);
+      setDiedAway(false);
       setRebirthing(false);
     };
 
@@ -304,6 +303,7 @@ export function WorldPage({
       remote.setOnDead((isDead) => {
         setDead(isDead);
         setDeath(remote.deathCost());
+        setDiedAway(remote.wasAwayForDeath());
         if (isDead) return;
         if (!rendererRef.current) {
           setRebirthing(false);
@@ -568,7 +568,7 @@ export function WorldPage({
       </div>
 
       {dead || rebirthing ? (
-        <DeathScreen onRebirth={rebirth} pending={rebirthing} cost={death} />
+        <DeathScreen onRebirth={rebirth} pending={rebirthing} cost={death} away={diedAway} />
       ) : null}
     </>
   );

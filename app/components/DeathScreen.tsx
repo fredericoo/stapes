@@ -12,10 +12,12 @@ export function DeathScreen({
   onRebirth,
   pending,
   cost,
+  away,
 }: {
   onRebirth: () => void;
   pending: boolean;
   cost: DeathCost | null;
+  away: boolean;
 }) {
   if (pending) {
     return (
@@ -43,7 +45,7 @@ export function DeathScreen({
           id="death-screen-title"
           className="text-center text-2xl font-bold tracking-wide uppercase text-paper"
         >
-          You have died.
+          {away ? "You died while you were away." : "You have died."}
         </h2>
         <div id="death-screen-cost" className="flex w-full flex-col gap-4">
           <div className="flex flex-col gap-2 text-center text-sm text-pretty text-paper/80">
@@ -57,7 +59,7 @@ export function DeathScreen({
           {cost && cost.levelsLost.length > 0 ? <LevelsLost levels={cost.levelsLost} /> : null}
         </div>
         <Button variant="primary" autoFocus onClick={onRebirth}>
-          Rebirth
+          {away ? "Continue" : "Rebirth"}
         </Button>
       </div>
     </div>

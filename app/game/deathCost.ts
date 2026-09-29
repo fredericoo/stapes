@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { levelForXp, MASTERIES, type Mastery, type MasteryXp } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
 import { type Equipment, packSlots } from "./equipment";
@@ -12,6 +13,13 @@ export type DeathCost = {
   packLeft: boolean;
   levelsLost: readonly LevelLost[];
 };
+
+export const deathCostSchema = v.object({
+  packLeft: v.boolean(),
+  levelsLost: v.array(
+    v.object({ mastery: v.picklist(MASTERIES), from: v.number(), to: v.number() }),
+  ),
+});
 
 export const NOTHING_LOST: DeathCost = Object.freeze({
   packLeft: false,
