@@ -3,6 +3,10 @@ import { hexColorSchema, particleEmitterSchema } from "./particleVfx";
 
 export type TransitionSide = "appear" | "disappear";
 
+export type CraftOutcome = "succeeded" | "failed";
+
+export const CRAFT_OUTCOMES: readonly CraftOutcome[] = ["succeeded", "failed"];
+
 export const TRANSITION_SIDES: readonly TransitionSide[] = ["appear", "disappear"];
 
 export const MIN_TRANSITION_MS = 100;
@@ -87,6 +91,7 @@ export type TileTransitionNote = {
   stackIndex: number;
   struckBy?: string;
   pulled?: true;
+  crafted?: CraftOutcome;
 };
 
 export type HeldTransition = { note: TileTransitionNote; ageMs: number };

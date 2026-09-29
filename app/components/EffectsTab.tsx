@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { CraftInteraction } from "../lib/interactions";
 import { DEFAULT_IMPACT, DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import type { StatusVfx } from "../lib/statusVfx";
 import {
@@ -12,6 +13,7 @@ import {
   MAX_TRANSITION_MS,
   MIN_CLUMP_PX,
   MIN_TRANSITION_MS,
+  type CraftOutcome,
   type TileTransitions,
   type Transition,
   type TransitionSide,
@@ -59,6 +61,19 @@ const PULLED_INFO =
 
 const STARTER_PULL_MS = 300;
 
+const CRAFT_SECTIONS: Array<{ outcome: CraftOutcome; title: string; info: string }> = [
+  {
+    outcome: "succeeded",
+    title: "Craft succeeds",
+    info: "Played on this tile when a recipe here makes at least one thing.",
+  },
+  {
+    outcome: "failed",
+    title: "Craft fails",
+    info: "Played on this tile when a recipe here takes its inputs and every chance roll misses, so nothing is made. A recipe whose outputs are all certain never plays it.",
+  },
+];
+
 function defaultDissolve(side: TransitionSide): Dissolve {
   return {
     pattern: "noise",
@@ -105,6 +120,7 @@ type Props = {
 export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewVfx }: Props) {
   const [play, setPlay] = useState<TransitionPlay | null>(null);
   const extract = draft.interactions?.extract;
+  const craft = draft.interactions?.craft;
 
   const setSide = (side: TransitionSide, next: Transition | undefined) => {
     const transitions: TileTransitions = { ...draft.transitions };
@@ -123,6 +139,14 @@ export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewV
       ...draft,
       interactions: { ...draft.interactions, extract: next ? { ...rest, pulled: next } : rest },
     });
+  };
+
+  const setCraftEffect = (outcome: CraftOutcome, next: Transition | undefined) => {
+    if (!craft) return;
+    const updated: CraftInteraction = { ...craft };
+    if (next) updated[outcome] = next;
+    else delete updated[outcome];
+    onChange({ ...draft, interactions: { ...draft.interactions, craft: updated } });
   };
 
   const playAs = (side: TransitionSide) => (transition: Transition) =>
@@ -163,6 +187,20 @@ export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewV
             onPlay={playAs("appear")}
           />
         ) : null}
+        {craft
+          ? CRAFT_SECTIONS.map(({ outcome, title, info }) => (
+              <TransitionSection
+                key={outcome}
+                side="appear"
+                title={title}
+                info={info}
+                starter={starterPull}
+                transition={craft[outcome]}
+                onChange={(next) => setCraftEffect(outcome, next)}
+                onPlay={playAs("appear")}
+              />
+            ))
+          : null}
       </div>
     </div>
   );

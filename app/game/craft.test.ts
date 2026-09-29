@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import {
+  craftEffect,
   craftRecipeName,
   craftVerb,
   interactionKinds,
@@ -9,9 +11,11 @@ import {
   type CraftOutput,
 } from "../lib/interactions";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import { DEFAULT_IMPACT, DEFAULT_PARTICLES } from "../lib/particleVfx";
+import { CRAFT_OUTCOMES, type Transition } from "../lib/tileTransition";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
 import { canCraftFrom, offeredRecipes, rollCraft } from "./craft";
@@ -72,6 +76,9 @@ const FORGE_RECIPES: CraftInteraction = {
   ],
 };
 
+const RISE: Transition = { durationMs: 1_000, particles: { ...DEFAULT_PARTICLES } };
+const SPIT: Transition = { durationMs: 300, particles: { ...DEFAULT_IMPACT } };
+
 const tiles = [
   tile({ id: "grass" }),
   tile({ id: "player", height: 4, kind: "battler", actor: true }),
@@ -90,6 +97,11 @@ const tiles = [
     interactions: { item: { ...DEFAULT_CONTAINER, size: BAG_SIZE } },
   }),
   tile({ id: "forge", name: "Forge", interactions: { craft: FORGE_RECIPES } }),
+  tile({
+    id: "showy-forge",
+    name: "Showy Forge",
+    interactions: { craft: { ...FORGE_RECIPES, succeeded: RISE, failed: SPIT } },
+  }),
   tile({
     id: "butcher",
     name: "Butcher",
@@ -425,6 +437,81 @@ describe("running a recipe", () => {
     expect(session.craft(FORGE, RECIPE.ember, "smith")).toBe(false);
     expect(session.craft(FAR, RECIPE.ember, "smith")).toBe(false);
     expect(bagTiles(session.equipmentOf("smith"))).toEqual(["cinder"]);
+  });
+});
+
+describe("what a craft shows", () => {
+  function outcomeAt(session: GameSession) {
+    return session.drainTransitions().map(({ tileId, crafted, x, y, z, stackIndex }) => ({
+      tileId,
+      crafted,
+      at: { x, y, z, stackIndex },
+    }));
+  }
+
+  it("plays the crafter's success on the crafter when something is made", () => {
+    const session = new GameSession(board("showy-forge"), tiles);
+    session.spawn("smith", { at: BESIDE, carrying: carrying("cinder", "cinder") });
+
+    session.craft(FORGE, RECIPE.ember, "smith");
+
+    expect(outcomeAt(session)).toEqual([
+      { tileId: "showy-forge", crafted: "succeeded", at: FORGE },
+    ]);
+  });
+
+  it("plays the failure when the roll comes to nothing, and the success otherwise", () => {
+    const session = new GameSession(board("showy-forge"), tiles);
+    session.spawn("smith", { at: BESIDE, carrying: carrying("ember") });
+
+    session.craft(FORGE, RECIPE.pyre, "smith");
+
+    const made = bagTiles(session.equipmentOf("smith")).length > 0;
+    expect(outcomeAt(session).map((note) => note.crafted)).toEqual([made ? "succeeded" : "failed"]);
+  });
+
+  it("plays nothing at a crafter with no effect authored", () => {
+    const session = new GameSession(board(), tiles);
+    session.spawn("smith", { at: BESIDE, carrying: carrying("cinder", "cinder") });
+
+    session.craft(FORGE, RECIPE.ember, "smith");
+
+    expect(session.drainTransitions()).toEqual([]);
+  });
+
+  it("reads both effects off the craft block, and saves them back", () => {
+    const craft = resolveCraft(tilesById["showy-forge"]!);
+    expect(craft?.succeeded).toEqual(RISE);
+    expect(craft?.failed).toEqual(SPIT);
+    expect(interactionsForSave({ craft: craft! })?.craft).toMatchObject({
+      succeeded: RISE,
+      failed: SPIT,
+    });
+  });
+
+  it("drops an effect that would do nothing, and keeps the recipes", () => {
+    const def = tile({
+      id: "dull-forge",
+      interactions: { craft: { ...FORGE_RECIPES, failed: { durationMs: 300 } } },
+    });
+    const craft = resolveCraft(def);
+    expect(craft?.recipes).toHaveLength(FORGE_RECIPES.recipes.length);
+    expect(craft).not.toHaveProperty("failed");
+  });
+});
+
+describe("the craft effects we ship", () => {
+  it("resolves every one that is authored, rather than dropping it unseen", () => {
+    for (const def of normalizeTiles(tilesJson as unknown[])) {
+      const craft = def.interactions?.craft;
+      for (const outcome of CRAFT_OUTCOMES) {
+        if (craft?.[outcome] === undefined) continue;
+        expect(
+          craftEffect(def, outcome),
+          `${def.id}'s ${outcome} effect does not parse`,
+        ).toBeDefined();
+      }
+    }
   });
 });
 
