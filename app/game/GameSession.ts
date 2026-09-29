@@ -5090,27 +5090,33 @@ export class GameSession implements PlaySession {
   private grantStandingStatus(actor: ActorRuntime) {
     if (this.hpOf(actor) === null) return;
 
-    const loc = this.locate(actor);
-    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+    const grant = this.standingGrant(actor, this.locate(actor));
+    if (!grant) return;
+    const { placed, def, statusId } = grant;
+    this.grantStatus(actor, { id: statusId }, placed.castBy, placed.castElements, {
+      source: this.statusName(statusId),
+      by: conjuredName(def.name, placed, (id) => this.bodyName(id)),
+    });
+  }
 
-    for (let i = stack.length - 1; i >= 0; i--) {
-      if (i >= loc.stackIndex) continue;
+  private standingGrant(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+  ): { placed: PlacedTile; def: TileDef; statusId: string } | null {
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+    for (let i = Math.min(loc.stackIndex, stack.length) - 1; i >= 0; i--) {
       const placed = stack[i]!;
       const def = this.tilesById[placed.tileId];
       const addStatus = def ? resolveAddStatus(def) : null;
-      if (!addStatus || addStatus.trigger !== "step") continue;
+      if (!def || !addStatus || addStatus.trigger !== "step") continue;
       const status = this.statusDefs[addStatus.statusId];
       const spared = sparesStander(placed, status, actor.id, (castBy) => {
         const caster = this.actors.get(castBy);
         return caster ? this.mayHarm(caster, actor) : true;
       });
-      if (spared) continue;
-      this.grantStatus(actor, { id: addStatus.statusId }, placed.castBy, placed.castElements, {
-        source: this.statusName(addStatus.statusId),
-        by: conjuredName(def?.name ?? placed.tileId, placed, (id) => this.bodyName(id)),
-      });
-      return;
+      if (!spared) return { placed, def, statusId: addStatus.statusId };
     }
+    return null;
   }
 
   private tickStandingStatuses(tickMs: number) {
