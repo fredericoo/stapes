@@ -21,5 +21,6 @@ export default [
     route("arena", "routes/admin/arena.tsx"),
     route("voxel", "routes/admin/voxel.tsx"),
     route("actions", "routes/admin/actions.tsx"),
+    route("feedback", "routes/admin/feedback.tsx"),
   ]),
 ] satisfies RouteConfig;

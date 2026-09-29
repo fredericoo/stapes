@@ -462,6 +462,20 @@ signs in to any other account, and the delete cascades to the character.
 
 Guests are never swept. An abandoned guest keeps its row and its name.
 
+### Feedback carries what the player did not type
+
+"Send feedback" in the world menu posts the message with a context object: the
+browser (`app/lib/browserContext.ts` — user agent, screen and viewport, pointer,
+network, the WebGL renderer read from a throwaway canvas) and the game
+(`WorldPage`'s `gameContext` — position, HP, frame rate, lighting). The server
+stores it as JSON without a schema, so adding a field is a client change only,
+and `/admin/feedback` flattens whatever is there into rows. The position is also
+printed as a `/goto` command to paste into chat.
+
+The server adds what the client cannot be trusted with: the account, whether it
+is a guest, the character name (only when the id belongs to the sender) and the
+request's `User-Agent` header.
+
 ## A name is typed once and never again
 
 `app/lib/characterName.ts` holds the rules and both halves run them: the form so

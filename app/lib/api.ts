@@ -1,5 +1,6 @@
 import { treaty } from "@elysiajs/eden";
 import type { Api } from "../../server/api";
+import type { FeedbackEntry } from "../../server/feedback";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { TileDef, TilesetDef } from "./types";
 import type { RemovedPlacement } from "./validation";
@@ -82,6 +83,10 @@ export async function saveMaintenance(
   message: string | null,
 ): Promise<MaintenanceState | null> {
   return unwrap(await client.api.maintenance.post({ on, message })).maintenance;
+}
+
+export async function fetchFeedback(): Promise<FeedbackEntry[]> {
+  return unwrap(await client.api.feedback.get()).entries;
 }
 
 export function tilesetUrl(file: string): string {
