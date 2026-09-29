@@ -94,3 +94,119 @@ describe("saving the map", () => {
     ]);
   });
 });
+
+function call(path: string, body: unknown, from?: string): Promise<Response> {
+  return api.handle(
+    new Request(`http://localhost/api${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(from ? { cookie: from } : {}) },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+function sessionOf(response: Response): string {
+  return response.headers.get("set-cookie")!.split(";")[0]!;
+}
+
+async function me(from: string) {
+  const response = await api.handle(
+    new Request("http://localhost/api/me", { headers: { cookie: from } }),
+  );
+  return (await response.json()) as {
+    user: { id: string; username: string; guest: boolean } | null;
+    characters: { id: string; name: string }[];
+  };
+}
+
+async function startGuest(name: string): Promise<string> {
+  const response = await call("/guest", { name });
+  expect(response.status).toBe(200);
+  return sessionOf(response);
+}
+
+describe("playing as a guest", () => {
+  it("signs the browser in to a guest holding one character of the name it typed", async () => {
+    const guest = await startGuest("maren  ormstead");
+
+    const seen = await me(guest);
+    expect(seen.user?.guest).toBe(true);
+    expect(seen.characters.map((one) => one.name)).toEqual(["Maren Ormstead"]);
+  });
+
+  it("refuses a name somebody has, in any casing, and signs nobody in", async () => {
+    await startGuest("Maren Ormstead");
+
+    const response = await call("/guest", { name: "MAREN ormstead" });
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("cannot be started without a character", async () => {
+    const response = await call("/auth/sign-in/anonymous", {});
+    expect(response.status).toBe(404);
+  });
+
+  it("cannot make a second character", async () => {
+    const guest = await startGuest("Maren Ormstead");
+
+    const response = await call("/characters", { name: "Other" }, guest);
+
+    expect(response.status).toBe(403);
+    expect((await me(guest)).characters).toHaveLength(1);
+  });
+
+  it("keeps its character when the same browser signs in to another account", async () => {
+    const guest = await startGuest("Maren Ormstead");
+
+    const response = await call(
+      "/auth/sign-in/username",
+      { username: SEEDED_ADMIN_USERNAME, password: SEEDED_ADMIN_PASSWORD },
+      guest,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await world.characters.nameTaken("Maren Ormstead")).toBe(true);
+  });
+});
+
+describe("saving a guest to an account", () => {
+  const claim = { username: "maren", email: "maren@example.test", password: "long-enough-pw" };
+
+  it("keeps the same account and character, and signs in with what was chosen", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const before = await me(guest);
+
+    expect((await call("/account/claim", claim, guest)).status).toBe(200);
+
+    const after = await me(guest);
+    expect(after.user).toMatchObject({ id: before.user!.id, username: "maren", guest: false });
+    expect(after.characters).toEqual(before.characters);
+
+    const signedIn = await call("/auth/sign-in/username", {
+      username: claim.username,
+      password: claim.password,
+    });
+    expect(signedIn.status).toBe(200);
+    expect((await me(sessionOf(signedIn))).characters).toEqual(before.characters);
+  });
+
+  it("refuses a username somebody has, and stays a guest", async () => {
+    const guest = await startGuest("Maren Ormstead");
+
+    const response = await call(
+      "/account/claim",
+      { ...claim, username: SEEDED_ADMIN_USERNAME },
+      guest,
+    );
+
+    expect(response.status).toBe(400);
+    expect((await me(guest)).user?.guest).toBe(true);
+  });
+
+  it("refuses an account that is already saved", async () => {
+    const response = await call("/account/claim", claim, cookie);
+    expect(response.status).toBe(400);
+  });
+});

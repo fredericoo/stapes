@@ -46,6 +46,11 @@ export class Characters {
     return row?.name ?? null;
   }
 
+  async nameTaken(typed: string): Promise<boolean> {
+    const statement = await this.db.prepare("SELECT 1 FROM character WHERE name = ?");
+    return (await statement.get([normaliseCharacterName(typed)])) !== undefined;
+  }
+
   async create(
     userId: string,
     typed: string,

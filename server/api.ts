@@ -4,10 +4,13 @@ import { readPngSize } from "../app/lib/png";
 import { untar } from "./untar";
 import { PROTOCOL_VERSION } from "../app/net/protocol";
 import { viewerOf, type Viewer } from "./auth";
+import { claimGuest, startGuest } from "./guests";
 import type { World } from "./world";
 import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
 import { MAINTENANCE_MESSAGE_MAX_LENGTH } from "./maintenance";
+
+const GUEST_SIGN_IN_PATH = "/api/auth/sign-in/anonymous";
 
 export function createApi(world: World, bundle: ClientBundle, config: Config) {
   const store = world.blobs;
@@ -19,10 +22,49 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
     (await signedIn(request))?.role === "ADMIN";
 
   return new Elysia({ prefix: "/api" })
-    .all("/auth/*", ({ request }) => world.auth.handler(request), {
-      /** Better Auth reads the body off the `Request` itself, so Elysia must not consume it first. */
-      parse: "none",
-    })
+    .all(
+      "/auth/*",
+      ({ request, status }) => {
+        /** A guest is only ever made with its character, by `/api/guest`. */
+        if (new URL(request.url).pathname === GUEST_SIGN_IN_PATH) return status(404, "Not found");
+        return world.auth.handler(request);
+      },
+      {
+        /** Better Auth reads the body off the `Request` itself, so Elysia must not consume it first. */
+        parse: "none",
+      },
+    )
+    .post(
+      "/guest",
+      async ({ body, request, status }) => {
+        if (await signedIn(request)) return status(409, "This browser is already signed in.");
+        const started = await startGuest(world.auth, world.characters, body.name);
+        if ("error" in started) return status(400, started.error);
+        return Response.json({ character: started.character }, { headers: started.headers });
+      },
+      { body: t.Object({ name: t.String() }) },
+    )
+    .post(
+      "/account/claim",
+      async ({ body, request, status }) => {
+        const viewer = await signedIn(request);
+        if (!viewer) return status(401, "Sign in first");
+        try {
+          const claimed = await claimGuest(world.auth, viewer, body);
+          if ("error" in claimed) return status(400, claimed.error);
+          return claimed;
+        } catch (error) {
+          return status(400, refusalFrom(error));
+        }
+      },
+      {
+        body: t.Object({
+          username: t.String(),
+          email: t.String(),
+          password: t.String(),
+        }),
+      },
+    )
     .post(
       "/account",
       async ({ body, request, status }) => {
@@ -64,6 +106,9 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       async ({ body, request, status }) => {
         const viewer = await signedIn(request);
         if (!viewer) return status(401, "Sign in first");
+        if (viewer.guest) {
+          return status(403, "A guest plays one character. Save it to an account to make more.");
+        }
         const made = await world.characters.create(viewer.id, body.name);
         if ("error" in made) return status(400, made.error);
         return { character: made.character };

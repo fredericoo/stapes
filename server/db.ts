@@ -95,6 +95,7 @@ const MIGRATIONS: readonly string[] = [
      message  TEXT,
      since_ms INTEGER NOT NULL
    )`,
+  `ALTER TABLE user ADD COLUMN isAnonymous INTEGER NOT NULL DEFAULT 0`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {
