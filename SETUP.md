@@ -521,24 +521,25 @@ single sidecar binary.
 
 ```bash
 curl https://stapes.example.com/api/health
-# {"status":"ok","players":0,"build":"<sha>"}
+# {"status":"ok","build":"<sha>","protocolVersion":<n>,"maintenance":false}
 ```
 
 ### Change the seeded administrator's password. First.
 
-A fresh world comes up with one account — `admin`, password `salem123`, both
-written down in this repository and therefore known to everybody. Until it is
+A fresh world comes up with one account, whose username and password are
+`SEEDED_ADMIN_USERNAME` and `SEEDED_ADMIN_PASSWORD` in `server/auth.ts` — written
+down in this repository and therefore known to everybody. Until the password is
 changed, anybody who finds the deployment can author the world.
 
-Open `https://stapes.example.com/`, sign in as `admin`, and follow **Change
+Open `https://stapes.example.com/`, sign in as that account, and follow **Change
 password** from the character chooser you land on — or go straight to
 `https://stapes.example.com/account/password`. That is the whole of it: the seed
-only ever *creates*, so the next boot sees `admin` already there and leaves the
-new password alone. Nothing has to be turned off afterwards.
+only ever *creates*, so the next boot finds the account already there and leaves
+the new password alone. Nothing has to be turned off afterwards.
 
 (The account's controls are on that screen and not in the game, deliberately —
-see `docs/notes.md`, "An account signs in; a character enters". `admin` does not
-need a character to reach them.)
+see `docs/notes.md`, "An account signs in; a character enters". The seeded
+account does not need a character to reach them.)
 
 Everybody else makes their own account at the front door, and every one of them
 is a `USER`. **There is no endpoint that grants a role** — that is deliberate,

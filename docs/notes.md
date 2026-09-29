@@ -96,9 +96,11 @@ is not one.
   and the page reconnects to where you were standing. The most safety-critical
   path in the system is therefore exercised constantly by people not thinking
   about it.
-- **Two browser tabs share a cookie**, so they are the same actor, and opening
-  the second closes the first — see "One connection per actor". To play two
-  characters, use `localhost` in one and `127.0.0.1` in the other.
+- **Two browser tabs share the session cookie but not the character**, which
+  each tab keeps in its own `sessionStorage` (`app/lib/playing.ts`). Two tabs on
+  the same character are one actor, and opening the second closes the first —
+  see "One connection per actor". To play two accounts, use `localhost` in one
+  and `127.0.0.1` in the other.
 
 ## The game is `/online`, and every tool is under `/admin`
 
@@ -408,8 +410,9 @@ the socket. Those are the two doors, and they are both server-side checks; the
 `/admin` route guard in the client is a courtesy to somebody who mistyped a URL,
 because the pages behind it are static files anybody can fetch.
 
-A fresh database seeds one account — `admin` / `salem123`, both written down in
-this repository and therefore known to everybody. **The seed creates and never
+A fresh database seeds one account — `SEEDED_ADMIN_USERNAME` with
+`SEEDED_ADMIN_PASSWORD`, in `server/auth.ts`, both written down in this
+repository and therefore known to everybody. **The seed creates and never
 updates**, which is the whole reason it is safe to leave in: change that
 password in a running deployment and the next boot sees the username already
 there and does nothing. `server/accounts.test.ts` pins that, because it is the
@@ -504,9 +507,12 @@ the other.
 
 ### Why it exists
 
-`/online` has a login. Hand-testing a change to the game should not mean
-hand-testing the way in to it first, and a green path that needs an account, a
-server and a database is one people stop running. This one needs a tab.
+`/online` has two doors, an account and then a character, and a socket to the
+shared world behind them. Hand-testing a change to the game should not mean
+hand-testing the way in to it first. `/admin/play` has one door, the `ADMIN`
+sign-in every `/admin` page has, and a fresh database seeds the account for it
+(`SEEDED_ADMIN_USERNAME` and `SEEDED_ADMIN_PASSWORD` in `server/auth.ts`). Past
+it there is no character to make or pick, and the world is in the tab.
 
 It replaced the single-player page that used to be here, which ran a local
 `GameSession` with no server in the picture. That page was a different game: no
@@ -588,7 +594,10 @@ a third `Blobs` beside `DiskBlobs` and `SqliteBlobs`, reading the map, the tiles
 and the statuses over the same endpoints every other page reads them over.
 **So `/admin/play` is not a standalone page**: `bun dev` runs both halves and the
 content API is one of them. What it does not need is the *world* — no socket, no
-actor cookie, no checkpoint on the volume, and nothing to log in to.
+character and no checkpoint on the volume. It does need an administrator's
+session: the route's `clientLoader` sends anybody else to `/admin/sign-in`, and
+`GET /api/map` returns 404 to anybody else, so the worker could not load the map
+without one.
 
 It is a reader, and refuses to be anything else. Nothing in a tab authors
 content: the map editor still saves through `POST /api/map` to the real server,
