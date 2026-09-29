@@ -29,12 +29,8 @@ import {
   type SpawnPoint,
   withMigratedItemIds,
 } from "../app/game/respawn";
-import {
-  type Equipment,
-  emptyEquipment,
-  restoredEquipment,
-  wornInstances,
-} from "../app/game/equipment";
+import { NOTHING_LOST } from "../app/game/deathCost";
+import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
 import { DEFAULT_FACING, listActorOwners } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
@@ -1253,9 +1249,8 @@ export class GameServer {
     for (const [actorId, death] of this.pendingDeathWrites) {
       const spawn = this.spawns.get(actorId);
       if (spawn) entries[this.positionKey(actorId)] = { ...spawn, savedAt };
-      const stillOwned = wornInstances(death.equipment).length > 0;
       entries[this.equipmentKey(actorId)] = {
-        equipment: stillOwned ? death.equipment : session.startingKit(),
+        equipment: session.rebirthKit(death.equipment),
         savedAt,
       };
       if (death.tags.length > 0) {
@@ -2438,7 +2433,12 @@ export class GameServer {
   private announceDeaths() {
     if (this.justDied.length === 0) return;
     for (const death of this.justDied) {
-      this.sendTo(death.id, { type: "died", equipment: death.equipment });
+      this.sendTo(death.id, {
+        type: "died",
+        equipment: death.equipment,
+        masteryXp: death.masteryXp,
+        cost: death.cost ?? NOTHING_LOST,
+      });
       this.silenced.add(death.id);
     }
     this.justDied = [];

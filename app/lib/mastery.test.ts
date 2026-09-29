@@ -7,6 +7,8 @@ import {
   standingIn,
   MAX_MASTERY,
   MAX_XP_MULTIPLIER,
+  MASTERIES,
+  MIN_EARNED_MASTERY,
   MIN_RATING,
   masteriesFromXp,
   meetsRequirements,
@@ -128,9 +130,14 @@ describe("what a mastery is weighed against", () => {
 
 describe("the experience curve", () => {
   it("reads back exactly the level it was seeded from", () => {
-    for (const level of [0, 1, 5, 40, 99, MAX_MASTERY]) {
+    for (const level of [MIN_EARNED_MASTERY, 5, 40, 99, MAX_MASTERY]) {
       expect(levelForXp(xpForLevel(level))).toBe(level);
     }
+  });
+
+  it("reads no experience at all as the lowest level, and costs nothing to reach it", () => {
+    expect(levelForXp(0)).toBe(MIN_EARNED_MASTERY);
+    expect(xpForLevel(MIN_EARNED_MASTERY)).toBe(0);
   });
 
   it("holds the level until the next point is paid for in full", () => {
@@ -154,12 +161,16 @@ describe("the experience curve", () => {
 
   it("survives a round trip through a whole block", () => {
     const masteries = { sharp: 12, toughness: 8, agility: 16 };
-    expect(masteriesFromXp(xpFromMasteries(masteries))).toEqual(masteries);
+    expect(masteriesFromXp(xpFromMasteries(masteries))).toMatchObject(masteries);
   });
 
   it("writes nothing down for a mastery nobody has trained", () => {
-    expect(xpFromMasteries({ sharp: 0 })).toEqual({});
-    expect(masteriesFromXp({ sharp: 0, blunt: 1 })).toEqual({});
+    expect(xpFromMasteries({ sharp: 0, blunt: MIN_EARNED_MASTERY })).toEqual({});
+  });
+
+  it("reads every mastery nobody has trained at the lowest level", () => {
+    const untrained = masteriesFromXp({ sharp: 0 });
+    for (const mastery of MASTERIES) expect(untrained[mastery]).toBe(MIN_EARNED_MASTERY);
   });
 });
 

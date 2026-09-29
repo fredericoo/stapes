@@ -1,13 +1,14 @@
 import * as v from "valibot";
 import { CAST_SQUARES, type CastProgress, type CastSlot } from "../game/casting";
 import { MAX_SPELL_NAME_LENGTH } from "../lib/battler";
+import { type DeathCost, NOTHING_LOST } from "../game/deathCost";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
 import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
 import { STRIKE_KINDS, type StrikeKind } from "../game/strike";
 import type { ConsumeSource } from "../game/itemUse";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
-import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
+import { MASTERIES, masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
 import type { Coord, PlacedTile } from "../lib/types";
@@ -162,6 +163,13 @@ const tolerantEquipmentSchema = v.fallback(equipmentSchema, {
 });
 
 const tolerantMasteryXpSchema = v.fallback(masteryXpBlockSchema, {});
+
+const deathCostSchema = v.object({
+  packLeft: v.boolean(),
+  levelsLost: v.array(
+    v.object({ mastery: v.picklist(MASTERIES), from: v.number(), to: v.number() }),
+  ),
+});
 
 export type CellPatch = {
   x: number;
@@ -371,7 +379,7 @@ export type ServerMessage =
       stackIndex: number;
     }
   | { type: "stepRejected"; seq: number }
-  | { type: "died"; equipment: Equipment }
+  | { type: "died"; equipment: Equipment; masteryXp: MasteryXp | null; cost: DeathCost }
   | { type: "keepalive" }
   | { type: "serverRestarting" }
   | { type: "outdated"; serverVersion: number };
@@ -783,6 +791,8 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("died"),
     equipment: tolerantEquipmentSchema,
+    masteryXp: v.fallback(v.nullable(masteryXpBlockSchema), null),
+    cost: v.fallback(deathCostSchema, NOTHING_LOST),
   }),
   v.object({
     type: v.literal("keepalive"),
@@ -812,7 +822,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 25;
+export const PROTOCOL_VERSION = 26;
 
 export const MAX_STEPS_AHEAD = 8;
 

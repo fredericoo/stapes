@@ -25,6 +25,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import { seconds } from "../lib/duration";
 import { countOf } from "../lib/piles";
 import {
+  asEarned,
   MASTERIES,
   MASTERY_LABELS,
   masteriesFromXp,
@@ -158,7 +159,7 @@ function requirementsFrom(
 
 function weaponStats(weapon: WeaponItem, masteries: BattlerDef["masteries"]): ItemCardStat[] {
   const yours = fightingStats(bodyWith(masteries, weapon), weapon);
-  const own = fightingStats(bodyWith(weapon.requirements ?? {}, weapon), weapon);
+  const own = fightingStats(bodyWith(asEarned(weapon.requirements ?? {}), weapon), weapon);
 
   const yourIntervalMs = swingIntervalMs(yours);
   const ownIntervalMs = swingIntervalMs(own);

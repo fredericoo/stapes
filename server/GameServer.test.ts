@@ -15,7 +15,7 @@ import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { resolvePush } from "../app/lib/interactions";
 import { chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
 import { BODY_REACH_ON_LEVEL, INTEREST_REACH_CHUNKS } from "../app/net/interest";
-import { xpForLevel } from "../app/lib/mastery";
+import { levelForXp, xpForLevel } from "../app/lib/mastery";
 import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
@@ -24,6 +24,7 @@ import { CLOSE_REPLACED, MAX_STEPS_AHEAD } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
 import { fightingStats, resolveBattler } from "../app/lib/battler";
 import { swingWindupMs } from "../app/game/combat";
+import { XP_SHARE_LOST_ON_DEATH } from "../app/game/experience";
 import { CHAT_LOG_MAX_ROWS, MAX_REMEMBERED_ACTORS, type GameServer } from "./GameServer";
 
 const BAG_TILE_ID = "basic-bag";
@@ -2657,15 +2658,19 @@ describe("dying and coming back", () => {
     }));
   }
 
-  it("writes a kit holding nothing they died with, in the batch that drops the body", async () => {
-    await armedAlice();
+  type Worn = { id: string; tileId: string; contents?: unknown[] } | null;
+
+  it("writes what they kept and a fresh empty bag, in the batch that drops the body", async () => {
+    const alice = await armedAlice();
+    const before = alice.hello.equipment as Record<string, Worn>;
 
     await killAndTick("alice");
 
     const { equipment } = await storedRows("alice");
-    expect(equipment?.equipment.weapon).toBeNull();
-    const bag = equipment?.equipment.bag as { contents?: unknown[] } | null;
-    expect(bag?.contents ?? []).toEqual([]);
+    const after = equipment?.equipment as Record<string, Worn>;
+    expect(after.armor).toEqual(before.armor);
+    expect(after.bag?.id).not.toBe(before.bag!.id);
+    expect(after.bag?.contents ?? []).toEqual([]);
   });
 
   it("writes a bystander's changed kit in the batch that drops a body", async () => {
@@ -2848,6 +2853,24 @@ describe("dying and coming back", () => {
     expect(after.statuses?.statuses).toEqual([]);
   });
 
+  it("writes down the experience they died with, less the share a death takes", async () => {
+    await armedAlice();
+    const before = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { masteryXpOf(id: string): Record<string, number> | null };
+      };
+      return internals.session.masteryXpOf("alice");
+    });
+    expect(before?.fist).toBeGreaterThan(0);
+
+    await killAndTick("alice");
+
+    const stored = await runInDurableObject(stub(), async (_instance, state) =>
+      state.storage.get<{ masteries: Record<string, number> }>("mast:alice"),
+    );
+    expect(stored?.masteries.fist).toBeCloseTo(before!.fist! * (1 - XP_SHARE_LOST_ON_DEATH), 10);
+  });
+
   it("brings them back under nothing, on full health", async () => {
     const alice = await armedAlice();
     await hurtAndPoisoned("alice");
@@ -2914,17 +2937,36 @@ describe("dying and coming back", () => {
     expect(types.indexOf("patch")).toBeLessThan(types.indexOf("died"));
   });
 
-  it("hands the emptied kit over on the death itself", async () => {
+  it("hands over what they kept on the death itself, which is all but the pack", async () => {
+    const alice = await armedAlice();
+    const before = alice.hello.equipment as Record<string, Worn>;
+    const seen = record(alice.ws);
+
+    await killAndTick("alice");
+
+    const died = seen.of("died")[0]!;
+    const equipment = died.equipment as Record<string, Worn>;
+    expect(equipment.armor).toEqual(before.armor);
+    expect(equipment.bag).toBeNull();
+  });
+
+  it("tells the dying player what the death cost, and the experience it left", async () => {
     const alice = await armedAlice();
     const seen = record(alice.ws);
 
     await killAndTick("alice");
 
     const died = seen.of("died")[0]!;
-    const equipment = died.equipment as Record<string, unknown>;
-    expect(equipment.weapon).toBeNull();
-    expect(equipment.offhand).toBeNull();
-    expect(equipment.bag).toBeNull();
+    const stored = await runInDurableObject(stub(), async (_instance, state) =>
+      state.storage.get<{ masteries: Record<string, number> }>("mast:alice"),
+    );
+    expect(died.masteryXp).toEqual(stored?.masteries);
+    const cost = died.cost as { packLeft: boolean; levelsLost: { mastery: string; to: number }[] };
+    expect(cost.packLeft).toBe(true);
+    expect(cost.levelsLost.length).toBeGreaterThan(0);
+    for (const row of cost.levelsLost) {
+      expect(row.to).toBe(levelForXp(stored!.masteries[row.mastery]!));
+    }
   });
 
   it("stops talking to a dead socket, while the world goes on for everyone else", async () => {

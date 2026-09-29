@@ -2126,7 +2126,7 @@ floor, and what keeps a body out of that cell is the fit check.
 
 Because the topmost tile decides, a berry dropped on a bush would make the bush
 walkable. The rule is enforced where a *player* acts — `dropDestinationAt` in
-`app/game/affordances.ts`, and `dropKit` in `GameSession`, which is a body
+`app/game/affordances.ts`, and `dropOnFloor` in `GameSession`, which is a body
 dying — and deliberately not in `canReplaceStack`, which the editor asks too.
 An author stacking a plank on a fence is building a bridge deck, and that is
 the same stack shape.
@@ -2135,9 +2135,9 @@ The other ways a thing reaches a cell need nothing: an `extract` yield goes
 into the puller's kit rather than onto the board, and `push` picks its
 destination from `listStandingSurfaces`, which has no entry for a cell with no
 standing surface. A body dies where it was standing, which is walkable by
-definition, so the `dropKit` check only fires for a death somewhere a body
-arrived by falling — into water, most likely — and it keeps the kit rather than
-spilling it.
+definition, so the `dropOnFloor` check only fires for a death somewhere a body
+arrived by falling — into water, most likely — and the body keeps what would
+have dropped.
 
 ### A body in a `wade` tile is drawn wading, and nothing else changes
 
@@ -4255,38 +4255,42 @@ people and one for everything else.
   That gate used to be "only a kit with something in it", which came to the same
   thing while every creature had an empty one and stopped the day a rat could be
   authored carrying meat.
-- **Dying drops it, and that is one function.** `kill` → `dropKit` never asked
-  who the body belonged to, so wildlife dropping its kit needed no new path —
-  which is the whole of "a player is just another battler" holding up under a
-  feature that could easily have grown a second one.
+- **Dying drops it, and a player is the one exception.** `kill` → `dropKit`
+  never asked who the body belonged to, so wildlife dropping its kit needed no
+  new path. A player goes through `dropPack` instead, which leaves the pack and
+  nothing else — see *A dead player leaves their pack, whole, and keeps the rest*.
 
 **A death is the moment the session stops being able to answer for somebody**,
 and everything a reload hands back is read from storage — so a death has to write
 itself down before it destroys the only copy of what it knew.
 
-- **The kit does not die with the body.** `kill` drops it onto the corpse's cell
-  first, all of it or none of it: a sword somebody picked up a moment ago is
-  still a sword in the world, findable and theirs again if they walk back for it.
+- **What drops does not die with the body.** `kill` drops it onto the corpse's
+  cell first — a creature's whole kit, a player's pack — all of it or none of
+  it: a sword somebody picked up a moment ago is still a sword in the world,
+  findable and theirs again if they walk back for it.
   The alternative is not "death costs you your things", it is the world quietly
   being one sword lighter with nothing in it able to put that right. All-or-
   nothing because the two halves — what is on the board and what the body still
   owns — are written to different keys, and a half-dropped kit has no single true
   answer to give either of them.
 - **The `Death` carries what the runtime knew**, because `GameSession.kill`
-  deletes it: what is left of the kit, its tags and its masteries. Nothing
+  deletes it: what is left of the kit, its tags, its experience less the share
+  a death takes, and for a player what the death cost (`DeathCost`). Nothing
   downstream can re-derive any of it.
-- **A reload or a `rebirth` puts them back at the spawn point, with a fresh empty
-  bag.** The
-  position row is *overwritten* with `spawn:<id>` rather than left alone —
-  leaving it is what put people back wherever the last flush caught them, up to
-  a whole `ACTOR_FLUSH_INTERVAL_MS` of walking ago. The kit is the starting one
-  rather than the emptied one, because coming back with no bag at all leaves
-  somebody unable to pick their own corpse up. It is written rather than deleted
-  — a missing row already means "give them the starting kit", but a delete
-  cannot ride in the batch, and a second call is a second moment at which the
-  board and the kit can disagree. What they still *own* wins over both: a kit
-  the floor refused was never dropped, so writing a fresh one over it would
-  destroy what the refusal saved.
+- **A reload or a `rebirth` puts them back at the spawn point, with what they
+  kept and a bag on their back.** The position row is *overwritten* with
+  `spawn:<id>` rather than left alone — leaving it is what put people back
+  wherever the last flush caught them, up to a whole `ACTOR_FLUSH_INTERVAL_MS`
+  of walking ago. The kit row is `GameSession.rebirthKit`: what they still own,
+  and the starting kit's bag, emptied, when they own no pack at all. Nothing
+  sells a bag, so without it a player whose pack somebody else picked up would
+  never carry more than two things again. A player can still come back to a new
+  bag by dying with none, and the experience a death costs is what keeps that
+  from being a way to collect them. The row is written rather than deleted — a
+  missing row already means "give them the starting kit", but a delete cannot
+  ride in the batch, and a second call is a second moment at which the board and
+  the kit can disagree. A pack the floor refused was never dropped, so
+  `rebirthKit` hands that one back rather than a second.
 - **Hit points need nothing.** They are rebuilt from the tile on every load, so a
   respawned body is at full health by construction rather than by a reset.
 - **`noteDeaths` forces a flush**, rather than leaving it to the next one. This
@@ -4626,6 +4630,12 @@ untouched at 6.
 It applies to the Agility row too. A dodge you never needed to make is worth as
 little as a blow you cannot feel, and exempting Agility would have left the whole
 thing standing one mastery over.
+
+Every figure in this section was measured before `XP_RATE` halved every payout
+in `app/game/experience.ts`, so each level now takes about twice the fights.
+The rate multiplies the two base payouts, per point of damage and per cast, so
+it moves how fast everything is learnt without moving what anything is worth
+against anything else.
 
 ### A fight opens with an approach, half an interval long
 
@@ -5672,8 +5682,10 @@ shared by the whole world, so its phase against any one cast is arbitrary.
 down. This is the second cross-cutting square rule after the two-handed weapon,
 and it lives beside it in `app/game/equipment.ts`. Without it a caster carries
 six stones in a bag and rotates through them, and the cooldown decides nothing.
-The lock is on *player-initiated* moves only — a death drops the whole kit
-regardless, and what lands is ready. It is also the only refusal in the item
+The lock is on *player-initiated* moves only — a creature's death drops its
+whole kit regardless, and what lands is ready. A player's squares stay on the
+body through a death, so a stone there is still cooling when they come back. It
+is also the only refusal in the item
 model that says anything out loud, because it is the only one where a player can
 plainly see something in a square and plainly cannot empty it.
 
@@ -5871,9 +5883,8 @@ So the fee is **flat and unscaled** — not by what the stone asks, not by what
 came of it, not by who you were pointing at. Every scale that applies elsewhere
 is a scale that could take it back to zero, which is the one thing a floor must
 not do. It is paid where the cooldown is spent, for the cast rather than its
-result. At `XP_PER_CAST` it is four presses of a light to the first point of
-Arcane, and it is deliberately half what a *single point of damage* is worth: a
-way into the mastery rather than a way up it.
+result. `XP_PER_CAST` is deliberately half what a *single point of damage* is
+worth: a way into the mastery rather than a way up it.
 
 A flame you conjured pays you when it burns somebody, and that thread is the
 longest in the feature: the placement carries `castBy` — a **new** field, never
@@ -5911,11 +5922,13 @@ having learnt some. `spellElements` reads it, and reads **every** element the
 block names rather than the strongest, which is the whole of what "a spell can
 have more than one element" means.
 
-**Everybody starts with one point of each**, authored on the `player` tile and
-seeded as experience like every other starting mastery. That is what makes an
-element reachable at all: the requirement is an outright gate, so a body with no
-Fire could never throw the spell that would have earned it. The bottom rung of
-each element asks for exactly the point you begin with.
+**Everybody has one point of each.** The `player` tile authors it, but what
+gives it is the floor: experience never reads below `MIN_EARNED_MASTERY` (see
+*Experience never reads below level 1*), so the authored 1 seeds nothing and
+every player would read 1 without it. That is what makes an element reachable
+at all: the requirement is an outright gate, so a body with no Fire could never
+throw the spell that would have earned it. The bottom rung of each element asks
+for exactly that one point.
 
 Those points are masteries and nothing else. They do **not** make a starting
 player fire, water and nature — what a body is *made of* is a different field
@@ -5923,8 +5936,30 @@ entirely, and the `player` tile authors none of it.
 
 An existing player is *not* reseeded — `hasExperience` gates seeding on the block
 being absent, which is the property that stops a restored empty block wiping
-somebody. So a body that predates this has none of the three and cannot cast the
-bottom rung until `/mastery fire 1` says otherwise.
+somebody. It does not need to be: a body that predates the elements has no
+experience in any of the three, and no experience reads as level 1 (below).
+
+#### Experience never reads below level 1
+
+`levelForXp` clamps at `MIN_EARNED_MASTERY`, and `xpForLevel` charges nothing
+for it: level 1 is where a mastery with no experience at all stands. Above it
+the curve is unchanged, `XP_PER_LEVEL_SQUARED` times the level squared, so
+nobody at 2 or more moved when this landed. Levels 0 and 1 became one level.
+
+The reason is the element gate above. A body at Fire 0 cannot cast a fire
+spell, and casting one is the only thing that pays Fire, so a body at 0 could
+never get to 1. With the reading clamped, a rule that takes experience away
+cannot take that last point, and no such rule has to know about elements.
+
+It is a floor on **experience**, not on masteries. `MIN_MASTERY` stays 0 for
+blocks that are authored rather than earned: a creature's unauthored mastery is
+still 0, and moving that to 1 would move the hit points, defence, dodge and
+Rating of every creature in the world and the Arena's numbers with them. So the
+two minimums are two constants, and `/mastery` takes `MIN_EARNED_MASTERY` as
+its bottom, since it writes experience and a 0 is not something experience can
+say. `masteriesFromXp` returns every mastery for the same reason: a missing key
+would read as `MIN_MASTERY` through `masteryLevel`, which is the creature's
+floor, not the player's.
 
 #### A body's element is authored and worn, never practised
 
@@ -5946,8 +5981,8 @@ The two sources **union** rather than sum, because an element is a fact and not 
 quantity: two flaming rings are not more fire than one. Only the four things a
 body wears or holds carry one — weapon, armour, shield, stone — and **only the
 squares, never the bag**: a tunic of flames in your pack is a tunic in a pack,
-which is the same line `wornInstances` already draws for light and for what a
-death leaves on the floor. The answer comes back in `ELEMENTS`' own order, so a
+which is the same line `wornInstances` already draws for light. The answer
+comes back in `ELEMENTS`' own order, so a
 body that is fire and water is not a different thing for having swapped hands.
 
 A stone's `elements` and its `requirements` are deliberately separate fields
@@ -6067,18 +6102,23 @@ a status, for a second mastery and five more Arcane to be let near the stone.
 Pressing one trains Arcane alone, because the flat per-cast fee goes to Arcane
 and to each element the spell is *made of* — and this one is made of nothing.
 
-**The neutral rung one asks exactly what the `player` tile is seeded with**,
-which is the whole of "everybody can cast on their first day": Arcane 5 is what a
-new body is authored to start at, and Spark asks that and nothing else. The
-elemental rung beside it asks five more, so the first thing a new player casts is
-always a neutral stone, and casting it is how the Arcane to reach fire is earned.
+**The neutral rung one asks exactly what the `player` tile is seeded with**:
+Arcane 5 is what a new body is authored to start at, and Spark asks that and
+nothing else. It is not what "everybody can cast on their first day" rests on
+any more. Spark comes from the forge rather than the tutorial chest, and a death
+can take a new player below Arcane 5, so that promise is Light's, which asks
+`MIN_EARNED_MASTERY` (see *Light is beside the ladder too* below). The elemental
+rung beside Spark asks five more Arcane, so the first thing a new player casts
+is always a neutral stone, and casting it is how the Arcane to reach fire is
+earned.
 
-The element half of an elemental rung is still exactly the seed — one point of
-Fire, Water and Nature — so what stands between a new player and their first fire
-spell is Arcane alone. That matters because casting a stone is the *only* thing
-in the game that pays element experience: an element gate above the seed would be
-a wait for something nothing pays. If the seed and the neutral rung move apart, an
-arcanist has no way to begin at all.
+The element half of an elemental rung is exactly the floor — one point of Fire,
+Water and Nature, which every player has — so what stands between a new player
+and their first fire spell is Arcane alone. That matters because casting a
+stone is the *only* thing in the game that pays element experience: an element
+gate above the floor would be a wait for something nothing pays. If the bottom
+elemental rung ever asks more than `MIN_EARNED_MASTERY` of its element, an
+arcanist has no way into that element at all.
 
 ##### An element is a character, and the three come to the same rate
 
@@ -6146,6 +6186,19 @@ times the whole ladder — because what it leaves behind is a light source that
 cooks, burns whoever steps in it, and outlives every attack stone's cooldown. It
 is fire's utility, not fire's rung one; Cinder is that, so an arcanist has
 something to practise Fire *with*.
+
+**Light is beside the ladder too, below its foot.** It asks Arcane 1, which is
+`MIN_EARNED_MASTERY` and so a level no death can take, and puts `luminous` on
+the caster at Spark's cooldown and cast time. It is what the quest chest just
+past the tutorial's portal gives, in place of Spark. The reason is what a death
+costs: 5% of the experience takes a new player from Arcane 5 to 4, where Spark
+is out of reach, and a stone that can always be pressed pays the flat fee on
+every press, so Light is the way back up to Spark. The chest's `rewardTag`
+changed with its stone (`tutorial-light-stone`), so every player who already
+took Spark from it can take Light once as well. The chest gives it once, so the
+stone forge makes it from a blank stone too, at Spark's weight: a Light lost
+with a looted pack can be replaced, and without that a player below Arcane 5
+who lost theirs could never cast again.
 
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
@@ -6627,12 +6680,13 @@ watched and wants to ask about has to be the same fight when they run it again.
 
 Being dead is the one state a client cannot infer. A body missing from the board
 is what an ordinary stale patch looks like, so `died` is a message: sent to the
-one socket, carrying the kit, and the last thing that socket hears.
+one socket, carrying the kit, the experience and what the death cost, and the
+last thing that socket hears.
 
 **Three things happen in an order, and the order is the whole design.**
 
 1. The tick that killed them broadcasts its patch *including* to them. That
-   frame is the honest one — their body gone from the cell, their kit lying in
+   frame is the honest one — their body gone from the cell, their pack lying in
    it — and it is what the death screen is drawn over.
 2. `announceDeaths` sends `died` and only then adds them to `silenced`, so the
    message is not the first casualty of the rule it announces.
@@ -6641,9 +6695,28 @@ one socket, carrying the kit, and the last thing that socket hears.
    patch of it is bandwidth spent on somebody who cannot act.
 
 **The kit rides on `died` rather than on an `equipment` message.** That message
-is read off a live runtime and a death is exactly what deletes it, so an emptied
-bag would never be announced and the panel would go on showing a sword that is
-on the floor. Normally empty; the whole kit when the cell refused the pile.
+is read off a live runtime and a death is exactly what deletes it, so a dropped
+pack would never be announced and the panel would go on showing a bag that is
+on the floor. Normally everything but the pack; the whole kit when the cell
+refused the pack. The fresh bag a rebirth puts on is not in it: that is written
+to storage, and arrives with the `hello`. The experience rides with it for the
+same reason, already less the share a death takes, so the stats panel behind
+the screen agrees with what the screen says.
+
+**The screen says what the death cost, and the server says it.** `kill` builds
+a `DeathCost` (`app/game/deathCost.ts`) from the body as it was and as it is
+leaving: whether the pack went, and each mastery that dropped a level, with
+where from and where to. It rides on `died` as `cost`, and `DeathScreen` draws
+it beside one sentence of rule that reads `XP_SHARE_LOST_ON_DEATH`, so tuning
+the share changes the words too. The client could have worked the levels out
+by comparing the `died` block with the last `masteries` one, and that is the
+diff *One source, and the client infers nothing* already argued against: the
+client's copy can be a tick behind, and a blow that paid experience in the
+killing tick never reaches it. Only levels are listed. Every mastery loses
+experience on every death, so a row per mastery would say the same thing once
+per mastery, and a mastery that lost experience but kept its level has nothing
+to show. The list's heading says "Masteries lowered" rather than naming a level,
+by the rule on notices below: there are no levels in the game's own words.
 
 **Statuses come down without being sent**, and the asymmetry with the kit is the
 point. What is left in a bag is a real question with two possible answers, so
@@ -7059,10 +7132,12 @@ thing.
 
 The baseline is now **a wielder who has just earned the weapon**: `itemCard`
 builds the comparison body out of the weapon's own requirements rather than out
-of nothing. That is a real body, so the pair answers a question a player has —
-am I getting more out of this than somebody who only just qualified — and at
-exactly the requirement the two agree and the strikethrough disappears, which is
-the honest reading of having only just earned it.
+of nothing. It reads them back through experience, so every mastery the weapon
+does not ask for sits at `MIN_EARNED_MASTERY`, as the viewer's own does. That is
+a real body, so the pair answers a question a player has — am I getting more
+out of this than somebody who only just qualified — and at exactly the
+requirement the two agree and the strikethrough disappears, which is the honest
+reading of having only just earned it.
 
 One consequence is worth naming because it looks like a contradiction. Below the
 gate the **damage** row now leans red, and falling short still does not take
@@ -7248,7 +7323,8 @@ which is the shape it should be. From Sharp 5, on rats alone:
 ```
 
 Five rats to get going; six thousand to get nowhere. Going and finding harder
-things is still the fast way up — this is a way *in*.
+things is still the fast way up — this is a way *in*. The counts predate
+`XP_RATE`, which halved every payout, so each is now about twice as many rats.
 
 **`potentialDamage` is deliberately left whole.** It is what the blow threatened
 rather than what it took, which is the question the defensive payout asks:
@@ -8010,7 +8086,7 @@ single-element forges (`stone-forge-cinder`, `-flame`, `-spark`, `-bolt`,
 
 | spends                  | gives                                                         |
 | ----------------------- | ------------------------------------------------------------- |
-| 1 blank stone           | one of: Spark 3, Cinder 2, Sleet 2, Barbs 2, Flame 1 (weights) |
+| 1 blank stone           | one of: Spark 3, Light 3, Cinder 2, Sleet 2, Barbs 2, Flame 1 (weights) |
 | 2 Cinder / Sleet / Barbs / Spark | Ember / Frost / Thorns / Bolt, 100%                  |
 | 2 Ember / Frost / Thorns / Bolt  | Pyre / Rime / Bramble / Lance, 75%                   |
 | 1 Frost + 1 Thorns      | Verdance, 100%                                                |
@@ -8934,9 +9010,9 @@ wording is shorter than an item card's for the same reason: a card has room to
 say a shot is a shot and this cell does not.
 
 **Under the masteries, not over them.** What you have practised is what you are;
-this is what it currently comes to with a weapon in your hand. On a body that
-has earned every mastery the block therefore starts below the panel's fold,
-which is the cost of that ordering.
+this is what it currently comes to with a weapon in your hand. Every body lists
+every mastery, since none reads below `MIN_EARNED_MASTERY`, so the block starts
+below the panel's fold, which is the cost of that ordering.
 
 `Attributes` is a projection of `FightingStats` and not the block itself. Half of
 that block is not a reading: `accuracy` is a position in a contest, `variance` is
@@ -9737,7 +9813,7 @@ The editor previews every formula against a body that is under nothing, so
 `has_status('combat')` reads 0 there, and the snapped cadence it reports is the calm
 one.
 
-## A dead body's bag is destroyed and its contents spill
+## A dead creature's bag is destroyed and its contents spill
 
 Dropping the pack whole was the simpler rule and it made a killing a single
 pickup: one bag on the ground, everything inside it, gone in one gesture and
@@ -9747,12 +9823,53 @@ walk over it rather than a tap.
 
 The bag slot alone, though a hand may hold a container too. That slot is not a
 place a container happens to be, it *is* the inventory — a pack carried in a hand
-is a thing you are holding on exactly the terms a crate is, and widening this
-would mean a player who died carrying a chest lost the chest. Nothing nests, so
-one level of spilling is the whole of it.
+is a thing you are holding on exactly the terms a crate is. Nothing nests, so
+one level of spilling is the whole of it. A deer that had picked a bush leaves
+the berries it was carrying.
 
-It applies to players exactly as it does to a deer, which is the point: there is
-one death, and a deer that had picked a bush leaves the berries it was carrying.
+### A dead player leaves their pack, whole, and keeps the rest
+
+A player used to die on exactly those terms. That did not make people quit,
+but it made it hard for anybody to build up, since every death sent them back
+to the starting kit. So a player's death now costs the pack and nothing else.
+`dropPack` lays the bag down as it is, contents and all, the same placement a
+drop from the bag slot makes; the hands, the armour, the accessory square and
+the rest stay on the body and ride out on the `Death`.
+
+It brings back, for players only, the single pickup the rule above removed: the
+pack is one thing, and whoever reaches it first takes all of it at once. That is
+accepted, because what is at stake is the contents of one bag rather than
+everything the player owned.
+
+A pack held in a hand drops too. `packSlots` counts an equippable bag in either
+hand as a pack, on the back's terms rather than a crate's, because otherwise
+moving the pack into a hand before a fight would keep it, and the rebirth would
+still put a new one on the bare back. Anything else held, a chest included,
+stays with the player.
+
+The other half of what a death costs is experience, below.
+
+### A death takes a share of every mastery's experience
+
+`kill` hands the `Death` the player's experience after `experienceAfterDeath`,
+which takes `XP_SHARE_LOST_ON_DEATH` (5%) off every mastery's total, and
+`GameServer` writes that to the `mast:` row in the batch that drops the body.
+It is a share of the whole total rather than of the progress into the current
+level, so it costs more the further a mastery has come. The curve is squared,
+so 5% of the experience is about 2.5% of the level: a player exactly at 10
+drops to 9, at 40 to 38, and at 100 to 97. One far enough into a level can
+lose the same share and keep the level.
+
+There is no floor of its own. `levelForXp` never reads below
+`MIN_EARNED_MASTERY`, which is what stops a death taking the last point of an
+element (see *Experience never reads below level 1*), so this rule does not
+have to know about elements. A new player at Arcane 5 drops to 4 on their first
+death.
+
+The share is taken off the `Death` rather than off the runtime, because the
+runtime is deleted in the same call. So no live body ever holds the reduced
+figure, and `grantExperience`, which is where a level-up is said, is never
+asked about a level going down.
 
 ## A sign is read to you; everything else waits to be asked
 
@@ -9802,7 +9919,7 @@ version lives on the file rather than in a one-off sweep at load.
 
 ## A body leaves what its tile says it leaves, and it says who and by what
 
-A death already put everything a body owned on the floor. What it did not leave
+A death already put a body's belongings on the floor. What it did not leave
 was any trace of *whose* death it had been: walk past the cell an hour later and
 there is a sword and a loaf of bread, exactly as there would be if somebody had
 dropped their bag. So a body may now leave one more thing.

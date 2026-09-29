@@ -125,13 +125,13 @@ describe("reading a typed line", () => {
   });
 
   it("refuses anything that is not a whole level on the scale", () => {
-    for (const typed of ["ten", "10.5", "-1", "101", "10abc", ""]) {
+    for (const typed of ["ten", "10.5", "-1", "0", "101", "10abc", ""]) {
       expect(parseCommand(`/mastery sharp ${typed}`)).toMatchObject({
         ok: false,
         refusal: { kind: expect.stringMatching(/badLevel|badArguments/) },
       });
     }
-    expect(parseCommand("/mastery sharp 0")).toMatchObject({ ok: true });
+    expect(parseCommand("/mastery sharp 1")).toMatchObject({ ok: true });
     expect(parseCommand("/mastery sharp 100")).toMatchObject({ ok: true });
   });
 

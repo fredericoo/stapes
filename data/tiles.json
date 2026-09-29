@@ -26125,6 +26125,61 @@
     }
   },
   {
+    "id": "arcane-stone-of-light",
+    "name": "Light",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 5,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "statuses": [
+            {
+              "id": "luminous",
+              "chance": 100
+            }
+          ]
+        },
+        "cooldownMs": 5000,
+        "castTimeMs": 1000,
+        "requirements": {
+          "arcane": 1
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "arcane-stone-of-spark",
     "name": "Spark",
     "height": 0,
@@ -32590,6 +32645,10 @@
               "items": [
                 {
                   "tileId": "arcane-stone-of-spark",
+                  "weight": 3
+                },
+                {
+                  "tileId": "arcane-stone-of-light",
                   "weight": 3
                 },
                 {

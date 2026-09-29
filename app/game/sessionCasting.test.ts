@@ -663,24 +663,17 @@ describe("a cooling stone is locked in its square", () => {
     expect(play.equipmentOf("local")?.weapon?.tileId).toBe("mend-stone");
   });
 
-  it("drops with the rest of the kit when its owner dies", () => {
+  it("stays in its square when its owner dies, still cooling", () => {
     const play = armed();
     play.runCommand("/health 0");
     const deaths = play.drainDeaths();
     expect(deaths).toHaveLength(1);
 
-    expect(deaths[0]!.equipment.charm).toBeNull();
-    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain("mend-stone");
-  });
-
-  it("lands ready, since a cooldown never rides a placement", () => {
-    const play = armed();
-    play.runCommand("/health 0");
-    play.drainDeaths();
-
-    const placed = getStack(play.getMap(), 0, 0, 0).find((p) => p.tileId === "mend-stone");
-    expect(placed).toBeDefined();
-    expect(placed as Record<string, unknown>).not.toHaveProperty("cooldownMs");
+    expect(deaths[0]!.equipment.charm).toMatchObject({
+      tileId: "mend-stone",
+      cooldownMs: expect.any(Number),
+    });
+    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).not.toContain("mend-stone");
   });
 
   it("leaves the rest of the kit alone", () => {
@@ -752,13 +745,14 @@ describe("what pressing a stone teaches you for its own sake", () => {
     expect(arcane(play) - before).toBe(XP_PER_CAST);
   });
 
-  it("earns the first level of Arcane from a light alone", () => {
+  it("earns a level of Arcane from a light alone", () => {
     const play = session({ weapon: "ward-stone" });
-    expect(masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane")).toBe(0);
+    const level = () => masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane");
+    const from = level();
 
-    castRepeatedly(play, xpForLevel(1) / XP_PER_CAST, WARD_COOLDOWN_MS);
+    castRepeatedly(play, (xpForLevel(from + 1) - xpForLevel(from)) / XP_PER_CAST, WARD_COOLDOWN_MS);
 
-    expect(masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane")).toBe(1);
+    expect(level()).toBe(from + 1);
   });
 
   it("pays the same whatever stone was pressed", () => {

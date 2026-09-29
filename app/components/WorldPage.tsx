@@ -16,6 +16,7 @@ import { ReplacedScreen } from "./ReplacedScreen";
 import { WorldFullScreen } from "./WorldFullScreen";
 import { WorldClock } from "./WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
+import type { DeathCost } from "../game/deathCost";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
@@ -127,6 +128,7 @@ export function WorldPage({
   }, []);
   const [status, setStatus] = useState<Status>("connecting");
   const [dead, setDead] = useState(false);
+  const [death, setDeath] = useState<DeathCost | null>(null);
   const [rebirthing, setRebirthing] = useState(false);
   const rebirth = useCallback(() => {
     const session = sessionRef.current;
@@ -273,6 +275,7 @@ export function WorldPage({
       setCrafting(null);
       setPainted(false);
       setDead(false);
+      setDeath(null);
       setRebirthing(false);
     };
 
@@ -297,6 +300,7 @@ export function WorldPage({
       remote.setOnHidden(setHidden);
       remote.setOnDead((isDead) => {
         setDead(isDead);
+        setDeath(remote.deathCost());
         if (isDead) return;
         if (!rendererRef.current) {
           setRebirthing(false);
@@ -539,7 +543,9 @@ export function WorldPage({
         </AppShell>
       </div>
 
-      {dead || rebirthing ? <DeathScreen onRebirth={rebirth} pending={rebirthing} /> : null}
+      {dead || rebirthing ? (
+        <DeathScreen onRebirth={rebirth} pending={rebirthing} cost={death} />
+      ) : null}
     </>
   );
 }

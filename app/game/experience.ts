@@ -1,9 +1,12 @@
 import type { Element } from "../lib/element";
 import type { WeaponItem } from "../lib/item";
-import type { Mastery, MasteryXp } from "../lib/mastery";
+import { MASTERIES, type Mastery, type MasteryXp } from "../lib/mastery";
 import type { AttackOutcome } from "./combat";
 
-export const XP_PER_DAMAGE = 2;
+export const XP_RATE = 0.5;
+
+const BASE_XP_PER_DAMAGE = 2;
+export const XP_PER_DAMAGE = BASE_XP_PER_DAMAGE * XP_RATE;
 
 export const AGILITY_SHARE_OF_OFFENCE = 0.2;
 
@@ -60,7 +63,8 @@ export function defenderEarnings(
   return outcome.dodged ? { agility: earned } : { toughness: earned };
 }
 
-export const XP_PER_CAST = 1;
+const BASE_XP_PER_CAST = 1;
+export const XP_PER_CAST = BASE_XP_PER_CAST * XP_RATE;
 
 export function practiceEarnings(elements: readonly Element[] = []): MasteryXp {
   const earnings: MasteryXp = { arcane: XP_PER_CAST };
@@ -81,4 +85,15 @@ export function casterEarnings(
   const earnings: MasteryXp = { arcane: earned * multiplierFor("arcane") };
   for (const element of elements) earnings[element] = earned * multiplierFor(element);
   return earnings;
+}
+
+export const XP_SHARE_LOST_ON_DEATH = 0.05;
+
+export function experienceAfterDeath(xp: MasteryXp): MasteryXp {
+  const kept: MasteryXp = {};
+  for (const mastery of MASTERIES) {
+    const had = xp[mastery];
+    if (had !== undefined) kept[mastery] = had * (1 - XP_SHARE_LOST_ON_DEATH);
+  }
+  return kept;
 }

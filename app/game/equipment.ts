@@ -155,6 +155,18 @@ export function wornInstances(equipment: Equipment): ItemInstance[] {
   );
 }
 
+const PACK_SLOTS = ["bag", ...HANDS] as const;
+
+export type PackSlot = (typeof PACK_SLOTS)[number];
+
+export function packSlots(equipment: Equipment, tilesById: Record<string, TileDef>): PackSlot[] {
+  return PACK_SLOTS.filter((slot) => {
+    const held = equipment[slot];
+    const def = held ? tilesById[held.tileId] : undefined;
+    return def ? resolveContainer(def)?.equippable === true : false;
+  });
+}
+
 export function spilled(equipment: Equipment, tilesById: Record<string, TileDef>): ItemInstance[] {
   const out: ItemInstance[] = [];
   for (const slot of EQUIPMENT_SLOTS) {
