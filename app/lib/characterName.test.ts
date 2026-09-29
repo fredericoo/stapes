@@ -22,6 +22,10 @@ describe("normalising a typed name", () => {
   it("ignores space somebody typed around it", () => {
     expect(normaliseCharacterName("  arthur ")).toBe("Arthur");
   });
+
+  it("capitalises each word and keeps one space between them", () => {
+    expect(normaliseCharacterName("arthur  DENT")).toBe("Arthur Dent");
+  });
 });
 
 describe("refusing a typed name", () => {
@@ -30,8 +34,13 @@ describe("refusing a typed name", () => {
     expect(characterNameProblem("arthur")).toBeNull();
   });
 
-  it("refuses anything that is not a letter", () => {
-    for (const typed of ["Ka1n", "Arthur Dent", "arthur!", "aeiou-y", "Ærys"]) {
+  it("accepts words separated by spaces", () => {
+    expect(characterNameProblem("Arthur Dent")).toBeNull();
+    expect(characterNameProblem("arthur   dent")).toBeNull();
+  });
+
+  it("refuses anything that is not a letter or a space", () => {
+    for (const typed of ["Ka1n", "arthur!", "aeiou-y", "Ærys"]) {
       expect(characterNameProblem(typed)).toBeTruthy();
     }
   });
@@ -53,5 +62,6 @@ describe("refusing a typed name", () => {
 
   it("measures what would be stored, not what was typed", () => {
     expect(characterNameProblem(` ${"a".repeat(MAX_CHARACTER_NAME_LENGTH)} `)).toBeNull();
+    expect(characterNameProblem(`${"a".repeat(9)}    ${"a".repeat(10)}`)).toBeNull();
   });
 });

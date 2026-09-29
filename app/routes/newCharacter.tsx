@@ -70,7 +70,7 @@ export default function NewCharacterPage() {
         <DoorNote>{typedProblem}</DoorNote>
       ) : (
         <DoorNote>
-          Letters only, up to {MAX_CHARACTER_NAME_LENGTH}. A name is chosen once and cannot be
+          Letters and spaces, up to {MAX_CHARACTER_NAME_LENGTH}. A name is chosen once and cannot be
           changed.
         </DoorNote>
       )}

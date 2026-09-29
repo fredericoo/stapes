@@ -446,9 +446,11 @@ would give two people the same name for ever.
 
 `app/lib/characterName.ts` holds the rules and both halves run them: the form so
 a refusal arrives while somebody is still typing, the server because the socket
-is the boundary. Letters only, two to twenty, stored capitalised — `arthur`,
-`ARTHUR` and `aRtHuR` are all a request to be called `Arthur`, which is what
-makes the unique index mean anything.
+is the boundary. Letters and single spaces between words, two to twenty with
+the spaces counted, each word stored capitalised — `arthur dent`, `ARTHUR  DENT`
+and `aRtHuR dEnT` are all a request to be called `Arthur Dent`, which is what
+makes the unique index mean anything. The index is `COLLATE NOCASE` over the
+stored form, so `Arthur Dent` and `Arthurdent` are two different names.
 
 Refused rather than stripped. Somebody who typed `Ka1n` and was silently given
 `Kan` was not told anything, and there is no second chance: a name is the one
