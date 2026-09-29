@@ -281,6 +281,39 @@ describe("transitionForNote", () => {
     expect(transitionForNote({ ...arrived, pulled: true }, { crystal })).toEqual(chip);
     expect(transitionForNote(arrived, { crystal })).toEqual(sweep);
   });
+
+  it("plays whichever outcome a craft came to, off the craft block", () => {
+    const rise = sideOf({ durationMs: 900, scale: {} });
+    const spit = sideOf({ durationMs: 300, scale: {} });
+    const forge = normalizeTileDef({
+      id: "forge",
+      name: "Forge",
+      height: 3,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      sprite: { frames: [] },
+      transitions: { appear: sweep },
+      interactions: {
+        craft: {
+          recipes: [
+            {
+              name: "Ember",
+              inputs: [{ tileId: "cinder", count: 2 }],
+              output: { kind: "all", items: [{ tileId: "ember", chance: 75 }] },
+            },
+          ],
+          succeeded: rise,
+          failed: spit,
+        },
+      },
+    });
+    const at: TileTransitionNote = { ...note("t2"), tileId: "forge" };
+
+    expect(transitionForNote({ ...at, crafted: "succeeded" }, { forge })).toEqual(rise);
+    expect(transitionForNote({ ...at, crafted: "failed" }, { forge })).toEqual(spit);
+    expect(transitionForNote(at, { forge })).toEqual(sweep);
+  });
 });
 
 describe("burstScale", () => {

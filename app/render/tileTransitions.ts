@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { levelScreenOffset } from "../lib/geometry";
-import { pullEffect } from "../lib/interactions";
+import { craftEffect, pullEffect } from "../lib/interactions";
 import { hexToRgb01 } from "../lib/palette";
 import { projectileEffect } from "../lib/projectile";
 import {
@@ -45,6 +45,7 @@ export function transitionForNote(
 ): Transition | undefined {
   if (note.struckBy) return projectileEffect(tilesById[note.struckBy], "hit");
   if (note.pulled) return pullEffect(tilesById[note.tileId]);
+  if (note.crafted) return craftEffect(tilesById[note.tileId], note.crafted);
   return transitionOf(tilesById[note.tileId], note.side);
 }
 

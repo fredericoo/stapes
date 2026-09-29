@@ -8,7 +8,7 @@ import { kitForSave } from "./kit";
 import { itemForSave, stoneForSave, MAX_CONTAINER_SIZE, resolveItem, weaponForSave } from "./item";
 import { MASTERIES } from "./mastery";
 import { MAX_PROJECTILE_SPEED, MIN_PROJECTILE_SPEED, type ProjectileBlock } from "./projectile";
-import { resolveTransition, type Transition } from "./tileTransition";
+import { type CraftOutcome, resolveTransition, type Transition } from "./tileTransition";
 import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
@@ -175,6 +175,8 @@ export type CraftRecipe = {
 export type CraftInteraction = {
   actionName?: string;
   recipes: CraftRecipe[];
+  succeeded?: Transition;
+  failed?: Transition;
 };
 
 export const MAX_CRAFT_OUTPUTS = MAX_CONTAINER_SIZE;
@@ -473,6 +475,8 @@ const craftSchema = v.object({
       recipes.filter((recipe): recipe is CraftRecipe => recipe != null).slice(0, MAX_CRAFT_RECIPES),
     ),
   ),
+  succeeded: v.optional(v.unknown()),
+  failed: v.optional(v.unknown()),
 });
 
 const craftCache = new WeakMap<TileDef, CraftInteraction | null>();
@@ -483,9 +487,31 @@ export function resolveCraft(def: TileDef): CraftInteraction | null {
 
   const raw = def.interactions?.craft;
   const parsed = raw == null ? null : v.safeParse(craftSchema, raw);
-  const craft = parsed?.success && parsed.output.recipes.length > 0 ? parsed.output : null;
+  const craft =
+    parsed?.success && parsed.output.recipes.length > 0 ? withCraftEffects(parsed.output) : null;
   craftCache.set(def, craft);
   return craft;
+}
+
+function withCraftEffects({
+  succeeded: rawSucceeded,
+  failed: rawFailed,
+  ...craft
+}: v.InferOutput<typeof craftSchema>): CraftInteraction {
+  const succeeded = resolveTransition(rawSucceeded);
+  const failed = resolveTransition(rawFailed);
+  return {
+    ...craft,
+    ...(succeeded ? { succeeded } : {}),
+    ...(failed ? { failed } : {}),
+  };
+}
+
+export function craftEffect(
+  def: TileDef | undefined,
+  outcome: CraftOutcome,
+): Transition | undefined {
+  return def ? resolveCraft(def)?.[outcome] : undefined;
 }
 
 const extractSlotSchema = v.object({
@@ -1139,7 +1165,12 @@ function craftForSave(craft: CraftInteraction): CraftInteraction | undefined {
   });
   if (recipes.length === 0) return undefined;
   const actionName = craft.actionName?.trim();
-  return { ...(actionName ? { actionName } : {}), recipes };
+  return {
+    ...(actionName ? { actionName } : {}),
+    recipes,
+    ...(craft.succeeded ? { succeeded: craft.succeeded } : {}),
+    ...(craft.failed ? { failed: craft.failed } : {}),
+  };
 }
 
 function craftRecipeForSave(recipe: CraftRecipe): CraftRecipe | null {

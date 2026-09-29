@@ -8442,6 +8442,21 @@ shows the resource being worked, not what came out of it.
   the schema's floor of -32, plays nothing in the world while every other test
   passes. `extract.test.ts` asks each authored `pulled` to resolve.
 
+### A craft plays the crafter's success or failure
+
+`craft.succeeded` and `craft.failed` are `Transition`s on the craft block,
+authored in two Effects-tab sections that show only while the tile has one.
+`GameSession.noteCraft` raises one as an `appear` on the crafter, carrying
+`crafted: "succeeded" | "failed"`, and `transitionForNote` reads it off the
+craft block. It is the pull effect's path in every respect: a malformed effect
+is dropped and the recipes kept, the crafter stays on the board so
+`markForming` dresses it, `crafted` is in `serverMessageSchema` (protocol 25),
+and `craft.test.ts` asks each authored one to resolve.
+
+**Failed means nothing was made**: the inputs are spent and every chance roll
+missed. Only an `all` recipe with a chance below 100 can fail. A recipe that
+makes some of its outputs has succeeded.
+
 ## A brain can name a place, work it, and eat what came out
 
 Everything a brain could name used to be a *body* — `nearest` walks the actor

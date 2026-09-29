@@ -678,6 +678,8 @@ export function TileEditorDialog({
       draft.transitions?.disappear?.particles,
       draft.interactions?.projectile?.hit?.particles,
       draft.interactions?.extract?.pulled?.particles,
+      draft.interactions?.craft?.succeeded?.particles,
+      draft.interactions?.craft?.failed?.particles,
     ];
     for (const emitter of emitters) {
       const err = emitter ? validateParticleEmitter(emitter) : null;

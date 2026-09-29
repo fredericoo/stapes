@@ -1,6 +1,7 @@
 import {
   MAX_HELD_TRANSITIONS,
   transitionOf,
+  type CraftOutcome,
   type HeldTransition,
   type TileTransitionNote,
   type TransitionSide,
@@ -20,6 +21,7 @@ import {
 } from "../lib/mapData";
 import type { ExtractInteraction, RespawnInteraction } from "../lib/interactions";
 import {
+  craftEffect,
   pullEffect,
   resolveAddStatus,
   resolveRemoveStatus,
@@ -1911,6 +1913,19 @@ export class GameSession implements PlaySession {
       z: loc.z,
       stackIndex: loc.stackIndex,
       struckBy: projectileTileId,
+    });
+  }
+
+  private noteCraft(tileId: string, at: ObjectRef, crafted: CraftOutcome) {
+    if (!craftEffect(this.tilesById[tileId], crafted)) return;
+    this.raiseTransition({
+      side: "appear",
+      tileId,
+      x: at.x,
+      y: at.y,
+      z: at.z,
+      stackIndex: at.stackIndex,
+      crafted,
     });
   }
 
@@ -4360,8 +4375,9 @@ export class GameSession implements PlaySession {
     this.setEquipment(actor, result.equipment);
     const crafterTileId = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex]?.tileId;
     const crafterDef = crafterTileId ? this.tilesById[crafterTileId] : undefined;
-    if (crafterDef) {
+    if (crafterTileId && crafterDef) {
       this.say(actor.id, craftNotice(chosen.craft, crafterDef, result.made, this.tilesById));
+      this.noteCraft(crafterTileId, ref, result.made.length > 0 ? "succeeded" : "failed");
     }
     return true;
   }

@@ -11,7 +11,7 @@ import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
 import type { Coord, PlacedTile } from "../lib/types";
-import { TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
+import { CRAFT_OUTCOMES, TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH, type CommandReply } from "../game/commands";
 
@@ -712,6 +712,7 @@ const serverMessageSchema = v.variant("type", [
           tileId: v.string(),
           struckBy: v.optional(v.string()),
           pulled: v.optional(v.literal(true)),
+          crafted: v.optional(v.picklist(CRAFT_OUTCOMES)),
           x: v.pipe(v.number(), v.integer()),
           y: v.pipe(v.number(), v.integer()),
           z: v.pipe(v.number(), v.integer()),
@@ -811,7 +812,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 25;
 
 export const MAX_STEPS_AHEAD = 8;
 
