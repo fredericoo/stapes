@@ -6,6 +6,7 @@ export default [
     route("online", "routes/game.tsx"),
     route("sign-in", "routes/signIn.tsx"),
     route("sign-up", "routes/signUp.tsx"),
+    route("guest", "routes/guest.tsx"),
     route("characters", "routes/characters.tsx"),
     route("characters/new", "routes/newCharacter.tsx"),
     route("account/password", "routes/password.tsx"),

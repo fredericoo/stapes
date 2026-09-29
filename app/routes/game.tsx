@@ -1,4 +1,5 @@
-import { redirect, useLoaderData, useNavigate } from "react-router";
+import { redirect, useLoaderData, useNavigate, useRevalidator } from "react-router";
+import { SaveCharacterButton } from "../components/SaveCharacterButton";
 import { WorldPage } from "../components/WorldPage";
 import { fetchMe } from "../lib/auth";
 import { forgetCharacter, resolveRemembered } from "../lib/playing";
@@ -10,11 +11,12 @@ export async function clientLoader() {
   if (!me.user) throw redirect("/sign-in");
   const character = resolveRemembered(me.characters);
   if (!character) throw redirect("/characters");
-  return { character, admin: me.user.role === "ADMIN" };
+  return { character, admin: me.user.role === "ADMIN", guest: me.user.guest };
 }
 
 export default function GamePage() {
-  const { character, admin } = useLoaderData<typeof clientLoader>();
+  const { character, admin, guest } = useLoaderData<typeof clientLoader>();
+  const revalidator = useRevalidator();
   const { tiles, tilesets, statuses } = usePlayerShell();
   const navigate = useNavigate();
 
@@ -31,6 +33,13 @@ export default function GamePage() {
       tiles={tiles}
       tilesets={tilesets}
       statuses={statuses}
+      menuExtras={
+        guest ? (
+          <div className="py-2">
+            <SaveCharacterButton onSaved={() => void revalidator.revalidate()} />
+          </div>
+        ) : null
+      }
       onLeave={leave}
       onRefused={leave}
     />

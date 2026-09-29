@@ -17,6 +17,13 @@ export default function SignInPage() {
       <DoorLogo />
       <DoorTitle>Sign in</DoorTitle>
       <SignInForm onSignedIn={() => void navigate("/characters")} />
+      <Link
+        to="/guest"
+        className="border-2 border-paper/40 px-6 py-3 text-xs uppercase tracking-widest text-paper hover:border-paper hover:bg-paper hover:text-ink"
+        style={{ fontFamily: SYSTEM_MONO }}
+      >
+        Play as a guest
+      </Link>
       <DoorNote>
         <Link
           to="/sign-up"

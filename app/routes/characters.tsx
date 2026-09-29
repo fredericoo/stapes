@@ -14,11 +14,12 @@ export async function clientLoader() {
     characters: me.characters,
     maintenance: me.maintenance,
     admin: me.user.role === "ADMIN",
+    guest: me.user.guest,
   };
 }
 
 export default function CharactersPage() {
-  const { username, characters, maintenance, admin } = useLoaderData<typeof clientLoader>();
+  const { username, characters, maintenance, admin, guest } = useLoaderData<typeof clientLoader>();
   const closed = maintenance !== null && !admin;
   const navigate = useNavigate();
   const [entering, setEntering] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export default function CharactersPage() {
 
   return (
     <Door>
-      <DoorTitle>Signed in as {username}</DoorTitle>
+      <DoorTitle>{guest ? "Playing as a guest" : `Signed in as ${username}`}</DoorTitle>
 
       {maintenance ? (
         <DoorNote>
@@ -65,7 +66,12 @@ export default function CharactersPage() {
         <DoorNote>This account has no characters yet. One is all it takes to get in.</DoorNote>
       )}
 
-      {full ? (
+      {guest ? (
+        <DoorNote>
+          A guest has one character and cannot sign back in. To keep it, save it to an account from
+          the menu while you play.
+        </DoorNote>
+      ) : full ? (
         <DoorNote>
           An account holds {MAX_CHARACTERS_PER_ACCOUNT} characters, and this one is full.
         </DoorNote>
@@ -76,9 +82,11 @@ export default function CharactersPage() {
       )}
 
       <div className="mt-3 flex flex-col items-center gap-3">
-        <DoorLink to="/account/password" disabled={entering !== null}>
-          Change password
-        </DoorLink>
+        {guest ? null : (
+          <DoorLink to="/account/password" disabled={entering !== null}>
+            Change password
+          </DoorLink>
+        )}
         <button
           type="button"
           className="text-xs uppercase tracking-widest text-paper/50 underline underline-offset-4 hover:text-paper disabled:opacity-50"

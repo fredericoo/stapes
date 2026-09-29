@@ -15,6 +15,9 @@ bun dev
 `bun dev` prints two URLs; open the client one. `/` is the landing page. The
 game is at `/online`, behind two doors: an account (`/sign-in`), then which of
 its characters to play (`/characters`). The socket opens on the second one.
+`/guest` skips both: it takes a character name and signs the browser in to a
+guest account holding that character, which can be saved to a real account from
+the in-game menu.
 
 The world, its accounts and its characters live in `.dev/stapes.db`, inside the
 checkout, so every worktree has its own. `rm -rf .dev` deletes all three, and

@@ -99,6 +99,49 @@ test.describe("the way in", () => {
   });
 });
 
+test.describe("playing as a guest", () => {
+  test("goes straight in with a name, and saves the character to an account from the menu", async ({
+    page,
+  }) => {
+    test.setTimeout(BOOT_TIMEOUT_MS + 120_000);
+
+    const character = `${freshCharacterName("Guest")} Ormstead`;
+    const username = freshCharacterName("saved").toLowerCase();
+    const live = liveWorld(page);
+
+    await page.goto("/sign-in", { waitUntil: "networkidle" });
+    await page.getByRole("link", { name: "Play as a guest" }).click();
+    await page.waitForURL((url) => url.pathname === "/guest", { timeout: 30_000 });
+
+    const name = page.getByLabel("Name");
+    await page.getByRole("button", { name: "Randomise" }).click();
+    await expect(name).not.toHaveValue("");
+    await name.fill(character);
+    await page.getByRole("button", { name: "Play" }).click();
+    await expect(live).toBeAttached({ timeout: BOOT_TIMEOUT_MS });
+
+    await openGameMenu(page);
+    await page.getByRole("button", { name: "Save your character" }).click();
+    const dialog = page.getByRole("dialog", { name: "Save your character" });
+    await dialog.getByLabel("Username").fill(username);
+    await dialog.getByLabel("Email").fill(`${username}@example.test`);
+    await dialog.getByLabel("Password").fill("a-long-enough-password");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+    await expect(live).toBeAttached();
+
+    await pressLeaveWorld(page);
+    await expect(page.getByText(`Signed in as ${username}`)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByLabel("Username").fill(username);
+    await page.getByLabel("Password").fill("a-long-enough-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByRole("button", { name: character })).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+});
+
 test.describe("leaving mid-fight", () => {
   test("warns before a character walks out of a fight, and stays if told to", async ({ page }) => {
     test.setTimeout(BOOT_TIMEOUT_MS + 120_000);
