@@ -97,6 +97,14 @@ export async function createCharacter(name: string): Promise<Attempt<Character>>
   return made.ok ? { ok: true, value: made.value.character } : made;
 }
 
+export function sendFeedback(
+  message: string,
+  characterId: string | null,
+  context: Record<string, unknown>,
+): Promise<Attempt<unknown>> {
+  return post("/api/feedback", { message, characterId, context });
+}
+
 export const ADMIN_SIGN_IN_PATH = "/admin/sign-in";
 
 /**

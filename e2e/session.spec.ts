@@ -142,6 +142,32 @@ test.describe("playing as a guest", () => {
   });
 });
 
+test.describe("feedback", () => {
+  test("is sent from the game menu and read on the admin page, with where it was sent from", async ({
+    page,
+  }) => {
+    test.setTimeout(BOOT_TIMEOUT_MS + 60_000);
+    const message = `The well at the square hides the path ${freshCharacterName("")}`;
+
+    await enterWorldAsAdmin(page);
+    await openGameMenu(page);
+    await page.getByRole("button", { name: "Send feedback" }).click();
+    const dialog = page.getByRole("dialog", { name: "Send feedback" });
+    await dialog.getByRole("textbox").fill(message);
+    await dialog.getByRole("button", { name: "Send feedback" }).click();
+    await expect(dialog.getByRole("status")).toHaveText("Thanks. Your feedback was sent.", {
+      timeout: 30_000,
+    });
+
+    await page.goto("/admin/feedback", { waitUntil: "networkidle" });
+    const card = page.getByRole("listitem").filter({ hasText: message });
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await expect(card.getByText(/^\/goto -?\d+ -?\d+ -?\d+$/)).toBeVisible();
+    await card.getByText("Browser and game details").click();
+    await expect(card.getByText("webgl.renderer")).toBeVisible();
+  });
+});
+
 test.describe("leaving mid-fight", () => {
   test("warns before a character walks out of a fight, and stays if told to", async ({ page }) => {
     test.setTimeout(BOOT_TIMEOUT_MS + 120_000);

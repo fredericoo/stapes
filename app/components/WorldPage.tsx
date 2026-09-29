@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { AppShell, type Destination, MenuRow } from "./AppShell";
 import { InvisibleToggle } from "./InvisibleToggle";
 import { DeathScreen } from "./DeathScreen";
+import { FeedbackButton } from "./FeedbackButton";
 import { FrameStatsReadout } from "./FrameStatsReadout";
 import { GameViewport } from "./GameViewport";
 import { InkDocument } from "./InkDocument";
@@ -433,6 +434,22 @@ export function WorldPage({
     </span>
   );
 
+  const gameContext = () => {
+    const self = sessionRef.current?.getSnapshot().self;
+    return {
+      protocolVersion: PROTOCOL_VERSION,
+      status,
+      position: self ? { x: self.x, y: self.y, z: self.z } : null,
+      hp: vitals.hp,
+      maxHp: vitals.maxHp,
+      dead,
+      players,
+      fps: statsRef.current?.fps ?? null,
+      lighting: lightingEnabled,
+      padSide: coarse ? padSide : null,
+    };
+  };
+
   return (
     <>
       <div className="h-full" inert={dead || rebirthing} data-world-status={status}>
@@ -470,6 +487,9 @@ export function WorldPage({
                 </MenuRow>
               ) : null}
               {menuExtras}
+              <div className="py-2">
+                <FeedbackButton gameContext={gameContext} />
+              </div>
               {onLeave ? (
                 <div className="py-2">
                   <LeaveWorldButton
