@@ -521,7 +521,7 @@ single sidecar binary.
 
 ```bash
 curl https://stapes.example.com/api/health
-# {"status":"ok","players":0,"build":"<sha>"}
+# {"status":"ok","build":"<sha>","protocolVersion":<n>,"maintenance":false}
 ```
 
 ### Change the seeded administrator's password. First.
