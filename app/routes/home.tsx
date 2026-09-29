@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, useRef } from "react";
 import { SYSTEM_MONO } from "../components/door";
+import { Dangers } from "../components/home/Dangers";
 import { FeatureTour } from "../components/home/FeatureTour";
 import { FinalCall } from "../components/home/FinalCall";
 import { Gallery } from "../components/home/Gallery";
@@ -95,6 +96,7 @@ export default function HomePage() {
         <Hero heroRef={heroRef} />
         <main>
           <FeatureTour />
+          <Dangers />
           <Gallery />
           <FinalCall />
         </main>

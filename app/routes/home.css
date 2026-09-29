@@ -808,6 +808,88 @@
   object-fit: cover;
 }
 
+/* The sprites are drawn at `--cell` per game cell, so a rat and a piece of
+   meat keep the sizes they have beside each other in the world. */
+.home-dangers {
+  --cell: 40px;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 112px 16px 0;
+}
+
+.home-dangers .home-section-title {
+  color: var(--color-danger-on-ink);
+}
+
+.home-dangers-lede,
+.home-dangers-death {
+  max-width: 38rem;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--home-text);
+}
+
+.home-dangers-lede {
+  margin-top: 16px;
+}
+
+.home-dangers-list {
+  display: grid;
+  gap: 12px;
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-danger {
+  padding: 20px;
+  border: 2px solid var(--home-rule-faint);
+  background: var(--home-deep);
+}
+
+.home-danger-art {
+  display: flex;
+  align-items: flex-end;
+  height: calc(var(--cell) * 2);
+}
+
+.home-danger-art img {
+  width: calc(var(--cell) * var(--w));
+  height: calc(var(--cell) * var(--h));
+}
+
+.home-danger-title {
+  margin-top: 16px;
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--color-label);
+}
+
+.home-danger-body {
+  margin-top: 8px;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--home-text-quiet);
+}
+
+.home-dangers-death {
+  margin-top: 24px;
+}
+
+@media (min-width: 768px) {
+  .home-dangers-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-dangers {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+}
+
 .home-gallery {
   max-width: 76rem;
   margin: 0 auto;
