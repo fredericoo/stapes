@@ -1,6 +1,6 @@
 import type { MinutesOfDay } from "../lib/clock";
 import { MAX_CONSUMABLE_HP_SHIFT } from "../lib/item";
-import { MASTERIES, MAX_MASTERY, MIN_MASTERY, type Mastery } from "../lib/mastery";
+import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord } from "../lib/types";
 
 export const COMMAND_PREFIX = "/";
@@ -37,7 +37,7 @@ export type CommandName =
   | typeof DESPAWN_COMMAND;
 
 export const COMMAND_USAGE: Record<CommandName, string> = {
-  [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_MASTERY}-${MAX_MASTERY}> [player id]`,
+  [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_EARNED_MASTERY}-${MAX_MASTERY}> [player id]`,
   [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [xN] [x] [y] [z]`,
   [STATUS_COMMAND]: `${COMMAND_PREFIX}${STATUS_COMMAND} <status id | ${STATUS_CLEAR_ARGUMENT}> [player id]`,
   [HEALTH_COMMAND]: `${COMMAND_PREFIX}${HEALTH_COMMAND} <n | +n | -n> [player id]`,
@@ -223,7 +223,7 @@ function parseMasteryArguments(args: string[]): CommandParse {
   }
 
   const level = Number(levelToken);
-  if (!Number.isInteger(level) || level < MIN_MASTERY || level > MAX_MASTERY) {
+  if (!Number.isInteger(level) || level < MIN_EARNED_MASTERY || level > MAX_MASTERY) {
     return { ok: false, refusal: { kind: "badLevel", typed: levelToken } };
   }
 

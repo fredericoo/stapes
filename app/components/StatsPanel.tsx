@@ -35,13 +35,11 @@ export function StatsPanel({
   scrolls?: boolean;
   className?: string;
 }) {
-  const earned = MASTERIES.map((mastery) => ({
+  const levels = MASTERIES.map((mastery) => ({
     mastery,
     level: levelForXp(masteryXp[mastery] ?? 0),
     progress: progressToNextLevel(masteryXp[mastery] ?? 0),
-  }))
-    .filter((row) => row.level > 0)
-    .sort((a, b) => b.level - a.level);
+  })).sort((a, b) => b.level - a.level);
 
   const stars = vitals.rating ?? rating(masteriesFromXp(masteryXp));
 
@@ -74,21 +72,17 @@ export function StatsPanel({
         <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
           {HEADINGS.masteries}
         </h3>
-        {earned.length === 0 ? (
-          <p className="px-1 py-1 text-xs text-paper/50">Nothing practised yet. Hit something.</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {earned.map(({ mastery, level, progress }) => (
-              <li key={mastery} className="flex flex-col gap-0.5">
-                <span className="flex items-baseline gap-1 text-xs">
-                  <span className="capitalize text-paper/80">{mastery}</span>
-                  <span className="ml-auto tabular-nums text-paper">{level}</span>
-                </span>
-                <MasteryProgress mastery={mastery} level={level} progress={progress} />
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="flex flex-col gap-1">
+          {levels.map(({ mastery, level, progress }) => (
+            <li key={mastery} className="flex flex-col gap-0.5">
+              <span className="flex items-baseline gap-1 text-xs">
+                <span className="capitalize text-paper/80">{mastery}</span>
+                <span className="ml-auto tabular-nums text-paper">{level}</span>
+              </span>
+              <MasteryProgress mastery={mastery} level={level} progress={progress} />
+            </li>
+          ))}
+        </ul>
 
         <Combat attributes={vitals.attributes} />
       </div>

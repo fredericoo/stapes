@@ -1,7 +1,7 @@
 import { formatClock, type MinutesOfDay } from "../lib/clock";
 import type { CraftInteraction, ExtractInteraction, PlacedReward } from "../lib/interactions";
 import { DEFAULT_CRAFT_VERB, DEFAULT_EXTRACT_VERB } from "../lib/interactions";
-import { MASTERIES, MAX_MASTERY, MIN_MASTERY, type Mastery } from "../lib/mastery";
+import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
 import type { CastRefusal } from "./casting";
 import {
@@ -94,7 +94,7 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
     case "unknownMastery":
       return `No mastery called "${refusal.typed}". Try ${MASTERIES.join(", ")}`;
     case "badLevel":
-      return `"${refusal.typed}" is not a mastery between ${MIN_MASTERY} and ${MAX_MASTERY}`;
+      return `"${refusal.typed}" is not a mastery between ${MIN_EARNED_MASTERY} and ${MAX_MASTERY}`;
     case "noSuchTarget":
       return `Nobody here answers to "${refusal.typed}"`;
     case "unteachableTarget":

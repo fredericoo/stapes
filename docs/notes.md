@@ -5849,9 +5849,8 @@ So the fee is **flat and unscaled** — not by what the stone asks, not by what
 came of it, not by who you were pointing at. Every scale that applies elsewhere
 is a scale that could take it back to zero, which is the one thing a floor must
 not do. It is paid where the cooldown is spent, for the cast rather than its
-result. At `XP_PER_CAST` it is four presses of a light to the first point of
-Arcane, and it is deliberately half what a *single point of damage* is worth: a
-way into the mastery rather than a way up it.
+result. `XP_PER_CAST` is deliberately half what a *single point of damage* is
+worth: a way into the mastery rather than a way up it.
 
 A flame you conjured pays you when it burns somebody, and that thread is the
 longest in the feature: the placement carries `castBy` — a **new** field, never
@@ -5889,11 +5888,13 @@ having learnt some. `spellElements` reads it, and reads **every** element the
 block names rather than the strongest, which is the whole of what "a spell can
 have more than one element" means.
 
-**Everybody starts with one point of each**, authored on the `player` tile and
-seeded as experience like every other starting mastery. That is what makes an
-element reachable at all: the requirement is an outright gate, so a body with no
-Fire could never throw the spell that would have earned it. The bottom rung of
-each element asks for exactly the point you begin with.
+**Everybody has one point of each.** The `player` tile authors it, but what
+gives it is the floor: experience never reads below `MIN_EARNED_MASTERY` (see
+*Experience never reads below level 1*), so the authored 1 seeds nothing and
+every player would read 1 without it. That is what makes an element reachable
+at all: the requirement is an outright gate, so a body with no Fire could never
+throw the spell that would have earned it. The bottom rung of each element asks
+for exactly that one point.
 
 Those points are masteries and nothing else. They do **not** make a starting
 player fire, water and nature — what a body is *made of* is a different field
@@ -5901,8 +5902,30 @@ entirely, and the `player` tile authors none of it.
 
 An existing player is *not* reseeded — `hasExperience` gates seeding on the block
 being absent, which is the property that stops a restored empty block wiping
-somebody. So a body that predates this has none of the three and cannot cast the
-bottom rung until `/mastery fire 1` says otherwise.
+somebody. It does not need to be: a body that predates the elements has no
+experience in any of the three, and no experience reads as level 1 (below).
+
+#### Experience never reads below level 1
+
+`levelForXp` clamps at `MIN_EARNED_MASTERY`, and `xpForLevel` charges nothing
+for it: level 1 is where a mastery with no experience at all stands. Above it
+the curve is unchanged, `XP_PER_LEVEL_SQUARED` times the level squared, so
+nobody at 2 or more moved when this landed. Levels 0 and 1 became one level.
+
+The reason is the element gate above. A body at Fire 0 cannot cast a fire
+spell, and casting one is the only thing that pays Fire, so a body at 0 could
+never get to 1. With the reading clamped, a rule that takes experience away
+cannot take that last point, and no such rule has to know about elements.
+
+It is a floor on **experience**, not on masteries. `MIN_MASTERY` stays 0 for
+blocks that are authored rather than earned: a creature's unauthored mastery is
+still 0, and moving that to 1 would move the hit points, defence, dodge and
+Rating of every creature in the world and the Arena's numbers with them. So the
+two minimums are two constants, and `/mastery` takes `MIN_EARNED_MASTERY` as
+its bottom, since it writes experience and a 0 is not something experience can
+say. `masteriesFromXp` returns every mastery for the same reason: a missing key
+would read as `MIN_MASTERY` through `masteryLevel`, which is the creature's
+floor, not the player's.
 
 #### A body's element is authored and worn, never practised
 
@@ -7037,10 +7060,12 @@ thing.
 
 The baseline is now **a wielder who has just earned the weapon**: `itemCard`
 builds the comparison body out of the weapon's own requirements rather than out
-of nothing. That is a real body, so the pair answers a question a player has —
-am I getting more out of this than somebody who only just qualified — and at
-exactly the requirement the two agree and the strikethrough disappears, which is
-the honest reading of having only just earned it.
+of nothing. It reads them back through experience, so every mastery the weapon
+does not ask for sits at `MIN_EARNED_MASTERY`, as the viewer's own does. That is
+a real body, so the pair answers a question a player has — am I getting more
+out of this than somebody who only just qualified — and at exactly the
+requirement the two agree and the strikethrough disappears, which is the honest
+reading of having only just earned it.
 
 One consequence is worth naming because it looks like a contradiction. Below the
 gate the **damage** row now leans red, and falling short still does not take
@@ -8912,9 +8937,9 @@ wording is shorter than an item card's for the same reason: a card has room to
 say a shot is a shot and this cell does not.
 
 **Under the masteries, not over them.** What you have practised is what you are;
-this is what it currently comes to with a weapon in your hand. On a body that
-has earned every mastery the block therefore starts below the panel's fold,
-which is the cost of that ordering.
+this is what it currently comes to with a weapon in your hand. Every body lists
+every mastery, since none reads below `MIN_EARNED_MASTERY`, so the block starts
+below the panel's fold, which is the cost of that ordering.
 
 `Attributes` is a projection of `FightingStats` and not the block itself. Half of
 that block is not a reading: `accuracy` is a position in a contest, `variance` is

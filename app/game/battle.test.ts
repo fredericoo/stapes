@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
-import { defFrom, maxHpFrom, resolveBattler } from "../lib/battler";
+import { defFrom, hasteFrom, maxHpFrom, resolveBattler } from "../lib/battler";
 import { ATTACKER_SELECTOR, nearest, resolveBrain, slot } from "../lib/brain";
 import { conditionLeaves } from "../lib/conditions";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { MIN_EARNED_MASTERY } from "../lib/mastery";
 import { COMBAT_DURATION_MS, COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTiles } from "../lib/types";
@@ -393,7 +394,7 @@ describe("swinging at a target", () => {
   });
 
   describe("getting into the first blow", () => {
-    const INTERVAL_MS = attackIntervalMs(0);
+    const INTERVAL_MS = attackIntervalMs(0, hasteFrom(MIN_EARNED_MASTERY));
     const APPROACH_MS = INTERVAL_MS * SWING_WINDUP_SHARE;
 
     const slow = tiles.map((t) =>

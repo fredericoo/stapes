@@ -143,15 +143,23 @@ export function requirementCoverage(
 
 export type MasteryXp = Partial<Record<Mastery, number>>;
 
-export const XP_FOR_FIRST_LEVEL = 4;
+export const XP_PER_LEVEL_SQUARED = 4;
+
+/**
+ * Experience never reads below this, even with none at all. An element at 0
+ * could never be earned, because only a stone that asks for a point of the
+ * element pays it.
+ */
+export const MIN_EARNED_MASTERY = 1;
 
 export function xpForLevel(level: number): number {
-  return XP_FOR_FIRST_LEVEL * level * level;
+  if (level <= MIN_EARNED_MASTERY) return 0;
+  return XP_PER_LEVEL_SQUARED * level * level;
 }
 
 export function levelForXp(xp: number): number {
-  const level = Math.floor(Math.sqrt(Math.max(0, xp) / XP_FOR_FIRST_LEVEL));
-  return Math.min(MAX_MASTERY, level);
+  const level = Math.floor(Math.sqrt(Math.max(0, xp) / XP_PER_LEVEL_SQUARED));
+  return Math.min(MAX_MASTERY, Math.max(MIN_EARNED_MASTERY, level));
 }
 
 export function progressToNextLevel(xp: number): number {
@@ -170,11 +178,18 @@ export function hasExperience(xp: MasteryXp | undefined): xp is MasteryXp {
   return false;
 }
 
+export function asEarned(masteries: Masteries): Masteries {
+  const earned: Masteries = {};
+  for (const mastery of MASTERIES) {
+    earned[mastery] = Math.max(MIN_EARNED_MASTERY, masteryLevel(masteries, mastery));
+  }
+  return earned;
+}
+
 export function masteriesFromXp(xp: MasteryXp): Masteries {
   const masteries: Masteries = {};
   for (const mastery of MASTERIES) {
-    const level = levelForXp(xp[mastery] ?? 0);
-    if (level > MIN_MASTERY) masteries[mastery] = level;
+    masteries[mastery] = levelForXp(xp[mastery] ?? 0);
   }
   return masteries;
 }
@@ -183,7 +198,7 @@ export function xpFromMasteries(masteries: Masteries): MasteryXp {
   const xp: MasteryXp = {};
   for (const mastery of MASTERIES) {
     const level = masteryLevel(masteries, mastery);
-    if (level > MIN_MASTERY) xp[mastery] = xpForLevel(level);
+    if (level > MIN_EARNED_MASTERY) xp[mastery] = xpForLevel(level);
   }
   return xp;
 }

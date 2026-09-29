@@ -3,7 +3,14 @@ import { type BattlerDef, DEFAULT_BASE_HP, defFrom } from "../lib/battler";
 import { MELEE_REACH } from "../lib/item";
 import shippedTiles from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import { levelForXp, MASTERIES, type Mastery, type MasteryXp, xpForLevel } from "../lib/mastery";
+import {
+  levelForXp,
+  MASTERIES,
+  type Mastery,
+  type MasteryXp,
+  MIN_EARNED_MASTERY,
+  xpForLevel,
+} from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import type { AttackOutcome } from "./combat";
@@ -320,7 +327,9 @@ describe("a player earns from the fights they have", () => {
 
     for (const mastery of MASTERIES) {
       const authored = (EVENLY_MATCHED as Partial<Record<Mastery, number>>)[mastery] ?? 0;
-      expect(levelForXp(learnt(session.masteryXpOf("me"), mastery))).toBe(authored);
+      expect(levelForXp(learnt(session.masteryXpOf("me"), mastery))).toBe(
+        Math.max(MIN_EARNED_MASTERY, authored),
+      );
     }
   });
 
