@@ -82,6 +82,17 @@ describe("serving a build", () => {
     );
   });
 
+  it("names video by its type, not as a download", async () => {
+    const files = build("aaa");
+    files.set("home/clip.mp4", new Uint8Array(1));
+    files.set("home/clip.webm", new Uint8Array(1));
+    await bundle.store("aaa", files);
+    await bundle.activate("aaa");
+
+    expect(bundle.respond("/home/clip.mp4")!.headers.get("Content-Type")).toBe("video/mp4");
+    expect(bundle.respond("/home/clip.webm")!.headers.get("Content-Type")).toBe("video/webm");
+  });
+
   it("keeps serving an older build's assets to tabs still on it", async () => {
     await bundle.store("aaa", build("aaa"));
     await bundle.activate("aaa");

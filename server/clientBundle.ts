@@ -214,12 +214,15 @@ const CONTENT_TYPES: Record<string, string> = {
   json: "application/json",
   svg: "image/svg+xml",
   png: "image/png",
+  gif: "image/gif",
   jpg: "image/jpeg",
   webp: "image/webp",
   woff2: "font/woff2",
   woff: "font/woff",
   ttf: "font/ttf",
   ico: "image/x-icon",
+  mp4: "video/mp4",
+  webm: "video/webm",
   map: "application/json",
 };
 
