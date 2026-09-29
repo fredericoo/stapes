@@ -389,9 +389,12 @@ type WrittenActor = {
   equipment: Equipment | null;
   tags: readonly string[] | null;
   masteries: MasteryXp | null;
-  statuses: readonly StatusInstance[] | null;
-  hp: number | null;
   pvp: boolean;
+};
+
+type StoredVitals = {
+  hp: number | null;
+  statuses: readonly StatusInstance[] | null;
 };
 
 function samePosition(a: ActorPosition, b: ActorPosition): boolean {
@@ -722,6 +725,13 @@ export class GameServer {
   private actorsSavedAt = 0;
   private checkpointedMap: MapFile | null = null;
   private writtenActors = new Map<string, WrittenActor>();
+  /**
+   * What storage holds for each seated player's `hp:` and `statuses:`,
+   * seeded at seating. Unlike `writtenActors` it survives a forced save, which
+   * would otherwise compare a healed body against "no record" and leave the
+   * stored wound to come back on the next seat.
+   */
+  private storedVitals = new Map<string, StoredVitals>();
   private chatLogReady = false;
   private dead = new Set<string>();
   private pendingDeathWrites = new Map<string, Death>();
@@ -1213,7 +1223,8 @@ export class GameServer {
         };
       }
       if (!session.isResident(actorId)) {
-        const lastStatuses = written?.statuses ?? null;
+        const stored = this.storedVitals.get(actorId);
+        const lastStatuses = stored?.statuses ?? null;
         const bothEmpty = (statuses?.length ?? 0) === 0 && (lastStatuses?.length ?? 0) === 0;
         if (!bothEmpty && statuses !== lastStatuses) {
           entries[this.statusesKey(actorId)] = {
@@ -1221,9 +1232,10 @@ export class GameServer {
             savedAt,
           };
         }
-        if (hp !== (written?.hp ?? null)) {
+        if (hp !== (stored?.hp ?? null)) {
           entries[this.hpKey(actorId)] = { hp, savedAt };
         }
+        this.storedVitals.set(actorId, { hp, statuses });
         if (pvp !== (written?.pvp ?? false)) {
           entries[this.pvpKey(actorId)] = { on: pvp, savedAt };
         }
@@ -1234,8 +1246,6 @@ export class GameServer {
         equipment,
         tags,
         masteries,
-        statuses,
-        hp,
         pvp,
       });
     }
@@ -1259,6 +1269,7 @@ export class GameServer {
       }
       entries[this.hpKey(actorId)] = { hp: null, savedAt };
       entries[this.statusesKey(actorId)] = { statuses: [], savedAt };
+      this.storedVitals.set(actorId, { hp: null, statuses: null });
     }
     this.pendingDeathWrites.clear();
 
@@ -2032,6 +2043,7 @@ export class GameServer {
     this.session?.despawn(actorId);
     if (this.session) this.collectTransitionEvents(this.session);
     this.writtenActors.delete(actorId);
+    this.storedVitals.delete(actorId);
     this.sentMotion.delete(actorId);
     if (!wasHidden) this.events.push({ kind: "left", actorId });
     this.tellAdminsPlayerCount({ closing });
@@ -2203,6 +2215,7 @@ export class GameServer {
     this.events = [];
     this.justDied = [];
     this.writtenActors.clear();
+    this.storedVitals.clear();
     this.actorsSavedAt = 0;
 
     await this.ensureLoaded();
@@ -2436,9 +2449,14 @@ export class GameServer {
     this.silenced.delete(actorId);
     await this.rememberSpawn(actorId);
     const spawn = this.spawns.get(actorId);
+    const restored = await this.restoredActor(actorId);
+    this.storedVitals.set(actorId, {
+      hp: restored.hp ?? null,
+      statuses: restored.statuses ?? null,
+    });
     this.session!.spawn(actorId, {
       name: (await this.env.nameOf?.(actorId)) ?? null,
-      ...(await this.restoredActor(actorId)),
+      ...restored,
       ...(spawn ? { spawnAt: { x: spawn.x, y: spawn.y, z: spawn.z } } : {}),
     });
     this.collectTransitionEvents(this.session!);

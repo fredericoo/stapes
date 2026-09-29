@@ -462,6 +462,48 @@ describe("joining and leaving", () => {
       expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual(["alice", "carol"]);
     });
 
+    async function comeBackAfterEviction(pair: Pair, actorId: string) {
+      await disconnect(pair);
+      await simulateEviction();
+      return await connect(actorId);
+    }
+
+    function ownHp(hello: Record<string, unknown>, actorId: string) {
+      return (hello.hps as { actorId: string; hp: number; maxHp: number }[]).find(
+        (entry) => entry.actorId === actorId,
+      );
+    }
+
+    it("forgets the wound a returning player healed before leaving again", async () => {
+      const first = await connect("alice");
+      await hurt(first.ws);
+      const hurtBack = await comeBackAfterEviction(first.pair, "alice");
+      const wounded = ownHp(hurtBack.hello, "alice");
+      expect(wounded!.hp).toBeLessThan(wounded!.maxHp);
+
+      send(hurtBack.ws, { type: "command", text: `/health ${wounded!.maxHp}`, requestId: 1 });
+      await nextMessageOfType(hurtBack.ws, "commandReply");
+      const { hello } = await comeBackAfterEviction(hurtBack.pair, "alice");
+
+      const healed = ownHp(hello, "alice");
+      expect(healed!.hp).toBe(healed!.maxHp);
+    });
+
+    it("forgets a fight that ran out after the player returned to it", async () => {
+      const first = await connect("alice");
+      await hurt(first.ws);
+      const fighting = await comeBackAfterEviction(first.pair, "alice");
+      expect((fighting.hello.statuses as { defId: string }[]).map((s) => s.defId)).toContain(
+        COMBAT_STATUS_ID,
+      );
+
+      await endCombat("alice");
+      await wait(SETTLE_MS);
+      const { hello } = await comeBackAfterEviction(fighting.pair, "alice");
+
+      expect(hello.statuses).toEqual([]);
+    });
+
     it("writes down the death of a body left standing in a fight", async () => {
       const alice = await connect("alice");
       await hurt(alice.ws);
