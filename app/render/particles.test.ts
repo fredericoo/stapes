@@ -2,16 +2,6 @@ import { describe, expect, it } from "vitest";
 import { type ParticleEmitterSpec, type ParticleReading, ParticleSystem } from "./particles";
 import { DEFAULT_PARTICLES, MAX_LIVE_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 
-/**
- * A plume, as arithmetic.
- *
- * Every one of these is a thing that looked wrong on screen first: a plume that
- * emitted nothing at a high frame rate, a fire that went out between two frames,
- * a pool that filled with one emitter's backlog. The dice are handed in so the
- * assertions are about the simulation rather than about luck.
- */
-
-/** Dice that always come out at the same point of every range. */
 const fixed = (value: number) => () => value;
 
 const emitter = (
@@ -27,8 +17,22 @@ const emitter = (
   box: { eastPx: 40, southPx: 56, foot: 2, top: 4 },
   stackBias: 3,
   taper: 1,
+  scale: 1,
   ...over,
 });
+
+const STILL: Partial<ParticleEmitterDef> = {
+  ratePerSecond: 1,
+  ttlFromMs: 9_000,
+  ttlToMs: 9_000,
+  spawnRadiusCells: 0,
+  spawnElevFrom: 0,
+  spawnElevTo: 0,
+  riseFrom: 0,
+  riseTo: 0,
+  driftCellsPerSecond: 0,
+  gravity: 0,
+};
 
 const blank = (): ParticleReading => ({
   x: 0,
@@ -52,19 +56,10 @@ describe("emitting", () => {
   });
 
   it("still emits when a frame is worth less than one particle", () => {
-    // The bug the spawn debt exists for. Eight per second at 120fps is 0.067 of
-    // a particle per frame, and a plume that truncated would emit nothing at
-    // all — forever, and only on fast machines.
     const system = new ParticleSystem(fixed(0.5));
     system.setEmitters([emitter({}, { ratePerSecond: 8, ttlFromMs: 5_000, ttlToMs: 5_000 })]);
     const frameMs = 1_000 / 120;
     for (let i = 0; i < 120; i++) system.advance(frameMs);
-    // Seven or eight, not zero, and that is the whole assertion. A hundred and
-    // twenty frames of 1000/120ms come to 999.9999999999999ms, so the eighth
-    // particle is owed a rounding step later — the same accumulated-float slack
-    // `TICK_EPSILON_MS` absorbs in the simulation, and here it costs one spark a
-    // hundredth of a second. Pinning it to eight would be a test of floating
-    // point rather than of the debt.
     expect(system.count).toBeGreaterThanOrEqual(7);
     expect(system.count).toBeLessThanOrEqual(8);
   });
@@ -86,11 +81,8 @@ describe("emitting", () => {
     ]);
     system.advance(1_000);
     const p = system.read(0, blank());
-    // Dice pinned at 1, so every range lands on its far end.
     expect(p.x).toBeCloseTo(4.75);
     expect(p.y).toBeCloseTo(6.75);
-    // Spawn elevation is measured from the tile's foot, not from the floor of
-    // the world — a plume on a first-storey balcony starts at the balcony.
     expect(p.elev).toBeCloseTo(4);
   });
 
@@ -108,11 +100,6 @@ describe("emitting", () => {
   });
 
   it("stops at the pool ceiling rather than growing", () => {
-    // Two emitters, because one cannot get there: the loudest legal plume is
-    // `MAX_PARTICLE_RATE` a second living `MAX_PARTICLE_TTL_MS`, which settles
-    // at 2000 against a pool of 2048. That the ceiling sits just above what one
-    // emitter can do is the sizing working, not a coincidence — it takes a
-    // second burning body to reach it.
     const system = new ParticleSystem(fixed(0.5));
     const loud = { ratePerSecond: 200, ttlFromMs: 10_000, ttlToMs: 10_000 };
     system.setEmitters([emitter({ id: "a" }, loud), emitter({ id: "b" }, loud)]);
@@ -166,46 +153,68 @@ describe("living and dying", () => {
     const rising = system.read(0, blank()).elev;
     expect(rising).toBeGreaterThan(start);
 
-    // Four height units a second against eight a second squared: the push is
-    // spent at half a second, and everything after that is fallout.
     for (let i = 0; i < 8; i++) system.advance(250);
     expect(system.read(0, blank()).elev).toBeLessThan(rising);
   });
 
-  it("bends away under the wind rather than leaning from birth", () => {
-    // The whole reason the wind is an acceleration: a plume that left the
-    // chimney already travelling would read as a jet. Asserted as a *curve* —
-    // the second second of travel is longer than the first — because a constant
-    // sideways speed would make the two equal and pass a weaker test.
+  it("goes round a circle when its offsets are one", () => {
     const system = new ParticleSystem(fixed(0.5));
     system.setEmitters([
       emitter(
         {},
         {
-          ratePerSecond: 1,
-          ttlFromMs: 9_000,
-          ttlToMs: 9_000,
-          driftCellsPerSecond: 0,
-          windX: 2,
-          windY: 0,
+          ...STILL,
+          offsetX: "cos(PI * AGE_SEC)",
+          offsetY: "sin(PI * AGE_SEC)",
         },
       ),
     ]);
     system.advance(1_000);
-    const born = system.read(0, blank());
-    expect(born.x).toBeCloseTo(4.5);
+    const expectAt = (x: number, y: number) => {
+      const p = system.read(0, blank());
+      expect(p.x).toBeCloseTo(x);
+      expect(p.y).toBeCloseTo(y);
+      expect(p.elev).toBeCloseTo(2);
+    };
+    expectAt(5.5, 6.5);
+    system.advance(500);
+    expectAt(4.5, 7.5);
+    system.advance(500);
+    expectAt(3.5, 6.5);
+  });
 
+  it("gives every particle a seed of its own, and keeps it when another dies", () => {
+    let draws = 0;
+    const system = new ParticleSystem(() => (draws++ * 0.137) % 1);
+    const seeded = { ...STILL, offsetElev: "SEED" };
+    const shortLived = emitter({ id: "a" }, { ...seeded, ttlFromMs: 400, ttlToMs: 400 });
+    const lasting = emitter({ id: "b", footElev: 10 }, seeded);
+    system.setEmitters([shortLived, lasting]);
     system.advance(1_000);
-    const first = system.read(0, blank()).x - 4.5;
+    const doomedSeed = system.read(0, blank()).elev - 2;
+    const survivorSeed = system.read(1, blank()).elev - 10;
+    expect(survivorSeed).not.toBeCloseTo(doomedSeed);
+
+    system.setEmitters([lasting]);
+    system.advance(500);
+    expect(system.count).toBe(1);
+    expect(system.read(0, blank()).elev - 10).toBeCloseTo(survivorSeed);
+  });
+
+  it("takes up an edited offset on a plume that is still running", () => {
+    const system = new ParticleSystem(fixed(0.5));
+    system.setEmitters([emitter({}, { ...STILL, ttlFromMs: 2_000, ttlToMs: 2_000 })]);
     system.advance(1_000);
-    const second = system.read(0, blank()).x - 4.5 - first;
-    expect(first).toBeGreaterThan(0);
-    expect(second).toBeGreaterThan(first);
+    system.advance(500);
+    expect(system.read(0, blank()).x).toBeCloseTo(4.5);
+
+    system.setEmitters([
+      emitter({}, { ...STILL, ttlFromMs: 2_000, ttlToMs: 2_000, offsetX: "4 * LIFE" }),
+    ]);
+    expect(system.read(0, blank()).x).toBeCloseTo(5.5);
   });
 
   it("leaves a still plume where the drift put it", () => {
-    // No wind is the state every plume authored before this existed is in, and
-    // it has to stay exactly the straight-up column it always was.
     const system = new ParticleSystem(fixed(0.5));
     system.setEmitters([
       emitter(
@@ -226,6 +235,61 @@ describe("living and dying", () => {
   });
 });
 
+describe("scaled to the body it is drawn on", () => {
+  const TRAVELLING: Partial<ParticleEmitterDef> = {
+    ratePerSecond: 1,
+    ttlFromMs: 9_000,
+    ttlToMs: 9_000,
+    spawnRadiusCells: 0.25,
+    spawnElevFrom: 1,
+    spawnElevTo: 1,
+    riseFrom: 4,
+    riseTo: 4,
+    driftCellsPerSecond: 0.5,
+    gravity: -2,
+    offsetX: "0.8 * cos(7 * AGE_SEC)",
+    offsetY: "0.8 * sin(7 * AGE_SEC)",
+    offsetElev: "AGE_SEC",
+  };
+
+  it("draws a plume at scale 2 as the authored one enlarged about its anchor, on the same clock", () => {
+    const spec = emitter({}, TRAVELLING);
+    const authored = new ParticleSystem(fixed(0.75));
+    const doubled = new ParticleSystem(fixed(0.75));
+    authored.setEmitters([spec]);
+    doubled.setEmitters([{ ...spec, scale: 2 }]);
+    for (const system of [authored, doubled]) system.advance(1_000);
+
+    for (let step = 0; step < 4; step++) {
+      for (const system of [authored, doubled]) system.advance(250);
+      const a = authored.read(0, blank());
+      const d = doubled.read(0, blank());
+      expect(d.x - spec.cx).toBeCloseTo(2 * (a.x - spec.cx));
+      expect(d.y - spec.cy).toBeCloseTo(2 * (a.y - spec.cy));
+      expect(d.elev - spec.footElev).toBeCloseTo(2 * (a.elev - spec.footElev));
+      expect(d.life).toBeCloseTo(a.life);
+    }
+  });
+
+  it("holds a particle to the scale it was born at, wherever the pool moves it", () => {
+    const falling = { ...STILL, gravity: -8, offsetElev: "1" };
+    const lasting = emitter({ id: "b", scale: 2 }, falling);
+    const alone = new ParticleSystem(fixed(0.5));
+    alone.setEmitters([lasting]);
+
+    const crowded = new ParticleSystem(fixed(0.5));
+    const shortLived = emitter({ id: "a" }, { ...falling, ttlFromMs: 400, ttlToMs: 400 });
+    crowded.setEmitters([shortLived, lasting]);
+
+    for (const system of [alone, crowded]) system.advance(1_000);
+    crowded.setEmitters([{ ...lasting, scale: 3 }]);
+    for (const system of [alone, crowded]) system.advance(500);
+
+    expect(crowded.count).toBe(1);
+    expect(crowded.read(0, blank()).elev).toBeCloseTo(alone.read(0, blank()).elev);
+  });
+});
+
 describe("plumes coming and going", () => {
   it("keeps a plume's particles when it merely moves", () => {
     const system = new ParticleSystem(fixed(0.5));
@@ -233,7 +297,6 @@ describe("plumes coming and going", () => {
     system.advance(1_000);
     const before = system.count;
 
-    // The same fire, one cell east — a burning creature took a step.
     system.setEmitters([
       emitter({ cx: 5.5 }, { ratePerSecond: 4, ttlFromMs: 5_000, ttlToMs: 5_000 }),
     ]);
@@ -247,8 +310,6 @@ describe("plumes coming and going", () => {
     system.advance(1_000);
     expect(system.count).toBe(2);
 
-    // The status is over. A fire that vanished between two frames would read as
-    // a rendering bug rather than as a fire going out.
     system.setEmitters([]);
     system.advance(500);
     expect(system.count).toBe(2);
@@ -260,9 +321,6 @@ describe("plumes coming and going", () => {
   });
 
   it("keeps every surviving particle pointing at its own plume", () => {
-    // The renumbering hazard: dropping a finished emitter shifts the indices of
-    // everything after it, and a particle left pointing at the old slot would
-    // draw in another plume's colours at another plume's depth.
     const system = new ParticleSystem(fixed(0));
     const shortLived = emitter(
       { id: "a" },

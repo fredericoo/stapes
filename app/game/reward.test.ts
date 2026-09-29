@@ -18,19 +18,7 @@ import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession } from "./GameSession";
 import { listInteractionOptions } from "./interactionOptions";
 
-/**
- * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
- * here like every other tile id in this file: what a body carries is authored
- * content now, so there is no constant in the engine left to import.
- */
 const BAG_TILE_ID = "basic-bag";
-
-/**
- * A reward is the one thing on the board that happens to a *player* rather than
- * to the world, and every test here is about that asymmetry: the chest is
- * untouched afterwards, the taker is not, and the second tap has to know the
- * difference.
- */
 
 function tile(partial: Record<string, unknown>): TileDef {
   return normalizeTileDef({
@@ -48,9 +36,6 @@ const REWARD_TAG = "chest-42";
 
 const tiles = [
   tile({ id: "grass" }),
-  // The kit is what puts a bag on somebody's back now — see `app/lib/kit.ts` —
-  // and a reward with nowhere to go is refused, so this block is the premise of
-  // half the file rather than decoration.
   tile({
     id: "player",
     height: 4,
@@ -72,8 +57,6 @@ const tiles = [
     kind: "item",
     interactions: { item: { ...DEFAULT_CONTAINER, size: 4 } },
   }),
-  // One giver tile, used by every chest in these tests — which is the point of
-  // the split: what each chest gives is on its placement.
   tile({
     id: "quest-chest",
     interactions: { reward: { actionName: "Open" } },
@@ -86,13 +69,6 @@ const ME = { x: 0, y: 0, z: 0 };
 const CHEST: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const OTHER: ObjectRef = { x: 1, y: 1, z: 0, stackIndex: 1 };
 
-/**
- * Somewhere to stand, with a chest beside it and its twin diagonally on.
- *
- * Both are the *same tile*, and they differ only in what is written on the
- * placement — which is the arrangement this whole split exists to make possible.
- * They share a tag, so they are a choice.
- */
 function board(
   chestTileId = "quest-chest",
   chestTag: string | undefined = REWARD_TAG,
@@ -123,7 +99,6 @@ function board(
   return map;
 }
 
-/** The reward one cell of a board actually offers, for the resolver tests. */
 function rewardAt(map: MapFile, x: number, y: number) {
   const placed = getStack(map, x, y, 0)[1]!;
   return resolveReward(placed, tilesById[placed.tileId]);
@@ -177,8 +152,6 @@ describe("resolving a reward", () => {
   });
 
   it("keeps the authored order of the items", () => {
-    // Not sorted, unlike `moveOnTileIds`: which thing lands in the bag first is
-    // the author's to decide.
     expect(
       rewardAt(board("quest-chest", REWARD_TAG, ["sword", "torch"]), 1, 0)?.itemTileIds,
     ).toEqual(["sword", "torch"]);
@@ -210,8 +183,6 @@ describe("whether a reward fits", () => {
     const reward = rewardAt(board(), 1, 0)!;
 
     expect(rewardFits(reward, tilesById, bagWith(2))).toBe(true);
-    // One slot free and two things to put in it. Half a reward is half of it
-    // lost for ever, so the answer is no rather than one sword.
     expect(rewardFits(reward, tilesById, bagWith(3))).toBe(false);
   });
 
@@ -244,8 +215,6 @@ describe("taking a reward", () => {
 
     const snap = session.getSnapshot();
     expect(snap.equipment.bag?.contents?.map((i) => i.tileId)).toEqual(["torch", "sword"]);
-    // The whole point: nothing on the board moved, so the next player finds the
-    // chest as full as this one did.
     expect(session.getMap()).toBe(before);
     expect(getStack(session.getMap(), 1, 0, 0)[1]?.tileId).toBe("quest-chest");
   });
@@ -279,13 +248,10 @@ describe("taking a reward", () => {
 
   it("is refused, and takes nothing at all, when the bag is nearly full", () => {
     const session = new GameSession(board(), tiles);
-    // Somebody else, stood diagonally off the chest, with three of four slots
-    // already spoken for against a reward of two.
     session.spawn("crowded", { at: { x: 0, y: 1, z: 0 }, carrying: bagWith(3) });
 
     expect(session.canTakeReward(CHEST, "crowded")).toBe(false);
     expect(session.interact(CHEST, "crowded")).toBe(false);
-    // Nothing partial: no tag, so they can come back once they have made room.
     expect(session.tagsOf("crowded")).toEqual([]);
     expect(session.equipmentOf("crowded")?.bag?.contents).toHaveLength(3);
   });
@@ -325,8 +291,6 @@ describe("taking a reward", () => {
     };
 
     const offered = rows().find((o) => o.action === "reward");
-    // Named by its author, and by the tile it is on rather than by the verb the
-    // mechanism would otherwise supply.
     expect(offered?.label).toBe("Open");
     expect(offered?.name).toBe("quest-chest");
 
@@ -359,11 +323,6 @@ describe("a reward the actor cannot reach", () => {
   });
 });
 
-/**
- * The authoring mutation, which the placement settings dialog commits on close —
- * so it runs whether or not anything was typed, and has to behave when nothing
- * was.
- */
 describe("writing a reward onto a placement", () => {
   const at = (map: MapFile) => getStack(map, 1, 0, 0)[1]!;
 
@@ -376,15 +335,10 @@ describe("writing a reward onto a placement", () => {
 
   it("returns the same map when nothing changed", () => {
     const before = board();
-    // The dialog commits on every close, so an author who opened it and pressed
-    // Done must not mint a map identity, an undo entry and a geometry diff.
     expect(updatePlacedReward(before, 1, 0, 0, 1, REWARD_TAG, ["torch", "sword"])).toBe(before);
   });
 
   it("clears both halves when either is emptied", () => {
-    // Half of one is inert — a tagless reward could be taken for ever, an empty
-    // one offers a verb that does nothing — so a placement must never be left
-    // looking authored and doing nothing.
     const cleared = updatePlacedReward(board(), 1, 0, 0, 1, "", ["sword"]);
 
     expect(at(cleared).rewardTag).toBeUndefined();

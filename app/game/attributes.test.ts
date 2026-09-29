@@ -12,21 +12,6 @@ import { potentialDamages } from "./combatMetrics";
 import { effectiveBattler, type Equipment, emptyEquipment } from "./equipment";
 import { walkDurationMsFor } from "./movement";
 
-/**
- * What the stats panel is told about the body it belongs to.
- *
- * Asserted **against the engine that produces the figures** wherever one exists
- * — `effectiveBattler`, `swingIntervalMs`, `potentialDamages` and
- * `walkDurationMsFor` are re-run here and the block is checked to agree with
- * them. Pinning literals instead would turn every balance change into a failing
- * panel test, and would let the panel go on being confidently wrong the day
- * somebody tuned a curve without touching this file.
- *
- * What *is* pinned is the shape a reader depends on: that the damage row is the
- * band a blow can actually land in, that the hand reported does not rotate, and
- * that a status is counted in.
- */
-
 const FANG: WeaponItem = {
   type: "weapon",
   damage: 12,
@@ -38,7 +23,6 @@ const FANG: WeaponItem = {
   mastery: "sharp",
 };
 
-/** A club that hits harder and slower, so a second hand is a different blow. */
 const CLUB: WeaponItem = {
   ...FANG,
   damage: 30,
@@ -46,7 +30,6 @@ const CLUB: WeaponItem = {
   mastery: "blunt",
 };
 
-/** Two hundred, so a halved pace is a different figure and not a rounding. */
 const BODY_TILE: TileDef = normalizeTileDef({
   id: "body",
   name: "Body",
@@ -65,7 +48,6 @@ function bodyWith(over: Partial<BattlerDef> = {}): BattlerDef {
   };
 }
 
-/** Something that shoots, with an optional dead zone in front of it. */
 function bowWith(over: Partial<Reach> = {}): WeaponItem {
   return {
     ...FANG,
@@ -78,7 +60,6 @@ function itemTile(id: string, item: ItemDef): TileDef {
   return normalizeTileDef({ id, name: id, kind: "item", interactions: { item } });
 }
 
-/** One carried thing, whose id nothing here reads and every reader requires. */
 function held(tileId: string): ItemInstance {
   return { id: `${tileId}-1`, tileId };
 }
@@ -106,7 +87,6 @@ function readingOf(over: Partial<Parameters<typeof attributesOf>[0]> = {}) {
   });
 }
 
-/** The same body with one weapon or the other in its main hand. */
 const withFang = readingOf({ equipment: holding({ weapon: held("fang") }) });
 const withClub = readingOf({ equipment: holding({ weapon: held("club") }) });
 
@@ -155,15 +135,6 @@ describe("the swing row", () => {
 });
 
 describe("the hand reported", () => {
-  /**
-   * The rotation is state of a fight and is never broadcast, so a panel that
-   * read it would flip between two sets of numbers on one client and sit still
-   * on the other. Two different weapons, and the block says the weapon hand's.
-   *
-   * Asserted against the whole block rather than one field of it: what is being
-   * checked is *which weapon is being described*, and the club and the fang
-   * differ in damage and in speed.
-   */
   it("does not depend on whose turn it is", () => {
     const reading = readingOf({
       equipment: holding({
@@ -183,12 +154,6 @@ describe("the hand reported", () => {
 });
 
 describe("the walk row", () => {
-  /**
-   * The ground is where the body happens to be standing rather than what it is,
-   * and a reading that changed as you crossed a bog would be answering a
-   * question about the floor. A step actually taken counts both, which is why
-   * the figure here is the tile's own pace and not `walkDurationOf`'s.
-   */
   it("is the pace the body is authored at, as a rate", () => {
     expect(readingOf().walkPace).toBeCloseTo(1000 / walkDurationMsFor(BODY_TILE, 0), 6);
   });
@@ -240,20 +205,11 @@ describe("the reach row", () => {
     expect(readingOf().reach).toBe("Melee");
   });
 
-  /**
-   * Shorter than the wording on an item's card, which has room to say a shot is
-   * a shot. The panel's cell does not — see `./attributes`'s `Attributes.reach`.
-   */
   it("counts the cells for anything longer, and says nothing about arrows", () => {
     const reading = readingOf({ body: bodyWith({ naturalWeapon: bowWith() }) });
     expect(reading.reach).toBe("6c");
   });
 
-  /**
-   * The floor is the one part of a reach that says what the weapon cannot do, so
-   * it is not what gets dropped to make the figure fit — a bow reading "6c" when
-   * it is dead inside two cells has told the reader nothing.
-   */
   it("states a floor as a span", () => {
     const reading = readingOf({
       body: bodyWith({ naturalWeapon: bowWith({ min: 2 }) }),
@@ -287,16 +243,11 @@ describe("sameAttributes", () => {
     expect(sameAttributes(null, reading)).toBe(false);
   });
 
-  /**
-   * Every field, because the whole point of the comparison is that the panel
-   * re-renders when any of them moves — a field added to {@link Attributes} and
-   * forgotten here is a reading that silently stops updating.
-   */
   it("fails on a change to any field", () => {
     for (const key of Object.keys(reading) as (keyof Attributes)[]) {
       const moved: Attributes = { ...reading };
       const was = moved[key];
-      // @ts-expect-error — one field at a time, whatever type it happens to be.
+      // @ts-expect-error
       moved[key] = typeof was === "number" ? was + 1 : `${was}!`;
       expect(sameAttributes(reading, moved), key).toBe(false);
     }

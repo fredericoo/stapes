@@ -55,8 +55,6 @@ describe("mapData copy-on-write", () => {
     const target = coords[0]!;
     const chk = chunkKeyFor(target.x, target.y);
 
-    // A cell in some *other* chunk of the same level — the reference that must
-    // survive, and the whole reason levels are chunked.
     const elsewhere = coords.find((c) => chunkKeyFor(c.x, c.y) !== chk)!;
     expect(elsewhere).toBeTruthy();
     const otherChunkBefore = levelBefore[chunkKeyFor(elsewhere.x, elsewhere.y)]!;
@@ -70,8 +68,6 @@ describe("mapData copy-on-write", () => {
     expect(next.levels[levelKey(z)]![chk]).not.toBe(levelBefore[chk]);
     expect(getStack(next, target.x, target.y, z)).toBe(nextStack);
 
-    // Untouched chunk keeps its identity, so an edit copies one chunk rather
-    // than the whole floor.
     expect(next.levels[levelKey(z)]![chunkKeyFor(elsewhere.x, elsewhere.y)]).toBe(otherChunkBefore);
 
     for (let i = 0; i < otherKeys.length; i++) {
@@ -102,8 +98,6 @@ describe("signal channels", () => {
       { tileId: "door", channel: "gate-a" },
     ]);
 
-    // Cleared, not left as an empty string — an unwired placement must read
-    // the same whether it was never wired or wired and undone.
     const cleared = updatePlacedChannel(wired, 1, 2, 0, 1, "");
     expect(getStack(cleared, 1, 2, 0)).toEqual([{ tileId: "grass" }, { tileId: "door" }]);
   });
@@ -111,8 +105,6 @@ describe("signal channels", () => {
   it("returns the same map when the channel is unchanged", () => {
     const map = replaceStack(emptyMap(), 1, 2, 0, [{ tileId: "door", channel: "gate-a" }]);
 
-    // Committed on blur, which fires whether or not anything was typed. A new
-    // map object here is an undo entry and a geometry diff for nothing.
     expect(updatePlacedChannel(map, 1, 2, 0, 0, "gate-a")).toBe(map);
     expect(updatePlacedChannel(map, 1, 2, 0, 0, "  gate-a  ")).toBe(map);
 
@@ -147,12 +139,6 @@ describe("placement inscriptions", () => {
     expect(getStack(cleared, 1, 2, 0)).toEqual([{ tileId: "grass" }, { tileId: "sign" }]);
   });
 
-  /**
-   * The two are one slot's worth of text each and must not reach for each
-   * other's key: an inscription is recited to anybody walking past and a
-   * description is not, so a writer that clobbered the wrong one would put a
-   * skull's cause of death in every passer-by's mouth.
-   */
   it("writes the two halves independently", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "sign" }]);
     map = updatePlacedInscription(map, 0, 0, 0, 0, "Here lies nobody");
@@ -174,12 +160,6 @@ describe("placement inscriptions", () => {
 });
 
 describe("reading a map written before the split", () => {
-  /**
-   * Every `description` in a version-1 file is an inscription, because that is
-   * all the field could be: there was one text on a placement and everybody
-   * standing near it recited the thing. The live world is restored through this
-   * path, so a migration that did not run would blank every sign in the city.
-   */
   it("lifts a version-1 description into an inscription", () => {
     const file = JSON.stringify({
       version: 1,
@@ -205,7 +185,6 @@ describe("reading a map written before the split", () => {
     ]);
   });
 
-  /** A file already at the current version says what it means. */
   it("leaves a version-2 description where it is", () => {
     const file = JSON.stringify({
       version: MAP_FILE_VERSION,
@@ -232,8 +211,6 @@ describe("placement descriptions", () => {
       { tileId: "sign", description: "To the mill" },
     ]);
 
-    // Absent, not empty: the map is hand-edited and version-controlled, so an
-    // abandoned description must leave no line behind.
     const cleared = updatePlacedDescription(written, 1, 2, 0, 1, "");
     expect(getStack(cleared, 1, 2, 0)).toEqual([{ tileId: "grass" }, { tileId: "sign" }]);
   });
@@ -246,8 +223,6 @@ describe("placement descriptions", () => {
   });
 
   it("keeps the description when the tile in the slot is swapped", () => {
-    // The whole reason this is a placement field: a described door that opens
-    // is still the same door, and the text belongs to the spot.
     const map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "door-closed", description: "Beware of the dog", channel: "a" },
     ]);
@@ -283,8 +258,6 @@ describe("container contents", () => {
   });
 
   it("clears the field rather than writing an empty list", () => {
-    // Absent, not `[]`, on the description field's terms: an emptied chest must
-    // leave no line behind in a file people read diffs of.
     const emptied = updatePlacedContents(
       chestAt([{ id: "itm_a", tileId: "bread" }]),
       1,
@@ -298,8 +271,6 @@ describe("container contents", () => {
   });
 
   it("returns the same map when the contents are unchanged", () => {
-    // What closing the dialog on a chest nobody touched does, which is most
-    // closings: the instances handed back are the ones the map already held.
     const map = chestAt([{ id: "itm_a", tileId: "bread", count: 2 }]);
     const held = getStack(map, 1, 2, 0)[1]!.contents!;
 
@@ -310,9 +281,6 @@ describe("container contents", () => {
   });
 
   it("notices a swap that kept the tile and the count", () => {
-    // Two clicks in the editor: take the wired lever out, drop a plain one in.
-    // Compared on tile and count alone this is no change at all, the dialog
-    // closes clean, and the wired lever is still in the crate.
     const map = chestAt([{ id: "itm_a", tileId: "lever", channel: "gate-a" }]);
     const written = updatePlacedContents(map, 1, 2, 0, 1, [{ id: "itm_b", tileId: "lever" }]);
 
@@ -346,12 +314,6 @@ describe("container contents", () => {
   });
 });
 
-/**
- * The fixture is sized to stand in for a real world, not to be the smallest
- * map that exercises the code — the lighting bake budget in `app/editor/perf.ts`
- * is a wall-clock number measured against a map of roughly this size, and it
- * passes for the wrong reason on a map that is merely small.
- */
 describe("fixture town scale", () => {
   it("has enough quads that a one-mesh-per-quad path would blow budgets", () => {
     let quads = 0;
@@ -360,7 +322,6 @@ describe("fixture town scale", () => {
         quads += c.stack.length;
       }
     }
-    // Guard against someone trimming the generator and silencing the perf test.
     expect(quads).toBeGreaterThan(20_000);
   });
 });
@@ -404,7 +365,6 @@ describe("intangible physical height", () => {
     ]);
     const player = tile({ id: "player", height: 4 });
     expect(fitsAtElevation(map, 1, 0, 0, player, tilesById).ok).toBe(true);
-    // Same cell with a solid wall still blocks.
     const blocked = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
     expect(fitsAtElevation(blocked, 1, 0, 0, player, tilesById).ok).toBe(false);
   });
@@ -417,11 +377,6 @@ describe("intangible physical height", () => {
   });
 });
 
-/**
- * A stack exactly one level tall tops out on the floor plane of the level
- * above, so two stacks claim one elevation. Which of them answers is the
- * difference between a cave roof you can walk on and a hole in the meadow.
- */
 describe("the floor plane a full-height stack shares with the level above", () => {
   const tilesById = tilesByIdFromList([
     tile({ id: "dirt", height: 0 }),
@@ -435,7 +390,6 @@ describe("the floor plane a full-height stack shares with the level above", () =
     }),
   ]);
 
-  /** `below` sealed under `above`, with the seam at abs 0. */
   function column(below: string[], above: string[]): MapFile {
     let map = replaceStack(
       emptyMap(),
@@ -487,14 +441,6 @@ describe("the floor plane a full-height stack shares with the level above", () =
   });
 });
 
-/**
- * Which tile a body would be standing on, when a stack holds several.
- *
- * The topmost one, and nothing under it is consulted. Two earlier rules got
- * this wrong in opposite directions: taking the highest *walkable* top let an
- * apple dropped on a bush become the surface, and sealing every elevation a
- * non-walkable tile topped out at closed a bridge deck along with it.
- */
 describe("the topmost tile decides what a stack is", () => {
   const tilesById = tilesByIdFromList([
     tile({ id: "grass", height: 0 }),
@@ -523,10 +469,6 @@ describe("the topmost tile decides what a stack is", () => {
     expect(elevOf("grass", "bush")).toBe(null);
   });
 
-  /**
-   * The case that motivated the change. Both tiles are `height: 0`, so no
-   * elevation separates them and only the order says which is underfoot.
-   */
   it("closes water laid over walkable ground, with neither tile any taller", () => {
     expect(elevOf("grass", "water")).toBe(null);
   });
@@ -536,11 +478,6 @@ describe("the topmost tile decides what a stack is", () => {
     expect(elevOf("grass", "box")).toBe(2);
   });
 
-  /**
-   * A plank over a fence over water. The fence is the thing that would refuse
-   * the cell if anything but the top were consulted, and it is exactly what
-   * holds the deck up.
-   */
   it("opens a bridge deck laid over something non-walkable", () => {
     expect(elevOf("water", "fence", "wooden-floor")).toBe(2);
   });
@@ -554,11 +491,6 @@ describe("the topmost tile decides what a stack is", () => {
     expect(elevOf("grass", "bush", "arrow")).toBe(null);
   });
 
-  /**
-   * A creature is standing in the cell rather than part of it. Without this
-   * skip every occupied cell would report no surface, and nothing could fall
-   * onto one.
-   */
   it("leaves the ground a creature stands on as the surface", () => {
     expect(elevOf("grass", "wolf")).toBe(0);
   });
@@ -575,14 +507,6 @@ describe("the topmost tile decides what a stack is", () => {
   });
 });
 
-/**
- * The file is authored content; ids are not.
- *
- * `itemId` is minted at load and rewritten by play — picking a sword up,
- * looting a chest, dropping a bag — so without stripping, a save after a few
- * minutes in the world would arrive full of identities nobody typed. Everything
- * that keeps them uses `flattenMap` directly.
- */
 describe("serializeMap and the ids that do not belong on disk", () => {
   const withItems = replaceStack(emptyMap(), 1, 2, 0, [
     { tileId: "grass" },
@@ -624,7 +548,6 @@ describe("serializeMap and the ids that do not belong on disk", () => {
     expect(getStack(withItems, 1, 2, 0)[1]!.itemId).toBe("itm_minted");
   });
 
-  /** The wire and the checkpoint go this way, and a running world needs them. */
   it("keeps them in the flat shape everything else uses", () => {
     const flat = flattenMap(withItems);
     const kept = flat.levels["0"]!["1,2"]![1]!;
@@ -648,7 +571,6 @@ describe("tileIdsInChunk", () => {
     expect(tileIdsInChunk(chunkOf(before, 0, 0, 0)).has("bush")).toBe(false);
     const after = replaceStack(before, 1, 1, 0, [{ tileId: "bush" }]);
     expect(tileIdsInChunk(chunkOf(after, 0, 0, 0)).has("bush")).toBe(true);
-    // The old map is untouched, and so is what it says it holds.
     expect(tileIdsInChunk(chunkOf(before, 0, 0, 0)).has("bush")).toBe(false);
   });
 
@@ -666,15 +588,7 @@ describe("tileIdsInChunk", () => {
   });
 });
 
-/**
- * What differs between two versions of the board, read off the writes between
- * them where one descends from the other.
- *
- * The lineage is only a shortcut to the answer comparing every key gives, so
- * that comparison is written out here and every case is held to it.
- */
 describe("the cells that differ between two versions", () => {
-  /** Every cell key whose stack differs, found by comparing every key both hold. */
   function everyKeyCompared(prev: MapFile, next: MapFile, z: number): Set<string> {
     const out = new Set<string>();
     const before = prev.levels[levelKey(z)] ?? {};
@@ -692,7 +606,6 @@ describe("the cells that differ between two versions", () => {
   const grass: PlacedTile = { tileId: "grass" };
   const stone: PlacedTile = { tileId: "stone" };
 
-  /** A seeded sequence of edits, so a failure is the same failure every run. */
   function versions(count: number): MapFile[] {
     let seed = 7;
     const random = () => {
@@ -707,8 +620,6 @@ describe("the cells that differ between two versions", () => {
       const writes = 1 + Math.floor(random() * 4);
       for (let w = 0; w < writes; w++) {
         const roll = random();
-        // Some writes put back the very stack that was there, which a diff by
-        // lineage must still report as no change.
         const z = random() < 0.8 ? 0 : -1;
         const x = cell();
         const y = cell();
@@ -774,11 +685,6 @@ describe("the cells that differ between two versions", () => {
   });
 });
 
-/**
- * The keys a read of the board is addressed by, which are kept and handed out
- * again rather than built for every read. What is kept has to be exactly what
- * was built: a key that differs by a character reads an empty cell.
- */
 describe("board keys", () => {
   it("names a chunk as it always did, from the cache and past it", () => {
     const cells = [
@@ -789,7 +695,6 @@ describe("board keys", () => {
       [-16, 16],
       [3.5, -0.5],
       [-0, 0],
-      // The corners of the chunks kept, and the first chunks past them.
       [-0x8000 * CHUNK_SIZE, 0x7fff * CHUNK_SIZE],
       [0x7fff * CHUNK_SIZE, -0x8000 * CHUNK_SIZE],
       [0x8000 * CHUNK_SIZE, 0],
@@ -798,14 +703,11 @@ describe("board keys", () => {
     for (const [x, y] of cells) {
       const built = `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`;
       expect(chunkKeyFor(x, y)).toBe(built);
-      // A second time, which is the one a cache answers.
       expect(chunkKeyFor(x, y)).toBe(built);
     }
   });
 
   it("names chunks correctly on either side of the cache starting again", () => {
-    // More chunks than the cache holds, so it is emptied partway through; the
-    // first ones are asked again afterwards.
     const wrong: string[] = [];
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < 70_000; i++) {

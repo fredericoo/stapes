@@ -1,5 +1,5 @@
 import { MAP_FILE_VERSION } from "../../lib/types";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { fetchMapText, fetchTiles, fetchTilesets, saveMapText } from "../../lib/api";
 import { parseMap, serializeMap } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
@@ -18,13 +18,12 @@ import { LightingToggle } from "../../components/LightingToggle";
 import { MapPanels } from "../../editor/panels/MapPanels";
 import { useEditorStore, ZOOM_LEVELS, snapZoom } from "../../editor/store";
 import { formatClock, MINUTES_PER_DAY } from "../../lib/clock";
-import type { MapFile } from "../../lib/types";
+import type { MapFile, TileDef } from "../../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../../lib/types";
+import type { RemovedPlacement } from "../../lib/validation";
 import { Button, Input, Toggle, Tooltip, useToast } from "../../ui";
 
 export async function clientLoader() {
-  // First and alone, because `/api/map` is behind the same role and would 404
-  // for anybody this is about to turn away. @see ../../lib/auth's requireAdmin
   await requireAdmin();
   const [mapText, tiles, tilesets] = await Promise.all([
     fetchMapText(),
@@ -34,15 +33,6 @@ export async function clientLoader() {
   return { map: parseMap(mapText), tiles, tilesets };
 }
 
-/**
- * Save the map.
- *
- * The write goes through the game server rather than straight to storage, which
- * makes it the single writer: it persists the map, throws the running world
- * away and starts a fresh game on the new one, so nobody is left playing a map
- * that no longer exists. It also means saves and the tick loop cannot interleave
- * into a world that half-changed.
- */
 export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const raw = String(form.get("map") ?? "");
@@ -51,18 +41,33 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
     if (map.version !== MAP_FILE_VERSION) {
       return { ok: false, error: "Unsupported map version" };
     }
-    // Sent as text, because `serializeMap` round-trips byte for byte: saving an
-    // unmodified map leaves `git status` clean in development rather than
-    // reformatting the file. The server writes it and restarts the world onto
-    // it in one call.
-    await saveMapText(serializeMap(map));
-    return { ok: true };
+    const removed = await saveMapText(serializeMap(map));
+    return { ok: true, removed };
   } catch (err) {
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Failed to save",
     };
   }
+}
+
+const LISTED_REMOVALS = 4;
+
+function removalNotice(
+  removed: readonly RemovedPlacement[],
+  tilesById: Record<string, TileDef>,
+): [title: string, description: string] {
+  const listed = removed
+    .slice(0, LISTED_REMOVALS)
+    .map(
+      ({ x, y, z, tileId }) => `${tilesById[tileId]?.name ?? tileId} at ${x},${y} on level ${z}`,
+    );
+  if (removed.length > listed.length) listed.push(`and ${removed.length - listed.length} more`);
+  const title =
+    removed.length === 1
+      ? "Removed 1 tile that did not fit"
+      : `Removed ${removed.length} tiles that did not fit`;
+  return [title, listed.join("\n")];
 }
 
 export default function MapPage() {
@@ -83,6 +88,25 @@ export default function MapPage() {
 
   const [levelDraft, setLevelDraft] = useState(String(currentLevel));
   const handledSaveData = useRef<unknown>(null);
+
+  const save = useCallback(() => {
+    const store = useEditorStore.getState();
+    let removed: RemovedPlacement[];
+    try {
+      removed = store.removeUnfit();
+    } catch (err) {
+      showToast("Save failed", err instanceof Error ? err.message : "Failed to save", {
+        untilDismissed: true,
+      });
+      return;
+    }
+    if (removed.length > 0) {
+      showToast(...removalNotice(removed, store.tilesById), { untilDismissed: true });
+    }
+    const fd = new FormData();
+    fd.set("map", JSON.stringify(useEditorStore.getState().map));
+    fetcher.submit(fd, { method: "post" });
+  }, [fetcher, showToast]);
 
   useLayoutEffect(() => {
     useEditorStore.getState().hydrate(data.map, data.tiles);
@@ -117,13 +141,10 @@ export default function MapPage() {
       const key = e.key.toLowerCase();
       if (key === "s") {
         e.preventDefault();
-        const fd = new FormData();
-        fd.set("map", JSON.stringify(useEditorStore.getState().map));
-        fetcher.submit(fd, { method: "post" });
+        save();
         return;
       }
 
-      // Leave native text undo/redo alone in inputs.
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -144,24 +165,28 @@ export default function MapPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fetcher]);
+  }, [save]);
 
   useEffect(() => {
     if (!fetcher.data || handledSaveData.current === fetcher.data) return;
     handledSaveData.current = fetcher.data;
-    if (fetcher.data.ok) {
-      useEditorStore.getState().markSaved();
-      showToast("Map saved");
-    } else {
+    if (!fetcher.data.ok) {
       showToast("Save failed", fetcher.data.error);
+      return;
+    }
+    const store = useEditorStore.getState();
+    store.markSaved();
+    showToast("Map saved");
+    /**
+     * Empty unless the server's tile catalogue changed after this page loaded,
+     * since `save` already removed what did not fit by the editor's own. The
+     * loader runs again after the save, and `hydrate` takes the saved map.
+     */
+    const removed = fetcher.data.removed ?? [];
+    if (removed.length > 0) {
+      showToast(...removalNotice(removed, store.tilesById), { untilDismissed: true });
     }
   }, [fetcher.data, showToast]);
-
-  const save = () => {
-    const fd = new FormData();
-    fd.set("map", JSON.stringify(useEditorStore.getState().map));
-    fetcher.submit(fd, { method: "post" });
-  };
 
   return (
     <AdminShell
@@ -180,8 +205,6 @@ export default function MapPage() {
                 <IconArrowDown size={16} aria-hidden="true" />
               </Button>
             </Tooltip>
-            {/* The arrows either side say what the number is, so the word is
-                left to the things that cannot see them. */}
             <Input
               aria-label="Level"
               className="w-14 bg-paper text-ink shadow-none"
@@ -209,17 +232,7 @@ export default function MapPage() {
               </Button>
             </Tooltip>
           </div>
-          {/* Every switch in one place, with the lighting one at the end of the
-              run because the clock beside it is the other half of that control.
-              It rides here rather than in the header's menu — where the game
-              and /admin/play keep theirs — so it can sit next to the hour it
-              works with; the cost is that on a narrow window it wraps with the rest
-              of the map's controls instead of folding away with the nav. */}
           <div className="flex items-center gap-1">
-            {/* The switch is worded for what turning it on does, so it is the
-                inverse of the flag the store and the renderer keep: other
-                levels are drawn by default, and isolating is the thing you ask
-                for. */}
             <Tooltip content="Isolate to current level (I) — drop the floors above, which are otherwise ghosted into one fade. Underground that fade stops at -1">
               <Toggle
                 pressed={!showOtherLevels}
@@ -244,10 +257,6 @@ export default function MapPage() {
               shortcut="L"
             />
           </div>
-          {/* Nothing reads the hour once lighting is off — the authoring
-              background is a fixed paper colour, and preview only borrows play's
-              sky while there is light to go with it — so the slider goes with it
-              rather than sitting there doing nothing. */}
           <div
             className={["flex items-center gap-2", lightingEnabled ? "" : "opacity-50"].join(" ")}
           >

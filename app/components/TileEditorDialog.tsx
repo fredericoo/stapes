@@ -19,7 +19,11 @@ import type {
   TilesetDef,
   FacingKey,
 } from "../lib/types";
-import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
+import {
+  DEFAULT_PARTICLES,
+  type ParticleEmitterDef,
+  validateParticleEmitter,
+} from "../lib/particleVfx";
 import { ParticleFields } from "./ParticleFields";
 import { ProjectileTab } from "./ProjectileTab";
 import { VfxPreview } from "./VfxPreview";
@@ -84,10 +88,6 @@ import {
 
 const DEFAULT_FRAME_DURATION_MS = 200;
 
-/**
- * A frame sitting on the tile's own anchor, which is where a sprite nobody has
- * drawn yet belongs: the top-left cell of the block, one cell across.
- */
 function emptyFrame(): Frame {
   const rect = { x: 0, y: 0, w: 1, h: 1 };
   return {
@@ -106,7 +106,6 @@ const DEFAULT_LIGHT: LightDef = {
   color: "#ffcc88",
 };
 
-/** The sizes a footprint side may take. @see MAX_FOOTPRINT_SIDE */
 const FOOTPRINT_SIDES = Array.from({ length: MAX_FOOTPRINT_SIDE }, (_, i) => ({
   value: i + 1,
   label: String(i + 1),
@@ -118,8 +117,6 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
     name: "New Tile",
     height: 0,
     type: "simple",
-    // Scenery until somebody says otherwise: the overwhelming majority of tiles
-    // are, and it is the one kind that opens no extra tab to be dismissed.
     kind: "prop",
     attributes: {},
     lightPassing: false,
@@ -132,7 +129,6 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
 }
 
 function expandClimbFrom(tile: TileDef): NonNullable<TileDef["climbFrom"]> {
-  // Four cardinals however wide the art is. @see Octant
   const keys: FacingKey[] = isDirectional(tile) ? [...DIRECTIONS] : ["default"];
   const out: NonNullable<TileDef["climbFrom"]> = {};
   for (const key of keys) {
@@ -141,7 +137,6 @@ function expandClimbFrom(tile: TileDef): NonNullable<TileDef["climbFrom"]> {
   return out;
 }
 
-/** Normalise optional lighting / traversal fields for the editor draft. */
 function withLightingDefaults(tile: TileDef): TileDef {
   const { blocksLight: _deprecated, ...rest } = tile;
   return {
@@ -153,26 +148,10 @@ function withLightingDefaults(tile: TileDef): TileDef {
   };
 }
 
-/**
- * The sprite holder the editor is currently writing into.
- *
- * `idle` is the draft itself, because that is where the idle sprites live — see
- * {@link TileDef.states}. Any other state is its entry, which the state selector
- * guarantees exists before it is selected.
- */
 function spriteHolder(draft: TileDef, state: SpriteState): StateSprites {
   return state === "idle" ? draft : (draft.states?.[state] ?? {});
 }
 
-/**
- * Where in the tile's own sprite table the editor is pointed.
- *
- * One object rather than a parameter per axis, because only one of the three is
- * ever read — whichever the {@link TileType} uses — and the other two are along
- * for the ride. Passed positionally they were three arguments every caller had
- * to keep in the right order to hand two of them to a function that ignores
- * them.
- */
 type SpriteCursor = {
   dir: Octant;
   slice: AutotileSlice;
@@ -193,7 +172,6 @@ function currentSprite(
   return from.slices?.[at.slice];
 }
 
-/** The one sprite field this tile's {@link TileType} uses, patched. */
 function patchHolder(
   draft: TileDef,
   state: SpriteState,
@@ -227,14 +205,6 @@ function setCurrentSprite(
   return { ...draft, states: { ...draft.states, [state]: patch } };
 }
 
-/**
- * Idle's sprites alone, on this tile's own axis.
- *
- * Narrowed to the one field the type uses rather than handed over as the draft,
- * which is structurally a {@link StateSprites} but carries the id, the name and
- * every behaviour flag with it. A state override holding those would be a second
- * copy of the tile inside the tile.
- */
 function idleSprites(draft: TileDef): StateSprites {
   if (draft.type === "simple") return { sprite: draft.sprite };
   if (isDirectional(draft)) return { sprites: draft.sprites };
@@ -243,7 +213,6 @@ function idleSprites(draft: TileDef): StateSprites {
   return { slices: draft.slices };
 }
 
-/** Every sprite a {@link StateSprites} holds, on this tile's own axis. */
 function stateSpriteList(draft: TileDef, from: StateSprites): TileSprite[] {
   if (draft.type === "simple") return from.sprite ? [from.sprite] : [];
   if (isDirectional(draft)) {
@@ -260,15 +229,6 @@ function stateSpriteList(draft: TileDef, from: StateSprites): TileSprite[] {
   return Object.values(from.slices ?? {}).filter((s): s is TileSprite => s != null);
 }
 
-/**
- * The footprint a sprite draws at — its size in cells and where its base sits.
- *
- * Compared rather than the whole sprite because this is the one thing a state
- * may *not* differ from idle in: a separate mesh's geometry is built once from
- * frame 0 and only its UVs are rewritten afterwards, so a state of another size
- * would draw the new art stretched over the old quad. It is the same constraint
- * the frames of a single sprite have always had between them, one level up.
- */
 function footprintOf(sprite: TileSprite | undefined): string | null {
   const first = sprite?.frames[0];
   if (!first) return null;
@@ -276,13 +236,6 @@ function footprintOf(sprite: TileSprite | undefined): string | null {
   return `${rect.w}x${rect.h}@${base.x},${base.y}`;
 }
 
-/**
- * Whether every sprite in `state` draws at the footprint idle does.
- *
- * Reported as a message rather than repaired, because there is no honest repair:
- * the author drew a sprite at a size, and silently cropping or re-basing it would
- * make their art wrong in a way that only shows up in the world.
- */
 function footprintMismatch(
   draft: TileDef,
   state: OverrideSpriteState,
@@ -326,16 +279,6 @@ function footprintMismatch(
   return null;
 }
 
-/**
- * The states worth persisting: those a tile can actually be in, and that
- * actually differ from idle.
- *
- * Dropping a state equal to idle is what lets the selector seed a new state from
- * idle without that act *being* an edit — clicking through the rail to look at
- * `moving` leaves the file alone. Dropping a state the tile cannot be in keeps a
- * stale override from sitting in the data after a `kind` change made it
- * unreachable, on the same terms `interactionsForSave` drops a blank block.
- */
 function statesForSave(draft: TileDef): TileDef["states"] {
   const allowed = new Set(availableStates(draft));
   const idle = JSON.stringify(idleSprites(draft));
@@ -370,15 +313,10 @@ function validateFrameLights(frames: Frame[]): string | null {
 }
 
 /**
- * A sprite as the file should carry it: same sprite, with its light values
- * written in one form so two authorings of the same colour compare equal.
+ * Spreads the original sprite and replaces only the frames, so fields such as
+ * `phase` survive a save.
  */
 export function sanitizeSprite(sprite: TileSprite): TileSprite {
-  // Spread, for the reason `setFrames` spreads: a sprite is not only its
-  // frames. Rebuilding the object from the frames alone dropped `phase` on the
-  // way to the file, so every save of an animated tile silently unphased it —
-  // the dialog showed the offset you had just typed, and the tile written out
-  // was in lockstep.
   return {
     ...sprite,
     frames: sprite.frames.map((f) => {
@@ -395,25 +333,10 @@ export function sanitizeSprite(sprite: TileSprite): TileSprite {
   };
 }
 
-/**
- * The seed control's range. Any 31-bit value is as good as any other — the hash
- * mixes it before it reaches a coordinate — so this is only wide enough that
- * re-rolling twice in a row is very unlikely to land back where it started.
- */
 const MAX_SCATTER_SEED = 0x7fffffff;
 
-/** What the first face of a freshly converted variant tile is called. */
 const FIRST_VARIANT_NAME = "default";
 
-/**
- * A face name a placement can carry and a person can read.
- *
- * Letters, digits, `-` and `_`, because the name is written into every
- * placement wearing it in `data/map.json` and the file is hand-edited. A purely
- * numeric name is refused separately: object keys that parse as array indices
- * sort ahead of everything else whatever order they were written in, which
- * would silently move which face "first authored" means.
- */
 const VARIANT_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 function variantNameError(name: string, taken: readonly string[]): string | null {
@@ -427,7 +350,6 @@ function variantNameError(name: string, taken: readonly string[]): string | null
   return null;
 }
 
-/** The type dropdown's list, in the order a tile's art gets more elaborate. */
 const TILE_TYPE_OPTIONS: Array<{ value: TileType; label: string }> = [
   { value: "simple", label: "Simple" },
   { value: "directional", label: "4-way" },
@@ -437,15 +359,6 @@ const TILE_TYPE_OPTIONS: Array<{ value: TileType; label: string }> = [
   { value: "variant", label: "Variant" },
 ];
 
-/**
- * The scatter sample: a patch of imaginary ground, at z 0, drawn with the real
- * hash.
- *
- * Wide enough to read as ground rather than as a row of thumbnails, and small
- * enough that a dialog does not have to scroll to show it. Without it the seed
- * is a number box whose effect is invisible until the tile is painted onto the
- * map and looked at.
- */
 const SCATTER_SAMPLE_COLS = 10;
 const SCATTER_SAMPLE_ROWS = 3;
 const SCATTER_SAMPLE_CELL_PX = 28;
@@ -454,18 +367,12 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tile: TileDef | null;
-  /** Whole library — the interactive tab picks tile ids out of it. */
   tiles: TileDef[];
   tilesets: TilesetDef[];
-  /** The status catalogue, for the lists a consumable and a weapon carry. */
   statusDefs?: Record<string, StatusDef>;
   isNew: boolean;
   onSave: (tile: TileDef) => void;
   onDelete?: () => void;
-  /**
-   * Write this tile out under a new id. Given the tile as the draft stands, so
-   * the copy carries edits the original has not been saved with.
-   */
   onDuplicate?: (tile: TileDef) => void;
 };
 
@@ -503,10 +410,8 @@ export function TileEditorDialog({
   const [state, setState] = useState<SpriteState>("idle");
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  /** The copy being named, or null when that dialog is closed. */
   const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
-  /** Why the last anchor edit was refused, or null when it was taken. */
   const [anchorError, setAnchorError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -534,15 +439,6 @@ export function TileEditorDialog({
     draft.type === "autotile" ? Boolean(spriteHolder(draft, state).slices?.[slice]) : true;
   const tileset = tilesets.find((t) => t.id === draft.anchor.tilesetId) ?? tilesets[0] ?? null;
 
-  /**
-   * The preview's two inputs, held steady across edits that do not reach them.
-   *
-   * `draft` is a fresh object on every keystroke, and the preview rebuilds its
-   * subject mesh whenever the object it was handed changes — which is what makes
-   * a sprite swap show up, and would otherwise restart the sprite's animation
-   * every time a particle slider moved. Keyed on the fields that decide the art,
-   * all of which are stable references until they are edited.
-   */
   const previewSubject = useMemo(
     () => draft,
     [
@@ -564,9 +460,6 @@ export function TileEditorDialog({
     setDraft((d) => setCurrentSprite(d, state, at, next));
   };
 
-  // Read from and written to the whole tile rather than the sprite in front of
-  // you: an autotile is 47 sprites of one material, and phasing them apart from
-  // each other is not a thing anybody wants.
   const phase = tilePhase(draft) ?? { x: 0, y: 0 };
   const setPhase = (next: SpritePhase) => {
     setDraft((d) => withSpritePhase(d, next));
@@ -574,15 +467,6 @@ export function TileEditorDialog({
 
   const states = availableStates(draft);
 
-  /**
-   * Move to a state, seeding it from idle the first time.
-   *
-   * Cloning rather than starting blank, on the same grounds the autotile grid
-   * clones slice 0 when you click an empty cell: a walk cycle is idle plus
-   * changes, and an empty canvas throws away the frame you would have started
-   * from. Save drops a state that still equals idle, so looking is not
-   * authoring — see `statesForSave`.
-   */
   const changeState = (next: SpriteState) => {
     setState(next);
     setFrameIndex(0);
@@ -594,11 +478,6 @@ export function TileEditorDialog({
   };
 
   const setFrames = (next: Frame[]) => {
-    // Spread, because a sprite is not only its frames any more: `phase` lives
-    // beside them, and rebuilding the object from the frames alone silently
-    // dropped it. Every frame edit in this dialog — duration, add, remove,
-    // duplicate, pick a sprite — comes through here, so that was every way of
-    // touching an animated tile.
     setSprite({ ...sprite, frames: next });
   };
 
@@ -607,24 +486,10 @@ export function TileEditorDialog({
     setFrames(frames.map((f, i) => (i === frameIndex ? { ...f, ...patch } : f)));
   };
 
-  /**
-   * A rectangle picked off the sheet, stored the way the tile keeps it.
-   *
-   * `SpriteSelector` deals in cells of the picture in front of it and the tile
-   * keeps every rect relative to its anchor — see {@link spriteRefAt}, which is
-   * where the two meet.
-   */
   const setFrameSprite = (s: SpriteRef) => {
     updateFrame({ sprite: spriteRefAt(draft.anchor, s) });
   };
 
-  /**
-   * Move the whole tile's art, or point it at another sheet.
-   *
-   * Refused rather than clamped when the block would run off the edge, for the
-   * reason `anchorFits` gives: everything on the tile holds still against
-   * everything else, and an anchor nudged back on would break that quietly.
-   */
   const setAnchor = (anchor: SpriteAnchor) => {
     const problem = anchorFits(draft, anchor, tilesets);
     setAnchorError(problem);
@@ -634,10 +499,6 @@ export function TileEditorDialog({
 
   const changeType = (type: TileType) => {
     if (type === draft.type) return;
-    // Every state keys its sprites on the axis the *type* chooses, so overrides
-    // authored against the old one describe nothing after the swap. Dropped
-    // rather than carried across as copies of the new idle, which is what they
-    // would collapse to on save anyway.
     setState("idle");
     const from =
       draft.sprite ??
@@ -669,18 +530,12 @@ export function TileEditorDialog({
         },
       });
     } else if (type === "directional" || type === "directional8") {
-      // Whatever is already authored on each key survives the switch, which is
-      // the whole reason both resolutions share one `sprites` field: going four
-      // → eight keeps the four and offers four blanks, and going back leaves the
-      // corners in the draft to be dropped on save rather than destroying them
-      // on a mis-click.
       const sprites: Partial<Record<Octant, TileSprite>> = { ...draft.sprites };
       const climbBase = resolveClimbFrom(draft, "default");
       const climbFrom: NonNullable<TileDef["climbFrom"]> = {};
       for (const d of type === "directional8" ? OCTANTS : DIRECTIONS) {
         sprites[d] = structuredClone(draft.sprites?.[d] ?? draft.sprite ?? from);
       }
-      // Four, always: see the note on {@link climbFacing}.
       for (const d of DIRECTIONS) climbFrom[d] = { ...climbBase };
       setDraft({
         ...draft,
@@ -701,9 +556,6 @@ export function TileEditorDialog({
         sprite: undefined,
         sprites: undefined,
         slices: undefined,
-        // Whatever was already drawn becomes the first face rather than the
-        // only one: a scatter tile with one face is a simple tile that has
-        // paid for a hash, so the panel opens on something to add to.
         scatter: [structuredClone(from)],
         variants: undefined,
         states: undefined,
@@ -718,10 +570,6 @@ export function TileEditorDialog({
         sprites: undefined,
         slices: undefined,
         scatter: undefined,
-        // Whatever was already drawn becomes the first face, under a name that
-        // says nothing: the author is about to rename it to the material it is
-        // a hole in, and a placeholder they have to clear reads as a decision
-        // somebody made.
         variants: { [FIRST_VARIANT_NAME]: structuredClone(from) },
         states: undefined,
         climbFrom: { default: resolveClimbFrom(draft, "default") },
@@ -744,8 +592,6 @@ export function TileEditorDialog({
     setFrameIndex(0);
   };
 
-  // A brain implies actorhood, so the Tile tab reflects that rather than letting
-  // the checkbox and the Interactive tab disagree — see `resolveActor`.
   const impliedByBrain = draft.interactions?.brain != null;
   const isActor = draft.actor === true || impliedByBrain;
 
@@ -769,16 +615,11 @@ export function TileEditorDialog({
     });
   };
 
-  // Whether the Interactive tab has anything, brain aside — its own tab now.
   const i = draft.interactions;
   const hasNonBrainInteraction = Boolean(
     i?.push || i?.switch || i?.decay || i?.pressurePlate || i?.emit || i?.receive,
   );
 
-  // A tile faces one of eight ways in its art and is *walked into* from one of
-  // four, so an eight-way tile's corners share their neighbouring cardinal's
-  // climb flags rather than getting variants of their own. Climbing is a
-  // four-way question and stays one. @see Octant
   const climbFacing: FacingKey = isDirectional(draft) ? nearestCardinal(dir) : "default";
   const climbFlags = resolveClimbFrom(draft, climbFacing);
 
@@ -792,24 +633,6 @@ export function TileEditorDialog({
     });
   };
 
-  /**
-   * The tile the draft would be saved as, or null with the reason in the error
-   * banner.
-   *
-   * Separate from the Save button because duplicating writes the same tile under
-   * a different id, and a copy that skipped these checks would put a tile in the
-   * library that the editor itself refuses to save.
-   */
-  /**
-   * Why the battler block would not load, read off the block as Save would write
-   * it rather than off the draft.
-   *
-   * `resolveBattler` drops a block that fails its schema whole, and the Battle
-   * and Spells tabs draw from the draft, so nothing else on screen would say so.
-   * Asked of the saved form because `interactionsForSave` is what reaches the
-   * file: it already drops a zero cast time and fills a missing base, and a
-   * draft carrying one of those is not a block that fails to load.
-   */
   const battlerProblems = useMemo(
     () => battlerIssues({ ...draft, interactions: interactionsForSave(draft.interactions) }),
     [draft],
@@ -829,8 +652,6 @@ export function TileEditorDialog({
       return null;
     }
 
-    // A brain that would load inert is caught here, where it is actionable,
-    // rather than as a creature that silently never moves once online.
     const brain = draft.interactions?.brain;
     if (brain) {
       const fatal = validateBrain(brain).find((i) => i.severity === "error");
@@ -840,15 +661,11 @@ export function TileEditorDialog({
       }
     }
 
-    // Save is already off while this is non-empty; Duplicate runs these checks
-    // too, and must not write a copy the world would read as no battler.
     if (battlerProblems.length > 0) {
       setError(`Battle: ${battlerProblems[0]}`);
       return null;
     }
 
-    // On the brain's terms, and with the catalogues in hand: a dialog naming a
-    // tile or a status nobody authored is a button that does nothing online.
     const dialog = draft.interactions?.dialog;
     if (dialog) {
       const catalogue = {
@@ -858,6 +675,23 @@ export function TileEditorDialog({
       const fatal = validateDialog(dialog, catalogue).find((i) => i.severity === "error");
       if (fatal) {
         setError(`Dialog: ${fatal.message}`);
+        return null;
+      }
+    }
+
+    const emitters = [
+      draft.particles,
+      draft.transitions?.appear?.particles,
+      draft.transitions?.disappear?.particles,
+      draft.interactions?.projectile?.hit?.particles,
+      draft.interactions?.extract?.pulled?.particles,
+      draft.interactions?.craft?.succeeded?.particles,
+      draft.interactions?.craft?.failed?.particles,
+    ];
+    for (const emitter of emitters) {
+      const err = emitter ? validateParticleEmitter(emitter) : null;
+      if (err) {
+        setError(`Particles: ${err}`);
         return null;
       }
     }
@@ -934,8 +768,6 @@ export function TileEditorDialog({
       }
     }
 
-    // After the per-type frame checks above, so "you have no frames at all" is
-    // reported before "your states disagree about their size".
     const savedStates = statesForSave(draft);
     for (const [key, sprites] of Object.entries(savedStates ?? {})) {
       if (!sprites) continue;
@@ -955,7 +787,6 @@ export function TileEditorDialog({
 
     setError(null);
     const climbByFacing: Partial<Record<FacingKey, Record<Direction, boolean>>> = {};
-    // Four cardinals however wide the art is — climbing is a four-way question.
     const keys: FacingKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
     for (const key of keys) {
       climbByFacing[key] = resolveClimbFrom(draft, key);
@@ -973,19 +804,11 @@ export function TileEditorDialog({
       intangible: draft.intangible ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
-      // Only the explicit flag is persisted: a tile whose brain implies
-      // actorhood needs no redundant `actor: true` alongside it.
       actor: draft.actor ? true : undefined,
       walkDurationMs: isActor ? draft.walkDurationMs : undefined,
       swims: isActor && draft.swims ? true : undefined,
-      // On every tile rather than on scenery alone, unlike the pace above: what
-      // a body walks on is whatever its feet are resting on, and a raft is a
-      // body somebody may well want to be slow to cross. Zero is written as
-      // absent, which is what ordinary ground says.
       walkSpeedPercent: draft.walkSpeedPercent || undefined,
       wade: draft.wade ? true : undefined,
-      // One cell is written as absent, and so is a footprint on a tile that
-      // may not have one — a kind or type changed after it was set.
       footprint:
         mayCoverCells(draft) && draft.footprint && (draft.footprint.w > 1 || draft.footprint.d > 1)
           ? draft.footprint
@@ -1003,10 +826,6 @@ export function TileEditorDialog({
     if (draft.type === "simple" && draft.sprite) {
       saved.sprite = sanitizeSprite(draft.sprite);
     } else if (isDirectional(draft) && draft.sprites) {
-      // Only the keys this type actually uses, so a tile narrowed from eight
-      // ways back to four writes four — the corners left in the draft are what
-      // makes the narrowing reversible while it is open, and nothing the file
-      // should carry once it is saved.
       const sprites: Partial<Record<Octant, TileSprite>> = {};
       for (const d of facingKeysFor(draft)) {
         if (draft.sprites[d]) sprites[d] = sanitizeSprite(draft.sprites[d]!);
@@ -1057,8 +876,6 @@ export function TileEditorDialog({
       return;
     }
     const saved = buildSaved();
-    // Closed either way: a draft the editor refuses to save says so in the
-    // banner behind this dialog, which is where the offending field is too.
     setDuplicate(null);
     if (!saved) return;
     onDuplicate({ ...saved, id, name });
@@ -1093,14 +910,6 @@ export function TileEditorDialog({
     </div>
   );
 
-  /**
-   * Which state the sprite editor below is editing.
-   *
-   * Flat rather than another tab level, which is the whole reason it fits in this
-   * dialog as it stands: the direction tabs and the 47-slice grid are unchanged
-   * and simply edit whichever state is selected. Hidden entirely for the many
-   * tiles that can only ever be idle, so a wall gains no control it cannot use.
-   */
   const statePicker =
     states.length > 1 ? (
       <div className="flex items-center gap-3 pt-1">
@@ -1122,15 +931,6 @@ export function TileEditorDialog({
       </div>
     ) : null;
 
-  /**
-   * How far the cycle advances per cell, for a tile that has a cycle.
-   *
-   * Above the frame tabs rather than inside them, next to the state picker,
-   * because it is a property of the tile and not of the frame those tabs are
-   * showing — putting it beside "Duration ms" would read as one more thing this
-   * frame does. Hidden entirely for a tile with a single frame, which is almost
-   * all of them and none of which can use it.
-   */
   const phasePicker = isAnimated(draft) ? (
     <div className="flex flex-wrap items-center gap-3 pt-1">
       <FieldLabel info="Frames that neighbouring placements start apart, so the animation travels across them. 0 shows every placement the same frame — water blinking as one reads as wallpaper. Applies to every face of this tile.">
@@ -1232,10 +1032,6 @@ export function TileEditorDialog({
               <span className="font-bold uppercase text-muted">Radius</span>
               <NumberInput
                 min={1}
-                // The ceiling the bake is built on, shown here so it is visible
-                // while authoring rather than discovered as light that stops.
-                // `clampTileLight` enforces it on load either way — this input
-                // is not the guard, it is the affordance. See ../lib/types.
                 max={MAX_LIGHT_LEVEL}
                 step={1}
                 className="w-20"
@@ -1271,10 +1067,6 @@ export function TileEditorDialog({
         ) : null}
       </div>
 
-      {/* `min-w-0` on the picker's column: a grid track defaults to
-          `min-width: auto`, which is the canvas's full width, so a wide sheet
-          pushed the whole dialog into a horizontal scroll rather than the
-          picker into its own. */}
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
@@ -1344,10 +1136,6 @@ export function TileEditorDialog({
     </Tabs>
   );
 
-  /**
-   * The autotile author's whole surface: the 47 shapes, which of them this tile
-   * has drawn, and what it counts as itself when it looks around.
-   */
   const autotileSection = (
     <div className="flex flex-col gap-3">
       {climbPad}
@@ -1449,10 +1237,6 @@ export function TileEditorDialog({
 
   const faces = draft.scatter ?? [];
 
-  /**
-   * The scatter author's surface: the faces, the seed, and a patch of ground
-   * showing what the two of them do together.
-   */
   const scatterSection = (
     <div className="flex flex-col gap-3">
       {climbPad}
@@ -1505,9 +1289,6 @@ export function TileEditorDialog({
             size="sm"
             variant="secondary"
             onClick={() => {
-              // Cloned from the one being looked at rather than started blank,
-              // on the same grounds the autotile grid clones slice 0: a second
-              // bush is the first bush with a few pixels moved.
               const base = faces[face] ?? faces[0] ?? emptySprite();
               setDraft({
                 ...draft,
@@ -1526,9 +1307,6 @@ export function TileEditorDialog({
             variant="danger"
             className="w-fit"
             onClick={() => {
-              // Every state keys its faces by position, so a state that
-              // authored this one has to lose it too or its list slides out
-              // from under idle's.
               const drop = (list: TileSprite[] | undefined) =>
                 list ? list.filter((_, i) => i !== face) : undefined;
               const states = Object.fromEntries(
@@ -1615,9 +1393,6 @@ export function TileEditorDialog({
       return;
     }
     setError(null);
-    // Rebuilt in order rather than deleted and re-added, so renaming the first
-    // face does not silently make it the last one — and with it, which face
-    // every placement that names nothing is wearing.
     const rekey = (holder: StateSprites): Record<string, TileSprite> | undefined =>
       holder.variants
         ? Object.fromEntries(
@@ -1634,11 +1409,6 @@ export function TileEditorDialog({
     setVariantKey(trimmed);
   };
 
-  /**
-   * The variant author's surface: the faces and their names, and nothing about
-   * where they go. Which face a placement wears is a map question, answered in
-   * the stack panel — this dialog only says what there is to choose from.
-   */
   const variantSection = (
     <div className="flex flex-col gap-3">
       {climbPad}
@@ -1690,9 +1460,6 @@ export function TileEditorDialog({
                 draft.variants?.[variantKey] ??
                 Object.values(draft.variants ?? {})[0] ??
                 emptySprite();
-              // Numbered from the count rather than from the length, so adding
-              // a face after one was renamed does not collide with a name
-              // already in use.
               let n = variantNames.length + 1;
               while (variantNames.includes(`face-${n}`)) n++;
               const key = `face-${n}`;
@@ -1712,10 +1479,6 @@ export function TileEditorDialog({
             <FieldLabel info="Committed on blur or Enter. Placements already wearing this name follow the rename.">
               Name
             </FieldLabel>
-            {/* Committed on blur and on Enter rather than per keystroke: a
-                rename rewrites the key every placement in the map points at, so
-                typing "wood" one letter at a time would walk through four names
-                nothing is called. */}
             <Input
               key={variantKey}
               defaultValue={variantKey}
@@ -1758,13 +1521,6 @@ export function TileEditorDialog({
     </div>
   );
 
-  /**
-   * The sprite table for whichever axis this tile's type uses.
-   *
-   * Early returns rather than a ternary chain five deep: they are alternatives,
-   * not a nesting, and reading which one a `scatter` tile lands in should not
-   * mean counting colons.
-   */
   const spriteSection = (() => {
     if (draft.type === "simple") return frameEditor;
     if (isDirectional(draft)) {
@@ -1828,7 +1584,6 @@ export function TileEditorDialog({
             { value: TAB_TILE, label: "Tile" },
             {
               value: TAB_INTERACTIVE,
-              // The brain has its own tab now, so it no longer lights this dot.
               label: hasNonBrainInteraction ? "Interactive •" : "Interactive",
             },
             {
@@ -1839,20 +1594,9 @@ export function TileEditorDialog({
               value: TAB_DIALOG,
               label: draft.interactions?.dialog ? "Dialog •" : "Dialog",
             },
-            // Battle and Item are shown by the kind rather than by their block,
-            // so neither carries the "•" the others use to say it is configured:
-            // the tab being there at all is already that statement. Only the
-            // kind can add or remove them, which is why the select lives on the
-            // tab that is always present.
             ...(draft.kind === "battler"
               ? [
                   { value: TAB_BATTLE, label: "Battle" },
-                  // Beside Battle and on the same answer, because a spell needs
-                  // a body to belong to — and its own tab rather than a section
-                  // under the natural weapon, because a stone is three blocks
-                  // and Battle is already a long page. It carries the "•" the
-                  // kind-driven tabs do not, because unlike them it *can* be
-                  // empty: a battler with no spells of its own is the norm.
                   {
                     value: TAB_SPELLS,
                     label: draft.interactions?.battler?.spells?.length ? "Spells •" : "Spells",
@@ -1860,9 +1604,6 @@ export function TileEditorDialog({
                 ]
               : []),
             ...(draft.kind === "item" ? [{ value: TAB_ITEM, label: "Item" }] : []),
-            // On the same answer and the same terms as the two above: the tab
-            // being there at all says this tile is a projectile, so it carries
-            // no "•" either.
             ...(draft.kind === "projectile"
               ? [{ value: TAB_PROJECTILE, label: "Projectile" }]
               : []),
@@ -1891,9 +1632,6 @@ export function TileEditorDialog({
               brain={draft.interactions?.brain}
               tiles={tiles}
               statusDefs={statusDefs}
-              // The draft's own, not the saved tile's: a spell renamed on the
-              // Spells tab is the name this tab offers on the next render, so
-              // the two halves of one edit cannot disagree about what exists.
               spells={draft.interactions?.battler?.spells}
               onChange={setBrain}
             />
@@ -1987,9 +1725,6 @@ export function TileEditorDialog({
               </div>
               <div className="flex flex-col gap-1 text-xs">
                 <span className="font-bold uppercase text-muted">Type</span>
-                {/* A dropdown rather than the segmented row the height uses: five
-                options is already more than fits on one line beside a dialog's
-                other controls, and the list only grows. */}
                 <Select
                   ariaLabel="Tile type"
                   value={draft.type}
@@ -2091,8 +1826,6 @@ export function TileEditorDialog({
               >
                 <input
                   type="checkbox"
-                  // A brain already makes it an actor, so the box reads on and locks
-                  // rather than pretending the flag is what decides.
                   checked={isActor}
                   disabled={impliedByBrain}
                   onChange={(e) => setDraft({ ...draft, actor: e.target.checked })}
@@ -2110,8 +1843,6 @@ export function TileEditorDialog({
                 <OptionalNumberInput
                   min={1}
                   step={10}
-                  // Blank means "the player's pace", which is a different thing from
-                  // zero and has to survive a round trip through the field.
                   value={draft.walkDurationMs}
                   placeholder={String(WALK_DURATION_MS)}
                   onChange={(walkDurationMs) => setDraft({ ...draft, walkDurationMs })}
@@ -2160,10 +1891,6 @@ export function TileEditorDialog({
                   onCheckedChange={(on) =>
                     setDraft({
                       ...draft,
-                      // The default rather than a zeroed block, so turning this on
-                      // draws something on the map immediately. The ramp is copied
-                      // rather than shared, or every tile switched on would author
-                      // the same array.
                       particles: on
                         ? { ...DEFAULT_PARTICLES, ramp: [...DEFAULT_PARTICLES.ramp] }
                         : undefined,
@@ -2174,18 +1901,8 @@ export function TileEditorDialog({
               </div>
               {draft.particles ? (
                 <>
-                  {/* Beside the controls rather than under them, because what an
-                  author is deciding is whether the smoke looks like smoke and
-                  fifteen numbers do not answer that. The subject is this tile
-                  and cannot be anything else, so the picker the status editor
-                  needs is absent — see `./VfxPreview`. */}
                   <div className="flex flex-wrap items-start gap-4">
                     <VfxPreview vfx={previewVfx} tilesets={tilesets} subject={previewSubject} />
-                    {/* Basis zero rather than content width, so the controls take
-                    whatever the canvas leaves and reflow inside it. Sized by
-                    their content they wrap under the preview instead, which
-                    scrolls the canvas off the top of the thing it is there to
-                    answer questions about. */}
                     <div className="min-w-0 flex-1 basis-80">
                       <ParticleFields
                         particles={draft.particles}

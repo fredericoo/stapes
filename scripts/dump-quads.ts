@@ -1,11 +1,3 @@
-/**
- * Dump the quads the world renderer would build for a window of cells, as JSON.
- *
- * A debugging aid for depth work: it resolves tiles exactly the way
- * `WorldRenderer.cellItems` does — same frame resolution, same elevation
- * accumulation, same depth box — so an offline compositor can reproduce a
- * frame's ordering pixel for pixel without a GPU.
- */
 import { readFileSync } from "node:fs";
 import {
   absoluteElevation,
@@ -29,7 +21,6 @@ const tilesets = JSON.parse(readFileSync("data/tilesets.json", "utf8")) as Tiles
 const tilesById: Record<string, TileDef> = Object.fromEntries(tiles.map((t) => [t.id, t]));
 const tilesetById = new Map(tilesets.map((t) => [t.id, t]));
 
-/** `x,y,z,tileId[,direction]` per tile to add on top of that cell, `;`-joined. */
 for (const spec of extraArg ? extraArg.split(";") : []) {
   const [ex, ey, ez, tileId, direction] = spec.split(",");
   const [x, y, z] = [Number(ex), Number(ey), Number(ez)];
@@ -40,12 +31,6 @@ for (const spec of extraArg ? extraArg.split(";") : []) {
   map = setStacks(map, [{ x, y, z, stack }]);
 }
 
-/**
- * One sprite the renderer would draw, in the shape the offline compositor
- * reads. Written down rather than inferred from the first `push`: the pushes
- * happen inside a callback, which is exactly where TypeScript gives up on
- * evolving an empty array's type and leaves it `any[]`.
- */
 type Quad = {
   id: string;
   tilesetId: string;

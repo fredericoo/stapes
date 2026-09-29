@@ -15,11 +15,7 @@ function tile(partial: Record<string, unknown>): TileDef {
 const tilesById = tilesByIdFromList([
   tile({ id: "floor", height: 0 }),
   tile({ id: "crate", height: HEIGHT_PER_LEVEL / 2 }),
-  // The player: shorter than a storey, so a roof leaves room to stand on a
-  // stool. @see docs/notes.md, "A level is four height units, and a body is
-  // three".
   tile({ id: "player", height: HEIGHT_PER_LEVEL - 1, kind: "battler" }),
-  // Full height and takes up no room: you walk into it, not around it.
   tile({ id: "door-open", height: HEIGHT_PER_LEVEL, intangible: true }),
   tile({ id: "wall", height: HEIGHT_PER_LEVEL }),
 ]);
@@ -36,19 +32,15 @@ describe("clumpExtents", () => {
   });
 
   it("merges what stands inside an intangible tile", () => {
-    // The bug, in one stack: the door takes up no elevation, so the player
-    // stands in it rather than on it.
     const extents = clumpExtents(
       [{ tileId: "floor" }, { tileId: "door-open" }, body("player")],
       tilesById,
     );
     expect(extents[1]).toEqual({ foot: 0, top: HEIGHT_PER_LEVEL });
-    // Same object, so the two sort on stack order alone.
     expect(extents[2]).toBe(extents[1]);
   });
 
   it("merges a shoved crate into the doorway it lands in", () => {
-    // The case a body-shaped fix cannot reach: a barrel is not a body.
     const extents = clumpExtents(
       [{ tileId: "floor" }, { tileId: "door-open" }, { tileId: "crate" }],
       tilesById,
@@ -57,8 +49,6 @@ describe("clumpExtents", () => {
   });
 
   it("keeps a body standing *on* a crate separate from it", () => {
-    // Resting on something is not being inside it, and geometry sorts those
-    // two correctly on its own. Merging them would be the opposite bug.
     const extents = clumpExtents(
       [{ tileId: "floor" }, { tileId: "crate" }, body("player")],
       tilesById,
@@ -101,8 +91,6 @@ describe("clumpExtentOnArrival", () => {
   const player = tilesById["player"]!;
 
   it("joins the clump the step is arriving into, before the step lands", () => {
-    // The board still has the walker in the cell it left, so the stack it is
-    // walking into does not contain it yet.
     expect(clumpExtentOnArrival(doorway, player, tilesById)).toEqual({
       foot: 0,
       top: HEIGHT_PER_LEVEL,
@@ -124,8 +112,6 @@ describe("clumpExtentOnArrival", () => {
   });
 
   it("agrees with the stack the step will actually make", () => {
-    // The whole point of computing it early: the same answer the board gives
-    // once the placement moves.
     const arrived = [...doorway, { tileId: "player", owner: "a" }];
     expect(clumpExtentOnArrival(doorway, player, tilesById)).toEqual(
       clumpExtentAt(arrived, arrived.length - 1, tilesById),
@@ -140,11 +126,6 @@ describe("clumpExtentOnArrival", () => {
   });
 });
 
-/**
- * Walking north into a doorway. The door only got out of the way when the
- * simulation committed the step, which is long after the sprite is drawn over
- * the doorway — so it clipped the walker's head for most of the step.
- */
 describe("steppingClumpHeight", () => {
   const outside = [{ tileId: "floor" }, { tileId: "player", owner: "a" }];
   const doorway = [{ tileId: "floor" }, { tileId: "door-open" }];

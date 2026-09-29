@@ -1,25 +1,3 @@
-/**
- * Rewrites `data/tiles.json` into the anchored sprite encoding, once.
- *
- *   bun scripts/anchor-tiles.ts            # rewrite in place
- *   bun scripts/anchor-tiles.ts --check    # say what would change, write nothing
- *
- * A tile used to name a sheet on every one of its sprites and measure every rect
- * from that sheet's corner. It now names the sheet once, on `TileDef.anchor`,
- * and measures every rect from there — see `app/lib/types`.
- *
- * `normalizeTileDef` migrates the old encoding on load, so the game reads the
- * file either way and this script changes nothing anybody can see. It exists so
- * that *reading* `data/tiles.json` tells you what the game will do with it,
- * which is the same reason `settleTileDef` writes `lightPassing` out rather than
- * only answering for it. Run once; there is nothing left for it to do afterwards.
- *
- * **It refuses a tile whose sprites disagree about their sheet.** The migration
- * takes the first sheet it finds and would silently draw the rest of that tile
- * from the wrong picture. Nothing in the catalogue has ever done this — checked
- * before the encoding changed — so the refusal is a guard against a hand-edit,
- * not a case anybody has to handle.
- */
 import { readFileSync, writeFileSync } from "node:fs";
 import { normalizeTiles } from "../app/lib/types";
 
@@ -28,7 +6,6 @@ const check = process.argv.includes("--check");
 
 type RawSprite = { tilesetId?: string; rect?: { x: number; y: number } };
 
-/** Every sheet named anywhere on this tile, however deeply it is nested. */
 function sheetsNamedBy(node: unknown, out: Set<string>): Set<string> {
   if (!node || typeof node !== "object") return out;
   const sprite = node as RawSprite;
@@ -55,11 +32,8 @@ if (spread.length > 0) {
 }
 
 /**
- * The anchor where a reader expects it — with the other facts about what the
- * tile *is* — rather than after everything the tile does.
- *
- * `normalizeTileDef` appends it, which is invisible in memory and would put it
- * several hundred lines below the sprites it governs in the file.
+ * Rebuilt only to reorder keys: `normalizeTileDef` appends `anchor`, and this
+ * moves it up beside the tile's identity fields in the written file.
  */
 const anchored = normalizeTiles(raw).map(
   ({ id, name, height, type, kind, attributes, anchor, ...rest }) => ({

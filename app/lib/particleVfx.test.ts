@@ -1,9 +1,13 @@
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import * as v from "valibot";
 import {
   compileRamp,
+  completeParticles,
   DEFAULT_PARTICLES,
   EMPTY_SHAPE,
+  PARTICLE_SHAPE_PX,
+  type ParticleEmitterDef,
   particleEmitterSchema,
   RAMP_LUT_SIZE,
   rampIndexAt,
@@ -13,17 +17,15 @@ import {
 import { hexToRgb01 } from "./palette";
 
 /**
- * What an authored plume comes to.
- *
- * A ramp is a *number* and can be pinned, which is the whole reason these
- * assertions look nothing like the tint's next door: there is a right answer to
- * "what colour is this particle at half its life", and it is worth writing down.
+ * Reads an entry back as the sRGB the scene target stores for it. The table is
+ * linear light, so this is where an authored hex has to come back out.
  */
-
 const lut = (stops: { at: number; color: string }[], t: number) => {
   const compiled = compileRamp(stops);
   const base = rampIndexAt(t) * 3;
-  return [compiled[base]!, compiled[base + 1]!, compiled[base + 2]!] as const;
+  const linear = new THREE.Color(compiled[base]!, compiled[base + 1]!, compiled[base + 2]!);
+  const { r, g, b } = linear.getRGB({ r: 0, g: 0, b: 0 }, THREE.SRGBColorSpace);
+  return [r, g, b] as const;
 };
 
 const near = (a: number, b: number, tolerance = 0.02) => Math.abs(a - b) <= tolerance;
@@ -56,14 +58,6 @@ describe("a colour ramp", () => {
   });
 
   it("holds the ends beyond the outermost stops", () => {
-    // A ramp is not obliged to start at 0 or finish at 1, and a particle born
-    // before the first stop is not a particle with no colour.
-    //
-    // Asserted against the stop's own colour rather than against the table entry
-    // at the stop's position, because those are not the same number: 64 samples
-    // cannot land exactly on 0.25, so the nearest entry sits a hair *inside* the
-    // ramp and has already begun interpolating. What is being tested is the
-    // hold, and the hold is exact.
     const stops = [
       { at: 0.25, color: "#ffffff" },
       { at: 0.75, color: "#2e222f" },
@@ -93,9 +87,6 @@ describe("a colour ramp", () => {
   });
 
   it("passes through a midpoint lighter than the sRGB average", () => {
-    // The whole argument for interpolating in OKLab. Halfway from white to a
-    // mid amber is a warm cream; the naive sRGB midpoint is darker and duller,
-    // and a fire made of those looks like a fire behind a dirty window.
     const stops = [
       { at: 0, color: "#ffffff" },
       { at: 1, color: "#fb6b1d" },
@@ -120,8 +111,6 @@ describe("a colour ramp", () => {
   it("indexes the table over the whole life and never past its end", () => {
     expect(rampIndexAt(0)).toBe(0);
     expect(rampIndexAt(1)).toBe(RAMP_LUT_SIZE - 1);
-    // Life is clamped rather than wrapped: a particle read a hair past its own
-    // death must not come back round to its birth colour.
     expect(rampIndexAt(1.5)).toBe(RAMP_LUT_SIZE - 1);
     expect(rampIndexAt(-1)).toBe(0);
   });
@@ -139,22 +128,32 @@ describe("what validates", () => {
     );
   });
 
-  it("defaults a plume authored before the wind to still air", () => {
-    const { windX: _x, windY: _y, ...stillAir } = DEFAULT_PARTICLES;
-    const parsed = v.parse(particleEmitterSchema, stillAir);
-    expect(parsed.windX).toBe(0);
-    expect(parsed.windY).toBe(0);
+  it("defaults a plume authored before offsets to none", () => {
+    const { offsetX: _x, offsetY: _y, offsetElev: _elev, ...still } = DEFAULT_PARTICLES;
+    const parsed = v.parse(particleEmitterSchema, still);
+    expect(parsed.offsetX).toBe("");
+    expect(parsed.offsetY).toBe("");
+    expect(parsed.offsetElev).toBe("");
+  });
+
+  it("refuses an offset that is not a formula", () => {
+    const circle = { ...DEFAULT_PARTICLES, offsetX: "cos(AGE_SEC)", offsetY: "sin(AGE_SEC)" };
+    expect(v.safeParse(particleEmitterSchema, circle).success).toBe(true);
+    const typo = { ...DEFAULT_PARTICLES, offsetElev: "cos(AGE_SEC" };
+    expect(v.safeParse(particleEmitterSchema, typo).success).toBe(false);
   });
 
   it("defaults a plume to lighting itself", () => {
-    // Every emitter authored before `lit` existed glowed in the dark, and it has
-    // to keep doing so — a silent change to how a fire reads at night would be
-    // worse than an author having to tick a box.
     const parsed = v.parse(particleEmitterSchema, {
       ...DEFAULT_PARTICLES,
       lit: undefined,
     });
     expect(parsed.lit).toBe(false);
+  });
+
+  it("defaults a plume to sorting as one, so a fire never ducks behind its body", () => {
+    const { ownDepth: _ownDepth, ...plume } = DEFAULT_PARTICLES;
+    expect(v.parse(particleEmitterSchema, plume).ownDepth).toBe(false);
   });
 });
 
@@ -164,6 +163,13 @@ describe("a drawn shape", () => {
   it("defaults a plume authored before shapes to a circle", () => {
     const { shape: _shape, ...circle } = DEFAULT_PARTICLES;
     expect(v.parse(particleEmitterSchema, circle).shape).toBeNull();
+  });
+
+  it("defaults a shape authored before sizes to five pixels for its whole life", () => {
+    const { sizeFromPx: _from, sizeToPx: _to, ...unsized } = { ...DEFAULT_PARTICLES, shape: Z };
+    const parsed = v.parse(particleEmitterSchema, unsized);
+    expect(parsed.sizeFromPx).toBe(PARTICLE_SHAPE_PX);
+    expect(parsed.sizeToPx).toBeNull();
   });
 
   it("reads five rows of five", () => {
@@ -187,5 +193,30 @@ describe("a drawn shape", () => {
     const one = toggleShapePixel(EMPTY_SHAPE, 2, 0);
     expect(one).toEqual(["..#..", ".....", ".....", ".....", "....."]);
     expect(toggleShapePixel(one, 2, 0)).toEqual(EMPTY_SHAPE);
+  });
+});
+
+describe("a block straight from a file", () => {
+  it("fills in what it leaves out as the schema does", () => {
+    const leavesOutEveryDefault = {
+      ratePerSecond: 9,
+      ttlFromMs: 800,
+      ttlToMs: 1_600,
+      spawnRadiusCells: 0.35,
+      spawnElevFrom: 0,
+      spawnElevTo: 0,
+      riseFrom: 3,
+      riseTo: 6,
+      driftCellsPerSecond: 0.2,
+      gravity: -1.6,
+      radiusFromPx: 1,
+      radiusToPx: 1,
+      alphaFrom: 0.9,
+      alphaTo: 0,
+      ramp: [{ at: 0, color: "#3c791b" }],
+    } as ParticleEmitterDef;
+    expect(completeParticles(leavesOutEveryDefault)).toEqual(
+      v.parse(particleEmitterSchema, leavesOutEveryDefault),
+    );
   });
 });

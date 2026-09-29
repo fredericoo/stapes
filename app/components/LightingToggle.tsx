@@ -1,20 +1,6 @@
 import { IconBulb, IconBulbOff } from "@tabler/icons-react";
 import { Toggle, Tooltip } from "../ui";
 
-/**
- * Turn the world's lighting off.
- *
- * Off is not a dimmer or a fullbright ambient: the renderer stops baking,
- * stitching and uploading light entirely and draws the art as authored. It
- * exists for the two moments where light is in the way — judging a sprite
- * against its neighbours in the editor, and measuring anything else on the
- * frame while the most expensive phase is out of the picture.
- *
- * Shared by the game, `/admin/play` and `/admin/map` so the control means the
- * same thing
- * and sits in the same place in all three, even though each keeps the flag
- * somewhere different.
- */
 export function LightingToggle({
   enabled,
   onChange,
@@ -22,7 +8,6 @@ export function LightingToggle({
 }: {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
-  /** Key that toggles it, named in the tooltip. Only /map binds one. */
   shortcut?: string;
 }) {
   const key = shortcut ? ` (${shortcut})` : "";

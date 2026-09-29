@@ -16,15 +16,6 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { Button, FieldLabel, Input, NumberInput, Segmented } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
-/**
- * The recipes half of a crafting block: one card per recipe, each with what
- * it spends and what it may give back.
- *
- * Everything is addressed by position, on `KitEditor`'s terms: a recipe, an
- * input and an output have no identity of their own, and keying on a tile id
- * would make two rows naming the same stone collide.
- */
-
 const DEFAULT_WEIGHT = 1;
 
 const OUTPUT_KIND_OPTIONS: { value: CraftOutputKind; label: string }[] = [
@@ -34,9 +25,7 @@ const OUTPUT_KIND_OPTIONS: { value: CraftOutputKind; label: string }[] = [
 
 type Props = {
   craft: CraftInteraction;
-  /** The next block, or undefined once the last recipe has gone. */
   onChange: (next: CraftInteraction | undefined) => void;
-  /** Items that can be spent or handed back — never a container. */
   giveable: TileDef[];
   tilesets: TilesetDef[];
 };
@@ -51,9 +40,6 @@ export function CraftFields({ craft, onChange, giveable, tilesets }: Props) {
     onChange({ ...craft, recipes: [...craft.recipes, DEFAULT_CRAFT_RECIPE] });
   };
 
-  // A crafter with no recipes is not a crafter — the resolver reads an emptied
-  // block as "does not craft" — so the last one takes the block with it rather
-  // than leaving a switch that is on over a tile that does nothing.
   const removeRecipe = (index: number) => {
     const recipes = craft.recipes.filter((_, i) => i !== index);
     onChange(recipes.length > 0 ? { ...craft, recipes } : undefined);
@@ -201,13 +187,6 @@ function InputsFields({
   );
 }
 
-/**
- * The output's kind, then its items with the one number that kind reads.
- *
- * Switching kind rebuilds every item with the other number rather than
- * carrying both, so the draft never holds a figure nothing reads — the same
- * reason `craftForSave` rebuilds the output by its arm.
- */
 function OutputFields({
   output,
   onChange,
@@ -299,7 +278,6 @@ function OutputFields({
   );
 }
 
-/** The output with one item patched, keeping the arm it already was. */
 function withItem(
   output: CraftOutput,
   index: number,

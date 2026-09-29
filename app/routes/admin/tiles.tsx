@@ -21,7 +21,6 @@ import type { TileDef, TilesetDef } from "../../lib/types";
 import { KeyHint } from "../../components/KeyHint";
 import { Button, Dialog, Input, Segmented, useToast } from "../../ui";
 
-/** Reaches for the search field from anywhere on the page. */
 const SEARCH_KEY = "/";
 
 export async function clientLoader() {
@@ -95,9 +94,6 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
 
 export default function TilesPage() {
   const { tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
-  // Compiled once per load, not per render: `statusesById` parses every formula
-  // in the catalogue. Only the names and the ranges are read here, but there is
-  // one function that decides what a status is and this is it.
   const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
   const fetcher = useFetcher<typeof clientAction>();
   const toast = useToast();
@@ -124,14 +120,6 @@ export default function TilesPage() {
 
   const visible = useMemo(() => filterTiles(tiles, query, filter), [tiles, query, filter]);
 
-  /**
-   * Slash reaches for the search field.
-   *
-   * Gated on {@link isTypingTarget} so the character still reaches any field
-   * that already has focus — including this one, where slash is just a slash —
-   * and on the dialogs, whose focus trap would fight a field behind them for
-   * the caret and win, leaving the keystroke swallowed and nothing focused.
-   */
   useEffect(() => {
     if (dialogOpen || uploadOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -169,9 +157,6 @@ export default function TilesPage() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key !== "Escape") return;
-                // Escape empties a field with something in it and lets go of an
-                // empty one, so the same key always means "back out of this" and
-                // never strands the caret in a box it just cleared.
                 if (query) setQuery("");
                 else e.currentTarget.blur();
               }}
@@ -180,16 +165,6 @@ export default function TilesPage() {
               autoComplete="off"
               className="w-full pr-7"
             />
-            {/*
-              Only while the field is empty, which is what keeps it out of the
-              way of the native clear button `type="search"` puts in this exact
-              spot the moment there is something to clear. The two never show at
-              once, so one corner does both jobs.
-
-              Hidden where there is probably no keyboard, which `KeyHint`
-              decides for itself: a phone has no key to press, and the hint
-              would be the one thing in the bar earning none of its room.
-            */}
             {query === "" ? (
               <span className="pointer-events-none absolute top-1/2 right-2 flex -translate-y-1/2">
                 <KeyHint label={SEARCH_KEY} />
@@ -293,10 +268,6 @@ export default function TilesPage() {
           fd.set("intent", "save-tile");
           fd.set("tile", JSON.stringify(copy));
           fetcher.submit(fd, { method: "post" });
-          // Straight into the copy, because duplicating is never the whole job
-          // — the id is a placeholder and the art is the original's until it is
-          // offset. `isNew` stays false: the tile is written, so saving it again
-          // must update it rather than refuse as a collision.
           setEditing(copy);
           setIsNew(false);
           toast.show(`Duplicated as ${copy.id}`);

@@ -1,8 +1,3 @@
-/**
- * Fullscreen palette quantisation pass (editor + play).
- * Nearest OKLab match — no dither. Exact art colours snap; everything else
- * lands on the closest of the entries in STAPES_PALETTE.
- */
 import * as THREE from "three";
 import { PALETTE_SIZE, STAPES_PALETTE, paletteOklab, paletteRgb01 } from "../lib/palette";
 
@@ -17,7 +12,6 @@ function paletteVec3Array(flat: Float32Array): THREE.Vector3[] {
   return out;
 }
 
-/** Fullscreen nearest-OKLab palette match. */
 export function createPaletteMaterial(): THREE.ShaderMaterial {
   const paletteRgb = paletteVec3Array(PALETTE_RGB01);
   const paletteLab = paletteVec3Array(PALETTE_LAB);
@@ -28,14 +22,14 @@ export function createPaletteMaterial(): THREE.ShaderMaterial {
       uPalette: { value: paletteRgb },
       uPaletteLab: { value: paletteLab },
     },
-    vertexShader: /* glsl */ `
+    vertexShader: `
       varying vec2 vUv;
       void main() {
         vUv = uv;
         gl_Position = vec4(position.xy, 0.0, 1.0);
       }
     `,
-    fragmentShader: /* glsl */ `
+    fragmentShader: `
       #define PALETTE_SIZE ${PALETTE_SIZE}
 
       uniform sampler2D tScene;
@@ -77,7 +71,8 @@ export function createPaletteMaterial(): THREE.ShaderMaterial {
       }
 
       void main() {
-        // SRGBColorSpace RT samples as linear — re-encode for hex/255 compare.
+        // The scene RT samples as linear; re-encode to sRGB so this compares
+        // against the palette's own hex/255 values.
         vec3 lab = srgbToOklab(linearToSrgb(texture2D(tScene, vUv).rgb));
         float bestD = 1e20;
         int best = 0;
@@ -99,35 +94,20 @@ export function createPaletteMaterial(): THREE.ShaderMaterial {
   });
 }
 
-/**
- * Editor "other levels" flatten: one faded copy of a whole stack of floors.
- *
- * Takes a rendered image rather than a level, because that is the only way the
- * fade can be applied once. Every floor above the one being edited is drawn
- * into a single depth-sorted target first and arrives here as one picture, so
- * what fades is the silhouette of the stack — not each floor over the last,
- * which showed every interior wall in the building at once.
- *
- * Runs after the quantise, over the finished frame, and is the one thing in the
- * editor allowed off the ramp. Blended into the scene target it would be
- * quantised with everything else, and a quantised translucent pixel is not
- * translucent — it is whichever solid palette entry sits nearest the blend,
- * which is a colour that merely *looks* faded. Here the alpha survives.
- */
 export function createLevelFadeCompositeMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       tLevel: { value: null as THREE.Texture | null },
       uOpacity: { value: 1 },
     },
-    vertexShader: /* glsl */ `
+    vertexShader: `
       varying vec2 vUv;
       void main() {
         vUv = uv;
         gl_Position = vec4(position.xy, 0.0, 1.0);
       }
     `,
-    fragmentShader: /* glsl */ `
+    fragmentShader: `
       uniform sampler2D tLevel;
       uniform float uOpacity;
       varying vec2 vUv;
@@ -148,9 +128,8 @@ export function createLevelFadeCompositeMaterial(): THREE.ShaderMaterial {
         vec4 texel = texture2D(tLevel, vUv);
         float alpha = texel.a * uOpacity;
         if (alpha < 0.004) discard;
-        // The level target samples as linear; the canvas holds sRGB bytes, so
-        // encode back before writing. Premultiplied for the CustomBlending
-        // below.
+        // The level target samples as linear but the canvas holds sRGB
+        // bytes, and the output must be premultiplied for CustomBlending.
         gl_FragColor = vec4(linearToSrgb(texel.rgb) * alpha, alpha);
       }
     `,
@@ -166,11 +145,6 @@ export function createLevelFadeCompositeMaterial(): THREE.ShaderMaterial {
   });
 }
 
-/**
- * Owns the offscreen scene RT + fullscreen quantise quad.
- * Caller renders the world into {@link sceneTarget}, then
- * {@link blitToCanvas} samples it onto the drawing buffer.
- */
 export class PalettePass {
   readonly material: THREE.ShaderMaterial;
   readonly scene: THREE.Scene;
@@ -215,7 +189,6 @@ export class PalettePass {
     return this.target;
   }
 
-  /** Bind the scene RT and blit the quantised result to the canvas. */
   blitToCanvas(renderer: THREE.WebGLRenderer): void {
     this.material.uniforms.tScene!.value = this.target?.texture ?? null;
     renderer.setRenderTarget(null);

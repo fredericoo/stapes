@@ -110,5 +110,19 @@
     "file": "respawn.png",
     "width": 16,
     "height": 8
+  },
+  {
+    "id": "cave-wall",
+    "name": "Cave Wall",
+    "file": "cave-wall.png",
+    "width": 128,
+    "height": 384
+  },
+  {
+    "id": "counter",
+    "name": "Counter",
+    "file": "counter.png",
+    "width": 80,
+    "height": 48
   }
 ]

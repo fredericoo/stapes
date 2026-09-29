@@ -12,13 +12,6 @@ import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * A tile that takes a condition off whoever sets it off — water putting out a
- * burn. The reach rules are `addStatus`'s and are tested there; what is tested
- * here is that the status goes, that only the named one goes, and that standing
- * in the water keeps putting out a burn that lands on you there.
- */
-
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 const TICKS_PER_SECOND = Math.round(1_000 / TICK_MS);
 const BURN_MS = 4_000;
@@ -77,7 +70,6 @@ const tiles: TileDef[] = [
       removeStatus: { actionName: "Wash", trigger: "interact", statusId: "burned" },
     },
   }),
-  // Switched on and never filled in, which reads as unauthored.
   tile({ id: "dry", interactions: { removeStatus: { trigger: "step", statusId: "" } } }),
 ];
 
@@ -125,7 +117,6 @@ function held(session: GameSession, id = "local"): string[] {
   return (session.statusesOf(id) ?? []).map((instance) => instance.defId);
 }
 
-/** The player at the origin facing east, and a row of cells to walk along. */
 function world(row: string[], tileId = "player"): MapFile {
   let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId, direction: "e" }]);
   if (tileId !== "player") {

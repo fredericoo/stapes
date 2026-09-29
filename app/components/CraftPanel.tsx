@@ -15,31 +15,14 @@ import {
 import { KeyHint } from "./KeyHint";
 import { TilePreview } from "./TilePreview";
 
-/**
- * A crafter's recipes, as a panel: every one the viewer can afford right now,
- * and nothing else.
- *
- * Takes the interaction list's place on a conversation's terms — same walls,
- * same buttons, same close — because it is the same kind of thing: what is in
- * reach, said longer. The list it draws is worked out by the render loop from
- * the kit this side already holds (see `../game/craft`'s `offeredRecipes`), so
- * a recipe drops out of the window the moment its inputs run out and the
- * window closes itself when none are left.
- *
- * What a recipe *gives* is deliberately not drawn. The name is the author's
- * whole say in how a recipe reads, and the odds are part of the game.
- */
-
 const INPUT_SPRITE_SIZE_PX = 16;
 
 type Props = {
   crafting: CraftingWindow;
   tiles: TileDef[];
   tilesets: TilesetDef[];
-  /** Run the recipe at this position in the crafter's authored list. */
   onCraft: (recipeIndex: number) => void;
   onClose: () => void;
-  /** Bind the digit row to the recipes, and draw each one's key. */
   hotkeys?: boolean;
   className?: string;
 };
@@ -58,8 +41,6 @@ export function CraftPanel({
   const name = def?.name ?? crafting.tileId;
   const title = `${craftVerb(crafting.craft)} · ${name}`;
 
-  // Through a ref, because the keys are bound once per list of recipes and
-  // `onCraft` is an inline arrow upstream.
   const onCraftRef = useRef(onCraft);
   onCraftRef.current = onCraft;
   const recipes = crafting.recipes;
@@ -121,7 +102,6 @@ export function CraftPanel({
   );
 }
 
-/** One thing a recipe spends: its sprite, and how many when it is more than one. */
 function RecipeInput({
   input,
   def,

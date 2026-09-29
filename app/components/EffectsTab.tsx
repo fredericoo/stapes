@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
+import type { CraftInteraction } from "../lib/interactions";
+import { DEFAULT_IMPACT, DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import type { StatusVfx } from "../lib/statusVfx";
 import {
   burstParticleCount,
@@ -12,6 +13,7 @@ import {
   MAX_TRANSITION_MS,
   MIN_CLUMP_PX,
   MIN_TRANSITION_MS,
+  type CraftOutcome,
   type TileTransitions,
   type Transition,
   type TransitionSide,
@@ -21,33 +23,15 @@ import { Button, FieldLabel, Segmented, Switch, SwitchField } from "../ui";
 import { ColorField, NumberField, ParticleFields, Row } from "./ParticleFields";
 import { VfxPreview, type TransitionPlay } from "./VfxPreview";
 
-/**
- * How a tile arrives and how it leaves, authored beside a preview that plays it.
- *
- * Its own tab rather than more of the Tile tab, which already carries the art,
- * the light and the plume: this is two small forms that most tiles never open,
- * and the dot on the tab says whether this one has. See `../lib/tileTransition`
- * for what each field means to the shader.
- *
- * Every number is held to the schema's own range here, because the schema's
- * answer to an out-of-range value is to drop the whole side on load — which
- * would read as the effect silently vanishing, with no field saying why.
- */
-
 type Dissolve = NonNullable<Transition["dissolve"]>;
 
 const DEFAULT_DURATION_MS = 700;
 const DURATION_STEP_MS = 50;
 const DEFAULT_EDGE_WIDTH = 0.15;
 const EDGE_WIDTH_STEP = 0.05;
-/** Half-cell steps, so a sweep can start from an edge as well as a corner. */
 const SWEEP_ORIGIN_STEP = 0.5;
 const DEFAULT_SWEEP_FROM = { x: -1, y: -1 };
 
-/**
- * A cold edge coming in and an ember going out — the pair the arcane flame was
- * authored with, and a starting point that already reads as a direction.
- */
 const DEFAULT_EDGE_COLOR: Record<TransitionSide, string> = {
   appear: "#8ce6ff",
   disappear: "#ff9e40",
@@ -63,12 +47,30 @@ const SIDES: Array<{ side: TransitionSide; title: string; info: string }> = [
   {
     side: "appear",
     title: "Appear",
-    info: "Played when this tile arrives for a reason the world names: a conjure, or a decay that turns something into it. Placing it in the editor, dropping it or respawning it plays nothing.",
+    info: "Played when this tile arrives for a reason the world names: a conjure, a respawn, or a decay that turns something into it. Placing it in the editor or dropping it plays nothing.",
   },
   {
     side: "disappear",
     title: "Disappear",
-    info: "Played when this tile decays away. Picking it up or moving it plays nothing. Its light fades with it.",
+    info: "Played when this tile decays away, or when the last use of its Extract finishes. Picking it up or moving it plays nothing. Its light fades with it.",
+  },
+];
+
+const PULLED_INFO =
+  "Played on this tile each time a use of its Extract finishes, whatever the roll came up with. The use that spends the last of it removes the tile or turns it into its depleted tile, so that one plays only the burst, where the tile stood. The tile's own Disappear plays at the same time.";
+
+const STARTER_PULL_MS = 300;
+
+const CRAFT_SECTIONS: Array<{ outcome: CraftOutcome; title: string; info: string }> = [
+  {
+    outcome: "succeeded",
+    title: "Craft succeeds",
+    info: "Played on this tile when a recipe here makes at least one thing.",
+  },
+  {
+    outcome: "failed",
+    title: "Craft fails",
+    info: "Played on this tile when a recipe here takes its inputs and every chance roll misses, so nothing is made. A recipe whose outputs are all certain never plays it.",
   },
 ];
 
@@ -83,17 +85,11 @@ function defaultDissolve(side: TransitionSide): Dissolve {
 
 const DEFAULT_DROP_LEVELS = 2;
 
-/** How many particles a burst spends over the whole transition. */
 function burstCost(burst: ParticleEmitterDef, durationMs: number): number {
   return burstParticleCount(burst.ratePerSecond, durationMs);
 }
 
-/**
- * The default plume as a burst, slowed if need be to fit the budget over this
- * duration — so switching one on never authors a side the schema would drop.
- */
 function defaultBurst(durationMs: number): ParticleEmitterDef {
-  // What one particle a second costs over this duration, into the budget.
   const affordable = Math.floor(MAX_BURST_PARTICLES / burstParticleCount(1, durationMs));
   return {
     ...DEFAULT_PARTICLES,
@@ -106,18 +102,25 @@ function defaultTransition(side: TransitionSide): Transition {
   return { durationMs: DEFAULT_DURATION_MS, dissolve: defaultDissolve(side) };
 }
 
+function starterPull(): Transition {
+  return {
+    durationMs: STARTER_PULL_MS,
+    particles: { ...DEFAULT_IMPACT, ramp: [...DEFAULT_IMPACT.ramp] },
+  };
+}
+
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
   tilesets: TilesetDef[];
-  /** The dialog's steady copy of the draft's art. @see TileEditorDialog */
   previewSubject: TileDef;
-  /** The tile's own plume, so a flame is previewed smoking as it does in play. */
   previewVfx: StatusVfx;
 };
 
 export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewVfx }: Props) {
   const [play, setPlay] = useState<TransitionPlay | null>(null);
+  const extract = draft.interactions?.extract;
+  const craft = draft.interactions?.craft;
 
   const setSide = (side: TransitionSide, next: Transition | undefined) => {
     const transitions: TileTransitions = { ...draft.transitions };
@@ -128,6 +131,30 @@ export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewV
       transitions: transitions.appear || transitions.disappear ? transitions : undefined,
     });
   };
+
+  const setPulled = (next: Transition | undefined) => {
+    if (!extract) return;
+    const { pulled: _replaced, ...rest } = extract;
+    onChange({
+      ...draft,
+      interactions: { ...draft.interactions, extract: next ? { ...rest, pulled: next } : rest },
+    });
+  };
+
+  const setCraftEffect = (outcome: CraftOutcome, next: Transition | undefined) => {
+    if (!craft) return;
+    const updated: CraftInteraction = { ...craft };
+    if (next) updated[outcome] = next;
+    else delete updated[outcome];
+    onChange({ ...draft, interactions: { ...draft.interactions, craft: updated } });
+  };
+
+  const playAs = (side: TransitionSide) => (transition: Transition) =>
+    setPlay((last) => ({
+      transition,
+      side,
+      token: (last?.token ?? 0) + 1,
+    }));
 
   return (
     <div className="flex flex-wrap items-start gap-4">
@@ -146,15 +173,34 @@ export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewV
             info={info}
             transition={draft.transitions?.[side]}
             onChange={(next) => setSide(side, next)}
-            onPlay={(transition) =>
-              setPlay((last) => ({
-                transition,
-                side,
-                token: (last?.token ?? 0) + 1,
-              }))
-            }
+            onPlay={playAs(side)}
           />
         ))}
+        {extract ? (
+          <TransitionSection
+            side="appear"
+            title="Extract"
+            info={PULLED_INFO}
+            starter={starterPull}
+            transition={extract.pulled}
+            onChange={setPulled}
+            onPlay={playAs("appear")}
+          />
+        ) : null}
+        {craft
+          ? CRAFT_SECTIONS.map(({ outcome, title, info }) => (
+              <TransitionSection
+                key={outcome}
+                side="appear"
+                title={title}
+                info={info}
+                starter={starterPull}
+                transition={craft[outcome]}
+                onChange={(next) => setCraftEffect(outcome, next)}
+                onPlay={playAs("appear")}
+              />
+            ))
+          : null}
       </div>
     </div>
   );
@@ -164,6 +210,7 @@ function TransitionSection({
   side,
   title,
   info,
+  starter = () => defaultTransition(side),
   transition,
   onChange,
   onPlay,
@@ -171,6 +218,7 @@ function TransitionSection({
   side: TransitionSide;
   title: string;
   info: string;
+  starter?: () => Transition;
   transition: Transition | undefined;
   onChange: (next: Transition | undefined) => void;
   onPlay: (transition: Transition) => void;
@@ -193,7 +241,7 @@ function TransitionSection({
       <div className="flex items-center justify-between gap-2">
         <SwitchField
           checked={Boolean(transition)}
-          onCheckedChange={(on) => onChange(on ? defaultTransition(side) : undefined)}
+          onCheckedChange={(on) => onChange(on ? starter() : undefined)}
           label={title}
           info={info}
           size="section"
@@ -313,7 +361,6 @@ function DissolveFields({
   onChange,
 }: {
   side: TransitionSide;
-  /** The side's heading, so every switch in it is named the same way. */
   title: string;
   dissolve: Dissolve | undefined;
   onChange: (next: Dissolve | undefined) => void;
@@ -344,8 +391,6 @@ function DissolveFields({
               onChange({
                 ...dissolve,
                 pattern,
-                // A sweep cannot be saved without somewhere to start, so one is
-                // filled in the moment it is picked rather than left to fail.
                 from: pattern === "sweep" ? from : dissolve.from,
               })
             }

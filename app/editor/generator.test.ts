@@ -24,7 +24,6 @@ import {
 const tiles: TileDef[] = normalizeTiles(tilesRaw as unknown[]);
 const tilesById = tilesByIdFromList(tiles);
 
-/** A grid from rows of text: `.` is open, anything else is not. */
 function gridOf(rows: string[]): CellGrid {
   const g = newGrid({
     minX: 0,
@@ -62,8 +61,6 @@ describe("columnOf", () => {
   });
 
   it("refuses a tile that does not divide the height, rather than rounding", () => {
-    // `rat` is one unit tall; four of them would fill a level, but a column of
-    // rats is not the point — the refusal names the arithmetic.
     const column = columnOf("player", 4, tilesById);
     expect(column.ok).toBe(false);
     expect(!column.ok && column.reason).toContain("3 units");
@@ -87,7 +84,6 @@ describe("widenToTwo", () => {
       "########",
     ]);
     widenToTwo(g);
-    // The neck is gone; the two rooms either side of it are untouched.
     expect(rowsOf(g)).toEqual([
       "########",
       "##....##",
@@ -116,7 +112,6 @@ describe("widenToTwo", () => {
   });
 
   it("runs to a fixed point, so filling one neck exposing another closes both", () => {
-    // A spur off a spur: taking the tip out leaves the stem one wide too.
     const g = gridOf(["######", "#..###", "#..###", "#.####", "#.####", "######"]);
     widenToTwo(g);
     expect(rowsOf(g)).toEqual(["######", "#..###", "#..###", "######", "######", "######"]);
@@ -124,7 +119,6 @@ describe("widenToTwo", () => {
 });
 
 describe("planWater and cutFords", () => {
-  /** A room with a two-wide waist, which is the narrowest a cave ever has. */
   const HOURGLASS = [
     "########",
     "#......#",
@@ -136,19 +130,16 @@ describe("planWater and cutFords", () => {
     "########",
   ];
 
-  /** The whole 8x8 fixture, so the water may go anywhere in it. */
   const WHOLE_GRID = { minX: 0, maxX: 7, minY: 0, maxY: 7 };
 
   it("dries a crossing wherever water would seal a passage", () => {
     const g = gridOf(HOURGLASS);
-    // Flood the whole waist: without a ford the two halves are separate.
     const water = new Set([3, 4].flatMap((y) => [3, 4].map((x) => gridIndex(g, x, y))));
     cutFords(g, water);
 
     const dry = new Uint8Array(g.cells);
     for (const i of water) dry[i] = 0;
     expect(regionsOf(g, dry)).toHaveLength(1);
-    // And it took the least it could: three of the four waist cells are wet.
     expect(water.size).toBe(2);
   });
 
@@ -177,8 +168,6 @@ describe("planWater and cutFords", () => {
   });
 
   it("cuts its channel through the rock rather than staying on the floor", () => {
-    // A room with rock all round it: at this coverage the streams have to
-    // leave it, and every cell they take is one the caller then opens.
     const g = gridOf(HOURGLASS);
     const water = planWater(g, WHOLE_GRID, 5, 60);
     const eroded = [...water].filter((i) => g.cells[i] === 0);
@@ -233,7 +222,6 @@ describe("planScatter", () => {
   });
 
   it("drops a prop too tall to stand on the floor it is given", () => {
-    // A four-unit tree on a two-unit floor is five units into a level of four.
     const onFlat = planScatter(cells, [{ tileId: "tree", chancePercent: 100 }], 7, 0, tilesById);
     expect(onFlat.size).toBe(cells.length);
     const onPlinth = planScatter(cells, [{ tileId: "tree", chancePercent: 100 }], 7, 2, tilesById);
@@ -264,7 +252,6 @@ describe("connectionsAlongBorder", () => {
   const BOUNDS = { minX: 0, maxX: 9, minY: 0, maxY: 9 };
 
   it("gives one way in per run, at its middle", () => {
-    // Ground along the west side, outside cells (-1, 2) to (-1, 6).
     const joinable = (x: number, y: number) => x === -1 && y >= 2 && y <= 6;
     const found = connectionsAlongBorder(BOUNDS, joinable);
     expect(found).toEqual([{ x: 0, y: 4, inward: { dx: 1, dy: 0 } }]);
@@ -286,7 +273,6 @@ describe("connectionsAlongBorder", () => {
 describe("isJoinableGround", () => {
   const map = setStacks(emptyMap(), [
     { x: 0, y: 0, z: 0, stack: [{ tileId: "dirt" }] },
-    // A cave's rock stands on the same floor its cave does.
     {
       x: 1,
       y: 0,
@@ -338,8 +324,6 @@ describe("openConnection", () => {
   });
 
   it("stops at the depth it is given when it meets nothing", () => {
-    // `maxDepth` counts steps inward, and the brush is two cells deep, so two
-    // steps reach four cells in.
     const g = gridOf(["######", "######", "######", "######"]);
     openConnection(
       g,

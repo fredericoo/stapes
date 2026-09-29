@@ -6,12 +6,6 @@ import { FRAME, tile } from "../lib/testTile";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
-/**
- * A status that stops its bearer acting, and one that ends when its bearer is
- * hurt. Sleep is both; `daze` is only the first, so the two flags are tested
- * apart. A bed puts either on whoever presses it.
- */
-
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 const TICKS_PER_SECOND = Math.round(1_000 / TICK_MS);
 const SLEEP_MS = 10_000;
@@ -106,10 +100,6 @@ const BED = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const STOOL = { x: 0, y: 1, z: 0, stackIndex: 1 };
 const DEER_ID = "npc:-1,0,0,1";
 
-/**
- * The player at the origin, a bed to the east, a stool to the south, a deer to
- * the west and fire two cells north.
- */
 function world(): MapFile {
   let map = emptyMap();
   const put = (x: number, y: number, tileId: string) => {
@@ -132,7 +122,6 @@ function run(play: GameSession, ticks: number) {
   for (let i = 0; i < ticks; i++) play.tick(TICK_MS);
 }
 
-/** Take whole steps in one direction, then let go. */
 function walk(play: GameSession, direction: Direction, cells: number) {
   for (let i = 0; i < cells; i++) {
     play.setInput({ directions: [direction] });
@@ -223,7 +212,6 @@ describe("a body that cannot act", () => {
 describe("sleep", () => {
   it("heals while it runs", () => {
     const play = session();
-    // Walk into the fire and back out, and wait for the burn to finish.
     walk(play, "n", 2);
     walk(play, "s", 2);
     run(play, (BURN_MS / 1000 + 1) * TICKS_PER_SECOND);
@@ -242,8 +230,6 @@ describe("sleep", () => {
     expect(held(play)).toContain("burned");
     const burning = playerOf(play).hp!;
 
-    // Out of reach of the bed now, so the sleep goes on by command, through the
-    // same grant the bed uses.
     play.runCommand("/status sleep");
     expect(held(play).sort()).toEqual(["burned", "sleep"]);
     run(play, TICKS_PER_SECOND);

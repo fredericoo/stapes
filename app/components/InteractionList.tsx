@@ -46,103 +46,25 @@ import { KeyHint } from "./KeyHint";
 import { TilePreview } from "./TilePreview";
 import { useTap } from "./useTap";
 
-/**
- * Everything within reach, as a list you can act from.
- *
- * The world has always been able to answer "can I do something to that" — the
- * outline under the cursor is exactly that answer — but only one object at a
- * time and only once you have aimed at it. With a thumb there is no aiming
- * beforehand: you tap, and either something happens or you have just walked
- * somewhere. So the same answer is read out here instead, for every reachable
- * thing at once, which turns an affordance you had to go looking for into one
- * you can see. It earns its place on a desktop for the same reason a quest log
- * does — knowing what is *possible* is a different question from doing it.
- *
- * **One box per thing, one button per verb.** The box says which thing — its
- * sprite and its name, once — and inside it is a button for each of the things
- * you could do to it. A body you can both shove and fight used to be two full
- * rows, which drew the same rat twice and said its name twice in a column
- * barely wide enough to say it once; the verbs are still separate, because the
- * verb is what a player scans for, but they no longer each drag a sprite and a
- * name along behind them. See `groupInteractionOptions`, which decides what
- * counts as one thing.
- *
- * **One verb per line, except fighting and watching, which share one.** They are
- * the two ends of a single decision about a creature — swing at it, or merely
- * keep an eye on it — and which end you are at is which of the two is lit. Side
- * by side they read as one control with a setting, which is what they are; the
- * screen used to say it with a mode switch somewhere else entirely, and nobody
- * ever connected the two. See `actionRows`.
- *
- * A box about a body carries its health under the name, on the same ramp the
- * bar over its head is drawn on. Two rats read as two identical boxes
- * otherwise, and the one thing you want to know before swinging is which of
- * them is the one you have nearly finished and which just walked into view.
- *
- * Rows carry the option and nothing else; {@link onAct} hands it back to
- * whoever owns the session. Nothing in here knows what a push is.
- */
-
-/** Which sprite stands for a tile in a list — the one facing the reader. */
 const FRONT = "s" as const;
 
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,
-  // A sword against the target's reticle, which is the difference the pair is
-  // drawing: both rows are about picking this creature out, and only one of them
-  // swings.
   attack: IconSword,
-  // Somebody walking, because that is literally what the row does — the
-  // directions it presses are the ones a held key presses. Deliberately not a
-  // second reticle or an arrow: it sits directly under the target row on the
-  // same body, and the pair has to be readable as two different things at a
-  // glance rather than as one thing drawn twice.
   follow: IconWalk,
-  // A speech bubble: the one row that opens a panel of words rather than
-  // doing something to the board.
   talk: IconMessageCircle,
   open: IconBoxSeam,
-  // A closing hand against push's sliding one: both are hands, and the
-  // difference between taking a thing and shoving it is what the shape says.
   pickUp: IconHandGrab,
-  // Deliberately not a hand, so it cannot be mistaken for the pick-up row
-  // sitting directly under it: putting a thing on is about your body, and every
-  // slot it can go in is somewhere you wear or carry it.
   equip: IconShirt,
   push: IconHandMove,
   switch: IconSwitch,
-  // A doorway rather than a ladder or a swirl, because the row covers both and
-  // the one thing every teleport has in common is that you end up through it.
   teleport: IconDoorEnter,
-  // A flame, because the motivating case is one and because every other shape
-  // that says "a condition" says it with an icon a status already owns. The row
-  // covers a blessing too, and the authored verb beside it is what tells them
-  // apart — the same trade the craft row makes below.
   addStatus: IconFlame,
-  // A drop of water against the flame above, for the same reason: the
-  // motivating case is water putting a fire out, and the authored verb beside
-  // it says what else a tile might wash away.
   removeStatus: IconDroplet,
-  // A pin in a map, because what the row does is mark a place and every other
-  // shape that could say it — a bed, a flag, a shrine — names one of the tiles
-  // that might carry the block and misleads about the rest. The same trade the
-  // flame above declines to make and the transform below makes deliberately.
   setSpawn: IconMapPin,
-  // An apple for every consumable, drink included: the icon says "this gets
-  // used up", and the authored verb beside it says how.
   consume: IconApple,
-  // Being handed something, whoever is doing the handing. A gift rather than a
-  // chest, because half of these are people.
   reward: IconGift,
-  // One shape becoming another, which is the only thing every recipe shares:
-  // the row could be forging or cooking, and the authored verb beside it is
-  // what says which. Deliberately not a flame or an anvil — either would name
-  // one of them and mislead about the rest.
   craft: IconTransform,
-  // A pick, because a resource is a thing you *work* and every other shape that
-  // says "you get something" — the gift, the grabbing hand — says it about
-  // being handed one. It names mining and leaves picking a bush to the authored
-  // verb beside it, on exactly the trade the craft row above makes.
   extract: IconPick,
 };
 
@@ -161,30 +83,12 @@ export function InteractionList({
   tiles: TileDef[];
   tilesets: TilesetDef[];
   onAct: (option: InteractionOption) => void;
-  /**
-   * The row being pointed at, so the world can outline what it is talking
-   * about. By id rather than by option, because the thing moves and the
-   * renderer has to resolve it against the list as it stands — see
-   * `GameRenderer.setListHover`.
-   *
-   * Absent where there is no hover to have. Given by keyboard focus as well as
-   * by the mouse: tabbing through the list and watching the world light up is
-   * the same question being asked the same way.
-   */
   onHover?: (optionId: string | null) => void;
-  /**
-   * Bind the digit row to the lines of the list, and draw each line's digit
-   * beside it. The digits are only drawn where there is probably a keyboard —
-   * `KeyHint` decides — so a phone's narrow column keeps its width.
-   */
   hotkeys?: boolean;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const groups = useMemo(() => groupInteractionOptions(options), [options]);
-  // Where each box's first line falls in the count the digits use. Counted with
-  // the same `actionRows` each box draws with, so the digit beside a line is the
-  // one `listedActionRows` hands the key handler.
   const firstRows = useMemo(() => {
     let next = 0;
     return groups.map((group) => {
@@ -194,8 +98,6 @@ export function InteractionList({
     });
   }, [groups]);
 
-  // Read through refs, because the keys are bound once and the list and the
-  // callback both change on every step — `onAct` is an inline arrow upstream.
   const optionsRef = useRef(options);
   optionsRef.current = options;
   const onActRef = useRef(onAct);
@@ -214,17 +116,11 @@ export function InteractionList({
       className={["flex flex-col gap-1 overflow-y-auto overscroll-contain", className]
         .filter(Boolean)
         .join(" ")}
-      // Announced, because it changes without the player having touched it:
-      // walking up to a crate is what puts the row there. Polite so it waits
-      // for a gap rather than talking over a fight.
       role="log"
       aria-live="polite"
       aria-label="Within reach"
     >
       {options.length === 0 ? (
-        // A word rather than an empty box. The list is always on screen — it
-        // reserves its width so the game does not resize as you walk — and an
-        // empty frame reads as something failing to load.
         <p className="px-1 py-2 text-xs text-paper/50">Nothing in reach.</p>
       ) : (
         groups.map((group, at) => (
@@ -243,46 +139,14 @@ export function InteractionList({
   );
 }
 
-/**
- * What a lit row wears, and it is the colour its subject wears in the world.
- *
- * The vocabulary is four colours and each one means one thing: **yellow acts on
- * something, red fights it, white singles it out, blue looks at it.** A row and
- * the outline under the cursor are two ways of pointing at one thing, so the row
- * cannot invent a fifth or borrow one of the other four.
- *
- * Which is why an open box is not red. The red belongs to a *fight*, and it is
- * worn by the row that swings; a chest you have open has nothing to do with a
- * fight, and a panel that went red the moment you drew your sword would be
- * saying so.
- */
 function litClass(option: InteractionOption): string {
   if (option.action === "open") {
     return "border-interact bg-interact/20 text-paper";
   }
-  // The one row in the list that is a fight, and the only one that is red.
-  // Following a rabbit with a sword out is still following a rabbit, and two
-  // lit rows on one body have to be readable as the two different things they
-  // are.
   if (option.action === "attack") return "border-danger bg-danger/20 text-paper";
   return "border-paper bg-paper/15 text-paper";
 }
 
-/**
- * What a box wears, lit or not.
- *
- * Lit by whatever inside it you are in the middle of — the body you are
- * pointing at, the chest you have open — because that state belongs to the
- * *thing*, and the thing is what the box is. Only one verb in a box can ever be
- * a state you are in, so there is nothing to arbitrate.
- *
- * A reward is the one box that carries its colour without being lit, and it has
- * to: everything else here is a state you can be *in*, and lighting up is how
- * the list says which one you are in. "You can only do this once" is not a
- * state, it is a property of the offer, so it is on the box from the moment the
- * box exists. Which is also why it is a tint rather than the full lit
- * treatment: it must not read as the box being selected.
- */
 function boxClass(group: InteractionGroup, active: InteractionOption | null): string {
   if (active) return litClass(active);
   if (group.options.some((option) => option.action === "reward")) {
@@ -291,30 +155,7 @@ function boxClass(group: InteractionGroup, active: InteractionOption | null): st
   return "border-paper/40 bg-ink text-paper hover:border-paper";
 }
 
-/**
- * What a verb wears inside the box.
- *
- * The fight is not marked out until it is the one you are in: unpressed it is
- * an offer like every other verb in the column, and red is what says a fight is
- * running. A button that arrived red would be shouting about a press nobody has
- * made.
- *
- * Quieter than the box around it by a whole border width, and on purpose: the
- * box is what you find in a scan of the column, and the buttons are what you
- * read once you have found it. The one exception is the verb naming a state you
- * are in — "Close" on the chest that is open — which wears the same colour its
- * box does, so that pressing it again reads as the way out.
- *
- * A reward's verb carries the purple as text rather than as a fill: the box has
- * already said the offer is a one-off, and "Receive" in the same colour is what
- * says which of the verbs in it is the offer.
- */
 function actionClass(option: InteractionOption): string {
-  // Ahead of every other case, because it is the one that says the verb cannot
-  // be run at all — a "Pick" that is also a reward is still a "Pick" nothing
-  // can press. Dashed and faint on exactly the terms a cooling spell is, and
-  // for the same reason: the state has to survive being looked at on a bright
-  // phone outdoors. No hover, because there is nothing to hover towards.
   if (option.blocked) {
     return "border-dashed border-paper/25 text-paper/40";
   }
@@ -325,49 +166,11 @@ function actionClass(option: InteractionOption): string {
   return "border-paper/30 text-paper hover:border-paper hover:bg-paper/10";
 }
 
-/**
- * How much of a wait has already gone, in milliseconds.
- *
- * **The one number a bar is drawn from**, and it is a negative
- * `animation-delay` rather than a width: the fill is a keyframe over the whole
- * duration, so starting it this far in is what makes a row rebuilt mid-wait
- * pick the animation up where it already was instead of restarting it. See
- * `fill-progress` in `app.css`.
- *
- * Two things are drawn this way and the arithmetic is the same for both — a
- * pull being made, and the wait before a blow. That the second one *opens* half
- * spent is the whole of what a windup looks like from here: the session hands
- * over half an interval remaining out of a whole one, so the delay is half the
- * duration and the bar arrives half full. Nothing in here knows that; it is a
- * consequence of the two numbers. @see `../game/GameSession`'s
- * `ActorRuntime.nextBlow`
- *
- * Clamped at both ends rather than trusted, on `statusFraction`'s terms: the
- * remainder and the duration are two numbers off the wire that nothing forces
- * into a ratio, and either a positive delay or one past the duration would draw
- * a bar that is not in the button.
- *
- * Exported for the test rather than for a second caller — the arithmetic is
- * assertable and the rendering is not.
- */
 export function fillElapsedMs(progress: Progress): number {
   const elapsed = progress.durationMs - progress.remainingMs;
   return Math.max(0, Math.min(progress.durationMs, elapsed));
 }
 
-/**
- * One thing and everything you could do to it.
- *
- * The box is not a button — the buttons are inside it. What is outside them is
- * the answer to "which one is this": the sprite, the name, and what is left of
- * the body if it has one, said once however many verbs are stacked underneath.
- * Pointing at any part of the box asks the world to outline the thing, because
- * every button in here is about the same thing and the box is what says so.
- *
- * The border carries the state of whatever inside it is in one — the body you
- * are pointing at, the box you have open — so the thing is lit rather than the
- * verb, which is how it is lit out in the world.
- */
 function InteractionBox({
   group,
   firstRow,
@@ -377,10 +180,6 @@ function InteractionBox({
   onHover,
 }: {
   group: InteractionGroup;
-  /**
-   * Which digit this box's first line answers to, less one — or null where the
-   * list has no keys, which draws no digits at all.
-   */
   firstRow: number | null;
   tile: TileDef | null;
   tilesets: TilesetDef[];
@@ -413,10 +212,6 @@ function InteractionBox({
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-xs text-paper/70">{subject.name}</span>
         {subject.health ? <RowHealth health={subject.health} /> : null}
-        {/* Under the name and hard against it: the name is a heading for these
-            and a gap would let it float between the box above and this one.
-            One line per verb, except the fight-or-watch pair on a body, which
-            is one line with two ends — see `actionRows`. */}
         <div className="mt-1 flex flex-col gap-px">
           {rows.map((row, at) => (
             <div key={row[0]!.id} className="flex items-center gap-px">
@@ -438,107 +233,19 @@ function InteractionBox({
   );
 }
 
-/**
- * Why a greyed row is greyed, in the fewest words that survive an 11px column.
- *
- * **Said in words rather than left to the grey**, which is the whole of what a
- * refusal buys over a missing row: a player looking at a faint "Pick" with
- * nothing beside it has been told no as flatly as one looking at no row at all.
- * Read aloud by the button's own label too — a screen reader cannot see the
- * grey, and a bar cannot say anything.
- *
- * A pull in progress keeps its bar and needs no words on screen; the phrase
- * here is only what it is announced as — see {@link drawnBlockReason}, which is
- * the half the column draws. See {@link OptionBlock}.
- *
- * Exported for the test, on {@link fillElapsedMs}'s terms.
- */
 export function blockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return "working";
-  // "In use" rather than "somebody is mining it": the column is eleven pixels
-  // of type wide, and which of the people standing there is holding it is not
-  // something the player can do anything with.
   if (blocked.kind === "taken") return "in use";
-  // Nothing at all, and the only arm with nothing to announce: the *verb* was
-  // replaced by the reason rather than annotated with it, so the row already
-  // reads "You respawn here" and a screen reader saying ", already set" after
-  // it would be the same fact twice. See `OptionBlock`'s `here` arm.
   if (blocked.kind === "here") return null;
   return "no room";
 }
 
-/**
- * The same reason as drawn beside the verb, or null where something else on the
- * row is already saying it.
- *
- * Two blocks draw nothing, for opposite reasons. A pull in progress has a bar
- * filling behind the verb, which says "working" better than the word does and
- * in none of the width. A respawn point you are anchored to has had its verb
- * replaced, so the row *is* the reason. Everything else gets the words.
- *
- * Split from {@link blockReason} rather than folded into it because the two
- * readers genuinely differ: a bar is invisible to a screen reader, so the
- * announcement still says "working" where the column does not.
- *
- * Exported for the test rather than for a second caller, on
- * {@link fillElapsedMs}'s terms — which of the two a row asks is assertable and
- * the rendering is not.
- */
 export function drawnBlockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return null;
   return blockReason(blocked);
 }
 
-/**
- * The bar that fills as a wait runs down — a pull being made, or the time until
- * the next blow.
- *
- * Faint, in the colour of whatever it is filling towards (see {@link tone}), and
- * driven entirely by CSS — see `fill-progress` in `app.css`. The element is
- * given the *whole* duration and a negative delay of however much had already
- * gone when it appeared, so the browser runs it on the compositor and nothing
- * here has to touch it again.
- *
- * **The delay is read once per wait, and never again while that wait runs.**
- * That is the whole reason this is a component rather than three lines inline. A
- * row is re-rendered for all sorts of reasons while a wait runs — anything that
- * changes the list around it — and `remainingMs` is a live number the session
- * winds in place, so a delay recomputed on every render would re-seek a running
- * animation over and over and drive the fill far ahead of the thing it is
- * drawing. It was doing exactly that: an eight-second bar filled in five.
- *
- * **A new wait is a new bar**, which is what the identity check buys. A pull
- * unmounts this when it ends, so its next one is a fresh instance either way; a
- * fight does not — the row stays exactly as it was and the session hands over a
- * replaced `Progress` on the tick the blow goes out. Comparing the object is
- * what tells the two apart, and bumping the `key` is what makes the browser
- * start the animation again rather than re-seek one that has already finished.
- *
- * Reading it once is also *correct* rather than merely stable, because each
- * reading happens exactly when a wait becomes visible to this client — its own
- * start, or a reconnect in the middle of one — and both are moments when the
- * remainder is right.
- */
-function ProgressFill({
-  progress,
-  tone,
-}: {
-  progress: Progress;
-  /**
-   * What the fill is drawn in, and it is the colour of the thing it is filling
-   * towards — the list's four-colour vocabulary, one level down. A pull is a
-   * white bar on an unlit row, because a pull is not a fight and white is what
-   * the rest of the list wears. A fight's bar is red on a row that is already
-   * red, because it is the *fight* filling up, and a white one there would read
-   * as some second thing happening inside a red row.
-   *
-   * Deeper than the row it sits on rather than lighter, which is what makes it
-   * legible at all: the lit row is a fifth of the danger colour and this is
-   * closer to half, so the edge between served and still to serve is a step in
-   * the same hue instead of a wash over it.
-   */
-  tone: "pull" | "fight";
-}) {
+function ProgressFill({ progress, tone }: { progress: Progress; tone: "pull" | "fight" }) {
   const seen = useRef<Progress | null>(null);
   const run = useRef({ id: 0, delayMs: 0 });
   if (seen.current !== progress) {
@@ -562,16 +269,6 @@ function ProgressFill({
   );
 }
 
-/**
- * One verb, and pressing it is what runs it.
- *
- * Named for a screen reader with the thing it acts on — "Push Crate" and not
- * "Push" — because the name is now outside the button and a list of buttons
- * read aloud would otherwise be a list of bare verbs. The words on screen stay
- * the verb alone: the sprite two centimetres to the left has already said which
- * crate this is, and repeating it in every button is what the box exists to
- * stop.
- */
 function ActionButton({
   option,
   subjectId,
@@ -579,13 +276,6 @@ function ActionButton({
   onHover,
 }: {
   option: InteractionOption;
-  /**
-   * The entry the box as a whole stands for, which is what the world goes back
-   * to outlining when the pointer leaves this button for the box around it. The
-   * outline is the same either way — every verb in a box acts on one placement —
-   * but its *colour* is the verb's, so a pointer sliding off "Push" and onto
-   * nothing in particular must not leave the world claiming a shove.
-   */
   subjectId: string;
   onAct: (option: InteractionOption) => void;
   onHover?: (optionId: string | null) => void;
@@ -593,13 +283,6 @@ function ActionButton({
   const Icon = ICONS[option.action];
   const blocked = option.blocked;
   const working = blocked?.kind === "working" ? blocked.extraction : null;
-  // Pointer-driven rather than click-driven: a button has to answer a thumb
-  // that is already holding the d-pad, and a click never arrives while it is.
-  // See `./useTap`.
-  //
-  // Refused here as well as in `applyInteraction`, in the session and on the
-  // server — a spell button's discipline: a row that is visibly greyed must not
-  // quietly send anyway, or the grey is a lie about what pressing it does.
   const tap = useTap(() => {
     if (!blocked) onAct(option);
   });
@@ -612,24 +295,12 @@ function ActionButton({
       onMouseLeave={() => onHover?.(subjectId)}
       onFocus={() => onHover?.(option.id)}
       onBlur={() => onHover?.(null)}
-      // What it is, then why it cannot be used — the order a spell button says
-      // it in, and for its reason: the verb is what identifies the row and the
-      // rest is its state. Spelled out rather than left to the grey, which a
-      // screen reader cannot see and a bar cannot say.
       aria-label={
         blocked && blockReason(blocked)
           ? `${interactionText(option)}, ${blockReason(blocked)}`
           : interactionText(option)
       }
-      // Not `disabled` and not out of the tab order, exactly as a cooling spell
-      // is not: a row somebody is waiting on is the row they most want to read,
-      // and one that vanished from the keyboard's reach whenever it went grey
-      // would be unreachable at precisely the moment it is interesting.
       aria-disabled={blocked ? true : undefined}
-      // Fighting somebody, watching them, walking after them and having a box
-      // open are states you are in, so all four say which they are in; a push
-      // happens and is over, and a button that claimed otherwise would be
-      // announced as stuck on.
       aria-pressed={
         option.action === "attack" ||
         option.action === "target" ||
@@ -639,64 +310,20 @@ function ActionButton({
           : undefined
       }
       className={[
-        // Tall enough to hit with a thumb where there is a thumb, and no taller
-        // than it needs to be where there is a cursor: the phone shows this
-        // same list, and a verb that used to be a whole row with a sprite in it
-        // must not become a line of text you have to aim at.
-        // `relative` so the wait can be drawn behind the verb rather than
-        // beside it; `overflow-hidden` so the fill is clipped by the border
-        // rather than by the box two levels up.
-        // `flex-1` and `min-w-0` rather than a plain full width, because a line
-        // may hold two of these: on its own a button still fills the line, and
-        // on a shared one the pair splits it evenly and each verb truncates
-        // inside its own half.
         "relative overflow-hidden flex min-w-0 flex-1 min-h-6 items-center gap-1 border px-1 py-0.5 text-left pointer-coarse:min-h-9",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         actionClass(option),
       ].join(" ")}
     >
-      {/* The wait, filling the row from the left as it runs down — a pull being
-          made, or the time until this fight's next blow. Behind the verb rather
-          than under it, because what it is filling towards is *that verb paying
-          out* — a separate track below would be a second thing to look at for
-          one fact. Absent entirely when there is no wait on, rather than drawn
-          empty.
-
-          One or the other and never both: a pull is a verb on a vein and a
-          fight is a verb on a body, so no row in the list can carry two. The
-          pull is asked first because it is also the reason the row is greyed,
-          and a row that drew a fight's bar over a refusal would be answering a
-          question nobody asked. */}
       {working ? (
         <ProgressFill progress={working} tone="pull" />
       ) : option.wait ? (
         <ProgressFill progress={option.wait} tone="fight" />
       ) : null}
-      <Icon
-        size={14}
-        stroke={2}
-        aria-hidden="true"
-        // Above the fill, which is absolutely positioned across the whole row.
-        className="relative shrink-0"
-      />
-      {/* The type is on the span and not on the button, because `button { font:
-          inherit }` in `app.css` is unlayered and beats a utility class: a size
-          set on the button itself is silently the page's. Set small and tight,
-          and in sentence case — the verbs are authored ("Climb", "Warm your
-          hands"), a column this narrow truncates a long one, and capitals cost
-          width to shout a heading the box above no longer needs shouted. */}
-      {/* `min-w-0` so the truncation actually happens: a flex item will not
-          shrink below its content without it, and the reason beside it would
-          be pushed out past the button's own `overflow-hidden` instead. */}
+      <Icon size={14} stroke={2} aria-hidden="true" className="relative shrink-0" />
       <span className="relative min-w-0 truncate text-[11px] leading-snug font-medium tracking-tight">
         {option.label}
       </span>
-      {/* The reason, after the verb and never instead of it: the verb is what a
-          player scans the column for, so it keeps the room and this takes what
-          is left. `shrink-0` so a long verb truncates before the reason does —
-          a row reading "Warm your h…" still says why it is grey, where one
-          reading "Warm your hands · no r…" says neither thing. Absent for a
-          pull in progress, which has a bar to say it with. */}
       {blocked && drawnBlockReason(blocked) ? (
         <span
           aria-hidden="true"
@@ -709,23 +336,6 @@ function ActionButton({
   );
 }
 
-/**
- * How much of a body is left, under the name of it.
- *
- * The reading and its colour come from `../render/healthBar`, which is the same
- * arithmetic the bar over the creature's head runs: a row that went red at a
- * different moment than the world did would be two gauges to learn instead of
- * one. The fill is stated in that module's steps and turned into a percentage
- * here — what the steps are buying is the rounding, not the pixels, which is why
- * this row keeps the default count while a bar in the world takes its own from
- * the width of a cell. A creature on its last hit point keeps a visible sliver,
- * and one that has taken a scratch never rounds back up to a full track.
- *
- * Named for a screen reader rather than left as decoration, because the bar is
- * the only place this number appears. It is a label rather than text on purpose:
- * the list around it is a live region, and a reading that changed as text would
- * have every blow in a fight read out over the fight.
- */
 function RowHealth({ health }: { health: { hp: number; maxHp: number } }) {
   const fraction = healthFraction(health.hp, health.maxHp);
 

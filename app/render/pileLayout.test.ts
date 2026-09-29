@@ -7,23 +7,12 @@ import {
   pileRings,
 } from "./pileLayout";
 
-/**
- * How a heap is laid out inside its cell.
- *
- * The die faces are asserted by shape rather than by coordinate — "the four
- * corners", not "(-3,-3) and three more" — so the spread can be tuned by
- * looking at the game, which is the only way to tune it, without a test having
- * an opinion about the number of pixels.
- */
-
-/** The counts a pile can actually be drawn at. */
 const EVERY_COUNT = Array.from({ length: MAX_PILE_SPRITES }, (_, i) => i + 1);
 
 function key(o: { dx: number; dy: number }): string {
   return `${o.dx},${o.dy}`;
 }
 
-/** Which of the nine lattice cells an offset sits in: -1, 0 or 1 either way. */
 function lattice(o: { dx: number; dy: number }): string {
   return `${Math.sign(o.dx)},${Math.sign(o.dy)}`;
 }
@@ -127,8 +116,6 @@ describe("every count it will draw", () => {
         dx: 0,
         dy: 0,
       });
-      // Within one pixel per sprite: a die face is exactly balanced, and the
-      // greedy fill past six is balanced to a pixel or two rather than exactly.
       expect(Math.abs(sum.dx)).toBeLessThanOrEqual(offsets.length);
       expect(Math.abs(sum.dy)).toBeLessThanOrEqual(offsets.length);
     }
@@ -168,18 +155,6 @@ describe("depth inside a heap", () => {
   });
 });
 
-/**
- * What the outline layer draws around a heap.
- *
- * Two separate claims, and the bug each one pins is a different picture. **One
- * ring per sprite, at the offsets the sprites were drawn at** — a single ring
- * round the middle berry of a dozen reads as "that one", where a press takes
- * all of them, and a ring anywhere but where its sprite is puts the chrome and
- * the art in disagreement about where the berries are. **Each ring told where
- * the others are** — without that, every ring lands on a neighbour and a heap
- * three pixels apart fills in solid instead of coming out with one silhouette
- * around the whole of it.
- */
 describe("the rings around a heap", () => {
   it("draws one per sprite, wherever that sprite was drawn", () => {
     for (const count of EVERY_COUNT) {
@@ -188,7 +163,6 @@ describe("the rings around a heap", () => {
     }
   });
 
-  /** Every other sprite of the heap, and never itself. */
   it("tells each ring about the others and not about itself", () => {
     for (const count of EVERY_COUNT) {
       for (const ring of pileRings(count)) {
@@ -198,12 +172,6 @@ describe("the rings around a heap", () => {
     }
   });
 
-  /**
-   * The shader adds a peer to its own uv to stand in for a sibling, so the
-   * vector has to run *from* this sprite *to* that one. A sign error here is
-   * the kind that looks almost right: the silhouette closes up on one side of
-   * the heap and opens on the other.
-   */
   it("gives the vector from this sprite to each of the others", () => {
     const offsets = pileOffsets(5);
     pileRings(5).forEach((ring, i) => {
@@ -217,12 +185,10 @@ describe("the rings around a heap", () => {
     });
   });
 
-  /** Every tile in the world that is not a heap, paying for none of this. */
   it("gives a lone sprite one ring and no peers at all", () => {
     expect(pileRings(1)).toEqual([{ at: NO_PILE_OFFSET[0], peers: [] }]);
   });
 
-  /** On {@link pileOffsets}' terms: past the cap the picture stops growing. */
   it("stops at the widest heap it draws", () => {
     const capped = pileRings(MAX_PILE_SPRITES + 40);
     expect(capped).toHaveLength(MAX_PILE_SPRITES);

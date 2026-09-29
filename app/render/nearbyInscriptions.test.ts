@@ -4,16 +4,6 @@ import type { MapFile, PlacedTile } from "../lib/types";
 import { inscribedNearby } from "./nearbyInscriptions";
 import { tile } from "../lib/testTile";
 
-/**
- * Who speaks when you walk past, and who stays quiet.
- *
- * The radius cases are the point of the file: a sign one cell away reads, a
- * diagonal one reads, and two cells out is silence. They fail if the reach ever
- * stops being round or stops being 1.5 — which is exactly what they are for,
- * since the number lives in `game/affordances` and nothing else here would
- * notice it moving.
- */
-
 const tilesById = Object.fromEntries(
   [
     tile({ id: "grass", height: 0 }),
@@ -25,7 +15,6 @@ const tilesById = Object.fromEntries(
 
 const READER = { x: 0, y: 0, z: 0 };
 
-/** Ground under everything, so a stack is never the only thing in a cell. */
 function ground(z = 0): MapFile {
   let map = emptyMap();
   for (let x = -3; x <= 3; x++) {
@@ -62,12 +51,6 @@ describe("inscribedNearby", () => {
     expect(textsNear(map)).toEqual(["DANGER"]);
   });
 
-  /**
-   * The whole reason the two fields are two. Everything written on a placement
-   * used to be recited to whoever walked past, so a cell holding nine skulls
-   * was nine sentences hanging in the air over it — and the only way to give an
-   * object a line of prose was to make the whole street read it out.
-   */
   it("stays quiet about a description, however close", () => {
     const map = withStack(ground(), 0, 0, 0, {
       tileId: "sign",

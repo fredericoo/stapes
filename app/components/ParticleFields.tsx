@@ -1,7 +1,11 @@
+import { Fragment } from "react";
+import { isOffsetFormula } from "../lib/particleOffset";
 import {
+  completeParticles,
   EMPTY_SHAPE,
   MAX_PARTICLE_RADIUS_PX,
   MAX_PARTICLE_RATE,
+  MAX_PARTICLE_SIZE_PX,
   MAX_PARTICLE_TTL_MS,
   MAX_RAMP_STOPS,
   PARTICLE_SHAPE_PX,
@@ -11,35 +15,77 @@ import {
   shapeHas,
   toggleShapePixel,
 } from "../lib/particleVfx";
-import { Button, FieldLabel, Input, NumberInput, Switch } from "../ui";
+import { Button, FieldLabel, Input, NumberInput, OptionalNumberInput, Switch } from "../ui";
 
-/**
- * Authoring one plume, wherever it hangs from.
- *
- * Its own file rather than more of `./StatusVfxFields` because there are two
- * subjects now and neither owns the other: a status carries an emitter, and so
- * does a tile — a chimney is not under an effect. Everything a plume is
- * authored with lives here, and the two dialogs that want one import the same
- * panel rather than growing two that drift.
- *
- * ## Sliders, not number fields
- *
- * Everything on a 0-to-1 scale gets a slider, and that is not decoration. An
- * opacity is a *judgement* — the author is looking at the canvas beside this and
- * deciding when the smoke reads as smoke — and a number field makes that a cycle
- * of type, tab, look, retype. A slider makes it one gesture with the answer
- * moving under it.
- *
- * Ranges keep number fields, because those are quantities an author reasons
- * about rather than dials they hunt for: a lifetime is "about a second", and 900
- * is easier to type than to find.
- */
-
-/** Slider granularity for the 0-to-1 dials. Fine enough to be smooth, coarse enough to land on a round number. */
 const UNIT_STEP = 0.05;
 
-/** What a fresh ramp stop is worth, before the author moves it. */
 const NEW_STOP: RampStop = { at: 0.5, color: "#fbb954" };
+
+function TipRows({ rows }: { rows: ReadonlyArray<readonly [string, React.ReactNode]> }) {
+  return (
+    <span className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2">
+      {rows.map(([term, meaning]) => (
+        <Fragment key={term}>
+          <span className="font-bold">{term}</span>
+          <span>{meaning}</span>
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
+function OffsetInfo() {
+  return (
+    <>
+      Formulas of the particle's age, added to wherever rise, drift and gravity carry it. Blank is
+      none.
+      <TipRows
+        rows={[
+          ["AGE_SEC", "seconds since it was born"],
+          ["LIFE", "0 at birth, 1 when it dies"],
+          ["SEED", "random 0–1, fixed per particle"],
+          ["PI", "3.14159…"],
+        ]}
+      />
+      <span className="mt-1.5 block">
+        Functions: sin, cos, sqrt, pow, min, max, abs, floor, ceil, round.
+      </span>
+      <TipRows
+        rows={[
+          [
+            "Circle",
+            <>
+              <span className="block">
+                <code>0.5 * cos(6 * AGE_SEC)</code> east
+              </span>
+              <span className="block">
+                <code>0.5 * sin(6 * AGE_SEC)</code> south
+              </span>
+            </>,
+          ],
+          [
+            "Spiral",
+            <>
+              the circle, multiplied by <code>LIFE</code>
+            </>,
+          ],
+          [
+            "Ring",
+            <>
+              the circle, with <code>+ 2 * PI * SEED</code> inside the cos and the sin
+            </>,
+          ],
+          [
+            "Breeze",
+            <>
+              <code>0.2 * AGE_SEC * AGE_SEC</code> east
+            </>,
+          ],
+        ]}
+      />
+    </>
+  );
+}
 
 export function Row({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-wrap items-start gap-3">{children}</div>;
@@ -52,7 +98,6 @@ export function Field({
   children,
 }: {
   label: string;
-  /** How the simulation reads it — the caption's tooltip. */
   info?: React.ReactNode;
   hint?: string;
   children: React.ReactNode;
@@ -87,10 +132,6 @@ export function NumberField({
 }) {
   return (
     <Field label={label} info={info} hint={hint}>
-      {/* Bounded here rather than left to the schema, because the schema's
-          answer to an out-of-range number is to drop the whole status — which
-          would mean the Save button going dark with no field saying which one
-          did it. */}
       <NumberInput
         className="w-24"
         min={min}
@@ -129,6 +170,36 @@ export function UnitSlider({
   );
 }
 
+function OffsetField({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const valid = isOffsetFormula(value);
+  return (
+    <label className="flex flex-col gap-0.5">
+      <FieldLabel>{label}</FieldLabel>
+      <Input
+        className="w-full max-w-lg font-mono"
+        value={value}
+        placeholder="blank for none"
+        spellCheck={false}
+        aria-invalid={!valid}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <span className={`text-[11px] ${valid ? "text-muted" : "text-danger"}`}>
+        {valid ? hint : "Not a formula."}
+      </span>
+    </label>
+  );
+}
+
 export function ColorField({
   label,
   value,
@@ -141,9 +212,6 @@ export function ColorField({
   return (
     <Field label={label}>
       <div className="flex items-center gap-1">
-        {/* The platform's own picker rather than a swatch grid of our palette:
-            the useful colours in a burn are the ones *between* two ramp entries,
-            and the quantise on the preview beside this shows where they land. */}
         <input
           type="color"
           className="h-8 w-10 cursor-pointer border-2 border-border bg-paper"
@@ -162,7 +230,6 @@ export function ColorField({
   );
 }
 
-/** A toggle that turns half of an effect on, filled in with something visible. */
 function RampEditor({
   ramp,
   onChange,
@@ -198,9 +265,6 @@ function RampEditor({
             />
           </Field>
           <Button
-            // The last stop cannot go: a ramp with no stops is not a colour, and
-            // the schema refuses it — so the button that would produce one is
-            // off rather than the Save button going dark a moment later.
             disabled={ramp.length <= 1}
             onClick={() => onChange(ramp.filter((_, j) => j !== i))}
           >
@@ -220,11 +284,6 @@ function RampEditor({
   );
 }
 
-/**
- * A 5×5 grid of pixels to click on and off, drawn in the ramp's first colour on
- * the dark the game is mostly played against, so the author sees roughly what
- * will be on screen.
- */
 function ShapeEditor({
   shape,
   color,
@@ -261,12 +320,13 @@ function ShapeEditor({
 }
 
 export function ParticleFields({
-  particles,
+  particles: raw,
   onChange,
 }: {
   particles: ParticleEmitterDef;
   onChange: (next: ParticleEmitterDef) => void;
 }) {
+  const particles = completeParticles(raw);
   const patch = (fields: Partial<ParticleEmitterDef>) => onChange({ ...particles, ...fields });
 
   return (
@@ -280,9 +340,6 @@ export function ParticleFields({
           max={MAX_PARTICLE_RATE}
           onChange={(ratePerSecond) => patch({ ratePerSecond })}
         />
-        {/* Both ends kept ordered here rather than checked later, the same way
-            the status duration pair is: an inverted range is malformed, and the
-            editor should not be able to author one. */}
         <NumberField
           label="Lives from (ms)"
           value={particles.ttlFromMs}
@@ -382,37 +439,34 @@ export function ParticleFields({
         />
       </Row>
 
-      <Row>
-        {/* Labelled by compass rather than by axis, because an author looking
-            at the canvas is deciding which way the wind blows, not which way
-            `+x` runs. The projection turns east into down-right on screen and
-            nothing here has to say so. */}
-        <NumberField
-          label="Wind east"
-          hint="Cells a second squared. Negative blows west."
-          value={particles.windX}
-          min={-32}
-          max={32}
-          step={0.25}
-          onChange={(windX) => patch({ windX })}
+      <div className="flex flex-col gap-2">
+        <FieldLabel info={<OffsetInfo />}>Offset</FieldLabel>
+        <OffsetField
+          label="East (cells)"
+          hint="Negative is west."
+          value={particles.offsetX}
+          onChange={(offsetX) => patch({ offsetX })}
         />
-        <NumberField
-          label="Wind south"
-          hint="Builds over a particle's life, so a plume bends as it climbs."
-          value={particles.windY}
-          min={-32}
-          max={32}
-          step={0.25}
-          onChange={(windY) => patch({ windY })}
+        <OffsetField
+          label="South (cells)"
+          hint="Negative is north."
+          value={particles.offsetY}
+          onChange={(offsetY) => patch({ offsetY })}
         />
-      </Row>
+        <OffsetField
+          label="Up (height)"
+          hint="4 is one whole level."
+          value={particles.offsetElev}
+          onChange={(offsetElev) => patch({ offsetElev })}
+        />
+      </div>
 
       <Row>
         <Field
           label="Shape"
           hint={
             particles.shape
-              ? "Drawn pixel for pixel, coloured by the ramp."
+              ? "Coloured by the ramp, sized in pixels."
               : "A circle, sized by the radius."
           }
         >
@@ -432,7 +486,31 @@ export function ParticleFields({
       </Row>
 
       <Row>
-        {particles.shape ? null : (
+        {particles.shape ? (
+          <>
+            <NumberField
+              label="Size from (px)"
+              info="Drawn in whole pixels, so at any size but 5, 10 or 15 a few rows and columns come out doubled or dropped."
+              hint="5 is the shape as drawn; 10 doubles it."
+              value={particles.sizeFromPx}
+              min={0}
+              max={MAX_PARTICLE_SIZE_PX}
+              step={1}
+              onChange={(sizeFromPx) => patch({ sizeFromPx })}
+            />
+            <Field label="To (px)" hint="Blank keeps the first size.">
+              <OptionalNumberInput
+                className="w-24"
+                min={0}
+                max={MAX_PARTICLE_SIZE_PX}
+                step={1}
+                placeholder="Same"
+                value={particles.sizeToPx ?? undefined}
+                onChange={(sizeToPx) => patch({ sizeToPx: sizeToPx ?? null })}
+              />
+            </Field>
+          </>
+        ) : (
           <>
             <NumberField
               label="Radius from (px)"
@@ -478,6 +556,20 @@ export function ParticleFields({
             checked={particles.lit}
             onCheckedChange={(lit) => patch({ lit })}
             ariaLabel="Affected by lighting"
+          />
+        </Field>
+        <Field
+          label="Passes behind things"
+          hint={
+            particles.ownDepth
+              ? "Each particle sorts where it is, so an orbit goes behind its body."
+              : "Sorts as one, in front of what it rises from, so a fire never flickers behind it."
+          }
+        >
+          <Switch
+            checked={particles.ownDepth}
+            onCheckedChange={(ownDepth) => patch({ ownDepth })}
+            ariaLabel="Passes behind things"
           />
         </Field>
       </Row>

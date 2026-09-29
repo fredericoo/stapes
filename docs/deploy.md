@@ -1,0 +1,11 @@
+# Deploy
+
+- `DATA_DIR` must be mounted as a directory: the WAL and SHM files sit beside `stapes.db`, and Coolify's persistent storage fails on a single file (coolify#5337).
+- The `Dockerfile` installs `curl` because Coolify's healthcheck runs inside the container with `curl` or `wget`, and the slim `oven/bun` image has neither. Without it every deploy is marked unhealthy and rolled back.
+- `CMD` is exec form so Bun is PID 1 and receives `SIGTERM`. Through a shell, `World.drain` never runs and a deploy loses up to a checkpoint interval of play.
+- `docker-compose.yml` sets `mem_limit` so a container that leaks dies inside its own cgroup rather than handing the choice to the OOM killer. It caps each container, not their sum, which is why previews run on their own box (`SETUP.md`, step 6).
+- `deploy.yml` and `preview.yml` wait on Coolify's deployment record, not `/api/health`. Coolify's deploy API returns when the deploy is queued, and the old container answers `/api/health` until it is replaced.
+- `deploy.yml` uploads the client, deploys the server, then activates the client. Activating first puts a client with a new `PROTOCOL_VERSION` in front of the old server, and every tab reloads into the same mismatch.
+- `scripts/prune-preview-volumes.sh` deletes preview volumes because Coolify 4.3.10 does not when a PR closes. Its three guards (preview app UUID prefix, `-pr-N` suffix, dangling for over a day) keep it off production and backup volumes, which are briefly dangling during a normal deploy; Coolify's `delete_unused_volumes` would match them.
+- `scripts/cap-previews.sh` stops all but the `MAX_PREVIEWS` most recently created preview containers, because the Coolify webhook starts a preview before `preview.yml` runs and the workflow cannot refuse one. The number is set twice, in the cron file on the preview box and in the repository variable `MAX_PREVIEWS` that `preview.yml` warns with, and the two are kept equal by hand.
+- The landing page's canonical link and Open Graph tags name `https://thelaststones.com` (`CANONICAL_ORIGIN` in `app/routes/home.tsx`). Link-preview crawlers need an absolute image URL and `/` is prerendered at build time, so the origin is written into the page rather than read from the server's `PUBLIC_ORIGIN`. Moving the domain means changing both.

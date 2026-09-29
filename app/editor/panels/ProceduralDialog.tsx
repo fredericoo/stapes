@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { TilePreview } from "../../components/TilePreview";
-import { E, W, blobMaskToSlice } from "../../lib/autotile";
+import { E, N, NE, NW, W, blobMaskToSlice } from "../../lib/autotile";
 import type { Direction, TileDef, TilesetDef } from "../../lib/types";
 import { Button, Dialog, FieldLabel, Input, NumberInput, Segmented } from "../../ui";
 import { CAVE_DENSITY_RANGE, CAVE_SHAPES, type CaveConfig, type CaveShape } from "../cave";
@@ -19,48 +19,33 @@ import {
   type DoorRow,
   type HouseConfig,
   type RoofColour,
+  type RoofPitch,
 } from "../house";
 import { GENERATORS, type GeneratorId, type ProceduralSettings } from "../procedural";
 import { STOREY_RANGE } from "../proceduralSettings";
 import { useMapAssets } from "./MapAssetsContext";
 
-/**
- * The walls a house may be built from.
- *
- * A short list rather than the whole catalogue, because a "wall" here is a
- * four-unit tile the autotiler runs along a ring — most of the library is not
- * that, and offering it would mean offering houses that cannot stand up.
- */
 const WALL_TILE_IDS = ["sw2", "brick-wall", "half-wall"];
 const WINDOW_TILE_IDS = ["window-1"];
 const DOOR_TILE_IDS = ["door-closed"];
 
-/**
- * What a cave may be cut out of.
- *
- * A column of rock has to fill a level exactly — see `columnOf` — so this is
- * the short list of tiles whose height divides four: two `half-stone` or one
- * `stone-wall`. A full-height rock block added to the catalogue belongs here
- * as a third.
- */
-const ROCK_TILE_IDS = ["half-stone", "stone-wall"];
+const ROCK_TILE_IDS = [
+  "half-stone",
+  "stone-wall",
+  "cave-wall",
+  "cave-wall-sloped",
+  "cave-wall-grey",
+  "cave-wall-sloped-grey",
+];
 
-/** And what the low wall along its edges may be: half a level, so two units. */
 const LEDGE_TILE_IDS = ["half-stone", "brick-slab"];
 
 const WATER_TILE_IDS = ["water"];
 
-/**
- * A wall drawn as a length of wall rather than as a lone post.
- *
- * The autotiler's slice 0 is an isolated cell, which is what a thumbnail gets
- * by default — and every wall in the catalogue has a nearly identical one, so
- * three of them side by side are three of the same picture. A run with
- * neighbours either side is what these tiles are actually used as.
- */
 const WALL_RUN_SLICE = blobMaskToSlice(E | W);
 
-/** Rows and columns of the placement grid, in the order they are drawn. */
+const ROCK_EDGE_SLICE = blobMaskToSlice(NW | N | NE | E | W);
+
 const DOOR_ROWS: DoorRow[] = ["north", "centre", "south"];
 const DOOR_COLUMNS: DoorColumn[] = ["west", "centre", "east"];
 
@@ -79,7 +64,6 @@ function doorSpotKey(row: DoorRow, column: DoorColumn): string {
   return `${row}:${column}`;
 }
 
-/** A row of tile thumbnails behaving as one radio group. */
 function TileChoiceRow({
   label,
   tileIds,
@@ -152,27 +136,21 @@ function TileChoiceRow({
   );
 }
 
-/**
- * The roof colours, each shown as the two tiles it is: the eave that fills a
- * level and the cap that finishes the ridge. The names are ours — the tiles are
- * called `roof-1`…`roof-6` — so the swatch has to do the explaining.
- */
 function RoofColourRow({
   value,
+  pitch,
   onChange,
   tiles,
   tilesets,
 }: {
   value: RoofColour | null;
+  pitch: RoofPitch;
   onChange: (colour: RoofColour | null) => void;
   tiles: TileDef[];
   tilesets: TilesetDef[];
 }) {
   return (
     <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Roof colour">
-      {/* No roof at all is a first-class answer here, not an omission: a
-          curtain wall, a tower and a walled yard are all this generator with
-          the roof left off. */}
       <button
         type="button"
         role="radio"
@@ -188,7 +166,8 @@ function RoofColourRow({
         <span>None</span>
       </button>
       {ROOF_COLOUR_IDS.map((colour) => {
-        const { label, eaveTileId, ridgeTileId } = ROOF_COLOURS[colour];
+        const { label } = ROOF_COLOURS[colour];
+        const { eaveTileId, ridgeTileId } = ROOF_COLOURS[colour][pitch];
         const eave = tiles.find((t) => t.id === eaveTileId) ?? null;
         const ridge = tiles.find((t) => t.id === ridgeTileId) ?? null;
         const active = value === colour;
@@ -231,11 +210,6 @@ function RoofColourRow({
   );
 }
 
-/**
- * Where the door goes, as the two coordinates it is: a row and a column of the
- * wall ring. The middle of the grid names no wall, so it is the one square that
- * cannot be picked.
- */
 function DoorPlacementGrid({
   row,
   column,
@@ -279,14 +253,6 @@ function DoorPlacementGrid({
   );
 }
 
-/**
- * A searchable thumbnail grid over the whole catalogue.
- *
- * Whole rather than a short list, because what a floor may be is not a
- * property of the tile the way what a *wall* may be is: anything flat is a
- * floor, and which flat thing this cave's floor is is exactly the choice being
- * made.
- */
 function TileGridPicker({
   label,
   value,
@@ -366,7 +332,6 @@ function TileGridPicker({
   );
 }
 
-/** A 0–100 box, which is what every frequency and coverage control here is. */
 function PercentInput({
   label,
   value,
@@ -392,7 +357,6 @@ function PercentInput({
   );
 }
 
-/** The house form: everything a {@link HouseConfig} is, and nothing else. */
 function HouseForm({
   draft,
   patch,
@@ -425,9 +389,6 @@ function HouseForm({
         <div
           className={[
             "flex flex-col items-start gap-1",
-            // A ridge with no roof on it has nothing to say, so the control
-            // greys rather than vanishing: the field keeps its place, and
-            // turning a roof back on does not move everything under it.
             draft.roofColour ? "" : "pointer-events-none opacity-50",
           ].join(" ")}
           aria-hidden={draft.roofColour ? undefined : true}
@@ -446,6 +407,27 @@ function HouseForm({
             ]}
           />
         </div>
+
+        <div
+          className={[
+            "flex flex-col items-start gap-1",
+            draft.roofColour ? "" : "pointer-events-none opacity-50",
+          ].join(" ")}
+          aria-hidden={draft.roofColour ? undefined : true}
+        >
+          <FieldLabel info="Steep climbs a level for every cell it steps in. Low climbs a level every two cells, so a wide building gets half the height of roof.">
+            Roof pitch
+          </FieldLabel>
+          <Segmented
+            ariaLabel="Roof pitch"
+            value={draft.roofPitch}
+            onChange={(roofPitch) => patch({ roofPitch })}
+            options={[
+              { value: "steep", label: "Steep" },
+              { value: "low", label: "Low" },
+            ]}
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -454,6 +436,7 @@ function HouseForm({
         </FieldLabel>
         <RoofColourRow
           value={draft.roofColour}
+          pitch={draft.roofPitch}
           onChange={(roofColour) => patch({ roofColour })}
           tiles={tiles}
           tilesets={tilesets}
@@ -552,14 +535,6 @@ function HouseForm({
   );
 }
 
-/**
- * The props scattered over a cave's floor.
- *
- * One shared catalogue grid rather than one per rule: the slots along the top
- * are the rules, pressing one selects it, and the grid below fills whichever
- * is selected. Four searchable grids stacked on top of each other is a form
- * nobody can see the bottom of.
- */
 function ScatterRules({
   rules,
   onChange,
@@ -650,7 +625,6 @@ function ScatterRules({
   );
 }
 
-/** Seed plus its Re-roll, which every generator with noise in it wants. */
 function SeedField({ value, onChange }: { value: number; onChange: (seed: number) => void }) {
   return (
     <div className="flex flex-col items-start gap-1">
@@ -673,7 +647,6 @@ function SeedField({ value, onChange }: { value: number; onChange: (seed: number
   );
 }
 
-/** Water, which a cave and a forest both take on the same terms. */
 function WaterField({
   tileId,
   coverage,
@@ -716,7 +689,6 @@ function WaterField({
   );
 }
 
-/** The forest form. */
 function ForestForm({
   draft,
   patch,
@@ -843,7 +815,6 @@ function ForestForm({
   );
 }
 
-/** The cave form. */
 function CaveForm({
   draft,
   patch,
@@ -900,6 +871,7 @@ function CaveForm({
           onChange={(id) => patch({ wallTileId: id ?? draft.wallTileId })}
           tiles={tiles}
           tilesets={tilesets}
+          autotileSlice={ROCK_EDGE_SLICE}
         />
       </div>
 
@@ -992,26 +964,12 @@ function CaveForm({
   );
 }
 
-/** A scatter rule starts as something that is on the floor of a real cave. */
 const DEFAULT_SCATTER_RULE: ScatterRule = { tileId: "small-bush", chancePercent: 4 };
 
-/** A fresh seed, from the clock rather than from the settings being edited. */
 function rolledSeed(): number {
   return Math.floor(Math.random() * 0x7fffffff);
 }
 
-/**
- * The procedural generators, and the settings the next placement will use.
- *
- * The form edits a draft rather than the store: closing it with the X leaves
- * the tool exactly as it was, and only Place commits — which is also what
- * writes the settings to `localStorage`, so what comes back on the next visit
- * is the last thing actually built rather than the last field touched.
- *
- * The draft holds *every* generator's settings rather than the armed one's,
- * so looking at what a cave would do and going back to the house does not
- * lose the house.
- */
 export function ProceduralDialog({
   open,
   onOpenChange,
@@ -1026,8 +984,6 @@ export function ProceduralDialog({
   const { tiles, tilesets } = useMapAssets();
   const [draft, setDraft] = useState<ProceduralSettings>(settings);
 
-  // The dialog is mounted for the life of the page, so the draft is seeded
-  // from the standing settings each time it is opened rather than on mount.
   const [seededFor, setSeededFor] = useState(open);
   if (open !== seededFor) {
     setSeededFor(open);

@@ -24,8 +24,6 @@ const tiles = [
   tile("grass", "prop"),
   tile("rusty-sword", "item", DEFAULT_WEAPON),
   tile("basic-bag", "item", DEFAULT_CONTAINER),
-  // A stale item block on a prop: the kind gate means it is not an item, so it
-  // must not be given an identity either.
   tile("fake-sword", "prop", DEFAULT_WEAPON),
 ];
 const tilesById = tilesByIdFromList(tiles);
@@ -58,10 +56,6 @@ describe("mintItemIds", () => {
     expect(a).not.toBe(b);
   });
 
-  /**
-   * The property a resumed world depends on: minting runs on every load, and
-   * re-minting would make yesterday's sword a different sword.
-   */
   it("leaves an identity it has already given alone", () => {
     const map = mapWith([{ x: 0, y: 0, stack: [{ tileId: "rusty-sword", itemId: "itm_known" }] }]);
     const next = mintItemIds(map, tilesById);
@@ -72,8 +66,6 @@ describe("mintItemIds", () => {
     const map = mapWith([{ x: 0, y: 0, stack: [{ tileId: "basic-bag" }] }]);
     const once = mintItemIds(map, tilesById);
     const twice = mintItemIds(once, tilesById);
-    // Same object, not merely equal: a pass with nothing to do must not copy
-    // the map, or every load would invalidate every chunk in the world.
     expect(twice).toBe(once);
   });
 
@@ -87,15 +79,6 @@ describe("mintItemIds", () => {
     expect(mintItemIds(map, tilesById)).toBe(map);
   });
 
-  /**
-   * The one an authored chest depends on. `serializeMap` strips a content's id
-   * on the way to disk because this pass is meant to hand it a fresh one on the
-   * way back — and while it did not, taking the sword out of the crate put an
-   * instance with no `id` in somebody's bag, which is a shape the protocol's own
-   * schema refuses. The kit stopped crossing the wire, and the `hello` carrying
-   * it stopped crossing too: a player who touched that sword could never finish
-   * joining again.
-   */
   it("gives an item inside a container an identity", () => {
     const map = mapWith([
       {
@@ -136,7 +119,6 @@ describe("mintItemIds", () => {
     ]);
     const next = mintItemIds(map, tilesById);
     expect(getStack(next, 0, 0, 0)[0].contents?.[0].id).toBe("itm_known");
-    // Nothing needed minting, so nothing was copied.
     expect(next).toBe(map);
   });
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import {
+  craftEffect,
   craftRecipeName,
   craftVerb,
   interactionKinds,
@@ -9,21 +11,17 @@ import {
   type CraftOutput,
 } from "../lib/interactions";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import { DEFAULT_IMPACT, DEFAULT_PARTICLES } from "../lib/particleVfx";
+import { CRAFT_OUTCOMES, type Transition } from "../lib/tileTransition";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
 import { canCraftFrom, offeredRecipes, rollCraft } from "./craft";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession } from "./GameSession";
 import { listInteractionOptions } from "./interactionOptions";
-
-/**
- * A craft spends what the player is *carrying* and rolls for what comes back.
- * Every test here is about one of those halves: the forge never changes, the
- * kit does, and what is offered is only ever what the kit can pay for and hold.
- */
 
 function tile(partial: Record<string, unknown>): TileDef {
   return normalizeTileDef({
@@ -40,7 +38,6 @@ function tile(partial: Record<string, unknown>): TileDef {
 const EDIBLE = { type: "consumable", label: "Eat", hp: 1 } as const;
 const PILED = { type: "artifact", pile: 99 } as const;
 
-/** The bag `player`'s kit is authored with — see `app/lib/kit.ts`. */
 const BAG_TILE_ID = "basic-bag";
 const BAG_SIZE = 4;
 
@@ -79,6 +76,9 @@ const FORGE_RECIPES: CraftInteraction = {
   ],
 };
 
+const RISE: Transition = { durationMs: 1_000, particles: { ...DEFAULT_PARTICLES } };
+const SPIT: Transition = { durationMs: 300, particles: { ...DEFAULT_IMPACT } };
+
 const tiles = [
   tile({ id: "grass" }),
   tile({ id: "player", height: 4, kind: "battler", actor: true }),
@@ -97,8 +97,11 @@ const tiles = [
     interactions: { item: { ...DEFAULT_CONTAINER, size: BAG_SIZE } },
   }),
   tile({ id: "forge", name: "Forge", interactions: { craft: FORGE_RECIPES } }),
-  // Gives back up to three things that do not pile, so the worst case needs
-  // three squares.
+  tile({
+    id: "showy-forge",
+    name: "Showy Forge",
+    interactions: { craft: { ...FORGE_RECIPES, succeeded: RISE, failed: SPIT } },
+  }),
   tile({
     id: "butcher",
     name: "Butcher",
@@ -129,7 +132,6 @@ const FORGE: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const FAR: ObjectRef = { x: 4, y: 4, z: 0, stackIndex: 1 };
 const RECIPE = { blank: 0, ember: 1, verdance: 2, pyre: 3 } as const;
 
-/** Somewhere to stand, with a crafter beside it and another out of reach. */
 function board(tileId = "forge"): MapFile {
   let map = emptyMap();
   for (let x = 0; x <= 4; x++) {
@@ -143,7 +145,6 @@ function board(tileId = "forge"): MapFile {
   return map;
 }
 
-/** A kit with a bag holding exactly these tiles, and nothing in either hand. */
 function carrying(...contents: string[]): Equipment {
   return {
     ...emptyEquipment(),
@@ -254,7 +255,6 @@ describe("saving a crafter", () => {
   });
 
   it("writes only the number its output kind reads", () => {
-    // What flipping the editor's control and back can leave in a draft.
     const drifted: CraftOutput = {
       kind: "one",
       items: [Object.assign({ tileId: "spark", weight: 2 }, { chance: 40 })],
@@ -313,9 +313,6 @@ describe("what a crafter offers", () => {
   });
 
   it("is refused when the worst roll could not be held", () => {
-    // Three bag squares taken by the rest of the kit, one freed by the meat —
-    // enough for the certain ember but not the two that might come with it,
-    // and both hands full so there is nowhere for them to spill.
     const tight: Equipment = {
       ...carrying("raw-meat", "spark", "spark", "spark"),
       weapon: { id: "itm_w", tileId: "spark" },
@@ -370,7 +367,6 @@ describe("rolling", () => {
   });
 
   it("picks exactly one one-of item by weight", () => {
-    // A quarter of the range is `a`, the rest is `b`.
     expect(rollCraft(ONE, () => 0.24)).toEqual(["a"]);
     expect(rollCraft(ONE, () => 0.25)).toEqual(["b"]);
     expect(rollCraft(ONE, () => 0.999)).toEqual(["b"]);
@@ -406,7 +402,6 @@ describe("running a recipe", () => {
 
     expect(session.craft(FORGE, RECIPE.blank, "smith")).toBe(true);
     const contents = session.equipmentOf("smith")!.bag!.contents!;
-    // One peeled off the pile of two, which leaves a single blank behind.
     expect(contents[0]?.tileId).toBe("blank");
     expect(contents[0]?.count ?? 1).toBe(1);
     expect(["spark", "cinder"]).toContain(contents[1]?.tileId);
@@ -442,6 +437,81 @@ describe("running a recipe", () => {
     expect(session.craft(FORGE, RECIPE.ember, "smith")).toBe(false);
     expect(session.craft(FAR, RECIPE.ember, "smith")).toBe(false);
     expect(bagTiles(session.equipmentOf("smith"))).toEqual(["cinder"]);
+  });
+});
+
+describe("what a craft shows", () => {
+  function outcomeAt(session: GameSession) {
+    return session.drainTransitions().map(({ tileId, crafted, x, y, z, stackIndex }) => ({
+      tileId,
+      crafted,
+      at: { x, y, z, stackIndex },
+    }));
+  }
+
+  it("plays the crafter's success on the crafter when something is made", () => {
+    const session = new GameSession(board("showy-forge"), tiles);
+    session.spawn("smith", { at: BESIDE, carrying: carrying("cinder", "cinder") });
+
+    session.craft(FORGE, RECIPE.ember, "smith");
+
+    expect(outcomeAt(session)).toEqual([
+      { tileId: "showy-forge", crafted: "succeeded", at: FORGE },
+    ]);
+  });
+
+  it("plays the failure when the roll comes to nothing, and the success otherwise", () => {
+    const session = new GameSession(board("showy-forge"), tiles);
+    session.spawn("smith", { at: BESIDE, carrying: carrying("ember") });
+
+    session.craft(FORGE, RECIPE.pyre, "smith");
+
+    const made = bagTiles(session.equipmentOf("smith")).length > 0;
+    expect(outcomeAt(session).map((note) => note.crafted)).toEqual([made ? "succeeded" : "failed"]);
+  });
+
+  it("plays nothing at a crafter with no effect authored", () => {
+    const session = new GameSession(board(), tiles);
+    session.spawn("smith", { at: BESIDE, carrying: carrying("cinder", "cinder") });
+
+    session.craft(FORGE, RECIPE.ember, "smith");
+
+    expect(session.drainTransitions()).toEqual([]);
+  });
+
+  it("reads both effects off the craft block, and saves them back", () => {
+    const craft = resolveCraft(tilesById["showy-forge"]!);
+    expect(craft?.succeeded).toEqual(RISE);
+    expect(craft?.failed).toEqual(SPIT);
+    expect(interactionsForSave({ craft: craft! })?.craft).toMatchObject({
+      succeeded: RISE,
+      failed: SPIT,
+    });
+  });
+
+  it("drops an effect that would do nothing, and keeps the recipes", () => {
+    const def = tile({
+      id: "dull-forge",
+      interactions: { craft: { ...FORGE_RECIPES, failed: { durationMs: 300 } } },
+    });
+    const craft = resolveCraft(def);
+    expect(craft?.recipes).toHaveLength(FORGE_RECIPES.recipes.length);
+    expect(craft).not.toHaveProperty("failed");
+  });
+});
+
+describe("the craft effects we ship", () => {
+  it("resolves every one that is authored, rather than dropping it unseen", () => {
+    for (const def of normalizeTiles(tilesJson as unknown[])) {
+      const craft = def.interactions?.craft;
+      for (const outcome of CRAFT_OUTCOMES) {
+        if (craft?.[outcome] === undefined) continue;
+        expect(
+          craftEffect(def, outcome),
+          `${def.id}'s ${outcome} effect does not parse`,
+        ).toBeDefined();
+      }
+    }
   });
 });
 

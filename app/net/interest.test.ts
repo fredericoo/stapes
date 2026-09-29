@@ -27,17 +27,6 @@ import {
 import type { MapFile, PlacedTile } from "../lib/types";
 import { MESH_WINDOW_MARGIN, VIEW_CELLS } from "../lib/view";
 
-/**
- * What a client is owed.
- *
- * The reach is the whole of this: too small and the client's own sky flood
- * seeds daylight at the edge of what it holds, which is a lit boundary that
- * moves as you walk. Every case below is either about that or about the
- * subscription being a function of where the body is rather than of how big
- * the world is.
- */
-
-/** A client that has been told about nobody, which is most of the map to most of them. */
 const NOBODY: ReadonlySet<string> = new Set();
 
 function mapAt(...cells: Array<{ x: number; y: number; z: number }>): MapFile {
@@ -49,12 +38,6 @@ function mapAt(...cells: Array<{ x: number; y: number; z: number }>): MapFile {
 }
 
 describe("how far a client is told about", () => {
-  /**
-   * The reach is derived from what the *lighting* reads, and this is that
-   * derivation written out a second way. If it ever disagrees with the module,
-   * one of the two has stopped tracking the constants it is made of — which is
-   * exactly the drift the derivation exists to prevent.
-   */
   it("covers everything the client's own light bake can read", () => {
     expect(INTEREST_REACH_CELLS).toBe(
       Math.ceil(VIEW_CELLS / 2) +
@@ -121,7 +104,6 @@ describe("what comes into reach", () => {
     const now = interestChunks(CHUNK_SIZE, 0);
     const entered = chunksEntered(before, now, { x: CHUNK_SIZE, y: 0 });
 
-    // One column of the square, which is its side.
     expect(entered.length).toBe(INTEREST_REACH_CHUNKS * 2 + 1);
   });
 
@@ -130,11 +112,6 @@ describe("what comes into reach", () => {
     expect(chunksEntered(undefined, now, { x: 0, y: 0 }).length).toBe(now.size);
   });
 
-  /**
-   * The budget hands over a few per tick, so the order decides whether those
-   * few are the ground being walked onto or a corner of the square being walked
-   * away from.
-   */
   it("puts the nearest chunks first, so a budget spends them well", () => {
     const before = interestChunks(0, 0);
     const now = interestChunks(CHUNK_SIZE * 3, 0);
@@ -149,20 +126,7 @@ describe("what comes into reach", () => {
   });
 });
 
-/**
- * How far a *body* is worth mentioning, which is a different question from how
- * much map a client needs. Scoping bodies at the map's reach is what the first
- * version of this did, and on a map narrower than the subscription it saved
- * nothing at all.
- */
 describe("the body reach", () => {
-  /**
-   * The one relationship that has to hold. A body announced on ground its
-   * client has not been sent is one it can only find by searching its whole
-   * board — and `INTEREST_REACH_CHUNKS` chunks is the *least* a subscription
-   * covers in any direction, since a body at the start of its own chunk holds
-   * exactly that far west.
-   */
   it("stays inside the least the map reach covers", () => {
     expect(BODY_REACH_CELLS).toBeLessThanOrEqual(INTEREST_REACH_CHUNKS * CHUNK_SIZE);
   });
@@ -171,8 +135,6 @@ describe("the body reach", () => {
     expect(BODY_REACH_CELLS).toBe(
       Math.ceil(VIEW_CELLS / 2) + (MAX_LEVEL - MIN_LEVEL) + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL,
     );
-    // The point of the exercise: well under the map's, which is mostly the
-    // cached light bake's own apron.
     expect(BODY_REACH_CELLS).toBeLessThan(INTEREST_REACH_CELLS);
   });
 
@@ -186,12 +148,6 @@ describe("the body reach", () => {
     expect(withinBodyReach(at, 100, 100 + onLevel + 1, 0)).toBe(false);
   });
 
-  /**
-   * The projection shifts a level by its own number, so a body some storeys off
-   * is drawn that far from its own column — and only that far. Charging the
-   * whole level span for a body on the floor you are standing on is what made
-   * a den of cave floors read as one enormous room.
-   */
   it("widens by the storeys between the two, and no further", () => {
     const at = { x: 100, y: 100, z: 0 };
     const onLevel = BODY_REACH_CELLS - (MAX_LEVEL - MIN_LEVEL);
@@ -199,27 +155,16 @@ describe("the body reach", () => {
     expect(withinBodyReach(at, 100 + onLevel + 3, 100, 3)).toBe(true);
     expect(withinBodyReach(at, 100 + onLevel + 3, 100, -3)).toBe(true);
     expect(withinBodyReach(at, 100 + onLevel + 4, 100, 3)).toBe(false);
-    // Never past the worst case, which is what the subscription is pinned to.
     expect(withinBodyReach(at, 100 + BODY_REACH_CELLS + 1, 100, MAX_LEVEL)).toBe(false);
   });
 });
 
-/**
- * Which bodies a viewer could be told about, found without asking every body.
- *
- * The grid only decides which bodies are asked; `withinBodyReach` still
- * decides. So the whole of what it owes is to ask every body that could be in
- * reach — one missed is a body a client is never told about.
- */
 describe("the bodies near a viewer", () => {
-  /** Every body `withinBodyReach` says yes to, asked the slow way. */
   function nearBySweep(bodies: Array<{ x: number; y: number; z: number }>, at: (typeof bodies)[0]) {
     return bodies.flatMap((body, i) => (withinBodyReach(at, body.x, body.y, body.z) ? [i] : []));
   }
 
   it("finds exactly the bodies within reach, wherever the viewer stands", () => {
-    // A scatter across negative and positive coordinates and every level, with
-    // a fixed step so the case is the same on every run.
     const bodies: Array<{ x: number; y: number; z: number }> = [];
     for (let i = 0; i < 2000; i++) {
       bodies.push({
@@ -240,13 +185,7 @@ describe("the bodies near a viewer", () => {
     }
   });
 
-  /**
-   * The furthest a body can be and still count is the whole level span out,
-   * which is further than one bucket past the viewer's own — so the edge the
-   * grid has to reach is the worst case, not the common one.
-   */
   it("reaches the body at the very edge of the worst case, in every direction", () => {
-    // Viewers at each offset into a bucket, so no edge lands on a boundary by luck.
     for (let offset = 0; offset < CHUNK_SIZE; offset += 5) {
       const at = { x: offset, y: -offset, z: MIN_LEVEL };
       const corners = [
@@ -266,14 +205,6 @@ describe("the bodies near a viewer", () => {
   });
 });
 
-/**
- * What a client is not told about, it is not sent — including the tile of it.
- *
- * The cheaper arrangement is to stop sending a distant creature's steps and
- * leave the cells alone, and it leaves that creature's tile in the client's
- * board for ever: too far to draw, and `fitsTile` counts it as solid, so the
- * player is refused a step into a cell a deer left an hour ago.
- */
 describe("bodies in a stack", () => {
   const grass = { tileId: "grass" } as PlacedTile;
   const deer = { tileId: "deer", owner: "npc:1,1,0,1" } as PlacedTile;
@@ -342,12 +273,6 @@ describe("handing the cells over", () => {
     expect(flat.levels[levelKey(0)]?.[coordKey(far, far)]).toBeUndefined();
   });
 
-  /**
-   * Scoping by level as well is the tempting next step and is a trap: you can
-   * see down a hole into the floor below, a pit drops you a level without
-   * warning, and a ramp is a level change you walk up. A body has to land
-   * somewhere it has been told about.
-   */
   it("holds every level of the chunks it holds", () => {
     let map = emptyMap();
     for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {

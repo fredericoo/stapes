@@ -1,13 +1,3 @@
-/**
- * A fall has to be *drawn* as one continuous descent.
- *
- * The simulation's own numbers were always smooth; what twitched was the step
- * between them and the screen. The map can only stand a tile on a surface, so a
- * fall passing through an odd absolute height is placed a unit low — and the
- * sprite used to be drawn from that cell, jumping a whole height unit down at
- * one boundary and back up at the next. Driving a real fall and watching the
- * drawn foot is the only way to see it: every frame in isolation looks fine.
- */
 import { describe, expect, it } from "vitest";
 import { FALL_MS_PER_HEIGHT } from "../game/constants";
 import { GameSession } from "../game/GameSession";
@@ -58,14 +48,12 @@ const tiles: TileDef[] = [
 ];
 const tilesById = tilesByIdFromList(tiles);
 
-/** Ground at z=0, with the player standing on nothing four levels up. */
 function droppingSession(): GameSession {
   let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
   map = replaceStack(map, 0, 0, 4, [{ tileId: "player", direction: "s" }]);
   return new GameSession(map, tiles);
 }
 
-/** Where the sprite is drawn, in absolute height units. */
 function drawnFootAbs(session: GameSession): number {
   const snap = session.getSnapshot();
   const anchor = standingFootAbs(snap.map, tilesById, snap.self, snap.self.stackIndex);
@@ -73,7 +61,6 @@ function drawnFootAbs(session: GameSession): number {
 }
 
 const FRAME_MS = 16;
-/** How far a fall covers in one frame, plus room for tick quantisation. */
 const MAX_STEP_PER_FRAME = (FRAME_MS / FALL_MS_PER_HEIGHT) * 1.5;
 
 describe("drawing a fall", () => {
@@ -88,19 +75,15 @@ describe("drawing a fall", () => {
       const foot = drawnFootAbs(session);
       drops.push(previous - foot);
       previous = foot;
-      // The fall takes a tick to start, so "over" only counts once it began.
       const inFall = session.getSnapshot().self.fall !== null;
       if (falling && !inFall) break;
       falling = inFall;
     }
 
-    // Each frame moves the sprite down a little, or holds — never up, and never
-    // by the whole height unit the old anchor jumped by.
     for (const drop of drops) {
       expect(drop).toBeGreaterThanOrEqual(0);
       expect(drop).toBeLessThanOrEqual(MAX_STEP_PER_FRAME);
     }
-    // And it actually fell the whole way: 16 height units down to the grass.
     expect(previous).toBe(0);
   });
 

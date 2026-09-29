@@ -14,48 +14,6 @@ import { ParticleFields } from "./ParticleFields";
 import { StatField } from "./StatField";
 import { type TransitionPlay, VfxPreview } from "./VfxPreview";
 
-/**
- * How a projectile flies, and what it leaves where it connects.
- *
- * **Shown by the kind rather than by the block**, on exactly the terms the
- * Battle and Item tabs are: only `kind: "projectile"` opens it, so no wall or
- * crate grows a speed field it can never use, and a block left behind on a tile
- * that has stopped being a projectile is inert rather than quietly in charge.
- * See `../lib/projectile`'s `resolveProjectile`.
- *
- * ## Two of the three sides are not here, deliberately
- *
- * A flight plays `appear` when it is loosed and, where it stops, either `hit`
- * or `disappear`. The first two are the tile's own transitions and are authored
- * on the **Effects** tab, which every tile already has — `appear` and
- * `disappear` mean there what they mean here, a thing arriving and a thing
- * going, and a flight arrives when it is loosed and goes when it lands.
- *
- * Only `hit` is here, because only `hit` is a claim about the *fight*: it plays
- * where a shot that connected lands, and a miss or a dodge leaves nothing. That
- * is the one thing about a projectile the rest of the editor cannot express.
- *
- * It plays *alongside* the Disappear rather than instead of it. A landing is
- * one moment that two sides describe — the projectile went, and the blow landed
- * — so an author who wants both writes both, and this one plays on the body
- * that was struck rather than in the air. See `../lib/projectile`'s
- * `ProjectileSide`.
- *
- * ## The preview draws on somebody else
- *
- * Every other caller of `./VfxPreview` either *is* the subject — the tile
- * editor — or has none at all. This one is the third case: a hit effect plays
- * on **whatever was struck**, which is never the projectile, so the subject
- * picker is not the status editor's compromise here but the right question.
- * It opens on the player, because a body is what an author has in their head
- * when they decide whether a spray reads as a hit.
- *
- * Played on demand rather than looped, on the terms a transition is: a burst
- * that ran forever would be a fire, and what is being judged is a single event.
- * It plays as a `disappear`, because that is the side whose shown fraction falls
- * from whole to nothing — which is what a projectile does when it lands.
- */
-
 const SPEED_INFO =
   "Cells per second. A body walks at five, so twenty is four times walking pace and crosses six cells in about a third of a second. Everything that fires this flies it at this speed — that is the point of the projectile being its own tile.";
 
@@ -70,15 +28,10 @@ export function ProjectileTab({
 }: {
   draft: TileDef;
   onChange: (next: TileDef) => void;
-  /** The catalogue the preview's subject is picked from. */
   tiles: TileDef[];
   tilesets: TilesetDef[];
 }) {
   const [play, setPlay] = useState<TransitionPlay | null>(null);
-  // Read off the draft rather than through `resolveProjectile`, because the
-  // draft is the *authored* block and the resolver gates on a kind the author
-  // may be in the middle of choosing. The tab is only open for a projectile
-  // anyway — see the dialog's tab list.
   const block: ProjectileBlock = draft.interactions?.projectile ?? {
     cellsPerSecond: DEFAULT_PROJECTILE_SPEED,
   };
@@ -113,9 +66,6 @@ export function ProjectileTab({
             checked={block.hit != null}
             onCheckedChange={(on) =>
               patch({
-                // The burst preset rather than the plume one, and its ramp
-                // copied rather than shared — the same care every other fresh
-                // emitter in the editor is opened with.
                 hit: on ? starterHit() : undefined,
               })
             }
@@ -137,13 +87,8 @@ export function ProjectileTab({
           ) : null}
         </div>
         {block.hit ? (
-          // Beside the controls rather than under them, for the reason the tile
-          // editor puts its own there: what an author is deciding is whether a
-          // spray reads as a hit, and sixteen numbers do not answer that.
           <div className="flex flex-wrap items-start gap-4">
             <VfxPreview vfx={NO_VFX} tiles={tiles} tilesets={tilesets} transitionPlay={play} />
-            {/* Basis zero rather than content width, so the controls take what
-                the canvas leaves and reflow inside it. */}
             <div className="min-w-0 flex-1 basis-80">
               <ParticleFields
                 particles={block.hit.particles ?? DEFAULT_IMPACT}
@@ -157,14 +102,6 @@ export function ProjectileTab({
   );
 }
 
-/**
- * What a fresh hit effect opens on.
- *
- * Long enough to be a burst rather than a frame, and short enough to read as
- * one event: the emitter is handed over for this long and then stops, and the
- * particles already in the air finish their own lifetimes on top of it. At
- * {@link DEFAULT_IMPACT}'s rate that is half a dozen sparks.
- */
 function starterHit(): Transition {
   return {
     durationMs: 100,
@@ -172,7 +109,6 @@ function starterHit(): Transition {
   };
 }
 
-/** What this speed means in the unit an author can check it against. */
 function describeSpeed(cellsPerSecond: number): string {
   const perCell = 1000 / cellsPerSecond;
   return `A cell every ${Math.round(perCell)}ms. A body walks one every 200ms.`;

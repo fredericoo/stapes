@@ -6,15 +6,6 @@ import { emptyEquipment, type Equipment } from "./equipment";
 import { carriedCount, hasRoomFor, planTrade } from "./trade";
 import { tile as baseTile } from "../lib/testTile";
 
-/**
- * Paying and being paid, against a kit built by hand.
- *
- * The rule under test is all-or-nothing across every square a body has:
- * shards spread over three piles still add up, a bag held in a hand is
- * searched, and a trade that would leave anything on the floor leaves the kit
- * exactly as it was instead.
- */
-
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
   return baseTile({ kind: "item", intangible: true, ...partial });
 }

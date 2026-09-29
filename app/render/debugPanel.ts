@@ -1,38 +1,12 @@
-/**
- * The numbers beside the debug view's rectangles.
- *
- * Plain DOM built by the renderer rather than a React component wired through
- * both play routes, for the same reason the editor's stats readout is
- * (`app/editor/EditorRenderer.ts`): this is a diagnostic that ships switched
- * off, and every prop it would add to `GameViewport` is a prop somebody has to
- * read past forever. It appends itself beside the canvas and takes itself away.
- *
- * What it says is a reading of the renderer's own state — see
- * {@link DebugReading} — so a number here and an outline on the canvas can
- * never disagree about what is built.
- *
- * **Each row is written in the colour its rectangle is drawn in.** That is the
- * whole of the legend: there is no separate key to keep in step with the
- * palette, because the row *is* the key.
- */
 import type { DebugReading } from "./WorldRenderer";
 import { DEBUG_COLORS } from "./debugColors";
 import { VIEW_CELLS } from "./viewport";
 
-/**
- * How often the panel is rewritten.
- *
- * Four times a second: fast enough to watch a chunk column arrive, slow enough
- * that the numbers can be read rather than blurred, and far enough from frame
- * rate that formatting a dozen strings is not itself on the frame budget.
- */
 export const DEBUG_PANEL_INTERVAL_MS = 250;
 
-/** The rows, in the order they are stacked. */
 const ROWS = ["title", "play", "mesh", "light", "held", "draws"] as const;
 type Row = (typeof ROWS)[number];
 
-/** Ink per row — a CSS colour for the same value the outline is cut in. */
 const ROW_INK: Record<Row, string> = {
   title: "#e8e6e1",
   play: cssColor(DEBUG_COLORS.play),
@@ -60,13 +34,6 @@ export class DebugPanel {
   private el: HTMLDivElement | null = null;
   private lastWriteMs = 0;
 
-  /**
-   * Attach beside the canvas.
-   *
-   * The canvas's own parent, because that is the box the canvas fills and the
-   * label layer already sits over — anything higher up is the page's furniture
-   * and would put the panel next to the game rather than on it.
-   */
   constructor(canvas: HTMLCanvasElement) {
     const parent = canvas.parentElement;
     if (!parent) return;
@@ -88,12 +55,6 @@ export class DebugPanel {
     this.rows = rows;
   }
 
-  /**
-   * Rewrite the panel, at most {@link DEBUG_PANEL_INTERVAL_MS} apart.
-   *
-   * The throttle is here rather than at the call site so the caller can hand
-   * this every frame without holding a clock of its own.
-   */
   update(nowMs: number, zoomOut: number, reading: DebugReading | null) {
     const rows = this.rows;
     if (!rows) return;
@@ -110,13 +71,6 @@ export class DebugPanel {
   }
 }
 
-/**
- * What each row says. Exported so a test can read the numbers without a DOM.
- *
- * A reach is cells past the edge of the play square, which is the comparison
- * the whole view is about: how much world is being paid for that nobody in the
- * game can see.
- */
 export function panelRows(zoomOut: number, r: DebugReading | null): Record<Row, string> {
   if (!r) {
     return {
@@ -138,12 +92,10 @@ export function panelRows(zoomOut: number, r: DebugReading | null): Record<Row, 
   };
 }
 
-/** `+79c`, or a word before the first chunks land. */
 function reach(cells: number | null): string {
   return cells === null ? " · waiting" : ` · +${cells}c`;
 }
 
-/** A Three.js hex colour as the CSS the panel wears. */
 function cssColor(hex: number): string {
   return `#${hex.toString(16).padStart(6, "0")}`;
 }

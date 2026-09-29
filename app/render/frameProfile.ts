@@ -1,13 +1,3 @@
-/**
- * Per-phase frame timing.
- *
- * Reports the worst frame in each window alongside the median, because the two
- * answer different questions. A stutter every 200ms barely moves an average —
- * it is the spike that is felt, and a mean would hide exactly the thing you
- * opened the counter to find.
- */
-
-/** Ordered so the readout reads in the order work actually happens. */
 export const FRAME_PHASES = [
   "sim",
   "view",
@@ -30,7 +20,6 @@ export type FrameStats = {
   phases: Record<FramePhase, PhaseTiming>;
 };
 
-/** Milliseconds between reports. Long enough to catch a step, short enough to feel live. */
 const REPORT_INTERVAL_MS = 500;
 
 function summarise(samples: number[]): PhaseTiming {
@@ -47,7 +36,6 @@ export class FrameProfiler {
   private phases = new Map<FramePhase, number[]>();
   private lastReport = 0;
 
-  /** Time `fn`, record it against `phase`, and hand back whatever it returned. */
   measure<T>(phase: FramePhase, fn: () => T): T {
     const start = performance.now();
     try {
@@ -70,7 +58,6 @@ export class FrameProfiler {
     this.frames.push(ms);
   }
 
-  /** Stats once per {@link REPORT_INTERVAL_MS}, else null. Resets on report. */
   report(now: number): FrameStats | null {
     if (!this.lastReport) {
       this.lastReport = now;

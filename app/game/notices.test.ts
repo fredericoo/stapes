@@ -12,18 +12,6 @@ import type { ObjectRef } from "./affordances";
 import { masteryNotice, otherStatusNotice, rewardNotice, statusAcquiredNotice } from "./notices";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
-/**
- * What crossing a mastery says, and when it is said.
- *
- * The sentence itself is one line and barely worth a test; what is worth testing
- * is that **only earning speaks**. A body is seeded with the masteries its tile
- * was authored with, and a seed that announced itself would greet every new
- * player with a burst of level-ups for progress they never made — which is
- * exactly the failure the old client-side diff needed a `hasExperience` gate to
- * avoid. Composed at the source, the silence is structural, and the tests below
- * are what say so.
- */
-
 describe("what a crossing says", () => {
   it("names the mastery and where it now stands", () => {
     expect(masteryNotice("sharp", 10)).toBe("Your sharp mastery is now 10");
@@ -34,16 +22,6 @@ describe("what a crossing says", () => {
   });
 });
 
-/**
- * The same sentence out of a real fight, because the line above proves nothing
- * about whether anything ever says it.
- *
- * A session is the only honest source: a crossing is a thing that happens inside
- * `grantExperience`, between two totals that exist together nowhere else. The
- * fixtures are the ones `./experience.test.ts` fights with, cut down to the pair
- * that is needed.
- */
-
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
   return baseTile({
@@ -52,12 +30,6 @@ function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">)
   });
 }
 
-/**
- * How tough both sides are, named above the claws because the claws must clear
- * it: Toughness grants defence now — see `../lib/battler`'s `defFrom` — and a
- * fixture bred to trade blows for a whole test had quietly grown enough armour
- * to swallow every blow in the file, which reads as level-ups never happening.
- */
 const SPARRING_TOUGHNESS = 95;
 
 const claws = {
@@ -70,7 +42,6 @@ const claws = {
   mastery: "fist" as const,
 };
 
-/** Both sides rated alike, and tough enough to trade blows for a whole test. */
 const EVENLY_MATCHED = { fist: 20, toughness: SPARRING_TOUGHNESS, agility: 20 };
 
 const tiles: TileDef[] = [
@@ -120,17 +91,11 @@ function sparring() {
 
 describe("level-ups out of a fight that actually happened", () => {
   it("says nothing to a body that was seeded rather than taught", () => {
-    // Standing next to the same opponent and not fighting it. Seeding is lazy —
-    // it happens inside `bodyOf`, on whichever tick first asks — so the ticks
-    // are the point: this is silent because seeding is not earning, not because
-    // nothing has run yet.
     const session = new GameSession(field(), tiles, { actorIds: ["me"], seed: 1 });
     for (let elapsed = 0; elapsed < 10_000; elapsed += TICK_MS) {
       session.tick(TICK_MS);
     }
 
-    // The masteries are there — the player tile is authored with them — and not
-    // one of them was earned.
     expect(session.getSnapshot("me").masteryXp.fist).toBeGreaterThan(0);
     expect(session.drainNotices("me")).toEqual([]);
   });
@@ -144,28 +109,12 @@ describe("level-ups out of a fight that actually happened", () => {
       heard.push(...session.drainNotices("me"));
     }
 
-    // Fist, because that is what the fixture swings with. The figure is the one
-    // the body actually stands at by the end, which is what would break if a
-    // crossing were reported against a stale total.
     expect(heard).toContain(
       `Your fist mastery is now ${levelForXp(session.getSnapshot("me").masteryXp.fist ?? 0)}`,
     );
-    // One line per crossing and no more: a mastery that gained experience on
-    // ninety of those ticks must not have spoken on eighty-nine of them.
     expect(new Set(heard).size).toBe(heard.length);
   });
 });
-
-/**
- * What a chest says when it is opened.
- *
- * The unit tests read the sentence; the session test after them is about the
- * plumbing — that the line is composed at all, that it goes to the taker and to
- * nobody else, and that a second tap on an emptied chest says nothing. A
- * sentence that is perfect and wired to nothing is the more likely failure, and
- * here it is the *only* evidence a reward left: the board is untouched by
- * design.
- */
 
 const named = (id: string, name: string, extra: Record<string, unknown> = {}) =>
   normalizeTileDef({
@@ -294,8 +243,6 @@ describe("a chest opened for real", () => {
       "You open Quest Chest and receive 1 Hand Lantern, 1 Rusty Sword",
     ]);
 
-    // Drained, so a second frame is silent — and the chest is spent, so a second
-    // tap has nothing to say either.
     expect(session.drainNotices()).toEqual([]);
     session.interact(CHEST);
     expect(session.drainNotices()).toEqual([]);
@@ -306,7 +253,6 @@ describe("a chest opened for real", () => {
       actorIds: ["me", "you"],
     });
 
-    // Both are really on the board, or the silence below would prove nothing.
     expect(session.actorIds()).toContain("you");
 
     expect(session.interact(CHEST, "me")).toBe(true);

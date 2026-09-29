@@ -4,7 +4,6 @@ import { getFrames } from "../lib/tileResolve";
 import type { MapFile, PlacedTile, SpriteState, TileDef, TilesetDef } from "../lib/types";
 import { CELL_SIZE, isCellVarying, spriteRect } from "../lib/types";
 
-/** A sprite's footprint in world pixels plus its slice of the atlas. */
 export type SpriteQuad = {
   x: number;
   y: number;
@@ -20,25 +19,10 @@ export type SpriteQuad = {
 export type SpriteQuadAssets = {
   tilesetById: Map<string, TilesetDef>;
   textures: Map<string, THREE.Texture>;
-  /** Stand-in when a tileset is missing, so a quad is still produced. */
   fallbackTexture: THREE.Texture;
-  /** Frame on screen right now, keyed by {@link animationKey}. */
   frameIndices: Map<string, number>;
 };
 
-/**
- * Autotiles and scatter tiles vary per cell; everything else varies only by what
- * the placement says — its facing, its variant — and by state. Both renderers
- * key their frame clocks this way, so overlays stay in step with the animated
- * tile they are drawn over.
- *
- * The state is part of the key because two placements of one tile in different
- * states run different frame lists — a grazing deer has one frame and a walking
- * one has four. Sharing a clock between them would index the short list with the
- * long list's position. A variant is part of it for exactly that reason one step
- * along: two holes in one map wear different faces, and a hole cut in planks has
- * no obligation to have been drawn with as many frames as a hole cut in water.
- */
 export function animationKey(
   def: TileDef,
   placed: PlacedTile,
@@ -52,10 +36,6 @@ export function animationKey(
   return `${def.id}:${face}:${state}`;
 }
 
-/**
- * World-space quad for a placed tile, resolved against the frame that is on
- * screen right now.
- */
 export function spriteQuadFor(
   assets: SpriteQuadAssets,
   map: MapFile,

@@ -1,17 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { completesTap } from "./useTap";
 
-/**
- * When a lift means a press.
- *
- * The rule exists because `click` is not an event a touch screen produces — it
- * is synthesised afterwards, and iOS synthesises none while a second finger is
- * down, which is every moment somebody is walking. Reading the press off the
- * pointer events instead means re-deciding by hand the things a click decided
- * for free: that the gesture started here, that it is this finger's, and that it
- * did not turn into a scroll.
- */
-
 const FINGER = 7;
 const OTHER_FINGER = 8;
 const AT = { x: 100, y: 100 };

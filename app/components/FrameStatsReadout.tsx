@@ -1,12 +1,7 @@
 import { FRAME_PHASES, type FrameStats } from "../render/frameProfile";
 
-/**
- * Frame budget at 120Hz. Phases are coloured against it so a spike reads at a
- * glance rather than needing the numbers compared.
- */
 const BUDGET_MS = 1000 / 120;
 
-/** Phases whose time is already counted inside `view` — indented, not summed. */
 const NESTED_PHASES = new Set(["sync", "map", "light", "motion"]);
 
 function tone(ms: number): string {
@@ -15,12 +10,6 @@ function tone(ms: number): string {
   return "text-paper/60";
 }
 
-/**
- * Fixed widths for the two numbers, wide enough for their longest ordinary
- * reading (`120`, `▲99.9ms`). Tabular figures stop the digits jittering but not
- * the count of them changing, and a reading that grows by a character pushes
- * everything laid out after it.
- */
 const FPS_WIDTH_CLASS = "inline-block min-w-[3ch] text-center";
 const WORST_WIDTH_CLASS = "inline-block min-w-[7ch] text-right";
 

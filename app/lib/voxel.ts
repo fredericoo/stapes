@@ -2,29 +2,21 @@ import * as v from "valibot";
 import { CELL_SIZE, DIRECTIONS, defaultBase } from "./types";
 import type { CellRect, Direction, Frame, TileSprite } from "./types";
 
-/**
- * Voxel space matches the game projection 1:1: a voxel is 1px wide/deep,
- * and 1 voxel of height shifts its pixel 1px up-left on screen — so a full
- * level (8px shift, see geometry.ts) is 8 voxels tall.
- */
 export const VOXELS_PER_CELL = CELL_SIZE;
 export const VOXELS_PER_LEVEL = CELL_SIZE;
 
-/** Palette index 0 is always "empty" — no voxel. */
 export const EMPTY_VOXEL = 0;
 
 export const MAX_PALETTE_SIZE = 256;
 
 export const DEFAULT_FRAME_DURATION_MS = 200;
 
-/** Model size in map units: footprint in cells, height in levels. */
 export type VoxelSize = {
   cellsX: number;
   cellsY: number;
   levels: number;
 };
 
-/** Voxel-grid dimensions (1 voxel = 1px). */
 export type VoxelDims = { vx: number; vy: number; vz: number };
 
 export function voxelDims(size: VoxelSize): VoxelDims {
@@ -40,12 +32,10 @@ export function voxelCount(size: VoxelSize): number {
   return vx * vy * vz;
 }
 
-/** x runs east, y runs south, z runs up. */
 export function voxelIndex(dims: VoxelDims, x: number, y: number, z: number) {
   return z * dims.vx * dims.vy + y * dims.vx + x;
 }
 
-/** Inverse of {@link voxelIndex}. */
 export function voxelCoords(dims: VoxelDims, index: number): { x: number; y: number; z: number } {
   const sliceSize = dims.vx * dims.vy;
   const z = Math.floor(index / sliceSize);
@@ -53,18 +43,12 @@ export function voxelCoords(dims: VoxelDims, index: number): { x: number; y: num
   return { x: rest % dims.vx, y: Math.floor(rest / dims.vx), z };
 }
 
-/** Flat array of palette indices, length vx*vy*vz. */
 export type VoxelGrid = Uint8Array;
 
 export function emptyGrid(size: VoxelSize): VoxelGrid {
   return new Uint8Array(voxelCount(size));
 }
 
-/**
- * Copy a grid into a new size, keeping voxels anchored to the footprint's
- * bottom-right corner and the ground (z=0) — matching how sprites are
- * anchored to their base cell, so growing a model pads up/left/top.
- */
 export function resizeGrid(grid: VoxelGrid, from: VoxelSize, to: VoxelSize): VoxelGrid {
   const a = voxelDims(from);
   const b = voxelDims(to);
@@ -82,10 +66,6 @@ export function resizeGrid(grid: VoxelGrid, from: VoxelSize, to: VoxelSize): Vox
   return out;
 }
 
-/**
- * Rotate a grid a quarter turn clockwise (seen from above, y pointing
- * south). A south-facing model becomes west-facing after one turn.
- */
 export function rotateGridCW(grid: VoxelGrid, size: VoxelSize): VoxelGrid {
   const dims = voxelDims(size);
   const rotated: VoxelSize = {
@@ -103,7 +83,6 @@ export function rotateGridCW(grid: VoxelGrid, size: VoxelSize): VoxelGrid {
   return out;
 }
 
-/** Quarter turns of {@link rotateGridCW} that face a south-authored model each way. */
 export const TURNS_BY_DIRECTION: Record<Direction, number> = {
   s: 0,
   w: 1,
@@ -125,11 +104,6 @@ export function gridFacing(
   return { grid: g, size: s };
 }
 
-/**
- * The camera sits up-right-front of the model (Tibia-style oblique), so the
- * visible faces are top (+z), south (+y) and east (+x). Light comes from
- * above: the top face keeps the base colour and the walls darken.
- */
 const FACE_SHADE_TOP = 1;
 const FACE_SHADE_SOUTH = 0.78;
 const FACE_SHADE_EAST = 0.6;
@@ -137,29 +111,16 @@ const FACE_SHADE_CORNER = 0.5;
 
 export type ShadeMode = "faces" | "flat";
 
-/**
- * Outlines belong to the 2D read of the sprite, not to the model: they mark
- * where a shape ends, so they are drawn as a pass over the projection rather
- * than painted as black voxels.
- * - `silhouette` rings the sprite against the background.
- * - `full` also separates parts that overlap on screen but sit far apart in
- *   space (a raised sword against the torso behind it).
- */
 export type OutlineMode = "none" | "silhouette" | "full";
 
 const OUTLINE_COLOR = "#000000";
 
-/**
- * Camera-distance gap that reads as "different shape". Smooth surfaces step
- * by 1 per pixel, so anything from 3 up is a genuine separation.
- */
 const DEPTH_OUTLINE_THRESHOLD = 3;
 
 const NO_DEPTH = -1;
 
 type Rgb = [number, number, number];
 
-/** Magenta, the project's "missing sprite" colour — signals a bad palette entry. */
 const MISSING_COLOR: Rgb = [255, 0, 255];
 
 export function parseHexColor(hex: string): Rgb {
@@ -174,18 +135,14 @@ function shade([r, g, b]: Rgb, factor: number): Rgb {
 }
 
 export type RenderedSprite = {
-  /** Padded to whole cells so it drops straight into a tileset. */
   widthPx: number;
   heightPx: number;
   cellsW: number;
   cellsH: number;
-  /** Base cell (bottom-right of the padded rect, where the footprint sits). */
   base: { x: number; y: number };
-  /** RGBA, widthPx × heightPx. Empty pixels are fully transparent. */
   rgba: Uint8ClampedArray<ArrayBuffer>;
 };
 
-/** Sprite cell size for a model: projection needs vx+vz−1 × vy+vz−1 px. */
 export function spriteCells(size: VoxelSize): { cellsW: number; cellsH: number } {
   const { vx, vy, vz } = voxelDims(size);
   return {
@@ -199,11 +156,6 @@ export type RenderOptions = {
   outline?: OutlineMode;
 };
 
-/**
- * Render a grid in the game projection: voxel (x,y,z) → pixel (x−z, y−z),
- * painter-ordered so higher voxels along a view ray win. The model is
- * anchored bottom-right so the footprint lands in the sprite's base cell.
- */
 export function renderGrid(
   grid: VoxelGrid,
   size: VoxelSize,
@@ -218,11 +170,12 @@ export function renderGrid(
   const offsetY = heightPx - dims.vy;
   const rgba = new Uint8ClampedArray(widthPx * heightPx * 4);
   const colors = palette.map(parseHexColor);
-  // Camera distance of the voxel that won each pixel; drives depth outlines.
   const depth = new Int16Array(widthPx * heightPx).fill(NO_DEPTH);
 
-  // Flat-index order is z, then y, then x ascending — exactly painter order,
-  // since along a view ray only higher-z voxels overdraw (see voxel.test.ts).
+  /**
+   * Flat-index order is z, then y, then x ascending — exactly painter
+   * order, since along a view ray only higher-z voxels overdraw.
+   */
   for (let i = 0; i < grid.length; i++) {
     const val = grid[i];
     if (val === EMPTY_VOXEL) continue;
@@ -237,7 +190,7 @@ export function renderGrid(
     rgba[p + 1] = g;
     rgba[p + 2] = b;
     rgba[p + 3] = 255;
-    // The view ray runs along (+1,+1,+1), so this sum grows toward the camera.
+    /** The view ray runs along (+1,+1,+1), so this sum grows toward the camera. */
     depth[sy * widthPx + sx] = x + y + z;
   }
 
@@ -256,10 +209,6 @@ const NEIGHBOURS: [number, number][] = [
   [0, -1],
 ];
 
-/**
- * Paint outline pixels over the projection. Runs off a snapshot of the depth
- * buffer so freshly drawn outline never seeds more outline.
- */
 function applyOutline(
   rgba: Uint8ClampedArray,
   depth: Int16Array,
@@ -278,13 +227,10 @@ function applyOutline(
         const ny = sy + dy;
         if (nx < 0 || ny < 0 || nx >= widthPx || ny >= heightPx) continue;
         const there = depth[ny * widthPx + nx];
-        // Empty pixel touching the model: ring the silhouette.
         if (here === NO_DEPTH && there !== NO_DEPTH) {
           targets.push(sy * widthPx + sx);
           break;
         }
-        // Filled pixel sitting well behind its neighbour: separate the shapes
-        // by darkening the farther one, so the nearer shape keeps its size.
         if (mode === "full" && here !== NO_DEPTH && there - here >= DEPTH_OUTLINE_THRESHOLD) {
           targets.push(sy * widthPx + sx);
           break;
@@ -322,9 +268,6 @@ function visibleFaceShade(
   return FACE_SHADE_CORNER;
 }
 
-// ---------------------------------------------------------------------------
-// Project files
-
 export type VoxelFrame = {
   voxels: number[];
   durationMs: number;
@@ -333,7 +276,6 @@ export type VoxelFrame = {
 export type VoxelProject = {
   name: string;
   size: VoxelSize;
-  /** Index 0 is transparent and never painted; kept for stable indices. */
   palette: string[];
   frames: VoxelFrame[];
   directional: boolean;
@@ -379,11 +321,7 @@ export function parseVoxelProject(raw: unknown): VoxelProject {
   return v.parse(voxelProjectSchema, raw);
 }
 
-// ---------------------------------------------------------------------------
-// Spritesheet export
-
 export type SheetLayout = {
-  /** Frame slot size in cells — every direction/frame shares one slot size. */
   cellsW: number;
   cellsH: number;
   columns: number;
@@ -413,7 +351,6 @@ export function sheetLayout(project: VoxelProject): SheetLayout {
   };
 }
 
-/** Render every direction × frame into one RGBA sheet (rows = directions). */
 export function renderSheet(
   project: VoxelProject,
   options: RenderOptions = {},
@@ -428,8 +365,6 @@ export function renderSheet(
       const direction: Direction = row.key === "default" ? "s" : row.key;
       const faced = gridFacing(Uint8Array.from(frame.voxels), project.size, direction);
       const sprite = renderGrid(faced.grid, faced.size, project.palette, options);
-      // Bottom-right align inside the slot so the base cell stays put even
-      // when a non-square footprint renders smaller for some directions.
       const dx = colIdx * slotW + (slotW - sprite.widthPx);
       const dy = rowIdx * slotH + (slotH - sprite.heightPx);
       blit(rgba, layout.widthPx, sprite, dx, dy);
@@ -459,7 +394,6 @@ function blit(
   }
 }
 
-/** Tile sprites for a TileDef pointing at the exported sheet. */
 export function sheetSprites(project: VoxelProject): {
   type: "simple" | "directional";
   sprite?: TileSprite;
@@ -467,9 +401,6 @@ export function sheetSprites(project: VoxelProject): {
 } {
   const layout = sheetLayout(project);
   const rows = layout.rows;
-  // Measured from the corner of the exported sheet, which is where an exported
-  // block always starts — so the tile's anchor is that corner and the rects
-  // relative to it are the same numbers they always were.
   const toSprite = (rowIdx: number): TileSprite => ({
     frames: project.frames.map((frame, colIdx) => ({
       sprite: {
@@ -497,23 +428,10 @@ export function sheetSprites(project: VoxelProject): {
   return { type: "directional", sprites };
 }
 
-/** A frame as it was written before `TileDef.anchor`: its own sheet, absolute rect. */
 type LegacyFrame = Omit<Frame, "sprite"> & {
   sprite: Frame["sprite"] & { tilesetId: string };
 };
 
-/**
- * The sheet as the *legacy* per-facing `Frame[]` encoding, for pasting into a
- * hand-edited `tiles.json`.
- *
- * Its frames still name their own sheet and measure from its corner, which is
- * the encoding {@link normalizeTileDef} migrates on load — so what is pasted is
- * read, given an anchor and rewritten like anything else written before anchors
- * existed. That is why it is spelled out here rather than typed as `Frame`,
- * which no longer carries a sheet.
- *
- * @deprecated Prefer {@link sheetSprites}.
- */
 export function sheetVariants(
   project: VoxelProject,
   tilesetId: string,

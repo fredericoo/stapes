@@ -2,17 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { CheckpointBatch, Checkpoints, StoredWorld } from "./checkpoints";
 import { LocalStore } from "./LocalStore";
 
-/**
- * The world's checkpoint, in a tab.
- *
- * What is being asserted is the half a dozen promises `GameServer` makes about
- * `ctx.storage` and goes on believing without checking — a prefix listing in
- * key order, a delete that a later listing does not resurrect, a value that
- * does not change after it was written. The server gets those from SQLite;
- * here they are code, so they are tested.
- */
-
-/** A store that remembers, so a world can be closed and opened again. */
 function recording(): Checkpoints & { world: StoredWorld; commits: number } {
   const state = {
     world: { values: new Map<string, string>(), alarmAtMs: null } as StoredWorld,
@@ -53,12 +42,6 @@ describe("LocalStore", () => {
     expect(await store.get("actor:bob")).toBe(2);
   });
 
-  /**
-   * The reason values are kept as JSON text rather than as the objects handed
-   * over. `GameServer` writes structures it goes on mutating — the live board
-   * among them — and a store holding the reference would checkpoint whatever
-   * they had become by the time it got round to writing them down.
-   */
   it("keeps the value as it was written, not as it became", async () => {
     const store = new LocalStore();
     const stack = [{ tileId: "grass" }];
@@ -109,7 +92,6 @@ describe("LocalStore", () => {
       expect(store.dirty).toBe(false);
       expect(checkpoints.commits).toBe(1);
 
-      // Nothing has moved since, so there is nothing to commit.
       await store.flush();
       expect(checkpoints.commits).toBe(1);
     });
@@ -142,10 +124,6 @@ describe("LocalStore", () => {
       expect(await after.get("actor:alice")).toBeUndefined();
     });
 
-    /**
-     * A reset a reload could undo is not a reset. `resetWorld` awaits this, so
-     * it commits rather than waiting for the next checkpoint.
-     */
     it("empties the stored world when everything goes", async () => {
       const checkpoints = recording();
       const store = new LocalStore(checkpoints);

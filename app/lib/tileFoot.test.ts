@@ -53,7 +53,6 @@ const walker = tile({ id: "walker", height: 3, actor: true });
 
 const tilesById = tilesByIdFromList([floor, half, wall, bush, window, walker]);
 
-/** Cells built by hand, never read off `data/map.json` — see CLAUDE.md. */
 function mapAt(cells: Array<{ x: number; y: number; z?: number; stack: PlacedTile[] }>): MapFile {
   const levels: FlatMapFile["levels"] = {};
   for (const cell of cells) {
@@ -73,8 +72,6 @@ describe("footElevation", () => {
   });
 
   it("never lowers one, however the stack under it grew", () => {
-    // The authored foot is stale — something taller was slid in underneath —
-    // and the placement rides up rather than sinking into what now holds it.
     expect(footElevation(3, { tileId: "floor", foot: 2 })).toBe(3);
   });
 });
@@ -100,7 +97,6 @@ describe("a raised foot carries the stack up with it", () => {
   });
 
   it("lets a body climb onto it, and no higher", () => {
-    // Half a level up is one ordinary step; the same floor at 3 is not.
     const map = mapAt([
       { x: 0, y: 0, stack: [{ tileId: "floor" }, { tileId: "walker" }] },
       { x: 1, y: 0, stack: [{ tileId: "floor", foot: 2 }] },
@@ -114,10 +110,6 @@ describe("a raised foot carries the stack up with it", () => {
   });
 
   it("makes a plane of its own above what it cleared", () => {
-    // A raised foot lifts the floor clear of the bush, so it tops out at 3
-    // rather than at the bush's 2. Which tile *answers* is not the difference
-    // any more — the topmost one does either way, so a floor laid flat on the
-    // bush is a surface too. @see solidTopOfStack
     const lifted: PlacedTile[] = [{ tileId: "bush" }, { tileId: "floor", foot: 3 }];
     expect(solidTopOfStack(lifted, tilesById)?.tileId).toBe("floor");
     expect(walkableElevInStack(lifted, tilesById)).toBe(3);
@@ -129,7 +121,6 @@ describe("a raised foot carries the stack up with it", () => {
 
   it("is solid to light and to a look", () => {
     const raised: PlacedTile[] = [{ tileId: "window", foot: 2 }];
-    // The window still passes light; the two units of gap under it do not.
     expect(stackBlockHeight(raised, tilesById)).toBe(2);
     expect(stackOcclusion(raised, tilesById).sealsLevel).toBe(true);
     expect(stackOcclusion([{ tileId: "window" }], tilesById).sealsLevel).toBe(false);
@@ -146,8 +137,6 @@ describe("footRange", () => {
   });
 
   it("measures the floor with the placement's own foot taken off", () => {
-    // Otherwise a placement already lifted would answer with itself, and its
-    // foot could only ever be raised further.
     const stack: PlacedTile[] = [{ tileId: "floor", foot: 3 }];
     expect(footRange(stack, 0, tilesById).min).toBe(0);
   });

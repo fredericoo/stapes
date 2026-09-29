@@ -16,11 +16,6 @@ describe("mintItemId", () => {
 });
 
 describe("the placement ↔ instance round trip", () => {
-  /**
-   * The test that catches the next field somebody adds to one side only. An
-   * item is a placement without a position, and the moment that stops being true
-   * a pickup starts quietly eating whatever was added.
-   */
   it("keeps every carried field, both ways", () => {
     const placed: PlacedTile = {
       tileId: "sign",
@@ -66,10 +61,11 @@ describe("the placement ↔ instance round trip", () => {
     expect(instanceFromPlacement({ tileId: "grass" })).toBeNull();
   });
 
-  /**
-   * `owner` is what marks a placement as somebody's body. An item that carried
-   * one back onto the board would read as a person.
-   */
+  it("never carries a cooldown onto the board", () => {
+    const cooling: ItemInstance = { id: "itm_1", tileId: "mend-stone", cooldownMs: 5_000 };
+    expect(placementFromInstance(cooling)).not.toHaveProperty("cooldownMs");
+  });
+
   it("never carries an owner back onto the board", () => {
     const placed: PlacedTile = {
       tileId: "basic-bag",
@@ -94,8 +90,6 @@ describe("sameInstance", () => {
   });
 
   it("sees a field the tile and the count do not", () => {
-    // The whole reason this walks the object rather than naming fields: two
-    // levers of the same tile, one wired and one not, are not interchangeable.
     expect(sameInstance(lever, { id: "itm_a", tileId: "lever", channel: "gate" })).toBe(false);
   });
 

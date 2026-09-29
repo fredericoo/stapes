@@ -12,16 +12,6 @@ import {
 import type { TileDef } from "../lib/types";
 import { Button, FieldLabel, NumberInput, Select } from "../ui";
 
-/**
- * What a body is born carrying, as a table an author fills in.
- *
- * **Rows rather than three fixed squares**, which is what makes a weighted drop
- * table writable at all: several rows may name one slot, they are rolled top
- * down, and the first that comes up takes it. A single certainty — the player's
- * backpack — is that same table with one row in it, which is the whole reason
- * people and rats can share a control.
- */
-
 const SLOT_OPTIONS = EQUIP_SLOTS.map((slot) => ({
   value: slot,
   label: SLOT_LABELS[slot],
@@ -33,13 +23,9 @@ export function KitEditor({
   onChange,
 }: {
   kit: Kit;
-  /** The whole library; the carryable half of it is what a row may name. */
   tiles: TileDef[];
   onChange: (next: Kit) => void;
 }) {
-  // Once for the panel rather than once per row: every row offers the same
-  // catalogue, and filtering per row would walk the library once per entry on
-  // every keystroke.
   const carryable = useMemo(() => tiles.filter((tile) => resolveItem(tile) != null), [tiles]);
   const itemOptions = useMemo(
     () => carryable.map((tile) => ({ value: tile.id, label: tile.name })),
@@ -76,13 +62,7 @@ export function KitEditor({
         const size = containerSizes.get(entry.tileId);
         const contents = entry.contents ?? [];
         return (
-          <section
-            // By position, because a row has no identity of its own: the order
-            // *is* the priority, and keying on the tile id would make two rows
-            // offering the same sword collide.
-            key={index}
-            className="flex flex-col gap-2 border-2 border-border bg-panel p-2"
-          >
+          <section key={index} className="flex flex-col gap-2 border-2 border-border bg-panel p-2">
             <div className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
                 Slot
@@ -136,8 +116,6 @@ export function KitEditor({
                           tileId: tileId ?? "",
                         })
                       }
-                      // A container may not hold a container, so one is not on
-                      // offer here — the same rule the roll and every drag keep.
                       options={itemOptions.filter((option) => !containerSizes.has(option.value))}
                       placeholder="Pick an item…"
                     />

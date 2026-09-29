@@ -5,15 +5,6 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
 import { tile } from "../lib/testTile";
 
-/**
- * What the editor writes into a container placement.
- *
- * The rules being checked are `../lib/piles`' rather than this field's — the
- * point of every case here is that authoring a chest and filling a bag in play
- * arrive at the same list, because the field calls `stow` rather than keeping
- * its own idea of what fits.
- */
-
 function food(id: string, pile: number): TileDef {
   return tile({
     id,
@@ -51,7 +42,6 @@ const tilesById: Record<string, TileDef> = Object.fromEntries(
   [bread, sword, bag].map((def) => [def.id, def]),
 );
 
-/** What is in the chest, as a reader of `map.json` would see it. */
 function authored(contents: readonly ItemInstance[]) {
   return contents.map(({ tileId, count }) => ({ tileId, count }));
 }
@@ -74,8 +64,6 @@ describe("addContent", () => {
   });
 
   it("takes a fresh square once the pile is at its tile's ceiling", () => {
-    // Bread piles to three, so the fourth is a second heap and not a fourth
-    // loaf on the first one.
     let contents: ItemInstance[] = [];
     for (let i = 0; i < 4; i++) {
       contents = addContent(contents, "bread", 4, tilesById)!;
@@ -98,8 +86,6 @@ describe("addContent", () => {
   });
 
   it("takes a pour even when every square is taken", () => {
-    // The one thing a full container still accepts: more of a pile it is
-    // already holding, which needs no square of its own.
     const contents = addContent([], "bread", 1, tilesById)!;
     const next = addContent(contents, "bread", 1, tilesById);
     expect(authored(next!)).toEqual([{ tileId: "bread", count: 2 }]);
@@ -113,8 +99,6 @@ describe("setContentCount", () => {
   });
 
   it("writes a count of one as no count at all", () => {
-    // Otherwise `count: 1` spreads through `data/map.json` saying what an
-    // absent key already says. See `../lib/piles`' withCount.
     const contents = setContentCount(addContent([], "bread", 4, tilesById)!, 0, 3);
     expect(authored(setContentCount(contents, 0, 1))).toEqual([
       { tileId: "bread", count: undefined },

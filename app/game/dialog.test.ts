@@ -14,16 +14,6 @@ import { TRADE_REFUSED } from "./dialogRuntime";
 import { GameSession } from "./GameSession";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * A conversation through the session: Talk pressed on a body, choices and
- * trades pressed on the panel, and the world deciding what each press comes
- * to.
- *
- * `./dialogRuntime.test` pins what the interpreter does; this is about the
- * plumbing either side of it — reach, who may talk at once, the brain seeing
- * it, and a trade actually moving things.
- */
-
 const say = (text: string) => ({ kind: "say" as const, text });
 const back = { kind: "goto" as const, name: "main" };
 
@@ -67,7 +57,6 @@ const dialog: DialogDef = {
   ],
 };
 
-/** Stands still, and says so the moment anybody starts talking to it. */
 const standsToServe: BrainDef = {
   initial: "idle",
   states: {
@@ -86,7 +75,6 @@ const standsToServe: BrainDef = {
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
-  // Two levels tall: a looker sees over anything no taller than itself.
   tile({ id: "wall", height: 8, walkable: false }),
   tile({ id: "step", height: 2, walkable: true }),
   tile({ id: "block", height: 4, walkable: true }),
@@ -133,7 +121,6 @@ const tiles: TileDef[] = [
     interactions: { item: { type: "consumable", label: "Drink", hp: 0, pile: 4 } },
   }),
   tile({ id: "seller", height: 4, walkable: false, interactions: { dialog } }),
-  // A body with nothing to say: driven, so it is an actor, and no dialog.
   tile({ id: "mute", height: 4, walkable: false, actor: true }),
   tile({
     id: "server",
@@ -160,7 +147,6 @@ const tiles: TileDef[] = [
 
 const catalogue = statusesById(statusesJson);
 
-/** Open grass, the player at the origin and one body at (bx, by). */
 function fieldWith(body: string, bx = 2, by = 0, half = 6): MapFile {
   let map = emptyMap();
   for (let x = -half; x <= half; x++) {
@@ -194,7 +180,6 @@ function trade(session: GameSession, amount: number) {
 const lastLine = (session: GameSession) =>
   session.getSnapshot().conversation?.transcript.at(-1)?.text;
 
-/** Run one brain tick's worth of simulation, collecting what was said. */
 function brainTick(session: GameSession): string[] {
   const said: string[] = [];
   for (let elapsed = 0; elapsed < BRAIN_TICK_MS; elapsed += TICK_MS) {
@@ -351,10 +336,6 @@ describe("trading through the panel", () => {
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe("bag");
     talkTo(session, "seller");
     press(session, 1);
-    // Solvent, so the press opens the trade rather than refusing it. Written
-    // as `toBeUndefined` without its parentheses until oxlint noticed, so it
-    // never ran — and it was wrong: the transcript echoes the choice you
-    // pressed, so the last line here is "Buy".
     expect(lastLine(session)).not.toBe(TRADE_REFUSED);
     trade(session, 2);
     expect(session.getSnapshot().equipment.offhand?.contents).toEqual([
@@ -417,8 +398,6 @@ describe("the potion salesman, as authored", () => {
 describe("the blacksmith, as authored", () => {
   it("sells off one rack, comes back to it, and refuses when short", () => {
     let map = fieldWith("blacksmith");
-    // Two piles because a price is peeled across whatever the body is carrying,
-    // and because a hundred and fifteen shards do not fit in one.
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 95 }]);
     map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 20 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
@@ -434,8 +413,6 @@ describe("the blacksmith, as authored", () => {
     trade(session, 1);
     expect(bagOf(session)).toEqual(["arcane-shardx95", "iron-sword"]);
 
-    // A sale lands back on the rack it was made from rather than on the top
-    // menu, so Back is what leaves — and it is the fourth button on every rack.
     press(session, 3);
     press(session, 3);
     expect(lastLine(session)).toContain("Reach is what you're paying for");
@@ -468,12 +445,6 @@ describe("the blacksmith, as authored", () => {
   });
 });
 
-/**
- * The armourer sells by slot rather than by rung, which is the one thing about
- * this shop that is not the blacksmith's shape: `docs/notes.md` says armour is
- * a choice and not a ladder, so what a rack has to do is put the pieces that
- * compete for one square next to each other.
- */
 describe("the armourer, as authored", () => {
   it("sells a helm off the head rack and comes back to it", () => {
     let map = fieldWith("armourer");
@@ -490,7 +461,6 @@ describe("the armourer, as authored", () => {
     trade(session, 1);
     expect(bagOf(session)).toEqual(["arcane-shardx15", "iron-helm"]);
 
-    // Back on the head rack, so the cap under it is one press away.
     press(session, 0);
     trade(session, 1);
     expect(bagOf(session)).toEqual(["iron-helm", "leather-cap"]);

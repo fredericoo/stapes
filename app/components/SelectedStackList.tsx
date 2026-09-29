@@ -25,7 +25,6 @@ type Props = {
   tilesets: TilesetDef[];
 };
 
-/** Shared across every row, so one datalist backs all the channel inputs. */
 const CHANNEL_LIST_ID = "stack-signal-channels";
 
 type StackRow = {
@@ -47,11 +46,6 @@ function missingTile(tileId: string): TileDef {
   };
 }
 
-/**
- * Sortable ids for the current stack snapshot.
- * Occurrence counters are position-based (fine without per-placement identity).
- * Direction is omitted so changing N/E/S/W does not remount the row.
- */
 function toDisplayRows(stack: PlacedTile[]): StackRow[] {
   const seen = new Map<string, number>();
   const ids = stack.map((placed) => {
@@ -66,78 +60,30 @@ function toDisplayRows(stack: PlacedTile[]): StackRow[] {
   });
 }
 
-/**
- * Does this tile have anything to say to a signal channel? Only wired-capable
- * tiles get a channel field — a channel on a rock is a control that can never
- * do anything, on every row of every stack.
- */
 function isWired(def: TileDef): boolean {
   return resolveEmit(def) != null || resolveReceive(def) != null;
 }
 
-/**
- * Does this tile hand things over? Only a giver gets the reward fields, on the
- * same grounds only a wired tile gets a channel: a tag on a rock is a control
- * that can never do anything.
- */
 function isGiver(def: TileDef): boolean {
   return resolveRewardDef(def) != null;
 }
 
-/**
- * Does this placement need a destination written on it?
- *
- * Only an *absolute* teleporter does. A relative one carries its whole journey
- * on the tile — see `TeleportDestination` — so a ladder placement has nothing to
- * author, and offering three empty boxes beside it would be a control that can
- * never do anything, on the same grounds a channel on a rock would be.
- */
 function needsDestination(def: TileDef): boolean {
   return resolveTeleportDef(def)?.destination.kind === "absolute";
 }
 
-/**
- * What a reward may hand over — the same rule `rewardFits` enforces in play,
- * asked here so the picker cannot offer a tile that would make the whole reward
- * untakeable. A container is excluded because nothing nests, so it could only go
- * on a back the reward's own items need occupied.
- */
 function isGiveable(def: TileDef): boolean {
   return resolveItem(def) != null && resolveContainer(def) == null;
 }
 
-/**
- * How many squares this tile holds, or null when it is not a container.
- *
- * The size rather than a boolean, because the field that follows needs the
- * number: a chest of four and a chest of twelve are the same question asked
- * with different room in it.
- */
 function holdsCount(def: TileDef): number | null {
   return resolveContainer(def)?.size ?? null;
 }
 
-/**
- * What may be authored into a container: an item, and never another container.
- *
- * The same shape as {@link isGiveable} and a different rule — nothing nests, so
- * a bag inside a crate is a thing the game has no way to open. Two predicates
- * rather than one shared by both, because the day either rule moves it must
- * move alone.
- */
 function isStowable(def: TileDef): boolean {
   return resolveItem(def) != null && resolveContainer(def) == null;
 }
 
-/**
- * The elevations one placement may be lifted to, or null when there is no
- * choice to offer.
- *
- * Null covers both ends of "nothing to decide": a stack with no headroom left,
- * and a placement whose only legal foot is the one it already has. Offering a
- * single button that cannot change anything is the control-on-a-rock the
- * channel and reward fields are gated the same way to avoid.
- */
 function footChoice(
   stack: PlacedTile[],
   stackIndex: number,
@@ -150,7 +96,6 @@ function footChoice(
   return { value: elevationAt(stack, stackIndex, tilesById), resting: min, options };
 }
 
-/** Display is top-first; store reorder uses bottom-first stack indices. */
 function displayIndexToStackIndex(displayIndex: number, length: number): number {
   return length - 1 - displayIndex;
 }
@@ -175,7 +120,6 @@ function SortableStackItem({
   stackIndex: number;
   placed: PlacedTile;
   def: TileDef;
-  /** Where this placement may sit within the level; null when it has no say. */
   foot: ReturnType<typeof footChoice>;
   giveable: TileDef[];
   stowable: TileDef[];
@@ -240,14 +184,6 @@ function SortableStackItem({
             ]}
           />
         ) : null}
-        {/* Thumbnails rather than the Segmented above it or a dropdown beside
-            it. Facings are four, fixed and nameless, so four letters in a row
-            say everything; faces are however many the tile authors, named in
-            prose, and the name is the least of what tells them apart. A
-            wrapping row of the art itself is also the only one of the three
-            that survives this panel being dragged narrow. In the row rather
-            than the settings dialog because it is the same kind of fact as the
-            facing: what this placement *is*, not what it is wired to. */}
         {def.type === "variant" ? (
           <div
             role="listbox"
@@ -255,9 +191,6 @@ function SortableStackItem({
             className="mt-1 flex flex-wrap items-start gap-1"
           >
             {variantKeys(def).map((key) => {
-              // A placement naming nothing wears the first authored face, which
-              // is what the renderer draws — so the row answers rather than
-              // showing every face unselected.
               const active = (placed.variant ?? variantKeys(def)[0]) === key;
               return (
                 <button
@@ -286,12 +219,6 @@ function SortableStackItem({
             })}
           </div>
         ) : null}
-        {/* In the row beside the facing and the face, and for the same reason:
-            where a thing sits is what the placement *is*, not something it is
-            wired to. The lowest option is the elevation the stack under it
-            reaches — picking it clears the field rather than writing the number
-            down, so a placement resting on what holds it up leaves no line in
-            `map.json`. */}
         {foot ? (
           <div className="mt-1 flex items-center gap-1">
             <span className="text-[10px] font-bold uppercase text-muted">Foot</span>
@@ -311,28 +238,15 @@ function SortableStackItem({
             />
           </div>
         ) : null}
-        {/* What the placement carries, rather than the fields themselves: the
-            row says a wire and a description are set, and the dialog is where
-            they are read and changed. */}
         {placed.channel || placed.rewardTag || placed.contents?.length || placed.inscription ? (
           <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
-            {/* The channel keeps its width and the description gives way: a
-                wire name truncated to "⌁…" tells you nothing, while a clipped
-                first few words of prose still says which sign this is. */}
             {placed.channel ? <span className="shrink-0">⌁ {placed.channel}</span> : null}
-            {/* Kept at full width beside the wire and for the same reason: a
-                truncated tag names nothing, and which reward this is is the
-                whole question when two chests sit side by side. */}
             {placed.rewardTag ? (
               <span className="shrink-0">
                 ⛁ {placed.rewardTag}
                 {placed.rewardTileIds?.length ? ` ×${placed.rewardTileIds.length}` : ""}
               </span>
             ) : null}
-            {/* A count and not the things themselves: the row is answering
-                "is there anything in this crate", and four names in a side
-                panel would push the stack off the bottom of it. What is in it
-                is the dialog's job. */}
             {placed.contents?.length ? (
               <span className="shrink-0">
                 <span className="sr-only">Holds </span>
@@ -373,8 +287,6 @@ function SortableStackItem({
           <IconTrash size={16} aria-hidden="true" />
         </Button>
       </Tooltip>
-      {/* Mounted only while open, which is what lets the dialog seed its fields
-          from the map with `useState` and no re-sync effect. */}
       {settingsOpen ? (
         <PlacementSettingsDialog
           placed={placed}
@@ -402,9 +314,6 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
   const stackLengthAtRender = stack.length;
   const map = useEditorStore((s) => s.map);
   const channels = useMemo(() => listChannels(map), [map]);
-  // Once for the whole panel rather than per row: every giver in a stack offers
-  // the same catalogue, and filtering it per row would walk the tile list once
-  // per placement on every render.
   const giveable = useMemo(() => Object.values(tilesById).filter(isGiveable), [tilesById]);
   const stowable = useMemo(() => Object.values(tilesById).filter(isStowable), [tilesById]);
 

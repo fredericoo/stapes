@@ -9,158 +9,52 @@ import {
 } from "./brain";
 import { PLAYER_TILE_ID } from "../game/constants";
 
-/**
- * The authorable vocabulary of a brain, as data the editor reads.
- *
- * The runtime knows conditions, actions and effects as switch arms and valibot
- * variants — code, which the editor cannot enumerate. This is the same set,
- * turned outward: one entry per name, each carrying a default instance and the
- * shape of its parameters, so the editor's dropdowns are fed from here and
- * *cannot* offer a name the runtime does not implement. Add a verb to the
- * runtime and it stays invisible in the editor until it is added here too —
- * which is the right failure, a missing option rather than a broken save.
- *
- * The one duplication this accepts is the default values: `make()` here and the
- * schema in `./brain` must agree on what a fresh `in_range` looks like. They are
- * a few lines apart and both change when a verb does, and the alternative —
- * deriving defaults from a valibot schema — buys less than it costs.
- */
-
-/** How the editor renders and edits one field of a condition/action/effect. */
 export type ParamSpec =
-  /**
-   * A number box. `max` is authored wherever the schema has a ceiling — a
-   * percentage, and nothing else so far — so the editor refuses what the file
-   * would refuse rather than saving a creature that then fails to parse.
-   */
-  | { key: string; kind: "number"; label: string; min?: number; max?: number }
+  | {
+      key: string;
+      kind: "number";
+      label: string;
+      min?: number;
+      max?: number;
+      optional?: boolean;
+    }
   | { key: string; kind: "boolean"; label: string }
   | { key: string; kind: "selector"; label: string }
-  /**
-   * An optional {@link SpeakerFilter} — a match and a selector, or nothing at
-   * all. Its own kind rather than a selector beside a picklist, because
-   * "anybody" is the absence of the whole field and two controls that have to
-   * agree about that would let the editor author half of one.
-   */
   | { key: string; kind: "speaker"; label: string }
-  /**
-   * A line of text. `optional` makes an empty box mean the *absence* of the
-   * field rather than an empty string — which is a real distinction wherever
-   * blank is authorable: a `heard_noise` with no word listens for any sound at
-   * all, and writing `""` there would be a word of length zero that nothing
-   * parses.
-   */
   | { key: string; kind: "text"; label: string; optional?: boolean }
-  /**
-   * A status from the catalogue, picked rather than typed.
-   *
-   * Its own kind rather than a `text` box holding an id, on the {@link tile}
-   * field's grounds: a `status` condition naming an id nothing grants is a row
-   * that can only ever answer no, and a typo is indistinguishable from a
-   * condition an author has deliberately switched off.
-   */
   | { key: string; kind: "status"; label: string }
-  /**
-   * An optional {@link Selector} naming something on the board, or nothing at
-   * all — which is `consume`'s "out of the bag".
-   *
-   * Its own kind rather than a plain `selector` because the absent case is a
-   * real, different meaning here rather than a field nobody filled in, and two
-   * controls that had to agree about that would let the editor author half of
-   * one. The same collapse a speaker filter's "anybody" makes.
-   */
   | { key: string; kind: "ground"; label: string }
-  /**
-   * Who a spell is cast at: a {@link Selector}, or no target at all.
-   *
-   * A `ground` field's shape — the absent case is a meaning, not a gap — with
-   * one difference that needs a kind of its own: whether a target means
-   * anything depends on *which* spell the row casts. `spell` names the field
-   * on the same row holding it, and a spell that lands on its caster shows
-   * "No target (self)" in place of a picker, because any selector there would
-   * be ignored.
-   */
   | { key: string; kind: "aim"; label: string; spell: string }
-  /**
-   * One of the spells on this body's own battler block, picked rather than
-   * typed — and written down as its **position**, counting from one.
-   *
-   * Its own kind rather than a number box, on the {@link tile} field's grounds
-   * and more sharply: the spells it may point at are authored two tabs away on
-   * the very same tile, so the editor can offer exactly the ones that exist,
-   * by name, and write the number. A typed position is a line that can only
-   * ever fail, which is indistinguishable from a line somebody switched off
-   * deliberately.
-   */
   | { key: string; kind: "spell"; label: string }
-  /**
-   * A tile from the library, picked rather than typed.
-   *
-   * Its own kind rather than a `text` box holding an id, because the two verbs
-   * that take one — `carrying` and `consume` — are naming an item that has to
-   * exist for the line to do anything, and a typed id that does not is a line
-   * that silently never fires. The picker is narrowed by {@link tiles} to the
-   * ones the verb can mean at all, which is the same inference the selector
-   * annotation makes, pointed at a field instead of a slot.
-   *
-   * `optional` means an empty pick is the *absence* of the field, on `text`'s
-   * terms: a `carrying` naming no tile asks about anything at all.
-   */
   | {
       key: string;
       kind: "tile";
       label: string;
       optional?: boolean;
-      /** Which tiles this field may name. @see TileFilter */
       tiles: TileFilter;
     };
 
-/**
- * Which tiles a {@link ParamSpec} `tile` field will offer.
- *
- * A name rather than a predicate, because the catalog is data the editor reads
- * and a function in it could not be serialised, compared or tested apart from
- * the component that calls it. The editor holds the one place these names turn
- * into a filter over the library.
- */
 export type TileFilter = "item" | "consumable";
 
 type CatalogEntry<T> = {
   label: string;
-  /** One-line description shown beside the picker. */
   hint: string;
   params: ParamSpec[];
-  /** A fresh instance, for when this name is first chosen. */
   make: () => T;
 };
 
-/**
- * What a freshly picked condition or action points at until the author says
- * otherwise.
- *
- * The player rather than any other tile, because every verb this is a default for
- * — notice, chase, swing — is overwhelmingly authored about the person. A flock
- * or a pack is the interesting case, and interesting cases are the ones somebody
- * is already choosing deliberately.
- */
 export const DEFAULT_SELECTOR = nearest(PLAYER_TILE_ID);
 
-/**
- * What a freshly picked verb about a *thing* points at.
- *
- * The same tile {@link DEFAULT_SELECTOR} names, and for a different reason: the
- * catalog cannot see the library, so it has no bush to offer. What it can do is
- * start the field on the right *kind* of selector — a thing rather than a body —
- * so an author who picks `extract` is one choice away from what they meant
- * rather than having to notice the picker has two halves.
- */
 export const DEFAULT_THING = thing(PLAYER_TILE_ID);
 
 export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainConditionDef>> = {
   after: {
     label: "after",
-    hint: "This long has passed in the current state.",
-    params: [{ key: "ms", kind: "number", label: "ms", min: 0 }],
+    hint: "This long has passed in the current state. With a to ms, the wait is drawn from that range each time the state is entered.",
+    params: [
+      { key: "ms", kind: "number", label: "ms", min: 0 },
+      { key: "toMs", kind: "number", label: "to ms", min: 0, optional: true },
+    ],
     make: () => ({ cond: "after", ms: 1000 }),
   },
   in_range: {
@@ -237,6 +131,12 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     params: [],
     make: () => ({ cond: "talking" }),
   },
+  in_harm: {
+    label: "standing in harm",
+    hint: "The tile under this body would give it a bad status it is not immune to, such as a flame's burn. Pair it with a random step, which never lands on a flame or a portal.",
+    params: [],
+    make: () => ({ cond: "in_harm" }),
+  },
   status: {
     label: "status",
     hint: "This body is under a named condition, with at least this long left. Leave the time at zero to ask only whether it is running. Its `not` is how hunger is authored — a wolf with no fed left, or none at all.",
@@ -258,10 +158,6 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
         max: MAX_HEALTH_PERCENT,
       },
     ],
-    // A third, which is the threshold a creature that runs when it is losing
-    // is overwhelmingly authored at. Not half: half a health bar is a fight
-    // still worth having, and a default that fired there would make every
-    // freshly picked row read as cowardice.
     make: () => ({ cond: "health", atMostPercent: 33 }),
   },
   time_of_day: {
@@ -271,8 +167,6 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
       { key: "fromHour", kind: "number", label: "from hour", min: 0, max: MAX_HOUR_OF_DAY },
       { key: "toHour", kind: "number", label: "to hour", min: 0, max: MAX_HOUR_OF_DAY },
     ],
-    // The night the sky draws: dark from seven, and still dark until dawn
-    // starts at four. @see ./clock ILLUMINATION_KEYFRAMES
     make: () => ({ cond: "time_of_day", fromHour: 19, toHour: 4 }),
   },
   below_level: {
@@ -328,6 +222,15 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
     ],
     make: () => ({ action: "step_away_from", of: DEFAULT_SELECTOR }),
   },
+  attack_range: {
+    label: "attack range",
+    hint: "Walk up until the body's weapon can reach the target, and no closer: beside it for a melee weapon, as far out as it shoots for a bow. Backs off inside a bow's minimum range, walks up when out of reach or behind a wall. Fails once in reach, so put the attack on the next line.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "allowDrops", kind: "boolean", label: "allow drops" },
+    ],
+    make: () => ({ action: "attack_range", of: DEFAULT_SELECTOR }),
+  },
   wait: {
     label: "wait",
     hint: "Stand still for a stretch, then hand its turn to the next line.",
@@ -351,17 +254,11 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   cast: {
     label: "cast",
-    hint: "Cast one of this body's own spells, by its position on the Spells tab. Holds the line for as long as the bar takes. Fails on a position it has no spell at, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster takes no target. With no target, a spell that needs one fails.",
+    hint: "Cast one of this body's own spells, by its position on the Spells tab. Holds the line for as long as the bar takes. Fails on a position it has no spell at, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster takes no target. With no target, a spell that needs one fails, except a conjure, which lands in front of the caster.",
     params: [
       { key: "spell", kind: "spell", label: "spell" },
       { key: "of", kind: "aim", label: "at", spell: "spell" },
     ],
-    // The first spell, which is a position every body with any spells at all
-    // has — and one the schema accepts whatever the body turns out to carry,
-    // since the catalog cannot see the tile this is being authored onto. No
-    // target, for the same blindness: the first spell may land on its caster,
-    // and a selector written for it would sit in the file under a row that
-    // shows none. A bolt left on it reads "No target", which says why it never fires.
     make: () => ({ action: "cast", spell: 1 }),
   },
   extract: {

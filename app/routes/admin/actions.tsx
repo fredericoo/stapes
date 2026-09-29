@@ -8,18 +8,6 @@ import { requireAdmin } from "../../lib/auth";
 import { MAINTENANCE_MESSAGE_MAX_LENGTH } from "../../../server/maintenance";
 import { Button, Dialog, Textarea } from "../../ui";
 
-/**
- * Things an administrator does to the running world, as opposed to authoring it.
- *
- * Every other page under `/admin` edits content. This one acts on the shared
- * world that players are in right now, so it gets its own page rather than a
- * corner of an editor: one card per action, each saying what it does to
- * whoever is playing.
- *
- * The server is the control, as everywhere under `/admin`: each action is an
- * endpoint that answers an administrator's session and nobody else's. See
- * `server/api.ts`.
- */
 export async function clientLoader() {
   await requireAdmin();
   return { maintenance: await fetchMaintenance() };
@@ -50,7 +38,6 @@ export default function ActionsPage() {
   );
 }
 
-/** One action: what it is, what it does to players, and its controls. */
 function ActionCard({
   title,
   status,
@@ -71,14 +58,6 @@ function ActionCard({
   );
 }
 
-/**
- * Close the world to players, or open it again. @see `server/maintenance.ts`
- *
- * Closing asks first, because it puts every player in the world out at once.
- * Opening does not: it is the undo, and the closed pages find out by
- * themselves. The message can be changed while the world is closed, and the
- * closed pages pick it up the next time they ask.
- */
 function MaintenanceCard() {
   const { maintenance } = useLoaderData<typeof clientLoader>();
   const fetcher = useFetcher<typeof clientAction>();
@@ -87,8 +66,6 @@ function MaintenanceCard() {
   const pending = fetcher.state !== "idle";
   const closed = maintenance !== null;
 
-  // What the server stored, after a save: it trims the message, and a blank
-  // one comes back as none.
   useEffect(() => {
     setMessage(maintenance?.message ?? "");
   }, [maintenance]);
@@ -118,11 +95,9 @@ function MaintenanceCard() {
       </p>
       <label className="flex flex-col gap-1 text-sm">
         Message for players (optional)
+        {/** 16px so Safari on iOS does not zoom the page in when it is focused. */}
         <Textarea
           rows={3}
-          // 16px so Safari on iOS does not zoom the page in when it is
-          // focused. @see docs/notes.md, "A field the phone focuses has to be
-          // 16px"
           className="text-base"
           maxLength={MAINTENANCE_MESSAGE_MAX_LENGTH}
           value={message}

@@ -8,20 +8,7 @@ import type { LevelLightUniforms } from "./worldQuads";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { coordKey } from "../lib/types";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
-import { PX_PER_HEIGHT } from "../lib/geometry";
-
-/**
- * What actually reaches the buffers.
- *
- * The layer is the one part of this feature with no visible failure mode short
- * of looking at it: an attribute that never gets written draws *something*, just
- * not the something that was authored. `lit` shipped broken exactly that way —
- * the flag was read, the buffer was filled, and the geometry was handed a
- * different array.
- *
- * No GL context is needed for any of this. Geometry, attributes and materials
- * are plain objects until a renderer touches them.
- */
+import { depthBox, depthStackBias, fragDepth, PX_PER_HEIGHT } from "../lib/geometry";
 
 function lightUniforms(): LevelLightUniforms {
   return {
@@ -34,7 +21,6 @@ function lightUniforms(): LevelLightUniforms {
 }
 
 function layer() {
-  // Dice pinned at the middle of every range, so a spawn is deterministic.
   return new ParticleLayer(
     () => lightUniforms(),
     () => 0.5,
@@ -61,11 +47,11 @@ function emitter(
     box: { eastPx: 32, southPx: 40, foot: 0, top: 2 },
     stackBias: 1,
     taper: 1,
+    scale: 1,
     ...over,
   };
 }
 
-/** A cut over exactly the cells named — the shape `roofCutFor` hands back. */
 const cutting = (
   floor: number,
   ...cells: Array<{ x: number; y: number; z: number }>
@@ -99,8 +85,6 @@ describe("what the buffers say", () => {
     l.update(1_000, undefined);
 
     const unlit = attr(l, "aUnlit").array as Float32Array;
-    // All four corners, because the flag is a varying and one stray vertex
-    // would light a triangle and not its neighbour.
     expect([...unlit.slice(0, 4)]).toEqual([0, 0, 0, 0]);
   });
 
@@ -110,12 +94,7 @@ describe("what the buffers say", () => {
     l.update(1_000, undefined);
 
     const uv = attr(l, "aLightUv").array as Float32Array;
-    // The cell's integer coordinate, which is where a light-map texel's centre
-    // is. A fractional value lands on a texel boundary and a nearest sample
-    // picks a neighbour at random.
     expect([...uv.slice(0, 2)]).toEqual([3, 4]);
-    // Flat across the quad: a particle is smaller than the cell lighting it, so
-    // there is no gradient to walk.
     const scale = attr(l, "aLightScale").array as Float32Array;
     expect([...scale.slice(0, 8)]).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
   });
@@ -125,8 +104,6 @@ describe("what the buffers say", () => {
     l.setEmitters([emitter({ id: "ground", z: 0 }), emitter({ id: "upstairs", z: 1 })]);
     l.update(1_000, undefined);
 
-    // Two levels, two groups, two materials — the light map is bound per level,
-    // so a spark upstairs must not be lit by the room below it.
     expect(l.mesh.geometry.groups).toHaveLength(2);
     expect(l.mesh.material).toHaveLength(2);
     const indices = l.mesh.geometry.groups.map((g) => g.materialIndex);
@@ -134,9 +111,6 @@ describe("what the buffers say", () => {
   });
 
   it("leaves the draw range wide open, because groups are intersected with it", () => {
-    // The regression this test exists for: a geometry pinned to a zero-length
-    // draw range draws nothing at all, however many groups it carries. Groups
-    // bound the draw; the range must not also try to.
     const l = layer();
     l.setEmitters([emitter()]);
     l.update(1_000, undefined);
@@ -162,18 +136,12 @@ describe("what the buffers say", () => {
     l.update(1_000, undefined);
     expect(l.mesh.visible).toBe(true);
 
-    // The emitter hangs from cell (3, 4) — see `emitter` — so that is the cell
-    // the cut has to name.
     l.update(16, cutting(0, { x: 3, y: 4, z: 2 }));
     expect(l.mesh.visible).toBe(false);
-    // Still in the air. Walking under a roof and back out should find the fire
-    // burning, not restarted.
     expect(l.system.count).toBeGreaterThan(0);
   });
 
   it("keeps a plume on a structure the cut left standing", () => {
-    // Same level as the cut, different cell: the cut is a building now, not a
-    // storey, so being high up is no longer a reason to be hidden.
     const l = layer();
     l.setEmitters([emitter({ id: "next-door", z: 2 })]);
     l.update(1_000, cutting(0, { x: 9, y: 9, z: 2 }));
@@ -184,14 +152,72 @@ describe("what the buffers say", () => {
 
 describe("where a particle lands", () => {
   it("puts a point on screen without asking what level it is on", () => {
-    // The level term cancels: a storey shifts a cell by CELL_SIZE, and an
-    // absolute elevation already carries that shift back.
     const cell = 3;
     const localElev = 1;
     const z = 2;
     const absolute = z * HEIGHT_PER_LEVEL + localElev;
     const viaProjection = cell * CELL_SIZE - CELL_SIZE * z - PX_PER_HEIGHT * localElev;
     expect(particleWorldPx(cell, absolute)).toBeCloseTo(viaProjection);
+  });
+});
+
+describe("where a particle sorts", () => {
+  const body = depthBox(3, 4, 0, HEIGHT_PER_LEVEL);
+  const bodyBias = depthStackBias(0, 1);
+  const plumeBias = depthStackBias(0, 2);
+
+  function depthsAt(at: { x: string; y: string; elev: number }, ownDepth: boolean) {
+    const l = layer();
+    l.setEmitters([
+      emitter(
+        { box: depthBox(3, 4, HEIGHT_PER_LEVEL, 2 * HEIGHT_PER_LEVEL), stackBias: plumeBias },
+        {
+          spawnRadiusCells: 0,
+          spawnElevFrom: at.elev,
+          spawnElevTo: at.elev,
+          riseFrom: 0,
+          riseTo: 0,
+          driftCellsPerSecond: 0,
+          gravity: 0,
+          offsetX: at.x,
+          offsetY: at.y,
+          ownDepth,
+        },
+      ),
+    ]);
+    l.update(1_000, undefined);
+    const position = attr(l, "position");
+    const box = attr(l, "aBox");
+    const sx = (position.getX(0) + position.getX(1)) / 2;
+    const sy = (position.getY(0) + position.getY(2)) / 2;
+    const written = {
+      eastPx: box.getX(0),
+      southPx: box.getY(0),
+      foot: box.getZ(0),
+      top: box.getW(0),
+    };
+    return {
+      particle: fragDepth(written, sx, sy, plumeBias),
+      body: fragDepth(body, sx, sy, bodyBias),
+    };
+  }
+
+  const farSide = { x: "-0.9", y: "-0.9", elev: 0.5 };
+  const nearSide = { x: "0.8", y: "0.8", elev: 3 };
+
+  it("draws even the far side of an orbit over the body while the plume sorts as one", () => {
+    const { particle, body: bodyDepth } = depthsAt(farSide, false);
+    expect(particle).toBeLessThan(bodyDepth);
+  });
+
+  it("puts the far side of an orbit behind the body once each particle sorts on its own", () => {
+    const { particle, body: bodyDepth } = depthsAt(farSide, true);
+    expect(particle).toBeGreaterThan(bodyDepth);
+  });
+
+  it("keeps the near side in front of the body when each particle sorts on its own", () => {
+    const { particle, body: bodyDepth } = depthsAt(nearSide, true);
+    expect(particle).toBeLessThan(bodyDepth);
   });
 });
 
@@ -211,10 +237,8 @@ describe("the circles", () => {
 });
 
 describe("the shapes", () => {
-  /** A shape with only its top row drawn, so which way up it lands is visible. */
   const TOP_ROW = ["#####", ".....", ".....", ".....", "....."];
 
-  /** The width of each quad written, from its corner positions. */
   function quadWidths(l: ParticleLayer, count: number): number[] {
     const pos = attr(l, "position").array as Float32Array;
     return Array.from({ length: count }, (_, q) => pos[q * 12 + 3]! - pos[q * 12]!);
@@ -225,11 +249,51 @@ describe("the shapes", () => {
     return material.map as THREE.DataTexture;
   }
 
+  function halfwayAndNewborn(config: Partial<ParticleEmitterDef>): number[] {
+    const l = layer();
+    l.setEmitters([
+      emitter(
+        {},
+        { shape: TOP_ROW, ratePerSecond: 1, ttlFromMs: 2_000, ttlToMs: 2_000, ...config },
+      ),
+    ]);
+    l.update(1_000, undefined);
+    l.update(1_000, undefined);
+    return quadWidths(l, 2);
+  }
+
   it("draws a shaped particle at five pixels whatever the radius says", () => {
     const l = layer();
     l.setEmitters([emitter({}, { shape: TOP_ROW, radiusFromPx: 8, radiusToPx: 8 })]);
     l.update(1_000, undefined);
     expect(quadWidths(l, 1)).toEqual([PARTICLE_SHAPE_PX]);
+  });
+
+  it("takes a shape from its first size to its second over its life", () => {
+    expect(halfwayAndNewborn({ sizeFromPx: 5, sizeToPx: 15 })).toEqual([10, 5]);
+    expect(halfwayAndNewborn({ sizeFromPx: 5, sizeToPx: 1 })).toEqual([3, 5]);
+  });
+
+  it("holds a shape at its first size when the second is left blank", () => {
+    expect(halfwayAndNewborn({ sizeFromPx: 10, sizeToPx: null })).toEqual([10, 10]);
+  });
+
+  it("shrinks a shape with its plume's taper", () => {
+    const l = layer();
+    l.setEmitters([emitter({ taper: 0.5 }, { shape: TOP_ROW, sizeFromPx: 10 })]);
+    l.update(1_000, undefined);
+    expect(quadWidths(l, 1)).toEqual([5]);
+  });
+
+  it("starts a shape of even size on a whole pixel", () => {
+    const l = layer();
+    l.setEmitters([emitter({}, { shape: TOP_ROW, sizeFromPx: 6 })]);
+    l.update(1_000, undefined);
+
+    const pos = attr(l, "position").array as Float32Array;
+    const corners = [0, 1, 3, 4, 6, 7, 9, 10].map((i) => pos[i]!);
+    expect(quadWidths(l, 1)).toEqual([6]);
+    expect(corners.every(Number.isInteger)).toBe(true);
   });
 
   it("puts the shape's top row at the top of the quad", () => {
@@ -239,9 +303,6 @@ describe("the shapes", () => {
 
     const pos = attr(l, "position").array as Float32Array;
     const uv = attr(l, "uv").array as Float32Array;
-    // Of the four corners, the ones with the smaller y are the top of the
-    // screen: a particle rising loses y. Their v is the one to read the top
-    // row from.
     const corners = [0, 1, 2, 3].map((c) => ({ y: pos[c * 3 + 1]!, v: uv[c * 2 + 1]! }));
     const topV = corners.reduce((a, b) => (b.y < a.y ? b : a)).v;
     const bottomV = corners.reduce((a, b) => (b.y > a.y ? b : a)).v;
@@ -258,7 +319,6 @@ describe("the shapes", () => {
       const row = Math.floor(v * height) + inward;
       return data[(row * width + column) * 4 + 3];
     };
-    // One row in from each edge, towards the middle of the cell.
     const topInward = topV > bottomV ? -1 : 0;
     const bottomInward = topV > bottomV ? 0 : -1;
     expect(alphaAt(topV, topInward)).toBe(255);
@@ -267,8 +327,6 @@ describe("the shapes", () => {
 
   it("draws shapes past the last slot as circles until the next frame", () => {
     const l = layer();
-    // One more distinct shape than there are slots, each a different pattern of
-    // the first 25 bits of its index.
     const shapes = Array.from({ length: SHAPE_SLOTS + 1 }, (_, i) =>
       Array.from({ length: 5 }, (_, y) =>
         Array.from({ length: 5 }, (_, x) => (((i + 1) >> (y * 5 + x)) & 1 ? "#" : ".")).join(""),

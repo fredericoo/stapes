@@ -8,6 +8,7 @@ import {
 } from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { emptyEquipment } from "../game/equipment";
+import { xpForLevel } from "../lib/mastery";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
 import { CHAT_LIFETIME_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_GRACE_MS } from "./RemoteSession";
@@ -17,20 +18,9 @@ import { resolveStatus, type StatusDef } from "../lib/status";
 import { MAX_HELD_TRANSITIONS, MAX_TRANSITION_MS } from "../lib/tileTransition";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * The client's half of the shared world: what it draws between the event that
- * announces a step and the patch that commits it.
- *
- * That gap is one network latency wide and it is where the walk twitch lived —
- * the lerp ended on its own timer, so for a few frames the sprite was drawn
- * back at the cell the map still had it standing in.
- */
-
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "wall", height: 4 }),
-  // A rung: pressed from the cell you are standing in, and carrying its climb
-  // on the tile rather than on the placement.
   tile({
     id: "ladder",
     height: 0,
@@ -50,9 +40,16 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
-  // A body that is not a person, which is the whole of what these fixtures need
-  // from it: people share cells and nothing else does, so a creature has to be
-  // a creature for a blocking test to be testing anything.
+  tile({
+    id: "tortoise",
+    height: 4,
+    directional: true,
+    affectedByGravity: true,
+    walkable: false,
+    actor: true,
+    walkDurationMs: WALK_DURATION_MS * 2,
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
+  }),
   tile({
     id: "rat",
     height: 4,
@@ -73,7 +70,6 @@ const player: PlacedTile = {
   owner: SELF,
 } as PlacedTile;
 
-/** A strip of grass along y=0 with the actor standing at x=0. */
 function flatMap(): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
   for (let x = 0; x < 4; x++) cells[`${x},0`] = [grass];
@@ -81,10 +77,6 @@ function flatMap(): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels: { "0": cells } } as unknown as FlatMapFile;
 }
 
-/**
- * Stands in for the socket. Only inbound frames matter here, so listeners are
- * invoked directly rather than going through a real event dispatch.
- */
 class FakeSocket {
   readyState = 1;
   readonly sent: string[] = [];
@@ -110,7 +102,6 @@ class FakeSocket {
 
 const SERVER_MINUTES = 7 * 60 + 30;
 
-/** A status whose whole job is to move the bearer's walking pace. */
 function slowing(id: string, walkSpeedPercent: number): StatusDef {
   const def = resolveStatus({
     id,
@@ -151,7 +142,6 @@ function patch(cells: CellPatch[], events: MotionEvent[] = [], hps: HpPatch[] = 
   return { type: "patch", cells, events, hps, carriedLights: [] };
 }
 
-/** The step from (0,0,0) to (1,0,0), as the server announces it. */
 const walkStarted: MotionEvent = {
   kind: "walkStarted",
   actorId: SELF,
@@ -160,7 +150,6 @@ const walkStarted: MotionEvent = {
   direction: "e",
 };
 
-/** The same step, as the server commits it 200ms later. */
 const stepCommitted: CellPatch[] = [
   { x: 0, y: 0, z: 0, stack: [grass] },
   { x: 1, y: 0, z: 0, stack: [grass, player] },
@@ -183,10 +172,6 @@ describe("RemoteSession afflicted placements", () => {
     expect(session.getSnapshot().afflicted).toEqual([alight]);
   });
 
-  /**
-   * Only the cells a patch names are touched, so a patch about somewhere else —
-   * which is almost every patch — leaves a fire alone.
-   */
   it("keeps a fire when a patch does not name its cell", () => {
     const { socket, session } = connected();
     socket.deliver(patch([{ x: 1, y: 0, z: 0, stack: [grass], afflicted: burning }]));
@@ -196,11 +181,6 @@ describe("RemoteSession afflicted placements", () => {
     expect(session.getSnapshot().afflicted).toBe(before);
   });
 
-  /**
-   * A cell patch replaces the whole cell, fire included. That is what lets the
-   * server put a fire out, or hand back ground that went out while nobody here
-   * was holding it, without a message of its own.
-   */
   it("puts a fire out when its cell arrives with nothing burning", () => {
     const { socket, session } = connected();
     socket.deliver(patch([{ x: 1, y: 0, z: 0, stack: [grass], afflicted: burning }]));
@@ -236,15 +216,11 @@ describe("RemoteSession walk interpolation", () => {
     const { socket, session } = connected();
     socket.deliver(patch([], [walkStarted]));
 
-    // Well past the walk's own duration: the timer running out is not the same
-    // event as the step becoming true, and the patch has not arrived yet.
     session.update(WALK_DURATION_MS + 100);
 
     const mid = session.getSnapshot().self;
     expect(mid.walk).not.toBeNull();
     expect(mid.walkProgress).toBe(1);
-    // Still standing in the origin cell as far as the map is concerned — which
-    // is exactly why dropping the walk here is what made the sprite twitch.
     expect(mid.x).toBe(0);
 
     socket.deliver(patch(stepCommitted));
@@ -258,8 +234,6 @@ describe("RemoteSession walk interpolation", () => {
     const { socket, session } = connected();
     socket.deliver(patch([], [walkStarted]));
 
-    // One frame at a time across the whole step and the latency after it. A
-    // frame that shows progress 0 with the walk gone is the twitch.
     for (let elapsed = 0; elapsed < WALK_DURATION_MS * 3; elapsed += 16) {
       session.update(16);
       const self = session.getSnapshot().self;
@@ -275,8 +249,6 @@ describe("RemoteSession walk interpolation", () => {
     socket.deliver(patch([], [walkStarted]));
     session.update(WALK_DURATION_MS);
 
-    // A held key: the server commits one step and starts the next in the same
-    // tick, so both travel in one patch — cells first, then the event.
     socket.deliver(
       patch(stepCommitted, [
         {
@@ -296,13 +268,6 @@ describe("RemoteSession walk interpolation", () => {
   });
 });
 
-/**
- * A drop of two height units from (0,0,1) onto the grass at (0,0,0).
- *
- * One level down, so the landing does move the actor's cell — but the fall is
- * released by elevation, not by that move, because a fall inside a level lands
- * without changing the cell at all.
- */
 const LANDING_ABS = 0;
 const fallStarted: MotionEvent = {
   kind: "fallStarted",
@@ -311,13 +276,11 @@ const fallStarted: MotionEvent = {
   landingAbs: LANDING_ABS,
 };
 
-/** The landing, as the server commits it. */
 const landingCommitted: CellPatch[] = [
   { x: 0, y: 0, z: 1, stack: [] },
   { x: 0, y: 0, z: 0, stack: [grass, player] },
 ];
 
-/** The actor standing one level up, mid-air over the grass it will land on. */
 function aloftMap(): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
   for (let x = 0; x < 4; x++) cells[`${x},0`] = [grass];
@@ -351,15 +314,11 @@ describe("RemoteSession fall interpolation", () => {
     const { socket, session } = connectedAloft();
     socket.deliver(patch([], [fallStarted]));
 
-    // Past the whole two-unit drop, with the patch still in flight.
     session.update(FALL_MS_PER_HEIGHT * 2 + 100);
 
     const mid = session.getSnapshot().self;
     expect(mid.fall).not.toBeNull();
-    // Standing on the landing already, so the sprite has nowhere left to go.
     expect(mid.fall?.feetAbs).toBe(LANDING_ABS);
-    // And the map still has them a level up, which is why dropping the fall
-    // here snapped the sprite back into the air.
     expect(mid.z).toBe(1);
 
     socket.deliver(patch(landingCommitted));
@@ -375,7 +334,6 @@ describe("RemoteSession fall interpolation", () => {
 
     for (let elapsed = 0; elapsed < FALL_MS_PER_HEIGHT * 4; elapsed += 16) {
       session.update(16);
-      // A frame with no fall is a frame drawn at the map's stale position.
       expect(session.getSnapshot().self.fall).not.toBeNull();
     }
 
@@ -388,8 +346,6 @@ describe("RemoteSession fall interpolation", () => {
     socket.deliver(patch([], [fallStarted]));
 
     session.update(FALL_MS_PER_HEIGHT);
-    // The first unit is done and the second is under way — not stalled at the
-    // boundary waiting for anything.
     expect(session.getSnapshot().self.fall?.feetAbs).toBe(1);
   });
 });
@@ -401,11 +357,16 @@ describe("RemoteSession clock", () => {
   });
 });
 
-/**
- * Speech is the one thing on this wire the server announces once and then
- * forgets about. Its whole lifetime is the client's to run, so this is where
- * "five seconds" is actually enforced.
- */
+describe("RemoteSession invisibility", () => {
+  it("marks its own body hidden while the server says it is", () => {
+    const { socket, session } = connected();
+    socket.deliver({ type: "hidden", on: true });
+    expect(session.getSnapshot().self.hidden).toBe(true);
+    socket.deliver({ type: "hidden", on: false });
+    expect(session.getSnapshot().self.hidden).toBe(false);
+  });
+});
+
 describe("RemoteSession chat", () => {
   const said = {
     type: "chat",
@@ -425,9 +386,6 @@ describe("RemoteSession chat", () => {
     const [bubble] = session.getSnapshot().chats;
     expect(bubble).toMatchObject({
       actorId: SELF,
-      // The body the speaker was in travels with the words, so the renderer can
-      // tell a person's line from a deer's without asking the board about a
-      // speaker who may have walked off or been erased.
       tileId: PLAYER_TILE_ID,
       text: "hey there!",
       x: 2,
@@ -441,8 +399,6 @@ describe("RemoteSession chat", () => {
     socket.deliver(said);
     socket.deliver(patch(stepCommitted, [walkStarted]));
 
-    // The actor has moved and the bubble has not: pinned to a coordinate, not
-    // carried by a body.
     expect(session.getSnapshot().chats[0]).toMatchObject({ x: 2, y: 0 });
   });
 
@@ -463,7 +419,6 @@ describe("RemoteSession chat", () => {
     session.update(CHAT_LIFETIME_MS - 100);
     socket.deliver({ ...said, text: "and another" });
 
-    // The first is due and the second has just arrived.
     session.update(100);
     const texts = session.getSnapshot().chats.map((c) => c.text);
     expect(texts).toEqual(["and another"]);
@@ -476,22 +431,15 @@ describe("RemoteSession chat", () => {
 
     const chats = session.getSnapshot().chats;
     expect(chats).toHaveLength(2);
-    // Distinct ids, or the renderer's element cache would treat them as one
-    // label that never moved and the second would be invisible.
     expect(chats[0]!.id).not.toBe(chats[1]!.id);
   });
 
-  /**
-   * Bubbles at one cell stack upward, so an unbounded column would climb the
-   * screen and bury the world.
-   */
   it("holds a cell to three bubbles, dropping the oldest at once", () => {
     const { socket, session } = connected();
     for (const text of ["one", "two", "three", "four"]) {
       socket.deliver({ ...said, text });
     }
 
-    // The fourth does not wait for the first to time out.
     expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["two", "three", "four"]);
   });
 
@@ -502,7 +450,6 @@ describe("RemoteSession chat", () => {
       socket.deliver({ ...said, x: 3, text });
     }
 
-    // Six bubbles alive, three at each of two cells.
     expect(session.getSnapshot().chats.map((c) => c.text)).toEqual([
       "a1",
       "a2",
@@ -527,10 +474,6 @@ describe("RemoteSession chat", () => {
     expect(session.getSnapshot().chats[0]!.stackIndex).toBe(1);
   });
 
-  /**
-   * A restart moves everyone. Every bubble is pinned to a coordinate in a world
-   * that no longer exists, so they would hang over whatever is there now.
-   */
   it("clears bubbles when the world restarts", () => {
     const { socket, session } = connected();
     socket.deliver(said);
@@ -572,13 +515,37 @@ describe("RemoteSession chat", () => {
     const { socket, session } = connected();
     session.say("  /mastery sharp 10  ");
 
-    // The whole reason the sorting happens here: a command that went out as
-    // `say` would be a private line the room reads before the server takes it
-    // back. @see ../game/commands
     expect(JSON.parse(socket.sent.at(-1)!)).toEqual({
       type: "command",
       text: "/mastery sharp 10",
+      requestId: expect.any(Number),
     });
+  });
+
+  it("hands each caller the reply to its own command, in whatever order they come", async () => {
+    const { socket, session } = connected();
+    const first = session.command("/time 12:00");
+    const second = session.command("/fly");
+    const [asked, askedAgain] = socket.sent
+      .slice(-2)
+      .map((raw) => (JSON.parse(raw) as { requestId: number }).requestId);
+
+    const refused = {
+      ok: false,
+      notice: "There is no /fly command",
+      refusal: { kind: "unknownCommand", typed: "/fly" },
+    };
+    const answered = {
+      ok: true,
+      notice: "It is now 12:00",
+      ids: [],
+      data: { command: "time", minutes: 720 },
+    };
+    socket.deliver({ type: "commandReply", requestId: askedAgain, reply: refused });
+    socket.deliver({ type: "commandReply", requestId: asked, reply: answered });
+
+    await expect(first).resolves.toEqual(answered);
+    await expect(second).resolves.toEqual(refused);
   });
 
   it("still says a sentence with a slash inside it", () => {
@@ -591,19 +558,6 @@ describe("RemoteSession chat", () => {
   });
 });
 
-/**
- * Walking your own actor, drawn before the server has heard about it.
- *
- * The latency this removes is not the round trip on any one step — that one
- * could be hidden by predicting the first step alone. It is the stall that
- * follows: a walk lerp finishes in 200ms and the patch confirming it cannot
- * arrive for a round trip after that, so a client that predicted only the start
- * would stand at the destination waiting, and a held key would stutter its way
- * across the room. Predicting the *chain* is the point, and most of what is
- * below is about the chain not stalling and the corrections not being visible.
- */
-
-/** Every step frame this client has put on the wire, in order. */
 function stepsSent(socket: FakeSocket): Record<string, unknown>[] {
   return socket.sent
     .map((raw) => JSON.parse(raw) as Record<string, unknown>)
@@ -616,7 +570,6 @@ function framesOfType(socket: FakeSocket, type: string) {
     .filter((message) => message.type === type);
 }
 
-/** The commit of a step from x=`from` to x=`from + 1`, as the server sends it. */
 function committedTo(from: number): CellPatch[] {
   return [
     { x: from, y: 0, z: 0, stack: [grass] },
@@ -624,7 +577,6 @@ function committedTo(from: number): CellPatch[] {
   ];
 }
 
-/** Somebody swinging east, as the server announces it. */
 const strikeStarted: MotionEvent = {
   kind: "strikeStarted",
   actorId: SELF,
@@ -641,20 +593,11 @@ describe("RemoteSession strikes", () => {
 
     expect(session.getSnapshot().self.strike).toMatchObject({ dx: 1, dy: 0 });
 
-    // No patch confirms a lean, because a lean changes nothing about the board:
-    // unlike a walk, the only thing that ends it is the clock.
     session.update(STRIKE_DURATION_MS);
 
     expect(session.getSnapshot().self.strike).toBeNull();
   });
 
-  /**
-   * The subtle one. Every other event about this client's own body is motion it
-   * never predicted, and arriving is grounds for throwing its guesses away. A
-   * strike is not: the striker never leaves its cell, so a swing thrown while
-   * walking has nothing to say about where the walker is — and a client that
-   * treated it as news would drop its own footwork on every blow it landed.
-   */
   it("does not cost the walker the step it predicted", () => {
     const { socket, session } = connected();
     session.setInput({ directions: ["e"] });
@@ -668,14 +611,6 @@ describe("RemoteSession strikes", () => {
   });
 });
 
-/**
- * The wait before this viewer's next blow, as the server addresses it to them.
- *
- * The client's half of it is the countdown: the wire carries a wait twice — once
- * when it changes, once when the fight ends — and everything in between is this
- * side's clock, because the outline round the target fills from it every frame.
- * @see `../render/blowReadiness`
- */
 describe("RemoteSession the wait before a blow", () => {
   const WAIT_MS = 1_200;
 
@@ -705,36 +640,18 @@ describe("RemoteSession the wait before a blow", () => {
     expect(session.getSnapshot().nextBlow).toBeNull();
   });
 
-  /** A version skew degrades to an outline that breathes, which is the old one. */
   it("reads a hello from before this existed as nobody in a fight", () => {
     const { session } = connected();
     expect(session.getSnapshot().nextBlow).toBeNull();
   });
 });
 
-/** The plant a blow costs its thrower, as the server announces it. */
 const swung: MotionEvent = { kind: "swung", actorId: SELF };
 
-/**
- * The turn the same blow made, as the patch that carried it states it.
- *
- * The two travel together: the tick that throws a blow turns the body into what
- * it threw it at, so the facing is on the board by the time this side reads the
- * event beside it.
- */
 const turnedEast: CellPatch[] = [
   { x: 0, y: 0, z: 0, stack: [grass, { ...player, direction: "e" }] },
 ];
 
-/**
- * The one rule this side has to re-run rather than be told the outcome of.
- *
- * Everything else about a fight arrives settled — what a blow came to, what a
- * body has left. A recovery is different because it refuses a *step*, and steps
- * are the one thing this client decides for itself: predict through one and
- * every cell of the run is a guess the server holds back, so the body walks at
- * the pace of the socket. @see `../game/GameSession`
- */
 describe("RemoteSession attack recovery", () => {
   it("refuses to predict a step while this body is recovering", () => {
     const { socket, session } = connected();
@@ -757,12 +674,6 @@ describe("RemoteSession attack recovery", () => {
     expect(stepsSent(socket)).toHaveLength(1);
   });
 
-  /**
-   * The second of the two steps a blow costs, drawn on this side too. Both ends
-   * read the length off the same rule, and a client that stopped at one would
-   * send a step the server answers with `"later"` and then walk the body a cell
-   * it has to be dragged back out of.
-   */
   it("holds the step past the first of the two steps it costs", () => {
     const { socket, session } = connected();
     socket.deliver(patch([], [swung]));
@@ -774,13 +685,6 @@ describe("RemoteSession attack recovery", () => {
     expect(stepsSent(socket)).toEqual([]);
   });
 
-  /**
-   * A blow plants the aim with the body — the same gate the simulation draws,
-   * and it has to be drawn in the same place or a planted player would face
-   * their target there and their escape route here. The facing the blow made
-   * arrives in the patch that carried the swing, so what this side owes it is to
-   * stop painting over it.
-   */
   it("refuses to turn a planted body, and keeps the facing it struck with", () => {
     const { socket, session } = connected();
     socket.deliver(patch(turnedEast, [swung]));
@@ -791,7 +695,6 @@ describe("RemoteSession attack recovery", () => {
     expect(framesOfType(socket, "face")).toEqual([]);
   });
 
-  /** And turns again the moment the plant is spent. */
   it("turns the frame the recovery runs out", () => {
     const { socket, session } = connected();
     socket.deliver(patch([], [swung]));
@@ -803,12 +706,6 @@ describe("RemoteSession attack recovery", () => {
     expect(framesOfType(socket, "face")).toHaveLength(1);
   });
 
-  /**
-   * Only the start of a step. A walk already drawn cannot be taken back without
-   * dragging the sprite backwards across a cell it has half crossed — which is
-   * the one thing the simulation, which lets that walk finish, would never ask
-   * for.
-   */
   it("never interrupts a step already being drawn", () => {
     const { socket, session } = connected();
     session.setInput({ directions: ["e"] });
@@ -819,7 +716,6 @@ describe("RemoteSession attack recovery", () => {
     expect(session.getSnapshot().self.walk).toBe(predicted);
   });
 
-  /** Somebody else's blow says nothing about this body's footwork. */
   it("ignores a blow thrown by anybody else", () => {
     const { socket, session } = connected();
     socket.deliver(patch([], [{ kind: "swung", actorId: "somebody-else" }]));
@@ -830,15 +726,9 @@ describe("RemoteSession attack recovery", () => {
   });
 });
 
-/**
- * A cast roots the body, and this side has to re-run that rule for the reason it
- * re-runs a recovery: the server refuses the step, and a client that predicted
- * one would walk the body a cell and have it dragged back. @see `../game/GameSession`
- */
 describe("RemoteSession casting", () => {
   const CAST_MS = 3_000;
 
-  /** What the broadcast says about this body's cast, starting or ending. */
   const casting = (progress: { remainingMs: number; durationMs: number } | null) => ({
     ...patch([]),
     castings: [
@@ -859,7 +749,6 @@ describe("RemoteSession casting", () => {
     expect(stepsSent(socket)).toEqual([]);
   });
 
-  /** The turn is not refused: a conjure lands where the caster faces. */
   it("still turns a rooted caster to face where it is asked to go", () => {
     const { socket, session } = connected();
     socket.deliver(casting({ remainingMs: CAST_MS, durationMs: CAST_MS }));
@@ -870,10 +759,6 @@ describe("RemoteSession casting", () => {
     expect(framesOfType(socket, "face")).toHaveLength(1);
   });
 
-  /**
-   * The root lifts on the server's word rather than on this side's clock: the
-   * bar here can reach zero a round trip before the message that clears it.
-   */
   it("walks again once the server says the cast has ended", () => {
     const { socket, session } = connected();
     socket.deliver(casting({ remainingMs: CAST_MS, durationMs: CAST_MS }));
@@ -885,11 +770,6 @@ describe("RemoteSession casting", () => {
     expect(session.getSnapshot().self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
   });
 
-  /**
-   * A stop is sent only while the broadcast shows this body casting, on the
-   * terms a cast is only sent for a stone this side would honour: a client whose
-   * messages mean something is one whose buttons can be trusted.
-   */
   it("asks the server to stop while it shows this body casting", () => {
     const { socket, session } = connected();
     socket.deliver(casting({ remainingMs: CAST_MS, durationMs: CAST_MS }));
@@ -914,7 +794,6 @@ describe("RemoteSession casting", () => {
     expect(framesOfType(socket, "cancelCast")).toEqual([]);
   });
 
-  /** Somebody else's cast says nothing about this body's footwork. */
   it("ignores a cast being made by anybody else", () => {
     const { socket, session } = connected();
     socket.deliver({
@@ -938,8 +817,6 @@ describe("RemoteSession prediction", () => {
     const { socket, session } = connected();
     session.setInput({ directions: ["e"] });
 
-    // No frame has been rendered and nothing has come back, yet the step is
-    // already on screen. This is the whole feature.
     const self = session.getSnapshot().self;
     expect(self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
     expect(self.walkProgress).toBe(0);
@@ -953,8 +830,6 @@ describe("RemoteSession prediction", () => {
     session.setInput({ directions: ["e"] });
     session.update(WALK_DURATION_MS);
 
-    // Nothing has arrived from the server at all — no patch, no event. A client
-    // that waited to be told would be standing still here.
     const self = session.getSnapshot().self;
     expect(self.x).toBe(1);
     expect(self.walk?.to).toEqual({ x: 2, y: 0, z: 0 });
@@ -966,16 +841,12 @@ describe("RemoteSession prediction", () => {
     const distanceAfterThreeSteps = (frameMs: number) => {
       const { session } = connected();
       session.setInput({ directions: ["e"] });
-      // Three steps' worth of frames, with nothing back from the server at all.
       for (let t = 0; t < WALK_DURATION_MS * 3; t += frameMs) {
         session.update(frameMs);
       }
       return session.getSnapshot().self.x;
     };
 
-    // A step is 200ms of the world's time, not of drawn time. Throwing away the
-    // part of a frame that overran a landing would make a step cost a whole
-    // extra frame each — and a 20fps client walk visibly slower than a 60fps one.
     expect(distanceAfterThreeSteps(20)).toBe(3);
     expect(distanceAfterThreeSteps(50)).toBe(3);
   });
@@ -984,7 +855,6 @@ describe("RemoteSession prediction", () => {
     const { session } = connected();
     session.setInput({ directions: ["e"] });
 
-    // One frame worth two steps: a tab coming back from the background.
     session.update(WALK_DURATION_MS * 2);
 
     expect(session.getSnapshot().self.x).toBe(2);
@@ -1003,8 +873,6 @@ describe("RemoteSession prediction", () => {
       ]),
     );
 
-    // The server catching up with a step already drawn must be invisible: the
-    // actor was here before the patch and is here after it.
     const after = session.getSnapshot().self;
     expect(after.x).toBe(before.x);
     expect(after.walk?.to).toEqual(before.walk?.to);
@@ -1018,7 +886,6 @@ describe("RemoteSession prediction", () => {
     const progress = session.getSnapshot().self.walkProgress;
     socket.deliver(patch([], [walkStarted]));
 
-    // Replaying it would restart the lerp and jerk the sprite backwards.
     expect(session.getSnapshot().self.walkProgress).toBe(progress);
   });
 
@@ -1043,8 +910,6 @@ describe("RemoteSession prediction", () => {
     session.setInput({ directions: [] });
     expect(session.getSnapshot().self.x).toBe(2);
 
-    // The second step was chosen from a cell the first never reached, so it was
-    // never a step from anywhere the actor stood.
     socket.deliver({ type: "stepRejected", seq: 0 });
 
     expect(session.getSnapshot().self.x).toBe(0);
@@ -1067,23 +932,12 @@ describe("RemoteSession prediction", () => {
     session.update(WALK_DURATION_MS);
     session.setInput({ directions: [] });
 
-    // Past the grace *and* the walk it is granted on top of, which for a player
-    // at their own pace is one ordinary step. @see STEP_CONFIRM_GRACE_MS
     const giveUpMs = STEP_CONFIRM_GRACE_MS + WALK_DURATION_MS;
     for (let t = 0; t < giveUpMs + 32; t += 16) session.update(16);
 
     expect(session.getSnapshot().self.x).toBe(0);
   });
 
-  /**
-   * The backstop is granted *on top of* the walk it is waiting for, because a
-   * confirmation is the patch that commits the move and the server does not
-   * send one until the body lands. A flat figure was fine while every step took
-   * 200ms: a body at the floor of the walk-speed band takes two seconds to
-   * cross a cell, which was the whole of the old allowance, so every slowed
-   * step was abandoned on a link with any latency at all — and abandoning it
-   * drags the body back to where it set off from.
-   */
   it("waits out a slow step before giving up on it", () => {
     const { socket, session } = connected(undefined, {
       slow: slowing("slow", -90),
@@ -1097,15 +951,9 @@ describe("RemoteSession prediction", () => {
     session.update(16);
     session.setInput({ directions: [] });
 
-    // A tenth of the pace, so the walk itself is worth the whole of the old
-    // flat allowance. Nothing confirms it — this socket answers nothing — so
-    // what is under test is how long the step is given before the client
-    // decides it never happened.
     const walkMs = WALK_DURATION_MS * 10;
     for (let t = 0; t < walkMs + 320; t += 16) session.update(16);
 
-    // Landed and standing, where the flat allowance would have dragged it back
-    // to where it set off from on the very frame the walk finished.
     expect(session.getSnapshot().self.x).toBe(1);
   });
 
@@ -1115,8 +963,6 @@ describe("RemoteSession prediction", () => {
     session.update(WALK_DURATION_MS);
     session.setInput({ directions: [] });
 
-    // Motion this client never predicted: whatever it thought it was doing is
-    // void, and the server's board is the only one worth drawing.
     socket.deliver(patch([], [fallStarted]));
 
     const self = session.getSnapshot().self;
@@ -1131,8 +977,6 @@ describe("RemoteSession prediction", () => {
     session.setInput({ directions: [] });
     session.update(WALK_DURATION_MS * 3);
 
-    // Two steps drawn, two steps sent, and no third of either. Nothing is
-    // holding a key on this side, and the server is never asked to guess.
     expect(session.getSnapshot().self.x).toBe(2);
     expect(stepsSent(socket)).toHaveLength(2);
   });
@@ -1157,21 +1001,7 @@ describe("RemoteSession prediction", () => {
   });
 });
 
-/**
- * The one step this client must not chain into the next.
- *
- * Walking into a hole is a legal step and it lands the body in mid-air — the
- * fall that follows belongs to the server, and its announcement is a round trip
- * away. For that round trip the client is holding a direction and standing on
- * nothing, and it used to take the next step anyway: one cell past the hole,
- * refused by the server, dragged back. A click into a hole is now an ordinary
- * thing to ask for (`../game/walkTo`), so this is the path a player reaches.
- */
 describe("RemoteSession prediction at the lip of a hole", () => {
-  /**
-   * Grass to walk on at x=0 and x=1, nothing at all from x=2 east, and ground
-   * two height units too far down to climb to at every x on the level below.
-   */
   function pitMap(): FlatMapFile {
     const above: Record<string, PlacedTile[]> = {};
     const below: Record<string, PlacedTile[]> = {};
@@ -1203,7 +1033,6 @@ describe("RemoteSession prediction at the lip of a hole", () => {
     return { socket, session };
   }
 
-  /** Walk east off the lip at x=1 and into the empty column at x=2. */
   function steppedIn(): { socket: FakeSocket; session: RemoteSession } {
     const { socket, session } = connectedAtPit();
     session.setInput({ directions: ["e"] });
@@ -1215,10 +1044,6 @@ describe("RemoteSession prediction at the lip of a hole", () => {
   it("stops on the cell it fell into rather than walking on across the air", () => {
     const { session } = steppedIn();
 
-    // Nothing has come back from the server: no commit, and above all no
-    // `fallStarted`, which is the only thing that used to stop this. Two steps
-    // is the whole of what the board allows — the second one landed the body in
-    // mid-air, and there is no third step to take from there.
     expect(session.getSnapshot().self.x).toBe(2);
     session.update(WALK_DURATION_MS * 3);
     expect(session.getSnapshot().self.x).toBe(2);
@@ -1228,16 +1053,12 @@ describe("RemoteSession prediction at the lip of a hole", () => {
     const { socket, session } = steppedIn();
     session.update(WALK_DURATION_MS * 3);
 
-    // The simulation refuses every step from a falling body, so a third one
-    // here is a `stepRejected` and a snap-back the player watches happen.
     expect(stepsSent(socket)).toHaveLength(2);
   });
 
   it("carries the held direction on once the landing is committed", () => {
     const { socket, session } = steppedIn();
 
-    // The fall, and the landing that ends it: the body is on the ground at the
-    // bottom of the hole with the key still down.
     socket.deliver(
       patch(
         [
@@ -1254,19 +1075,14 @@ describe("RemoteSession prediction at the lip of a hole", () => {
         { x: 2, y: 0, z: -1, stack: [grass, player] },
       ]),
     );
-    // Reading the board is what ends the fall, so this is the frame the
-    // renderer draws the landing on. @see `locate`
     expect(session.getSnapshot().self.z).toBe(-1);
 
-    // Standing on something again, so the direction that has been held all
-    // along is a step once more. A fall must not cost the player their walk.
     session.update(16);
     expect(session.getSnapshot().self.walk?.to).toEqual({ x: 3, y: 0, z: -1 });
   });
 });
 
 describe("RemoteSession headcount", () => {
-  /** A `hello` as a player who is not an administrator gets it: no count. */
   function connectedAsPlayer(): { socket: FakeSocket; session: RemoteSession } {
     const socket = new FakeSocket();
     const session = new RemoteSession(socket as unknown as WebSocket, tiles);
@@ -1330,13 +1146,6 @@ describe("RemoteSession headcount", () => {
   });
 });
 
-/**
- * Attack mode, which is the client's stance rather than the world's state.
- *
- * The wire carries who you are pointing at and whether you mean it, and neither
- * says when a blow lands — that stays the server's clock. What matters here is
- * that the two survive the things that replace one end of the connection.
- */
 describe("RemoteSession attack mode", () => {
   it("puts the stance on the wire, once per change", () => {
     const { socket, session } = connected();
@@ -1347,12 +1156,6 @@ describe("RemoteSession attack mode", () => {
     expect(session.getSnapshot().attacking).toBe(true);
   });
 
-  /**
-   * A restart seats a fresh body that is not swinging at anybody, so a stance
-   * held here would be one the server never heard about — the button lit and
-   * nothing happening. The target is dropped in the same breath, because it
-   * names somebody in a world that no longer exists.
-   */
   it("says it again when the world is replaced under it", () => {
     const { socket, session } = connected();
     session.setTarget("them");
@@ -1401,22 +1204,11 @@ describe("RemoteSession attack mode", () => {
   });
 });
 
-/**
- * Death, which is the one thing on this wire the client cannot work out for
- * itself.
- *
- * A body missing from the board is the ordinary state of somebody walking
- * through a doorway this client has not been patched about yet, so "dead" has
- * to be *told* — and it is told once, after which the socket goes silent until
- * this side asks for a body back.
- */
 describe("RemoteSession death", () => {
-  /** The kit a death leaves behind: nothing, because it is all on the floor. */
   function died(equipment = emptyEquipment()) {
     return { type: "died", equipment };
   }
 
-  /** The whole state a `rebirth` is answered with. @see GameServer.rebirth */
   function helloAgain() {
     return {
       type: "hello",
@@ -1454,11 +1246,25 @@ describe("RemoteSession death", () => {
     expect(seen).toEqual([true]);
   });
 
-  /**
-   * The kit rides on the death rather than on an `equipment` message, because
-   * the runtime an `equipment` message is read off is what the death deletes.
-   * Without this the panel keeps showing a sword that is lying on the floor.
-   */
+  it("takes what the death cost, and the experience it left, off the death itself", () => {
+    const { socket, session } = connected();
+    const cost = { packLeft: true, levelsLost: [{ mastery: "sharp", from: 10, to: 9 }] };
+
+    socket.deliver({ ...died(), masteryXp: { sharp: xpForLevel(9) }, cost });
+
+    expect(session.deathCost()).toEqual(cost);
+    expect(session.getSnapshot().masteryXp).toEqual({ sharp: xpForLevel(9) });
+  });
+
+  it("forgets what the death cost on the hello that answers it", () => {
+    const { socket, session } = connected();
+    socket.deliver({ ...died(), cost: { packLeft: true, levelsLost: [] } });
+
+    socket.deliver(helloAgain());
+
+    expect(session.deathCost()).toBeNull();
+  });
+
   it("takes the emptied kit off the death itself", () => {
     const { socket, session } = connected();
 
@@ -1467,11 +1273,6 @@ describe("RemoteSession death", () => {
     expect(session.getSnapshot().equipment).toEqual(emptyEquipment());
   });
 
-  /**
-   * The chips are the viewer's own and are flushed off a live runtime, which a
-   * death deletes — so nothing else would ever take them down, and a corpse
-   * would sit there poisoned behind the screen.
-   */
   it("takes the statuses off a body that is gone", () => {
     const { socket, session } = connected();
     socket.deliver({
@@ -1491,9 +1292,6 @@ describe("RemoteSession death", () => {
 
     session.setInput({ directions: ["e"] });
 
-    // Told rather than inferred: the body is still on this client's copy of the
-    // board — the patch that removes it is a separate message — so nothing but
-    // the death itself could have stopped this step.
     expect(framesOfType(socket, "step")).toEqual([]);
   });
 
@@ -1532,19 +1330,11 @@ describe("RemoteSession death", () => {
   });
 });
 
-/**
- * The one interaction whose gate is asked of the *body* rather than of the
- * board alone, and the one this side forgot to ask at all: the row said "Climb"
- * — the list builds it from `../game/affordances`, which this client shares —
- * while `canInteract` refused the tap it sends, so a ladder online was scenery
- * with a button that did nothing.
- */
 describe("RemoteSession teleports", () => {
   const RUNG = { x: 0, y: 0, z: 0, stackIndex: 1 };
   const ladder: PlacedTile = { tileId: "ladder" } as PlacedTile;
   const wall: PlacedTile = { tileId: "wall" } as PlacedTile;
 
-  /** Standing on a rung, with the level above open or walled off. */
   function onLadder(above: PlacedTile[]) {
     const socket = new FakeSocket();
     const session = new RemoteSession(socket as unknown as WebSocket, tiles);
@@ -1582,8 +1372,6 @@ describe("RemoteSession teleports", () => {
   });
 
   it("offers nothing when the far end has no room for the climber", () => {
-    // The same refusal the server would make — see `teleportFits` — so the two
-    // ends agree about which ladders are climbable.
     const { socket, session } = onLadder([wall]);
     expect(session.canInteract(RUNG)).toBe(false);
     expect(session.interact(RUNG)).toBe(false);
@@ -1591,18 +1379,6 @@ describe("RemoteSession teleports", () => {
   });
 });
 
-/**
- * A creature killed mid-step never arrives anywhere, and this client is the
- * only one holding the reservation its walk made.
- */
-/**
- * A body the world took on after this client's `hello`.
- *
- * Before the `spawned` event existed, the only thing that added an unknown id
- * was a motion event for it — so a summoned shopkeeper with a `hold` brain was
- * drawn on the board and was in no actor list, which is a body with no name
- * over its head and nothing to press.
- */
 describe("RemoteSession bodies that arrive after hello", () => {
   const SMITH = "npc:2,0,0,1";
   const smithBody: PlacedTile = {
@@ -1615,8 +1391,6 @@ describe("RemoteSession bodies that arrive after hello", () => {
     const { socket, session } = connected();
     expect(session.getSnapshot().actors.map((a) => a.id)).toEqual([SELF]);
 
-    // The cell and the announcement ride the same patch, which is how the
-    // server sends them: the id says there is somebody, the cells say where.
     socket.deliver(
       patch(
         [{ x: 2, y: 0, z: 0, stack: [grass, smithBody] }],
@@ -1640,22 +1414,12 @@ describe("RemoteSession bodies that arrive after hello", () => {
     const walking = session.getSnapshot().actors.find((a) => a.id === SELF);
     expect(walking?.walk).not.toBeNull();
 
-    // The same id twice is ordinary: a socket that connected just after the
-    // spawn was told about it by name as well. Taking the announcement as news
-    // would drop the lerp this body is halfway through.
     socket.deliver(
       patch([], [{ kind: "spawned", actorId: SELF, at: { x: 0, y: 0, z: 0, stackIndex: 1 } }]),
     );
     expect(session.getSnapshot().actors.find((a) => a.id === SELF)?.walk).toBe(walking?.walk);
   });
 
-  /**
-   * A body that has walked out of the chunks this client is subscribed to, or
-   * that stood still while this client walked away from it. Not a death — the
-   * world still has it — and the entry has to go all the same: a body this
-   * client is no longer being told about is one it can find only by searching
-   * its whole board, every frame, for as long as it holds an entry for it.
-   */
   it("lets go of a body it is told it is no longer being sent", () => {
     const { socket, session } = connected();
     socket.deliver(
@@ -1673,19 +1437,11 @@ describe("RemoteSession bodies that arrive after hello", () => {
     );
     expect(session.getSnapshot().actors.map((a) => a.id)).toContain(SMITH);
 
-    // The tile stays where it is, which is the case worth covering: the cells
-    // of a chunk that has gone out of reach are not taken back, so what decides
-    // whether this body is drawn is the entry rather than the board.
     socket.deliver(patch([], [{ kind: "despawned", actorId: SMITH }]));
 
     expect(session.getSnapshot().actors.map((a) => a.id)).toEqual([SELF]);
   });
 
-  /**
-   * And it comes back whole. The announcement carries the body's state because
-   * this client has nothing to patch against for a body it has just been told
-   * about — the same reason a `hello` carries everybody's.
-   */
   it("takes a body back with the state announced beside it", () => {
     const { socket, session } = connected();
     const arrival = patch(
@@ -1717,7 +1473,6 @@ describe("RemoteSession bodies taken off the board", () => {
     owner: RAT,
   } as PlacedTile;
 
-  /** The strip again, with a rat standing at x=2 facing the player. */
   function mapWithRat(): FlatMapFile {
     const flat = flatMap();
     const cells = flat.levels["0"] as unknown as Record<string, PlacedTile[]>;
@@ -1755,9 +1510,6 @@ describe("RemoteSession bodies taken off the board", () => {
 
     const rat = session.getSnapshot().actors.find((a) => a.id === RAT);
     expect(rat?.statuses.map((s) => s.defId)).toEqual(["burned"]);
-    // No countdown is broadcast, so the instance says so rather than guessing a
-    // number — which reads through `taperAt` as "not winding down". Somebody
-    // else's fire burns at full strength until it ends. @see StatusIdsPatch
     expect(rat?.statuses[0]?.remainingMs).toBe(UNKNOWN_REMAINING_MS);
   });
 
@@ -1768,8 +1520,6 @@ describe("RemoteSession bodies taken off the board", () => {
       statusIds: [{ actorId: RAT, defIds: ["burned"] }],
     });
 
-    // An empty list is the server saying "put out", which is not the same as
-    // never having heard about it.
     socket.deliver({
       ...patch([]),
       statusIds: [{ actorId: RAT, defIds: [] }],
@@ -1779,9 +1529,6 @@ describe("RemoteSession bodies taken off the board", () => {
 
   it("keeps the viewer's own countdown rather than the broadcast ids", () => {
     const { socket, session } = connectedWithRat();
-    // Both arrive: the broadcast names everybody, the addressed message carries
-    // the viewer's own figures. Their own has to win, or their effects would
-    // stop winding down the moment somebody else caught fire.
     socket.deliver({
       type: "statuses",
       statuses: [{ defId: "poison", remainingMs: 4_000, durationMs: 9_000 }],
@@ -1813,7 +1560,6 @@ describe("RemoteSession bodies taken off the board", () => {
         extractions: [{ actorId: RAT, progress: started }],
       });
 
-      // Two messages a pull: between them, only the client knows time passed.
       session.update(PULL_MS / 4);
       expect(ratPullIn(session)).toEqual({
         remainingMs: (PULL_MS * 3) / 4,
@@ -1836,7 +1582,6 @@ describe("RemoteSession bodies taken off the board", () => {
     });
 
     it("reads a hello from before pulls were broadcast as nobody pulling", () => {
-      // This hello carries no `extractions` at all.
       const { session } = connectedWithRat();
       expect(ratPullIn(session)).toBeNull();
     });
@@ -1845,8 +1590,6 @@ describe("RemoteSession bodies taken off the board", () => {
   it("frees the cell a creature was walking into when it dies on the way", () => {
     const { socket, session } = connectedWithRat();
 
-    // The rat steps towards the player, and is killed before it lands: the
-    // whole of the news is its body leaving the board.
     socket.deliver(
       patch(
         [],
@@ -1870,10 +1613,6 @@ describe("RemoteSession bodies taken off the board", () => {
     expect(session.getSnapshot().self.x).toBe(1);
   });
 
-  /**
-   * The order the two arrive in is the trap: forget the rat on the cells and
-   * the event behind them puts the reservation straight back.
-   */
   it("frees it when the step and the death arrive in one frame", () => {
     const { socket, session } = connectedWithRat();
 
@@ -1919,16 +1658,9 @@ describe("RemoteSession bodies taken off the board", () => {
     session.setInput({ directions: ["e"] });
     session.update(WALK_DURATION_MS);
 
-    // Two bodies into one cell is the step the server would take back, so it is
-    // the step this client must never draw.
     expect(session.getSnapshot().self.x).toBe(0);
   });
 
-  /**
-   * A step empties the cell behind it, which is the same evidence a death
-   * leaves — and the reason absence is asked of the whole board rather than of
-   * the cells one patch happened to carry.
-   */
   it("keeps holding it across the patch that commits the creature's step", () => {
     const { socket, session } = connectedWithRat();
 
@@ -1953,8 +1685,6 @@ describe("RemoteSession bodies taken off the board", () => {
     session.setInput({ directions: ["e"] });
     session.update(WALK_DURATION_MS);
 
-    // Still on the board one cell along, and still walking: the player is
-    // blocked by the rat's body rather than by its reservation.
     expect(session.getSnapshot().self.x).toBe(0);
     expect(session.getSnapshot().actors).toHaveLength(2);
   });
@@ -1966,6 +1696,63 @@ describe("RemoteSession bodies taken off the board", () => {
     socket.deliver(patch([{ x: 2, y: 0, z: 0, stack: [grass] }]));
 
     expect(session.getSnapshot().actors).toHaveLength(1);
+  });
+});
+
+describe("RemoteSession another body's pace", () => {
+  const TORTOISE = "tortoise";
+  const tortoiseBody: PlacedTile = {
+    tileId: "tortoise",
+    direction: "w",
+    owner: TORTOISE,
+  } as PlacedTile;
+
+  function connectedWithTortoise(): { socket: FakeSocket; session: RemoteSession } {
+    const flat = flatMap();
+    const cells = flat.levels["0"] as unknown as Record<string, PlacedTile[]>;
+    cells["3,0"] = [grass, tortoiseBody];
+    const socket = new FakeSocket();
+    const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: flat,
+      actorIds: [SELF, TORTOISE],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    });
+    return { socket, session };
+  }
+
+  it("walks a leg that starts in the patch landing the last one at the body's own pace", () => {
+    const { socket, session } = connectedWithTortoise();
+
+    socket.deliver(
+      patch(
+        [
+          { x: 3, y: 0, z: 0, stack: [grass] },
+          { x: 2, y: 0, z: 0, stack: [grass, tortoiseBody] },
+        ],
+        [
+          {
+            kind: "walkStarted",
+            actorId: TORTOISE,
+            from: { x: 2, y: 0, z: 0 },
+            to: { x: 1, y: 0, z: 0 },
+            direction: "w",
+          },
+        ],
+      ),
+    );
+    session.update(WALK_DURATION_MS);
+
+    const tortoise = session.getSnapshot().actors.find((a) => a.id === TORTOISE);
+    expect(tortoise?.walkProgress).toBe(0.5);
   });
 });
 
@@ -1983,10 +1770,6 @@ describe("RemoteSession tile transitions", () => {
   const { kind: _kind, ...note } = formed;
   const FRAME_MS = 16;
 
-  /**
-   * A session on a clock the test moves by hand, and never through `update`:
-   * the case worth pinning is the one where no frames run at all.
-   */
   function onClock() {
     let clockMs = 0;
     const { socket, session } = connected(() => clockMs);

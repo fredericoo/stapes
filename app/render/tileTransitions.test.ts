@@ -6,13 +6,14 @@ import {
   type Transition,
 } from "../lib/tileTransition";
 import { DEFAULT_PARTICLES } from "../lib/particleVfx";
-import { CELL_SIZE } from "../lib/types";
+import { CELL_SIZE, normalizeTileDef } from "../lib/types";
 import {
   LIGHT_FADE_STEP_MS,
   MAX_LIVE_TRANSITIONS,
   NO_TRANSITION_UNIFORMS,
   admitTransitions,
   appendTransitionEmitters,
+  burstScale,
   goingPlumeId,
   placementIdentity,
   fadingLightScale,
@@ -21,19 +22,14 @@ import {
   pixelSnappedQuad,
   rejoinsBatch,
   resolveTransitionSlot,
-  struckRemainsSlot,
+  formerSlot,
   transitionAddress,
+  transitionForNote,
   transitionPose,
   transitionUniforms,
   type LiveTransition,
   type TransitionIntake,
 } from "./tileTransitions";
-
-/**
- * Which transitions a renderer takes on, how far along each is, and what the
- * shader is told — everything about playing one that is arithmetic rather than
- * pixels.
- */
 
 const DURATION_MS = 700;
 
@@ -163,7 +159,6 @@ describe("transitionUniforms", () => {
     expect(u.uFxEnabled.value).toBe(1);
     expect(u.uFxOriginPx.value.x).toBe(100 - CELL_SIZE);
     expect(u.uFxOriginPx.value.y).toBe(200 - CELL_SIZE);
-    // The far corner is down-right: a cell plus half a sprite on each axis.
     const reach = CELL_SIZE + sprite.w / 2;
     expect(u.uFxSpanPx.value).toBeCloseTo(Math.hypot(reach, reach), 6);
     expect(u.uFxSweepAppear.value).toBe(1);
@@ -227,7 +222,7 @@ describe("resolveTransitionSlot", () => {
   });
 });
 
-describe("struckRemainsSlot", () => {
+describe("formerSlot", () => {
   const placed = (...ids: string[]) => ids.map((tileId) => ({ tileId }));
   const hit = (struckBy?: string): TileTransitionNote => ({
     id: "t1",
@@ -241,17 +236,107 @@ describe("struckRemainsSlot", () => {
   });
 
   it("finds a killed body where the old board still holds it", () => {
-    expect(struckRemainsSlot(hit("arrow"), placed("grass", "rat"))).toBe(1);
+    expect(formerSlot(hit("arrow"), placed("grass", "rat"))).toBe(1);
   });
 
   it("leaves an appear that is not a hit to be dropped as before", () => {
-    // A flame that could not be found forming has no business sparking in the
-    // cell it used to be in.
-    expect(struckRemainsSlot(hit(), placed("grass", "rat"))).toBeUndefined();
+    expect(formerSlot(hit(), placed("grass", "rat"))).toBeUndefined();
   });
 
   it("has nowhere to play when the old board has no such body either", () => {
-    expect(struckRemainsSlot(hit("arrow"), placed("grass"))).toBeUndefined();
+    expect(formerSlot(hit("arrow"), placed("grass"))).toBeUndefined();
+  });
+
+  it("finds a resource its last pull took away", () => {
+    const spent: TileTransitionNote = { ...hit(), tileId: "crystal", pulled: true };
+
+    expect(formerSlot(spent, placed("grass", "crystal"))).toBe(1);
+  });
+});
+
+describe("transitionForNote", () => {
+  const chip = sideOf({ durationMs: 200, scale: {} });
+  const crystal = normalizeTileDef({
+    id: "crystal",
+    name: "Crystal",
+    height: 4,
+    type: "simple",
+    kind: "prop",
+    attributes: {},
+    sprite: { frames: [] },
+    transitions: { appear: sweep },
+    interactions: {
+      extract: {
+        durability: 2,
+        tileId: "",
+        durationMs: 1_000,
+        slots: [{ tileId: "shard", chance: 100 }],
+        pulled: chip,
+      },
+    },
+  });
+  const arrived: TileTransitionNote = { ...note("t1"), tileId: "crystal" };
+
+  it("plays a pull's effect off the extract, and the tile's own appear otherwise", () => {
+    expect(transitionForNote({ ...arrived, pulled: true }, { crystal })).toEqual(chip);
+    expect(transitionForNote(arrived, { crystal })).toEqual(sweep);
+  });
+
+  it("plays whichever outcome a craft came to, off the craft block", () => {
+    const rise = sideOf({ durationMs: 900, scale: {} });
+    const spit = sideOf({ durationMs: 300, scale: {} });
+    const forge = normalizeTileDef({
+      id: "forge",
+      name: "Forge",
+      height: 3,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      sprite: { frames: [] },
+      transitions: { appear: sweep },
+      interactions: {
+        craft: {
+          recipes: [
+            {
+              name: "Ember",
+              inputs: [{ tileId: "cinder", count: 2 }],
+              output: { kind: "all", items: [{ tileId: "ember", chance: 75 }] },
+            },
+          ],
+          succeeded: rise,
+          failed: spit,
+        },
+      },
+    });
+    const at: TileTransitionNote = { ...note("t2"), tileId: "forge" };
+
+    expect(transitionForNote({ ...at, crafted: "succeeded" }, { forge })).toEqual(rise);
+    expect(transitionForNote({ ...at, crafted: "failed" }, { forge })).toEqual(spit);
+    expect(transitionForNote(at, { forge })).toEqual(sweep);
+  });
+});
+
+describe("burstScale", () => {
+  const cyclops = normalizeTileDef({
+    id: "cyclops",
+    name: "Cyclops",
+    height: 4,
+    type: "simple",
+    kind: "battler",
+    attributes: {},
+    anchor: { tilesetId: "animals", x: 0, y: 0 },
+    sprite: {
+      frames: [
+        { sprite: { rect: { x: 0, y: 0, w: 4, h: 4 }, base: { x: 3, y: 3 } }, durationMs: 120 },
+      ],
+    },
+  });
+  const own: TileTransitionNote = { ...note("t1"), tileId: "cyclops" };
+
+  it("draws a hit to the size of the body it struck, and the tile's own bursts as authored", () => {
+    expect(burstScale({ ...own, struckBy: "verdant-light" }, { cyclops })).toBe(2);
+    expect(burstScale(own, { cyclops })).toBe(1);
+    expect(burstScale({ ...own, pulled: true }, { cyclops })).toBe(1);
   });
 });
 
@@ -276,7 +361,6 @@ describe("transitionPose", () => {
 });
 
 describe("pixelSnappedQuad", () => {
-  // A 16×16 sprite whose base cell is its lower-right one, like the flame.
   const quad = { centreX: 100, centreY: 200, pivotX: 104, pivotY: 204, w: 16, h: 16 };
 
   it("leaves a whole quad exactly where it was", () => {
@@ -331,6 +415,7 @@ describe("appendTransitionEmitters", () => {
     box: { eastPx: 16, southPx: 24, foot: 0, top: 4 },
     stackBias: 0,
     taper: 1,
+    scale: 1,
   });
   const at = (side: TileTransitionNote["side"], startMs: number): LiveTransition => ({
     note: note("t1", side),

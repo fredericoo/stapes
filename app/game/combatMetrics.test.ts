@@ -2,26 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { FightingStats } from "../lib/battler";
 import { MELEE_REACH } from "../lib/item";
 import { damageFraction, rollAttack } from "./combat";
-import { potentialDamages, swingOdds } from "./combatMetrics";
+import { potentialDamages, rotationOdds, swingOdds } from "./combatMetrics";
+import { TICK_MS } from "./constants";
+import { Duel } from "./duel";
 import { Rng } from "./rng";
-
-/**
- * The metrics against the dice they describe.
- *
- * Every figure in `./combatMetrics` is a closed form over curves that are rolled
- * somewhere else, and the one failure mode that matters is the two drifting
- * apart — a formula that was right about the band before somebody widened it,
- * and a tuning session spent chasing a number that was never true. So the
- * assertions here are almost all the same shape: work it out, then roll it a
- * great many times, and insist the two agree.
- *
- * The tolerances are the sampling error of the roll, not of the formula: the
- * formula is exact, and anything it is out by is the Monte Carlo's fault.
- */
 
 const SAMPLES = 200_000;
 
-/** Enough draws that a share settles to about three decimal places. */
 function statsOf(over: Partial<FightingStats>): FightingStats {
   return {
     maxHp: 20,
@@ -43,7 +30,6 @@ function statsOf(over: Partial<FightingStats>): FightingStats {
   };
 }
 
-/** What `SAMPLES` swings actually came to, as shares of all of them. */
 function sampled(attacker: FightingStats, defender: FightingStats) {
   const rng = new Rng(1234);
   let missed = 0;
@@ -83,10 +69,6 @@ describe("the damage band", () => {
     }
   });
 
-  /**
-   * The promise `damageFraction` makes in words: accuracy widens the band
-   * *downward*, and full damage is always the ceiling.
-   */
   it("tops out at full damage whatever the variance", () => {
     for (const variance of [0, 25, 60, 100]) {
       const band = potentialDamages(statsOf({ damage: 17, variance }));
@@ -100,11 +82,6 @@ describe("the damage band", () => {
     ]);
   });
 
-  /**
-   * The hump, asserted rather than assumed: a flat roll would make a glancing
-   * blow exactly as likely as a shattering one, and the whole reason the roll is
-   * two draws averaged is that it should not.
-   */
   it("is likelier in the middle than at either end", () => {
     const band = potentialDamages(statsOf({ damage: 40, variance: 100 }));
     const middle = band[Math.floor(band.length / 2)]!;
@@ -120,11 +97,6 @@ describe("the damage band", () => {
     let connected = 0;
     for (let i = 0; i < SAMPLES; i++) {
       const outcome = rollAttack(attacker, defender, rng);
-      // **Counted over connecting blows, not over swings**, and the difference
-      // is `MIN_CHANCE`: nothing in a fight is ever certain, so a defender with
-      // no evasion at all still gets out of the way one time in twenty. Divide
-      // by every swing and the band comes back five percent short everywhere,
-      // which reads exactly like a formula with a bias in it.
       if (outcome.dodged) continue;
       connected++;
       counts.set(outcome.damage, (counts.get(outcome.damage) ?? 0) + 1);
@@ -137,11 +109,6 @@ describe("the damage band", () => {
 });
 
 describe("swing odds", () => {
-  /**
-   * The four ways a swing can go, against the same four counted off a great
-   * many rolls. This is the assertion the whole module exists for: if it holds,
-   * the Arena's table is the fight.
-   */
   it("predicts every outcome a swing can have", () => {
     const attacker = statsOf({ hitChance: 0.72, accuracy: 84, damage: 12, variance: 45 });
     const defender = statsOf({ flee: 46, def: 3 });
@@ -156,11 +123,6 @@ describe("swing odds", () => {
     expect(observed.meanSwingDamage).toBeCloseTo(predicted.meanSwingDamage, 1);
   });
 
-  /**
-   * Armour that eats a blow whole is invisible in an average, which is the
-   * entire reason `absorbed` is reported beside the mean rather than folded
-   * into it.
-   */
   it("counts a blow armour swallowed as absorbed rather than as a wound", () => {
     const attacker = statsOf({ hitChance: 1, damage: 4, variance: 100 });
     const defender = statsOf({ flee: 0, def: 3 });
@@ -177,36 +139,29 @@ describe("swing odds", () => {
     expect(odds.missed + odds.dodged + odds.connected).toBeCloseTo(1, 10);
   });
 
-  /** A defenceless target takes the whole band; a mitigation of zero says so. */
   it("reports no mitigation when there is no defence", () => {
     const odds = swingOdds(statsOf({}), statsOf({ def: 0 }));
     expect(odds.mitigation).toBe(0);
     expect(odds.minDamage).toBeGreaterThan(0);
   });
 
-  /**
-   * Speed is geometric, so the rate is the one figure that cannot be read off
-   * the stat — which is exactly why it is on the table.
-   */
   it("turns speed into a rate", () => {
-    const slow = swingOdds(statsOf({ spd: 0 }), statsOf({}));
-    const quick = swingOdds(statsOf({ spd: 100 }), statsOf({}));
+    const slow = rotationOdds([statsOf({ spd: 0 })], statsOf({}));
+    const quick = rotationOdds([statsOf({ spd: 100 })], statsOf({}));
     expect(quick.attacksPerSecond).toBeGreaterThan(slow.attacksPerSecond);
-    expect(quick.attacksPerSecond).toBeCloseTo(1000 / quick.intervalMs, 10);
+    expect(quick.attacksPerSecond).toBeCloseTo(1000 / quick.swings[0]!.intervalMs, 10);
   });
 
-  /**
-   * Armour deep enough that even the shallowest draw is the whole blow — see
-   * `./combat`'s `MIN_GUARD_SHARE`, which is what "deep enough" now means.
-   */
   it("has nothing to say about time to kill when nothing can get through", () => {
-    const odds = swingOdds(statsOf({ damage: 2, variance: 0, hitChance: 1 }), statsOf({ def: 50 }));
-    expect(odds.absorbed).toBeCloseTo(odds.connected, 10);
+    const odds = rotationOdds(
+      [statsOf({ damage: 2, variance: 0, hitChance: 1 })],
+      statsOf({ def: 50 }),
+    );
+    expect(odds.swings[0]!.absorbed).toBeCloseTo(odds.swings[0]!.connected, 10);
     expect(odds.secondsToKill).toBeNull();
     expect(odds.swingsToKill).toBeNull();
   });
 
-  /** A weapon's venom is quoted at the rate it actually takes, not as authored. */
   it("discounts an authored status chance by how often the blow lands", () => {
     const attacker = statsOf({
       hitChance: 0.5,
@@ -219,24 +174,41 @@ describe("swing odds", () => {
   });
 });
 
-/**
- * The two things `./combatMetrics` still works out for itself.
- *
- * Everything else in that module calls `./combat` — see its module note. What is
- * left are two properties of the *dice*, and a closed form built on them is only
- * exact for as long as they hold. Neither is likely to change; both would change
- * silently, and a silent one is precisely the kind this whole arrangement exists
- * to rule out. So they are written down here as the assumptions they are.
- */
-describe("what the closed form assumes about the dice", () => {
+describe("a body with a weapon in each hand", () => {
   /**
-   * The damage band's two draws enter only through their mean.
-   *
-   * This is what makes `[t, t]` a faithful probe: bisecting on it finds the same
-   * boundary a real pair of draws would cross. Roll the band differently — three
-   * draws, the higher of two, a curve on each — and this fails, which is the
-   * signal to stop probing on the diagonal.
+   * Both speeds give intervals the duel's cooldown counts down to exactly zero.
+   * At about half of all speeds, subtracting `TICK_MS` leaves a float remainder
+   * that holds each blow back one tick, which would fail this test for a reason
+   * other than the rotation.
    */
+  const light = statsOf({ damage: 5, variance: 40, spd: 72, hitChance: 0.9 });
+  const heavy = statsOf({ damage: 24, variance: 30, spd: 62, hitChance: 0.7, mastery: "blunt" });
+  const target = statsOf({ maxHp: Number.MAX_SAFE_INTEGER, def: 2, flee: 25, damage: 0, spd: 0 });
+
+  function dueled(swings: FightingStats[], seconds = 20_000) {
+    const duel = new Duel({ swings }, { swings: [target] }, new Rng(7));
+    let blows = 0;
+    let damage = 0;
+    for (let tick = 0; tick < (seconds * 1000) / TICK_MS; tick++) {
+      for (const event of duel.tick()) {
+        if (event.kind !== "swing" || event.by !== "a") continue;
+        blows++;
+        damage += event.outcome.damage;
+      }
+    }
+    return { attacksPerSecond: blows / seconds, damagePerSecond: damage / seconds };
+  }
+
+  it("matches the duel's attacks and damage per second, swinging both in turn", () => {
+    const predicted = rotationOdds([light, heavy], target);
+    const observed = dueled([light, heavy]);
+
+    expect(observed.attacksPerSecond).toBeCloseTo(predicted.attacksPerSecond, 3);
+    expect(observed.damagePerSecond / predicted.damagePerSecond).toBeCloseTo(1, 1);
+  });
+});
+
+describe("what the closed form assumes about the dice", () => {
   it("reads the damage band's two draws only through their mean", () => {
     for (const variance of [10, 40, 75, 100]) {
       for (let step = 0; step <= 20; step++) {
@@ -250,7 +222,6 @@ describe("what the closed form assumes about the dice", () => {
     }
   });
 
-  /** The band's worth climbs with that mean, so each boundary is one crossing. */
   it("never gets less out of a better draw", () => {
     const attacker = statsOf({ damage: 23, variance: 65 });
     let last = -Infinity;
@@ -263,10 +234,6 @@ describe("what the closed form assumes about the dice", () => {
     }
   });
 
-  /**
-   * The mean of two `Rng` draws is triangular, which is the measure the band's
-   * probabilities are integrated against.
-   */
   it("averages two of the world's draws into a triangular distribution", () => {
     const rng = new Rng(2024);
     const cdf = (mean: number) => (mean <= 0.5 ? 2 * mean * mean : 1 - 2 * (1 - mean) * (1 - mean));

@@ -1,0 +1,282 @@
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { emptyMap, getStack, replaceStack, serializeMap } from "../app/lib/mapData";
+import type { MapFile } from "../app/lib/types";
+import { PLAYER_TILE_ID } from "../app/game/constants";
+import { createApi } from "./api";
+import { FEEDBACK_PER_WINDOW } from "./feedback";
+import { SEEDED_ADMIN_USERNAME } from "./auth";
+import { ClientBundle } from "./clientBundle";
+import { readConfig } from "./config";
+import { World } from "./world";
+
+const SEEDED_ADMIN_PASSWORD = "salem123";
+
+let directory: string;
+let world: World;
+let api: ReturnType<typeof createApi>;
+let cookie: string;
+
+function startableMap(): MapFile {
+  let map = emptyMap();
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
+  return replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+}
+
+beforeEach(async () => {
+  directory = await mkdtemp(join(tmpdir(), "stapes-api-"));
+  const seed = join(directory, "seed");
+  await mkdir(seed, { recursive: true });
+  await copyFile("data/tilesets.json", join(seed, "tilesets.json"));
+  await copyFile("data/tiles.json", join(seed, "tiles.json"));
+  await copyFile("data/statuses.json", join(seed, "statuses.json"));
+  await writeFile(join(seed, "map.json"), serializeMap(startableMap()));
+
+  const config = readConfig({ DATA_DIR: join(directory, "data"), SEED_DIR: seed } as never);
+  world = await World.open(config);
+  api = createApi(world, new ClientBundle(config), config);
+
+  const signedIn = await world.auth.api.signInUsername({
+    body: { username: SEEDED_ADMIN_USERNAME, password: SEEDED_ADMIN_PASSWORD },
+    asResponse: true,
+  });
+  cookie = signedIn.headers.get("set-cookie")!.split(";")[0]!;
+});
+
+afterEach(async () => {
+  await world.drain();
+  await rm(directory, { recursive: true, force: true });
+});
+
+function saveMap(map: MapFile): Promise<Response> {
+  return api.handle(
+    new Request("http://localhost/api/map", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ map: serializeMap(map) }),
+    }),
+  );
+}
+
+async function storedMap(): Promise<string> {
+  return serializeMap(await world.blobs.readMap());
+}
+
+describe("saving the map", () => {
+  it("refuses a map that cannot start a world, and leaves the stored map as it was", async () => {
+    const before = await storedMap();
+    const markerless = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+
+    const response = await saveMap(markerless);
+
+    expect(response.ok).toBe(false);
+    expect(await storedMap()).toBe(before);
+  });
+
+  it("removes a placement that does not fit before writing, and names it in the response", async () => {
+    let map = replaceStack(startableMap(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "barrel" },
+      { tileId: "barrel" },
+    ]);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }]);
+
+    const response = await saveMap(map);
+
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      removed: [{ x: 1, y: 0, z: 0, tileId: "barrel" }],
+    });
+    expect(getStack(await world.blobs.readMap(), 1, 0, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "barrel" },
+    ]);
+  });
+});
+
+function call(path: string, body: unknown, from?: string): Promise<Response> {
+  return api.handle(
+    new Request(`http://localhost/api${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(from ? { cookie: from } : {}) },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+function sessionOf(response: Response): string {
+  return response.headers.get("set-cookie")!.split(";")[0]!;
+}
+
+async function me(from: string) {
+  const response = await api.handle(
+    new Request("http://localhost/api/me", { headers: { cookie: from } }),
+  );
+  return (await response.json()) as {
+    user: { id: string; username: string; guest: boolean } | null;
+    characters: { id: string; name: string }[];
+  };
+}
+
+async function startGuest(name: string): Promise<string> {
+  const response = await call("/guest", { name });
+  expect(response.status).toBe(200);
+  return sessionOf(response);
+}
+
+describe("playing as a guest", () => {
+  it("signs the browser in to a guest holding one character of the name it typed", async () => {
+    const guest = await startGuest("maren  ormstead");
+
+    const seen = await me(guest);
+    expect(seen.user?.guest).toBe(true);
+    expect(seen.characters.map((one) => one.name)).toEqual(["Maren Ormstead"]);
+  });
+
+  it("refuses a name somebody has, in any casing, and signs nobody in", async () => {
+    await startGuest("Maren Ormstead");
+
+    const response = await call("/guest", { name: "MAREN ormstead" });
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("cannot be started without a character", async () => {
+    const response = await call("/auth/sign-in/anonymous", {});
+    expect(response.status).toBe(404);
+  });
+
+  it("cannot make a second character", async () => {
+    const guest = await startGuest("Maren Ormstead");
+
+    const response = await call("/characters", { name: "Other" }, guest);
+
+    expect(response.status).toBe(403);
+    expect((await me(guest)).characters).toHaveLength(1);
+  });
+
+  it("keeps its character when the same browser signs in to another account", async () => {
+    const guest = await startGuest("Maren Ormstead");
+
+    const response = await call(
+      "/auth/sign-in/username",
+      { username: SEEDED_ADMIN_USERNAME, password: SEEDED_ADMIN_PASSWORD },
+      guest,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await world.characters.nameTaken("Maren Ormstead")).toBe(true);
+  });
+});
+
+describe("saving a guest to an account", () => {
+  const claim = { username: "maren", email: "maren@example.test", password: "long-enough-pw" };
+
+  it("keeps the same account and character, and signs in with what was chosen", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const before = await me(guest);
+
+    expect((await call("/account/claim", claim, guest)).status).toBe(200);
+
+    const after = await me(guest);
+    expect(after.user).toMatchObject({ id: before.user!.id, username: "maren", guest: false });
+    expect(after.characters).toEqual(before.characters);
+
+    const signedIn = await call("/auth/sign-in/username", {
+      username: claim.username,
+      password: claim.password,
+    });
+    expect(signedIn.status).toBe(200);
+    expect((await me(sessionOf(signedIn))).characters).toEqual(before.characters);
+  });
+
+  it("refuses a username somebody has, and stays a guest", async () => {
+    const guest = await startGuest("Maren Ormstead");
+
+    const response = await call(
+      "/account/claim",
+      { ...claim, username: SEEDED_ADMIN_USERNAME },
+      guest,
+    );
+
+    expect(response.status).toBe(400);
+    expect((await me(guest)).user?.guest).toBe(true);
+  });
+
+  it("refuses an account that is already saved", async () => {
+    const response = await call("/account/claim", claim, cookie);
+    expect(response.status).toBe(400);
+  });
+});
+
+async function feedbackList(from: string): Promise<Response> {
+  return api.handle(new Request("http://localhost/api/feedback", { headers: { cookie: from } }));
+}
+
+describe("feedback", () => {
+  it("reaches an administrator with who sent it, from which character, and what their browser said", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const [character] = (await me(guest)).characters;
+
+    const sent = await call(
+      "/feedback",
+      {
+        message: "  I got stuck behind the well  ",
+        characterId: character!.id,
+        context: { position: { x: 3, y: 4, z: 0 }, viewport: "390x844" },
+      },
+      guest,
+    );
+    expect(sent.status).toBe(200);
+
+    const { entries } = (await (await feedbackList(cookie)).json()) as {
+      entries: Record<string, unknown>[];
+    };
+    expect(entries).toEqual([
+      expect.objectContaining({
+        message: "I got stuck behind the well",
+        guest: true,
+        username: null,
+        characterName: "Maren Ormstead",
+        context: expect.objectContaining({
+          position: { x: 3, y: 4, z: 0 },
+          viewport: "390x844",
+        }),
+      }),
+    ]);
+  });
+
+  it("names no character that is not the sender's own", async () => {
+    const theirs = await startGuest("Maren Ormstead");
+    const [character] = (await me(theirs)).characters;
+    const mine = await startGuest("Garan Normore");
+
+    await call("/feedback", { message: "hello", characterId: character!.id }, mine);
+
+    const { entries } = (await (await feedbackList(cookie)).json()) as {
+      entries: { characterName: string | null }[];
+    };
+    expect(entries[0]!.characterName).toBeNull();
+  });
+
+  it("is listed for administrators only", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    expect((await feedbackList(guest)).status).toBe(404);
+  });
+
+  it("refuses a browser that is not signed in, and a message with nothing in it", async () => {
+    expect((await call("/feedback", { message: "hello" })).status).toBe(401);
+    expect((await call("/feedback", { message: "   " }, cookie)).status).toBe(400);
+  });
+
+  it("stops one account sending more than a few in a minute", async () => {
+    const statuses: number[] = [];
+    for (let sent = 0; sent <= FEEDBACK_PER_WINDOW; sent++) {
+      statuses.push((await call("/feedback", { message: `note ${sent}` }, cookie)).status);
+    }
+    expect(statuses).toEqual([...Array<number>(FEEDBACK_PER_WINDOW).fill(200), 429]);
+  });
+});

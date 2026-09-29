@@ -13,14 +13,6 @@ import {
   type PartnerView,
 } from "./dialogRuntime";
 
-/**
- * A script run by hand, without a session.
- *
- * The interpreter is a pure step over (script, where you are, what was
- * pressed); these pin what it runs, where it waits, and what the transcript
- * says, against a partner built by hand.
- */
-
 const say = (text: string) => ({ kind: "say" as const, text });
 const back = { kind: "goto" as const, name: "main" };
 

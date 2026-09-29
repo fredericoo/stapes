@@ -8,7 +8,6 @@ import { GameSession } from "./GameSession";
 import { channelPowered, findWiredCells, readChannels, settleSignals } from "./signals";
 import { tile } from "../lib/testTile";
 
-/** Ticks a started walk needs to reach its destination and commit. */
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 
 function directionalTile(id: string, extra: Record<string, unknown> = {}) {
@@ -44,8 +43,6 @@ const tiles: TileDef[] = [
     interactions: { push: { climb: "half", moveOnTileIds: [] } },
   }),
 
-  // Plate pair that also emits: the load moves it, the tile's identity says
-  // what the wire reads.
   tile({
     id: "plate",
     height: 0,
@@ -63,7 +60,6 @@ const tiles: TileDef[] = [
     },
   }),
 
-  // Torch pair the player taps directly.
   tile({
     id: "torch-lit",
     height: 0,
@@ -81,7 +77,6 @@ const tiles: TileDef[] = [
     },
   }),
 
-  // The canonical receiver pair: each half follows the channel back.
   tile({
     id: "door",
     height: 4,
@@ -97,7 +92,6 @@ const tiles: TileDef[] = [
     },
   }),
 
-  // Same, but only when every emitter on the channel agrees.
   tile({
     id: "gate",
     height: 4,
@@ -113,7 +107,6 @@ const tiles: TileDef[] = [
     },
   }),
 
-  // Opens once and never closes — no receive on the open half.
   tile({
     id: "latch",
     height: 4,
@@ -123,10 +116,6 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "latch-open", height: 0 }),
 
-  // Both switchable and wired, as `data/tiles.json` authors a real door: tap it
-  // to open, and a channel overrules the tap. The open half is intangible,
-  // which is what lets anyone walk through the doorway — and what makes a door
-  // that closes on someone mid-step put them on top of itself.
   tile({
     id: "door-closed",
     height: 4,
@@ -147,7 +136,6 @@ const tiles: TileDef[] = [
     },
   }),
 
-  // A receiver whose target is a full wall: cannot swap in under a load.
   tile({
     id: "swell",
     height: 0,
@@ -156,8 +144,6 @@ const tiles: TileDef[] = [
     },
   }),
 
-  // Authored nonsense: emits on, and receives on by becoming something that
-  // emits off. Must oscillate at tick rate rather than spin a frame.
   tile({
     id: "flip-a",
     height: 0,
@@ -178,7 +164,6 @@ const tiles: TileDef[] = [
 
 const tilesById = tilesByIdFromList(tiles);
 
-/** Player parked away from the action; every map needs exactly one. */
 function withIdlePlayer(map: MapFile): MapFile {
   return replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
 }
@@ -191,7 +176,6 @@ function run(session: GameSession, ticks: number) {
   for (let i = 0; i < ticks; i++) session.tick(TICK_MS);
 }
 
-/** Walk exactly one cell. Mirrors the pressure plate suite's helper. */
 function step(session: GameSession, direction: Direction) {
   session.setInput({ directions: [direction] });
   session.tick(TICK_MS);
@@ -203,7 +187,6 @@ describe("findWiredCells", () => {
   it("finds channelled placements across levels and skips the rest", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "plate", channel: "gate-a" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
-    // Emits, but wired to nothing.
     map = replaceStack(map, 2, 0, 0, [{ tileId: "torch-lit" }]);
     map = replaceStack(map, 4, 2, 3, [{ tileId: "door", channel: "gate-a" }]);
 
@@ -214,7 +197,6 @@ describe("findWiredCells", () => {
   });
 
   it("keeps a cell whose current tile neither emits nor receives", () => {
-    // The channel is the wiring; the tile filling the slot is not.
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "latch-open", channel: "gate-a" }]);
     expect(findWiredCells(map)).toEqual([{ x: 0, y: 0, z: 0 }]);
   });
@@ -304,8 +286,6 @@ describe("settleSignals", () => {
   });
 
   it("reads every channel before any swap lands", () => {
-    // Two doors on one channel must agree, whichever order the sweep visits
-    // them in — neither may see the other's swap.
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
     map = replaceStack(map, 5, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
     map = replaceStack(map, 6, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
@@ -358,7 +338,6 @@ describe("GameSession signals", () => {
     map = replaceStack(map, 6, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
 
     const session = new GameSession(map, tiles);
-    // No tick: the constructor settles, so the first frame is already true.
     expect(stackIds(session.getSnapshot().map, 6, 0)).toEqual(["door-open"]);
   });
 
@@ -378,7 +357,6 @@ describe("GameSession signals", () => {
     const after = session.getSnapshot().map;
     expect(stackIds(after, 2, 0)).toEqual(["grass", "torch-lit"]);
     expect(stackIds(after, 6, 0)).toEqual(["door-open"]);
-    // The switch swapped the tile in the slot, not the slot's wiring.
     expect(getStack(after, 2, 0, 0)[1]?.channel).toBe("gate-a");
   });
 
@@ -410,65 +388,35 @@ describe("GameSession signals", () => {
     step(session, "e");
     expect(stackIds(session.getSnapshot().map, 6, 0)).toEqual(["latch-open"]);
 
-    // The plate rises and the channel goes off, but the open half has no
-    // receive of its own to bring it back.
     step(session, "e");
     const after = session.getSnapshot().map;
     expect(stackIds(after, 2, 0)).toEqual(["grass", "plate"]);
     expect(stackIds(after, 6, 0)).toEqual(["latch-open"]);
   });
 
-  /**
-   * Found by playtesters, who did it on purpose within a minute of finding a
-   * locked door.
-   *
-   * A wired door is meant to answer to its channel and nothing else, but the
-   * switch on it still fires — deliberately, since a door may want to be both
-   * tappable and overruled. The tap used to leave the door open on the board
-   * for the rest of the frame: `interact` runs between ticks and settling
-   * happened at the *end* of the next one, with movement in between. Holding
-   * the direction into the doorway, the walk saw an intangible open door,
-   * started, and was committed a few ticks later — by which time the channel
-   * had shut the door. Landing in a cell now filled by a solid door stacks the
-   * player on top of it, which is how you get onto a roof you were locked out
-   * of.
-   *
-   * The board a tick starts from has to be settled, so an out-of-tick edit
-   * settles with it: closed → tap → open → channel disagrees → closed, all
-   * before anything can be walked into.
-   */
   it("does not let a tap on a wired door open a way through, even for a frame", () => {
     let map = emptyMap();
     for (let x = 0; x <= 2; x++) {
       map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     }
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
-    // Wired to a channel nothing drives, so the door's answer is always shut.
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "door-closed", channel: "gate-a" },
     ]);
 
     const session = new GameSession(map, tiles);
-    // Leaning on the door, exactly as a player queuing a step would be.
     session.setInput({ directions: ["e"] });
-    // The tap is allowed to happen: the switch is authored and still fires.
     expect(session.interact({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
 
-    // Long enough for a step to have started and committed.
     run(session, TICKS_PER_STEP * 2);
 
     const after = session.getSnapshot().map;
-    // The channel had the last word, as it must.
     expect(stackIds(after, 1, 0)).toEqual(["grass", "door-closed"]);
-    // And nobody got through it, or onto it. Before the fix the player walked
-    // clean past the doorway to (2,0) and the door shut behind them; with a
-    // wall on the far side they would have been stacked on top of it instead.
     expect(stackIds(after, 0, 0)).toEqual(["grass", "player"]);
     expect(session.getSnapshot().self.x).toBe(0);
   });
 
-  /** The same door with nothing wired to it stays an ordinary openable door. */
   it("still opens a switchable door that answers to no channel", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -488,8 +436,6 @@ describe("GameSession signals", () => {
     map = replaceStack(map, 2, 0, 0, [{ tileId: "flip-a", channel: "loop" }]);
 
     const session = new GameSession(map, tiles);
-    // Completing at all is the assertion: a pass that chased its own emitters
-    // would never return.
     run(session, 10);
     expect(stackIds(session.getSnapshot().map, 2, 0)[0]).toMatch(/^flip-[ab]$/);
   });

@@ -9,7 +9,6 @@ import {
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL } from "../lib/types";
 
-/** Remove the tile at stackIndex and return the new map. */
 export function removeEntity(
   map: MapFile,
   x: number,
@@ -20,10 +19,6 @@ export function removeEntity(
   return removeTileAt(map, x, y, z, stackIndex);
 }
 
-/**
- * Normalize a standing surface so the entity is stored on the level where
- * its feet sit. When scenery elevation ≥ 4, promote onto the level above.
- */
 export function normalizeStandingCell(
   z: number,
   sceneryElev: number,
@@ -38,10 +33,8 @@ export function normalizeStandingCell(
 }
 
 /**
- * Place `placed` on top of the stack at (x,y,z).
- * Always appends onto that stack so standing elevation matches the surface
- * (including overflowing stacks taller than one level). Do not promote onto an
- * empty level above — that would snap feet down to the level base.
+ * Appends onto the existing stack. Promoting the placement onto an empty level
+ * above would snap its feet down to that level's base.
  */
 export function placeEntityOnSurface(
   map: MapFile,
@@ -54,11 +47,6 @@ export function placeEntityOnSurface(
   return appendTile(map, x, y, z, placed);
 }
 
-/**
- * Move an entity from one cell to another (end-of-walk commit).
- * Omit `direction` to keep whatever facing the tile already had — dragged
- * scenery is repositioned without being turned.
- */
 export function moveEntity(
   map: MapFile,
   from: { x: number; y: number; z: number; stackIndex: number },
@@ -70,17 +58,9 @@ export function moveEntity(
 }
 
 /**
- * Move `count` placements, starting at `from.stackIndex`, to the top of another
- * cell's stack — keeping their order.
- *
- * What a shove does, and the reason it is one operation rather than a loop of
- * {@link moveEntity}: a loop would take the bottom crate out from under the one
- * riding it, leaving the rider unsupported in a map every gravity and plate
- * pass can see, for as long as the loop takes to catch up. One `setStacks` means
- * there is no such frame.
- *
- * `direction` turns every placement that moves. Omit it to leave facing alone,
- * which is what dragged scenery wants.
+ * Writes source and destination in one `setStacks` call. A loop of `moveEntity`
+ * would leave a rider without the object it stands on between iterations, where
+ * the gravity and pressure-plate passes can see it.
  */
 export function moveColumn(
   map: MapFile,
@@ -93,17 +73,10 @@ export function moveColumn(
   const moving = stack.slice(from.stackIndex, from.stackIndex + count);
   if (moving.length === 0) return map;
 
-  // Spread, not rebuilt field by field: a placement carries per-placement state
-  // (its signal channel) that a move has no business dropping. The foot is the
-  // one exception, and `landedPlacement` says why — it addresses a slot in the
-  // column being left, and means nothing in the one being joined.
   const placed: PlacedTile[] = moving.map((entity) => ({
     ...landedPlacement(entity),
     direction: direction ?? entity.direction,
   }));
-  // Both cells in one pass. Done as remove-then-place it copies the level
-  // twice, and on a populated floor that is thousands of keys copied to move
-  // one tile — the dominant cost of committing a step.
   const fromStack = [...stack];
   fromStack.splice(from.stackIndex, moving.length);
 
@@ -122,7 +95,6 @@ export function moveColumn(
   );
 }
 
-/** Update only the direction on a placed entity (in place). */
 export function setEntityDirection(
   map: MapFile,
   x: number,
@@ -134,10 +106,12 @@ export function setEntityDirection(
   const stack = getStack(map, x, y, z);
   const current = stack[stackIndex];
   if (!current) return map;
-  // Already facing that way: hand back the same map. Callers re-assert facing
-  // every tick a key is held, and a fresh map object for an unchanged facing
-  // reads downstream as a real edit — invalidating light and rebuilding the
-  // level's geometry for a frame in which nothing moved.
+  /**
+   * Already facing that way: return the same map object. Callers reassert
+   * facing every tick a key is held, and a new object here would read
+   * downstream as a real edit, invalidating lighting and rebuilding geometry
+   * for a frame in which nothing moved.
+   */
   if (current.direction === direction) return map;
   const next = stack.map((p, i) => (i === stackIndex ? { ...p, direction } : p));
   return replaceStack(map, x, y, z, next);

@@ -1,63 +1,32 @@
-/**
- * How much a tick of the world costs, and how much of the board it moves.
- *
- * Runs the server's simulation headless — no sockets, no database — against
- * whatever `data/map.json` is, with a handful of players standing where the
- * scenario puts them, and reports the two numbers the server's loop is made
- * of: how long `GameSession.tick` takes, and how many bytes the patch it
- * produces would put on every socket. The diff and the serialization mirror
- * `GameServer.tick` (`changedCellsOnLevel` per level, then one
- * `JSON.stringify`), because measuring anything else has already sent one
- * round of this work the wrong way: the checkpoint's chunk diff reads 43x
- * worse than the wire's cell diff and is not what a client is sent.
- *
- *   bun scripts/bench-server.ts                 # every scenario, 30s each
- *   bun scripts/bench-server.ts --scenario den  # one of them
- *   bun scripts/bench-server.ts --seconds 10    # shorter
- *
- * Players stand still. The cost being chased is what the world does *on its
- * own* — creatures deciding and walking — as a function of where people are,
- * and a walking player would mix their own two cells a step into it.
- */
+import { listResidentBodies } from "../app/game/actors";
 import { GameSession } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
 import type { ActorSnapshot } from "../app/game/GameSession";
-import { changedCellsOnLevel, getStack, parseMap } from "../app/lib/mapData";
+import { Rng } from "../app/game/rng";
+import { changedCellsOnLevel, getStack, parseMap, setStacks } from "../app/lib/mapData";
+import type { StackEdit } from "../app/lib/mapData";
 import { statusesById } from "../app/lib/status";
-import { tilesByIdFromList } from "../app/lib/validation";
+import { canPlace, tilesByIdFromList } from "../app/lib/validation";
 import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../app/lib/types";
-import type { Coord, MapFile, TileDef } from "../app/lib/types";
+import type { Coord, MapFile, PlacedTile, TileDef } from "../app/lib/types";
 import type { CellPatch } from "../app/net/protocol";
 
 const MAP_PATH = "data/map.json";
 const TILES_PATH = "data/tiles.json";
 const STATUSES_PATH = "data/statuses.json";
 
-/** Simulated seconds per scenario unless `--seconds` says otherwise. */
 const DEFAULT_SECONDS = 30;
 
-/**
- * Where a player stands in each scenario, as the *authored* cell of a resident
- * near the spot — a creature's cell is a floor with room beside it, so
- * `spawn` lands the player next to it without anybody guessing coordinates.
- * `null` is the map's own spawn point.
- *
- * The den positions are one rat's authored cell on each cave floor and the
- * troll's, read off `data/map.json` when this was written. If the carve is
- * re-run they move; the scenario is still "a player on that floor".
- */
+const SCALE_SEED = 1;
+const SCALE_SPREAD_CELLS = 6;
+const SCALE_ATTEMPTS = 40;
+
 const SCENARIOS: Record<string, ReadonlyArray<Coord | null>> = {
-  /** Nobody connected: brains frozen, the world at rest. The floor. */
   empty: [],
-  /** One player at the authored spawn, on the surface. */
   town: [null],
-  /** One player at the mouth of the den, on the road. */
   mouth: [{ x: 10, y: 20, z: 0 }],
-  /** One player on the top cave floor. */
   den1: [{ x: -10, y: 23, z: -1 }],
-  /** One player on the bottom cave floor, among the rats and well away from the troll. */
   den3: [{ x: -10, y: 19, z: -3 }],
-  /** Six players spread over every floor of the world. */
   spread: [
     null,
     { x: 10, y: 20, z: 0 },
@@ -79,7 +48,6 @@ function percentile(sorted: readonly number[], p: number): number {
   return sorted[at]!;
 }
 
-/** Exactly `GameServer.diffCells`, which is the point. */
 function diffCells(prev: MapFile, next: MapFile): CellPatch[] {
   if (prev === next) return [];
   const out: CellPatch[] = [];
@@ -92,6 +60,53 @@ function diffCells(prev: MapFile, next: MapFile): CellPatch[] {
   return out;
 }
 
+function tileIdsOf(stack: readonly PlacedTile[]): string {
+  return stack.map((placed) => placed.tileId).join(" ");
+}
+
+/**
+ * A copy goes on a nearby cell of the same level whose stack is exactly the
+ * floor the original stands on, so every kind lives on the ground its author
+ * put it on rather than in a wall or a pond.
+ */
+function scaleResidents(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  scale: number,
+): { map: MapFile; unplaced: number } {
+  if (scale === 1) return { map, unplaced: 0 };
+  const rng = new Rng(SCALE_SEED);
+  const taken = new Set<string>();
+  const edits: StackEdit[] = [];
+  let unplaced = 0;
+  for (const body of listResidentBodies(map, tilesById)) {
+    const def = tilesById[body.placed.tileId]!;
+    const floor = tileIdsOf(
+      getStack(map, body.x, body.y, body.z).filter((_, index) => index !== body.stackIndex),
+    );
+    if (!floor) {
+      unplaced += scale - 1;
+      continue;
+    }
+    for (let copy = 1; copy < scale; copy++) {
+      let placed = false;
+      for (let attempt = 0; attempt < SCALE_ATTEMPTS && !placed; attempt++) {
+        const x = body.x + rng.int(SCALE_SPREAD_CELLS * 2 + 1) - SCALE_SPREAD_CELLS;
+        const y = body.y + rng.int(SCALE_SPREAD_CELLS * 2 + 1) - SCALE_SPREAD_CELLS;
+        const cell = `${x},${y},${body.z}`;
+        const stack = getStack(map, x, y, body.z);
+        if (taken.has(cell) || tileIdsOf(stack) !== floor) continue;
+        if (!canPlace(map, x, y, body.z, def, tilesById).ok) continue;
+        taken.add(cell);
+        edits.push({ x, y, z: body.z, stack: [...stack, { ...body.placed }] });
+        placed = true;
+      }
+      if (!placed) unplaced++;
+    }
+  }
+  return { map: setStacks(map, edits), unplaced };
+}
+
 function countMoving(actors: readonly ActorSnapshot[]): number {
   let moving = 0;
   for (const actor of actors) {
@@ -100,13 +115,52 @@ function countMoving(actors: readonly ActorSnapshot[]): number {
   return moving;
 }
 
+type BrainWork = { rounds: number; awake: number; routes: number; failedRoutes: number };
+
+type Internals = Record<string, unknown> & {
+  actors: Map<string, { resident: boolean; brainAttentive: boolean }>;
+};
+
+function afterEachCall(owner: Internals, name: string, then: (result: unknown) => void) {
+  const original = owner[name];
+  if (typeof original !== "function") throw new Error(`GameSession has no ${name} to count`);
+  owner[name] = function (this: unknown, ...args: unknown[]) {
+    const result = (original as (...a: unknown[]) => unknown).apply(this, args);
+    then(result);
+    return result;
+  };
+}
+
+/**
+ * Counted through two of the session's private methods, by name, the way
+ * `bench:crowd` times its phases, so a rename throws here rather than
+ * reporting zeros.
+ */
+function countBrainWork(session: GameSession): BrainWork {
+  const work: BrainWork = { rounds: 0, awake: 0, routes: 0, failedRoutes: 0 };
+  const internals = session as unknown as Internals;
+  afterEachCall(internals, "planBrainRound", () => {
+    work.rounds++;
+    for (const actor of internals.actors.values()) {
+      if (actor.resident && actor.brainAttentive) work.awake++;
+    }
+  });
+  afterEachCall(internals, "routeStep", (direction) => {
+    work.routes++;
+    if (direction === null) work.failedRoutes++;
+  });
+  return work;
+}
+
 type Sample = { tickMs: number; wireMs: number; bytes: number; cells: number; moving: number };
 
 type Report = {
   scenario: string;
   players: number;
   residents: number;
-  /** How many times a rat got the better of a bench player. */
+  awake: number;
+  routesPerTick: number;
+  failedRoutesPerTick: number;
   deaths: number;
   tickP50: number;
   tickP95: number;
@@ -118,35 +172,42 @@ type Report = {
   worstTickKb: number;
 };
 
-function runScenario(
+/**
+ * A `WeakRef`'s target stays alive until the event loop gets control back, and
+ * a microtask does not give it back. A loop that never yields keeps alive every
+ * chunk and level `mapData` copied, and full collections grow to seconds.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+async function runScenario(
   name: string,
   positions: ReadonlyArray<Coord | null>,
   map: MapFile,
   tiles: TileDef[],
   statuses: ReturnType<typeof statusesById>,
   seconds: number,
-): Report {
+): Promise<Report> {
   const session = new GameSession(map, tiles, { actorIds: [], statuses });
   positions.forEach((at, index) => {
     session.spawn(`bench:${index}`, at ? { at } : {});
   });
   const residents = session.actorSnapshots().length - positions.length;
+  const work = countBrainWork(session);
 
-  // Let the world open — plates settle, residents take their first decision —
-  // before anything is counted, the way a real world has been running for a
-  // while before anybody measures it.
   const warmupTicks = Math.round(2000 / TICK_MS);
-  for (let i = 0; i < warmupTicks; i++) session.tick(TICK_MS);
+  for (let i = 0; i < warmupTicks; i++) {
+    session.tick(TICK_MS);
+    await yieldToEventLoop();
+  }
+  Object.assign(work, { rounds: 0, awake: 0, routes: 0, failedRoutes: 0 });
 
   const ticks = Math.round((seconds * 1000) / TICK_MS);
   const samples: Sample[] = [];
   let deaths = 0;
   let broadcastMap = session.getMap();
   for (let i = 0; i < ticks; i++) {
-    // A player the rats have killed comes straight back where they stood, the
-    // way a rebirth would, so the scenario keeps measuring what it says it
-    // does rather than a world nobody is watching. Hit points are clamped to
-    // the body's maximum on read, so there is no making them unkillable.
     positions.forEach((at, index) => {
       const id = `bench:${index}`;
       if (session.actorSnapshots().some((actor) => actor.id === id)) return;
@@ -172,6 +233,7 @@ function runScenario(
         : "";
     const t2 = performance.now();
     broadcastMap = next;
+    await yieldToEventLoop();
     samples.push({
       tickMs: t1 - t0,
       wireMs: t2 - t1,
@@ -188,6 +250,9 @@ function runScenario(
     scenario: name,
     players: positions.length,
     residents,
+    awake: work.rounds > 0 ? work.awake / work.rounds : 0,
+    routesPerTick: work.routes / ticks,
+    failedRoutesPerTick: work.failedRoutes / ticks,
     deaths,
     tickP50: percentile(tickTimes, 0.5),
     tickP95: percentile(tickTimes, 0.95),
@@ -212,23 +277,34 @@ async function main() {
     throw new Error(`no scenario "${only}"; one of ${Object.keys(SCENARIOS).join(", ")}`);
   }
 
-  const map = parseMap(await Bun.file(MAP_PATH).text());
+  const scale = Number(argValue("--scale") ?? 1);
+  if (!Number.isInteger(scale) || scale < 1) {
+    throw new Error(`--scale takes a whole number from 1, not "${argValue("--scale")}"`);
+  }
+
   const tiles: TileDef[] = (JSON.parse(await Bun.file(TILES_PATH).text()) as unknown[]).map((raw) =>
     normalizeTileDef(raw),
   );
-  // Resolved for the same reason the server resolves it once per load.
-  tilesByIdFromList(tiles);
+  const tilesById = tilesByIdFromList(tiles);
+  const scaled = scaleResidents(parseMap(await Bun.file(MAP_PATH).text()), tilesById, scale);
+  const map = scaled.map;
+  if (scaled.unplaced > 0) {
+    console.error(
+      `--scale ${scale}: ${scaled.unplaced} copies found no free cell and were left out`,
+    );
+  }
   const statuses = statusesById(JSON.parse(await Bun.file(STATUSES_PATH).text()) as unknown[]);
 
   const rows: Report[] = [];
   for (const [name, positions] of Object.entries(chosen)) {
-    rows.push(runScenario(name, positions!, map, tiles, statuses, seconds));
+    rows.push(await runScenario(name, positions!, map, tiles, statuses, seconds));
   }
 
   const header = [
     "scenario",
     "players",
     "residents",
+    "awake",
     "deaths",
     "tick p50",
     "tick p95",
@@ -236,6 +312,8 @@ async function main() {
     "wire p50",
     "cells/tick",
     "moving/tick",
+    "routes/tick",
+    "failed routes/tick",
     "KB/s",
     "worst tick KB",
   ];
@@ -247,6 +325,7 @@ async function main() {
         r.scenario,
         r.players,
         r.residents,
+        fmt(r.awake, 0),
         r.deaths,
         `${fmt(r.tickP50, 2)}ms`,
         `${fmt(r.tickP95, 2)}ms`,
@@ -254,6 +333,8 @@ async function main() {
         `${fmt(r.wireP50, 2)}ms`,
         fmt(r.cellsPerTick),
         fmt(r.movingPerTick),
+        fmt(r.routesPerTick),
+        fmt(r.failedRoutesPerTick),
         fmt(r.kbPerSecond),
         fmt(r.worstTickKb),
       ].join(" | ")} |`,

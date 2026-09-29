@@ -1,7 +1,6 @@
 import { Button as BaseButton } from "@base-ui/react/button";
 import type { ComponentProps } from "react";
 
-/** `ghost-inverse` is the ghost treatment for dark surfaces, e.g. the app header. */
 type Variant = "primary" | "secondary" | "danger" | "ghost" | "ghost-inverse";
 type Size = "sm" | "md" | "icon";
 
@@ -38,8 +37,6 @@ export function Button({
   className = "",
   ...props
 }: Props) {
-  // Conflicting utilities can't be resolved by class order (`.shadow-hard` is
-  // authored CSS and always beats `.shadow-none`), so pick one set up front.
   const raised = variant !== "ghost" && variant !== "ghost-inverse";
 
   return (

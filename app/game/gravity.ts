@@ -14,11 +14,6 @@ import { MAX_CLIMB_HEIGHT } from "./constants";
 import { placeEntityOnSurface, removeEntity } from "./mapMutations";
 import { findLandingAbs, standingAbs } from "./movement";
 
-/**
- * True when the entity has solid underfoot:
- * - a solid tile below it on the same stack, or
- * - the level below is full (≥ HEIGHT_PER_LEVEL), forming a floor.
- */
 export function isSupported(
   map: MapFile,
   x: number,
@@ -27,9 +22,6 @@ export function isSupported(
   stackIndex: number,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  // Anything *solid* below in the stack holds this up. Neither of the two
-  // things that are not — a person, and an intangible tile — is a reason to
-  // stop falling. @see ../lib/mapData isSolidPlacement
   const stack = getStack(map, x, y, z);
   for (let i = 0; i < stackIndex; i++) {
     if (isSolidPlacement(stack[i]!, tilesById)) return true;
@@ -43,29 +35,11 @@ export function isSupported(
   return false;
 }
 
-/**
- * What gravity is about to do to a body standing in a cell.
- *
- * `"stand"` covers both a body held up by something solid and one over open
- * void — nothing below to land on is not a fall, it is a body that stays where
- * it is. `"settle"` is a drop short enough to be a step down, taken whole in
- * the tick that finds it. Only `"fall"` is animated.
- */
 export type GravityPull =
   | { kind: "stand" }
   | { kind: "settle"; landingAbs: number }
   | { kind: "fall"; feetAbs: number; landingAbs: number };
 
-/**
- * Ask the board what gravity has to say about a body standing here.
- *
- * The one place the rule lives, because two machines have to agree on it. The
- * simulation runs it to start a fall; the online client runs it to know that a
- * step it predicted has left the body in the air, and that the next step is
- * therefore one the server is going to refuse. A client that guessed instead
- * walks on out of a hole it is already dropping into, and every one of those
- * steps is a visible snap-back. @see ../net/RemoteSession's `predictStep`
- */
 export function gravityPullOn(
   map: MapFile,
   at: Coord & { stackIndex: number },
@@ -84,23 +58,12 @@ export function gravityPullOn(
   });
   if (landingAbs == null || landingAbs >= feetAbs) return { kind: "stand" };
 
-  // Drops within climb height are step-downs, exactly as a same-level height
-  // change is — snap onto the surface rather than playing a fall.
   if (feetAbs - landingAbs <= MAX_CLIMB_HEIGHT) {
     return { kind: "settle", landingAbs };
   }
   return { kind: "fall", feetAbs, landingAbs };
 }
 
-/**
- * A body the settle pass should drop, as opposed to one a runtime is driving.
- *
- * The only thing that keeps an unsupported gravity tile off the settle pass is
- * something *already* animating its fall — an actor, which carries an `owner`.
- * That is not the old actor/scenery divide by another name: a box and a deer
- * both obey gravity, and the sole difference here is who plays the animation. A
- * body with a runtime plays its own; everything else the board drops for it.
- */
 function isLooseGravityBody(
   placed: PlacedTile | undefined,
   tilesById: Record<string, TileDef>,
@@ -109,7 +72,6 @@ function isLooseGravityBody(
   return tilesById[placed.tileId]?.affectedByGravity === true;
 }
 
-/** Does any placement in this cell fall under the board's own gravity? */
 export function cellHasLooseGravity(
   map: MapFile,
   cell: Coord,
@@ -120,10 +82,6 @@ export function cellHasLooseGravity(
   );
 }
 
-/**
- * Every cell holding a gravity body no runtime drives. Whole-map scan, for
- * building the index once at load rather than per tick.
- */
 export function findLooseGravityCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
@@ -137,19 +95,9 @@ export function findLooseGravityCells(map: MapFile, tilesById: Record<string, Ti
 
 export type GravityResult = {
   map: MapFile;
-  /** Cells whose stack changed — a body left one and joined another. */
   changed: Coord[];
 };
 
-/**
- * Lowest loose gravity body in this cell that nothing solid is holding up, or
- * null when every one of them is resting on something.
- *
- * Almost always index 0 — anything sitting on a *solid* tile is supported by
- * definition. The exception is what this whole file exists to get right: a
- * stack of intangibles is open air with art in it, so an item lying in an
- * intangible floor hole is at index 1 and falling.
- */
 function unsupportedGravityIndex(
   map: MapFile,
   cell: Coord,
@@ -164,19 +112,6 @@ function unsupportedGravityIndex(
   return null;
 }
 
-/**
- * Drop every unsupported gravity body in `cells` onto whatever is beneath it.
- *
- * The counterpart to an actor's animated fall, for bodies with no runtime to
- * animate one: it snaps rather than plays, so a crate whose floor is pulled
- * lands on the frame the floor goes rather than hanging in the air like a
- * broken switch. Run before plates settle, so a body that drops onto a plate
- * presses it the same tick.
- *
- * One body per cell per pass, and a single drop takes it straight to its
- * landing rather than one height unit at a time. A stack of them collapses over
- * successive settles, on the same next-tick convergence plates settle under.
- */
 export function settleGravity(
   map: MapFile,
   cells: Iterable<Coord>,
@@ -195,8 +130,6 @@ export function settleGravity(
       z: cell.z,
       stackIndex,
     });
-    // Nothing underneath, or nothing lower than it already stands: an object
-    // over the void has nowhere to fall, exactly as it does for an actor.
     if (landing == null || landing >= feetAbs) continue;
 
     const body = { ...placed! };
@@ -204,10 +137,6 @@ export function settleGravity(
     next = removeEntity(next, cell.x, cell.y, cell.z, stackIndex);
 
     const destStack = getStack(next, cell.x, cell.y, destZ);
-    // A pile falling onto a pile of the same thing joins it, before either
-    // arrangement below gets a say: where in the stack it would have gone is a
-    // question about a placement, and a pour makes no placement. See
-    // `../lib/piles` — this is the third and last way an item reaches a cell.
     const poured = pourInto(destStack, body, tilesById);
     const destTop = absoluteStandingElevation(destZ, destStack, tilesById);
     next = poured
@@ -223,7 +152,6 @@ export function settleGravity(
   return { map: next, changed };
 }
 
-/** Map cell where an entity with feet at `feetAbs` should be stored. */
 export function cellForFeetAbs(feetAbs: number): { z: number; elevInLevel: number } {
   let z = Math.floor(feetAbs / HEIGHT_PER_LEVEL);
   let elev = feetAbs - z * HEIGHT_PER_LEVEL;

@@ -96,14 +96,17 @@ is not one.
   and the page reconnects to where you were standing. The most safety-critical
   path in the system is therefore exercised constantly by people not thinking
   about it.
-- **Two browser tabs share a cookie**, so they are the same actor, and opening
-  the second closes the first — see "One connection per actor". To play two
-  characters, use `localhost` in one and `127.0.0.1` in the other.
+- **Two browser tabs share the session cookie but not the character**, which
+  each tab keeps in its own `sessionStorage` (`app/lib/playing.ts`). Two tabs on
+  the same character are one actor, and opening the second closes the first —
+  see "One connection per actor". To play two accounts, use `localhost` in one
+  and `127.0.0.1` in the other.
 
-## The game is `/`, and every tool is under `/admin`
+## The game is `/online`, and every tool is under `/admin`
 
 `app/routes.ts` has two halves and the split is what a visitor is offered, not
-where the files sit. `/` is the shared world. Everything a person editing the
+where the files sit. `/` is the landing page, prerendered at build time, and
+`/online` is the shared world. Everything a person editing the
 game needs — the map editor, the tile and status catalogues, the voxel editor,
 the arena and the play route — is under `/admin`, and `/admin` itself redirects
 to `/admin/map`.
@@ -148,7 +151,7 @@ administrator's only) and the frame readout.
 | `/characters` | which body, and the account's own two controls |
 | `/characters/new` | what is this one called |
 | `/account/password` | what is the new password |
-| `/` | the world |
+| `/online` | the world |
 
 **Small routes rather than one that does all of it.** `app/routes/game.tsx` used
 to hold all six: the sign-in form, the chooser, the world, and the state machine
@@ -168,7 +171,7 @@ route had by accident and this keeps on purpose. `shouldRevalidate` is off
 because none of it can change under a player: authored content changes when an
 author saves, and a save replaces the world and pushes a fresh `hello`.
 
-**Nothing connects until the world route.** The socket belongs to `/` alone and
+**Nothing connects until the world route.** The socket belongs to `/online` alone and
 is opened as a character, so a tab parked at any other screen costs the world
 nothing — no body standing in a doorway somebody else is walking through.
 
@@ -407,8 +410,9 @@ the socket. Those are the two doors, and they are both server-side checks; the
 `/admin` route guard in the client is a courtesy to somebody who mistyped a URL,
 because the pages behind it are static files anybody can fetch.
 
-A fresh database seeds one account — `admin` / `salem123`, both written down in
-this repository and therefore known to everybody. **The seed creates and never
+A fresh database seeds one account — `SEEDED_ADMIN_USERNAME` with
+`SEEDED_ADMIN_PASSWORD`, in `server/auth.ts`, both written down in this
+repository and therefore known to everybody. **The seed creates and never
 updates**, which is the whole reason it is safe to leave in: change that
 password in a running deployment and the next boot sees the username already
 there and does nothing. `server/accounts.test.ts` pins that, because it is the
@@ -438,13 +442,49 @@ sentence a pre-flight lookup would have produced.
 Losing the count race gives one account four characters. Losing the name race
 would give two people the same name for ever.
 
+### A guest is an account without a username
+
+`POST /api/guest` takes a character name and, if nobody has it, makes an
+account, signs the browser in to it and creates the character in one request.
+The account is Better Auth's `anonymous` plugin: a user row with
+`isAnonymous = 1`, a placeholder email and no credential. Its own
+`/api/auth/sign-in/anonymous` route is refused, so a guest never exists without
+its character, and `/api/characters` refuses a guest, so it never has a second.
+
+`POST /api/account/claim` saves a guest in place: it adds a password credential
+and fills in username and email on the same user row. The user id does not
+change, so the character, the session and an open socket carry on untouched.
+The email is not verified — it is only required.
+
+`disableDeleteAnonymousUser` is on for a reason that is easy to undo by
+accident. Without it the plugin deletes a guest as soon as the same browser
+signs in to any other account, and the delete cascades to the character.
+
+Guests are never swept. An abandoned guest keeps its row and its name.
+
+### Feedback carries what the player did not type
+
+"Send feedback" in the world menu posts the message with a context object: the
+browser (`app/lib/browserContext.ts` — user agent, screen and viewport, pointer,
+network, the WebGL renderer read from a throwaway canvas) and the game
+(`WorldPage`'s `gameContext` — position, HP, frame rate, lighting). The server
+stores it as JSON without a schema, so adding a field is a client change only,
+and `/admin/feedback` flattens whatever is there into rows. The position is also
+printed as a `/goto` command to paste into chat.
+
+The server adds what the client cannot be trusted with: the account, whether it
+is a guest, the character name (only when the id belongs to the sender) and the
+request's `User-Agent` header.
+
 ## A name is typed once and never again
 
 `app/lib/characterName.ts` holds the rules and both halves run them: the form so
 a refusal arrives while somebody is still typing, the server because the socket
-is the boundary. Letters only, two to twenty, stored capitalised — `arthur`,
-`ARTHUR` and `aRtHuR` are all a request to be called `Arthur`, which is what
-makes the unique index mean anything.
+is the boundary. Letters and single spaces between words, two to twenty with
+the spaces counted, each word stored capitalised — `arthur dent`, `ARTHUR  DENT`
+and `aRtHuR dEnT` are all a request to be called `Arthur Dent`, which is what
+makes the unique index mean anything. The index is `COLLATE NOCASE` over the
+stored form, so `Arthur Dent` and `Arthurdent` are two different names.
 
 Refused rather than stripped. Somebody who typed `Ka1n` and was silently given
 `Kan` was not told anything, and there is no second chance: a name is the one
@@ -487,7 +527,7 @@ name across, so the two cannot drift; `GameServer.test.ts` pins it.
 
 ## `/admin/play` runs the server in the tab
 
-`/` and `/admin/play` are **one page** — `app/components/WorldPage.tsx` — against
+`/online` and `/admin/play` are **one page** — `app/components/WorldPage.tsx` — against
 one protocol. The only thing they disagree about is `WorldLink`, which is how
 you are connected:
 
@@ -503,9 +543,12 @@ the other.
 
 ### Why it exists
 
-`/` is growing a login. Hand-testing a change to the game should not mean
-hand-testing the way in to it first, and a green path that needs an account, a
-server and a database is one people stop running. This one needs a tab.
+`/online` has two doors, an account and then a character, and a socket to the
+shared world behind them. Hand-testing a change to the game should not mean
+hand-testing the way in to it first. `/admin/play` has one door, the `ADMIN`
+sign-in every `/admin` page has, and a fresh database seeds the account for it
+(`SEEDED_ADMIN_USERNAME` and `SEEDED_ADMIN_PASSWORD` in `server/auth.ts`). Past
+it there is no character to make or pick, and the world is in the tab.
 
 It replaced the single-player page that used to be here, which ran a local
 `GameSession` with no server in the picture. That page was a different game: no
@@ -587,7 +630,10 @@ a third `Blobs` beside `DiskBlobs` and `SqliteBlobs`, reading the map, the tiles
 and the statuses over the same endpoints every other page reads them over.
 **So `/admin/play` is not a standalone page**: `bun dev` runs both halves and the
 content API is one of them. What it does not need is the *world* — no socket, no
-actor cookie, no checkpoint on the volume, and nothing to log in to.
+character and no checkpoint on the volume. It does need an administrator's
+session: the route's `clientLoader` sends anybody else to `/admin/sign-in`, and
+`GET /api/map` returns 404 to anybody else, so the worker could not load the map
+without one.
 
 It is a reader, and refuses to be anything else. Nothing in a tab authors
 content: the map editor still saves through `POST /api/map` to the real server,
@@ -601,6 +647,62 @@ reads its content through the same class the server does. The suffix was a
 leftover from the Worker deployment in any case: the module is a set of keys and
 a `JSON.parse`, with nothing server-only in it, and `GameServer` had been
 importing its type into shared code for as long as it has existed.
+
+## `window.__stapes` is the page an agent drives
+
+The play pages, `/online` and `/admin/play`, put one object on the window for anything
+that drives a page over the DevTools protocol: Playwright, the Chrome DevTools
+MCP server, the desktop app's browser pane. It is how an agent sets up a scene
+and reads the result without touching the UI. `app/components/stapes.ts` holds
+it and `WorldPage` installs it.
+
+- `command(text)` sends a chat command and resolves to its `CommandReply`.
+- `act(input)` sends what a player sends: a step, held directions, a facing, a
+  target, attack mode, a cast, using or picking up a thing, eating, talking,
+  saying something, rebirth.
+- `snapshot()` is the world as this client holds it: every body it knows with
+  its cell, health and statuses, the hour, and the player's own kit and target.
+  `stack(x, y, z)` reads one cell.
+- `events(since)` is what the server told this client, one entry per thing that
+  happened: damage, deaths, blows swung, projectiles, bodies arriving and
+  leaving, status changes, notices, chat, the clock. Each has a `seq`, so a
+  caller asks for what came after the last one it read. `logEvents(true)` also
+  writes each one to the console as a JSON line.
+- `stats()` is the frame profile and, with `?debug=1` in the address, the debug
+  reading: chunks, light, draw calls and triangles.
+- `ready()` resolves when there is a picture worth taking.
+
+**It is in every build, production included.** It can do nothing the chat field
+and the client cannot already do, and the server's admin gate still decides
+every command, so a player who finds it gains nothing. Shipping it means the
+same calls work against a pull request's preview, signed in as its seeded
+admin, and not only against a dev server.
+
+**`ready()` waits for four things, in order:** the session to be connected, a
+first frame painted, no chunk's light stale, and the page's fonts loaded. A
+chunk whose light is being re-baked stays stale until the worker's result lands,
+so no stale chunk means the light on screen is the current light. It polls with
+`setTimeout` rather than on animation frames, because a headless browser drawing
+through SwiftShader can go seconds between frames.
+
+**`events()` is recorded from the frames, not read back from the session.** The
+chat drains the session's notices as it shows them, and damage numbers expire
+once they have been drawn, so reading either back from the session would take
+notices off the screen and miss most of the numbers. `RemoteSession.setOnServerMessage`
+hands every parsed frame to the log before the session acts on it. Motion
+events (walks, falls, slides, strikes) are left out: they arrive every step,
+and `snapshot()` has where everybody is. A death is inferred from a health patch
+that reaches nothing, because the wire has no death event for anybody but you.
+
+**Draw calls and triangles are only counted in the debug view.** `WorldRenderer`
+resets `renderer.info` by hand only while `?debug=1` is on; otherwise Three.js
+resets it at every `render` call, and the frame's last pass is all that is left
+to read. Counting them in every view means changing the render loop, which is
+left for the performance tooling.
+
+**A Playwright spec cannot import it.** Its types reach the renderer, which the
+Node tsconfig the specs are checked with cannot compile, so
+`e2e/stapes.spec.ts` writes out the part of the type it calls.
 
 ## `dependencies` is what the *server* needs, and nothing else
 
@@ -645,6 +747,96 @@ break by accident:
   become the live page, and a tab that loaded five minutes ago must still be able
   to fetch *its* chunks — so old builds stay resident and are still served.
 
+### A prerendered route is a file in the build
+
+`/`, the landing page, is rendered to HTML at build time (`prerender` in
+`react-router.config.ts`) so it is not blank before the bundle runs. That makes
+`index.html` the landing page, and React Router writes the shell every other
+route hydrates from to `__spa-fallback.html` instead. `ClientBundle.respond`
+serves a file if there is one, then `<path>/index.html` for any other
+prerendered route, then the fallback. Serving `index.html` as the fallback
+would hand `/online` the landing page.
+
+Every `.html` file is `no-store`, not only `index.html`: a prerendered page
+names hashed chunks exactly as the shell does, so caching it would pin a
+visitor to the build it came from.
+
+## The landing page is footage of a staged world
+
+`app/routes/home.tsx` and `app/components/home/` are the page at `/`. Everything
+moving on it is a recording of the real game, staged with the admin commands
+in a local world and filmed by an administrator with **Invisible** on, so the
+camera is never a body in the frame. `scripts/record-hero.ts` still records the
+hero; the other clips and stills were staged by hand, and this is what that
+takes.
+
+### How it is filmed
+
+- **`/online` as the seeded admin, not `/admin/play`.** Only the online page
+  offers the Invisible switch. Two characters of one account can be in the
+  world at once from two tabs (see "One connection per actor"), so one hidden
+  character films while the others act.
+- **Headless Chrome on the Mac's GPU runs the game at 120 frames a second**
+  (`--use-angle=metal`), and CDP's `Page.startScreencast` delivers about 99 of
+  them, so nothing needs slowing down the way `record-hero.ts` slows
+  SwiftShader. Its frames come at CSS pixel size whatever `deviceScaleFactor`
+  says, so the canvas is laid out at six times the view (a viewport 1152px
+  tall, 1104px of canvas) and `--world-label-size` is raised to 60px to keep
+  the labels in proportion with the world.
+- **Encode with `scale=out_range=tv`.** The frames are full-range JPEGs, and a
+  full-range VP9 file failed to decode in Chromium on macOS.
+- **The invisible body is still a body.** It cannot be put where nothing
+  stands (`/goto` answers "Nothing will fit"), and it can be in a creature's
+  way. Creatures ignore it otherwise, which is the point.
+
+### How the files are served
+
+- **The media are imported, not put in `public/`.** `ClientBundle` caches
+  every file that is not a page for a year, as immutable, which is only safe
+  for a name that changes with the contents. The build gives an imported file
+  such a name, so a clip recorded again reaches everybody. A file in `public/`
+  keeps its name, and a browser that already has it never asks again.
+  `content.ts` looks every file up by name through one `import.meta.glob`.
+  The share image is the exception, in `public/share/` under a name with a
+  version in it: a link preview keeps the URL it was scraped with, and a
+  build's hashed files stop being served a few deploys after they change.
+- **Video ships at 1104px square**, six video pixels to a world pixel. WebKit
+  ignores `image-rendering: pixelated` on `<video>`, so a 184px clip scaled up
+  by the browser is soft on every iPhone. Pictures are a different case: an
+  `<img>` does scale crisply there, so the stills could be small, and ship at
+  full and half size as WebP.
+- **Only the hero loads with the page.** The tour begins at the fold, so its
+  footage waits until it is a tenth of a screen in, and then clips are fetched
+  up to the one after the step being read (`preload="auto"`), the rest showing
+  their posters. With the videos paused, which is how a visitor who asked for
+  reduced motion arrives, the posters load and no footage does until they
+  press Play.
+
+### The page asks its own layout
+
+The tour's reading line depends on which layout `home.css` chose, and it finds
+out by asking whether the screen column is `position: sticky` rather than by
+repeating its breakpoints in TypeScript. So the layouts for a phone and for a
+screen too short to stick anything (a phone on its side, a page zoomed in far)
+are CSS alone.
+
+### What the world does, and what that means for staging
+
+- **Wolves on the surface only hunt from 19:00 to 06:00.** 05:20 to 05:40 is
+  twilight light with the wolves still hunting, which is the chase on the page.
+- **One flame burns its own ground and passes on what is left**, divided, so a
+  single Flame scorches a tree and rarely fells it (see "Fire divides its
+  fuel"). With a flame either side, the trees between get heat from both, and
+  the clip on the page fells three of them.
+- **The cyclops's tower** (`-25, -185, 1`) opens the way in only while
+  somebody stands on the plate outside, and shuts it when they step off; the
+  plate inside opens the way out.
+- **A new character dies to a wolf.** Toughness 25 and chain mail keep one
+  standing long enough to take Sharp from 3 to 6.
+- **`/tile` reads a signed coordinate as an offset**, so a flame at a negative
+  cell is placed relative to the camera; `/goto` and `/spawn` take absolute
+  cells.
+
 ## A field the phone focuses has to be 16px
 
 Safari on iOS zooms the page in when it focuses a text field whose font is
@@ -664,6 +856,35 @@ on a phone, which is the reason and not an argument that the rule is optional.
 Adding a maximum scale to the viewport meta would also stop the zoom, and is the
 wrong fix: it takes pinch-zoom away from everybody, including anybody who needs
 it to read.
+
+## The phone's joystick can sit on either side, and the browser remembers which
+
+On a phone the space under the toolbar is two columns: the reach list, and a
+column holding the effects strip, the spell bar, the direction pad and the
+clock. The pad column is on the right unless the player picks **Left** in the
+game menu's Joystick row (`app/components/PadSideToggle.tsx`).
+
+**The swap is `flex-row-reverse` on the row in `GameViewport`**, so the DOM
+order stays list first. A screen reader and the tab key meet the columns in the
+same order on either side, and changing side remounts nothing. The clock is
+aligned to the screen edge, so its `justify-*` flips with the side. The effects
+strip does not flip: it is read left to right, most urgent first.
+
+**The side is kept in `localStorage`, not on the account**
+(`app/components/padSide.ts`, key `stapes:pad-side`). It is a preference about
+how a device is held, and one account is played on more than one device. A
+stored value that is not `left` or `right` reads as `right`, the layout from
+before the setting existed.
+
+**The page's state is what the layout reads, and storage is written beside it.**
+`WorldPage` seeds its state from storage once and saves on each change. A
+browser that refuses `localStorage` still gets the swap for as long as the page
+is open, and only loses it on reload. A hook that read the side back out of
+storage would make the setting do nothing in that browser.
+
+**The row is only in the menu on a coarse pointer.** The desktop layout puts
+everything in one side column and has no pad, so the row would change nothing
+there.
 
 ## Known: a rebirth inherits the status that killed you
 
@@ -822,6 +1043,15 @@ constant so that it is changed in one place when the host changes.
   20–30 seconds, jittered, rather than on its ordinary backoff: every refused
   tab is asking a server already at its limit. `PROTOCOL_VERSION` went to 20
   for the new code, on the terms it went to 17 for 4004.
+- **`bench:crowd` raises it for its own server.** `GameServer` takes a
+  `maxOnlinePlayers` option in place of the constant, and the bench sets it to
+  the number of players it was asked for, because it measures crowds larger
+  than this host is trusted to carry. Seating them as administrators
+  would also get them past the limit, but it changes what is measured: every
+  administrator is sent a `players` frame whenever anybody joins or leaves
+  (about half a million frames while a thousand are seated), gets a player
+  count in each `hello`, and has its saved `hidden` flag read each time it
+  joins or is reborn.
 
 ## The simulation holds N actors
 
@@ -852,6 +1082,12 @@ single-actor API still defaults to, and the tests are what call it.
   cheapest-first discipline the single-player memo had, and for the same reason:
   a tick rewrites the map several times and almost none of those edits move
   anybody.
+- **An actor is added with its body's cell remembered.** An actor with no last
+  cell goes straight to the board sweep, so `spawn` remembers where it put a
+  player's body and `addResident` where a creature's is — adopted at load,
+  grown back by `respawnAt`, or summoned by `/tile`. Before `addResident`, a
+  world with two thousand creatures swept the board two thousand times on its
+  first `hello`. See "Loading a large world, profiled".
 - **Per-actor vs per-board state.** Input, walk, fall, slide, hover and the
   location memo belong to the actor. The map, the plate and wire indexes, and
   `settledMap` belong to the session — a plate does not care who stepped on it,
@@ -874,7 +1110,10 @@ single-actor API still defaults to, and the tests are what call it.
   an actor on the body they have rather than minting a second — `despawn` only
   ever removes one, so a duplicate would linger forever. Actors in a resumed map
   with no live connection are reaped (`reapAbsentActors`); nothing else would
-  ever remove them.
+  ever remove them. The reap is one walk of the board (`despawnActors`), not a
+  `despawnActor` sweep per body: the last checkpoint before a restart holds
+  everybody who was online, and the load after it reaps every one of them but
+  the player whose join started it.
 - **A map that has been run cannot be resumed without its spawn point.**
   Starting a session *consumes* the authored `player` marker — adopted or
   removed — so there is no tile left to read it from. `getSpawnPoint` exists so
@@ -1526,9 +1765,10 @@ surface is not intersecting it.
 authoring.** `PX_PER_HEIGHT` is `CELL_SIZE / HEIGHT_PER_LEVEL`, so one unit is
 2px. Anything a three-high body stands on *under a roof* has to be a single
 unit — 2px of apparent lift. That is the whole indoor furniture vocabulary:
-`chair` and `stool` are 1, and `table`, `barrel` and the crates stayed at 2
-(half a level) and are deliberately still things you walk around indoors rather
-than onto. Outdoors, with nothing overhead, any height climbs as before.
+`chair` and `stool` are 1, `table` and the crates stayed at 2 (half a level),
+and `barrel` is 3. They are deliberately things you walk around indoors rather
+than onto, and two barrels stacked are six units, which overflows into the
+level above. Outdoors, with nothing overhead, any height climbs as before.
 
 **Nothing stored had to be migrated.** A map holds tile ids and stack order,
 never elevations — every height in the world is derived from `data/tiles.json`
@@ -1722,6 +1962,13 @@ an ordinary walk, not a drop — and carry on down. The animal den's mouth is th
 same three cells with the surface as its upper level, which is why walking off
 the road into it feels like walking into a cave rather than like using a door.
 
+It is also easy to tidy up by accident, because nothing in the editor marks
+it: a floor painted across the den covers it like any other gap. Five of the
+den's ramps lost their holes that way in two commits of hand edits made on the
+same day. Two were turned into plain floor afterwards, and three stayed as
+ramps nobody could stand on until the holes were emptied again. `bun run
+carve:caves --verify` reports such a ramp as one that "climbs nowhere".
+
 **The facing is the opposite of the way you climb.** `climbFrom` on both tiles
 reads "from a ramp facing *n*, you may climb north-**wards**… no": variant `n`
 permits travel `s`. So a ramp you ascend heading north is placed facing south.
@@ -1893,7 +2140,7 @@ floor, and what keeps a body out of that cell is the fit check.
 
 Because the topmost tile decides, a berry dropped on a bush would make the bush
 walkable. The rule is enforced where a *player* acts — `dropDestinationAt` in
-`app/game/affordances.ts`, and `dropKit` in `GameSession`, which is a body
+`app/game/affordances.ts`, and `dropOnFloor` in `GameSession`, which is a body
 dying — and deliberately not in `canReplaceStack`, which the editor asks too.
 An author stacking a plank on a fence is building a bridge deck, and that is
 the same stack shape.
@@ -1902,9 +2149,9 @@ The other ways a thing reaches a cell need nothing: an `extract` yield goes
 into the puller's kit rather than onto the board, and `push` picks its
 destination from `listStandingSurfaces`, which has no entry for a cell with no
 standing surface. A body dies where it was standing, which is walkable by
-definition, so the `dropKit` check only fires for a death somewhere a body
-arrived by falling — into water, most likely — and it keeps the kit rather than
-spilling it.
+definition, so the `dropOnFloor` check only fires for a death somewhere a body
+arrived by falling — into water, most likely — and the body keeps what would
+have dropped.
 
 ### A body in a `wade` tile is drawn wading, and nothing else changes
 
@@ -2128,6 +2375,39 @@ The check that catches all three is the last thing `scripts/carve-caves.ts`
 does: bake the map it just wrote and assert no carved cell has any sky in it
 away from the mouth. Everything above was found by that assertion failing.
 
+The mouth is not the only way daylight is meant to get in any more. Two holes
+were drawn in the surface by hand with the `hole` tile: a shaft at (-2, 31)
+with a ladder beside it, and a hole in the floor of a roofless house at
+(55, -12) over its cellar. Both are listed in `AUTHORED_HOLES`, and the check
+treats them as it treats the mouth. A new hole is a line there; anything else
+that lets the sky in is still reported.
+
+## `carve:caves --verify` walks the underground the way a player gets around it
+
+Straight after a carve, the script checks only the cells it carved. With
+`--verify` it checks every dirt cell on levels -1 to -3, and a good part of
+those were built by hand: the tutorial rooms around the spawn, the cellars
+under houses, rooms behind doors, a floor reached only by ladder. A walk that
+started at the mouth and only took `canWalk` steps reached none of them: it
+reported 355 cells nobody could walk to, and a bat walled in behind a door.
+
+The walk now starts at the `player` marker as well as at the mouth, because
+that is where everybody enters the world, and the tutorial's only way out is a
+one-way portal. It treats every door as open, since anybody who reaches one
+can open it: a tile whose `switch` turns it into an intangible tile is
+switched before the walk. And from every cell it reaches it takes the ladders
+and portals in that cell's stack, asking `canTeleportFrom` and `teleportFits`,
+the same questions the game asks before it moves a body. A ladder whose top is
+covered by something is still refused, as it is in the game.
+
+A dirt cell only has to be reached if a body could stand in it: a walkable
+surface on that level with room for `player` above it. The check used to
+excuse only cells holding a `walkable: false` tile, so the `stone-wall` ring
+of the forge room on level -3 and every barrel, crate and bottle in a cellar
+counted as cells nobody could walk to. A wall fills its cell up to the level
+above, and a barrel, crate or bottle under a floor leaves no room on top of it
+for a three-unit body, so nobody can stand in any of those cells.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take
@@ -2211,6 +2491,17 @@ carry it.
     spread` reads 0.79ms at p50 with the rule and 0.78–0.85ms across baseline
     runs, which is the noise. A wander pays one `canWalk` per direction it has
     not already refused as a ledge, against the up-to-128 nodes a chase pays.
+  - *A brain can ask whether it is standing in one.* `in_harm` holds when the
+    tile under the body would grant it a `bad` status on the standing clock:
+    the same `standingGrant` the clock burns it with, less what would not
+    reach it (a spared caster, a body with no hit points, one immune to the
+    status). Leaving is authored, not built in: a line of `step_random`, which
+    already refuses flames and portals, is the way out. A brain that never asks
+    is never moved, which is what a training dummy wants. The bog imp's first
+    row is `in_harm` and `attacked` together, binding its prey to the attacker
+    and stepping out before it answers: its hunt opens with a 500ms cast, and
+    a second standing grant in that time is more than it survives. Once out,
+    it goes back to hunting if its prey is within 14 cells, or to roaming.
 
 **Two caps, doing two different jobs, and it is worth not confusing them.**
 `PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not
@@ -2239,11 +2530,31 @@ percentage. `PATH_DETOUR_SLACK` is now in the same units as the cost — sixteen
 steps' worth of time, not sixteen cells. `bun scripts/bench-server.ts
 --scenario spread` read 2.01ms at p50 before and 1.99ms after.
 
-**Nothing is kept between two decisions.** A route is recomputed for every leg
-rather than followed, because a kept plan is a plan about a world that has
-since moved — the target walked on, a crate was shoved into the third step,
-another creature filled the fourth. At one search per step the check that a
-kept route was still true would cost about what recomputing it does.
+**Nothing is kept between two decisions, except a failure.** A route is
+recomputed for every leg rather than followed, because a kept plan is a plan
+about a world that has since moved — the target walked on, a crate was shoved
+into the third step, another creature filled the fourth. At one search per step
+the check that a kept route was still true would cost about what recomputing it
+does.
+
+A search that finds nothing is the exception, because it is the expensive one:
+it spends all of `PATH_MAX_NODES`, and a brain asks for the same walk every
+round, so a creature watching somebody it had no way to reach paid for the whole
+search five times a second for as long as it watched. `routeStep` remembers its
+last failure — from which cell, to which cell, with which drops and arrival —
+and answers that there is no way without searching until
+`FAILED_ROUTE_MEMORY_MS` has passed. Anything that changes the question searches
+at once: the creature moving, its target moving, a different goal. What it costs
+is a way that opens while nothing moved, a door opened or a plank laid, which is
+found up to a second late. `brain.test.ts` pins both halves, in "sets off at
+once when somebody it could not reach stands where it can" and "crosses a way
+that opened after it found none".
+
+On `bench:server`'s `spread` scenario (Bun 1.4.2), with the shipped map's
+residents multiplied by 1, 4 and 8, the tick's p95 went from 20ms to 12ms, from
+67ms to 38ms and from 129ms to 68ms. The search still copies the board to take
+the searcher off it (`removeTileAt` at the top of `findPath`), and that copy was
+0.2% of the tick at eight times the residents, so it stays.
 
 **Fleeing used to be greedy, and this section used to argue that it should be.**
 The argument was that "away" is a direction rather than a place, so the question
@@ -2456,6 +2767,107 @@ the pack gets *worse*, because releasing earlier only means re-acquiring sooner
 that shuffles on the spot, halved instead. See `brain.test.ts`, "gathers without
 piling up".
 
+**It also broke how fast the browser drew the legs.** The server does not send
+a step's duration. The client computes it from the tile at the step's `from`
+cell (`RemoteSession.walkDurationAt`). A leg that starts on the same tick the
+previous one landed arrives in the same patch as the cells that put the body on
+`from`. The client applies events after cells but before `rebuildPredicted`,
+and `walkDurationAt` used to read `map`, which at that moment is still the
+previous frame's board, and to take the top tile of the stack as the body. On
+that board `from` held only grass, so every chase leg was timed at the default
+200ms: a troll, snake or cat crossed each cell in 200ms instead of 300–400ms and
+then stood at the far side until the server committed the step. A wander never
+showed it, because its next step waits for the next brain round and so arrives
+in a later patch. The fix reads `serverMap` and finds the body in the stack by
+its owner, which is the same question the server's `walkDurationOf` asks.
+
+## A blow used to wait for a decision as well
+
+A creature swung only when its brain's `attack` line called `tryAttack`, and a
+brain gets one turn a round. `runAutoAttacks` tries a swing every tick, but only
+for a body with `attacking` set, which is a player's attack mode and nothing a
+brain sets. So a creature's attack interval was rounded up to a whole number of
+rounds, the same rounding its walking had. Measured beside a player it could not
+kill, with its spells taken away so that every gap was between two blows:
+
+| creature | authored | swung every, before | swung every, now |
+| --- | --- | --- | --- |
+| rat | 667ms | 800ms | 667ms |
+| bat | 700ms | 800ms | 700ms |
+| cat | 933ms | 1000ms | 933ms |
+| wolf | 1367ms | 1400ms | 1367ms |
+| bog imp, claws | 1467ms | 1600ms | 1467ms |
+| snake | 1800ms | 2000ms | 1800ms |
+| cave troll, fists | 4733ms | 4800ms | 4733ms |
+| cyclops, fists | 5800ms | 6000ms | 5800ms |
+
+The weapons the troll, the cyclops and the imp can be born carrying behave the
+same way: each moved from the next whole round down to the authored figure,
+except the imp's iron mace, whose 3000ms is a whole number of rounds already.
+"Now" also needs the cooldown to be counted down through `countDown`, described
+at the end of this section.
+
+**A creature now holds an attack order.** The brain's `attack` goes through
+`orderAttack`, which writes the target into `ActorRuntime.attackOrder` and
+returns whatever `tryAttack` returned, so the line the brain runs next is chosen
+exactly as before. `pressAttackOrders` tries every held order once a tick, the
+way `runAutoAttacks` tries a player's standing target, so a blow lands on the
+tick its cooldown and windup allow instead of on the first turn after that.
+
+- **An order lives one round unless it is asked for again.** `tickOneBrain`
+  drops it at the top of every turn, before the incapacitation check and before
+  any transition or action runs, as it does a walk order. A turn that flees,
+  casts, walks away, holds or sleeps therefore stops the swinging on that turn.
+  The order is held whenever the `attack` line ran, including a turn where it
+  failed and the brain went on to the line below: failing while the cooldown
+  runs is what `attack` does between blows. In every brain we ship the lines
+  below it are `step_toward` and `hold`, and a `cast` or `attack_range` above it
+  that lands or is still running keeps `attack` from running at all.
+- **Orders are pressed at the end of `tickBrains`.** That is after this tick's
+  turns and before the players' auto-attacks, which is where a creature's blow
+  always landed within a tick. It is also the one place that knows whether
+  brains run at all: with nobody connected there are no turns and no order is
+  pressed, so creatures do not go on fighting each other in an empty world.
+- **A dozing creature's order is not pressed between its turns**, for the same
+  reason its walk order is not: pressing at the tick rate for creatures nobody
+  is near would put the size of the map back into what a tick costs. A dozing
+  creature swings on its turns, at the rounded pace it always had.
+- **A target that has left the world drops the order** the next time it is
+  pressed, the way `runAutoAttacks` drops a player's target. An attacker that
+  has left takes its order with it.
+- **The windup is unchanged.** Pressing is asking, so `sinceSeenMs` is reset
+  every tick for as long as the order is held: a chase out of reach pauses the
+  windup instead of letting it lapse, and `WINDUP_LAPSE_MS` forgets it two
+  rounds after the order is dropped.
+
+**What the brain is told did not change; how often it hears `success` did.**
+`attack` still reports whether a blow was struck on that call. Most blows now
+land between turns, so a turn usually finds the cooldown running and goes on to
+the next line, as every turn between two blows always did. No shipped attack
+state can become `stuck` this way, because each one ends in `hold`.
+
+**The world swings exactly as often as the Arena's duel loop, and both land on
+`attackIntervalMs`.** `GameSession.advanceCooldowns` and `Duel.advanceCooldown`
+count the cooldown down through the same `countDown` (`app/game/ticks.ts`), which
+absorbs the float residue a plain subtraction of `TICK_MS` leaves; see "A clock
+counted in ticks runs out on its last tick". "bites at the pace the Arena
+measures, not the brain's" in `brain.test.ts` compares the world with the duel
+loop rather than with the interval, so it catches the two loops counting
+differently.
+
+**It costs one `tryAttack` per held order per tick**, the same price a player in
+attack mode already pays. Timed on the scenarios `bun run bench:server` runs,
+`pressAttackOrders` takes 30µs a tick in town with one order held, 37µs in the
+deepest den, and 0.1–0.25ms in the spread scenario, where about nine creatures
+hold orders against six players standing in dens. The number of `routeStep`
+calls did not change, although a turn now falls through to `step_toward` more
+often. Run in one process with the two versions' ticks interleaved, tick p50 rose
+by 0.00–0.07ms in the one-player scenarios and by 0.07–0.35ms in spread. The two
+worlds diverge from the first blow timed differently, so the rest of the tail
+moved both ways: p95 fell 0.4ms in the deepest den and rose 0.5–1.2ms in spread.
+Players standing in the dens die more often: 87 deaths in a minute of the spread
+scenario before, 95 after.
+
 ## A creature that has left the board must not be given a turn
 
 `tickOneBrain` asked `defFor` before anything else, and `defFor` goes through
@@ -2543,17 +2955,17 @@ over would have been ten times that, for the same one player.
 A round is now split in two, and the split is where the cost goes:
 
 - **Attentive** creatures think every round, exactly as before. A creature is
-  attentive while a player is within the furthest distance its *own* brain
-  ever asks about — `brainReach`, the largest `cells` on any condition in any
-  of its transitions — or within a screen (`BRAIN_ATTENTION_FLOOR_CELLS`),
-  whichever is further, on any level. A wolf reaches 22 (it investigates a
-  sound at 22), a troll 30, a deer with no distance in its brain gets the
-  floor. The reach is read off the authored conditions, so longer ears are a
-  longer reach in the same edit. It is also why there is no separate
-  "engaged" flag: every authored chase gives up at some `out_of_range`, and a
-  creature still chasing is by construction inside its own reach of the
-  person it is chasing. Being hit counts too — a blow is delivered by the next
-  round, and dozing through it would drop it rather than delay it.
+  attentive while a player is within the furthest distance its *own* brain ever
+  asks about — `brainReach`, the largest `cells` on any condition in any of its
+  transitions — or within a screen (`BRAIN_ATTENTION_FLOOR_CELLS`), whichever is
+  further, on a level where it could notice them or they could see it (below). A
+  wolf reaches 22 (it investigates a sound at 22), a troll 30, a deer with no
+  distance in its brain gets the floor. The reach is read off the authored
+  conditions, so longer ears are a longer reach in the same edit. It is also why
+  there is no separate "engaged" flag: every authored chase gives up at some
+  `out_of_range`, and a creature still chasing is by construction inside its own
+  reach of the person it is chasing. Being hit counts too: a creature with hurt
+  waiting in `pendingHurt` is attentive until a turn of its own reads it.
 - **Dozing** creatures — everybody else — share `BRAIN_DOZE_BUDGET` turns a
   round, round-robin. That budget is the only term in a round the *map*
   contributes; the rest is players. What a dozing creature gets is a turn
@@ -2567,16 +2979,67 @@ Measured with `bun run bench:server` on the den map, one player standing in
 town: brain round 13.6ms → 3.4ms p95, 42 → 19 changed cells a tick, 112 →
 50 KB/s raw — and the 50 that is left is the budget's, not the map's.
 
+**At most `BRAIN_ATTENTIVE_MAX` creatures think every round.** How many were
+attentive used to depend only on how many stood within reach of a player, so a
+crowd, or the same map with more creatures in it, took the tick over budget:
+with the shipped map's residents multiplied by eight, 746 of 1,731 were
+attentive in `bench:server`'s `spread` and the tick's p50 was 30ms. Past the
+cap, the creatures fighting, chasing or talking to a player keep their turns
+first, then those within a screen of one on a level they could be seen from,
+then the rest within reach, and within each rank whoever has waited longest,
+which rotates a crowd through the turns rather than starving its tail. The
+others doze for that round: their orders are not pressed between turns, and they
+share the doze budget with everybody already dozing. Nothing stops moving; a
+crowd bigger than the cap moves at a slower pace instead of taking the tick
+over.
+
+Below the cap nothing changes, and that was checked rather than assumed: the
+awake creatures take their turns in insertion order as before, and at the
+shipped population the bench reports the same deaths, cells and bytes a tick as
+without the cap. At eight and sixteen times the shipped residents the tick's p50
+went from 30ms to 17ms and from 66ms to 24ms. Its p95 stayed near 50–70ms at any
+cap from 150 to 300, because the slowest ticks are route searches, and a count
+of turns does not bound what a search costs: a few nodes take a fifth of a
+millisecond, a full `PATH_MAX_NODES` about 6ms at the shipped population and 9ms
+at sixteen times it.
+
+**Rationing search nodes a tick was tried and left out.** A budget of nodes a
+tick, with a walk that did not fit put off to a later tick, moves searching
+between ticks without doing less of it. At 256 or 384 nodes it took the p95 at
+sixteen times from 69ms to 49–57ms and the p50 from 24ms to 32ms, and at 256 it
+bound often enough to change the simulation at the shipped population. At 1,024
+it bound on 15 ticks in 450 at sixteen times and did not move the p95. One
+distance map per player, shared by everything chasing them, fails on the same
+cost: a map of a screen around a player is about 2,400 nodes, which at 50µs a
+node is more than the dozen searches a tick it would replace. Both wait on a
+search node getting cheaper; see "Known remaining costs".
+
 The seams worth knowing:
 
-- Distance is a square on the plan, ignoring level. A superset of every
-  distance a condition reckons in, and a rat three floors under the street is
-  attentive to somebody walking over it. That costs a turn; the other error
-  would cost a creature its chance to notice somebody.
+- Distance is a square on the plan, a superset of every distance a condition
+  reckons in, and the level counts on two terms. A player in that square wakes a
+  creature on a level where the creature could notice them, or where they could
+  see it. Noticing is the creature's sight levels (`sight` on its battler, none
+  either way without one), because every condition already ignores anybody
+  outside them: `within` in `brainRuntime.ts`, whose level test the attention
+  check shares. Seeing is looser, because a creature a player can see has to
+  look alive: the player's own level and anything above it count, and a level
+  below counts unless a floor seals the creature's column between them, which is
+  the half of the renderer's `isHiddenFromCamera` a roof-cut cannot undo. So a
+  rat three floors under the street dozes, and one in a pit you are looking into
+  does not. On `bench:server`'s `spread` scenario, where the den stacks three
+  floors under its mouth, it takes the awake creatures from 120 to 99 and the
+  changed cells a tick from 24.9 to 21.6. What that saves depends on what an
+  awake creature costs: with failed route searches remembered, the tick's p95 at
+  1, 4 and 8 times the shipped residents went from 11.6ms to 9.1ms, from 47ms to
+  35ms and from 80ms to 67ms. Without that, most of the tick at 4 and 8 times is
+  failed searches by creatures on the players' own floors, which the level does
+  not touch.
 - `turnsOver` in `brain.test.ts` counts *noises*, not steps: a creature's
   step can be blocked by another creature's, and a noise cannot. Each of
   those tests was checked red by breaking the rule it pins — dropping the
-  banked time, making everybody attentive, ignoring the reach.
+  banked time, making everybody attentive, ignoring the reach, ignoring the
+  level, ignoring the sight, reading the column in both directions.
 - A round used to be one loop and one clock. It is still one clock: nothing
   here changes `BRAIN_TICK_MS` or the accumulator. What changed later is that
   a round with more than `BRAIN_TURNS_PER_TICK_MIN` turns is spread over the
@@ -2651,11 +3114,12 @@ brains off entirely put the world at full speed with a 9ms median tick.
 - **A round of decisions is spread over the ticks it covers.** It used to be
   taken whole on the tick it fell due, one tick in six three times over
   budget and the five after it idle. It is planned on that tick — who is
-  awake, whose dozing turn it is, and the speech, blows and sounds it will
-  deliver — and taken a share per tick after that, at least
-  `BRAIN_TURNS_PER_TICK_MIN` a tick so a small world is exactly what it was.
-  Speech, blows and sounds that arrive while a round is being worked through
-  belong to the next round, which is the rule sounds already followed.
+  awake, whose dozing turn it is, and the speech and sounds it will deliver —
+  and taken a share per tick after that, at least `BRAIN_TURNS_PER_TICK_MIN` a
+  tick so a small world is exactly what it was. Speech and sounds that arrive
+  while a round is being worked through belong to the next round, which is the
+  rule sounds already followed. Blows do not: each waits for its victim's own
+  next turn — see "Hurt waits for a body that cannot act".
 - **Scoping reuses a client's set of known bodies when nobody came or went**,
   and works each body's chunk out once a tick rather than once per client.
 
@@ -2699,10 +3163,18 @@ copy of `data/`, the checkpoint loop running, sockets that record rather than
 send — and walks them the way the stress bots do: runs of one to eight steps, a
 pause now and then, a turn when a step is refused, a rebirth three seconds after
 dying. It is one process with no network, so what it measures is the tick. It
-reports ticks a second, tick and gap percentiles, and the time each phase of the
-tick took; `--profile` writes a CPU profile of the measured window alone, and
-`--idle`, `--clustered` and `--deflate` change what the players do and what a
-send costs.
+raises its server's player limit to the number of players it is asked for, so a
+crowd larger than `MAX_ONLINE_PLAYERS` is seated whole (see *The world holds at
+most `MAX_ONLINE_PLAYERS`*). It reports ticks a second, tick and gap
+percentiles, and the time each phase of the tick took; `--profile` writes a CPU
+profile of the measured window alone, and `--idle`, `--clustered` and
+`--deflate` change what the players do and what a send costs.
+
+**A run that could not seat its whole crowd exits 1.** The report gives the
+players seated and the players the server refused, and divides the per-player
+figures by the players seated. A refusal means every figure is for a smaller
+crowd than was asked for, so the bench prints it after seating and again after
+the report, and exits 1.
 
 **Compare runs made with the same `BUN_OPTIONS`, alternated.** Some shells
 export `BUN_OPTIONS=--smol`, which makes Bun collect garbage far more often: the
@@ -2924,6 +3396,58 @@ one part of what is left is most of it:
   container at 512MB by default, which a thousand players exceed before this
   work and after, so a world meant to hold a thousand needs `MEM_LIMIT`
   raised.
+
+## Loading a large world, profiled
+
+Loading a world used to sweep the whole board once or more for every creature
+in it. The shipped map hides that: it has 222 creatures on about ninety
+thousand cells, a sweep there takes 3–7ms, and the whole load took under two
+seconds. On a 512×512 field with two thousand creatures the first join took
+37 seconds.
+
+**How it was measured.** A script outside the repository builds a square grass
+field in code, scatters creatures over it from a fixed seed, and loads it with
+the real `GameServer` on the in-memory store the tab uses
+(`LocalStore(memoryCheckpoints())`), timing one administrator's join and the
+phases inside it.
+
+**Three sweeps ran once per actor:**
+
+- **Each creature's first lookup.** A resident was added with no remembered
+  cell, so the first `tryLocate` for it was `findActorAnywhere`. On the server
+  the first `hello` paid it, because a `hello` snapshots every actor to decide
+  who is in reach; a bare `GameSession` paid it on its first tick.
+  `addResident` remembers the cell instead.
+- **Each creature's spawn point.** `loadRespawnState` asked `isSpawnFilled`
+  about every point, and for a creature that is `findActorAnywhere`. It now
+  builds `listActorOwners` once and passes the set in.
+- **Each absent player's body.** `reapAbsentActors` removed them one
+  `despawnActor` at a time. The last checkpoint before a restart holds
+  everyone who was online, up to `MAX_ONLINE_PLAYERS`, so this one grows with
+  players rather than creatures. `despawnActors` removes them all in one walk.
+
+| | before | after |
+|---|---|---|
+| 512×512, 2,000 creatures: first join | 37s | 2.8s |
+| 512×512, 500 creatures: first join | 10.7s | 2.7s |
+| 1024×1024, 100 creatures: first join | 21.0s | 10.6s |
+| shipped map: first join | 1.8s | 1.0s |
+| `GameSession` alone, 512×512, 2,000 creatures: first tick | 17.1s | 8ms |
+| 250 absent players reaped, 512×512 with 500 creatures | 2.3s | 0.1s |
+
+**What is left runs once per load, not once per actor**, and at 1024×1024 it
+is nearly all of the ten seconds. Parsing the map takes 1.5s and constructing
+the `GameSession` 7.7s, almost all of it in separate passes over every cell:
+`structuredClone` (1.8s), each of the five `find…Cells` indexes (0.75–0.9s),
+`requireSinglePlayer` twice, and `listResidentBodies`, `mintItemIds` and
+`clearExtractReservations` (about 0.3s each). Most of those passes go through
+`listCoords`, which builds an object for every cell of a level.
+
+**Three sweeps remain that run per event rather than per load**: a respawn
+(see "Known remaining costs"), `spawn` on every join (see "A thousand players,
+profiled"), and a body moved by `moveThrough` — a step teleport, `/goto` or
+`/move` — whose memo still names the cell it left, so its next lookup sweeps
+the board once.
 
 ## A joiner is sent the chunks its view can reach
 
@@ -3197,6 +3721,15 @@ room. But `lastHiddenOf` honours that row only while an administrator's socket
 is seating the body, so an account demoted while hidden comes back visible.
 The server sends the state to its owner (`ServerMessage` `hidden`) and to
 nobody else.
+
+**The owner does not see its own body either**, since the switch exists for
+recording footage. `RemoteSession` marks its own `ActorSnapshot` `hidden`, and
+`GameRenderer.withoutHiddenBodies` cuts that placement from a copy of the map
+that only `WorldRenderer` is given, along with the body's motion, tint, status
+particles and carried light. The session's own map keeps the body, because
+walking, reach and the camera read it. The name and health bar are skipped in
+`pushNameLabels`. The copy is cached on the map and the body's cell, since
+handing `WorldRenderer` a new map each frame re-diffs every level.
 
 **Known gap:** `destinationTaken` still counts a hidden admin's walk, so a
 creature cannot end a step in a cell the admin is walking into. It is a
@@ -3684,6 +4217,40 @@ the same draws a bare one does — the same rule everything in a fight is under.
 The one draw defence *does* take is the guard below, and it is taken whether or
 not the defender is wearing anything.
 
+### Gear short of its requirements: slower if physical, dormant if magical
+
+`ArmorItem`, `ShieldItem` and `CharmItem` take `requirements` the way a weapon
+does, and the catalogue follows three families: light pieces ask Agility, heavy
+ones Toughness, and magical ones Arcane plus the element they are attuned to.
+The starter pieces — Cloth Tunic, Worn Boots, Copper Ring, Bone Charm — ask
+nothing.
+
+**A requirement splits by kind** (`MAGIC_MASTERIES` and `PHYSICAL_MASTERIES` in
+`app/lib/mastery.ts`), and the two halves do different things:
+
+- **Physical short: it still works, but encumbers.** `armorShortfall` sums
+  `physicalShortfall` across every armour piece, shield and charm worn, and
+  `encumbrance` turns it into a share taken off `haste` and `flee`:
+  `ENCUMBRANCE_PER_POINT_SHORT` a point, capped at `MAX_ENCUMBRANCE`. Defence
+  and resists are never scaled. Summing rather than taking the worst piece is
+  what lets the item card show each piece's own cost and have them add up.
+- **Magic short: it does nothing.** `magicDormant` switches off the item's
+  defence, resists, elements (`bodyElements`) and charm tick
+  (`GameSession.wornCharm`); `takesEffect` reports it, so the slot dims like an
+  unmet stone's, and the card says what is missing. Encumbrance is not charged
+  for the magic half — a piece that already does nothing is penalty enough.
+
+**A weapon short of its magic is held like a torch.** `weaponSwungBy` answers
+`null` for it, so `handToSwing` skips the hand and `weaponInHand` falls back on
+the body's natural weapon, and its `def` stops counting too. That is why
+`weaponSwungBy`, `handToSwing` and `fightsWithAHand` take the wielder's
+masteries: which hand swings depends on who is holding what. The physical half
+of a weapon's requirements is still `weaponHandling`, as before.
+
+It is applied in `effectiveBattler`, so the world, the Arena and the stats panel
+all read the same figure. `weaponHandling` is applied separately inside
+`fightingStats`; the two multiply.
+
 ### Armour is a draw, and immunity is a rung rather than a threshold
 
 `defenceAgainst` says how deep a body's guard is; **what a blow actually meets is
@@ -3829,38 +4396,42 @@ people and one for everything else.
   That gate used to be "only a kit with something in it", which came to the same
   thing while every creature had an empty one and stopped the day a rat could be
   authored carrying meat.
-- **Dying drops it, and that is one function.** `kill` → `dropKit` never asked
-  who the body belonged to, so wildlife dropping its kit needed no new path —
-  which is the whole of "a player is just another battler" holding up under a
-  feature that could easily have grown a second one.
+- **Dying drops it, and a player is the one exception.** `kill` → `dropKit`
+  never asked who the body belonged to, so wildlife dropping its kit needed no
+  new path. A player goes through `dropPack` instead, which leaves the pack and
+  nothing else — see *A dead player leaves their pack, whole, and keeps the rest*.
 
 **A death is the moment the session stops being able to answer for somebody**,
 and everything a reload hands back is read from storage — so a death has to write
 itself down before it destroys the only copy of what it knew.
 
-- **The kit does not die with the body.** `kill` drops it onto the corpse's cell
-  first, all of it or none of it: a sword somebody picked up a moment ago is
-  still a sword in the world, findable and theirs again if they walk back for it.
+- **What drops does not die with the body.** `kill` drops it onto the corpse's
+  cell first — a creature's whole kit, a player's pack — all of it or none of
+  it: a sword somebody picked up a moment ago is still a sword in the world,
+  findable and theirs again if they walk back for it.
   The alternative is not "death costs you your things", it is the world quietly
   being one sword lighter with nothing in it able to put that right. All-or-
   nothing because the two halves — what is on the board and what the body still
   owns — are written to different keys, and a half-dropped kit has no single true
   answer to give either of them.
 - **The `Death` carries what the runtime knew**, because `GameSession.kill`
-  deletes it: what is left of the kit, its tags and its masteries. Nothing
+  deletes it: what is left of the kit, its tags, its experience less the share
+  a death takes, and for a player what the death cost (`DeathCost`). Nothing
   downstream can re-derive any of it.
-- **A reload or a `rebirth` puts them back at the spawn point, with a fresh empty
-  bag.** The
-  position row is *overwritten* with `spawn:<id>` rather than left alone —
-  leaving it is what put people back wherever the last flush caught them, up to
-  a whole `ACTOR_FLUSH_INTERVAL_MS` of walking ago. The kit is the starting one
-  rather than the emptied one, because coming back with no bag at all leaves
-  somebody unable to pick their own corpse up. It is written rather than deleted
-  — a missing row already means "give them the starting kit", but a delete
-  cannot ride in the batch, and a second call is a second moment at which the
-  board and the kit can disagree. What they still *own* wins over both: a kit
-  the floor refused was never dropped, so writing a fresh one over it would
-  destroy what the refusal saved.
+- **A reload or a `rebirth` puts them back at the spawn point, with what they
+  kept and a bag on their back.** The position row is *overwritten* with
+  `spawn:<id>` rather than left alone — leaving it is what put people back
+  wherever the last flush caught them, up to a whole `ACTOR_FLUSH_INTERVAL_MS`
+  of walking ago. The kit row is `GameSession.rebirthKit`: what they still own,
+  and the starting kit's bag, emptied, when they own no pack at all. Nothing
+  sells a bag, so without it a player whose pack somebody else picked up would
+  never carry more than two things again. A player can still come back to a new
+  bag by dying with none, and the experience a death costs is what keeps that
+  from being a way to collect them. The row is written rather than deleted — a
+  missing row already means "give them the starting kit", but a delete cannot
+  ride in the batch, and a second call is a second moment at which the board and
+  the kit can disagree. A pack the floor refused was never dropped, so
+  `rebirthKit` hands that one back rather than a second.
 - **Hit points need nothing.** They are rebuilt from the tile on every load, so a
   respawned body is at full health by construction rather than by a reset.
 - **`noteDeaths` forces a flush**, rather than leaving it to the next one. This
@@ -3876,6 +4447,15 @@ itself down before it destroys the only copy of what it knew.
   there anyone to hand this back to" — and it keeps a world that respawns
   wildlife from writing a position and a kit per rat. The same test decides who
   is *told*: see the death screen below.
+- **A message that kills is noted before the message returns.** Most deaths
+  happen inside `tick`, but `consume` (a food with negative `hp`) and admin
+  commands like `/health 0` kill on the spot. Left for the next tick, a close in
+  between took the socket the test above asks about, so the death was never
+  written: the kit lay on the floor *and* stayed in the stored `equip:` row. A
+  rejoin in between seated the body from those pre-death rows. So
+  `webSocketMessage` calls `noteDeaths` itself, and `seatActor` drops any `died`
+  still queued for the body it seats, or the reborn player would be told they
+  died and silenced.
 
 **The client picks the target; the server decides when a blow lands.** A `target`
 message names who, and that is all a client is trusted with. Attack speed is the
@@ -4201,6 +4781,12 @@ It applies to the Agility row too. A dodge you never needed to make is worth as
 little as a blow you cannot feel, and exempting Agility would have left the whole
 thing standing one mastery over.
 
+Every figure in this section was measured before `XP_RATE` halved every payout
+in `app/game/experience.ts`, so each level now takes about twice the fights.
+The rate multiplies the two base payouts, per point of damage and per cast, so
+it moves how fast everything is learnt without moving what anything is worth
+against anything else.
+
 ### A fight opens with an approach, half an interval long
 
 Reach alone used to decide the opening blow: a body that came within reach of
@@ -4232,12 +4818,12 @@ and the recovery.
   round, so a stand-up fight is exactly the fight it always was — the rate is
   untouched and only the start moved. At a whole interval the windup would still
   be running when the cooldown cleared, which would halve every rate in the game.
-- **Re-armed on every approach, not paid once per fight.** That is the half that
+- **Re-armed by every blow, not paid once per fight.** That is the half that
   closes the withdrawal: a wait that only applied to the opening blow would leave
   "touch, swing, leave, come back" as strictly better as it was. What it adds up
-  to is that you have to be beside your target for half of every interval. You
-  may still step in and out — a body that returns within the other half loses
-  nothing at all — and what you can no longer do is be absent.
+  to is that you have to be beside your target for half of every interval.
+  (It was first re-armed on every *approach* instead; see the next section for
+  why that changed.)
 - **Keyed by target.** Without the id, killing one of a pair and turning on the
   one beside it would swing on the tick the target changed: the free opening
   blow, taken at the only moment nobody had to walk anywhere for it.
@@ -4257,13 +4843,14 @@ Two seams are worth knowing:
   move: tick p50 0.42–0.78ms against 0.43–0.86ms before it, p95 inside the
   run-to-run spread on every scenario, and the wire untouched.
 - **The windup is wound on the tick clock and dropped by `WINDUP_LAPSE_MS`.**
-  Reach is only asked about where somebody is trying to swing, and the two askers
-  run at very different rates: a player's standing target is tried every tick,
-  a creature's brain reaches its `attack` action once a round. Winding on the
-  tick is what makes the approach the same length for both. The lapse is the
-  other side of it — a windup nobody has confirmed for two rounds is forgotten,
-  so dropping your target and picking it up again is not a way to skip the wait.
-  Leaving reach *while still asking* drops it outright on the tick it happens.
+  Reach is only asked about where somebody is trying to swing. A player's
+  standing target and a creature's attack order are both tried every tick, but a
+  dozing creature asks only on its turns, once a round at most (see "A blow used
+  to wait for a decision as well"). Winding on the tick is what makes the
+  approach the same length for all of them. The lapse is the other side of it —
+  a windup nobody has confirmed for two rounds is forgotten, so dropping your
+  target and picking it up again is not a way to skip the wait. Leaving reach
+  *while still asking* pauses it; see below.
 
 `duel.ts` seats both fighters on a first cooldown of `swingWindupMs` rather than
 ready. It has no reach to lose — the whole premise of that module is two bodies
@@ -4271,6 +4858,43 @@ in reach of each other — so the windup there can only ever be the opening one,
 and spending it as the cooldown is the honest way to say that. Every fight in
 `duel.test.ts` is now half an interval longer than it was, which is why the
 "lose fast enough to be a signal" bound moved from eight seconds to nine.
+
+### The windup pauses out of reach, and a blow re-arms it
+
+The windup was first re-armed on every approach: leaving reach dropped it, and
+coming back started it from zero. That made any slow creature killable by
+anybody faster without taking a blow. Hit it, step back as it follows, step back
+again as it arrives. Each arrival started the creature's half interval from
+zero, the player left before it ran out, and the player's own windup was short
+enough to fit inside each visit. The rule meant to stop kiting was the reason it
+worked.
+
+Now `ActorRuntime.windup` is **time owed in reach**:
+
+- **Leaving reach pauses it.** `outOfReach` sets `windup.inReach = false` and
+  `advanceCooldowns` stops winding it. Coming back resumes from what was left,
+  so every visit adds up, and a creature that has spent half its interval
+  beside you in total swings the moment it is beside you again.
+- **Every blow re-arms it** to `swingWindupMs`. Without this the pause would
+  bring back the withdrawal from the section above: the windup would be spent
+  once per fight, and walking out for the cooldown would come back to a blow
+  already waiting. The re-armed windup is half the cooldown just set, so in a
+  fight where nobody leaves it runs out first and the rate is unchanged.
+- **Asking keeps it; reach does not have to.** `sinceSeenMs` is reset by any
+  `tryAttack` against the same target, in reach or not. A creature chasing you
+  holds an attack order, because its `attack` line runs before its `chase` line,
+  and the order is tried every tick, so it keeps what it has; one that gives up
+  drops the order on its next turn, and `WINDUP_LAPSE_MS` forgets the windup two
+  rounds after that.
+- **The fight row is hidden while paused.** `nextBlow` is nulled by
+  `outOfReach` and re-issued on the way back in, starting from what the paused
+  windup had left, so the bar comes back part full.
+
+The result is that both sides pay for a blow in the same thing, time spent in
+reach. Over a kite both bodies are in reach for the same stretches, so blows
+come at the ratio of the two intervals, which is the same as standing still.
+Incapacitation, a PvP refusal and a change of target still drop the windup
+completely.
 
 ### The fight row fills towards the next blow
 
@@ -4655,15 +5279,17 @@ air.
   `appear` — a struck body stays on the board and has to end drawn as itself, so
   the blow scatters it and it resolves; a `disappear` would dissolve it away and
   pop it back. Raising it in `ageFlights` as well would play the same effect
-  twice, once in the air and once on the body.
+  twice, once in the air and once on the body. "Always" includes a bolt on its
+  own caster, which throws nothing: its `hit` still plays, on the caster, so a
+  mend can name a projectile for the hit alone.
 - **A killing hit plays its burst where the body stood, and nothing else.**
   `strikeBody` runs before the damage, so a killing blow still sends a hit, but
   `kill` takes the body off the map on the same tick. The renderer looks for an
   `appear` in the new map, found no body, and dropped the whole note — the
   sparks as well, although they need only a place to stand. Only a creature
   with a `disappear` of its own showed anything on a kill. Now, when
-  `markForming` cannot find a struck body, `throwStruckBurst` finds it in
-  `prevMap` (see `struckRemainsSlot`) and plays the hit's particles there, with
+  `markForming` cannot find a struck body, `throwBurstWhereItStood` finds it in
+  `prevMap` (see `formerSlot`) and plays the hit's particles there, with
   no mesh. The sweep and the scale are not played: they are done to a sprite,
   and a copy wearing an `appear` would climb back to whole and then vanish. A
   body's own `disappear` still plays beside the sparks.
@@ -4985,6 +5611,11 @@ rather than being enumerated: a pure ward is a bolt with a status and no damage,
 a pure mend is a bolt with damage and no status, and a brand is both. A bolt with
 *neither* is refused: it is a spell that spends a cooldown to do nothing.
 
+A bolt may also carry `cures`, a list of status ids taken off whoever it lands
+on. That counts as doing something, so a cure alone is a valid bolt. It runs
+after the health moves and before `statuses` is rolled, so a stone that cures
+and grants the same status leaves it on.
+
 **The chance is the stone's own and no mastery moves it**, on the same argument
 a weapon's is under: Arcane and the elements have already had their say twice —
 on how deep the bolt ran and on what the wheel made of it — and scaling the
@@ -5107,7 +5738,21 @@ much: `canWalk` says yes to a cell somebody is standing in — that is how you w
 into something to swing at it — so a flame cast with nobody targeted, at the
 creature directly in front, landed on top of that creature. It is read off the
 cell now (`lowestBodyIn`), under the lowest body there, so both ways of aiming
-put the tile in the same slot.
+put the tile in the same slot. `castConjure` reads the body out of that slot
+before placing the tile, so whichever way it was aimed, that body takes the
+tile's status on landing and has the conjure noted as an attack on it.
+
+#### An appear on a projectile has to be shorter than its flight
+
+A flight wears its `appear` transition from the moment it is loosed, and a
+dissolve-in is drawn as a share of the sprite: at 30% through, 30% of the
+arrow's pixels are there. The arrow carried a 700ms noise dissolve at 20 cells
+a second, so a shot across eight cells was in the air for 400ms and was never
+more than 57% drawn, and one across two cells for 100ms, at 14%. On a one-cell
+sprite in 3px clumps that is nothing anybody sees: the bog imp's arrows hit
+and were never seen to fly. The arrow has no appear now. The fireball still
+has a 300ms one at the same speed, so a fireball thrown less than six cells is
+still only partly drawn when it lands.
 
 #### A conjure lands where the caster could step, or is not cast
 
@@ -5187,8 +5832,10 @@ shared by the whole world, so its phase against any one cast is arbitrary.
 down. This is the second cross-cutting square rule after the two-handed weapon,
 and it lives beside it in `app/game/equipment.ts`. Without it a caster carries
 six stones in a bag and rotates through them, and the cooldown decides nothing.
-The lock is on *player-initiated* moves only — a death drops the whole kit
-regardless, and what lands is ready. It is also the only refusal in the item
+The lock is on *player-initiated* moves only — a creature's death drops its
+whole kit regardless, and what lands is ready. A player's squares stay on the
+body through a death, so a stone there is still cooling when they come back. It
+is also the only refusal in the item
 model that says anything out loud, because it is the only one where a player can
 plainly see something in a square and plainly cannot empty it.
 
@@ -5234,15 +5881,29 @@ far" below
 - **A blow breaks it, and `uninterruptible` is the exception an author writes.**
   Cancelled from inside `applyDamage` on the same gate a pull is — `amount > 0`,
   so being bandaged mid-cast is not an interruption — and said out loud, because
-  a bar vanishing is exactly what a *finished* cast looks like. Nothing else
-  breaks one: a caster may walk, turn and be shoved while casting, and making it
-  depend on standing still as well would be a rule nobody could guess at from
-  watching.
+  a bar vanishing is exactly what a *finished* cast looks like. A caster may
+  turn and be shoved while casting, and making it depend on standing still as
+  well would be a rule nobody could guess at from watching.
+- **A status ticking is not a blow.** `tickStatuses` calls `applyDamage` with
+  `interrupts: false`, so a burn or a poison breaks neither a cast nor a pull.
+  When it did, a five-second burn ticking every second made every spell with a
+  cast time uncastable for as long as it lasted — including the one that would
+  have healed through it.
+- **So does losing the target, every tick.** `advanceCasting` asks
+  `targetInReach` (`app/game/casting.ts`, the same `canReach` the button dims
+  on) of a cast aimed at somebody, and breaks it with "Your target is out of
+  reach" the first tick the target is too far or behind something. This used to
+  be asked only when the bar filled, and the caster — rooted for the whole cast —
+  stood there for seconds after the target had stepped away, for a spell that
+  then did nothing. Switching to a target out of reach breaks it the same way,
+  since the bolt lands on whoever is targeted when the bar fills. Clearing the
+  target does not: there is nobody to measure to, and that case is left to the
+  end.
 - **Everything else is asked once, at the end.** `finishCasting` takes the run
-  off the actor and then asks `castability` again, so a target who walked out of
-  range, a target who died, a stone swapped to the other hand and a cell somebody
-  has since dropped a crate on all come to the same thing: nothing happens, and
-  the stone is still ready. The run is cleared *before* the question because a
+  off the actor and then asks `castability` again, so a target who died, a
+  stone swapped to the other hand and a cell somebody has since dropped a crate
+  on all come to the same thing: nothing happens, and the stone is still
+  ready. The run is cleared *before* the question because a
   body recorded as casting refuses every square, itself included.
 - **One cast at a time, and it refuses the whole row.** `CastContext.casting`
   is a `CastProgress`: the clock, and which square the cast came out of. Every
@@ -5372,9 +6033,8 @@ So the fee is **flat and unscaled** — not by what the stone asks, not by what
 came of it, not by who you were pointing at. Every scale that applies elsewhere
 is a scale that could take it back to zero, which is the one thing a floor must
 not do. It is paid where the cooldown is spent, for the cast rather than its
-result. At `XP_PER_CAST` it is four presses of a light to the first point of
-Arcane, and it is deliberately half what a *single point of damage* is worth: a
-way into the mastery rather than a way up it.
+result. `XP_PER_CAST` is deliberately half what a *single point of damage* is
+worth: a way into the mastery rather than a way up it.
 
 A flame you conjured pays you when it burns somebody, and that thread is the
 longest in the feature: the placement carries `castBy` — a **new** field, never
@@ -5412,11 +6072,13 @@ having learnt some. `spellElements` reads it, and reads **every** element the
 block names rather than the strongest, which is the whole of what "a spell can
 have more than one element" means.
 
-**Everybody starts with one point of each**, authored on the `player` tile and
-seeded as experience like every other starting mastery. That is what makes an
-element reachable at all: the requirement is an outright gate, so a body with no
-Fire could never throw the spell that would have earned it. The bottom rung of
-each element asks for exactly the point you begin with.
+**Everybody has one point of each.** The `player` tile authors it, but what
+gives it is the floor: experience never reads below `MIN_EARNED_MASTERY` (see
+*Experience never reads below level 1*), so the authored 1 seeds nothing and
+every player would read 1 without it. That is what makes an element reachable
+at all: the requirement is an outright gate, so a body with no Fire could never
+throw the spell that would have earned it. The bottom rung of each element asks
+for exactly that one point.
 
 Those points are masteries and nothing else. They do **not** make a starting
 player fire, water and nature — what a body is *made of* is a different field
@@ -5424,8 +6086,30 @@ entirely, and the `player` tile authors none of it.
 
 An existing player is *not* reseeded — `hasExperience` gates seeding on the block
 being absent, which is the property that stops a restored empty block wiping
-somebody. So a body that predates this has none of the three and cannot cast the
-bottom rung until `/mastery fire 1` says otherwise.
+somebody. It does not need to be: a body that predates the elements has no
+experience in any of the three, and no experience reads as level 1 (below).
+
+#### Experience never reads below level 1
+
+`levelForXp` clamps at `MIN_EARNED_MASTERY`, and `xpForLevel` charges nothing
+for it: level 1 is where a mastery with no experience at all stands. Above it
+the curve is unchanged, `XP_PER_LEVEL_SQUARED` times the level squared, so
+nobody at 2 or more moved when this landed. Levels 0 and 1 became one level.
+
+The reason is the element gate above. A body at Fire 0 cannot cast a fire
+spell, and casting one is the only thing that pays Fire, so a body at 0 could
+never get to 1. With the reading clamped, a rule that takes experience away
+cannot take that last point, and no such rule has to know about elements.
+
+It is a floor on **experience**, not on masteries. `MIN_MASTERY` stays 0 for
+blocks that are authored rather than earned: a creature's unauthored mastery is
+still 0, and moving that to 1 would move the hit points, defence, dodge and
+Rating of every creature in the world and the Arena's numbers with them. So the
+two minimums are two constants, and `/mastery` takes `MIN_EARNED_MASTERY` as
+its bottom, since it writes experience and a 0 is not something experience can
+say. `masteriesFromXp` returns every mastery for the same reason: a missing key
+would read as `MIN_MASTERY` through `masteryLevel`, which is the creature's
+floor, not the player's.
 
 #### A body's element is authored and worn, never practised
 
@@ -5447,8 +6131,8 @@ The two sources **union** rather than sum, because an element is a fact and not 
 quantity: two flaming rings are not more fire than one. Only the four things a
 body wears or holds carry one — weapon, armour, shield, stone — and **only the
 squares, never the bag**: a tunic of flames in your pack is a tunic in a pack,
-which is the same line `wornInstances` already draws for light and for what a
-death leaves on the floor. The answer comes back in `ELEMENTS`' own order, so a
+which is the same line `wornInstances` already draws for light. The answer
+comes back in `ELEMENTS`' own order, so a
 body that is fire and water is not a different thing for having swapped hands.
 
 A stone's `elements` and its `requirements` are deliberately separate fields
@@ -5568,18 +6252,23 @@ a status, for a second mastery and five more Arcane to be let near the stone.
 Pressing one trains Arcane alone, because the flat per-cast fee goes to Arcane
 and to each element the spell is *made of* — and this one is made of nothing.
 
-**The neutral rung one asks exactly what the `player` tile is seeded with**,
-which is the whole of "everybody can cast on their first day": Arcane 5 is what a
-new body is authored to start at, and Spark asks that and nothing else. The
-elemental rung beside it asks five more, so the first thing a new player casts is
-always a neutral stone, and casting it is how the Arcane to reach fire is earned.
+**The neutral rung one asks exactly what the `player` tile is seeded with**:
+Arcane 5 is what a new body is authored to start at, and Spark asks that and
+nothing else. It is not what "everybody can cast on their first day" rests on
+any more. Spark comes from the forge rather than the tutorial chest, and a death
+can take a new player below Arcane 5, so that promise is Light's, which asks
+`MIN_EARNED_MASTERY` (see *Light is beside the ladder too* below). The elemental
+rung beside Spark asks five more Arcane, so the first thing a new player casts
+is always a neutral stone, and casting it is how the Arcane to reach fire is
+earned.
 
-The element half of an elemental rung is still exactly the seed — one point of
-Fire, Water and Nature — so what stands between a new player and their first fire
-spell is Arcane alone. That matters because casting a stone is the *only* thing
-in the game that pays element experience: an element gate above the seed would be
-a wait for something nothing pays. If the seed and the neutral rung move apart, an
-arcanist has no way to begin at all.
+The element half of an elemental rung is exactly the floor — one point of Fire,
+Water and Nature, which every player has — so what stands between a new player
+and their first fire spell is Arcane alone. That matters because casting a
+stone is the *only* thing in the game that pays element experience: an element
+gate above the floor would be a wait for something nothing pays. If the bottom
+elemental rung ever asks more than `MIN_EARNED_MASTERY` of its element, an
+arcanist has no way into that element at all.
 
 ##### An element is a character, and the three come to the same rate
 
@@ -5648,11 +6337,29 @@ cooks, burns whoever steps in it, and outlives every attack stone's cooldown. It
 is fire's utility, not fire's rung one; Cinder is that, so an arcanist has
 something to practise Fire *with*.
 
+**Light is beside the ladder too, below its foot.** It asks Arcane 1, which is
+`MIN_EARNED_MASTERY` and so a level no death can take, and puts `luminous` on
+the caster at Spark's cooldown and cast time. It is what the quest chest just
+past the tutorial's portal gives, in place of Spark. The reason is what a death
+costs: 5% of the experience takes a new player from Arcane 5 to 4, where Spark
+is out of reach, and a stone that can always be pressed pays the flat fee on
+every press, so Light is the way back up to Spark. The chest's `rewardTag`
+changed with its stone (`tutorial-light-stone`), so every player who already
+took Spark from it can take Light once as well. The chest gives it once, so the
+stone forge makes it from a blank stone too, at Spark's weight: a Light lost
+with a looted pack can be replaced, and without that a player below Arcane 5
+who lost theirs could never cast again.
+
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
 what it trains and never weighed, because a mend has nobody on the other end of
 it — and it now comes back in thirty seconds so it is a decision inside a fight
-rather than once per fight. The Necklace of Life is no longer `automatic`: a
+rather than once per fight. Bloom is its second rung, forged from two Verdance
+at 75% like every other rung two: a mend of thirty-five over two seconds, asking
+Arcane 38, Water 15 and Nature 15, and the only shipped stone with `cures` — it
+takes Burned, Poison and Chilled off the caster, one status for each element's
+attack ladder. Status ticks do not break a cast, so it can be cast while the
+thing it cures is still burning. The Necklace of Life is no longer `automatic`: a
 charm that spent itself the moment you were scratched was a charm that was never
 ready when it mattered, and pressing it is a decision. Nothing shipped is
 automatic now, and `automaticFires` stays for authors who want one.
@@ -5907,6 +6614,78 @@ the frame is drawn from for 320ms, by up to 6 world pixels.
   is built. The shake carries nothing the health bar and the red number do not
   also show.
 
+## A clock counted in ticks runs out on its last tick
+
+`TICK_MS` is `1000 / 30`, which a double cannot hold: it is
+33.333333333333336. Counting a duration off one tick at a time, down to zero or
+up to the duration, drifts by up to 2e-9ms for anything under a minute, and when
+the drift lands on the wrong side of the boundary the clock runs one more tick:
+a countdown left 1e-14ms above zero still reads `> 0`. Swing
+intervals are whole ticks by construction, because `attackIntervalMs` rounds to
+them, and 791 of the 1195 intervals it can return ran one tick long this way;
+the windup ran long at 420 of those paces. A rat authored at 20 ticks (667ms)
+bit every 21 (700ms) in the Arena and for any body swinging every tick in the
+world, while `combatMetrics` showed 667ms.
+
+**`app/game/ticks.ts` holds the rule once.** `countDown(remainingMs, elapsedMs)`
+returns exactly 0 once the remainder is within `TICK_SLACK_MS` of zero, so a
+`> 0` check and an `=== 0` check both read it as run out, and
+`reached(elapsedMs, targetMs)` is the same rule for a clock that counts up. The
+slack is 1e-6ms: hundreds of times the drift, and far below the third of a
+millisecond that separates a whole-millisecond duration from a tick boundary it
+does not fall on. The only timers it moves are the ones that were a tick late.
+
+- `GameSession.advanceCooldowns` counts the swing cooldown, the windup and the
+  strike recovery through it, and `Duel.advanceCooldown` counts the Arena's
+  cooldown through it. They were the same subtraction written twice; sharing
+  one function is what stops the Arena measuring a pace the world does not
+  play.
+- `forgetSpentAssailants` counts an attacker's interval plus
+  `ASSAILANT_GRACE_MS` through it, and `landArrivedBlows` counts a projectile's
+  flight, which is a whole number of ticks at some distances.
+- `advanceExtraction` and `advanceCasting` count a pull's and a cast's
+  progress through it. Every shipped pull and cast time is a whole number of
+  ticks, and the 500ms, 1500ms and 2000ms casts and the 2000ms and 6000ms pulls
+  each finished a tick after their authored time.
+- `advanceMotion` ends a walk once `reached(walk.elapsedMs, walk.durationMs)`.
+  Twelve ticks add up to 399.99999999999994ms, so a 400ms step, the cat's and a
+  player's wading in water, took 13 ticks and left the server a tick behind the
+  client's prediction of every step. Paralysis makes a step ten times as long,
+  and most of those ran long the same way: the player's 2000ms, the rat's
+  1500ms and the wolf's 1400ms.
+- Status cadences and expiry (`advanceStatuses`, `snapToTick`), the
+  standing-status clock, the stone clock and an endured status (`EndureIndex`)
+  were on time already, each against a 1e-6ms slack of its own. They use
+  `reached` and `TICK_SLACK_MS` now, so there is one slack to reason about.
+
+**It is a balance change.** At their authored pace every shipped weapon and
+creature gets a tick back somewhere. The rusty sword, iron sword, simple hammer,
+battleaxe and war maul, and the rat, snake, wolf, bog imp, deer, rabbit and
+cyclops swing a tick sooner every time; the rest open a fight a tick sooner,
+because their windup was the one running long. The largest share is the rat's,
+which does both and bites 5% more often. A creature in the world presses its
+attack order every tick ("A blow used to wait for a decision as well"), so it
+gets the same tick back and swings at the pace the Arena measures.
+
+**Checked and left as they are.** The brain round, a fall's height steps, the
+charm and the defensive recovery carry their remainder into the next period
+and measured on time. The push slide, the damage-number lifetime, the shipped
+projectile effects and the windup lapse (`sinceSeenMs > WINDUP_LAPSE_MS`) land
+on their tick, and the strike lean is not a whole number of ticks. A noise's
+2000ms lifetime runs a tick long, which only keeps it a tick longer in the
+snapshot's `noises`. The decay index runs one clock that never resets, so
+its drift grows (about 1e-3ms after a day of ticks); a slack cannot absorb
+that, and it can only move a lifetime that is a whole number of ticks, by one
+tick in minutes.
+
+**`damagePerSecond` in `duel.test.ts` still counts the old way.** It keeps a
+private cooldown loop. Counting it with `countDown` gives the iron sword at the
+player's 54 ticks a twelfth swing in its 20-second window where it had eleven,
+and that turns two ladder assertions: the knight's sword stops being worth
+picking up at sharp 13 (4.99 damage a second against the iron sword's 5.24),
+and the simple axe prices at 0.899 of the iron sword against a floor of 0.9.
+Whether to retune the weapons or the measurement is a content decision.
+
 ## Balancing happens in the Arena, not in the world
 
 `/admin/arena` is a fight with the world taken out of it: two bodies, a cell apart, on
@@ -5920,8 +6699,8 @@ hitting something, which folds the answer together with all three.
 **Three modules, and the split between them is the design.**
 
 - **`app/game/duel.ts` runs the fight**, on `GameSession`'s own tick order —
-  statuses, then cooldowns, then swings, with both sides starting ready so the
-  faster one lands first. It reaches for no dice of its own and re-derives no
+  statuses, then cooldowns, then swings, with each side's first cooldown set to
+  its windup (`swingWindupMs`, half an interval) so the faster one lands first. It reaches for no dice of its own and re-derives no
   curve: a swing costs what `rollAttack` costs and nothing more.
 - **`app/game/combatMetrics.ts` works the odds out**, in closed form. Exact
   rather than sampled, and that is the whole point of it: a balance figure with
@@ -5950,7 +6729,7 @@ right and `[t, t]` a faithful probe. Both are asserted in
 band rolled some other way fails loudly instead of drifting. `combat.test.ts`'s
 draw-count assertions are the other half of that net: a *new* roll in a swing —
 a block, a crit — changes what a swing costs the dice and fails there first.
-- **`app/game/arena.ts` assembles a body**, and `app/routes/arena.tsx` draws it.
+- **`app/game/arena.ts` assembles a body**, and `app/routes/admin/arena.tsx` draws it.
 
 **There is one duel loop, and `duel.test.ts` uses it.** That file used to hold a
 private one, and an assertion about whether the numbers add up to a game is
@@ -5958,11 +6737,57 @@ worth nothing if the fight it ran was an approximation of the one the world
 runs. Extracting it left every seeded assertion in that file green, which is the
 evidence the two were the same fight.
 
+**Blows due on the same tick land together.** `Duel.exchangeBlows` decides which
+sides swing, and works out both sides' stats, before either blow lands, then
+rolls `a`'s blow and `b`'s in that order. A killing blow does not cancel the
+other one, and when both kill, both fall: `winner` is null, `finished` is true,
+and `runDuel` returns at that tick. In `runDuel`'s result, a null `winner` with
+`ticks` below `maxTicks` means both fell; at `maxTicks` it means nobody
+finished. The Arena shows "draw" between the two fighters.
+
+Before this, `a` swung first and a kill ended the tick, so side `a` won every
+exchange that was lethal both ways. Over 5,000 seeds that gave side `a` 55–64%
+of its own mirror matches (rat 55%, player 58%, cat 61%, wolf 63%, bat 64%).
+Now the two sides are within two points of each other and 9–29% of mirror
+matches are draws. No seeded figure in `duel.test.ts` moved: none of those
+fights ends on a tick where both blows are lethal.
+
+The world does not resolve it this way. `GameSession` runs attacks one actor at
+a time and a melee blow lands inside `tryAttack`, so there whichever body acts
+first on a shared tick wins a lethal exchange and the other never swings. What
+decides that is where each body sits in `actors`, and whether it attacks from
+its brain's turn or from a standing target. None of it is a fact about either
+creature, so the duel does not copy it.
+
 **Statuses are off unless a catalogue is passed**, and that is a setting rather
 than an oversight. An inflicted status costs a draw, so handing `Duel` a
 catalogue moves the dice for everything after it — which is why `duel.test.ts`
 passes none and gets the stream it always had, and why a caller comparing two
 damage curves can take the venom out of the comparison.
+
+**With a catalogue, a status follows the world's rules.** `Duel` calls the same
+functions `GameSession` calls, so each rule is written once. The exception is
+the windup after incapacitation, which the duel copies by hand:
+
+- **Immunity.** `DuelSetup.immuneTo` carries the body's `immuneTo` list, which
+  `duelSetupOf` in `arena.ts` fills from the battler, and a status a blow
+  inflicts is skipped when `isImmune` says so, which is the check
+  `GameSession.grantStatus` makes. A refused status takes no draw, as in the
+  world. Before this, the Arena poisoned the cyclops, which is immune to
+  poison, in 56 of 200 fights against the snake.
+- **Incapacitation.** A fighter holding a status that `incapacitates` does not
+  swing (`incapacitated`). Its cooldown keeps running, and when it can act
+  again the cooldown is raised to at least `swingWindupMs` of its current
+  stats. That is the duel's form of `GameSession.tryAttack`, which calls
+  `disengage` to drop the windup of a body that cannot act, arms a full one
+  when it can, and swings only once both the windup and `attackCooldownMs` are
+  spent.
+- **Ending on damage.** Damage above zero runs `endOnDamage` on the body that
+  takes it, whether it came from a blow or from a status tick such as poison,
+  in `Duel.applyDamage` as in `GameSession.applyDamage`. A miss, a dodge, a
+  blow that armour reduces to 0, and a heal end nothing. A blow that does
+  damage and inflicts sleep ends the sleep already held before it grants the
+  new one, in the same order as `GameSession.landSwing`.
 
 **Masteries and equipment are overridable; a natural weapon is not.** The first
 two are things the world can produce — a mastery is earned, a weapon is picked
@@ -5985,6 +6810,19 @@ block is a blow whose whole worth the armour ate. That is reported as
 defence that swallows a third of the blows outright and one that shaves a third
 off each of them are very different fights and can produce the same mean.
 
+**A body with a weapon in each hand gets a column per hand.** `Duel` swings the
+hands in turn and waits each blow's own interval after it. The rows about one
+swing — miss, dodge, connect, defence faced, absorbed, wound, damage range, mean
+blow, mitigated, what it inflicts — have a column per hand, headed with the
+weapon's name. The rows about the fight — attacks and damage per second, swings
+and time to kill — span the side, and `rotationOdds` works them out over one
+rotation: every hand swings once in the sum of their intervals, so each figure is
+a mean over the hands, not the sum of each hand's own rate. Attacks per second
+lists the intervals in the order the hands swing, as in `0.42 (2600ms + 2167ms)`.
+A body with one weapon, or none, is a rotation of one and keeps a single column.
+`combatMetrics.test.ts` runs `Duel` with two different weapons and holds the
+rotation's figures to what it deals.
+
 The seed is on the page for the reason it is in the world: a fight somebody
 watched and wants to ask about has to be the same fight when they run it again.
 
@@ -5992,12 +6830,13 @@ watched and wants to ask about has to be the same fight when they run it again.
 
 Being dead is the one state a client cannot infer. A body missing from the board
 is what an ordinary stale patch looks like, so `died` is a message: sent to the
-one socket, carrying the kit, and the last thing that socket hears.
+one socket, carrying the kit, the experience and what the death cost, and the
+last thing that socket hears.
 
 **Three things happen in an order, and the order is the whole design.**
 
 1. The tick that killed them broadcasts its patch *including* to them. That
-   frame is the honest one — their body gone from the cell, their kit lying in
+   frame is the honest one — their body gone from the cell, their pack lying in
    it — and it is what the death screen is drawn over.
 2. `announceDeaths` sends `died` and only then adds them to `silenced`, so the
    message is not the first casualty of the rule it announces.
@@ -6006,9 +6845,28 @@ one socket, carrying the kit, and the last thing that socket hears.
    patch of it is bandwidth spent on somebody who cannot act.
 
 **The kit rides on `died` rather than on an `equipment` message.** That message
-is read off a live runtime and a death is exactly what deletes it, so an emptied
-bag would never be announced and the panel would go on showing a sword that is
-on the floor. Normally empty; the whole kit when the cell refused the pile.
+is read off a live runtime and a death is exactly what deletes it, so a dropped
+pack would never be announced and the panel would go on showing a bag that is
+on the floor. Normally everything but the pack; the whole kit when the cell
+refused the pack. The fresh bag a rebirth puts on is not in it: that is written
+to storage, and arrives with the `hello`. The experience rides with it for the
+same reason, already less the share a death takes, so the stats panel behind
+the screen agrees with what the screen says.
+
+**The screen says what the death cost, and the server says it.** `kill` builds
+a `DeathCost` (`app/game/deathCost.ts`) from the body as it was and as it is
+leaving: whether the pack went, and each mastery that dropped a level, with
+where from and where to. It rides on `died` as `cost`, and `DeathScreen` draws
+it beside one sentence of rule that reads `XP_SHARE_LOST_ON_DEATH`, so tuning
+the share changes the words too. The client could have worked the levels out
+by comparing the `died` block with the last `masteries` one, and that is the
+diff *One source, and the client infers nothing* already argued against: the
+client's copy can be a tick behind, and a blow that paid experience in the
+killing tick never reaches it. Only levels are listed. Every mastery loses
+experience on every death, so a row per mastery would say the same thing once
+per mastery, and a mastery that lost experience but kept its level has nothing
+to show. The list's heading says "Masteries lowered" rather than naming a level,
+by the rule on notices below: there are no levels in the game's own words.
 
 **Statuses come down without being sent**, and the asymmetry with the kit is the
 point. What is left in a bag is a real question with two possible answers, so
@@ -6424,10 +7282,12 @@ thing.
 
 The baseline is now **a wielder who has just earned the weapon**: `itemCard`
 builds the comparison body out of the weapon's own requirements rather than out
-of nothing. That is a real body, so the pair answers a question a player has —
-am I getting more out of this than somebody who only just qualified — and at
-exactly the requirement the two agree and the strikethrough disappears, which is
-the honest reading of having only just earned it.
+of nothing. It reads them back through experience, so every mastery the weapon
+does not ask for sits at `MIN_EARNED_MASTERY`, as the viewer's own does. That is
+a real body, so the pair answers a question a player has — am I getting more
+out of this than somebody who only just qualified — and at exactly the
+requirement the two agree and the strikethrough disappears, which is the honest
+reading of having only just earned it.
 
 One consequence is worth naming because it looks like a contradiction. Below the
 gate the **damage** row now leans red, and falling short still does not take
@@ -6613,7 +7473,8 @@ which is the shape it should be. From Sharp 5, on rats alone:
 ```
 
 Five rats to get going; six thousand to get nowhere. Going and finding harder
-things is still the fast way up — this is a way *in*.
+things is still the fast way up — this is a way *in*. The counts predate
+`XP_RATE`, which halved every payout, so each is now about twice as many rats.
 
 **`potentialDamage` is deliberately left whole.** It is what the blow threatened
 rather than what it took, which is the question the defensive payout asks:
@@ -6983,9 +7844,9 @@ A line beginning with `/` is an instruction rather than something to say.
 `app/game/commands.ts` owns that one rule and the grammar behind it,
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
-The verbs are `/mastery`, `/tile`, `/status`, `/health`, `/goto`, `/move` and
-`/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the grammar of each, and
-is the line a player is shown when they get one wrong.
+The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/status`, `/health`,
+`/goto`, `/move` and `/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the
+grammar of each, and is the line a player is shown when they get one wrong.
 
 - **Only an administrator runs one.** The gate is in
   `GameServer.webSocketMessage`, on the `command` arm, and it reads `admin` off
@@ -7044,6 +7905,36 @@ is the line a player is shown when they get one wrong.
   "Salamander cannot be Burned" for a body whose `immuneTo` list holds it. Every
   other caller discards the answer.
 
+### Every command is answered with data as well as a sentence
+
+The sentence is for the person at the keyboard; an agent driving the page, or a
+script driving a world, needs to know whether the command worked and what it
+made without reading the chat. So `runCommand` returns a `CommandReply` as well
+as saying its sentence: `ok`, the sentence the author was told, and either the
+`refusal` or the command's `data` and the `ids` of any bodies it brought into
+the world. `RemoteSession.command(text)` resolves to it, and `say` goes through
+the same method and drops the answer.
+
+- **The frame carries a `requestId`, and the answer is a `commandReply` frame
+  with the same id.** `PROTOCOL_VERSION` went to 23 for it. `say` has no use for
+  the id, but a caller that sends two commands before either answer arrives
+  has to be able to tell the answers apart.
+- **The answer is sent from the tick, after the patch**, not from
+  `webSocketMessage` where the command runs. The command changes the board at
+  once, but the board reaches clients in the next tick's patch, so an answer
+  sent straight away would arrive before the change it reports: a caller that
+  awaited it and then read the board would not find what the command made.
+- **A player with no body on the board is answered too**, with
+  `nowhereToPlace`. The frame used to be dropped on the way in with every
+  other message from a body that is not there, which left a caller waiting for
+  an answer that would never come.
+- **`notice` is the first sentence said to the author while the command ran.**
+  `/mastery sharp 10 <player id>` tells the target one thing and the author another,
+  and the reply is the author's.
+- **The wire reads `refusal` and `data` as loose objects** with only their `kind`
+  or `command` checked, so each variant's fields cross it without a schema per
+  refusal. `v.object` would strip every field it did not name.
+
 ### `/goto` is absolute, `/move` is relative, and that is why they are two
 
 `/tile` spells the difference between a cell of the map and a step from where
@@ -7087,6 +7978,17 @@ with its feet on it, and other bodies counting as walls.
 Both verbs land through one `putBodyAt`, which moves with `moveThrough` — the
 same one a portal makes — so a body that walks somewhere and a body that types
 its way there end in one state and the client animates both the same way.
+
+**`/goto` can send any body, named last.** `/goto <x> <y> [z] [body]` moves the
+body with that actor id instead of the author, under the same `canStandIn`
+rule, asked of that body's own tile. A last word that is not a number is the
+body, which cannot be misread because no id is a number: a player's is a UUID
+and a creature's begins `npc:`. A level left off is still the author's rather
+than the body's, for the reason above: it is the floor the author is looking
+at, so a creature fetched out of a cave lands on the author's floor. The author
+is told where the body went, "Wolf is now at 5, 5, 0", because unlike their own
+arrival it may land where they cannot see it; sending themselves stays silent.
+`/move` still moves only the author.
 
 **Both are reachable in `/admin/play`**, which they were not while that page ran
 a session of its own: commands are typed into the chat field, the field is
@@ -7142,6 +8044,56 @@ on.
   `summonedOwnerId` takes the names this same command has already minted: with
   nothing adopted until the end, the runtime cannot see a clash inside one
   `/tile wolf x3` for itself.
+
+### `/spawn` is `/tile` for a body, at a cell of the map
+
+`/spawn <tile> <x> <y> [z]` puts a creature at a cell of the map. It exists
+because `/tile` cannot write one: under the sign grammar a negative number is a
+step from where you stand, so `/tile wolf -3 -12` lands three west and twelve
+south of the author, and most of the map is negative. `/spawn` is to `/tile`
+what `/goto` is to `/move`: every number is a cell, and a level left off means
+the one the author stands on.
+
+- **It places bodies and nothing else.** A tile `resolveActor` does not call a
+  body is refused with a sentence that points at `/tile`, which already puts
+  down anything. The `player` tile is refused first, on `/tile`'s terms: it is
+  not a body to `resolveActor`, so the order matters, and sending the author to
+  `/tile` would send them to a second refusal.
+- **It asks `canStandIn` before the editor's `canPlace`.** `canPlace` measures a
+  stack's height and nothing else, so on its own it says yes to a cell with
+  nothing under it and to the top of another creature, which leaves the new
+  body with nothing to stand on or standing on the other one's head.
+  `canStandIn` asks the question `/goto` asks of a typed destination, and
+  `canPlace` still runs after it because the body is placed through `/tile`'s
+  path.
+- **That path is `placeTiles`, the one `/tile` summons through.** The body gets
+  its owner id from `summonedOwnerId` and is adopted as a resident on the spot,
+  on the same terms as a body `/tile` summons: named after the cell it was put
+  in, which `residentHome` reads back as its home, unless that name is taken,
+  in which case it gets a unique name and no home.
+- **The sentence names the body's id**: "Wolf appears at -3, 12, 0 as
+  npc:-3,12,0,1". Every command that acts on a creature takes that id, and
+  nothing else on screen shows it. The reply carries it in `ids`.
+
+### `/despawn` takes a creature off the board, and never a player
+
+`/despawn <body>` removes a body by its id. It goes through `despawn`, the
+method a player's leaving goes through, rather than `kill`: the body plays its
+`disappear` and whatever it carried goes with it. `kill` would drop its kit and
+its remains on the floor and report a death nobody caused.
+
+- **A player's body is refused by name.** It belongs to that player's
+  connection: the server seats it when they enter and takes it off when they
+  leave. Removed from under a connected player, it would leave them with no
+  body until they reconnected, since the server drops every frame from a
+  player with no body on the board.
+- **It is not a death, so the server's respawn bookkeeping does not see it.**
+  `GameServer` re-arms a respawn point when its body dies, when the cell the
+  point was authored in changes, and when the world loads. A creature with an
+  authored respawn point that is taken off its own cell is therefore back after
+  its delay; one taken off anywhere else is not re-armed until the world next
+  loads. A creature with no respawn point, and every body `/spawn` or `/tile`
+  put down, is gone for good.
 
 ### `/time` moves the world's clock, for everybody
 
@@ -7284,10 +8236,11 @@ single-element forges (`stone-forge-cinder`, `-flame`, `-spark`, `-bolt`,
 
 | spends                  | gives                                                         |
 | ----------------------- | ------------------------------------------------------------- |
-| 1 blank stone           | one of: Spark 3, Cinder 2, Sleet 2, Barbs 2, Flame 1 (weights) |
+| 1 blank stone           | one of: Spark 3, Light 3, Cinder 2, Sleet 2, Barbs 2, Flame 1 (weights) |
 | 2 Cinder / Sleet / Barbs / Spark | Ember / Frost / Thorns / Bolt, 100%                  |
 | 2 Ember / Frost / Thorns / Bolt  | Pyre / Rime / Bramble / Lance, 75%                   |
 | 1 Frost + 1 Thorns      | Verdance, 100%                                                |
+| 2 Verdance              | Bloom, 75%                                                    |
 
 Blank stones come from the cave troll's kit at 10% (it was 100%), and once per
 player from a quest chest (`troll-stone`) where the troll's own forge used to
@@ -7597,6 +8550,21 @@ nothing, so it is worth clearing the room or bringing somebody to watch the
 door. This is only how *these* caves work; another dungeon is free to want
 something else.
 
+Every finished pull throws a spray of chips that starts white and runs through
+the crystal's own mint, cyan and blue (`#affcdb`, `#53d5cf`, `#225ac0`), and the
+spray grows with the crystal: about 10, 15 and 22 particles. It is born over
+less than a fifth of a second so the chips leave together and separate. An
+earlier spray, born over 300 ms with twice as many chips, overlapped into one
+white blob on the crystal.
+
+A crystal arrives on a sweep and leaves on a noise dissolve, each 700 ms with
+a mint (`#affcdb`) edge. The sweep starts at the bottom-right corner of the
+sprite, where the crystal stands, and ends at its tip in the top left, so a
+respawned crystal fills in from its base up. The dissolve plays on the pull
+that mines a crystal out, beside the spray. The edge is the crystal's lightest
+colour and is drawn after the light is applied, so it shows at full strength
+in an unlit cave.
+
 ### The row greys rather than vanishing whenever the refusal is not about the world
 
 **A missing row and a greyed row are different facts, and the list has to say
@@ -7722,6 +8690,66 @@ player's pull is still running on the body they left.
   being that thing" a check rather than a special case, and it is what stops a
   reservation being handed back to whatever tile replaced the one it was taken
   from.
+
+### A finished pull plays the resource's pull effect
+
+`extract.pulled` is a `Transition`, authored on the tile editor's Effects tab
+in a section called **Extract**, which is there only while the tile has an
+extract block. It plays each time a pull lands, whatever the roll came up
+with, for the reason a pull that found nothing is still spent: the effect
+shows the resource being worked, not what came out of it.
+
+- **It is on the extract block rather than a third side of `transitions`.**
+  That is where the projectile `hit` went, for the same reason: only a tile
+  with the block can ever play it, so no other tile carries the field. Being a
+  `Transition` gives it the dissolve, the scale, the drop and the burst budget
+  without new code. `resolveExtract` drops a malformed one and keeps the
+  block, because an effect that does not parse must not stop anybody mining.
+- **It is raised on the placement as an `appear`.** `GameSession.notePull`
+  raises it from `finishExtraction`, once the pull has been spent and only if
+  the tile authored one, so a deer picking a bush costs nothing. A resource
+  with pulls left stays on the board and has to end drawn as itself, which is
+  why a struck body's hit is an `appear` too. The note names the resource and
+  carries `pulled: true`, and `transitionForNote` reads the effect off the
+  extract block rather than off the tile's own `appear`, since a tile may
+  author both.
+- **The last pull plays the pull effect's burst where the resource stood, and
+  the resource's own disappear.** The same tick removes the crystal, or swaps
+  the bush for `picked-bush`, so `markForming` finds nothing to dress and
+  `throwBurstWhereItStood` finds the resource in `prevMap` through
+  `formerSlot` — the path a killing hit already takes. A dissolve or a scale
+  on the pull effect has no sprite left to act on. The resource leaving is
+  shown by its own `disappear` instead, which `spendPull` raises along with an
+  `appear` for what the resource turns into: the two notes a decay raises. A
+  switch or a plate plays nothing when it swaps a tile, because what it swaps
+  in is the same object in another state. A last pull spends the resource, as
+  a decay spends a tile.
+- **A new field on a motion event needs the schema as well.** `v.object`
+  strips a key it does not name, so without `pulled` in `serverMessageSchema`
+  the flag disappears on the client and the note plays the tile's own `appear`
+  instead, with no error and nothing logged. `protocol.test.ts` carries both
+  fields that point a note at an effect other than the tile's own sides,
+  `struckBy` and `pulled`. `PROTOCOL_VERSION` went to 24 for it.
+- **Every pull effect in `data/tiles.json` is checked against the parser.** A
+  single value outside `particleEmitterSchema` drops the whole effect without
+  a word, and nothing else notices: a spray written with `gravity: -40`, below
+  the schema's floor of -32, plays nothing in the world while every other test
+  passes. `extract.test.ts` asks each authored `pulled` to resolve.
+
+### A craft plays the crafter's success or failure
+
+`craft.succeeded` and `craft.failed` are `Transition`s on the craft block,
+authored in two Effects-tab sections that show only while the tile has one.
+`GameSession.noteCraft` raises one as an `appear` on the crafter, carrying
+`crafted: "succeeded" | "failed"`, and `transitionForNote` reads it off the
+craft block. It is the pull effect's path in every respect: a malformed effect
+is dropped and the recipes kept, the crafter stays on the board so
+`markForming` dresses it, `crafted` is in `serverMessageSchema` (protocol 25),
+and `craft.test.ts` asks each authored one to resolve.
+
+**Failed means nothing was made**: the inputs are spent and every chance roll
+missed. Only an `all` recipe with a chance below 100 can fail. A recipe that
+makes some of its outputs has succeeded.
 
 ## A brain can name a place, work it, and eat what came out
 
@@ -7944,9 +8972,9 @@ therefore be held, chilled or burned by a spell and notice nothing — a rabbit
 stood still while a snake wound round it, because the hold takes no health and
 there was no swing to read.
 
-`castBolt` notes it too now, on the swing's own terms: before anything lands, so
-a killing bolt still tells whoever was hit who did it, and only for a bolt at
-somebody *other* than its caster.
+`landBolt` notes it too now, on the swing's own terms: as the bolt arrives and
+before its damage or status is applied, so a killing bolt still tells whoever
+was hit who did it, and only for a bolt at somebody *other* than its caster.
 
 **Any bolt, rather than only one that takes health.** A spell whose whole effect
 is the status it leaves is exactly the case this exists for, so "did it hurt" is
@@ -7955,6 +8983,27 @@ opinion about what counts as friendly in the engine — `tone` is authored for t
 strip's colour and sort order, not for deciding who to be angry at. A mend thrown
 at somebody else is authorable, reads as provocation, and is a strange enough
 thing to author that being glared at for it is fair.
+
+**A conjure that lands under somebody else is an attack too.** `castConjure`
+notes hurt for the body its tile lands under, whether it was cast at that body
+or landed under whoever stood in front, on the bolt's terms: before the tile
+grants its status, and only for a body other than the caster. A conjured
+flame does all its damage through Burned, and a status's payout notes nothing,
+so without this a creature standing in one never learned who put it there. A
+sleeper reads the note on its first turn after the first payout wakes it; see
+"Hurt waits for a body that cannot act".
+
+**A payout is not an attack of its own.** A burn or a poison outlasts the moment
+it was dealt, and its causer may have walked off or died by the time it pays
+out. A creature that counted each payout would go after that causer again every
+250ms of Burned, re-entering its hunt and making its `onEnter` noise each time
+the causer was out of range.
+
+A creature woken in a flame leaves it only if its brain says so. The bog imp
+asks `in_harm` before it answers and steps out; see "A brain can ask whether it
+is standing in one". The wolf does not ask: it steps out toward a caster beyond
+its reach and fights from inside the flame against one within it. The cyclops is
+immune to Burned.
 
 ### A brain aims by pointing
 
@@ -8110,9 +9159,9 @@ wording is shorter than an item card's for the same reason: a card has room to
 say a shot is a shot and this cell does not.
 
 **Under the masteries, not over them.** What you have practised is what you are;
-this is what it currently comes to with a weapon in your hand. On a body that
-has earned every mastery the block therefore starts below the panel's fold,
-which is the cost of that ordering.
+this is what it currently comes to with a weapon in your hand. Every body lists
+every mastery, since none reads below `MIN_EARNED_MASTERY`, so the block starts
+below the panel's fold, which is the cost of that ordering.
 
 `Attributes` is a projection of `FightingStats` and not the block itself. Half of
 that block is not a reading: `accuracy` is a position in a contest, `variance` is
@@ -8245,11 +9294,14 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
 - **`denned` casts the wolf's own spell, Curl up, then holds.** Curl up is a
   bolt `on: "caster"` that applies the `sleep` status, so the wolf heals, cannot
   act, and its brain stops until the status runs out or it takes damage. Then
-  the brain runs again: by day it is still `denned` and casts again; at night
-  the row out of `denned` fires first. The line names no `of`, which is how a
-  `cast` says "no target" — see the next section. The spell has no
-  `castTimeMs`, because the minimum is 200ms and an instant cast is the absent
-  field — and one invalid spell drops the wolf's whole battler block.
+  the brain runs again. If anybody attacked it in its sleep — a blow, a bolt, a
+  conjure under it — `attacked` fires first, below, unless the `slinking` row
+  above it holds; otherwise by day it is still
+  `denned` and casts again, and at night the row out of `denned` fires first.
+  The line names no `of`, which is how a `cast` says "no target" — see the next
+  section. The spell has no `castTimeMs`, because the minimum is 200ms and an
+  instant cast is the absent field — and one invalid spell drops the wolf's
+  whole battler block.
 - **The sight rows are gated on awake**: hunting a player or a deer it can see,
   and going for meat it can see. A sleeping wolf with somebody standing in front
   of it does nothing.
@@ -8274,6 +9326,11 @@ nobody in one way: it never touches `actor.targetId`.
 - **A spell that needs a target is refused for a line with no `of`**, even when
   the creature already points at somebody. "No target" means the same thing
   whatever the brain did before it, so the line falls through.
+- **Except a conjure, which lands in front of the caster.** A player's press
+  with nobody picked already lays a conjure in the cell they face, so a line
+  with no `of` does the same: `castForBrain` clears the creature's aim and
+  casts. Clearing is what makes it "in front" rather than "under whoever it was
+  pointing at". The bog imp's Make fire is the line this exists for.
 - **There is no `self` selector.** Attacking, walking to, extracting from or
   eating yourself mean nothing, so every other action taking a selector would
   have to refuse it. The one action where "me" means something is `cast`, and
@@ -8283,6 +9340,196 @@ nobody in one way: it never touches `actor.targetId`.
   spell lands on its caster. Picking such a spell drops a stale `of` from the
   row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
   selector no control displays.
+
+## A ranged `after` staggers creatures that decide on the same round
+
+`after` takes an optional `toMs`. With it, the wait is somewhere from `ms` to
+`toMs`, drawn once per visit to the state. Every creature in a brain round reads
+the clock the same round, so a fixed wait makes every one of them act on the
+same tick. That is the bog imps at dusk: all of them find no fire, all of them
+start `Make fire` together, and none sees another's fire until its own is lit.
+A drawn wait lets the first to finish light it and the rest see it first.
+
+- **One draw per visit, shared.** `BrainMemory.patience` is a roll in `[0, 1)`,
+  cleared on every state change and drawn the first time a ranged `after` is
+  read. Two ranged `after`s in one state scale the same roll, so the shorter
+  range always fires first, which is what an author reading them expects.
+- **Drawn lazily, from the world's dice.** A brain with no ranged `after` never
+  draws, so authoring one on the imp does not change what any other creature
+  rolls. It costs a draw even when both ends are equal, for the reason decay's
+  does.
+- **Inverted is malformed.** `toMs` below `ms` fails the schema, as a decay
+  range does.
+
+## `attack_range` stands where the weapon strikes from
+
+`step_toward` walks until it is beside somebody, which is right for a sword and
+wrong for a bow: a bow has a `reach.min`, so beside is the one place it cannot
+shoot. `attack_range` asks the weapon instead. The session answers
+`BrainContext.standOff` with one of three words, and the action backs off, walks
+up, or fails so the line below it — the `attack` — gets its turn.
+
+- **The reach is the first hand holding a weapon, else the body's own**, in
+  `HANDS` order, which is the order `tryAttack` offers them. It is the weapon's
+  number and nothing in the brain, so one line serves an imp that rolled a mace
+  and one that rolled a bow.
+- **In position is anywhere the weapon reaches, and no closer.** It stops the
+  moment the target is in reach, so a bow shoots from as far out as it can
+  and anything melee ends beside the target. Only inside a `min` is it too
+  close.
+- **It was a ring once, and the ring oscillated.** The first version aimed a
+  bow at a band from `min` to one cell past it. A standing walk order takes a
+  step whenever the body is idle, and the brain only clears it on its next
+  round, so a body carries one step past wherever the brain last looked. In
+  play the archer imp crossed the band, backed off, crossed it again, and
+  every step reset its windup, so it never loosed an arrow. The whole reach
+  is many cells deep, and one step of overshoot stays inside it.
+- **A wall makes it too far**, because `canReach` is asked with the line of
+  sight, and the walk up routes round the wall. Too close is a flee from where
+  the target stands, on `step_away_from`'s machinery.
+- **It judges only between steps.** While a step is in flight it reports
+  `running` and does nothing else: the cell a body is leaving is not where it
+  will be when the answer is acted on. The brain's round is one walk long (`BRAIN_TICK_MS` is
+  `WALK_DURATION_MS`), so waiting costs no pace: the imp walks up at a cell per
+  200ms. `walk_n_steps` waits on `busy` for the same kind of reason.
+
+## The bog imp and the cyclops
+
+Two creatures on the green goblin and the cyclops in `animals.png`, authored in
+`data/tiles.json`. Two brain changes came with them: `attack_range`, and a
+`cast` with no target that lays a conjure in front of the caster.
+
+### The bog imp
+
+**Its weapon is a weighted table on one hand.** The four rung-15 weapons —
+knight's sword, broad axe, iron mace, hunting bow — each come up a quarter of
+the time. `equipmentFromKit` gives the hand to the first entry that rolls, so
+the chances are 25, 33.34, 50 and 100: each is a share of what the rows above
+left. Four flat 25s would parse and arm three imps in four, with the bow on
+forty percent of them. `battlerKit.test.ts` holds the split. Rung 15 rather
+than rung 10 because rung 10 has no bow, and a bow was asked for.
+
+**Its masteries sit below the weapons it holds, on purpose.** Sharp, Blunt and
+Ranged are 12, three points short of every weapon in the table, so it pays the
+handling charge on accuracy and swing rate and keeps the full damage. At 22,
+the first figure tried, an earned player (Sharp 15, a knight's sword and a
+cloth tunic) won 1–10% of duels against the melee imps. At 12, measured with
+`runDuel` against the same player:
+
+```
+                      player wins     wolf wins
+  wolf                   0.76
+  imp, bare            0.71–0.81      0.39–0.72     (sword, axe, mace)
+  imp, all armour      0.47–0.52      0.02–0.04
+  imp, bow             0.93           0.85          (in contact: no range)
+```
+
+Each armour piece is 25%, so most imps are near the first row: about a wolf in
+contact, plus the stone and, on a quarter of them, a bow that opens the fight
+from eight cells. That is "a little stronger than a wolf". The bow row is low
+because `duel.ts` has no distance in it. It fires the bow point-blank like the
+other three weapons, so the imp pays for the bow's reach in accuracy — the
+hunting bow is authored at 40 against the knight's sword's 90, and the imp
+lands about a third of its shots — and never gets to use that reach. In the
+world the imp shoots from range and backs off to keep it.
+
+**Throw stone is its second spell and the hunt names it by position.** A bolt
+at the target for 12, variance 30, 500ms to cast, eight seconds to cool, nine
+cells of reach. It asks for nothing, so it is castable with no Arcane and does
+its authored damage — about half a rung-15 weapon's blow. It flies as
+`thrown-stone`, a new one-cell projectile on the unused grey pebble at
+`tiny-ranch-tiles` (11, 14). Curl up is spell 1 because the sleep rows were
+written against the wolf's layout; the hunt's `cast` names spell 2, and a test
+fails if that ever puts the imp to sleep in front of its prey.
+
+**Bedtime is two rows per roaming state, a fire first.** At night, from each
+state it roams in, the imp goes to `to_fire` if a `flame` or a `campfire` is
+within 16 cells (binding it as `$fire`), and to `making_fire` otherwise.
+`to_fire` walks to the fire and sleeps once within two cells. `making_fire`
+casts its third spell, **Make fire** — a conjure of `campfire` with no target,
+which lands in the cell it faces (see *A brain `cast` can name no target*) —
+and the next round finds the fire within three cells and goes to `to_fire`. A
+wall in front refuses the conjure, so the line below it takes one step, which
+turns the imp, and it tries again; after eight seconds with no fire it sleeps
+anyway. Being stuck on the way to a fire counts as arriving.
+
+`campfire` is `flame` with a `decay` of ten to thirteen minutes: a night is
+eleven game hours, which is eleven real minutes, and a fire every imp lit and
+nobody put out would pile up across the map. The cooldown is a minute, so an
+imp woken in the night and driven off lights at most one more.
+
+**It roams 32 cells from its spawn and lets a chase or a meal take it to 36.**
+That makes `brainReach` 36, and `brainReach` is also how far a `thing` search
+looks. A hungry imp with no food or bush in sight rings out to 36 cells every
+round looking for one, where the wolf stops at 20. The rows put the day and
+hunger gates before the `in_los` on a thing, so a fed imp, or any imp at
+night, never asks.
+
+**The hunt keeps its distance with `attack_range`.** The line order is the
+stone, then `attack_range`, then `attack`: an imp holding a bow stops as soon
+as its prey is within the bow's eight cells and backs off only inside two, and
+one holding a sword, an axe or a mace walks up beside it. See *`attack_range` stands where
+the weapon strikes from*.
+
+Both creatures have `swims: true`, so a river is a way through rather than a wall for either of them.
+
+It hunts the player on sight by day whether it is hungry or not, and wolves,
+rabbits, deer and rats only when it is hungry (`fed` under a minute left). It
+eats raw meat and berries off the ground, picks bushes into its bag and eats
+from there as the deer does, and is immune to food poisoning. The bag holds a
+torch and, half the time, a second one. Torches in a bag light nothing —
+`carriedLightTileIds` reads worn squares — so they are loot, not a lamp.
+
+### The cyclops
+
+**It is a boss, and it is meant to take a group.** No home rows: it wanders,
+hunts, eats and sleeps where night finds it — every roaming state goes to
+`sleeping` on `time_of_day 19→6` and back to `wandering` by day, with no
+`below_level` term, so it sleeps at night underground too. Sleep heals a whole
+bar in twenty seconds, so a group that leaves it to sleep starts again.
+
+- **Toughness 100**, the top of the mastery scale, is 20 defence on its own;
+  the maul and the basic armour bring it to 24. A player at Sharp 15 with a
+  knight's sword takes off 0.4% of it before dying.
+- **`baseHp` 1800**, 2000 hit points in all against the troll's 210.
+- **Blunt 30**, three short of the war maul it holds three times in four —
+  "the strongest mace" read as the top of the blunt family. At
+  25 it swung the maul at half the rate and a lone veteran lasted 55 seconds
+  instead of 24, which makes it a long solo fight rather than a group one.
+- **Immune to `burned`, `chilled`, `poison` and `paralysed`** — every status a
+  stone or a creature's spell leaves today, plus the snake's hold — and to
+  `food-poisoning`, since it eats raw meat. Not `sleep`, which is its own
+  spell. `battle.test.ts` fails when a stone gains a status the list lacks.
+
+What a veteran does to it alone — 33 in everything, rung-33 weapon, chain
+mail, iron helm, hobnailed boots — measured with `runDuel`:
+
+```
+                          takes off   dies in
+  maul                      7.7%        24s
+  longsword + iron shield   6.2%        24s
+```
+
+Nobody wins alone. With N players fighting at once and the cyclops killing one
+at a time, the damage it takes is about `N(N+1)/2` solo attempts' worth, so
+at 6–8% a solo it needs five veterans. The duel has no statuses, no range and
+no healing, so that is a floor on how many, not a promise.
+
+It respawns after thirty to forty-five minutes. Its bag holds a blank arcane
+stone one time in ten, and the rest of its gear is the bottom rung — cloth
+tunic, leather cap, worn boots, 50% each.
+
+It hunts the player on sight inside five cells and rats, rabbits, snakes, bats
+and deer inside six, all by day, and eats raw meat when it is hungry.
+
+### The facings are a guess
+
+The goblin and the cyclops blocks are laid out in the troll's order, so the
+tiles read them that way: north, east, south, west, two frames each,
+left to right and then (for the cyclops) top to bottom. Nothing can check
+that — see *A walk cycle in the wrong row is a bug only a person can see* —
+and the facings want looking at in the game. The cyclops's 4×4 frames stand
+on base cell (3, 3), the bottom-right.
 
 ## A status can stop its bearer acting, and damage can end one
 
@@ -8297,9 +9544,11 @@ status on the list has `incapacitates`. The gates:
 - `GameSession.applyStepRequest` and `faceActor` refuse steps and turns, which
   covers held input, a client's `requestStep`, and a creature's walk order.
 - `tickOneBrain` returns before the brain is stepped and drops the standing walk
-  order. The brain's clocks stop, so it picks up where it left off.
-- `tryAttack` refuses and disengages, so auto-attack and a brain's `attack` both
-  stop. The target stays picked.
+  order and attack order. The brain's clocks stop, so it picks up where it left
+  off, and its hurt stays queued for its first turn awake — see "Hurt waits for
+  a body that cannot act".
+- `tryAttack` refuses and disengages, so auto-attack, a brain's `attack` and an
+  attack order pressed between turns all stop. The target stays picked.
 - `castability` refuses with `incapacitated` (`CastContext.incapacitated`), so
   the spell buttons dim on the client from the same function.
 - `readyToAct` is `idle` plus not incapacitated, and every board act and kit act
@@ -8325,6 +9574,35 @@ to nothing do not wake anybody. Any source counts — a blow, a bolt, a status
 tick, something harmful eaten, `/hp` — because they all come through there. The damage itself still
 lands. In `tickStatuses` the advanced list is written back before the hp changes
 are applied, so a poison tick that wakes a sleeper is not undone by the write.
+
+### Hurt waits for a body that cannot act
+
+A swing, a bolt and a conjure note their attacker in `pendingHurt` under the
+body they hit, and the name waits there until that body takes a turn in which it
+can act: `takeHurt` hands the names to the turn and clears them. `attacked` binds
+the most recent, so a creature struck in its sleep by one body and woken by
+another turns on the second. A name can be as old as the sleep, so one whose
+body has left the world by then is dropped. Only residents are noted, because
+only a resident takes a brain turn to clear its entry.
+
+Speech and sounds are copied into the round that follows them, and hurt used to
+be too. It is news for one body rather than for everybody, and copying it per
+round lost it twice:
+
+- **A creature that puts itself to sleep curled straight back up.** The wolf,
+  the bog imp and the cyclops cast Curl up from a state that does nothing else,
+  so a creature woken by damage is still in that state, and its next turn casts
+  Curl up again unless `attacked` fires first. A round's turns are spread over
+  several ticks once more than `BRAIN_TURNS_PER_TICK_MIN` creatures are taking
+  them, so a blow could wake a creature after its round's copy was taken and
+  before its turn. That turn cast Curl up, and the next round, which named the
+  attacker, found it asleep and dropped the name. Reading the queue on the turn
+  itself closes the gap.
+- **An attack that does not wake the body was forgotten.** A miss, a blow its
+  armour soaks, a bolt that only leaves a status and a conjure under it all note
+  hurt and end nothing. The body reads them when it wakes, however long that
+  takes. A flame conjured under a sleeper is the case that matters: its first
+  Burned payout is what wakes it.
 
 ## A status can be a gamble, and a body can be immune to one
 
@@ -8387,7 +9665,8 @@ there was anything to grant at all.
 spends hit points once a second — so a helping per payout means the two clocks
 do not beat against each other. It is also exactly thirty ticks, which is what
 lets `ActorRuntime.standingStatusMs` be compared against it with nothing but the
-float slack `COOLDOWN_EPSILON_MS` absorbs. The accumulator is *drained* rather
+float slack `reached` allows (see "A clock counted in ticks runs out on its last
+tick"). The accumulator is *drained* rather
 than zeroed on each payout, for the same reason a status's own is: a tick is not
 a whole number of milliseconds, and zeroing would lose the remainder every
 second and drift a standing body a tick further behind each time.
@@ -8683,7 +9962,7 @@ The editor previews every formula against a body that is under nothing, so
 `has_status('combat')` reads 0 there, and the snapped cadence it reports is the calm
 one.
 
-## A dead body's bag is destroyed and its contents spill
+## A dead creature's bag is destroyed and its contents spill
 
 Dropping the pack whole was the simpler rule and it made a killing a single
 pickup: one bag on the ground, everything inside it, gone in one gesture and
@@ -8693,12 +9972,53 @@ walk over it rather than a tap.
 
 The bag slot alone, though a hand may hold a container too. That slot is not a
 place a container happens to be, it *is* the inventory — a pack carried in a hand
-is a thing you are holding on exactly the terms a crate is, and widening this
-would mean a player who died carrying a chest lost the chest. Nothing nests, so
-one level of spilling is the whole of it.
+is a thing you are holding on exactly the terms a crate is. Nothing nests, so
+one level of spilling is the whole of it. A deer that had picked a bush leaves
+the berries it was carrying.
 
-It applies to players exactly as it does to a deer, which is the point: there is
-one death, and a deer that had picked a bush leaves the berries it was carrying.
+### A dead player leaves their pack, whole, and keeps the rest
+
+A player used to die on exactly those terms. That did not make people quit,
+but it made it hard for anybody to build up, since every death sent them back
+to the starting kit. So a player's death now costs the pack and nothing else.
+`dropPack` lays the bag down as it is, contents and all, the same placement a
+drop from the bag slot makes; the hands, the armour, the accessory square and
+the rest stay on the body and ride out on the `Death`.
+
+It brings back, for players only, the single pickup the rule above removed: the
+pack is one thing, and whoever reaches it first takes all of it at once. That is
+accepted, because what is at stake is the contents of one bag rather than
+everything the player owned.
+
+A pack held in a hand drops too. `packSlots` counts an equippable bag in either
+hand as a pack, on the back's terms rather than a crate's, because otherwise
+moving the pack into a hand before a fight would keep it, and the rebirth would
+still put a new one on the bare back. Anything else held, a chest included,
+stays with the player.
+
+The other half of what a death costs is experience, below.
+
+### A death takes a share of every mastery's experience
+
+`kill` hands the `Death` the player's experience after `experienceAfterDeath`,
+which takes `XP_SHARE_LOST_ON_DEATH` (5%) off every mastery's total, and
+`GameServer` writes that to the `mast:` row in the batch that drops the body.
+It is a share of the whole total rather than of the progress into the current
+level, so it costs more the further a mastery has come. The curve is squared,
+so 5% of the experience is about 2.5% of the level: a player exactly at 10
+drops to 9, at 40 to 38, and at 100 to 97. One far enough into a level can
+lose the same share and keep the level.
+
+There is no floor of its own. `levelForXp` never reads below
+`MIN_EARNED_MASTERY`, which is what stops a death taking the last point of an
+element (see *Experience never reads below level 1*), so this rule does not
+have to know about elements. A new player at Arcane 5 drops to 4 on their first
+death.
+
+The share is taken off the `Death` rather than off the runtime, because the
+runtime is deleted in the same call. So no live body ever holds the reduced
+figure, and `grantExperience`, which is where a level-up is said, is never
+asked about a level going down.
 
 ## A sign is read to you; everything else waits to be asked
 
@@ -8748,7 +10068,7 @@ version lives on the file rather than in a one-off sweep at load.
 
 ## A body leaves what its tile says it leaves, and it says who and by what
 
-A death already put everything a body owned on the floor. What it did not leave
+A death already put a body's belongings on the floor. What it did not leave
 was any trace of *whose* death it had been: walk past the cell an hour later and
 there is a sword and a loaf of bread, exactly as there would be if somebody had
 dropped their bag. So a body may now leave one more thing.
@@ -9065,10 +10385,13 @@ rule is **anything that was not on the board and now is plays its appear**:
 `castConjure`, `/tile` (each placement a count makes — a pour into a pile
 makes none), `respawnAt`, `spawn` placing a player's body (a join, a rebirth,
 a wake whose body was reaped — not the re-seat after an editor save, which
-passes `announce: false`), and what a decay turns into. A disappear is a
-decay, a death (`kill`, where the body fell) or a player leaving (`despawn`). A thing that moved — a drop, a pickup, loot out of a kit, gravity
-— existed all along and plays nothing, and neither does a tile swapped in
-place by a switch, a plate or an extraction. All of it only when the tile
+passes `announce: false`), and what a decay or a resource's last pull turns
+into. A disappear is a decay, a resource's last pull (`spendPull`), a death
+(`kill`, where the body fell) or a player leaving (`despawn`). A thing that
+moved — a drop, a pickup, loot out of a kit, gravity — existed all along and
+plays nothing, and neither does a tile swapped in place by a switch or a
+plate. Every finished pull also plays the resource's own pull effect (see "A
+finished pull plays the resource's pull effect"). All of it only when the tile
 has that side authored; everything else changes instantly, which is what
 every tile did before this existed, and costs the wire nothing.
 
@@ -9122,8 +10445,9 @@ merged batches carry nothing extra. Three consequences worth knowing:
   the input path can go out before the tick that carries the event. By then the
   tile may already be in the batch, and the batch's merged-signature compare
   cannot see the difference, so a tile the drawn board already holds has its
-  chunk rebuilt at once. A disappear cannot be late: decay only happens on a
-  tick, and a tick's events ride with its patch.
+  chunk rebuilt at once. A disappear cannot be late: decay and a timed pull
+  end on a tick, whose events ride with its patch, and an untimed pull's note
+  is queued for the same patch as its cells.
 - **A body forms by its name, not its cell.** A placement with an owner or an
   item id (`placementIdentity`) is found by that, so a creature that steps in
   the first half-second of its respawn goes on forming in the next cell. Its
@@ -9198,6 +10522,14 @@ milliseconds each, so a 700 ms effect is over by the second frame. To look at
 one, raise its duration in `data/tiles.json`, post the file to the dev server
 (which, under `bun dev`, writes the file too — that is the editor's save path),
 and put it back afterwards.
+
+A CDP screencast (`Page.startScreencast`) sees it at its real speed. It hands
+over every frame Chromium composites, and in `/admin/play` an administrator's
+`/tile <id> +1` puts the tile being watched beside them. Headless Chromium
+draws the world in software WebGL at three or four frames a second, so most of
+what the screencast sends are repeats of the same canvas: keep the frames
+whose pixels differ and read those. The editor's preview draws a much smaller
+scene and runs far faster.
 
 ## Fire divides its fuel, which is the only reason a forest survives one
 
@@ -9422,6 +10754,12 @@ been erased in the editor persisted the unstartable map and destroyed the only
 startable copy left. The session is now built first, from the incoming map, and
 storage is untouched until it exists.
 
+The move from Durable Objects to Bun reintroduced the bug in the HTTP handler:
+`POST /api/map` wrote the map itself and then called `replaceWorld`, so a save
+of a map with no marker still replaced the stored map before the session
+refused it. The handler now only parses the body and hands it to
+`replaceWorld`, which is the one place the map is written.
+
 **Never read the world you are replacing.** `replaceWorld` used to open with
 `ensureLoaded()`. Once the stored map could not start, that threw — so the
 editor could no longer save the very fix that would have repaired it. Putting
@@ -9436,13 +10774,46 @@ once goes on failing long after the cause is fixed.
 The editor gives no warning before you erase the marker — it is an ordinary
 tile in the stack. The server refusing the save is the whole of the safety net.
 
+### A save removes what does not fit, and never the marker
+
+`removeUnfitPlacements` (`app/lib/validation.ts`) runs over every map that is
+saved: in the editor before it sends the map, and in `replaceWorld` before the
+session is built, so a placement that does not fit is never written. A
+placement does not fit when `fitsTile` would refuse to put it where it stands,
+on the placements under it in its own stack: on a stack that already reaches
+the next level, overflowing into a level that holds anything, or making the
+stack taller than two levels. The refusal `fitsTile` gives the cell *above* an
+overflowing stack is left out. It is the same conflict seen from the other
+side, and taking the overflowing placements off the stack below settles it
+without touching the cell above.
+
+It exists because a height can change under placements that were legal when
+they were made. When `barrel` went from 2 to 3 units, four cells of
+`data/map.json` holding two barrels — exactly a level until then — overflowed
+into the rock, wall or floor above them. Nothing reported it: the editor checks
+a placement when it is made, and nothing checked the map again.
+
+Two things are left alone on purpose. A placement whose tile is missing from
+the catalogue has no height to judge, and removing it would let a renamed tile
+delete every placement of itself on the next save. The `player` marker is
+never removed: a marker that does not fit refuses the save with a message
+naming its cell, the way a map with no marker is refused, because a map
+without it cannot start.
+
+The editor applies its removal through `commitMap`, so it is one undo step, and
+lists what it removed in a notice that stays until it is dismissed. The server
+finds more to remove only when its tile catalogue changed after the editor
+loaded. The route's loader runs again after every save, and `hydrate` replaces
+the editor's map with the saved one when the two differ.
+
 ## Map mutations must be undoable
 
-Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
+Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeUnfit`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
 
 - Do **not** assign `map` via `setState`, mutate stacks in place, or call `mapData` helpers and write the result into the store yourself.
 - Discrete edits (backspace/delete, stack panel trash/reorder/direction, tile picker append, shape stamp) use plain `commitMap(next)` so each gets its own undo entry.
 - Paint drags use `beginStroke` → `commitMap(next, { coalesceInStroke: true })` → `endStroke` so the whole drag is one undo step.
+- Saving calls `removeUnfit` before the map is sent, so taking off the placements that do not fit is one undo step of its own.
 - If you add a new map-editing path, wire it through `commitMap` and confirm ⌘Z undoes it before considering the work done.
 
 ### The bucket fills blank cells, bounded by the level's own extent
@@ -9555,9 +10926,31 @@ reading the flicker note above first.
 
 `ParticleEmitterDef.shape` is null (a circle sized by the radius fields) or five
 rows of five characters, `#` for a pixel and `.` for none, top row first. A
-shape is drawn one world pixel per character, so the radius fields are not read
-for it, and the taper does not shrink it; the ramp and the alpha range colour
-and fade it exactly as they do a circle. Sleep's rising Z is the first one.
+shape is sized by `sizeFromPx` and `sizeToPx` instead of the radius fields, read
+over its life and multiplied by the taper exactly as a circle's radius is. The
+ramp and the alpha range colour and fade it exactly as they do a circle. Sleep's
+rising Z is the first one.
+
+**A shape is drawn in whole world pixels at any size.** Its quad is the size in
+pixels across and starts `floor(size / 2)` pixels left of and above the
+particle, so an even size starts on the grid as well. The particle shader
+samples the atlas at the centre of each world pixel rather than at each
+fragment, with the same arithmetic `TRANSITION_GLSL_SNAP` uses for a shrinking
+tile. Once zoomed, a fragment is smaller than a world pixel, and a shape at 7
+sampled per fragment splits world pixels between two of its texels. So 5, 10 and
+15 draw every character as the same square, and any other size doubles or drops
+some rows and columns, as a shrinking tile does. Unlike the transition, the
+sample needs no nudge off a texel edge, because it never lands on one: the
+centre of world pixel `i` in a shape drawn `n` across is `5(2i + 1) / 2n` texels
+in, an odd number over an even one. A circle is drawn one texel per world pixel,
+so its sample lands on the texel it always did.
+
+**A blank `sizeToPx` holds the first size.** Both fields are optional:
+`sizeFromPx` defaults to 5, one world pixel per character, and `sizeToPx` to
+null, which reads as `sizeFromPx` for the whole life. A block written before
+shapes had a size draws as it did, and a shape that keeps one size is one
+number. A second size that defaulted to 5 would instead shrink a shape authored
+at 10 back to 5 over its life. A size that rounds to 0 draws nothing.
 
 **Shapes live in the same atlas as the circles**, so every particle is still one
 material and one draw. `particleLayer.ts` keeps `SHAPE_SLOTS` 5×5 cells under the
@@ -9578,12 +10971,44 @@ every other test.
 daylight; the cost is that a sleeper in a pitch-black room shows its Z's. Where
 it crosses the player sprite, which is also mostly white, the two run together.
 
+**Sleep's Z shrinks from 5 pixels to 1 over its life**, and a shape drawn 1
+pixel across is only its centre character. So the Z ends as the `#` in the
+middle of its middle row, and a Z redrawn without that `#` shows nothing once it
+reaches 1.
+
 ### A plume sorts as a two-high tile on top of the affected stack
 
-Not per particle. Every spark of one emitter carries the same depth box, so a
-particle that has drifted a cell away still sorts where the fire is. Boxes
-derived per particle would have sparks crossing the sprite's own depth as they
-rose, and a fire that flickers *behind* the thing on fire reads as a bug.
+Not per particle, unless the emitter asks. Every spark of one emitter carries
+the same depth box, so a particle that has drifted a cell away still sorts where
+the fire is. Boxes derived per particle would have sparks crossing the sprite's
+own depth as they rose, and a fire that flickers *behind* the thing on fire
+reads as a bug.
+
+**An orbit is the exception, and `ownDepth` is how an emitter asks for it.** A
+spiral round a body has to pass behind it on the far side, which is that same
+flicker done on purpose. With `ownDepth` on, `ParticleLayer.boxAtPoint` gives
+each particle a box with no volume whose east and south edges run through the
+particle, so along the ray through its own pixel the box's surface is the
+particle's own elevation, and the depth the world has already written hides it
+wherever something is between it and the camera. That depth is the mask: there
+is no second pass and no extra draw, only four numbers per particle in the box
+attribute every quad already carries. Two things follow from sorting where it
+really is:
+
+- **Behind is the camera's.** It looks from the south-east and above, so a
+  particle west of a body is behind it as much as one north of it, and height
+  counts: one above a head is not hidden by the body under it. A rule on the
+  particle's y alone would get the west side wrong and pop as a particle
+  crossed it.
+- **It sorts against everything, not only its body.** An orbit beside a wall
+  goes behind the wall, and a particle at floor level ties with the floor and
+  fights it, so an emitter that sorts on its own should start a little above
+  the floor.
+- **It only shows where the orbit crosses the sprite.** A particle behind a
+  body draws up and to the left of its cell, two pixels for every unit of
+  height, so an orbit that is already above the head by the time it goes round
+  the back passes beside the sprite, and nothing hides it. The pass behind has
+  to happen low.
 
 Opacity is legal here for one reason: particles are blended into the scene
 target **before** `app/render/palettePass.ts` quantises, so a half-faded spark is
@@ -9591,22 +11016,131 @@ composited and then snapped, and what lands on the canvas is a solid palette
 entry. Fading *after* the quantise — which is what the editor's level fade does —
 puts colours on screen that are not in the palette.
 
-### A plume can be blown sideways, and the wind is an acceleration
+### A ramp is compiled to linear light, not to the sRGB it is authored in
+
+`compileRamp` interpolates the stops in OKLab and writes its table as
+linear-light RGB. The particle shader multiplies that table into
+`diffuseColor`, and three.js keeps `diffuseColor` linear: an sRGB texture is
+decoded when it is sampled, and the scene target is `SRGB8_ALPHA8`, so the GPU
+encodes back to sRGB when it writes the pixel. A vertex attribute or a uniform is not
+converted by anything, so an sRGB triple put there is encoded twice and comes out
+lighter. The palette pass then snaps it to a different entry: red `#e83b3b`
+draws as `#e6904e`, orange `#fb6b1d` as `#fbb954`, the default green `#1ebc73`
+as `#53d5cf`. Only a channel at 0 or 255 comes through unchanged, so a test
+ramp of white hides the mistake.
+
+Any hex that is meant to be drawn, rather than to multiply what is drawn, follows
+the same rule when it reaches a shader as a number. The dissolve edge
+(`writeTransitionUniforms`) and the preview's floor (`linearRgb` in
+`VfxPreview.ts`) convert for this reason. `particleVfx.test.ts` reads each table
+entry back through `THREE.Color` as the sRGB the scene target stores, so a table
+written in sRGB fails the ramp tests.
+
+### A particle's path is a formula of its age, added to where it would be
 
 `driftCellsPerSecond` is symmetric — a per-axis roll in ±drift, drawn once at
-birth — so it spreads a plume and never moves one. `windX` / `windY` are the
-other thing: cells per second squared along the map's axes, integrated in
-`ParticleSystem.advance` exactly as `gravity` already is on the vertical.
+birth — so it spreads a plume and never moves one. `offsetX`, `offsetY` and
+`offsetElev` are the other thing: formulas (`app/lib/particleOffset.ts`) of the
+particle's age, **added to** wherever rise, drift and gravity carry it — cells
+east, cells south and height units up. Blank is none.
 
-**An acceleration and not a speed**, and the difference is the whole effect: a
-plume that leaves the chimney already travelling reads as a jet, and one that
-leaves it straight and bends over as it climbs reads as smoke in a breeze. Only
-an acceleration draws that curve, which is what `particles.test.ts` asserts —
-the second second of sideways travel has to be longer than the first, not merely
-non-zero.
+**An offset, not a force.** Each formula is read at the particle's current age
+whenever it is drawn and never integrated, so a circle is `0.5 * cos(6 *
+AGE_SEC)` east with `0.5 * sin(6 * AGE_SEC)` south, and it closes on itself at
+any frame rate. Written as a velocity or an acceleration, the same circle is a
+derivative the author has to work out, and summing it frame by frame lets the
+particle wander off the circle by an amount that depends on the frame rate. A
+steady wind is still one line: an acceleration `a` from rest is `a / 2 *
+AGE_SEC * AGE_SEC`. The fires in `data/tiles.json` are `0.175 * AGE_SEC *
+AGE_SEC` east and `-0.1 * AGE_SEC * AGE_SEC` south, so the plume leaves the
+flame straight and bends over as it climbs; only a term that grows faster than
+the age draws that curve, and a term in the age alone is a plume leaning from
+birth.
+
+**The variables** are `AGE_SEC` (seconds since birth), `LIFE` (0 at birth to 1
+at death, the fraction the ramp, radius and opacity are read at), `SEED` and
+`PI`; the functions are the status language's six plus `sin`, `cos`, `sqrt` and
+`pow`.
+`SEED` is drawn once per particle in `[0, 1)`. Without it every particle of one
+emitter starts at the same angle, so a ring is a chain of particles following
+one another round; `2 * PI * SEED` inside the `cos` and the `sin` starts each
+one somewhere of its own. It is held per particle, in a `Float64Array` because a
+float32 rounds a draw just under 1 up to 1, and `swapRemove` has to move it with
+the particle's other fields: leave it behind and a survivor takes the seed of
+the particle that died in its slot, and jumps across the circle.
+
+**The parser is the status formula's.** `app/lib/expression.ts` is the
+arithmetic both languages share, and each is a `Grammar` naming its variables
+and functions. An offset is not rounded, since a particle moves by fractions of
+a cell, and a non-finite result (`sqrt(0 - 1)`, a division by zero) is no offset
+rather than a `NaN` in the vertex buffer. A change to the core changes both
+languages; `formula.test.ts` is what shows the status one did not move.
+
+**They run when a particle is read, not when it moves.** `ParticleSystem.read`
+evaluates them, and the layer reads each live particle once a frame unless its
+plume is hidden; `advance` never does, and a plume with no offsets skips them.
+A full pool of 2,048 particles each running a spiral on all three axes reads in
+about 0.35 ms, against 0.04 ms with none. They are compiled when an emitter
+first appears and again only when their source text changes. The editor hands
+over a new config on every keystroke, and comparing the strings rather than the
+config object means a config rebuilt with the same formulas compiles nothing.
+
+**A formula that does not parse fails the emitter schema**, so it is dropped on
+the terms any malformed plume is (see "A tile emits because it is that tile"
+below), and a status carrying it does not resolve. The editor marks the field
+as it is typed, and neither editor will save it.
 
 Map axes, never screen ones. `+x` is east, `+y` is south, and the projection
-makes the diagonal, the same way it does for `rise`.
+makes the diagonal, the same way it does for `rise`: a circle in `offsetX` and
+`offsetY` is a circle on screen, and one in `offsetX` and `offsetElev` is
+sheared, because height goes up-left.
+
+### A plume that lands on a body is drawn to that body's size
+
+A status's plume and a projectile's hit are authored once and drawn on whatever
+they land on: a rat, the player, the cyclops. They are authored against the
+player's 2×2 sprite, and `ParticleEmitterSpec.scale` draws them on any other
+body at the ratio of that body's size to the player's. **It multiplies every
+distance a particle covers from its anchor** — the spawn spread and spawn
+height, drift, rise, gravity and the offset formulas — and nothing else: the
+lifetime, the emission rate and the particles themselves stay as authored. A
+bigger body gets the same number of the same particles spread over more room,
+so its plume is sparser rather than made of bigger sparks. Every term is linear
+in the scale, so a scaled plume is exactly the authored one enlarged about its
+anchor: a spiral round the cyclops turns at the rate one round the player does,
+twice as wide.
+
+**The size is `plumeScale`: the square root of the sprite's area in cells, over
+the player's four.** A 3×3 body draws a plume one and a half times as large and
+a 4×4 one twice as large, which is what the side of the sprite says. The area is
+what is measured because a sprite that is not square has two sides: a rat is
+1×2 facing north and 2×1 facing east, and those are the same size. Its area is
+half the player's, so its plume is 0.71 of the player's rather than half. A
+distance is a length, and a plume scaled by area would draw the cyclops's spiral
+four times as wide as the player's.
+
+**It is measured on the idle frame facing south, not on the frame being worn.**
+A wolf is 2×2 facing north and 3×2 side-on, so measuring the frame it wears
+would grow and shrink its plume every time it turned. The south frame is also
+the one the editor's preview draws.
+
+**What scales is whatever was authored for somebody else's sprite.** A status's
+plume scales on a body (`GameRenderer.emitterFor`) and on a burning placement
+(`groundEmitterFor`), so a 1×1 tuft of grass burns at half the size a 2×2 bush
+does. A hit scales to the body it struck (`burstScale`, beside
+`transitionForNote`). Everything a tile carries for itself — its own plume, its
+appear and disappear, an extract's pull, a projectile's own appear and
+disappear — was authored looking at that tile, and is drawn at 1.
+
+**A particle keeps the scale it was born at**, as it keeps its taper: gravity and
+the offsets read `birthScale` rather than the emitter's current scale, so the
+sparks already in the air do not jump when a plume's scale changes. It is held
+per particle, and `swapRemove` has to move it with the particle's other fields.
+
+**The preview scales to the body picked in "Drawn on"**, in the status editor
+and on a projectile's hit, because that picker stands in for whatever the effect
+lands on. A preview pinned to the tile being edited draws at 1, because what it
+shows is that tile's own.
 
 ### A tile emits because it is that tile, not because something happened to it
 
@@ -9691,6 +11225,15 @@ the terms `clampTileLight` is silent: this is one author's own content, and a
 world that would not load over a smoke plume is worse than a chimney that has
 stopped smoking. The same parse is what fills in a field an authored block
 predates, so the renderer reads a complete emitter and never a partial one.
+
+**The tile editor refuses to save a malformed plume** rather than let the next
+load drop it, which would come back as the Particles switch turned off and the
+whole block gone. `buildSaved` runs `validateParticleEmitter` on the five places
+a tile carries an emitter — its own `particles`, each transition's burst, a
+projectile's hit and an extract's pull — and shows the schema's message. An
+emitter added anywhere else on a tile needs adding to that list. The status editor needs no list: its
+Save is off whenever `resolveStatus` refuses the draft, and the vfx is part of
+that parse.
 
 **The map editor draws no plumes**, tile or status: `/admin/map` is
 `app/editor/EditorRenderer.ts`, a separate renderer from the one play uses, with
@@ -10082,7 +11625,8 @@ cause.
 ### The grammar is the one the two example buildings already define
 
 Copied from the cottage at (12,3) and the shop at (7,-8) in `data/map.json`,
-which is why those two are worth keeping intact.
+which is why those two are worth keeping intact. Their roofs are the `low`
+pitch; the `steep` one is the same grammar climbing a level for every cell.
 
 - **A storey is a ring of `[floor, wall]` around an inside of `[floor]`.** The
   door replaces the wall in one ground-floor cell; a window replaces it in
@@ -10103,6 +11647,21 @@ which is why those two are worth keeping intact.
   which are the red, yellow and blue caps for the `roof-1`/`roof-2`/`roof-4`
   eaves. So a five-wide roof is three levels and a six-wide one is three as
   well, ending in two opposing eaves rather than a cap.
+- **A low roof steps in two cells a side per level**, which is what the pitch
+  setting's `low` does, so a building gets half the height of roof and a wide
+  hall stops wearing a roof taller than itself. Its eave (`low-roof-<colour>`)
+  rises two units across its cell rather than four, so the first cell in wears it
+  on the ground of the level and the second wears it on one `plaster`, which
+  carries the slope to the four units the next level stands on. The ridge
+  (`low-roof-<colour>-ridge`) is one unit on the same pitch, alone when one cell
+  is left and on a `plaster` when three are. The steep roof hides its north and
+  west slopes edge-on; at this pitch they show as a shaded strip.
+- **The low roof is drawn by `bun run generate:low-roofs`**, not by hand. A
+  one-in-two slope and the gable under it rasterise to different diagonals, so
+  two sprites drawn separately leave a line of gable between neighbours along the
+  ridge. The script runs each slope one pixel past its north or west edge, over
+  the gable of the cell before it; editing one sprite by hand brings the line
+  back.
 - **A window is drawn on the face the camera can see.** `window-1` has two
   sprites wearing four names: `n`/`s` is the face of a wall running east-west,
   `e`/`w` the face of one running north-south. North walls get windows like any
@@ -10184,7 +11743,9 @@ avoid.
 an oblique projection, so the wall on the near side of a corridor is drawn over
 the floor behind it: a corridor one cell wide has no visible floor at all, and
 neither does whatever is standing in it. Two cells is the narrowest that leaves
-a strip you can see.
+a strip you can see. That is true of rock that fills its cell, which `cave-wall`
+does not: see "`cave-wall` puts the face of the rock on the half line of its
+cell", below.
 
 The rule that gets there is mechanical and lives in `widenToTwo`: **an open cell
 has to be part of some fully open 2×2 square**, and anything else — a spur, a
@@ -10324,6 +11885,130 @@ rectangle, so the pattern is anchored to the map: growing a drag reveals more of
 the same cave instead of reshuffling the one already on screen. The seed is a
 setting with a Re-roll button beside it, so the same rectangle carves the same
 cave until you ask for a different one.
+
+## `cave-wall` puts the face of the rock on the half line of its cell
+
+Between rock that fills its cells, a passage one cell wide shows no floor at all:
+the wall on its south side is drawn over it (see "No passage is ever one cell
+wide"). `cave-wall` is rock that stops half a cell short wherever it meets open
+ground, so the same passage shows a full cell of floor, which is what a two-cell
+passage between `half-stone` columns shows. A body standing in it loses the
+bottom half of its cell behind the near wall, where full blocks cover all of it.
+
+**The shape comes from the eight neighbours, a quarter of the cell at a time.**
+A quarter is rock when the three neighbours around its corner are, which puts the
+outline of a rock mass through cell centres rather than along cell edges. Rock
+one cell thick gets no quarter that way, so it is drawn as a ridge half a cell
+thick toward each rock neighbour, and a cell with no rock around it is a round
+pillar of the same thickness. A ridge beside a filled quarter is left out,
+because it would stick out past that quarter's face and notch a straight wall.
+Both rules read only the neighbours two adjacent cells share, so wherever two
+rock cells meet, the edge is the same from both sides.
+
+**Every corner is an arc, and none is wider than half a cell.** A corner of a
+solid mass falls at a cell's centre and is drawn as a quarter circle centred on
+the cell corner behind it: bulging out where the rock turns a corner, cut in
+where the floor does. Half a cell is the only radius that works, because the
+outline has to cross each cell edge at its midpoint and square to it. The slice
+across that edge cannot see far enough to tell a corner from a straight run, so
+it always draws the run. Ridges end in a round cap and meet other rock through a
+two-pixel fillet, kept two pixels in from the edge for the same reason. Two
+filled quarters on opposite corners stay whole: rounding them would open a
+diagonal gap through a cell nobody can walk into. A rule that reads a neighbour
+the slice across the edge does not share puts a seam on that edge; building
+every pair of neighbouring slices (1,024 each way) and comparing their outlines
+along the shared edge finds one.
+
+**Straight runs stay straight.** Every cell along a straight wall is the same
+slice, so any wobble drawn into one repeats every cell. Varying it would take
+several faces per slice picked by where the cell stands, as a scatter tile's
+are, and an autotile has one.
+
+**`cave-wall-sloped` has the same outline at the ceiling and widens to the
+cell's edge at the floor**, in a straight line, so a pillar is a cone and a wall
+stands on its own slope. It covers the strip of floor `cave-wall` leaves open,
+so a passage one cell wide between two runs of it shows half a cell of floor.
+Where a sloped run meets a plain one, the slope ends in a step at the cell edge,
+because a slice cannot tell which variant its neighbour is.
+
+**`cave-wall-grey` and `cave-wall-sloped-grey` are the same two shapes in grey.**
+The top is the palette's neutral dark grey and the sides are `stone-wall`'s
+greys, each about as light as the red rock's same face, marked with streaks two
+pixels wide a shade darker and single glints a shade lighter where the red rock
+has single flecks. The palette has no neutral grey between the dark and the
+light one, so the sides lean violet. Lit rock is quantised to the palette again,
+so the top's grey shows mostly in daylight: in a cave lit by a lantern, a violet
+top instead of the neutral one changes 0.4% of the pixels.
+
+All four variants are drawn on one sheet, so a cave that mixes them costs no
+more draw calls than a cave of one, and each connects to the others so the rock
+stays whole where they meet. Another variant is one more line in `VARIANTS`, and
+another colour scheme one more `Rock` for it to name.
+
+**A slope widens each piece of the outline, not the finished outline.** Faces
+move out, arcs grow and pockets shrink about the same cell corners, and ridges
+and the disc where they meet widen at half the rate, standing half as far from
+the edge. Widening the finished outline instead let a ridge's slope spill round
+a corner into the next cell, past a diagonal that slice cannot see, and left a
+seam at every such corner. Two rules close the gaps that remain: a ridge running
+beside an edge whose neighbour shows only a quarter's face stops a pixel short
+of that edge, and the pixel at a corner whose four cells are not all rock stays
+empty until the floor. The same edge comparison, repeated at every pixel of
+height for both variants, finds no seam.
+
+**A side is shaded by the way the rock falls away**, read from its height over a
+five-pixel square around the pixel the ray hit, with a third tone between the
+south and east ones. Shading by the single pixel step the ray met alternates
+along a curve and draws a checkerboard, and one layer's outline gives a slope
+that has reached the cell's edge no direction at all.
+
+**It is geometry, generated, not drawn.** `bun run generate:cave-wall` casts the
+view ray through every pixel of each of the 47 neighbourhoods and writes
+`data/tilesets/cave-wall.png`, the slices of every variant and the sheet's
+`tilesets.json` entry together. The red rock's top, south and east faces use
+`half-stone`'s palette entries, so the two can share a cave, and the specks are
+keyed on the screen pixel modulo a cell, so a face that runs across several
+cells has no seam. A hand edit to the sheet is lost the next time the script
+runs. The script rewrites only each tile's `type`, `anchor` and `slices`, and
+adds the other variants to its `connectsTo`; its name and anything else authored
+on it are left alone once the tile exists.
+
+**The open part of the cell shows whatever is under the wall.** Like `sw2`,
+every variant needs a floor beneath it in the stack, or the uncovered part of
+the cell is the level below or void. `scripts/carve-caves.ts` builds its walls
+of `cave-wall-sloped`, or `cave-wall-sloped-grey` on the last level in
+`SYSTEM.levels`, and lays `dirt` under every one. Every wall in the shipped caves
+stands on `dirt`, grass or a wooden floor.
+
+**To everything but the art each is one solid cell.** Movement, sight, light,
+arrows and the depth box treat every variant as a column four units tall, as
+they treat `stone-wall`. They are `walkable: false`, as the building walls are,
+because their tops cover only part of the cell. They connect to `stone-wall` and
+`half-stone`, so they meet older rock flush and a cave can be converted a patch
+at a time.
+
+**An empty cell stands on the top of the stack below it**, and a `half-stone`
+pair's top is walkable where these are not. Swapping that rock for any variant
+leaves the empty cell above it with nowhere to stand, so give it ground first.
+`carve:caves --verify` reports such a cell only when it is a cave cell; comparing
+the cells it walked to before and after the swap finds the rest.
+
+**Their sheet costs a draw call** in every chunk that uses any variant: static
+quads are batched per texture within a chunk. Every cave on the shipped map uses
+them: `cave-wall-sloped` on L-1 and L-2, and `cave-wall-sloped-grey` on L-3, so
+the deepest floor reads as deeper at a glance.
+
+**Stalagmites are single sloped walls on open floor**, which the autotile draws
+as a cone. Each stands where every cell within two of it is bare `dirt`, so it
+never narrows a passage below three cells or touches a creature, ramp, ladder or
+hole, and never under a hole in the level above. They are at least seven cells apart,
+about one per ninety cells of open floor.
+
+**The cave generator lists all four as rock but still widens every passage to
+two** (`widenToTwo`). It already lays its floor under the rock, so the open part
+of each wall cell shows ground, but a cave generated from any of them comes out
+as open caverns rather than narrow passages. A passage one cell wide is carved
+by hand for now.
 
 ## A forest is a path and what grows either side of it
 
@@ -11031,8 +12716,8 @@ because everything in between leaked. That restriction exists only because of
 this bug and can now be relaxed to "anything that seals" — which is most of the
 map's surface rather than the fraction of it that happens to be bare.
 
-Measured on the fixture town, the bake is unchanged: p50 ~44ms either way, p95
-47–50ms against a 65ms budget.
+Measured on the fixture town, the bake is unchanged: p50 ~44ms either way
+against a 65ms budget, p95 47–50ms.
 
 #### The lid belongs to the upper of the two cells
 
@@ -11127,6 +12812,18 @@ it are worth knowing before writing a test:
   nextMessage(ws)` works — delivering eagerly would drop the frame before the
   listener existed. A test that wants only what comes *next* says so with
   `record(ws)`, which discards what is pending first.
+- **A world can be stepped by hand, and then it repeats.**
+  `Harness.create({}, { manualTicks: { startAtMs }, seed })` builds a
+  `GameServer` that never ticks on its own: `await server.step(n)` runs `n`
+  ticks, and its clock moves `TICK_MS` per tick from `startAtMs`, so a respawn,
+  the hour and a lingering body's release all come after the same number of
+  steps on every run. It sets no alarms, since every step processes due
+  respawns anyway. `seed` is the seed of a fresh world, which otherwise starts
+  from `DEFAULT_SEED`, and respawn delays are drawn from the session's `Rng`
+  (`respawnDelayMs`) rather than `Math.random`, so they follow that seed and a
+  checkpoint carries their state with every other roll. This is what the verify
+  harness runs worlds on, and what `server/roundTrip.test.ts` uses instead of
+  clearing the server's timer and calling its private `tick()`.
 
 ### The map a unit test runs against is never `data/map.json`
 
@@ -11148,7 +12845,7 @@ square. It exists for two reasons.
 - **A standing scale.** It is sized near the shipped map — 23.0k cells, 29.8k
   quads and 68 emitters against 20.9k / 38.7k / 68 — and measures ~44ms p50 /
   ~46ms p95 on the cold bake where the shipped map measured ~41/42. That is
-  what makes `PERF_BUDGETS.lightingBakeMsP95` mean something a year from now:
+  what makes `PERF_BUDGETS.lightingBakeMsP50` mean something a year from now:
   the budget used to be re-raised every time the world grew, and half of those
   raises were content rather than code. `app/lib/mapData.test.ts` pins the
   fixture's quad count so a future trim cannot silently make the budget pass.
@@ -11240,7 +12937,7 @@ Two rules learned the hard way, which still hold:
 ## `?debug=1` draws the windows the renderer is keeping
 
 **Undocumented in the game and on purpose.** There is no toggle, no menu entry
-and nothing in the UI that mentions it. Add `?debug=1` to `/` or `/admin/play`
+and nothing in the UI that mentions it. Add `?debug=1` to `/online` or `/admin/play`
 and the camera pulls back off the play square; `[` and `]` take it from ×1 to
 ×8. A player who never types it gets exactly the frame they got before this
 existed.
@@ -11320,9 +13017,34 @@ how much and where.
 and does **not** use the chunk cache. Numbers from one say nothing about the
 other.
 
+**The bake's timing gate reads its p50, not its p95.** Claude Code's cloud
+sessions run on VMs that slow to about half speed for stretches of up to a few
+hundred milliseconds, several times in every run. Nothing inside the VM shows
+it: steal time stays at zero and the other vCPUs sit idle, but a fixed
+arithmetic loop timed beside the bake slows by the same factor in the same
+samples. The bake's hundred samples take about six seconds, so a stretch covers
+several of them in a row and the p95 lands inside one on nearly every run. Over
+twelve runs in one container the p95 read 87–113ms, where the fastest sample
+read 48–53ms and the p50 59–72ms. `app/lib/lighting.perf.test.ts` therefore
+gates the bake's p50, which on a quiet machine sits a few milliseconds under
+its p95. The overlay keeps its p95: its hundred samples take about 30ms, so a
+stretch covers all of them or none, and its p95 there is under a tenth of its
+budget.
+
 **Frame counters in a headless or backgrounded browser are meaningless** —
 rAF is throttled, so the loop only advances when something forces a frame.
 Measure in Node, or read the in-game counter on a real screen.
+
+**A loop of ticks has to give the event loop control between ticks.** The engine
+keeps a `WeakRef`'s target alive until the event loop gets control back, and
+every chunk or level that `mapData` copies holds a `WeakRef` to the one it was
+copied from. `bench:server` used to run its ticks in one synchronous loop, so
+every version of every chunk the run wrote stayed alive: on the shipped map's
+`spread` scenario (Bun 1.4.2) the heap grew from 56MB to 218MB in 40 seconds,
+and the worst tick, a full collection, took 6.5 seconds. Awaiting a microtask
+changes nothing. `setImmediate` does: the same run keeps its heap under 90MB,
+and its worst tick is 30ms. The server is not affected, because each of its
+ticks starts from a timer.
 
 ## Known remaining costs
 
@@ -11335,13 +13057,27 @@ Not yet fixed, and worth knowing before you profile something else:
   chunk column of dense cave is a handful of chunks at once. `MESH_WINDOW_MARGIN`
   is what buys the warning, and a budget that built one chunk per frame out of a
   queue is the structural answer if it is ever felt.
-- **A creature that has bound a target it cannot reach re-proves it every brain
-  tick.** A route search that fails costs the full `PATH_MAX_NODES` — about five
-  milliseconds on the shipped map, against well under one for a route it finds —
-  and brains all tick on the same frame, so a roomful of creatures watching
-  somebody through a window pay it together. The authored way out is a `stuck`
-  transition, which every shipped brain has; the structural one would be
-  remembering the failure for a few ticks, which is the only piece of route
-  state worth keeping and has not been needed yet.
+- **A route search costs about 50µs a node.** Every neighbour it looks at asks
+  `listStandingSurfaces`, which reads all seventeen levels of the column through
+  `stackOnLevel`, and `canWalk`, which asks it again; each read builds a level,
+  a chunk and a cell key. At sixteen times the shipped residents, with at most
+  `BRAIN_ATTENTIVE_MAX` creatures awake, searching is about a third of an
+  average tick and most of the slowest ones, and it decides how many chasing
+  creatures a tick can afford. A walkability layer per chunk in typed arrays,
+  rebuilt when the chunk object changes, is the structural answer; rationing
+  nodes and sharing distance maps were both measured against the current cost
+  and left out (see "A creature thinks every round only while somebody could
+  notice it").
+- **A respawn sweeps the whole board, and a creature's respawn sweeps it
+  twice.** `respawnAt` mints item ids with `mintItemIds` over the whole board
+  rather than in the cell it grew: about 26ms on the shipped map and 70ms on a
+  512×512 field. A creature's point also asks `isSpawnFilled`, which is
+  `findActorAnywhere` and misses, because a creature whose respawn is due is
+  not on the board: another 6.5ms and 18ms. Every tree that grows back pays
+  the first, and a restart pays both, in one tick, for every respawn that fell
+  due while the world was down. Minting in the one cell is not a drop-in
+  change: a decay or a wear that turns a non-item into an item leaves it with
+  no id (no shipped tile does either), and at the moment the next respawn
+  anywhere on the board is what gives it one.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.

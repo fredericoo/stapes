@@ -28,7 +28,6 @@ export const DIR_DELTA: Record<Direction, { dx: number; dy: number }> = {
   w: { dx: -1, dy: 0 },
 };
 
-/** Stack at a cell with the entity at stackIndex removed (scenery only). */
 export function sceneryStack(
   map: MapFile,
   x: number,
@@ -40,62 +39,15 @@ export function sceneryStack(
   return stack.filter((_, i) => i !== entityStackIndex);
 }
 
-/**
- * How long one step takes this body when nothing is in its way, in
- * milliseconds. The pace it is authored at, before a status or the ground has
- * moved it — see {@link walkDurationMsFor}, which is what times an actual step.
- *
- * Lives beside the movement rules rather than in the tile module because both
- * ends of the wire need it and neither should have to guess: the simulation
- * times the step with it, and the client divides by it to place the sprite. It
- * never travels — a client already knows which tile an actor is, so deriving it
- * on both sides is cheaper than a field on every walk event, and cannot
- * disagree. **That bargain is the constraint on everything allowed to move a
- * pace**: a source the browser cannot read for itself would have to travel, and
- * it is why a status's share of this is a plain number rather than a formula.
- */
 export function resolveWalkDurationMs(def: TileDef): number {
   const authored = def.walkDurationMs;
   return authored != null && authored > 0 ? authored : WALK_DURATION_MS;
 }
 
-/**
- * How long one step actually takes, with everything slowing or hurrying this
- * body counted in.
- *
- * {@link resolveWalkDurationMs} is what the body is authored at; this is what
- * it is walking at now. The split is worth keeping because the two have
- * different readers: a pace that must not change with circumstance reads the
- * first — see `./combat`'s `strikeRecoveryMs`, where how long a blow plants you
- * is a fact about the swing — and everything that times an actual step reads
- * this.
- *
- * The percentage is passed in rather than gathered here, because the sources
- * are not this module's to know: one is the statuses on the body and one is the
- * ground under it, and only the caller holds both. @see `../lib/walkSpeed`
- */
 export function walkDurationMsFor(def: TileDef, speedPercent: number): number {
   return walkDurationFrom(resolveWalkDurationMs(def), speedPercent);
 }
 
-/**
- * How much quicker or slower the ground under this body makes it walk.
- *
- * **The surface its feet are on, and never the cell it is stepping into.** Both
- * ends of the wire have to reach the same figure, and the cell being *left* is
- * the one they agree about: the browser is told a step has started and holds
- * the board it started from, where the destination may be a cell it is about to
- * be patched. It also reads better than the alternative — wading out of a bog
- * is slow, and the step that gets you clear of it is the last slow one.
- *
- * The body is excluded from its own stack, on {@link standingAbs}'s terms: what
- * is being asked about is what it is standing on, and a body is not its own
- * ground.
- *
- * Zero for open air, for a tile nobody authored a figure onto, and for a
- * placement of something the catalogue no longer holds — the same reading every
- * other absent field takes.
- */
 export function groundWalkSpeedPercent(
   map: MapFile,
   at: Coord & { stackIndex: number },
@@ -110,13 +62,6 @@ export function groundWalkSpeedPercent(
   return tilesById[surface.tileId]?.walkSpeedPercent ?? 0;
 }
 
-/**
- * Whether this body is standing in a `wade` tile — shallow water, or another
- * liquid shallow enough to walk through. @see TileDef.wade
- *
- * The surface under its feet on {@link groundWalkSpeedPercent}'s terms, with
- * the body excluded from its own stack.
- */
 export function wadesAt(
   map: MapFile,
   at: Coord & { stackIndex: number },
@@ -126,12 +71,6 @@ export function wadesAt(
   return surfaceWades(map, at.x, at.y, abs, tilesById, { z: at.z, stackIndex: at.stackIndex });
 }
 
-/**
- * Whether the surface at `abs` in column (x, y) is a `wade` tile.
- *
- * {@link wadesAt} for a cell nobody is standing in yet — the far end of a step,
- * where the body has to be drawn sinking before the simulation has put it there.
- */
 export function surfaceWades(
   map: MapFile,
   x: number,
@@ -157,24 +96,10 @@ export function standingAbs(
 }
 
 export type StandingSurface = {
-  /** Absolute elevation of the standing surface. */
   abs: number;
-  /** Level where an entity standing here should be stored. */
   z: number;
 };
 
-/**
- * All walkable standing surfaces in column (x,y): highest walkable tile top
- * per stack, and floors formed by a full level below.
- *
- * **A plane something unstandable is lying on is not one of them, whoever else
- * claims it.** Water is `height: 0`, so a pond contributes no surface of its
- * own and used only to be a claim nobody made — leaving a full walkable level
- * under it to answer for the cell with the very plane the water sits in, which
- * is how you could walk across a pond laid on a stone floor. Collected as the
- * scan goes and applied at the end, because a plane is closed from *above* and
- * the level that claims it comes round first. @see planeCoveredBy
- */
 export function listStandingSurfaces(
   map: MapFile,
   x: number,
@@ -182,11 +107,8 @@ export function listStandingSurfaces(
   tilesById: Record<string, TileDef>,
 ): StandingSurface[] {
   const out: StandingSurface[] = [];
-  /** Planes a level's own stack has closed. @see planeCoveredBy */
   let closed: number[] | undefined;
 
-  // Same abs can be claimed by a lower stack top and an upper-level floor /
-  // height-0 tile. Prefer the highest level — that owns the plane.
   const add = (abs: number, z: number) => {
     const existing = out.find((s) => s.abs === abs);
     if (existing) {
@@ -196,18 +118,12 @@ export function listStandingSurfaces(
     out.push({ abs, z });
   };
 
-  // Every step anybody takes reads a whole column here, so the column's keys
-  // are built once for all its levels, and the level below's stack is carried
-  // up from the pass before rather than read again. An empty cell below has no
-  // floor to offer, so it is skipped rather than handed over as an empty array.
   const chunkKey = chunkKeyFor(x, y);
   const cellKey = coordKey(x, y);
   let below: PlacedTile[] | undefined;
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const stack = stackOnLevel(map, z, chunkKey, cellKey);
     if (stack !== undefined && stack.length > 0) {
-      // One scan for both questions, and read before anything else can ask
-      // again — the footing object is reused. @see footingOfStack
       const footing = footingOfStack(stack, tilesById);
       if (planeCoveredBy(footing)) (closed ??= []).push(z * HEIGHT_PER_LEVEL);
       if (footing?.walkable) add(z * HEIGHT_PER_LEVEL + footing.elev, z);
@@ -222,21 +138,6 @@ export function listStandingSurfaces(
   return out.filter((surface) => !closed.includes(surface.abs));
 }
 
-/**
- * Does travelling straight up or down between `fromAbs` and `toAbs` in column
- * (x, y) pass through a floor somebody has laid there?
- *
- * A level's floor plane sits at `z * HEIGHT_PER_LEVEL`, and it is sealed when
- * anything solid stands in that level's cell — `sealsLevel`, the same fact that
- * decides whether light and a look may travel vertically, so a walk cannot
- * disagree with either about what a ceiling is. A light-passing tile seals
- * nothing, which is what keeps a ladder shaft and a pond bottom open.
- *
- * Planes strictly above the lower end and up to the higher end count. The
- * plane a body finishes standing *on* is the one it arrives at, not one it went
- * through, and the plane under its feet at the start is not between it and
- * anywhere.
- */
 function crossesSealedPlane(
   map: MapFile,
   x: number,
@@ -257,37 +158,8 @@ function crossesSealedPlane(
   return false;
 }
 
-/** Where a step starts: the column being left, and the feet's elevation in it. */
 export type StepOrigin = { x: number; y: number; abs: number };
 
-/**
- * Surfaces at (x,y) a body standing at `from` could step onto.
- *
- * The climb band, less anything the step would have to pass through a floor to
- * reach — and nothing else: no fit check, no direction, no opinion about what is
- * standing there. That narrowness is what lets three callers share it:
- * {@link canWalk} picks the surface it will land on, a creature asks whether a
- * step this way would leave it in mid-air, and a route search asks the same
- * question one cell ahead of where anybody is standing.
- *
- * **A step never crosses a sealed floor plane.** The band alone let a body
- * change level through a ceiling: a lone half-block under a bare floor is two
- * units below that floor, which is exactly a climb, so a rat on it stepped up
- * through the ground onto the grass and a snake on the grass stepped down
- * through it onto the block. Which column the vertical travel happens in is
- * the whole of the rule. A step *up* rises in the column being left — that is
- * what makes a ramp work at all: the cell over it is empty, so a body climbs
- * out of the hole onto the floor beside it, while the same climb from under a
- * ceiling is refused. A step *down* drops in the column being entered — into
- * the den mouth, where nothing is overhead, and not through the field next to
- * it. Measuring the drop in the column being left would find the very floor
- * the body is standing on and refuse every step off a ledge.
- *
- * Empty means open air. The board deliberately allows walking into it so
- * gravity can pull an actor through a steeper drop, so an empty answer is a
- * *caution* rather than a refusal, and whose caution it is belongs to the
- * caller.
- */
 export function surfacesInClimbBand(
   map: MapFile,
   from: StepOrigin,
@@ -298,6 +170,12 @@ export function surfacesInClimbBand(
   return listStandingSurfaces(map, x, y, tilesById).filter((surface) => {
     if (surface.abs < from.abs - MAX_CLIMB_HEIGHT) return false;
     if (surface.abs > from.abs + MAX_CLIMB_HEIGHT) return false;
+    /**
+     * A step up crosses the plane in the column being left; a step down
+     * crosses it in the column being entered. Using the wrong column for
+     * either direction lets a body climb through a ceiling, or refuses every
+     * step off a ledge.
+     */
     const travelColumn = surface.abs > from.abs ? from : { x, y };
     return !crossesSealedPlane(
       map,
@@ -310,18 +188,12 @@ export function surfacesInClimbBand(
   });
 }
 
-/**
- * Highest solid surface absolute elevation strictly below `feetAbs` at (x,y).
- * Includes non-walkable tops (caller may slide or fall through).
- * Returns null if nothing is below (open void).
- */
 export function findLandingAbs(
   map: MapFile,
   x: number,
   y: number,
   feetAbs: number,
   tilesById: Record<string, TileDef>,
-  /** Stack index of falling entity at its current cell, if on this column. */
   exclude?: { z: number; stackIndex: number },
 ): number | null {
   let best: number | null = null;
@@ -332,9 +204,11 @@ export function findLandingAbs(
       stack = sceneryStack(map, x, y, z, exclude.stackIndex);
     }
 
-    // A stack of nothing but intangibles is open air with art in it, and its
-    // "top" is the bare level base — landing on that is how a body came to
-    // hover in a ladder shaft with no floor under it.
+    /**
+     * A stack with nothing solid in it is open air with decoration in it, not
+     * a floor: without this guard its level base reads as a landing and a
+     * body can hover in a shaft with no floor under it.
+     */
     if (stack.some((placed) => isSolidPlacement(placed, tilesById))) {
       const top = absoluteStandingElevation(z, stack, tilesById);
       if (top < feetAbs) {
@@ -342,7 +216,6 @@ export function findLandingAbs(
       }
     }
 
-    // Full stack below forms a floor at the base of this level.
     if (z > MIN_LEVEL) {
       let below = getStack(map, x, y, z - 1);
       if (exclude && exclude.z === z - 1) {
@@ -360,10 +233,6 @@ export function findLandingAbs(
   return best;
 }
 
-/**
- * Dest cell for a same-level step, after normalizing promotion when the
- * surface is a full level or more.
- */
 export function destCellAfterStep(
   fromZ: number,
   destX: number,
@@ -380,7 +249,6 @@ export function destCellAfterStep(
 export type WalkCheck = { ok: true; to: Coord } | { ok: false; reason: string };
 
 export type CanWalkOpts = {
-  /** Prefer lowest surface in the climb band (Option / Alt). */
   preferDescend?: boolean;
 };
 
@@ -402,11 +270,6 @@ function climbUpAllowed(
   return flags[direction];
 }
 
-/**
- * Can `tileDef` walk from its current cell one step in `direction`?
- * Vertical change within ±MAX_CLIMB_HEIGHT is a normal walk (including down a
- * level). Steeper drops walk onto the void and fall afterward.
- */
 export function canWalk(
   map: MapFile,
   from: Coord & { stackIndex: number },
@@ -429,8 +292,6 @@ export function canWalk(
     tilesById,
   ).sort((a, b) => (opts?.preferDescend ? a.abs - b.abs : b.abs - a.abs));
 
-  // People walk through each other; nothing else walks through anybody. See
-  // `../lib/validation`'s `FitOpts`, which is where that rule is written down.
   const fit: FitOpts = { throughPlayers: tileDef.id === PLAYER_TILE_ID };
 
   for (const surface of candidates) {
@@ -441,13 +302,9 @@ export function canWalk(
     const room = fitsAtElevation(map, destX, destY, surface.abs, tileDef, tilesById, fit);
     if (!room.ok) continue;
 
-    // Append onto the stack that forms this surface (surface.z), so feet stay
-    // at surface.abs — including on overflowing plaster ladders.
     return { ok: true, to: { x: destX, y: destY, z: surface.z } };
   }
 
-  // No surface within climb range — allow stepping onto this level's cell so
-  // gravity can pull through a steeper drop (walk-into-hole).
   const room = fitsTile(map, destX, destY, from.z, tileDef, tilesById, fit);
   if (!room.ok) return room;
 
@@ -458,15 +315,11 @@ export function canWalk(
     return { ok: false, reason: `Climb ${climb} exceeds max ${MAX_CLIMB_HEIGHT}` };
   }
 
-  // Refuse a step whose body would come to rest on a top nobody can stand on,
-  // however far down the fall takes it. `destAbs + 1` makes the search include
-  // a top at `destAbs` itself — a full-height tree whose top coincides with an
-  // empty level's base above it — so standing and falling are one check.
-  //
-  // This used to stop at `destAbs`, and a body that fell onto a fence was
-  // walked on in the direction it faced until it found somewhere to land. The
-  // client predicts steps and not that walk, so the body snapped to wherever
-  // the server put it. Refusing the step here refuses it on both machines.
+  /**
+   * `destAbs + 1` includes a solid top that coincides with `destAbs` itself —
+   * a tree whose top sits exactly at the empty level above it — so standing
+   * and falling share this one check instead of missing that case.
+   */
   const restAbs = findLandingAbs(map, destX, destY, destAbs + 1, tilesById);
   if (restAbs != null && !isWalkableSurfaceAt(map, destX, destY, restAbs, tilesById)) {
     return { ok: false, reason: "Destination surface is not walkable" };

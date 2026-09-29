@@ -1,37 +1,22 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import { DEFAULT_BATTLER, resolveBattler } from "../lib/battler";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import type { Kit } from "../lib/kit";
 import type { TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { equipmentForBody, equipmentFromKit } from "./battlerKit";
 import type { Equipment, Hand } from "./equipment";
 import { effectiveBattler, emptyEquipment, HANDS, handToSwing, wornInstances } from "./equipment";
+import { Rng } from "./rng";
+import type { Masteries } from "../lib/mastery";
 
-/**
- * The hand a body starts a fight on, which is what nearly every case here means.
- *
- * Both hands swing now, so "the numbers this body fights with" is a question
- * about a *turn* rather than about a body — see `./equipment`'s
- * `effectiveBattler`. Almost nothing below is about the rotation, so almost
- * everything below asks for the first hand that has something to swing and lets
- * `handToSwing` fall back to bare hands on its own. The cases that *are* about
- * the rotation name their hand outright.
- */
+const UNTRAINED: Masteries = {};
+
 function firstHand(equipment: Equipment | null, tiles: Record<string, TileDef>): Hand | null {
-  return handToSwing(equipment, tiles, HANDS[0]);
+  return handToSwing(equipment, tiles, HANDS[0], UNTRAINED);
 }
-
-/**
- * Rolling an authored kit into a body's equipment.
- *
- * Two things are being pinned down here and they pull in opposite directions.
- * One is that the *outcome* follows the chances and the slot rules. The other is
- * that the *cost in dice* follows neither — a kit draws the same number of times
- * whatever it rolls, because everything else in the world is drawing from the
- * same stream behind it.
- */
 
 function tile(id: string, extra: Record<string, unknown> = {}): TileDef {
   return normalizeTileDef({
@@ -71,13 +56,6 @@ const tiles = tilesByIdFromList([
   tile("rock"),
 ]);
 
-/**
- * Dice that answer a written-down list and then refuse.
- *
- * Refusing past the end is the point rather than a convenience: half of what
- * this file asserts is *how many times* a kit draws, and a generator that
- * happily kept going would make an extra draw invisible.
- */
 function dice(rolls: number[]): { random: () => number; drawn: () => number } {
   let index = 0;
   return {
@@ -91,7 +69,6 @@ function dice(rolls: number[]): { random: () => number; drawn: () => number } {
   };
 }
 
-/** A roll certain to come up, and one certain not to, at any authored chance. */
 const HIT = 0;
 const MISS = 0.999;
 
@@ -101,8 +78,6 @@ describe("rolling a kit", () => {
 
     const out = equipmentFromKit(kit, tiles, dice([MISS]).random);
 
-    // Even the highest roll a generator can produce lands a certainty: the test
-    // is `random() * 100 < chance`, and `random()` never reaches 1.
     expect(out.weapon?.tileId).toBe("sword");
     expect(out.offhand).toBeNull();
     expect(out.bag).toBeNull();
@@ -121,10 +96,6 @@ describe("rolling a kit", () => {
     expect(equipmentFromKit(kit, tiles, dice([0.006]).random).weapon).toBeNull();
   });
 
-  /**
-   * Which is what makes several entries on one slot a weighted table: the rare
-   * thing goes above the common one, and rolling both is not a conflict.
-   */
   it("gives the slot to the first entry that comes up", () => {
     const kit: Kit = [
       { slot: "weapon", tileId: "dagger", chance: 100 },
@@ -169,14 +140,6 @@ describe("rolling a kit", () => {
   });
 });
 
-/**
- * The cost in dice, which is the half that has nothing to do with the outcome.
- *
- * A kit that drew a different number of times depending on what it rolled would
- * mean adding a rare dagger to one wolf changed what every creature in the world
- * rolled after it — the same reason a swing always costs three draws and a decay
- * lifetime always costs one.
- */
 describe("what a kit costs in dice", () => {
   it("draws once per entry however the entries land", () => {
     const kit: Kit = [
@@ -188,8 +151,6 @@ describe("what a kit costs in dice", () => {
     const rolled = dice([HIT, HIT, HIT]);
     equipmentFromKit(kit, tiles, rolled.random);
 
-    // Three entries, three draws: one that landed, one whose slot was already
-    // taken, and one authored never to come up at all.
     expect(rolled.drawn()).toBe(3);
   });
 
@@ -228,10 +189,6 @@ describe("what a kit costs in dice", () => {
   });
 });
 
-/**
- * A kit may not author a body into a state a player could not be dragged into,
- * which is why this asks `slotAccepts` rather than a rule of its own.
- */
 describe("what a slot will take from a kit", () => {
   it("refuses the back to anything that is not a pack you can wear", () => {
     const kit: Kit = [
@@ -266,11 +223,6 @@ describe("what a slot will take from a kit", () => {
     expect(equipmentFromKit(kit, tiles, dice([HIT]).random).weapon).toBeNull();
   });
 
-  /**
-   * The strict square, and the one place a kit is held to a stricter rule than a
-   * hand: defence is the entirety of what the body slot contributes to a fight,
-   * so a sword worn as a shirt would be a number about nothing.
-   */
   it("refuses the body to anything that is not armour", () => {
     const kit: Kit = [
       { slot: "armor", tileId: "sword", chance: 100 },
@@ -288,17 +240,6 @@ describe("what a slot will take from a kit", () => {
   });
 });
 
-/**
- * A creature spawned in armour fights in it.
- *
- * **The claim is that there is no special case for people**, which is the whole
- * reason a kit names slots rather than listing drops: a goblin authored wearing
- * mail is protected by that mail to exactly the extent a player carrying the same
- * shirt would be, because the simulation reads a body's equipment for defence and
- * has no idea the goblin is not a person. Nothing in the code below is
- * armour-aware — it is `equipmentForBody` and `effectiveBattler`, the two calls
- * every body in the world already goes through.
- */
 describe("a body born in armour", () => {
   const armoured = tile("goblin", {
     kind: "battler",
@@ -334,7 +275,6 @@ describe("a body born in armour", () => {
     expect(dressed.resist.sharp).toBe(6);
   });
 
-  /** And it is worth killing for: worn things go on the floor when a body does. */
   it("is carrying it in the sense a death understands", () => {
     const kit = equipmentForBody("goblin", world, dice([HIT]).random);
     expect(wornInstances(kit).map((one) => one.tileId)).toEqual(["mail"]);
@@ -378,11 +318,6 @@ describe("what a container is born holding", () => {
     });
   });
 
-  /**
-   * An author writing a fifth thing into a four-slot bag said "these are in this
-   * bag", not "and one of them is in a fist" — so the surplus is dropped rather
-   * than spilled somewhere they did not ask for.
-   */
   it("drops whatever will not fit", () => {
     const size = DEFAULT_CONTAINER.size;
     const kit: Kit = [
@@ -467,16 +402,32 @@ describe("what a body of a given kind carries", () => {
     expect(equipmentForBody("bare", bodies, dice([]).random)).toEqual(emptyEquipment());
   });
 
-  /**
-   * Equipment hangs off having a body, and a tile with no hit points has none —
-   * so a prop and a battler with an empty kit give the same answer rather than
-   * two different ones.
-   */
   it("carries nothing when the tile is not a battler", () => {
     expect(equipmentForBody("scenery", bodies, dice([]).random)).toEqual(emptyEquipment());
   });
 
   it("carries nothing when the catalogue has lost the tile", () => {
     expect(equipmentForBody("no-such-body", bodies, dice([]).random)).toEqual(emptyEquipment());
+  });
+});
+
+describe("the bog imp we ship", () => {
+  const catalogue = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const WEAPONS = ["knights-sword", "broad-axe", "iron-mace", "hunting-bow"];
+  const BODIES = 4000;
+
+  it("holds each of its four weapons about a quarter of the time", () => {
+    const rng = new Rng(20260925);
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < BODIES; i++) {
+      const held = equipmentForBody("bog-imp", catalogue, () => rng.next()).weapon?.tileId;
+      counts[held ?? "nothing"] = (counts[held ?? "nothing"] ?? 0) + 1;
+    }
+
+    expect(Object.keys(counts).sort()).toEqual([...WEAPONS].sort());
+    for (const weapon of WEAPONS) {
+      expect(counts[weapon]! / BODIES).toBeGreaterThan(0.22);
+      expect(counts[weapon]! / BODIES).toBeLessThan(0.28);
+    }
   });
 });

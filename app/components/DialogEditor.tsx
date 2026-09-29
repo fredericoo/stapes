@@ -27,31 +27,6 @@ import { DialogTryOut } from "./DialogTryOut";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
 
-/**
- * Author a dialog without touching JSON: the script as a list of commands,
- * nested lists indented under the commands that hold them — and the real
- * panel beside it, to press through.
- *
- * ## The list is the script
- *
- * One row per command, in the order the interpreter will run them. A choice
- * shows its buttons with each one's commands under it; a trade shows what
- * happens when it goes through and when it is cancelled. A row is dragged by
- * its grip to reorder among its neighbours or into any other list on the
- * page; the one move refused is into a list the row itself holds, which
- * would be a block holding its own trunk. A command of any kind can be added
- * at the end of any list, which is what makes the thing composable.
- *
- * ## Edited by path
- *
- * Every edit names the command it is about by its `CommandPath` and rewrites
- * the script — `updateCommandAt`, `insertCommandAt`, `removeCommandAt`,
- * `moveCommand` — on the terms `../lib/conditions` edits an `if`. A row is a
- * copy React already rendered, and the path is the only way a nested one can
- * say which node it means. Those helpers are exported and tested; the
- * components are the thin part.
- */
-
 type Props = {
   dialog: DialogDef | undefined;
   tiles: TileDef[];
@@ -60,13 +35,10 @@ type Props = {
   onChange: (next: DialogDef | undefined) => void;
 };
 
-/** The root list's group, for rows whose parent is the script itself. */
 const ROOT_ID = "root";
 
-/** Prefix of the droppable that means "at the end of this list". */
 const INTO_PREFIX = "into:";
 
-/** A path as a sortable id and a group name. `[]` is the root list. */
 export function pathId(path: CommandPath): string {
   return path.length === 0 ? ROOT_ID : path.join(".");
 }
@@ -76,13 +48,11 @@ export function parsePathId(id: string): number[] {
   return id.split(".").map((part) => Number(part));
 }
 
-/** Does `path` start with `prefix`? A list under a command starts with it. */
 export function startsWith(path: CommandPath, prefix: CommandPath): boolean {
   if (prefix.length > path.length) return false;
   return prefix.every((index, i) => path[i] === index);
 }
 
-/** The dialog with the command at `path` rewritten. */
 export function updateCommandAt(
   dialog: DialogDef,
   path: CommandPath,
@@ -99,7 +69,6 @@ export function updateCommandAt(
   );
 }
 
-/** The dialog with `command` put in the list at `listPath`, at `index`. */
 export function insertCommandAt(
   dialog: DialogDef,
   listPath: CommandPath,
@@ -112,7 +81,6 @@ export function insertCommandAt(
   return withListAt(dialog, listPath, [...list.slice(0, at), command, ...list.slice(at)]);
 }
 
-/** The dialog without the command at `path`, blocks and all. */
 export function removeCommandAt(dialog: DialogDef, path: CommandPath): DialogDef {
   const listPath = path.slice(0, -1);
   const index = path[path.length - 1]!;
@@ -125,14 +93,6 @@ export function removeCommandAt(dialog: DialogDef, path: CommandPath): DialogDef
   );
 }
 
-/**
- * The dialog with the command at `from` moved into the list at `toList`, at
- * `index` — or unchanged when the move is into a list the command holds.
- *
- * Removed first and inserted second, with the destination re-read after the
- * removal: taking a command out of a list shifts every index after it, and a
- * destination named against the old script would land one off.
- */
 export function moveCommand(
   dialog: DialogDef,
   from: CommandPath,
@@ -145,12 +105,6 @@ export function moveCommand(
   return insertCommandAt(without, adjustedForRemoval(toList, from), index, moving);
 }
 
-/**
- * A destination list re-read after `removed` is gone.
- *
- * Only a destination inside the removed command's own list and after it
- * moves, and it moves by one: everything else was untouched by the removal.
- */
 function adjustedForRemoval(listPath: CommandPath, removed: CommandPath): number[] {
   const holder = removed.slice(0, -1);
   const removedIndex = removed[removed.length - 1]!;
@@ -250,16 +204,6 @@ type DragEndEvent = Parameters<
   NonNullable<React.ComponentProps<typeof DragDropProvider>["onDragEnd"]>
 >[0];
 
-/**
- * Where a drag left a command, read off the sortable it moved.
- *
- * The sortable plugin has already re-grouped and re-indexed the row while it
- * was dragged, so the source's `group` and `index` are where it now sits and
- * `initialGroup` / `initialIndex` are where it came from. A drop on a list's
- * end target — the one thing an empty list has to offer — is the one case the
- * plugin does not know, so it is read off the target instead: into that
- * list, last.
- */
 function dropped(dialog: DialogDef, event: DragEndEvent): DialogDef {
   if (event.canceled) return dialog;
   const { source, target } = event.operation;
@@ -303,12 +247,6 @@ function CommandList({
   );
 }
 
-/**
- * The row under a list: a place to drop a command into it, and the control
- * that adds one of any kind. A list with rows can be dropped between them;
- * this is what an empty list has to offer, and what "put it last" means for a
- * full one.
- */
 function ListEnd({ listPath, ctx }: { listPath: CommandPath; ctx: EditorContext }) {
   const { ref, isDropTarget } = useDroppable({ id: `${INTO_PREFIX}${pathId(listPath)}` });
   const [kind, setKind] = useState<DialogCommandKind>("say");
@@ -386,7 +324,6 @@ function CommandRow({
   );
 }
 
-/** The one-line part of a command: what it says, names, or points at. */
 function CommandFields({
   command,
   ctx,
@@ -445,11 +382,6 @@ function CommandFields({
   return null;
 }
 
-/**
- * Where a goto lands, offered as the anchors that exist — and, for one that
- * names none of them, as the name it has, so a script mid-edit keeps reading
- * what the author typed rather than snapping to the first anchor.
- */
 function GotoField({
   command,
   ctx,
@@ -472,7 +404,6 @@ function GotoField({
   );
 }
 
-/** The nested parts of a command: a choice's buttons, a trade's two outcomes. */
 function CommandBlocks({
   path,
   command,

@@ -17,12 +17,6 @@ function sprite(extra: Partial<TileSprite> = {}): TileSprite {
   };
 }
 
-/**
- * Every sprite the dialog saves goes through here, so anything this function
- * fails to carry across is a field the editor can show you and never write.
- * That is how water lost the phase it was authored with: the sprite was
- * rebuilt from its frames, and `phase` sits beside them.
- */
 describe("sanitizeSprite", () => {
   it("carries the phase across", () => {
     const phased = sprite({ phase: { x: 3, y: -1 } });

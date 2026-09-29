@@ -64,8 +64,6 @@ describe("availableStates", () => {
   });
 
   it("offers nothing a renderer does not draw", () => {
-    // The union is the gate: a state reaches the editor only once something
-    // draws it. Pinned so adding a member without a driver fails here.
     expect(availableStates(deer())).toEqual(["idle", "moving"]);
   });
 });
@@ -92,8 +90,6 @@ describe("resolveTileSprite with a state", () => {
   });
 
   it("falls back to idle's SAME direction, not the state's other directions", () => {
-    // The deer authored `moving` for n and s only. Facing east it must stand
-    // still facing east, never walk facing south.
     const frames = getFrames(walking, { state: "moving", direction: "e" });
     expect(frames?.map((f) => f.sprite.rect.x)).toEqual([1]);
   });
@@ -138,8 +134,6 @@ describe("resolveTileSprite with a state", () => {
       states: { moving: { slices: { 5: spriteAt(7) } } },
     };
     expect(getFrames(water, { state: "moving", autotileSlice: 5 })?.[0]?.sprite.rect.x).toBe(7);
-    // Slice 0 is unauthored on the state, so it falls back to idle's slice 0
-    // rather than to the state's slice 5.
     expect(getFrames(water, { state: "moving", autotileSlice: 0 })?.[0]?.sprite.rect.x).toBe(0);
   });
 });

@@ -1,11 +1,3 @@
-/**
- * The one function that answers "which frame is on screen right now".
- *
- * Both renderers read it — once when a mesh is built and again every tick — and
- * the two answers agreeing is what keeps a walk cycle steady across the rebuild
- * that every step triggers. When the build path answered "frame 0" instead,
- * walking restarted the cycle several times a second.
- */
 import { describe, expect, it } from "vitest";
 import { frameAtTime, frameIndexAtTime, type Frame } from "./types";
 
@@ -54,11 +46,6 @@ describe("frameIndexAtTime", () => {
     expect(frameIndexAtTime([], 12_345)).toBe(0);
   });
 
-  /**
-   * Two placements of one sprite share a clock rather than each starting from
-   * whenever they were built — which is the property that lets a rebuilt mesh
-   * pick the cycle back up where it left off instead of restarting it.
-   */
   it("depends only on the clock, not on when anything started", () => {
     const walk = frames(4);
     const t = 7 * FRAME_MS + 37;

@@ -8,26 +8,12 @@ import { GameSession } from "./GameSession";
 import { mayHarm } from "./pvp";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * Two players do not hurt each other until both have asked to.
- *
- * The rule itself is four lines and is asserted as such below; everything after
- * that is the four places harm can pass from one body to another, each checked
- * against the same board with the switches in different positions.
- */
-
 const BASE_HP = 8;
 const TOUGHNESS = 92;
 const MAX_HP = maxHpFrom(BASE_HP, TOUGHNESS);
 
-/**
- * A blow felt through whatever armour Toughness grants, and then some — stated
- * as the target's defence rather than as a number, so these cases go on
- * asserting that a blow lands rather than re-deriving the defence curve.
- */
 const FELT = defFrom(TOUGHNESS) + 5;
 
-/** A body that always connects, so a blow landing is a fact rather than a roll. */
 function body(id: string, extra: Record<string, unknown> = {}): TileDef {
   return tile({
     id,
@@ -59,7 +45,6 @@ const tiles: TileDef[] = [
   tile({ id: "grass" }),
   body("player", { affectedByGravity: true }),
   body("deer", { actor: true, affectedByGravity: true }),
-  // Flat, so it neither buries what is under it nor stops anybody standing in it.
   tile({
     id: "fire",
     interactions: { addStatus: { trigger: "step", statusId: "burned" } },
@@ -97,18 +82,12 @@ const catalogue = statusesById([
   },
 ]);
 
-/**
- * Long enough for the approach and a few blows, and short enough that the body
- * taking them is still standing — what these cases read is a health bar, and a
- * corpse has none.
- */
 const A_FEW_ROUNDS_MS = 2_000;
 
 function advance(session: GameSession, ms: number) {
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
 }
 
-/** Flat ground, with the viewer at the origin. */
 function field(): MapFile {
   let map = emptyMap();
   for (let x = -2; x <= 2; x++) {
@@ -125,13 +104,6 @@ function hpOf(play: GameSession, id: string): number | null {
   return play.actorSnapshots().find((actor) => actor.id === id)?.hp ?? null;
 }
 
-/**
- * The viewer and a second player beside them, with the second one swinging.
- *
- * The attacker is the *other* body, so what is asserted is what a stranger can
- * do to the viewer rather than the other way round — and the viewer's own switch
- * is the interesting one either way, since both have to be on.
- */
 function twoPlayers(mine: boolean, theirs: boolean) {
   const play = session();
   play.spawn("them", { at: { x: 1, y: 0, z: 0, direction: "w" } });
@@ -191,9 +163,6 @@ describe("swinging at another player", () => {
   it("leaves the target targeted, because pointing is not swinging", () => {
     const play = twoPlayers(false, false);
     advance(play, A_FEW_ROUNDS_MS);
-    // Read off the refused attacker's own snapshot: a refusal that cleared the
-    // slot would take away the one thing a player can still do to somebody they
-    // cannot fight, which is look at them.
     expect(play.getSnapshot("them").targetId).toBe("local");
   });
 
@@ -201,8 +170,6 @@ describe("swinging at another player", () => {
     const play = session(
       replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "deer", direction: "w" }]),
     );
-    // Nobody's switch on, which is every player in a world that has never heard
-    // of this feature.
     const deer = play.actorIds().find((id) => id !== "local")!;
     play.setTarget(deer, "local");
     play.setAttackMode(true, "local");
@@ -212,7 +179,6 @@ describe("swinging at another player", () => {
 });
 
 describe("a fire somebody else conjured", () => {
-  /** The viewer at the origin with a flame beside them, laid by `castBy`. */
   function beside(placed: PlacedTile) {
     const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, placed]);
     const play = session(map);
@@ -220,7 +186,6 @@ describe("a fire somebody else conjured", () => {
     return play;
   }
 
-  /** Walk one cell east and let the arrival settle. */
   function stepEast(play: GameSession) {
     play.setInput({ directions: ["e"] });
     play.tick(TICK_MS);

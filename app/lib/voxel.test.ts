@@ -33,10 +33,8 @@ describe("rotateGridCW", () => {
   it("turns a south-facing marker to the west", () => {
     const dims = voxelDims(ONE_CELL);
     const grid = emptyGrid(ONE_CELL);
-    // Marker on the south edge, horizontally centred.
     grid[voxelIndex(dims, 3, 7, 0)] = 1;
     const turned = rotateGridCW(grid, ONE_CELL);
-    // After one CW turn (from above, y south) it sits on the west edge.
     expect(turned[voxelIndex(dims, 0, 3, 0)]).toBe(1);
   });
 
@@ -74,7 +72,6 @@ describe("renderGrid", () => {
     const grid = emptyGrid(ONE_CELL);
     grid[voxelIndex(dims, 0, 0, 0)] = 1;
     const sprite = renderGrid(grid, ONE_CELL, ["#000000", "#ff0000"], { shadeMode: "flat" });
-    // z=0 x=0 lands at widthPx - vx = 8; fully transparent elsewhere.
     expect(pixel(sprite.rgba, sprite.widthPx, 8, 8)).toEqual([255, 0, 0, 255]);
     expect(pixel(sprite.rgba, sprite.widthPx, 7, 8)[3]).toBe(0);
   });
@@ -82,7 +79,6 @@ describe("renderGrid", () => {
   it("lets higher voxels win the shared view ray", () => {
     const dims = voxelDims(ONE_CELL);
     const grid = emptyGrid(ONE_CELL);
-    // Both project to the same pixel: (5-0, 5-0) and (6-1, 6-1).
     grid[voxelIndex(dims, 5, 5, 0)] = 1;
     grid[voxelIndex(dims, 6, 6, 1)] = 2;
     const palette = ["#000000", "#ff0000", "#00ff00"];
@@ -97,9 +93,7 @@ describe("renderGrid", () => {
     const topShade = 255;
     const southShade = Math.round(255 * 0.78);
     const eastShade = Math.round(255 * 0.6);
-    // Top face: the up-left region of the solid cube's projection.
     expect(pixel(sprite.rgba, sprite.widthPx, 4, 4)).toEqual([topShade, topShade, topShade, 255]);
-    // South wall: bottom edge. East wall: right edge.
     expect(pixel(sprite.rgba, sprite.widthPx, 8, 15)).toEqual([
       southShade,
       southShade,
@@ -155,7 +149,6 @@ describe("outline pass", () => {
       outline: "silhouette",
     });
     const plain = renderGrid(grid, ONE_CELL, RED, { shadeMode: "flat" });
-    // Interior pixels are identical; only the surrounding ring changed.
     expect(pixel(outlined.rgba, outlined.widthPx, 8, 8)).toEqual(
       pixel(plain.rgba, plain.widthPx, 8, 8),
     );
@@ -164,8 +157,6 @@ describe("outline pass", () => {
   it("separates shapes that are far apart in depth", () => {
     const dims = voxelDims(ONE_CELL);
     const grid = emptyGrid(ONE_CELL);
-    // A back wall at y=0, plus a near block at the front-top-east corner
-    // whose projection lands inside the wall's.
     for (let x = 0; x < 8; x++) {
       for (let z = 0; z < 8; z++) grid[voxelIndex(dims, x, 0, z)] = 1;
     }
@@ -192,7 +183,6 @@ describe("outline pass", () => {
       }
       return n;
     };
-    // Depth mode must darken interior pixels that edge-only mode leaves alone.
     expect(blackCount(plain.rgba)).toBe(0);
     expect(blackCount(outlined.rgba)).toBeGreaterThan(blackCount(edgeOnly.rgba));
   });
@@ -287,7 +277,6 @@ describe("parseVoxelProject", () => {
 
 describe("spriteCells", () => {
   it("accounts for the up-left height shift", () => {
-    // 2x2 cells footprint, 1 level: 16+8-1 = 23px → 3 cells.
     expect(spriteCells({ cellsX: 2, cellsY: 2, levels: 1 })).toEqual({
       cellsW: 3,
       cellsH: 3,

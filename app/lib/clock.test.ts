@@ -44,8 +44,6 @@ describe("sampleIllumination", () => {
   });
 
   it("wraps midnight", () => {
-    // Halfway from noon white → midnight black via wrap: at 18:00 is mid
-    // of 12:00→00:00 span (12h). From 12:00 to 00:00 is 12h; 18:00 is 6h in.
     const dusk = sampleIllumination(18 * 60, keys);
     expect(dusk.ambient[0]).toBeCloseTo(0.5, 5);
   });
@@ -69,7 +67,6 @@ describe("sampleIllumination", () => {
       expect(ambient[1]).toBeCloseTo(1, 5);
       expect(ambient[2]).toBeCloseTo(1, 5);
     }
-    // Mid day→dusk and dusk→night blends
     expect(sampleIllumination(16 * 60 + 30).ambient[0]).toBeCloseTo(0.775, 2);
     expect(sampleIllumination(18 * 60 + 30).ambient[0]).toBeCloseTo(0.295, 2);
   });
@@ -81,7 +78,6 @@ describe("sampleIllumination", () => {
       expect(ambient[1]).toBeCloseTo(0.05, 5);
       expect(ambient[2]).toBeCloseTo(0.1, 5);
     }
-    // Dawn has started by 06:00
     expect(sampleIllumination(6 * 60).ambient[0]).toBeGreaterThan(0.2);
   });
 });
@@ -98,12 +94,6 @@ describe("clockAfter", () => {
 });
 
 describe("minutesOfDayAt", () => {
-  /**
-   * The property the shared clock rests on: any two readings of the same
-   * instant agree, and the gap between two instants is real time at the game
-   * rate. This is what makes a client able to anchor once and stay in step
-   * without the server sending the time again.
-   */
   it("is the same reading for the same instant", () => {
     const now = 1_770_000_000_000;
     expect(minutesOfDayAt(now)).toBe(minutesOfDayAt(now));

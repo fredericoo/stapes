@@ -7,10 +7,6 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   else ref.current = value;
 }
 
-/**
- * Vertical scroll area with a hard-edged scrollbar matching the app chrome.
- * Overscroll is disabled so wheel can chain out of the viewport.
- */
 export function ScrollArea({
   children,
   className = "",

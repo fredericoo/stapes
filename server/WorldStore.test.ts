@@ -5,15 +5,6 @@ import { join } from "node:path";
 import { openDatabase, type Database } from "./db";
 import { WorldStore } from "./WorldStore";
 
-/**
- * The storage the world checkpoints into.
- *
- * Tested against a real database file rather than a stub, for the reason the
- * suite it replaces ran inside workerd: the two bugs that ever shipped in
- * `GameServer` both lived in the load and restore paths, and a fake store
- * cannot have the behaviour those paths trip over.
- */
-
 let dir: string;
 let db: Database;
 let store: WorldStore;
@@ -31,9 +22,6 @@ afterEach(async () => {
 
 describe("buffered writes", () => {
   it("reads back a value before it has been committed", async () => {
-    // The tick writes and the tick reads, and the commit is off the tick — so a
-    // buffered value that could not be read back would be a world that forgets
-    // what it just did for up to two seconds.
     await store.put("a", { n: 1 });
     expect(await store.get<unknown>("a")).toEqual({ n: 1 });
   });
@@ -77,9 +65,6 @@ describe("buffered writes", () => {
 
 describe("listing", () => {
   it("merges committed rows with buffered ones", async () => {
-    // `pruneOldest` lists a prefix and deletes the oldest it finds. A listing
-    // that missed the actors written since the last flush would prune against a
-    // stale view and throw away somebody who had just been saved.
     await store.put("actor:a", { savedAt: 1 });
     await store.flush();
     await store.put("actor:b", { savedAt: 2 });
@@ -98,9 +83,6 @@ describe("listing", () => {
   });
 
   it("stops at the prefix rather than running past it", async () => {
-    // The listing is a range scan so the primary key index does the work. An
-    // off-by-one in the upper bound would quietly pull in neighbouring keys —
-    // `chunk:` reading `chunkX:` — and reassemble a board from them.
     await store.put({ "chunk:1": [1], "chunkX:1": [2], chunj: [3] });
     await store.flush();
 
@@ -111,10 +93,6 @@ describe("listing", () => {
 
 describe("atomicity", () => {
   it("commits the board and the actors in one transaction", async () => {
-    // This is the bug `pendingDeathWrites` exists to work around in the Durable
-    // Object: the board write and the actor write could land separately, which
-    // is how a sword carried into a losing fight ended up in neither its
-    // owner's kit nor the cell it was taken from. One transaction or neither.
     await store.put({
       "chunk:0:0": [{ tileId: "sword" }],
       "equipment:alice": { hands: [] },
@@ -128,8 +106,6 @@ describe("atomicity", () => {
   });
 
   it("writes made during a flush belong to the next one", async () => {
-    // The batch is taken before the first await. A write landing mid-commit
-    // must not be half-applied, and must not be lost either.
     await store.put("a", { n: 1 });
     const flushing = store.flush();
     await store.put("b", { n: 2 });
@@ -171,9 +147,6 @@ describe("deleteAll", () => {
   });
 
   it("runs a queued statement rather than discarding it", async () => {
-    // `resetWorld` queues `DROP TABLE IF EXISTS chat` and then calls this. A
-    // buffered write describes the world being thrown away and should go with
-    // it; a hand-written statement is aimed at the database and must not.
     store.sql.exec("CREATE TABLE IF NOT EXISTS scratch (a)");
     await store.deleteAll();
 
@@ -184,8 +157,6 @@ describe("deleteAll", () => {
   });
 
   it("leaves tables made through sql alone", async () => {
-    // The key-value side only, which is what it replaced. `GameServer` drops
-    // its chat table by name for exactly this reason.
     store.sql.exec("INSERT INTO chat (at, actor, x, y, z, text) VALUES (1,'a',0,0,0,'hi')");
     await store.flush();
 
@@ -196,14 +167,8 @@ describe("deleteAll", () => {
   });
 });
 
-/**
- * How a checkpoint is written: many rows to a statement, and the JSON as text.
- * A checkpoint at a thousand players is hundreds of rows, so these are the
- * shapes that one takes rather than the one-key cases above.
- */
 describe("checkpoint writes", () => {
   it("writes more rows than one statement holds, and overwrites them all in the next flush", async () => {
-    // Two statements of a hundred and one of fifty, both times.
     const keys = Array.from({ length: 250 }, (_, i) => `chunk:0:${i},0`);
     await store.put(Object.fromEntries(keys.map((key, i) => [key, [{ tileId: `a${i}` }]])));
     await store.flush();

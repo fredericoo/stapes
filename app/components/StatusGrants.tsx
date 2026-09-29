@@ -5,39 +5,12 @@ import { Button, FieldLabel, NumberInput, Select, Switch } from "../ui";
 
 const MS_PER_SECOND = 1000;
 
-/**
- * Which statuses a thing hands over, and how long each is worth.
- *
- * **The list belongs to whatever causes the condition, not to the condition
- * itself** — bread and a berry both leave you Fed, and only the food knows which
- * of them is a meal. That is also the whole argument for the duration override:
- * without it the difference between a snack and a loaf could only be a *second
- * status*, and then two identical conditions would sit in the panel side by
- * side refusing to stack with each other, for a difference that is only ever a
- * number.
- *
- * One table for both granters, because a consumable's list and a weapon's are
- * the same list — see `../lib/item`'s `StatusGrant`. **They now differ in one
- * word**: a weapon's chance is required and a consumable's is optional, absent
- * meaning certain. That used to be a whole extra column passed in by the caller,
- * and folding it back in is what the chance moving onto `StatusGrant` bought.
- */
 type Props<Grant extends StatusGrant> = {
   statuses: Grant[];
   statusDefs: Record<string, StatusDef>;
   onChange: (next: Grant[]) => void;
-  /** When the list is rolled and what it lands on — the caption's tooltip. */
   info: ReactNode;
-  /** A fresh entry on the chosen status. The owner decides what else is on one. */
   blank: (id: string) => Grant;
-  /**
-   * May an entry leave the chance unset, meaning certain?
-   *
-   * A consumable's may — you swallowed it, and most food does what it says.
-   * A weapon's may not: a blow's chance is the thing an author is deciding the
-   * moment they add a row, and a blank box there would author a brand that
-   * always lands without anybody saying so.
-   */
   certainAllowed?: boolean;
 };
 
@@ -90,9 +63,6 @@ export function StatusGrants<Grant extends StatusGrant>({
               <FieldLabel info="Off, the status's own duration applies. On, both ends are this granter's.">
                 Override duration
               </FieldLabel>
-              {/* Both ends move together, because half an override would have to
-                  be ordered against a number from somewhere else — see
-                  `StatusGrant`. */}
               <Switch
                 checked={overriding}
                 ariaLabel="Override duration"
@@ -116,9 +86,6 @@ export function StatusGrants<Grant extends StatusGrant>({
                     min={0}
                     step={1}
                     value={entry.fromMs ?? 0}
-                    // Kept ordered here so nothing authored through this
-                    // screen can land on the inverted range the schema
-                    // refuses.
                     onChange={(fromMs) =>
                       patchAt(index, {
                         fromMs,
@@ -172,18 +139,6 @@ export function StatusGrants<Grant extends StatusGrant>({
   );
 }
 
-/**
- * How often this entry lands, as one control or two.
- *
- * **"Always" is a value here and the *absence* of the field in the authored
- * entry**, the same collapse the duration override makes of "the status's own"
- * — and it is why the switch exists rather than a box you may leave blank. A
- * consumable with no chance is certain; writing `100` would mean the same thing
- * and put a number in the file that nothing needed.
- *
- * The switch is simply not offered where certainty is not authorable, so a
- * weapon shows the plain box it always showed. @see Props.certainAllowed
- */
 function StatusChance<Grant extends StatusGrant>({
   entry,
   certainAllowed,

@@ -8,11 +8,6 @@ type MapAssets = {
 
 const MapAssetsContext = createContext<MapAssets | null>(null);
 
-/**
- * Panel content is rendered by the splitkit tab registry, which lives outside
- * the route component, so loader data reaches the panels through context
- * instead of props.
- */
 export function MapAssetsProvider({
   tiles,
   tilesets,

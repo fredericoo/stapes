@@ -4,14 +4,6 @@ import { getFrames, resolveTileSprite } from "./tileResolve";
 import { pickVariantSprite, variantKeys } from "./variant";
 import { animationKey } from "../render/spriteQuad";
 
-/**
- * A sprite identifiable by where it sits, so a resolution can be checked against
- * which art came back rather than only against something coming back.
- *
- * The row is the marker: `sprite(3)` is the fourth row of the block, and its
- * frames run along it. One sheet for the whole tile — see `TileDef.anchor` — so
- * the sheet cannot be the marker any more.
- */
 function sprite(row: number, frames = 1): TileSprite {
   return {
     frames: Array.from({ length: frames }, (_, i) => ({
@@ -46,7 +38,6 @@ function hole(): TileDef {
   };
 }
 
-/** Which face came back, read off the row its art sits on. */
 function rowOf(def: TileDef, variant: string | undefined): number | undefined {
   return resolveTileSprite(def, { variant })?.frames[0]?.sprite.rect.y;
 }
@@ -65,10 +56,6 @@ describe("a variant tile draws the face its placement names", () => {
     expect(rowOf(hole(), undefined)).toBe(GRASS);
   });
 
-  // A face renamed in the tile editor leaves every placement naming the old one
-  // pointing at nothing. Drawing the wrong hole reads as art not finished;
-  // drawing nothing reads as a hole in the world, which for this tile is
-  // indistinguishable from it working.
   it("falls back rather than blanking when the name is gone", () => {
     expect(rowOf(hole(), "gravel")).toBe(GRASS);
     expect(pickVariantSprite({ variants: {} }, "grass")).toBeUndefined();
@@ -101,8 +88,6 @@ describe("a state may redraw one face without taking the others", () => {
     ).toBe(SAND);
   });
 
-  // The key is settled against idle before either holder answers, so a
-  // placement naming no face does not change face when it starts moving.
   it("settles an unnamed face against idle, not against the state", () => {
     expect(resolveTileSprite(def, { state: "moving" })?.frames[0]?.sprite.rect.y).toBe(GRASS);
   });
@@ -114,8 +99,6 @@ describe("the frame clock is keyed per face", () => {
     const planks = animationKey(def, { tileId: "hole", variant: "planks" }, 0, 0, 0);
     const sand = animationKey(def, { tileId: "hole", variant: "sand" }, 9, 9, 0);
     expect(planks).not.toBe(sand);
-    // Two placements wearing the same face share one clock wherever they stand:
-    // the face is the whole of what decides the frame list.
     expect(animationKey(def, { tileId: "hole", variant: "sand" }, 1, 2, 3)).toBe(sand);
   });
 });
@@ -127,9 +110,6 @@ describe("normalizeTileDef and the two meanings of `variants`", () => {
     expect(variantKeys(def)).toEqual(["grass", "planks", "sand"]);
   });
 
-  // A tile written before `type` existed keys `variants` by facing and holds
-  // `Frame[]`, not `TileSprite`. Half-migrated data carrying both would hand
-  // every sprite walker the wrong shape.
   it("drops a legacy variants table off a tile that is not a variant tile", () => {
     const def = normalizeTileDef({
       id: "rock",
@@ -143,8 +123,6 @@ describe("normalizeTileDef and the two meanings of `variants`", () => {
       variants: { default: [{ durationMs: 200 }] },
     });
     expect(def.variants).toBeUndefined();
-    // The tile's real art survives the drop, rather than the legacy table
-    // overwriting it on the way through.
     expect(getFrames(def)?.[0]?.sprite.rect.y).toBe(GRASS);
   });
 

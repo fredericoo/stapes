@@ -3,17 +3,6 @@ import { SOCKET_OPEN } from "../net/socket";
 import { LocalSocket } from "./LocalSocket";
 import type { ToWorld } from "./workerProtocol";
 
-/**
- * The page's end of a connection to the world in the worker.
- *
- * What is being asserted is that it behaves like the `WebSocket` it stands in
- * for, because `RemoteSession` and `WorldPage` were written against one and
- * neither was changed: a connection that ends once, a `readyState` that says so,
- * and frames that stop when it has. Each of these is a real bug on the other
- * side of it — a second close event starts a second reconnect, and a frame
- * delivered after the close reaches a session the page has already disposed.
- */
-
 function socketWithSent() {
   const sent: ToWorld[] = [];
   const socket = new LocalSocket((message) => sent.push(message), 7);
@@ -65,8 +54,6 @@ describe("LocalSocket", () => {
     socket.addEventListener("close", (event) => closes.push(event.code));
 
     socket.close();
-    // The page's own close reaches the world, which answers with a close of its
-    // own. Two endings, one connection.
     socket.ended(1000, "left");
     await Promise.resolve();
 
@@ -79,9 +66,6 @@ describe("LocalSocket", () => {
     socket.addEventListener("close", (event) => closes.push(event));
 
     socket.close();
-    // Not inline: `close()` returns first, exactly as `WebSocket.close` does,
-    // so a page tearing itself down in its close handler is not doing it inside
-    // its own call.
     expect(closes).toEqual([]);
     await Promise.resolve();
 

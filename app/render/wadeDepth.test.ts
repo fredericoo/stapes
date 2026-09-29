@@ -1,7 +1,3 @@
-/**
- * A body standing in a `wade` tile is drawn wading, and one stepping into or
- * out of it sinks or rises over the step. Every board is built here.
- */
 import { describe, expect, it } from "vitest";
 import tilesRaw from "../../data/tiles.json";
 import type { WalkState } from "../game/GameSession";
@@ -19,7 +15,6 @@ const tiles: TileDef[] = [
 ];
 const by = tilesByIdFromList(tiles);
 
-/** Grass at (0,0), water at (1,0), and a body on the grass. */
 function bank() {
   let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "body" }]);
   map = replaceStack(map, 1, 0, 0, [{ tileId: "water" }]);
@@ -66,7 +61,6 @@ describe("wadeDepth", () => {
     expect(wadeDepth(map, walking(0.25, [1, 0], [0, 0]), by)).toBe(0.75);
   });
 
-  /** A body falling into a pond is in the air until it lands in it. */
   it("is dry while falling", () => {
     const wet = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "water" }, { tileId: "body" }]);
     const falling = {
@@ -93,10 +87,6 @@ describe("wadingFor", () => {
   });
 });
 
-/**
- * The shipped `water` is shallow. Whether it is is a fact about the catalogue,
- * and a pond nobody can walk into is what `wade` was added to stop.
- */
 describe("the shipped water", () => {
   const shipped = normalizeTiles(tilesRaw as unknown[]).find((t) => t.id === "water")!;
   const withShipped = tilesByIdFromList([shipped, ...tiles.filter((t) => t.id !== "water")]);

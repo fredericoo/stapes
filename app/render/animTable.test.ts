@@ -20,7 +20,6 @@ function frame(x: number, y: number, durationMs: number, w = 1, h = 1): Frame {
   };
 }
 
-/** The texel the shader would read for `col` of `row`. */
 function texel(table: AnimationTable, row: number, col: number) {
   const data = table.bake().image.data as Float32Array;
   const o = (row * table.width + col) * 4;
@@ -34,12 +33,12 @@ describe("AnimationTable", () => {
 
     expect(row).toBe(0);
     expect(texel(table, 0, 0).du).toBeCloseTo(0);
-    // `toBeCloseTo` rather than `toBe`: negating the zero row gives -0, which
-    // is the same offset and a different value to `Object.is`.
+    /**
+     * `toBeCloseTo` rather than `toBe`: negating the zero row gives `-0`, which
+     * is the same offset and a different value to `Object.is`.
+     */
     expect(texel(table, 0, 0).dv).toBeCloseTo(0);
     expect(texel(table, 0, 1).du).toBeCloseTo(CELL_SIZE / SHEET.width);
-    // Down the sheet is *down* in v, because a rect's v is flipped when it
-    // becomes a UV. Getting this sign wrong draws a frame from the wrong row.
     expect(texel(table, 0, 2).dv).toBeCloseTo((-2 * CELL_SIZE) / SHEET.height);
   });
 
@@ -59,8 +58,6 @@ describe("AnimationTable", () => {
     table.add(long, SHEET);
 
     expect(table.width).toBe(4);
-    // The short row's padding repeats frame 1 and ends where the cycle does, so
-    // a clock taken modulo the cycle always matches before reaching it.
     expect(texel(table, 0, 3).du).toBeCloseTo(texel(table, 0, 1).du);
     expect(texel(table, 0, 3).endMs).toBe(160);
   });
@@ -76,11 +73,7 @@ describe("AnimationTable", () => {
 
   it("refuses what it cannot draw, rather than drawing it wrong", () => {
     const table = new AnimationTable();
-    // A frame of a different size would need the quad's geometry to change.
     expect(table.add([frame(0, 0, 80), frame(1, 0, 80, 2, 1)], SHEET)).toBe(NO_ANIMATION);
-    // A frame from another sheet used to be refused here too. It cannot be
-    // authored any more: the sheet is `TileDef.anchor`'s, one per tile.
-    // A still sprite is not an animation.
     expect(table.add([frame(0, 0, 80)], SHEET)).toBe(NO_ANIMATION);
     expect(table.empty).toBe(true);
   });

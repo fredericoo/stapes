@@ -6,15 +6,6 @@ import { CELL_SIZE, coordKey, normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { footRect, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 
-/**
- * Picking is by the tile's foot, not by its art.
- *
- * The fixture leans on that: every tile here is drawn four cells square with its
- * base in the *far* corner, so the sprite sprawls across a wide region of ground
- * it does not stand on. Under the old sprite-quad pick that made these tiles
- * enormous targets that swallowed everything behind them; under a foot pick the
- * art is simply irrelevant, and these tests say so by never mentioning it.
- */
 const SPRAWLING_SPRITE_CELLS = 4;
 
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
@@ -104,19 +95,16 @@ const tilesById = tilesByIdFromList([
   }),
 ]);
 
-/** Camera at the origin and zoom 1, so screen coords are world coords. */
 function ctx(map: MapFile) {
   return { map, tilesById, camera: { x: 0, y: 0 }, zoom: 1 };
 }
 
-/** The middle of a cell's ground square — where a player points to mean "that". */
 function onFoot(ref: { x: number; y: number; z: number }) {
   const foot = footRect(ref.x, ref.y, ref.z);
   return { x: foot.x + foot.w / 2, y: foot.y + foot.h / 2 };
 }
 
 describe("pickInteractiveAt", () => {
-  /** Two crates in neighbouring cells; (1,0) is drawn in front of (0,0). */
   function twoCrates(): MapFile {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
@@ -128,13 +116,6 @@ describe("pickInteractiveAt", () => {
   const sameRef = (a: ObjectRef) => (b: ObjectRef) =>
     a.x === b.x && a.y === b.y && a.z === b.z && a.stackIndex === b.stackIndex;
 
-  /**
-   * The headline of the whole change.
-   *
-   * These two crates have sprites four cells square, so under a sprite-quad pick
-   * the front one covered the back one entirely and the back one could not be
-   * hit from anywhere at all. Each now answers only over its own cell.
-   */
   it("gives every tile its own cell, whatever the art does", () => {
     const map = twoCrates();
 
@@ -160,13 +141,6 @@ describe("pickInteractiveAt", () => {
     expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toBeNull();
   });
 
-  /**
-   * The gesture you can only make from on top of the thing — a ladder.
-   *
-   * Standing on it puts your body above it in the stack, which is exactly the
-   * arrangement `interactOver` describes, so a pick that stopped at the topmost
-   * placement could never offer the one interaction the tile has.
-   */
   it("reaches under the body standing on it", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -182,10 +156,6 @@ describe("pickInteractiveAt", () => {
     });
   });
 
-  /**
-   * Your own body is an interactive tile — the player tile is pushable — so
-   * without the actionable rank it would sit on the rung and hide it.
-   */
   it("passes over the body when the body has nothing to offer", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -198,7 +168,6 @@ describe("pickInteractiveAt", () => {
     expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(ladder))).toEqual(ladder);
   });
 
-  /** Flat things are not cover either — the same rule pick-up already takes. */
   it("reaches under something lying flat on it", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -209,8 +178,6 @@ describe("pickInteractiveAt", () => {
     const coin: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 2 };
     const p = onFoot(door);
 
-    // Both are pickable, so the one on top answers — until only the door has a
-    // row, and then the coin is no more of an obstacle than the floor is.
     expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual(coin);
     expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(door))).toEqual(door);
   });
@@ -244,7 +211,6 @@ describe("pickInteractiveAt", () => {
   });
 
   describe("across levels", () => {
-    /** One crate per level, each on its own cell so no two feet overlap. */
     function crateOnEachLevel(): MapFile {
       let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
       map = replaceStack(map, 5, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
@@ -270,15 +236,7 @@ describe("pickInteractiveAt", () => {
     });
   });
 
-  /**
-   * Feet on different levels still overlap on screen — a floor above projects
-   * onto the one below — so the ranking that resolves them has to survive.
-   */
   describe("when two feet land on the same point", () => {
-    /**
-     * A crate one level up sits exactly over the one below: a level is
-     * `CELL_SIZE` up-left, so (1,1,1) and (0,0,0) share a foot square.
-     */
     function stackedLevels(): MapFile {
       let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
       map = replaceStack(map, 1, 1, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
@@ -327,7 +285,6 @@ describe("pickBodyAt", () => {
     });
   });
 
-  /** The shipped salesman: a prop with a dialog and no hit points. */
   it("finds a body with only a dialog", () => {
     const map = replaceStack(emptyMap(), 2, 2, 0, [{ tileId: "grass" }, { tileId: "salesman" }]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
@@ -363,21 +320,11 @@ describe("pickTileAt", () => {
     expect(pickTileAt(ctx(map), p.x, p.y, 0, 1)).toEqual(top);
   });
 
-  /**
-   * The hole that measuring at each tile's own elevation used to leave.
-   *
-   * A crate on a slab is drawn one unit up, so a square taken at *its* elevation
-   * sits four pixels up-left of the ground — and the strip it vacates belonged to
-   * nobody, because the tile that would have claimed it is the one that moved.
-   * On screen that was a half-cell dead band below and right of anything raised.
-   * Taking the square at the ground instead leaves the whole cell live.
-   */
   it("answers everywhere on the cell, however high the stack is", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }, { tileId: "crate" }]);
     const crate: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
     const foot = footRect(0, 0, 0);
 
-    // Every corner and the middle, inset by a pixel to stay off the boundary.
     for (const [px, py] of [
       [foot.x + 1, foot.y + 1],
       [foot.x + foot.w - 1, foot.y + 1],
@@ -389,10 +336,6 @@ describe("pickTileAt", () => {
     }
   });
 
-  /**
-   * Ground squares tile the plane, so a sweep across a row of cells must never
-   * come back empty — a gap anywhere is a place the pointer falls through.
-   */
   it("leaves no dead pixels between neighbouring cells", () => {
     let map = emptyMap();
     for (let x = 0; x < 4; x++) {
@@ -442,8 +385,6 @@ describe("pickTileAt", () => {
 
     expect(pickTileAt(ctx(map), pAbove.x, pAbove.y, 0, 1)).toEqual(above);
     expect(pickTileAt(ctx(map), pBelow.x, pBelow.y, 0, 1)).toEqual(below);
-    // With no slack neither floor is in reach, and there is nothing on the
-    // viewer's own level to find instead.
     expect(pickTileAt(ctx(map), pAbove.x, pAbove.y, 0, 0)).toBeNull();
   });
 
@@ -452,8 +393,6 @@ describe("pickTileAt", () => {
     const roof: ObjectRef = { x: 0, y: 0, z: 1, stackIndex: 0 };
     const p = onFoot(roof);
 
-    // Drawn: looking up at a roof over your head reports "Roof", which is the
-    // right answer. Cut away: it is not on screen, so it is not there to name.
     expect(pickTileAt(ctx(map), p.x, p.y, 0, 1)).toEqual(roof);
     expect(
       pickTileAt(ctx(map), p.x, p.y, 0, 1, {
@@ -468,8 +407,6 @@ describe("pickTileAt", () => {
     const roof: ObjectRef = { x: 0, y: 0, z: 1, stackIndex: 0 };
     const p = onFoot(roof);
 
-    // A cut over somebody else's building leaves this one on screen, and what is
-    // on screen can be looked at.
     expect(
       pickTileAt(ctx(map), p.x, p.y, 0, 1, {
         floor: 0,

@@ -12,25 +12,10 @@ import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * A tile that puts a condition on whoever sets it off.
- *
- * The reach rules are the teleport's and are tested as such; what is its own
- * here is that a body takes the status, that a thing without hit points does
- * not, that walking back in does it again, and that standing still in it keeps
- * doing it.
- */
-
-/** Ticks a started walk needs to reach its destination and commit. */
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 
-/**
- * One standing period, which is the cadence a step tile re-grants on. Exactly
- * thirty ticks, so a test can count helpings rather than allow for drift.
- */
 const TICKS_PER_SECOND = Math.round(1_000 / TICK_MS);
 
-/** Fixed ends, so a roll is a constant and the arithmetic below is exact. */
 const BURN_MS = 4_000;
 
 const PLAYER_BASE_HP = 8;
@@ -69,8 +54,6 @@ const tiles: TileDef[] = [
   tile({ id: "wall", height: 4 }),
   body("player", { affectedByGravity: true }),
   body("deer", { actor: true, affectedByGravity: true }),
-  // The one body nothing can burn, which is the only way a grant is turned down
-  // once the catalogue has answered for the id.
   body("salamander", {
     actor: true,
     affectedByGravity: true,
@@ -91,7 +74,6 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // A body somebody else can shove, which is what the authored player tile is.
   body("shovable", {
     actor: true,
     affectedByGravity: true,
@@ -112,8 +94,6 @@ const tiles: TileDef[] = [
       push: { climb: "half", moveOnTileIds: [] },
     },
   }),
-  // The case the gate exists for: something that walks, with no hit points for a
-  // burn to spend. A status on one would be a countdown nobody could see.
   tile({
     id: "wisp",
     height: 4,
@@ -123,13 +103,10 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
-  // The motivating tile: flat, so it neither buries what is under it nor stops
-  // anybody standing in it.
   tile({
     id: "fire",
     interactions: { addStatus: { trigger: "step", statusId: "burned" } },
   }),
-  // The pressed halves, one per gesture.
   tile({
     id: "brazier",
     height: 2,
@@ -141,15 +118,11 @@ const tiles: TileDef[] = [
     id: "coals",
     interactions: { addStatus: { trigger: "interactOver", statusId: "burned" } },
   }),
-  // Switched on and never filled in, which reads as unauthored.
   tile({ id: "unlit", interactions: { addStatus: { trigger: "step", statusId: "" } } }),
-  // A condition nobody authored: one effect that does not happen.
   tile({
     id: "ghost-fire",
     interactions: { addStatus: { trigger: "step", statusId: "haunted" } },
   }),
-  // The same block with the other tone, which is what a caster is *not* spared
-  // by their own conjure. @see ./conjured's `sparesStander`
   tile({
     id: "circle",
     interactions: { addStatus: { trigger: "step", statusId: "blessed" } },
@@ -189,7 +162,6 @@ function run(session: GameSession, ticks: number) {
   for (let i = 0; i < ticks; i++) session.tick(TICK_MS);
 }
 
-/** Walk exactly one cell, releasing input so the commit does not chain. */
 function step(session: GameSession, direction: Direction) {
   session.setInput({ directions: [direction] });
   session.tick(TICK_MS);
@@ -219,11 +191,8 @@ function whereIs(map: MapFile, tileId: string) {
   return null;
 }
 
-/** The player at the origin facing east, with one cell of interest beside them. */
 function world(beside: string, tileId = "player"): MapFile {
   let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId, direction: "e" }]);
-  // Every map needs exactly one player tile, so a creature's world still parks
-  // one somewhere out of the way.
   if (tileId !== "player") {
     map = replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
   }
@@ -314,8 +283,6 @@ describe("stepping into a fire", () => {
 
   it("burns a creature too — a body is a body", () => {
     const play = session(world("fire", "deer"), { actorIds: [] });
-    // Driven straight rather than through a brain: what is under test is the
-    // fire, and a wandering mind would decide when — or whether — to walk in.
     expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
     run(play, TICKS_PER_STEP);
     expect(held(play, "npc:0,0,0,1")).toEqual(["burned"]);
@@ -335,8 +302,6 @@ describe("stepping into a fire", () => {
     const first = play.statusesOf("local")![0]!.remainingMs;
     step(play, "w");
     step(play, "e");
-    // Stacked rather than refreshed, because that is what the fixture authorises
-    // — the point is that the second arrival was a second application.
     expect(play.statusesOf("local")![0]!.remainingMs).toBeGreaterThan(first);
   });
 
@@ -352,8 +317,6 @@ describe("stepping into a fire", () => {
     const play = session(world("fire"));
     step(play, "e");
     const arrival = play.statusesOf("local")![0]!.remainingMs;
-    // A second of standing is a second helping of Burned, which the fixture
-    // stacks — so the countdown goes *up* despite the second that ran off it.
     run(play, TICKS_PER_SECOND);
     expect(play.statusesOf("local")![0]!.remainingMs).toBeGreaterThan(arrival);
   });
@@ -361,17 +324,9 @@ describe("stepping into a fire", () => {
   it("holds a standing body at the ceiling rather than letting it run out", () => {
     const play = session(world("fire"));
     step(play, "e");
-    // Past the four seconds one helping lasts, so a fire that fired on arrival
-    // alone would have let the burn expire — and past the three helpings the
-    // climb to `maxMs` takes, so what is asserted is the clamp holding.
     run(play, TICKS_PER_SECOND * 4);
-    // Beside the combat flag the burn's own damage raised, which is why this
-    // reads the list rather than matching it.
     expect(held(play)).toContain("burned");
     const remainingMs = play.statusesOf("local")![0]!.remainingMs;
-    // Sitting on the ceiling, give or take however much of the current second
-    // has run off it — where the grant lands within the second depends on which
-    // tick the walk committed, and that is not what is under test.
     expect(remainingMs).toBeLessThanOrEqual(BURN_MS * 3);
     expect(remainingMs).toBeGreaterThan(BURN_MS * 3 - 1_000);
   });
@@ -425,15 +380,7 @@ describe("stepping into a fire", () => {
   });
 });
 
-/**
- * A fire belongs to whoever conjured it, and does not turn on them.
- *
- * The cell is the same cell for everybody — what differs is who is standing in
- * it — so every case here is one board walked into by two people.
- * @see ./conjured's `sparesStander`
- */
 describe("a fire somebody conjured", () => {
-  /** The player at the origin, facing a cell somebody laid this stack in. */
   function beside(...placed: PlacedTile[]): MapFile {
     const map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -463,17 +410,12 @@ describe("a fire somebody conjured", () => {
   });
 
   it("lets whatever is under it take its turn instead", () => {
-    // A flame conjured on a bed of coals: the caster is spared the flame and
-    // stands in the coals, which is why the skip is a `continue` rather than a
-    // way out of the loop.
     const play = session(beside({ tileId: "fire" }, { tileId: "fire", castBy: "local" }));
     step(play, "e");
     expect(held(play)).toEqual(["burned"]);
   });
 
   it("hands the caster their own blessing, which is the other tone", () => {
-    // Only harm is spared. A circle laid down to be stood in is one the person
-    // who laid it may stand in. @see ./conjured's `sparesStander`
     const play = session(beside({ tileId: "circle", castBy: "local" }));
     step(play, "e");
     expect(held(play)).toEqual(["blessed"]);
@@ -481,7 +423,6 @@ describe("a fire somebody conjured", () => {
 });
 
 describe("being shoved into a fire", () => {
-  /** Player at the origin, a shovable body beside them, fire beyond it. */
   function lane(): MapFile {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -499,17 +440,10 @@ describe("being shoved into a fire", () => {
   });
 });
 
-/**
- * The fire as authored, end to end: `data/tiles.json`'s flame against
- * `data/statuses.json`'s Burned, through the same `statusesById` the routes
- * use, so a typo in either file fails here rather than in a browser.
- */
 describe("the flame, as authored", () => {
   it("is a step trigger granting a status the catalogue holds", () => {
     const authored = statusesById(statusesJson);
     const flame = tilesByIdFromList([
-      // Only the fields this question needs; the real tile is normalised the
-      // same way by whoever loads it.
       normalizeTileDef({
         id: "flame",
         name: "Flame",
@@ -528,17 +462,6 @@ describe("the flame, as authored", () => {
   });
 });
 
-/**
- * What the arrival says, and — far more of the work — when it does not say it.
- *
- * A status is drawn: it is an icon in the strip for as long as it runs. What the
- * strip cannot do is catch the eye at the moment the condition lands, which is
- * the gap the sentence fills — see `./notices`' `statusAcquiredNotice`. That
- * makes *acquisition* the event, not application, and this fire is the fixture
- * that tells the two apart: it re-grants Burned on every standing period, so a
- * line hung off the application would repeat once a second for as long as
- * somebody stood in it.
- */
 describe("what a condition coming on says", () => {
   it("tells whoever walked into the fire", () => {
     const play = session(world("fire"));
@@ -557,9 +480,6 @@ describe("what a condition coming on says", () => {
     step(play, "e");
     expect(play.drainNotices()).toEqual(["You are burned"]);
 
-    // Four standing periods, every one of them a real re-grant — the countdown
-    // climbing is what `keeps burning whoever stands in it` asserts. None of
-    // them is news.
     run(play, TICKS_PER_SECOND * 4);
     expect(play.drainNotices()).toEqual([]);
   });
@@ -570,8 +490,6 @@ describe("what a condition coming on says", () => {
     expect(play.drainNotices()).toEqual(["You are burned"]);
 
     step(play, "w");
-    // Past the four seconds one helping lasts, so the burn is off before the
-    // second arrival — which makes the second arrival an acquisition.
     run(play, TICKS_PER_SECOND * 5);
     expect(held(play)).not.toContain("burned");
 
@@ -590,20 +508,11 @@ describe("what a condition coming on says", () => {
     expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
     run(play, TICKS_PER_STEP);
     expect(held(play, "npc:0,0,0,1")).toEqual(["burned"]);
-    // Said to the body it happened to, and a resident's line is queued for
-    // nobody — see `GameSession.say`. So it reaches no player at all.
     expect(play.drainNotices()).toEqual([]);
     expect(play.drainNotices("npc:0,0,0,1")).toEqual([]);
   });
 });
 
-/**
- * The one way a grant is turned down once the catalogue has answered for the
- * id, and the only place anybody is told about it: `/status` is the sole door
- * that reports what became of an application. Everything else — a fire, a
- * brazier, a bite — simply does nothing to a body that cannot take it, which is
- * what the two `leaves a body ... alone` cases above already assert.
- */
 describe("a body authored immune", () => {
   it("is refused by name, rather than refused in silence", () => {
     const play = session(world("grass", "salamander"), { actorIds: ["local"] });

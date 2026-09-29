@@ -1,11 +1,3 @@
-/**
- * What a validator found, as a list the author can act on.
- *
- * One shape for every authored block that has a `validate*`: an error is what
- * would make the block fail to load, a warning is something that parses and is
- * almost certainly not what the author meant. Nothing at all draws nothing —
- * a clean block earns no box saying so.
- */
 export type EditorIssue = { severity: "error" | "warn"; message: string };
 
 export function EditorIssues({ issues }: { issues: readonly EditorIssue[] }) {

@@ -17,15 +17,6 @@ import type { ObjectRef } from "./affordances";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { applyItemMove, canMoveItem, equipDestination, slotIn, slotKey } from "./itemMoves";
 
-/**
- * Moving one thing from a slot to a slot.
- *
- * The rules worth pinning are the ones no direction may leak past: a container
- * never ends up inside another, the weapon slot takes weapons and nothing else,
- * and a ground endpoint is re-reached every single time — the panel that named
- * it may have been open while its owner walked away.
- */
-
 function tile(partial: Record<string, unknown>): TileDef {
   return normalizeTileDef({
     name: partial.id,
@@ -40,7 +31,6 @@ function tile(partial: Record<string, unknown>): TileDef {
 
 const tiles = [
   tile({ id: "grass" }),
-  // Something with volume, which is what it takes to bury a thing.
   tile({ id: "crate", height: 2 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({ id: "sign" }),
@@ -67,18 +57,10 @@ const tiles = [
     kind: "item",
     interactions: { item: { type: "armor", slot: "head", def: 2 } },
   }),
-  // A thing you hold and never swing, which is where the off hand's default
-  // comes from — see `./affordances`' `equipSlotsFor`. Dark, so the accessory
-  // square refuses it: an artifact is welcome there only for its light.
   tile({ id: "torch", kind: "item", interactions: { item: DEFAULT_ARTIFACT } }),
-  // The same artifact with a flame on it, which is the one the accessory square
-  // will have — and so the one whose list of squares has two things on it.
   tile({
     id: "lantern",
     kind: "item",
-    // On the frame rather than on the tile, which is where a light lives — see
-    // `../lib/tileResolve`'s `resolveLight`. A flame authored anywhere else is
-    // a fixture that lights nothing.
     sprite: {
       frames: [
         {
@@ -94,12 +76,9 @@ const tiles = [
     },
     interactions: { item: DEFAULT_ARTIFACT },
   }),
-  // Held and never swung, which is the thing a weapon is ranked above.
   tile({ id: "shield", kind: "item", interactions: { item: DEFAULT_SHIELD } }),
-  // Fits either hand *and* the charm, which is what the ranking is for.
   tile({ id: "stone", kind: "item", interactions: { item: DEFAULT_STONE } }),
   tile({ id: "amulet", kind: "item", interactions: { item: DEFAULT_CHARM } }),
-  // Worn nowhere at all: the case the equipment button has no answer for.
   tile({
     id: "berry",
     kind: "item",
@@ -127,7 +106,6 @@ function kit(
   };
 }
 
-/** A chest one cell east, holding whatever it is given. */
 function chestAt(
   x: number,
   contents: ItemInstance[] = [],
@@ -193,11 +171,6 @@ describe("equipping and unequipping", () => {
     expect(moved?.equipment.bag?.contents).toEqual([sword("itm_a")]);
   });
 
-  /**
-   * The change: a square somebody aimed at is not refused for being full. What
-   * was in it goes back where the new one came from, so the gesture is one drag
-   * and its own undo.
-   */
   it("trades a second weapon for the one in hand", () => {
     const held = kit([sword("itm_a")], sword("itm_b"));
     const moved = applyItemMove(
@@ -474,16 +447,10 @@ describe("looting and stashing", () => {
 });
 
 describe("containers do not nest", () => {
-  /**
-   * Every direction a container could get into another one, asked one at a time.
-   * The rule lives in a single gate precisely so this list can be exhaustive
-   * rather than hopeful.
-   */
   it("refuses a bag into a bag, a bag into a chest, and a chest into a bag", () => {
     const spare: ItemInstance = { id: "itm_spare", tileId: "bag", contents: [] };
     const { map, ref } = chestAt(1, [spare]);
 
-    // Chest → bag: a spare backpack may not be pocketed.
     expect(
       canMoveItem(
         map,
@@ -498,7 +465,6 @@ describe("containers do not nest", () => {
       ),
     ).toBe(false);
 
-    // Bag → chest: nor stashed in a box on the floor.
     const holding = kit([spare]);
     expect(
       canMoveItem(
@@ -514,8 +480,6 @@ describe("containers do not nest", () => {
       ),
     ).toBe(false);
 
-    // A hand, though, will take one: nesting is about what is *inside* a
-    // container, and a pack in your fist is not inside anything.
     expect(
       canMoveItem(
         emptyMap(),
@@ -621,10 +585,6 @@ describe("what a move leaves alone", () => {
   });
 });
 
-/**
- * The bag is a thing you wear, so it has a slot like anything else worn — and
- * taking it off is the same gesture as taking a sword out of your hand.
- */
 describe("the bag slot", () => {
   it("is where the bag is read from", () => {
     const held = kit([]);
@@ -636,8 +596,6 @@ describe("the bag slot", () => {
       { kind: "bag" },
       { kind: "weapon" },
     );
-    // A hand takes anything you can carry, a pack included — so this is the bag
-    // coming off your back and into your fist, and the source is left bare.
     expect(moved?.equipment.bag).toBeNull();
     expect(moved?.equipment.weapon?.tileId).toBe("bag");
   });
@@ -699,23 +657,6 @@ describe("the bag slot", () => {
   });
 });
 
-/**
- * The body slot.
- *
- * **The one square in the game that refuses a drag**, and these are the tests
- * that keep it that way. Both hands are deliberately generous — a drag is
- * somebody saying exactly what they want, and a hand refusing a thing you could
- * obviously hold is the interface arguing with them — but defence is the whole
- * of what this square contributes to a fight, so a sword worn as a shirt would
- * be a number about nothing.
- */
-/**
- * A weapon that takes both hands.
- *
- * **The first rule where one square's answer depends on another**, which is why
- * it is worth pinning from both ends: a hand whose partner holds a pike is
- * spoken for, and a pike may not go into a hand whose partner is occupied.
- */
 describe("a two-handed weapon", () => {
   function carrying(weapon: string | null, offhand: string | null): Equipment {
     return {
@@ -741,8 +682,6 @@ describe("a two-handed weapon", () => {
         kind: hand,
       });
       expect(moved?.equipment[hand]?.tileId).toBe("pike");
-      // Occupies one square and claims the other — the other stays *empty*
-      // rather than holding a copy, because there is one pike.
       expect(moved?.equipment[hand === "weapon" ? "offhand" : "weapon"]).toBeNull();
     }
   });
@@ -760,7 +699,6 @@ describe("a two-handed weapon", () => {
     }
   });
 
-  /** And the same rule from the other end: the claimed hand takes nothing. */
   it("spoken-fors the other hand against everything", () => {
     for (const [weapon, offhand, into] of [
       ["pike", null, "offhand"],
@@ -774,11 +712,6 @@ describe("a two-handed weapon", () => {
     }
   });
 
-  /**
-   * **Not a swap.** Arriving with a pike does not put down what you are already
-   * holding, on the terms equipping never displaces anything: a swap is two
-   * deliberate acts.
-   */
   it("does not empty the other hand to make room for itself", () => {
     const armed = carrying("sword", null);
     const moved = applyItemMove(emptyMap(), tilesById, ME, armed, PIKE, {
@@ -788,7 +721,6 @@ describe("a two-handed weapon", () => {
     expect(armed.weapon?.tileId).toBe("sword");
   });
 
-  /** Putting it down frees both hands, because only one ever held it. */
   it("frees both hands when it leaves", () => {
     const moved = applyItemMove(
       emptyMap(),
@@ -806,7 +738,6 @@ describe("a two-handed weapon", () => {
     ).toBe(true);
   });
 
-  /** A bag is still a bag: nothing about two hands reaches inside one. */
   it("goes in a bag like anything else", () => {
     expect(
       canMoveItem(
@@ -825,7 +756,6 @@ describe("a two-handed weapon", () => {
 });
 
 describe("the armour slot", () => {
-  /** Wearing nothing, with a shirt and a sword in the bag to try on. */
   function undressed(): Equipment {
     return {
       ...emptyEquipment(),
@@ -856,7 +786,6 @@ describe("the armour slot", () => {
         }),
       ).toBe(false);
     }
-    // Including the pack on your own back, which a hand would happily take.
     expect(
       canMoveItem(
         emptyMap(),
@@ -871,7 +800,6 @@ describe("the armour slot", () => {
     ).toBe(false);
   });
 
-  /** A hand is still a hand: you may carry a breastplate without wearing it. */
   it("does not stop a hand holding one", () => {
     const moved = applyItemMove(emptyMap(), tilesById, ME, undressed(), from(0), {
       kind: "weapon",
@@ -896,8 +824,6 @@ describe("the armour slot", () => {
     expect(moved?.equipment.weapon?.tileId).toBe("mail");
   });
 
-  /** Taken is not refused any more: the shirt you are wearing comes off into
-   * the square the new one was dragged out of. */
   it("trades what is worn for what was dragged onto it", () => {
     const dressed: Equipment = {
       ...undressed(),
@@ -907,8 +833,6 @@ describe("the armour slot", () => {
       kind: "armor",
     });
     expect(moved?.equipment.armor?.id).toBe("itm_mail");
-    // The shirt that came off is in the square the new one was dragged out of,
-    // which is the bag it is now the only mail shirt in.
     expect(moved?.equipment.bag?.contents).toEqual([
       { id: "itm_sword", tileId: "sword" },
       { id: "itm_worn", tileId: "mail" },
@@ -920,11 +844,6 @@ describe("the armour slot", () => {
     expect(slotKey({ kind: "armor" })).not.toBe(slotKey({ kind: "offhand" }));
   });
 
-  /**
-   * The four worn squares are one rule with one extra clause, and this is the
-   * clause: armour goes where its author said and nowhere else. Without it "you
-   * may wear one of each" is "you may wear four helmets".
-   */
   it("refuses armour authored for another square, in either direction", () => {
     const packed: Equipment = {
       ...emptyEquipment(),
@@ -944,28 +863,16 @@ describe("the armour slot", () => {
     expect(canMoveItem(emptyMap(), tilesById, ME, packed, mail, { kind: "head" })).toBe(false);
     expect(canMoveItem(emptyMap(), tilesById, ME, packed, helm, { kind: "footwear" })).toBe(false);
 
-    // And lands where it does belong, so the refusal above is about the square
-    // rather than about the helm being unwearable at all.
     const worn = applyItemMove(emptyMap(), tilesById, ME, packed, helm, {
       kind: "head",
     });
     expect(worn?.equipment.head?.tileId).toBe("helm");
 
-    // A hand is still a hand: you may carry a helmet without putting it on.
     expect(canMoveItem(emptyMap(), tilesById, ME, packed, helm, { kind: "weapon" })).toBe(true);
   });
 });
 
-/**
- * A pack held in a hand is a pack, and the squares inside it are squares.
- *
- * The one arm that had to learn there is more than one container on a body:
- * `contents` names *which* now, and absent still means the one on your back.
- * Everything else — the capacity check, the nesting rule, the append — is the
- * same code, which is the whole reason it is one arm and not two.
- */
 describe("a container held in a hand", () => {
-  /** Wearing a pack, holding a second one in the off hand. */
   function carrying(worn: ItemInstance[] = [], held: ItemInstance[] = []): Equipment {
     return {
       ...emptyEquipment(),
@@ -1004,7 +911,6 @@ describe("a container held in a hand", () => {
     expect(moved?.equipment.weapon?.tileId).toBe("sword");
   });
 
-  /** Two squares of one container: there is no reordering, here or anywhere. */
   it("refuses a shuffle within itself", () => {
     expect(
       canMoveItem(
@@ -1018,7 +924,6 @@ describe("a container held in a hand", () => {
     ).toBe(false);
   });
 
-  /** The worn pack and the held one are two containers, so this is a real move. */
   it("is a different container from the one on your back", () => {
     expect(
       canMoveItem(
@@ -1064,16 +969,6 @@ describe("a container held in a hand", () => {
   });
 });
 
-/**
- * Where a thing goes when nobody has named a square — a drop on the equipment
- * button, which says "wear this" and nothing more.
- *
- * The rule being pinned is a ranking rather than a lookup: every square that
- * would take the thing is a candidate, and they are ordered by what putting it
- * there would cost you — an empty square, then the same kind of thing, then a
- * weapon, then anything else held, then anything worn — with the square it
- * belongs in breaking a tie.
- */
 describe("equipping without naming a square", () => {
   const torch: ItemInstance = { id: "itm_torch", tileId: "torch" };
   const lantern: ItemInstance = { id: "itm_lantern", tileId: "lantern" };
@@ -1096,7 +991,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /** Both hands full: the weapon goes where the weapon is, not where the shield is. */
   it("replaces the weapon rather than the shield", () => {
     const held = { ...emptyEquipment(), weapon: shield, offhand: sword("itm_a") };
     expect(equipDestination(held, tilesById, sword("itm_b"))).toEqual({
@@ -1104,7 +998,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /** Nothing of its own kind to trade for, so the ladder falls to the main hand. */
   it("replaces one of two shields, and it is the main hand's", () => {
     const held = {
       ...emptyEquipment(),
@@ -1116,7 +1009,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /** Two of the same kind tie, and the square it belongs in settles it. */
   it("replaces the main hand's weapon when both hands hold one", () => {
     const held = {
       ...emptyEquipment(),
@@ -1128,10 +1020,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /**
-   * A stone fits three squares — either hand and the charm — which is what
-   * makes it the case the ranking exists for.
-   */
   it("puts a stone in an empty square before it displaces anything", () => {
     const held = {
       ...emptyEquipment(),
@@ -1163,11 +1051,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /**
-   * An unlit artifact belongs in the hand you do not fight with, and falls back
-   * likewise. The accessory square is not on its list at all — `wornAccepts`
-   * takes a light there and refuses a key.
-   */
   it("sends a dark artifact to the off hand, and to the other one when it is full", () => {
     expect(equipDestination(emptyEquipment(), tilesById, torch)).toEqual({
       kind: "offhand",
@@ -1176,11 +1059,6 @@ describe("equipping without naming a square", () => {
     expect(equipDestination(held, tilesById, torch)).toEqual({ kind: "weapon" });
   });
 
-  /**
-   * **A light goes round your neck before it costs you a fist.** Both squares
-   * are free and both cost nothing to fill, so the tie is settled by the order
-   * the thing's own squares are in.
-   */
   it("sends a lantern to the accessory square over an empty hand", () => {
     expect(equipDestination(emptyEquipment(), tilesById, lantern)).toEqual({
       kind: "charm",
@@ -1194,10 +1072,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /**
-   * An empty hand beats displacing the amulet, which is the cost ladder having
-   * the last word over the order: the square a thing prefers only settles ties.
-   */
   it("prefers an empty hand to trading the accessory square out", () => {
     const worn = {
       ...emptyEquipment(),
@@ -1209,7 +1083,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /** Armour names its own square, and there is no second head to fall back to. */
   it("sends a helm to the head and never to a hand", () => {
     expect(equipDestination(emptyEquipment(), tilesById, helmet)).toEqual({
       kind: "head",
@@ -1226,11 +1099,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /**
-   * The move rules get the last word, which is what keeps the button from
-   * lighting up for something it cannot do: a pack coming off a hand has
-   * nowhere to go when the drag started inside a bag, since nothing nests.
-   */
   it("skips a square whose trade the move rules would refuse", () => {
     const held = {
       ...emptyEquipment(),
@@ -1243,12 +1111,6 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /**
-   * Nothing free and nothing tradeable: a pike needs a hand whose partner is
-   * empty, and emptying one square cannot give it two. It still answers with
-   * the square it belongs in, so the release has something under the pointer
-   * and the move is refused there rather than falling through to the floor.
-   */
   it("answers with the square it belongs in when no trade would land", () => {
     const held = { ...emptyEquipment(), weapon: sword("itm_a"), offhand: shield };
     const pike: ItemInstance = { id: "itm_pike", tileId: "pike" };
@@ -1265,14 +1127,12 @@ describe("equipping without naming a square", () => {
     ).toBe(false);
   });
 
-  /** One free hand is enough for a two-hander, once what is in it has gone. */
   it("trades a one-handed weapon out for a two-handed one", () => {
     const held = { ...emptyEquipment(), offhand: sword("itm_a") };
     const pike: ItemInstance = { id: "itm_pike", tileId: "pike" };
     expect(equipDestination(held, tilesById, pike)).toEqual({ kind: "offhand" });
   });
 
-  /** Nothing to mean: there is no square on a body for a berry or a chest. */
   it("has no answer for something that is worn nowhere", () => {
     expect(equipDestination(emptyEquipment(), tilesById, berry)).toBeNull();
     expect(
@@ -1284,7 +1144,6 @@ describe("equipping without naming a square", () => {
     ).toBeNull();
   });
 
-  /** A tile the catalogue has lost, on the terms every other lookup answers it. */
   it("has no answer for a tile that is not in the world", () => {
     expect(
       equipDestination(emptyEquipment(), tilesById, {
@@ -1294,7 +1153,6 @@ describe("equipping without naming a square", () => {
     ).toBeNull();
   });
 
-  /** And the answer is a move that actually lands. */
   it("names a square the move rules then honour", () => {
     const held = kit([sword("itm_a")], sword("itm_b"));
     const to = equipDestination(held, tilesById, sword("itm_a"));

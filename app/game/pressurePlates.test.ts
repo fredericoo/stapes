@@ -8,7 +8,6 @@ import { GameSession } from "./GameSession";
 import { findPlateCells, loadAbove, settlePlates } from "./pressurePlates";
 import { tile } from "../lib/testTile";
 
-/** Ticks a started walk needs to reach its destination and commit. */
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 
 function directionalTile(id: string, extra: Record<string, unknown> = {}) {
@@ -45,8 +44,6 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     interactions: { push: { climb: "half", moveOnTileIds: [] } },
   }),
-  // The canonical pair: each half swaps to the other, so the plate follows
-  // whatever is standing on it.
   tile({
     id: "plate",
     height: 0,
@@ -61,7 +58,6 @@ const tiles: TileDef[] = [
       pressurePlate: { tileId: "plate", type: "lte", height: 0 },
     },
   }),
-  // Pressed half with no plate of its own — nothing can lift it again.
   tile({
     id: "latch",
     height: 0,
@@ -70,7 +66,6 @@ const tiles: TileDef[] = [
     },
   }),
   tile({ id: "latch-stuck", height: 0 }),
-  // Its pressed form is a full-height wall, which cannot fit under a load.
   tile({
     id: "swell",
     height: 0,
@@ -78,8 +73,6 @@ const tiles: TileDef[] = [
       pressurePlate: { tileId: "wall", type: "gte", height: 1 },
     },
   }),
-  // A pair that both fire on any load at all — authored nonsense that must not
-  // spin the tick.
   tile({
     id: "flip-a",
     height: 0,
@@ -98,7 +91,6 @@ const tiles: TileDef[] = [
 
 const tilesById = tilesByIdFromList(tiles);
 
-/** Player parked away from the action; every map needs exactly one. */
 function withIdlePlayer(map: MapFile): MapFile {
   return replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
 }
@@ -111,11 +103,6 @@ function run(session: GameSession, ticks: number) {
   for (let i = 0; i < ticks; i++) session.tick(TICK_MS);
 }
 
-/**
- * Walk exactly one cell. Input is released the tick after the walk starts so
- * the commit does not roll straight into a second step — `update` is no help
- * here, it clamps catch-up to ten ticks per call.
- */
 function step(session: GameSession, direction: Direction, id?: string) {
   session.setInput({ directions: [direction] }, id);
   session.tick(TICK_MS);
@@ -206,7 +193,6 @@ describe("GameSession pressure plates", () => {
   });
 
   it("presses when a crate is shoved on and releases when it leaves", () => {
-    // Player at (0,0) shoves the crate at (1,0) east onto the plate at (2,0).
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
@@ -220,7 +206,6 @@ describe("GameSession pressure plates", () => {
     session.tick(TICK_MS);
     expect(stackIds(session.getMap(), 2, 0)).toEqual(["plate-pressed", "crate"]);
 
-    // Walk up to it and shove it off again.
     step(session, "e");
     expect(session.push({ x: 2, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     session.tick(TICK_MS);
@@ -228,11 +213,6 @@ describe("GameSession pressure plates", () => {
     expect(stackIds(session.getMap(), 3, 0)).toEqual(["grass", "crate"]);
   });
 
-  /**
-   * People share a cell, so a plate has to survive a crowd standing on it.
-   * Counting two bodies as four units of height would have jammed every plate,
-   * signal and decay in a cell for as long as two people stood in it.
-   */
   it("presses and releases under two people at once", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
@@ -248,7 +228,6 @@ describe("GameSession pressure plates", () => {
     step(session, "e", "b");
     expect(stackIds(session.getMap(), 1, 0)).toEqual(["plate-pressed", "player", "player"]);
 
-    // And it comes back up once both of them are off it.
     step(session, "e", "a");
     step(session, "e", "b");
     expect(stackIds(session.getMap(), 1, 0)).toEqual(["plate"]);
@@ -267,13 +246,11 @@ describe("GameSession pressure plates", () => {
     step(session, "e");
     expect(stackIds(session.getMap(), 1, 0)).toEqual(["latch-stuck", "player"]);
 
-    // Step away: nothing on the pressed tile can lift it.
     step(session, "w");
     expect(stackIds(session.getMap(), 1, 0)).toEqual(["latch-stuck"]);
   });
 
   it("tracks a plate that is itself pushed onto a load-bearing cell", () => {
-    // The plate is pushable scenery here — the index must follow it.
     const pushablePlate = tile({
       id: "plate",
       height: 0,
@@ -294,10 +271,8 @@ describe("GameSession pressure plates", () => {
     const session = new GameSession(map, withPushable);
     expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     session.tick(TICK_MS);
-    // Nothing on it at its new home, so it stays up.
     expect(stackIds(session.getMap(), 2, 0)).toEqual(["grass", "plate"]);
 
-    // Walking onto it must still press it, from the cell it moved to.
     step(session, "e");
     step(session, "e");
     expect(stackIds(session.getMap(), 2, 0)).toEqual(["grass", "plate-pressed", "player"]);

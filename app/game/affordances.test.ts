@@ -20,14 +20,6 @@ import {
 import type { Equipment } from "./equipment";
 import { emptyEquipment } from "./equipment";
 
-/**
- * Reaching for things.
- *
- * The geometry above all: pick-up and open share a round radius that is
- * deliberately not the orthogonal-adjacent rule a push uses, and the difference
- * is the whole reason these are separate functions.
- */
-
 function tile(partial: Record<string, unknown>): TileDef {
   return normalizeTileDef({
     name: partial.id,
@@ -45,20 +37,14 @@ const tiles = [
   tile({ id: "rock", height: 2 }),
   tile({ id: "bush", height: 2, walkable: false }),
   tile({ id: "water", walkable: false }),
-  // Full height and light-blocking, so it stops a line of sight — see `./sight`,
-  // where sight is light and you see over anything shorter than a level.
   tile({ id: "wall", height: 4 }),
   tile({ id: "bed", height: 1, footprint: { w: 2, d: 1 } }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
-  // An off-hand *weapon* — a shield. What a torch used to be authored as, and
-  // the reason `WeaponItem.offhand` exists: only the author knows which hand a
-  // block of weapon numbers was meant for.
   tile({
     id: "shield",
     kind: "item",
     interactions: { item: { ...DEFAULT_SHIELD } },
   }),
-  // And the other way into that hand: no numbers at all, so no flag either.
   tile({
     id: "lantern",
     kind: "item",
@@ -118,10 +104,6 @@ const FULL_KIT: Equipment = {
 
 const ME = { x: 0, y: 0, z: 0 };
 
-/**
- * Nothing anywhere, so reach comes down to the geometry alone: a board with no
- * cells has no floor to be on the wrong side of.
- */
 const OPEN_AIR = emptyMap();
 
 function mapWith(x: number, y: number, tileId: string, z = 0): MapFile {
@@ -163,14 +145,12 @@ describe("withinReach", () => {
     }
   });
 
-  /** A diagonal is √2 ≈ 1.41 away, which is what 1.5 is chosen to include. */
   it("is a circle, not a square of side 1.5", () => {
     expect(REACH_CELLS).toBeGreaterThan(Math.SQRT2);
     expect(REACH_CELLS).toBeLessThan(2);
   });
 
   it("reaches a wide tile from beside any cell it covers", () => {
-    // Anchored two cells east, so its western cell is the one beside you.
     const bed = replaceStack(
       replaceStack(emptyMap(), 2, 0, 0, [
         { tileId: "grass" },
@@ -191,27 +171,16 @@ describe("withinReach", () => {
     expect(withinReach(OPEN_AIR, tilesById, ME, ref(1, 0, 2))).toBe(false);
   });
 
-  /**
-   * The reason the floor of slack is not enough on its own: a supply crate on
-   * the level below, under the ground you are standing on, offering itself
-   * through a metre of earth.
-   */
   it("refuses a thing one floor down with ground laid over it", () => {
     const roofed = replaceStack(mapWith(1, 0, "chest", -1), 1, 0, 0, [{ tileId: "grass" }]);
     expect(withinReach(roofed, tilesById, ME, ref(1, 0, -1))).toBe(false);
   });
 
-  /** And the case the slack exists for: the same crate, down an open shaft. */
   it("still reaches down where that ground is missing", () => {
     const open = mapWith(1, 0, "chest", -1);
     expect(withinReach(open, tilesById, ME, ref(1, 0, -1))).toBe(true);
   });
 
-  /**
-   * The same rule the other way up, and it reads off a different tile: what
-   * separates you from the ledge beside you is your own ceiling, not the ground
-   * the chest is sitting on. @see `./sight`
-   */
   it("reaches up onto a ledge with ground of its own", () => {
     const ledge = mapWith(1, 0, "chest", 1);
     expect(withinReach(ledge, tilesById, ME, ref(1, 0, 1))).toBe(true);
@@ -222,10 +191,6 @@ describe("withinReach", () => {
     expect(withinReach(roofed, tilesById, ME, ref(1, 0, 1))).toBe(false);
   });
 
-  /**
-   * Sideways is untouched. A look never tests its own endpoints, so what you
-   * are standing beside stays within arm's length, wall or no wall.
-   */
   it("reaches across its own floor whatever is standing in the way", () => {
     const walled = replaceStack(mapWith(1, 0, "chest"), 0, 0, 0, [
       { tileId: "grass" },
@@ -241,32 +206,22 @@ describe("canPickUpFrom", () => {
     expect(canPickUpFrom(map, tilesById, ME, ref(1, 0), KIT)).toBe(true);
   });
 
-  /**
-   * A pack never goes *in* a pack — nothing nests — but with a back that is
-   * already full a hand will take one, which is a choice rather than a rule.
-   */
   it("takes a spare pack in hand when the back is full", () => {
     expect(pickUpDestination(mapWith(1, 0, "bag"), tilesById, ME, ref(1, 0), KIT)).toEqual({
       kind: "slot",
       slot: "offhand",
     });
-    // Bare back, and the "Put on" row owns it instead.
     expect(
       pickUpDestination(mapWith(1, 0, "bag"), tilesById, ME, ref(1, 0), emptyEquipment()),
     ).toBeNull();
   });
 
-  /** A chest is opened where it lies, so no hand will take one either. */
   it("never takes a chest at all", () => {
     for (const kit of [KIT, emptyEquipment(), FULL_KIT]) {
       expect(canPickUpFrom(mapWith(1, 0, "chest"), tilesById, ME, ref(1, 0), kit)).toBe(false);
     }
   });
 
-  /**
-   * A full bag is not the end of the conversation: you have hands. The spare one
-   * goes first, so a pickup never rewrites what you are fighting with.
-   */
   it("reaches for a hand when there is nowhere else", () => {
     const armed: Equipment = {
       ...FULL_KIT,
@@ -277,8 +232,6 @@ describe("canPickUpFrom", () => {
       slot: "offhand",
     });
 
-    // And the weapon hand once the spare one is taken. A berry, because a
-    // sword's own slot is free here and that is the equip row's to offer.
     expect(
       pickUpDestination(mapWith(1, 0, "berry"), tilesById, ME, ref(1, 0), {
         ...FULL_KIT,
@@ -287,17 +240,12 @@ describe("canPickUpFrom", () => {
     ).toEqual({ kind: "slot", slot: "weapon" });
   });
 
-  /**
-   * A thing with a free slot of its own is that row's business — see
-   * `equipSlotFrom`. Two rows meaning one hand is what this refusal prevents.
-   */
   it("leaves the slot a thing belongs in to the equip row", () => {
     expect(
       pickUpDestination(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), emptyEquipment()),
     ).toBeNull();
   });
 
-  /** A consumable belongs nowhere, so a hand is the first thing it reaches. */
   it("holds a thing with no slot of its own", () => {
     expect(
       pickUpDestination(mapWith(1, 0, "berry"), tilesById, ME, ref(1, 0), emptyEquipment()),
@@ -332,10 +280,6 @@ describe("canPickUpFrom", () => {
   });
 });
 
-/**
- * Arming yourself off the floor, which is what you can do with no bag at all.
- * One slot per thing, and it has to be empty.
- */
 describe("equipSlotFrom", () => {
   const slotFor = (tileId: string, kit: Equipment) =>
     equipSlotFrom(mapWith(1, 0, tileId), tilesById, ME, ref(1, 0), kit);
@@ -345,15 +289,12 @@ describe("equipSlotFrom", () => {
     expect(slotFor("shield", emptyEquipment())).toBe("offhand");
     expect(slotFor("lantern", emptyEquipment())).toBe("offhand");
     expect(slotFor("mail", emptyEquipment())).toBe("armor");
-    // Four armours, four squares, and nothing but `ArmorItem.slot` telling them
-    // apart — which is what makes picking a helmet up put it on your head.
     expect(slotFor("helm", emptyEquipment())).toBe("head");
     expect(slotFor("boots", emptyEquipment())).toBe("footwear");
     expect(slotFor("ring", emptyEquipment())).toBe("charm");
     expect(slotFor("bag", emptyEquipment())).toBe("bag");
   });
 
-  /** A full head is no reason to refuse a bare chest: the squares are separate. */
   it("fills one worn square while another is occupied", () => {
     const helmed: Equipment = {
       ...emptyEquipment(),
@@ -363,7 +304,6 @@ describe("equipSlotFrom", () => {
     expect(slotFor("mail", helmed)).toBe("armor");
   });
 
-  /** The point of the whole thing: a sword with nothing to put it in. */
   it("arms somebody carrying nothing", () => {
     expect(canEquipFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), emptyEquipment())).toBe(
       true,
@@ -376,7 +316,6 @@ describe("equipSlotFrom", () => {
       weapon: { id: "itm_held", tileId: "sword" },
     };
     expect(slotFor("sword", armed)).toBeNull();
-    // And the other hand is not a fallback — a sword is a sword, not a shield.
     expect(slotFor("sword", { ...armed, offhand: null })).toBeNull();
   });
 
@@ -384,10 +323,6 @@ describe("equipSlotFrom", () => {
     expect(slotFor("bag", KIT)).toBeNull();
   });
 
-  /**
-   * Equipping never displaces what is already on you — a swap is two deliberate
-   * acts — and armour is under the same rule as every other square.
-   */
   it("refuses the body when something is already worn on it", () => {
     const dressed: Equipment = {
       ...emptyEquipment(),
@@ -400,7 +335,6 @@ describe("equipSlotFrom", () => {
     expect(slotFor("chest", emptyEquipment())).toBeNull();
   });
 
-  /** A hand is not a pocket. A berry goes in the bag or in your mouth. */
   it("has no slot for a consumable", () => {
     expect(slotFor("berry", emptyEquipment())).toBeNull();
   });
@@ -428,10 +362,6 @@ describe("canOpenFrom", () => {
     expect(canOpenFrom(mapWith(1, 0, "chest"), tilesById, ME, ref(1, 0))).toBe(true);
   });
 
-  /**
-   * Opening is looking, and looking costs nothing — so unlike pick-up it asks
-   * nothing at all about what the player is already carrying.
-   */
   it("opens a bag with one already worn and both hands full", () => {
     const laden: Equipment = {
       ...FULL_KIT,
@@ -456,14 +386,6 @@ describe("canOpenFrom", () => {
   });
 });
 
-/**
- * What counts as being buried.
- *
- * The round reach takes in the cell the actor is standing in, so the commonest
- * thing on top of a reachable item is the actor's own body — and a rule that
- * counted that as cover would make the most obvious case in the game
- * impossible.
- */
 describe("a body is not a lid", () => {
   function under(tileId: string, above: string[]): MapFile {
     return replaceStack(emptyMap(), 0, 0, 0, [
@@ -498,15 +420,7 @@ describe("a body is not a lid", () => {
   });
 });
 
-/**
- * Putting a thing down.
- *
- * A much longer reach than taking one, and the only affordance here that asks
- * about sight — which is what the length makes necessary: five cells is far
- * enough to reach through a wall if nothing stops it.
- */
 describe("canDropAt", () => {
-  /** Open ground, eleven by eleven, with the actor at the origin. */
   function field(): MapFile {
     let map = emptyMap();
     for (let x = -5; x <= 5; x++) {
@@ -530,7 +444,6 @@ describe("canDropAt", () => {
     expect(canDropAt(map, tilesById, ME, { x: 6, y: 0, z: 0 }, sword)).toBe(false);
   });
 
-  /** Round, like every other item reach — `3,4` is exactly five away. */
   it("measures the radius round rather than square", () => {
     const map = field();
     expect(canDropAt(map, tilesById, ME, { x: 3, y: 4, z: 0 }, sword)).toBe(true);
@@ -540,7 +453,6 @@ describe("canDropAt", () => {
   it("will not throw through a wall", () => {
     const walled = replaceStack(field(), 2, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
     expect(canDropAt(walled, tilesById, ME, { x: 4, y: 0, z: 0 }, sword)).toBe(false);
-    // The same distance the other way, with nothing in between.
     expect(canDropAt(walled, tilesById, ME, { x: -4, y: 0, z: 0 }, sword)).toBe(true);
   });
 
@@ -553,14 +465,6 @@ describe("canDropAt", () => {
     expect(canDropAt(map, tilesById, ME, { x: 1, y: 0, z: 3 }, sword)).toBe(false);
   });
 
-  /**
-   * The topmost tile is what decides whether a stack can be walked on, so a
-   * thing laid on top of a bush would open a way through it. Anybody carrying
-   * food could get past any hedge in the world that way.
-   *
-   * Only players are held to this. The editor puts a plank on a fence to build
-   * a bridge deck, and that is the same stack shape.
-   */
   it("refuses a cell nothing could stand on", () => {
     const hedge = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "bush" }]);
     expect(canDropAt(hedge, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(false);
@@ -574,10 +478,6 @@ describe("canDropAt", () => {
     expect(canDropAt(crate, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(true);
   });
 
-  /**
-   * A box catches what is thrown at it, and only then does the floor get a
-   * look-in — see `dropDestinationAt`.
-   */
   describe("what catches it", () => {
     const bag = tilesById.bag!;
 
@@ -605,7 +505,6 @@ describe("canDropAt", () => {
       });
     });
 
-    /** Containers do not nest, so a bag thrown at a chest lands on it. */
     it("lands on top when the thing thrown is itself a container", () => {
       expect(dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, bag)).toEqual({
         kind: "stack",
@@ -637,10 +536,6 @@ describe("canDropAt", () => {
   });
 });
 
-/**
- * A shove takes the column with it, so being under something is no reason to
- * refuse one — but a body riding on top is.
- */
 describe("pushableDefAt", () => {
   const pushTiles = [
     ...tiles,

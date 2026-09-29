@@ -17,11 +17,6 @@ import { useEditorStore, type ToolId } from "../store";
 import { GENERATORS, type GeneratorId, type ProceduralSettings } from "../procedural";
 import { ProceduralDialog } from "./ProceduralDialog";
 
-/**
- * The face each generator wears on the tool button, which changes with the
- * armed one — the strip has room for a single procedural button, so the icon
- * is the only place the armed generator can be read off the toolbar.
- */
 const GENERATOR_ICONS: Record<GeneratorId, TablerIcon> = {
   house: IconHome,
   cave: IconMountain,
@@ -42,17 +37,12 @@ const TOOLS: Array<{
   { id: "bucket", label: "Bucket", key: "G", Icon: IconBucket },
 ];
 
-/** Floating vertical tool strip — scrolls when the chrome column is short. */
 export function MapToolbar() {
   const tool = useEditorStore((s) => s.tool);
   const settings = useEditorStore((s) => s.proceduralSettings);
   const [dialogOpen, setDialogOpen] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  // Placing arms the tool with the settings just chosen and hands the map back
-  // ready to drag. The selected cell goes with it: the shape tools stamp the
-  // selection when there is one, and a generator ignores it, so leaving it set
-  // would leave the tile picker claiming a brush the next drag will not use.
   const place = (next: ProceduralSettings) => {
     const store = useEditorStore.getState();
     store.setProceduralSettings(next);
@@ -64,8 +54,6 @@ export function MapToolbar() {
   const activeGenerator = GENERATORS.find((g) => g.id === settings.active) ?? GENERATORS[0]!;
   const ActiveIcon = GENERATOR_ICONS[activeGenerator.id];
 
-  // Chain wheel to the map whenever the strip can't absorb it (no overflow,
-  // or already at the edge). Keeps toolbar hover from trapping map pan.
   useLayoutEffect(() => {
     const el = viewportRef.current;
     if (!el) return;

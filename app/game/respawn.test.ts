@@ -16,16 +16,6 @@ import {
 } from "./respawn";
 import { FRAME, tile } from "../lib/testTile";
 
-/**
- * Where the world grows things back.
- *
- * Spawn points are derived once from a map every point is filled in, so most
- * of what matters here is the derivation being faithful — the right key, the
- * right identity, runtime ids stripped — and the filled test telling a
- * wanderer from a corpse. The refill itself is `GameSession.respawnAt`,
- * covered at the bottom against the session it runs in.
- */
-
 const RESPAWN_FROM_MS = 30_000;
 const RESPAWN_TO_MS = 60_000;
 const RESPAWN = { fromMs: RESPAWN_FROM_MS, toMs: RESPAWN_TO_MS };
@@ -41,7 +31,6 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
-  // The motivating creature: a body that comes back.
   tile({
     id: "gnome",
     height: 2,
@@ -49,8 +38,6 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: { respawn: RESPAWN },
   }),
-  // A body that comes back holding something. What it grows back with is rolled
-  // at the moment it grows, which is what makes a drop a thing you go and get.
   tile({
     id: "packrat",
     height: 2,
@@ -67,17 +54,13 @@ const tiles: TileDef[] = [
       },
     },
   }),
-  // A body that does not — its death is permanent.
   tile({ id: "deer", height: 2, actor: true, walkable: false }),
-  // An object that grows back where it was authored.
   tile({
     id: "coin",
     height: 0,
     kind: "item",
     interactions: { item: DEFAULT_WEAPON, respawn: RESPAWN },
   }),
-  // The motivating pair: something that grows back *and* goes off where it
-  // stands, so the two clocks run over one placement at once.
   tile({
     id: "berry",
     height: 0,
@@ -94,7 +77,6 @@ const tiles: TileDef[] = [
     kind: "item",
     interactions: { item: DEFAULT_WEAPON },
   }),
-  // Malformed ranges read as "does not respawn", like decay's do.
   tile({
     id: "backwards",
     height: 0,
@@ -109,7 +91,6 @@ const tiles: TileDef[] = [
 
 const tilesById = tilesByIdFromList(tiles);
 
-/** A strip of grass along y=0, with the authored spawn marker at x=0. */
 function strip(width: number): MapFile {
   let map = emptyMap();
   for (let x = 0; x < width; x++) {
@@ -135,7 +116,6 @@ function pointFor(map: MapFile, key: string): SpawnPoint {
   return point!;
 }
 
-/** The object point authored at (x,y) on the ground level, keyed however. */
 function objectPointAt(map: MapFile, x: number, tileId: string): SpawnPoint {
   const point = findSpawnPoints(map, tilesById).find(
     (p) => !p.ownerId && p.cell.x === x && p.placed.tileId === tileId,
@@ -199,11 +179,6 @@ describe("findSpawnPoints", () => {
     expect(point.itemIds).toEqual(["item-a", "item-b"]);
   });
 
-  /**
-   * An unminted map is an editor's or a test's, never a running world's — the
-   * server derives after `mintItemIds`. Absent rather than empty, because empty
-   * is a claim: "I watch things, and none of mine are here".
-   */
   it("records no identities for a tile that is not an item", () => {
     const map = replaceStack(strip(6), 1, 0, 0, [
       { tileId: "grass" },
@@ -240,7 +215,6 @@ describe("isSpawnFilled", () => {
     const authored = withGnome(strip(6));
     const point = pointFor(authored, GNOME_OWNER);
 
-    // The gnome walked two cells east: authored cell empty, gnome alive.
     let wandered = replaceStack(authored, GNOME_X, 0, 0, [{ tileId: "grass" }]);
     wandered = replaceStack(wandered, GNOME_X + 2, 0, 0, [
       { tileId: "grass" },
@@ -261,25 +235,17 @@ describe("isSpawnFilled", () => {
     const point = objectPointAt(authored, 1, "coin");
     expect(isSpawnFilled(authored, point)).toBe(true);
 
-    // One of the two taken: the count is short, wherever the coin went.
     const oneTaken = replaceStack(authored, 1, 0, 0, [{ tileId: "grass" }, { tileId: "coin" }]);
     expect(isSpawnFilled(oneTaken, point)).toBe(false);
   });
 });
 
 describe("isSpawnFilled, by identity", () => {
-  /** The authored berry at x=1, and the point that watches it. */
   function berryAt(itemId: string) {
     const map = replaceStack(strip(6), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry", itemId }]);
     return { map, point: objectPointAt(map, 1, "berry") };
   }
 
-  /**
-   * **A berry that goes off is still a berry.** Decay rewrites the tile id and
-   * keeps the `itemId`, so the thing the point is watching is still standing
-   * where it was — and the world does not grow a second berry to sit beside a
-   * stale one nobody has touched.
-   */
   it("counts a thing that decayed where it stands", () => {
     const { map, point } = berryAt("item-a");
     const stale = replaceStack(map, 1, 0, 0, [
@@ -295,11 +261,6 @@ describe("isSpawnFilled, by identity", () => {
     expect(isSpawnFilled(taken, point)).toBe(false);
   });
 
-  /**
-   * A point does not adopt what wanders in. Only a respawn writes an id onto
-   * one, so a lookalike — a second berry off another bush, or the very berry
-   * this point lost, dropped back where it was found — settles no debt.
-   */
   it("does not count a lookalike, or the thing it has already forgotten", () => {
     const { map, point } = berryAt("item-a");
     const emptied = { ...point, itemIds: [] };
@@ -333,12 +294,6 @@ describe("presentItemIds", () => {
 });
 
 describe("withMigratedItemIds", () => {
-  /**
-   * The one-time pass for points stored before identities were tracked. By
-   * tile, which is all a point with no ids can ask — so a world resumed with a
-   * berry already gone stale backfills nothing for it and tops that point up
-   * once more before it settles.
-   */
   it("backfills a stored point off the cell, by tile", () => {
     const map = replaceStack(strip(6), 1, 0, 0, [
       { tileId: "grass" },
@@ -372,7 +327,6 @@ describe("GameSession.respawnAt", () => {
   const gnomePoint = pointFor(authored, GNOME_OWNER);
 
   it("grows a creature back at its authored cell, adopted and driven", () => {
-    // The world after the gnome died: its placement is simply not there.
     const session = new GameSession(strip(6), tiles);
 
     expect(session.respawnAt(gnomePoint).kind).toBe("done");
@@ -391,7 +345,6 @@ describe("GameSession.respawnAt", () => {
   });
 
   it("refuses, retryably, when the placement no longer fits", () => {
-    // Somebody built to the ceiling where the gnome used to stand.
     const blocked = replaceStack(strip(6), GNOME_X, 0, 0, [{ tileId: "wall" }, { tileId: "wall" }]);
     const session = new GameSession(blocked, tiles);
 
@@ -411,13 +364,6 @@ describe("GameSession.respawnAt", () => {
     expect(coin?.itemId).toBeTruthy();
   });
 
-  /**
-   * **A respawned body rolls its kit again**, on exactly the terms its hit
-   * points are rebuilt from the tile: what grew back is a new creature, not the
-   * one that died holding what it was holding. Two respawns of one point are
-   * therefore two different coins, and a player who cleared the camp an hour ago
-   * has to clear it again to get another.
-   */
   it("rolls a respawned creature's kit, and rolls it fresh each time", () => {
     const PACKRAT_X = 2;
     const owner = `npc:${PACKRAT_X},0,0,1`;
@@ -432,7 +378,6 @@ describe("GameSession.respawnAt", () => {
     const first = session.equipmentOf(owner)!.weapon;
     expect(first?.tileId).toBe("coin");
 
-    // Cleared again: the body is off the board and the point is owed another.
     session.despawn(owner);
     expect(session.respawnAt(point).kind).toBe("done");
     const second = session.equipmentOf(owner)!.weapon;
@@ -480,7 +425,6 @@ describe("ways in and out, for bodies and what grows back", () => {
       dissolve: { pattern: "noise", edgeColor: "#ff9e40", edgeWidth: 0.1 },
     },
   };
-  /** A player who can be killed, with a way in and out. */
   const mortalPlayer = tile({
     id: "player",
     height: 4,
@@ -493,7 +437,6 @@ describe("ways in and out, for bodies and what grows back", () => {
     },
     transitions: WAYS,
   });
-  /** The same catalogue, with the gnome and the player given ways in and out. */
   const forming = tiles.map((def) => {
     if (def.id === "player") return mortalPlayer;
     if (def.id === "gnome") return { ...def, transitions: parseTileTransitions(WAYS) };

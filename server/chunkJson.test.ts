@@ -5,13 +5,6 @@ import type { CellAffliction, CellPatch } from "../app/net/protocol";
 import { CHUNK_SIZE, type MapFile, type PlacedTile } from "../app/lib/types";
 import { handoverCellsJson, mapOfInterestJson } from "./chunkJson";
 
-/**
- * The kept text of a chunk is only a saving if it is the same bytes the objects
- * would have been. Every case here compares against `JSON.stringify` of what
- * `../app/net/interest` builds, which is what the server sent before the text
- * was kept.
- */
-
 const grass: PlacedTile = { tileId: "grass" };
 const wall: PlacedTile = { tileId: "wall" };
 
@@ -19,10 +12,6 @@ function body(owner: string, tileId = "player"): PlacedTile {
   return { tileId, owner, direction: "s" } as PlacedTile;
 }
 
-/**
- * A board over four chunk columns and three levels: ground everywhere, a wall
- * here and there, a body in some cells and two in one.
- */
 function board(): MapFile {
   const edits: StackEdit[] = [];
   for (let x = -CHUNK_SIZE; x < CHUNK_SIZE; x++) {
@@ -54,7 +43,6 @@ const HELD_SETS: Array<ReadonlySet<string>> = [
 
 const FIRE: CellAffliction[] = [{ tileId: "grass", defIds: ["burning"] }];
 
-/** What the server built before: `cellsOfChunks`, through its `cellPatch`. */
 function handoverByObjects(
   map: MapFile,
   chunks: string[],
@@ -98,7 +86,6 @@ describe("ground handed over as it comes into reach", () => {
 
   it("is written afresh for a chunk that has been edited since", () => {
     let map = board();
-    // Once to keep the text, then an edit that replaces the chunk.
     handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set());
     map = setStacks(map, [{ x: 1, y: 1, z: 0, stack: [grass, wall] }]);
     expect(handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set())).toBe(
@@ -109,7 +96,6 @@ describe("ground handed over as it comes into reach", () => {
   it("writes a stack for the cell it is in now, not the cell it was first written for", () => {
     let map = board();
     handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set());
-    // The same array, moved to another cell and put on another level too.
     const moved = map.levels["0"]!["0,0"]!["1,1"]!;
     map = setStacks(map, [
       { x: 1, y: 1, z: 0, stack: [] },
@@ -130,8 +116,6 @@ describe("ground handed over as it comes into reach", () => {
     let map = board();
     handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set());
     mapOfInterestJson(map, new Set(ALL_CHUNKS), new Set());
-    // One copy per step, as the simulation makes them: alice walks east, bob
-    // walks out of the cell he shares with carol, the rat turns round.
     const steps: StackEdit[][] = [
       [
         { x: 1, y: 1, z: 0, stack: [grass] },
@@ -164,8 +148,6 @@ describe("ground handed over as it comes into reach", () => {
     let map = board();
     handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set());
     mapOfInterestJson(map, new Set(ALL_CHUNKS), new Set());
-    // Emptied, which takes the key out of the chunk; then filled again, which
-    // puts it back at the end. Then a cell nobody had, which also goes last.
     map = setStacks(map, [{ x: 4, y: 3, z: 2, stack: [] }]);
     map = setStacks(map, [{ x: 4, y: 3, z: 2, stack: [wall] }]);
     map = setStacks(map, [{ x: 5, y: 3, z: 2, stack: [grass] }]);

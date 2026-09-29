@@ -1,10 +1,3 @@
-/**
- * The worker's copy of the map must not drift from the real one.
- *
- * This is the one failure in the off-thread path that nothing else would
- * notice: a missed edit does not throw, it just bakes light for a world that no
- * longer exists, and it stays wrong until something else invalidates the chunk.
- */
 import { describe, expect, it } from "vitest";
 import { clearStack, getStack, replaceStack, setStacks } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
@@ -13,7 +6,6 @@ import type { MapFile } from "./types";
 
 const base = fixtureTown();
 
-/** What the worker would hold after being initialised and then told about `next`. */
 function mirrorThrough(versions: MapFile[]): MapFile {
   const mirror = structuredClone(versions[0]!);
   let prev = versions[0]!;
@@ -41,7 +33,6 @@ describe("light baker map mirror", () => {
       ...(getStack(base, 0, 0, 0) ?? []),
       { tileId: "torch" },
     ]);
-    // Far enough out to land in a chunk the map has never had.
     const b = replaceStack(a, 400, -400, 3, [{ tileId: "stone-wall" }]);
     const c = clearStack(b, 0, 0, 0);
     const d = setStacks(c, [
