@@ -3,7 +3,7 @@ import { dirname, join, normalize, sep } from "node:path";
 import type { Config } from "./config";
 
 export class ClientBundle {
-  private readonly builds = new Map<string, Map<string, Asset>>();
+  private readonly builds = new Map<string, Map<string, Blob>>();
   private activeBuildId: string | null = null;
   private readonly root: string;
 
@@ -80,19 +80,21 @@ export class ClientBundle {
     await this.collectGarbage();
   }
 
-  private async read(buildId: string): Promise<Map<string, Asset>> {
+  /**
+   * Each file is held as a `Blob` because Bun sends a `Blob` body as it is and
+   * copies a `Uint8Array` body for every response, so the process would grow by
+   * every download in flight at once.
+   */
+  private async read(buildId: string): Promise<Map<string, Blob>> {
     const directory = join(this.root, buildId);
-    const assets = new Map<string, Asset>();
+    const assets = new Map<string, Blob>();
 
     for (const path of await walk(directory)) {
       const relative = path
         .slice(directory.length + 1)
         .split(sep)
         .join("/");
-      assets.set(relative, {
-        bytes: new Uint8Array(await readFile(path)),
-        contentType: contentTypeFor(relative),
-      });
+      assets.set(relative, new Blob([await readFile(path)], { type: contentTypeFor(relative) }));
     }
 
     if (!assets.has("index.html")) {
@@ -120,26 +122,26 @@ export class ClientBundle {
     }
   }
 
-  respond(pathname: string): Response | null {
+  respond(pathname: string, rangeHeader: string | null = null): Response | null {
     if (!this.activeBuildId) return null;
     const path = pathname.replace(/^\/+/, "") || "index.html";
     const active = this.builds.get(this.activeBuildId)!;
 
     const fromActive = active.get(path);
-    if (fromActive) return toResponse(fromActive, path);
+    if (fromActive) return toResponse(fromActive, path, rangeHeader);
 
     const page = `${path.replace(/\/+$/, "")}/index.html`;
     const prerendered = active.get(page);
-    if (prerendered) return toResponse(prerendered, page);
+    if (prerendered) return toResponse(prerendered, page, rangeHeader);
 
     for (const [id, assets] of this.builds) {
       if (id === this.activeBuildId) continue;
       const asset = assets.get(path);
-      if (asset) return toResponse(asset, path);
+      if (asset) return toResponse(asset, path, rangeHeader);
     }
 
     const fallback = active.get(SPA_FALLBACK) ?? active.get("index.html")!;
-    return toResponse(fallback, "index.html");
+    return toResponse(fallback, "index.html", rangeHeader);
   }
 }
 
@@ -153,8 +155,6 @@ const POINTER_FILE = "active";
 
 const MAX_RESIDENT_BUILDS = 3;
 const KEPT_BUILDS_ON_DISK = 5;
-
-type Asset = { bytes: Uint8Array; contentType: string };
 
 const SAFE_BUILD_ID = /^[a-zA-Z0-9._-]{1,64}$/;
 
@@ -197,14 +197,72 @@ async function walk(directory: string): Promise<string[]> {
   return out;
 }
 
-function toResponse(asset: Asset, path: string): Response {
+/**
+ * Safari on iOS asks for video in byte ranges, and Apple requires a media
+ * server to answer them, so a single `bytes=` range is answered with just those
+ * bytes. A header this does not understand, several ranges among them, is
+ * ignored and the whole file is sent, which HTTP allows.
+ */
+function toResponse(asset: Blob, path: string, rangeHeader: string | null): Response {
   const immutable = !path.endsWith(".html");
-  return new Response(asset.bytes as unknown as BodyInit, {
-    headers: {
-      "Content-Type": asset.contentType,
-      "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-store",
-    },
-  });
+  const headers = {
+    "Content-Type": asset.type,
+    "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-store",
+    "Accept-Ranges": "bytes",
+  };
+  const range = byteRange(rangeHeader, asset.size);
+
+  switch (range.kind) {
+    case "whole":
+      return new Response(asset, { headers });
+    case "unsatisfiable":
+      return new Response(null, {
+        status: RANGE_NOT_SATISFIABLE,
+        headers: {
+          ...headers,
+          "Cache-Control": "no-store",
+          "Content-Range": `bytes */${asset.size}`,
+        },
+      });
+    case "part":
+      return new Response(asset.slice(range.start, range.end + 1), {
+        status: PARTIAL_CONTENT,
+        headers: { ...headers, "Content-Range": `bytes ${range.start}-${range.end}/${asset.size}` },
+      });
+  }
+}
+
+const PARTIAL_CONTENT = 206;
+const RANGE_NOT_SATISFIABLE = 416;
+
+type ByteRange =
+  | { kind: "whole" }
+  | { kind: "part"; start: number; end: number }
+  | { kind: "unsatisfiable" };
+
+const WHOLE: ByteRange = { kind: "whole" };
+const UNSATISFIABLE: ByteRange = { kind: "unsatisfiable" };
+
+const SINGLE_RANGE = /^bytes=(\d*)-(\d*)$/;
+
+/** Which bytes of a file `byteLength` long `header` asks for; `end` is inclusive, as HTTP writes it. */
+function byteRange(header: string | null, byteLength: number): ByteRange {
+  const match = header ? SINGLE_RANGE.exec(header.trim()) : null;
+  if (!match) return WHOLE;
+  const [, first = "", last = ""] = match;
+  if (first === "" && last === "") return WHOLE;
+
+  if (first === "") {
+    const suffix = Number(last);
+    if (suffix === 0 || byteLength === 0) return UNSATISFIABLE;
+    return { kind: "part", start: Math.max(0, byteLength - suffix), end: byteLength - 1 };
+  }
+
+  const start = Number(first);
+  const requestedEnd = last === "" ? Infinity : Number(last);
+  if (requestedEnd < start) return WHOLE;
+  if (start >= byteLength) return UNSATISFIABLE;
+  return { kind: "part", start, end: Math.min(requestedEnd, byteLength - 1) };
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -214,12 +272,15 @@ const CONTENT_TYPES: Record<string, string> = {
   json: "application/json",
   svg: "image/svg+xml",
   png: "image/png",
+  gif: "image/gif",
   jpg: "image/jpeg",
   webp: "image/webp",
   woff2: "font/woff2",
   woff: "font/woff",
   ttf: "font/ttf",
   ico: "image/x-icon",
+  mp4: "video/mp4",
+  webm: "video/webm",
   map: "application/json",
 };
 

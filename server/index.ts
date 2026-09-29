@@ -12,6 +12,7 @@ import { viewerOf } from "./auth";
 import { readConfig } from "./config";
 import { createApi } from "./api";
 import { ClientBundle } from "./clientBundle";
+import { serveClient } from "./serveClient";
 import { GameSocket, PER_MESSAGE_DEFLATE } from "./sockets";
 import { World } from "./world";
 
@@ -91,11 +92,7 @@ const app = new Elysia({
       if (socket) void world.leave(socket);
     },
   })
-  .get(
-    "/*",
-    ({ request, status }) =>
-      bundle.respond(new URL(request.url).pathname) ?? status(404, "No client bundle"),
-  )
+  .use(serveClient(bundle))
   .onError(({ code, error }) => {
     if (code === "NOT_FOUND") return new Response("Not found", { status: 404 });
     console.error("[server]", error);
