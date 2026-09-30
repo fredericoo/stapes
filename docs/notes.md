@@ -493,6 +493,14 @@ elsewhere:
   pruned past `MAX_REMEMBERED_ACTORS`, so the oldest-played characters lose
   their rating here the same way they lose their experience in the game.
 
+`/admin/players/:characterId` shows one character from `GameServer.characterSheet`.
+A character in the running session is read from it; any other is read from its
+saved `kv` rows, so its position and equipment are what the last actor flush
+wrote. Saved equipment is shown as stored, not through `restoredEquipment`,
+which needs a loaded world's tile catalogue and drops items it no longer
+accepts. HP is null at full health in both places, and the page says "Full"
+rather than computing a maximum the server does not store.
+
 ## A name is typed once and never again
 
 `app/lib/characterName.ts` holds the rules and both halves run them: the form so

@@ -369,6 +369,25 @@ type SavedPvp = { on: boolean; savedAt: number };
 
 type SavedHidden = { on: boolean; savedAt: number };
 
+/**
+ * What an administrator sees of one character: read from the running session
+ * when the character is in it (`live`), and from its saved rows otherwise.
+ * `hp` is null at full health, which is how both of them store it.
+ */
+export type CharacterSheet = {
+  live: boolean;
+  dead: boolean;
+  position: ActorPosition | null;
+  spawn: ActorPosition | null;
+  equipment: Equipment | null;
+  masteryXp: MasteryXp;
+  statuses: StatusInstance[];
+  hp: number | null;
+  tags: string[];
+  pvp: boolean;
+  hidden: boolean;
+};
+
 const savedStatusSchema = v.object({
   defId: v.pipe(v.string(), v.minLength(1)),
   durationMs: v.pipe(v.number(), v.finite(), v.minValue(0)),
@@ -1146,6 +1165,58 @@ export class GameServer {
       if (live) out.set(actorId, rating(masteriesFromXp(live)));
     }
     return out;
+  }
+
+  async characterSheet(actorId: string): Promise<CharacterSheet> {
+    const spawn = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
+    const common = {
+      dead: this.dead.has(actorId),
+      spawn: spawn ? { x: spawn.x, y: spawn.y, z: spawn.z, direction: spawn.direction } : null,
+    };
+    const session = this.session;
+    const at = session?.actorPosition(actorId);
+    if (!session || !at) return { ...common, ...(await this.savedSheetOf(actorId)) };
+    return {
+      ...common,
+      live: true,
+      position: at,
+      equipment: session.equipmentOf(actorId),
+      masteryXp: { ...session.masteryXpOf(actorId) },
+      statuses: [...(session.statusesOf(actorId) ?? [])],
+      hp: session.storedHpOf(actorId),
+      tags: [...(session.tagsOf(actorId) ?? [])],
+      pvp: session.pvpOf(actorId),
+      hidden: session.hiddenOf(actorId),
+    };
+  }
+
+  /**
+   * The saved equipment is returned as stored rather than through
+   * `restoredEquipment`, which needs the tile catalogue of a loaded world and
+   * would hide an item it no longer accepts.
+   */
+  private async savedSheetOf(actorId: string): Promise<Omit<CharacterSheet, "dead" | "spawn">> {
+    const [position, equipment, tags, masteryXp, statuses, hp, pvp, hidden] = await Promise.all([
+      this.lastPositionOf(actorId),
+      this.ctx.storage.get<SavedEquipment>(this.equipmentKey(actorId)),
+      this.lastTagsOf(actorId),
+      this.lastMasteriesOf(actorId),
+      this.lastStatusesOf(actorId),
+      this.lastHpOf(actorId),
+      this.lastPvpOf(actorId),
+      this.ctx.storage.get<SavedHidden>(this.hiddenKey(actorId)),
+    ]);
+    return {
+      live: false,
+      position: position ?? null,
+      equipment: equipment?.equipment ?? null,
+      masteryXp: masteryXp ?? {},
+      statuses: statuses ?? [],
+      hp: hp ?? null,
+      tags: tags ?? [],
+      pvp: pvp ?? false,
+      hidden: hidden?.on === true,
+    };
   }
 
   onlineActorIds(): string[] {

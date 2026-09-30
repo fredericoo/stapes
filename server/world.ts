@@ -1,6 +1,6 @@
 import { DataStore, type Blobs } from "../app/lib/dataStore";
 import { flattenMap } from "../app/lib/mapData";
-import { GameServer } from "./GameServer";
+import { GameServer, type CharacterSheet } from "./GameServer";
 import { SqliteBlobs, DiskBlobs } from "./blobs";
 import { WorldStore } from "./WorldStore";
 import { GameSocket, SocketHub, type WorldContext } from "./sockets";
@@ -143,6 +143,25 @@ export class World {
       online: entry.character !== null && online.has(entry.character.id),
       rating: entry.character ? (ratings.get(entry.character.id) ?? null) : null,
     }));
+  }
+
+  async player(
+    characterId: string,
+  ): Promise<{ player: PlayerEntry; sheet: CharacterSheet } | null> {
+    const entry = await this.characters.rosterEntry(characterId);
+    if (!entry) return null;
+    const [ratings, sheet] = await Promise.all([
+      this.server.ratings(),
+      this.server.characterSheet(characterId),
+    ]);
+    return {
+      player: {
+        ...entry,
+        online: this.server.onlineActorIds().includes(characterId),
+        rating: ratings.get(characterId) ?? null,
+      },
+      sheet,
+    };
   }
 
   async beginMaintenance(message: string | null): Promise<MaintenanceState> {

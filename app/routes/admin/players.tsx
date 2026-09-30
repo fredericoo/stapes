@@ -14,13 +14,14 @@ import {
   useTable,
 } from "@tanstack/react-table";
 import { IconArrowDown, IconArrowUp, IconArrowsSort } from "@tabler/icons-react";
-import { type ReactNode, useMemo, useState } from "react";
-import { useLoaderData } from "react-router";
+import { useMemo, useState } from "react";
+import { Link, useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { fetchPlayers } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
 import { RATING_GLYPH } from "../../lib/mastery";
 import { Input } from "../../ui/Input";
+import { AccountName, LastOnline, Moment } from "../../components/PlayerFacts";
 import type { PlayerEntry } from "../../../server/world";
 
 export async function clientLoader() {
@@ -51,7 +52,12 @@ function columns(now: number) {
       sortUndefined: "last",
       cell: ({ row }) =>
         row.original.character ? (
-          <span className="font-medium">{row.original.character.name}</span>
+          <Link
+            to={`/admin/players/${row.original.character.id}`}
+            className="font-medium underline decoration-ink/30 underline-offset-2 hover:decoration-ink"
+          >
+            {row.original.character.name}
+          </Link>
         ) : (
           <span className="text-muted">No character</span>
         ),
@@ -60,7 +66,7 @@ function columns(now: number) {
       id: "account",
       header: "Account",
       sortUndefined: "last",
-      cell: ({ row }) => <AccountCell entry={row.original} />,
+      cell: ({ row }) => <AccountName entry={row.original} />,
     }),
     column.accessor((entry) => entry.rating ?? undefined, {
       id: "rating",
@@ -81,7 +87,7 @@ function columns(now: number) {
       sortUndefined: "last",
       sortDescFirst: true,
       enableGlobalFilter: false,
-      cell: ({ row }) => <LastOnlineCell entry={row.original} now={now} />,
+      cell: ({ row }) => <LastOnline entry={row.original} now={now} />,
     }),
     column.accessor((entry) => entry.character?.createdAt ?? entry.accountCreatedAt, {
       id: "created",
@@ -193,66 +199,4 @@ function SortIcon({ sorted }: { sorted: false | "asc" | "desc" }) {
   if (sorted === "asc") return <IconArrowUp size={12} aria-hidden="true" />;
   if (sorted === "desc") return <IconArrowDown size={12} aria-hidden="true" />;
   return <IconArrowsSort size={12} aria-hidden="true" className="opacity-40" />;
-}
-
-function AccountCell({ entry }: { entry: PlayerEntry }) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      {entry.guest ? (
-        <span className="text-muted">Guest</span>
-      ) : (
-        <span>{entry.username ?? "—"}</span>
-      )}
-      {entry.admin ? <Badge>Admin</Badge> : null}
-    </span>
-  );
-}
-
-function LastOnlineCell({ entry, now }: { entry: PlayerEntry; now: number }) {
-  if (entry.online) {
-    return (
-      <span className="inline-flex items-center gap-1.5 font-medium text-accent">
-        <span className="size-2 rounded-full bg-accent" aria-hidden="true" />
-        Online now
-      </span>
-    );
-  }
-  const seen = entry.character?.lastSeenAt;
-  if (seen == null) return <span className="text-muted">Never</span>;
-  return <Moment at={seen} now={now} />;
-}
-
-function Badge({ children }: { children: ReactNode }) {
-  return (
-    <span className="border border-border px-1 text-[10px] font-bold uppercase">{children}</span>
-  );
-}
-
-function Moment({ at, now }: { at: number; now: number }) {
-  if (!Number.isFinite(at)) return <span className="text-muted">—</span>;
-  const date = new Date(at);
-  return (
-    <time dateTime={date.toISOString()} title={date.toLocaleString()}>
-      {timeAgo(at, now)}
-    </time>
-  );
-}
-
-const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-
-const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ["year", 365 * 24 * 60 * 60_000],
-  ["month", 30 * 24 * 60 * 60_000],
-  ["week", 7 * 24 * 60 * 60_000],
-  ["day", 24 * 60 * 60_000],
-  ["hour", 60 * 60_000],
-  ["minute", 60_000],
-];
-
-function timeAgo(at: number, now: number): string {
-  const elapsed = now - at;
-  for (const [unit, ms] of UNITS) {
-    if (elapsed >= ms) return RELATIVE.format(-Math.floor(elapsed / ms), unit);
-  }
-  return "just now";
 }

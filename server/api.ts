@@ -177,6 +177,12 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       if (!(await admin(request))) return status(404, "Not found");
       return { players: await world.players() };
     })
+    .get("/players/:characterId", async ({ params, request, status }) => {
+      if (!(await admin(request))) return status(404, "Not found");
+      const found = await world.player(params.characterId);
+      if (!found) return status(404, "No such character");
+      return found;
+    })
 
     .get("/tiles", async () => ({ tiles: await store.readTiles() }))
     .get("/statuses", async () => ({ statuses: await store.readStatuses() }))

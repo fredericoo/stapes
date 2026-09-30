@@ -3,6 +3,7 @@ import type { Api } from "../../server/api";
 import type { FeedbackEntry } from "../../server/feedback";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { PlayerEntry } from "../../server/world";
+import type { CharacterSheet } from "../../server/GameServer";
 import type { TileDef, TilesetDef } from "./types";
 import type { RemovedPlacement } from "./validation";
 
@@ -92,6 +93,12 @@ export async function fetchFeedback(): Promise<FeedbackEntry[]> {
 
 export async function fetchPlayers(): Promise<PlayerEntry[]> {
   return unwrap(await client.api.players.get()).players;
+}
+
+export async function fetchPlayer(
+  characterId: string,
+): Promise<{ player: PlayerEntry; sheet: CharacterSheet }> {
+  return unwrap(await client.api.players({ characterId }).get());
 }
 
 export function tilesetUrl(file: string): string {
