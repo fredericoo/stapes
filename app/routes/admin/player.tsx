@@ -165,7 +165,7 @@ export default function PlayerPage() {
           </Panel>
           <Panel title={titled("Kills", player.kills)}>
             {kills.length === 0 ? (
-              <Empty>{character.name} has not killed anything.</Empty>
+              <Empty>{character.name} has not killed another character.</Empty>
             ) : (
               <DeathList>
                 {kills.map((kill) => (

@@ -739,7 +739,6 @@ export type Death = {
   at: Coord | null;
   name: string | null;
   blame: Blame | null;
-  killedByPlayer: boolean;
 };
 
 export class GameSession implements PlaySession {
@@ -2692,7 +2691,6 @@ export class GameSession implements PlaySession {
         ? bodyNameFor({ tileId: loc.placed.tileId, name: target.name }, this.tilesById)
         : null,
       blame: blame ?? null,
-      killedByPlayer: this.isPlayer(blame?.byId ?? null),
     };
   }
 

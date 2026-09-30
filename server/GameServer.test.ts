@@ -716,25 +716,10 @@ describe("residents", () => {
 
   const DEER_ID = `npc:${DEER_CELL},0,0,1`;
 
-  it("is logged as a kill when a player's blow ends it", async () => {
+  it("is not logged, even when a player's blow ends it", async () => {
     await connect("alice");
 
     await killAndTick(DEER_ID, { source: "Bare hands", by: "Alice", byId: "alice" });
-
-    expect(await harness.query("SELECT * FROM death")).toEqual([
-      expect.objectContaining({
-        victim_id: DEER_ID,
-        victim_name: "Deer",
-        killer_id: "alice",
-        cost: null,
-      }),
-    ]);
-  });
-
-  it("is not logged when no player ended it", async () => {
-    await connect("alice");
-
-    await killAndTick(DEER_ID, { source: "Fangs", by: "Wolf", byId: "npc:9,0,0,1" });
 
     expect(await harness.query("SELECT * FROM death")).toEqual([]);
   });

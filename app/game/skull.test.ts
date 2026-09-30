@@ -318,10 +318,9 @@ describe("the death the session reports", () => {
 
     const [death] = session.drainDeaths();
     expect(death?.blame?.byId).toBe(wolf.id);
-    expect(death?.killedByPlayer).toBe(false);
   });
 
-  it("marks a creature the player struck down as the player's kill", () => {
+  it("blames the player for a creature they struck down", () => {
     const session = new GameSession(withBody(field(), 1, 0, "boss"), tiles);
     const troll = session.actorSnapshots().find((a) => a.tileId === "boss")!;
     fight(session, troll.id);
@@ -329,7 +328,7 @@ describe("the death the session reports", () => {
     advanceUntilDead(session, troll.id);
 
     const [death] = session.drainDeaths();
-    expect(death).toMatchObject({ id: troll.id, name: "Troll", killedByPlayer: true });
+    expect(death).toMatchObject({ id: troll.id, name: "Troll" });
     expect(death?.blame?.byId).toBe(LOCAL_ACTOR_ID);
   });
 });
