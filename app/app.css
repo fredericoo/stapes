@@ -234,6 +234,23 @@ body {
     var(--o2) var(--o2) 0 #000;
 }
 
+.world-label__line--button {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--world-label-brick) * 3);
+}
+
+/* 7×9 in the font's own pixels, so each rect is one brick. `text-shadow` does
+   not reach an SVG; four chained single-brick drop-shadows compose into the
+   same 3×3 outline the glyphs get. */
+.world-label__mouse {
+  flex-shrink: 0;
+  width: calc(var(--world-label-brick) * 7);
+  height: calc(var(--world-label-brick) * 9);
+  filter: drop-shadow(var(--o1) 0 0 #000) drop-shadow(var(--o1n) 0 0 #000)
+    drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
+}
+
 .world-label--name {
   color: var(--color-label);
   z-index: 0;

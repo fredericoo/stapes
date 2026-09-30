@@ -7,12 +7,16 @@ import {
 } from "./healthBar";
 import { type LabelKind, type LabelPlacement, layoutLabels } from "./labelLayout";
 
+export type MouseButton = "left" | "right";
+
+export type LabelLine = { id: string; text: string; button?: MouseButton };
+
 export type WorldLabel = {
   id: string;
   kind: LabelKind;
   x: number;
   y: number;
-  lines: { id: string; text: string }[];
+  lines: LabelLine[];
   bar?: { fraction: number };
   progress?: { fraction: number };
   order?: number;
@@ -38,6 +42,62 @@ const HEALTH_BAR_CLASS = `${BAR_CLASS}--health`;
 const PROGRESS_BAR_CLASS = `${BAR_CLASS}--progress`;
 
 const BRICKS_PER_EM = 10;
+
+const MOUSE_CLASS = "world-label__mouse";
+const BUTTON_LINE_CLASS = "world-label__line--button";
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/**
+ * One character per font pixel, so the icon sits on the same brick grid as
+ * the glyphs beside it. `L` and `R` are the two buttons; only the pressed one
+ * is filled.
+ */
+const MOUSE_PIXELS = [
+  ".#####.",
+  "#LL#RR#",
+  "#LL#RR#",
+  "#######",
+  "#.....#",
+  "#.....#",
+  "#.....#",
+  "#.....#",
+  ".#####.",
+];
+
+function mouseIcon(button: MouseButton): SVGSVGElement {
+  const pressed = button === "left" ? "L" : "R";
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", MOUSE_CLASS);
+  svg.setAttribute("viewBox", `0 0 ${MOUSE_PIXELS[0]!.length} ${MOUSE_PIXELS.length}`);
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("shape-rendering", "crispEdges");
+  svg.setAttribute("fill", "currentColor");
+  for (const [y, row] of MOUSE_PIXELS.entries()) {
+    for (const [x, pixel] of [...row].entries()) {
+      if (pixel !== "#" && pixel !== pressed) continue;
+      const rect = document.createElementNS(SVG_NS, "rect");
+      rect.setAttribute("x", String(x));
+      rect.setAttribute("y", String(y));
+      rect.setAttribute("width", "1");
+      rect.setAttribute("height", "1");
+      svg.appendChild(rect);
+    }
+  }
+  return svg;
+}
+
+function lineRow(line: LabelLine): HTMLElement {
+  const row = document.createElement("div");
+  if (!line.button) {
+    row.textContent = line.text;
+    return row;
+  }
+  row.className = BUTTON_LINE_CLASS;
+  const text = document.createElement("span");
+  text.textContent = line.text;
+  row.append(mouseIcon(line.button), text);
+  return row;
+}
 
 function fillBar(element: HTMLDivElement, fraction: number, trackBricks: number) {
   const fill = fillTrack(element, HEALTH_BAR_CLASS, fraction, trackBricks);
@@ -90,7 +150,9 @@ type LabelEntry = {
  * data and `grep -r` across the repo skipped it silently.
  */
 function signatureOf(label: WorldLabel): string {
-  const lines = label.lines.map((line) => `${line.id}\u0000${line.text}`).join("\u0001");
+  const lines = label.lines
+    .map((line) => `${line.id}\u0000${line.text}\u0000${line.button ?? ""}`)
+    .join("\u0001");
   const bar = label.bar ? "|bar" : "";
   const progress = label.progress ? "|progress" : "";
   return `${lines}${bar}${progress}`;
@@ -289,11 +351,7 @@ export class WorldLabelLayer {
   private fill(element: HTMLDivElement, label: WorldLabel) {
     const rows: HTMLElement[] = [];
     if (label.progress) rows.push(this.track(PROGRESS_BAR_CLASS));
-    for (const line of label.lines) {
-      const row = document.createElement("div");
-      row.textContent = line.text;
-      rows.push(row);
-    }
+    for (const line of label.lines) rows.push(lineRow(line));
     if (label.bar) rows.push(this.track(HEALTH_BAR_CLASS));
 
     element.replaceChildren(...rows);

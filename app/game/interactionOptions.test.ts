@@ -21,6 +21,7 @@ import {
   listedActionRows,
   listInteractionOptions,
   rowPress,
+  secondaryInteractionAt,
   topInteractionAt,
   type InteractionOption,
 } from "./interactionOptions";
@@ -423,10 +424,10 @@ describe("listInteractionOptions — battlers", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(actionsIn(targets)).toEqual(["target", "attack", "follow"]);
-    expect(targets[0]!.name).toBe("Deer");
-    expect(targets[0]!.actorId).toBe("npc:deer");
-    expect(targets[0]!.active).toBe(false);
+    expect(actionsIn(targets)).toEqual(["attack", "target", "follow"]);
+    expect(targets[1]!.name).toBe("Deer");
+    expect(targets[1]!.actorId).toBe("npc:deer");
+    expect(targets[1]!.active).toBe(false);
   });
 
   it("offers a target on a body right across the view", () => {
@@ -437,7 +438,7 @@ describe("listInteractionOptions — battlers", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(actionsIn(targets)).toEqual(["target", "attack", "follow"]);
+    expect(actionsIn(targets)).toEqual(["attack", "target", "follow"]);
   });
 
   it("offers a target on a body behind a full-height wall", () => {
@@ -522,10 +523,10 @@ describe("listInteractionOptions — battlers", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], "npc:deer", KIT);
 
-    expect(targets[0]!.action).toBe("target");
-    expect(targets[0]!.active).toBe(true);
-    expect(targets[1]!.action).toBe("attack");
-    expect(targets[1]!.active).toBe(false);
+    expect(targets[0]!.action).toBe("attack");
+    expect(targets[0]!.active).toBe(false);
+    expect(targets[1]!.action).toBe("target");
+    expect(targets[1]!.active).toBe(true);
   });
 
   describe("the wait on the fight row", () => {
@@ -639,7 +640,7 @@ describe("listInteractionOptions — a body that is both", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
 
-    expect(actionsIn(targets)).toEqual(["target", "attack", "follow", "push"]);
+    expect(actionsIn(targets)).toEqual(["attack", "target", "follow", "push"]);
   });
 
   it("names both entries after whoever is in the body, not after its tile", () => {
@@ -920,12 +921,12 @@ describe("listInteractionOptions — stability", () => {
     );
 
     expect(stepped.map((o) => `${o.action}:${o.actorId}`)).toEqual([
-      "target:npc:p",
       "attack:npc:p",
+      "target:npc:p",
       "follow:npc:p",
       "push:npc:p",
-      "target:npc:a",
       "attack:npc:a",
+      "target:npc:a",
       "follow:npc:a",
     ]);
   });
@@ -957,7 +958,7 @@ describe("listInteractionOptions — stability", () => {
     const grouped = groupInteractionOptions(engaged);
 
     expect(grouped.map((g) => g.options.length)).toEqual([4, 1]);
-    expect(engaged.map((o) => o.action)).toEqual(["target", "attack", "follow", "push", "push"]);
+    expect(engaged.map((o) => o.action)).toEqual(["attack", "target", "follow", "push", "push"]);
   });
 });
 
@@ -1448,14 +1449,35 @@ describe("topInteractionAt", () => {
     }
   });
 
-  it("targets a body with a dialog that is out of talking reach", () => {
+  it("attacks a body with a dialog that is out of talking reach", () => {
     let map = field();
     map = place(map, 4, 0, ["grass", "salesman"]);
     const me = playerAt(map);
     const npc = actor("npc:salesman", "salesman", 4, 0, map, 10);
     const options = listInteractionOptions(map, tilesById, me, [me, npc], null, KIT);
 
-    expect(topInteractionAt(options, npc)?.action).toBe("target");
+    expect(topInteractionAt(options, npc)?.action).toBe("attack");
+  });
+});
+
+describe("secondaryInteractionAt", () => {
+  it("targets a body whose primary verb attacks it", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "deer"]);
+    const me = playerAt(map);
+    const deer = actor("npc:deer", "deer", 1, 0, map, 10);
+    const options = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+
+    expect(secondaryInteractionAt(options, deer)?.action).toBe("target");
+  });
+
+  it("has nothing for a thing whose primary verb is not a fight", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    const me = playerAt(map);
+    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(secondaryInteractionAt(options, { x: 1, y: 0, z: 0, stackIndex: 1 })).toBeNull();
   });
 });
 
@@ -1519,7 +1541,7 @@ describe("groupInteractionOptions", () => {
     );
 
     expect(groups).toHaveLength(1);
-    expect(actionsIn(groups[0]!.options)).toEqual(["target", "attack", "follow", "push"]);
+    expect(actionsIn(groups[0]!.options)).toEqual(["attack", "target", "follow", "push"]);
   });
 
   it("keeps two things apart, however near each other they are", () => {
@@ -1580,7 +1602,7 @@ describe("groupInteractionOptions", () => {
     const groups = groupInteractionOptions(options);
 
     expect(groups.map((g) => actionsIn(g.options))).toEqual([
-      ["target", "attack", "follow", "push"],
+      ["attack", "target", "follow", "push"],
       ["push"],
     ]);
     expect(groups[1]!.options[0]!.name).toBe("Crate");
@@ -1593,7 +1615,7 @@ describe("groupInteractionOptions", () => {
 });
 
 describe("actionRows", () => {
-  it("draws a body's fight and watch on one line, watching first", () => {
+  it("draws a body's fight and watch on one line, fighting first", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "player"]);
     const me = playerAt(map);
@@ -1605,7 +1627,7 @@ describe("actionRows", () => {
     const rows = actionRows(groups[0]!.options);
 
     expect(rows.map((row) => row.map((o) => o.action))).toEqual([
-      ["target", "attack"],
+      ["attack", "target"],
       ["follow"],
       ["push"],
     ]);
@@ -1630,7 +1652,7 @@ describe("listedActionRows and rowPress", () => {
     const rows = listedActionRows(bodyAndCrate());
 
     expect(rows.map((row) => row.map((o) => `${o.name}:${o.action}`))).toEqual([
-      ["Mira:target", "Mira:attack"],
+      ["Mira:attack", "Mira:target"],
       ["Mira:follow"],
       ["Mira:push"],
       ["Crate:push"],
@@ -1643,13 +1665,13 @@ describe("listedActionRows and rowPress", () => {
     expect(rowPress(crate!)?.action).toBe("push");
   });
 
-  it("walks the pair: watch first, then fight, then back to watching", () => {
+  it("runs the fight on the pair, whichever of the two is lit", () => {
     const [pair] = listedActionRows(bodyAndCrate());
-    const [watch, fight] = pair!;
+    const [fight, watch] = pair!;
     const lit = (on: InteractionOption | null) =>
       pair!.map((option) => ({ ...option, active: option === on }));
 
-    expect(rowPress(lit(null))?.action).toBe("target");
+    expect(rowPress(lit(null))?.action).toBe("attack");
     expect(rowPress(lit(watch!))?.action).toBe("attack");
     const pressed = rowPress(lit(fight!));
     expect(pressed?.action).toBe("attack");

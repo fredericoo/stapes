@@ -112,8 +112,8 @@ export function interactionText(option: InteractionOption): string {
 
 const ACTION_ORDER: Record<InteractionAction, number> = {
   talk: 0,
-  target: 1,
-  attack: 2,
+  attack: 1,
+  target: 2,
   follow: 3,
   reward: 4,
   teleport: 5,
@@ -144,6 +144,23 @@ export function topInteractionAt(
     }
   }
   return best;
+}
+
+/**
+ * The right button runs `target` on a body whose left button attacks it, so a
+ * mouse has a second verb there; everywhere else it has none.
+ */
+export function secondaryInteractionAt(
+  options: readonly InteractionOption[],
+  ref: ObjectRef,
+): InteractionOption | null {
+  if (topInteractionAt(options, ref)?.action !== "attack") return null;
+  const key = refKey(ref);
+  return (
+    options.find(
+      (option) => option.action === "target" && !option.blocked && refKey(option.ref) === key,
+    ) ?? null
+  );
 }
 
 const TIER = {
@@ -324,7 +341,7 @@ export function actionRows(options: readonly InteractionOption[]): InteractionOp
       pair = [];
       rows.push(pair);
     }
-    if (option.action === "target") pair.unshift(option);
+    if (option.action === "attack") pair.unshift(option);
     else pair.push(option);
   }
 
@@ -338,7 +355,7 @@ export function listedActionRows(options: readonly InteractionOption[]): Interac
 export function rowPress(row: readonly InteractionOption[]): InteractionOption | null {
   const watch = row.find((option) => option.action === "target");
   const fight = row.find((option) => option.action === "attack");
-  if (watch && fight) return watch.active || fight.active ? fight : watch;
+  if (watch && fight) return fight;
   const only = row[0];
   if (!only || only.blocked) return null;
   return only;
