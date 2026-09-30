@@ -120,7 +120,8 @@ an agent drives", lists every call.
   list at the top of the script
 - `bun run generate:water` — rebuild the water autotile from two masks: the wave
   frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
-  Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
+  Writes `data/tilesets/water.png` and the `water` tile's 47 slices together, and
+  the same again as `water-round`, whose outlines have rounded corners
 - `bun run generate:low-roofs` — draw the low-pitch roof into the free right-hand
   side of `data/tilesets/roofs.png` and write its six tiles: `low-roof-<colour>`,
   an eave rising two units across its cell, and `low-roof-<colour>-ridge`, a

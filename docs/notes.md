@@ -12551,6 +12551,29 @@ the right along the bottom of the tile with nothing above it to explain itself.
 So the bank is measured from a shape carrying only the north-west and north-east
 nicks, while the tile is drawn from the shape carrying all four.
 
+**`water-round` is the same water with a shape of its own.** The same run writes
+`data/tilesets/water-round.png` and a `water-round` tile, identical to `water`
+except for each slice's outline, which is built rather than read off
+`floors.png`: a 2px margin per open side, wandering between 1 and 3px in the
+middle of the side (`SHORE_DEPTH`), with rounded corners cut out of it
+(`ROUND_CORNER`). The wave frames, `PHASE` and bank are shared, so the pattern
+still lines up across tiles.
+
+**An inner corner can curve only as far as the margin.** The blob mask drops a
+diagonal whenever an edge beside it is open, so the slices on either side of an
+inner corner cannot know it is there and run their margin straight to the seam.
+The curve has to fit inside the corner slice, between those two straight
+margins, and a 1px margin leaves room for a one-pixel nick: a three-pixel cut
+against a 1px margin draws a lump. That is why the margin is 2px, and why
+`SHORE_DEPTH` returns to 2px for the two pixels at each end of a side.
+
+**The shoreline repeats every tile along a straight edge.** Every tile on one
+straight shore resolves to the same slice, so the wander is the same in each.
+Varying it would need a per-cell variant, which autotiles do not have.
+
+The tile is created as a copy of `water` the first time, so wading and dousing
+come with it; after that, only its slices and anchor are rewritten.
+
 ### Mobility is a property of the tile, not of the frame
 
 `isMobileTile` (in `app/lib/interactions.ts`) answers "can this ever change

@@ -124,5 +124,12 @@
     "file": "counter.png",
     "width": 80,
     "height": 48
+  },
+  {
+    "id": "water-round",
+    "name": "Water (round)",
+    "file": "water-round.png",
+    "width": 112,
+    "height": 376
   }
 ]
