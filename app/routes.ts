@@ -23,5 +23,6 @@ export default [
     route("actions", "routes/admin/actions.tsx"),
     route("feedback", "routes/admin/feedback.tsx"),
     route("players", "routes/admin/players.tsx"),
+    route("players/:characterId", "routes/admin/player.tsx"),
   ]),
 ] satisfies RouteConfig;

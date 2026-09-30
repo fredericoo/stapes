@@ -32,6 +32,30 @@ type RosterRow = {
   last_seen_at: number | null;
 };
 
+const ROSTER_SQL = `SELECT user.id AS user_id, user.username, user.isAnonymous, user.role,
+         user.createdAt AS user_created_at,
+         character.id, character.name, character.created_at, character.last_seen_at
+  FROM user LEFT JOIN character ON character.user_id = user.id`;
+
+function rosterEntryOf(row: RosterRow): RosterEntry {
+  return {
+    userId: row.user_id,
+    username: row.username,
+    guest: row.isAnonymous === 1,
+    admin: row.role === "ADMIN",
+    accountCreatedAt: Date.parse(row.user_created_at),
+    character:
+      row.id === null
+        ? null
+        : {
+            id: row.id,
+            name: row.name!,
+            createdAt: row.created_at!,
+            lastSeenAt: row.last_seen_at,
+          },
+  };
+}
+
 export class Characters {
   constructor(private readonly db: Database) {}
 
@@ -74,29 +98,14 @@ export class Characters {
 
   /** One entry per character, plus one for each account that has none yet. */
   async roster(): Promise<RosterEntry[]> {
-    const select = await this.db.prepare(
-      `SELECT user.id AS user_id, user.username, user.isAnonymous, user.role,
-              user.createdAt AS user_created_at,
-              character.id, character.name, character.created_at, character.last_seen_at
-       FROM user LEFT JOIN character ON character.user_id = user.id`,
-    );
-    const rows = (await select.all()) as RosterRow[];
-    return rows.map((row) => ({
-      userId: row.user_id,
-      username: row.username,
-      guest: row.isAnonymous === 1,
-      admin: row.role === "ADMIN",
-      accountCreatedAt: Date.parse(row.user_created_at),
-      character:
-        row.id === null
-          ? null
-          : {
-              id: row.id,
-              name: row.name!,
-              createdAt: row.created_at!,
-              lastSeenAt: row.last_seen_at,
-            },
-    }));
+    const select = await this.db.prepare(ROSTER_SQL);
+    return ((await select.all()) as RosterRow[]).map(rosterEntryOf);
+  }
+
+  async rosterEntry(characterId: string): Promise<RosterEntry | null> {
+    const select = await this.db.prepare(`${ROSTER_SQL} WHERE character.id = ?`);
+    const row = (await select.get([characterId])) as RosterRow | undefined;
+    return row ? rosterEntryOf(row) : null;
   }
 
   async nameTaken(typed: string): Promise<boolean> {
