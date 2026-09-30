@@ -735,6 +735,8 @@ export type Death = {
   masteryXp: MasteryXp | null;
   tags: readonly string[];
   cost: DeathCost | null;
+  at: Coord | null;
+  blame: Blame | null;
 };
 
 export class GameSession implements PlaySession {
@@ -2647,12 +2649,17 @@ export class GameSession implements PlaySession {
 
     if (loc) this.dropRemains(target, loc, blame);
 
-    this.pendingDeaths.push(this.deathOf(target, kept));
+    this.pendingDeaths.push(this.deathOf(target, kept, loc, blame));
 
     if (loc) this.reindexCells([{ x: loc.x, y: loc.y, z: loc.z }]);
   }
 
-  private deathOf(target: ActorRuntime, kept: Equipment): Death {
+  private deathOf(
+    target: ActorRuntime,
+    kept: Equipment,
+    loc: ActorLocation | null,
+    blame: Blame | undefined,
+  ): Death {
     const masteryXp = target.masteryXp && experienceAfterDeath(target.masteryXp);
     return {
       id: target.id,
@@ -2666,6 +2673,8 @@ export class GameSession implements PlaySession {
             { equipment: kept, masteryXp: masteryXp ?? {} },
             this.tilesById,
           ),
+      at: loc && { x: loc.x, y: loc.y, z: loc.z },
+      blame: blame ?? null,
     };
   }
 

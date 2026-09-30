@@ -15,7 +15,7 @@ import {
 } from "@tanstack/react-table";
 import { IconArrowDown, IconArrowUp, IconArrowsSort } from "@tabler/icons-react";
 import { type ReactNode, useMemo, useState } from "react";
-import { useLoaderData } from "react-router";
+import { Link, useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { fetchPlayers } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
@@ -40,7 +40,7 @@ const features = tableFeatures({
 
 const column = createColumnHelper<typeof features, PlayerEntry>();
 
-const NUMERIC_COLUMNS = new Set(["rating"]);
+const NUMERIC_COLUMNS = new Set(["rating", "deaths"]);
 
 /** An online character sorts as seen at `now`, so "Online now" leads a newest-first sort. */
 function columns(now: number) {
@@ -51,7 +51,12 @@ function columns(now: number) {
       sortUndefined: "last",
       cell: ({ row }) =>
         row.original.character ? (
-          <span className="font-medium">{row.original.character.name}</span>
+          <Link
+            to={`/admin/players/${encodeURIComponent(row.original.character.id)}`}
+            className="font-medium underline decoration-border/40 underline-offset-2 hover:decoration-ink"
+          >
+            {row.original.character.name}
+          </Link>
         ) : (
           <span className="text-muted">No character</span>
         ),
@@ -74,6 +79,15 @@ function columns(now: number) {
         ) : (
           `${row.original.rating}${RATING_GLYPH}`
         ),
+    }),
+    column.accessor((entry) => (entry.character ? entry.deaths : undefined), {
+      id: "deaths",
+      header: "Deaths",
+      sortUndefined: "last",
+      sortDescFirst: true,
+      enableGlobalFilter: false,
+      cell: ({ row }) =>
+        row.original.character ? row.original.deaths : <span className="text-muted">—</span>,
     }),
     column.accessor((entry) => (entry.online ? now : (entry.character?.lastSeenAt ?? undefined)), {
       id: "lastOnline",

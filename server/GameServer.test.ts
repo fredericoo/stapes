@@ -24,6 +24,7 @@ import { CLOSE_REPLACED, MAX_STEPS_AHEAD } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
 import { fightingStats, resolveBattler } from "../app/lib/battler";
 import { swingWindupMs } from "../app/game/combat";
+import type { Blame } from "../app/game/blame";
 import { XP_SHARE_LOST_ON_DEATH } from "../app/game/experience";
 import { CHAT_LOG_MAX_ROWS, MAX_REMEMBERED_ACTORS, type GameServer } from "./GameServer";
 
@@ -2177,6 +2178,22 @@ describe("respawn", () => {
   });
 });
 
+async function killAndTick(actorId: string, blame?: Blame) {
+  await runInDurableObject(stub(), (instance: GameServer) => {
+    const internals = instance as unknown as {
+      session: {
+        actors: Map<string, unknown>;
+        applyDamage(actor: unknown, amount: number, blame?: Blame): void;
+      };
+      tick(): void;
+    };
+    const body = internals.session.actors.get(actorId);
+    expect(body).toBeDefined();
+    internals.session.applyDamage(body, 10_000, blame);
+    internals.tick();
+  });
+}
+
 describe("resetting the world", () => {
   it("forgets what a player had learnt, which a save carries forward", async () => {
     const who = freshPlayer();
@@ -2259,6 +2276,16 @@ describe("resetting the world", () => {
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'chat'",
     );
     expect(tables).toHaveLength(0);
+  });
+
+  it("empties the death log", async () => {
+    await connect("alice");
+    await killAndTick("alice");
+    expect(await harness.query("SELECT * FROM death")).toHaveLength(1);
+
+    await stub().resetWorld();
+
+    expect(await harness.query("SELECT * FROM death")).toEqual([]);
   });
 
   it("works on a world nobody is in", async () => {
@@ -2497,22 +2524,6 @@ describe("dying and coming back", () => {
   }
 
   const SWORD_STACK_INDEX = 2;
-
-  async function killAndTick(actorId: string) {
-    await runInDurableObject(stub(), (instance: GameServer) => {
-      const internals = instance as unknown as {
-        session: {
-          actors: Map<string, unknown>;
-          applyDamage(actor: unknown, amount: number): void;
-        };
-        tick(): void;
-      };
-      const body = internals.session.actors.get(actorId);
-      expect(body).toBeDefined();
-      internals.session.applyDamage(body, 10_000);
-      internals.tick();
-    });
-  }
 
   it("survives dying with a step still queued", async () => {
     const alice = await connect("alice");
@@ -2869,6 +2880,24 @@ describe("dying and coming back", () => {
       state.storage.get<{ masteries: Record<string, number> }>("mast:alice"),
     );
     expect(stored?.masteries.fist).toBeCloseTo(before!.fist! * (1 - XP_SHARE_LOST_ON_DEATH), 10);
+  });
+
+  it("logs the death with where it happened, what caused it and what it cost", async () => {
+    await armedAlice();
+
+    await killAndTick("alice", { source: "Rusty sword", by: "Bob" });
+
+    const rows = await harness.query("SELECT * FROM death");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      character_id: "alice",
+      x: AWAY_FROM_SPAWN,
+      y: 0,
+      z: 0,
+      source: "Rusty sword",
+      killer: "Bob",
+    });
+    expect(JSON.parse(rows[0]!.cost as string)).toMatchObject({ packLeft: true });
   });
 
   type Carried = { id: string; tileId: string; contents?: Carried[] };

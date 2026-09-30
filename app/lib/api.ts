@@ -1,5 +1,6 @@
 import { treaty } from "@elysiajs/eden";
 import type { Api } from "../../server/api";
+import type { DeathRecord } from "../../server/deaths";
 import type { FeedbackEntry } from "../../server/feedback";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { PlayerEntry } from "../../server/world";
@@ -92,6 +93,12 @@ export async function fetchFeedback(): Promise<FeedbackEntry[]> {
 
 export async function fetchPlayers(): Promise<PlayerEntry[]> {
   return unwrap(await client.api.players.get()).players;
+}
+
+export async function fetchPlayer(
+  characterId: string,
+): Promise<{ character: { id: string; name: string }; deaths: DeathRecord[] }> {
+  return unwrap(await client.api.players({ characterId }).get());
 }
 
 export function tilesetUrl(file: string): string {

@@ -14,10 +14,15 @@ import { CLOSE_MAINTENANCE, KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
 import type { Database } from "./db";
 import { Feedback } from "./feedback";
+import { Deaths } from "./deaths";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-export type PlayerEntry = RosterEntry & { online: boolean; rating: number | null };
+export type PlayerEntry = RosterEntry & {
+  online: boolean;
+  rating: number | null;
+  deaths: number;
+};
 
 export class World {
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
@@ -36,6 +41,7 @@ export class World {
     readonly characters: Characters,
     readonly maintenance: Maintenance,
     readonly feedback: Feedback,
+    readonly deaths: Deaths,
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
@@ -74,6 +80,7 @@ export class World {
       characters,
       await Maintenance.load(db),
       new Feedback(db),
+      new Deaths(db),
       blobs,
       db,
       config,
@@ -136,12 +143,17 @@ export class World {
   }
 
   async players(): Promise<PlayerEntry[]> {
-    const [roster, ratings] = await Promise.all([this.characters.roster(), this.server.ratings()]);
+    const [roster, ratings, deaths] = await Promise.all([
+      this.characters.roster(),
+      this.server.ratings(),
+      this.deaths.counts(),
+    ]);
     const online = new Set(this.server.onlineActorIds());
     return roster.map((entry) => ({
       ...entry,
       online: entry.character !== null && online.has(entry.character.id),
       rating: entry.character ? (ratings.get(entry.character.id) ?? null) : null,
+      deaths: entry.character ? (deaths.get(entry.character.id) ?? 0) : 0,
     }));
   }
 

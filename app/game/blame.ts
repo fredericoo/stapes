@@ -5,9 +5,12 @@ export type Blame = {
 
 const CAUSE_LABEL = "Cause of death:";
 
+export function describeBlame(blame: Blame): string {
+  return blame.by ? `${blame.source} by ${blame.by}` : blame.source;
+}
+
 export function causeOfDeath(blame: Blame): string {
-  const cause = blame.by ? `${blame.source} by ${blame.by}` : blame.source;
-  return `${CAUSE_LABEL} ${cause}`;
+  return `${CAUSE_LABEL} ${describeBlame(blame)}`;
 }
 
 export function possessive(owner: string | null, thing: string): string {

@@ -6,6 +6,8 @@ import { emptyMap, getStack, replaceStack, serializeMap } from "../app/lib/mapDa
 import type { MapFile } from "../app/lib/types";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import { createApi } from "./api";
+import type { Blame } from "../app/game/blame";
+import type { DeathRecord } from "./deaths";
 import { FEEDBACK_PER_WINDOW } from "./feedback";
 import { SEEDED_ADMIN_USERNAME } from "./auth";
 import { ClientBundle } from "./clientBundle";
@@ -343,5 +345,61 @@ describe("players", () => {
       new Request("http://localhost/api/players", { headers: { cookie: guest } }),
     );
     expect(response.status).toBe(404);
+  });
+});
+
+function player(characterId: string, from: string): Promise<Response> {
+  return api.handle(
+    new Request(`http://localhost/api/players/${characterId}`, { headers: { cookie: from } }),
+  );
+}
+
+async function killInWorld(characterId: string) {
+  const internals = world.server as unknown as {
+    session: {
+      actors: Map<string, unknown>;
+      applyDamage(actor: unknown, amount: number, blame?: Blame): void;
+    };
+    tick(): void;
+  };
+  internals.session.applyDamage(internals.session.actors.get(characterId), 10_000, {
+    source: "Fangs",
+    by: "a wolf",
+  });
+  internals.tick();
+  await world.store.flush();
+}
+
+describe("a player's deaths", () => {
+  it("counts them in the list and lists each with its cause on the character", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const [character] = (await me(guest)).characters;
+    const socket = openSocket();
+    await world.join(socket, character!.id, { admin: false });
+    await killInWorld(character!.id);
+
+    const listed = (await players(cookie)).find((entry) => entry.character?.id === character!.id);
+    expect(listed?.deaths).toBe(1);
+
+    const response = await player(character!.id, cookie);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      character: { name: string };
+      deaths: DeathRecord[];
+    };
+    expect(body.character.name).toBe("Maren Ormstead");
+    expect(body.deaths).toEqual([
+      expect.objectContaining({ cause: { source: "Fangs", by: "a wolf" } }),
+    ]);
+  });
+
+  it("are shown to administrators only", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const [character] = (await me(guest)).characters;
+    expect((await player(character!.id, guest)).status).toBe(404);
+  });
+
+  it("answers 404 for a character that does not exist", async () => {
+    expect((await player("nobody", cookie)).status).toBe(404);
   });
 });
