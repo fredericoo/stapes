@@ -2549,8 +2549,8 @@ export class GameServer {
 
       const connected = this.hasSocket(actorId);
       const character = connected || this.lingering.has(actorId);
-      if (character || death.killedByPlayer) this.logDeath(death);
       if (!character) continue;
+      this.logDeath(death);
       this.pendingDeathWrites.set(actorId, death);
       if (connected) this.justDied.push(death);
     }

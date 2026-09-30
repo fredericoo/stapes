@@ -493,7 +493,7 @@ elsewhere:
   pruned past `MAX_REMEMBERED_ACTORS`, so the oldest-played characters lose
   their rating here the same way they lose their experience in the game.
 - **Deaths** and **Kills** count the character's rows in the `death` table, as
-  victim and as killer. Both are described below.
+  victim and as killer, so Kills counts characters killed. Both are described below.
 
 `/admin/players/:characterId` shows one character from `GameServer.characterSheet`.
 A character in the running session is read from it; any other is read from its
@@ -503,24 +503,24 @@ which needs a loaded world's tile catalogue and drops items it no longer
 accepts. HP is null at full health in both places, and the page says "Full"
 rather than computing a maximum the server does not store.
 
-### Every death a character is part of is a row in `death`
+### Every character death is a row in `death`
 
-A row is written when a character dies, or when a character kills something,
-creatures included. A creature killed by another creature is not logged.
+A row is written when a character dies, whoever or whatever killed it. A
+creature's death is not logged, even when a character killed it: a player kills
+creatures far more often than anything dies to a player, the rows would grow
+without bound, and nothing reads them. A character's kills are therefore the
+characters it has killed.
 `/admin/players/:characterId` lists the character's deaths (`Deaths.of`) and
 kills (`Deaths.killsBy`), newest first, from `GET /api/players/:characterId`.
 The planned public character page is meant to read the same two functions
 rather than add a query of its own.
 
 - **`GameServer.noteDeaths` writes the row.** A victim with a socket or still
-  lingering is a character; `Death.killedByPlayer` says whether the killer was.
-  The insert goes through `ctx.storage.sql`, so it is committed in the same
-  batch as the kit and position the death overwrote, and a death appears on the
-  page only after the next checkpoint.
-- **`killedByPlayer` is decided when the victim dies**, from whether the
-  `Blame.byId` actor is still a non-resident body. A player who poisons a wolf
-  and leaves before it dies is not credited with the kill; a player killed by
-  somebody who has left is still logged, because the victim decides that half.
+  lingering is a character. The insert goes through `ctx.storage.sql`, so it is
+  committed in the same batch as the kit and position the death overwrote, and
+  a death appears on the page only after the next checkpoint.
+- **A character killed by somebody who has left is still logged**, because only
+  the victim is checked.
 - **The cause is kept twice: as prose and as an id.** `cause_source` and
   `cause_by` are the `Blame` as it read on the remains, and `by` can name a
   spell or a conjured fire rather than a body ("Maren's Firebolt"). `killer_id`
@@ -529,13 +529,14 @@ rather than add a query of its own.
   status granted by a blow or a bolt carries the blame it came from, so a
   poison's death names whoever poisoned. A death with no blame (`/health 0`,
   eating something harmful) has neither.
-- **`victim_name` is a snapshot** of the body's name at death, because a
-  creature's id (`npc:x,y,z,i`) names nothing a reader recognises. Whether the
+- **`victim_name` is a snapshot** of the body's name at death. Whether the
   victim or the killer is a character is read by joining `character` when the
   list is read, not stored.
 - **Neither id is a foreign key.** The row is written inside the checkpoint's
   transaction, and a constraint failure there would roll back the whole
   checkpoint, not only the death. `killer_id` also holds creature ids.
+- **Rows from before creature deaths stopped being logged are still there.**
+  Kill counts include those creature kills until the rows are deleted.
 - **`resetWorld` empties the table.** A reset takes every character's
   masteries back to nothing, and a death history from the old timeline beside a
   rating from the new one would describe two different characters.
