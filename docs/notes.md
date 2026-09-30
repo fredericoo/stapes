@@ -9342,9 +9342,12 @@ eleven game hours, which is eleven real minutes, and a fire every imp lit and
 nobody put out would pile up across the map. The cooldown is a minute, so an
 imp woken in the night and driven off lights at most one more.
 
-**It roams 32 cells from its spawn and lets a chase or a meal take it to 36.**
-That makes `brainReach` 36, and `brainReach` is also how far a `thing` search
-looks. A hungry imp with no food or bush in sight rings out to 36 cells every
+**It roams 14 cells from its spawn, a meal takes it to 18 and a chase to 36.**
+Every imp spawns in the bog on the west river, and the short roam is what keeps
+it there, since the mud reaches only about ten cells from the water and 32
+would take an imp well past its edge.
+It walks home until it is within 8 cells. The chase keeps 36, so `brainReach`
+is still 36, and `brainReach` is also how far a `thing` search looks. A hungry imp with no food or bush in sight rings out to 36 cells every
 round looking for one, where the wolf stops at 20. The rows put the day and
 hunger gates before the `in_los` on a thing, so a fed imp, or any imp at
 night, never asks.

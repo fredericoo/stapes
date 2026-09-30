@@ -39505,7 +39505,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 36
+              "cells": 18
             },
             "to": "homing"
           },
@@ -39620,7 +39620,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 36
+              "cells": 18
             },
             "to": "homing"
           },
@@ -39638,7 +39638,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 32
+              "cells": 14
             },
             "to": "homing"
           },
@@ -39649,7 +39649,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 32
+              "cells": 14
             },
             "to": "homing"
           },
@@ -39660,7 +39660,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 24
+              "cells": 8
             },
             "to": "roaming"
           },
