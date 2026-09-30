@@ -12734,9 +12734,10 @@ and rebakes them for output that cannot differ.
 
 ### Lighting has an off switch, and off means *not computed*
 
-The top bar of the game, `/admin/play` and `/admin/map` carries a Lighting
-toggle
-(`app/components/LightingToggle.tsx`). Off is not a fullbright ambient or a
+The menu of `/admin/play` and `/admin/map` carries a Lighting toggle
+(`app/components/LightingToggle.tsx`); the game shows it to admins only.
+Players were hunting with it off: darkness is part of the game, and a toggle
+that removes it is a debugging tool, not a setting. Off is not a fullbright ambient or a
 shader branch with the bake still running behind it: `sync` and `light` are
 skipped outright in `WorldRenderer.setView`, nothing is baked, stitched or
 uploaded, and `uLightingEnabled` draws the art as authored. Measured on the

@@ -30,6 +30,7 @@ export default function GamePage() {
       key={character.id}
       link={onlineLink}
       admin={admin}
+      lightingToggle={admin}
       tiles={tiles}
       tilesets={tilesets}
       statuses={statuses}

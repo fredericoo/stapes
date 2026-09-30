@@ -78,6 +78,7 @@ export function WorldPage({
   menuExtras,
   menuAttention = false,
   admin = false,
+  lightingToggle = false,
   onLeave,
   onRefused,
 }: {
@@ -89,6 +90,7 @@ export function WorldPage({
   menuExtras?: React.ReactNode;
   menuAttention?: boolean;
   admin?: boolean;
+  lightingToggle?: boolean;
   onLeave?: () => void;
   onRefused?: () => void;
 }) {
@@ -470,9 +472,11 @@ export function WorldPage({
               <MenuRow label="Frame rate">
                 <FrameStatsReadout stats={stats} />
               </MenuRow>
-              <MenuRow label="Lighting">
-                <LightingToggle enabled={lightingEnabled} onChange={setLightingEnabled} />
-              </MenuRow>
+              {lightingToggle ? (
+                <MenuRow label="Lighting">
+                  <LightingToggle enabled={lightingEnabled} onChange={setLightingEnabled} />
+                </MenuRow>
+              ) : null}
               {coarse ? (
                 <MenuRow label="Joystick">
                   <PadSideToggle side={padSide} onChange={choosePadSide} />
