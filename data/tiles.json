@@ -36,7 +36,7 @@
         "suffers": [
           {
             "statusId": "burned",
-            "tileId": "dirt"
+            "tileId": ""
           }
         ]
       }
@@ -11547,7 +11547,7 @@
         "suffers": [
           {
             "statusId": "burned",
-            "tileId": "dirt"
+            "tileId": ""
           }
         ]
       }
