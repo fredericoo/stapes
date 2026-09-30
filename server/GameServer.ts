@@ -38,7 +38,7 @@ import type { CommandReply } from "../app/game/commands";
 import { resolveRespawn } from "../app/lib/interactions";
 import { battlerIssues } from "../app/lib/battler";
 import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock";
-import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
+import { masteriesFromXp, masteryXpBlockSchema, rating, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
   chunkIndexOf,
@@ -1126,6 +1126,30 @@ export class GameServer {
     if (!saved?.masteries) return undefined;
     const parsed = v.safeParse(masteryXpBlockSchema, saved.masteries);
     return parsed.success ? parsed.output : undefined;
+  }
+
+  /**
+   * The saved masteries of everyone the world remembers, overlaid with the live
+   * ones of everyone seated, whose newest experience is not written until the
+   * next actor flush.
+   */
+  async ratings(): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    const stored = await this.ctx.storage.list<SavedMasteries>({ prefix: MASTERIES_KEY_PREFIX });
+    for (const [key, saved] of stored) {
+      const parsed = v.safeParse(masteryXpBlockSchema, saved?.masteries);
+      if (!parsed.success) continue;
+      out.set(key.slice(MASTERIES_KEY_PREFIX.length), rating(masteriesFromXp(parsed.output)));
+    }
+    for (const actorId of this.socketsByActor.keys()) {
+      const live = this.session?.masteryXpOf(actorId);
+      if (live) out.set(actorId, rating(masteriesFromXp(live)));
+    }
+    return out;
+  }
+
+  onlineActorIds(): string[] {
+    return [...this.socketsByActor.keys()];
   }
 
   private async lastStatusesOf(actorId: string): Promise<StatusInstance[] | undefined> {

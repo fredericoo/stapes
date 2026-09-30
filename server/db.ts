@@ -107,6 +107,7 @@ const MIGRATIONS: readonly string[] = [
      context        TEXT NOT NULL
    )`,
   `CREATE INDEX IF NOT EXISTS feedback_user_at ON feedback(user_id, at)`,
+  `ALTER TABLE character ADD COLUMN last_seen_at INTEGER`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

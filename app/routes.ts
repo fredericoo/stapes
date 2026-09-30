@@ -22,5 +22,6 @@ export default [
     route("voxel", "routes/admin/voxel.tsx"),
     route("actions", "routes/admin/actions.tsx"),
     route("feedback", "routes/admin/feedback.tsx"),
+    route("players", "routes/admin/players.tsx"),
   ]),
 ] satisfies RouteConfig;
