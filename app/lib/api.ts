@@ -4,6 +4,7 @@ import type { DeathRecord } from "../../server/deaths";
 import type { FeedbackEntry } from "../../server/feedback";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { PlayerEntry } from "../../server/world";
+import type { CharacterSheet } from "../../server/GameServer";
 import type { TileDef, TilesetDef } from "./types";
 import type { RemovedPlacement } from "./validation";
 
@@ -96,7 +97,8 @@ export async function fetchPlayers(): Promise<PlayerEntry[]> {
 }
 
 export async function fetchPlayer(characterId: string): Promise<{
-  character: { id: string; name: string };
+  player: PlayerEntry;
+  sheet: CharacterSheet;
   deaths: DeathRecord[];
   kills: DeathRecord[];
 }> {

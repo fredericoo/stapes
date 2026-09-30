@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../app/lib/mapData";
 import type { MapFile } from "../app/lib/types";
 import { PLAYER_TILE_ID } from "../app/game/constants";
+import { emptyEquipment } from "../app/game/equipment";
 import { createApi } from "./api";
 import type { Blame } from "../app/game/blame";
 import type { DeathRecord } from "./deaths";
@@ -14,6 +15,7 @@ import { ClientBundle } from "./clientBundle";
 import { GameSocket } from "./sockets";
 import { readConfig } from "./config";
 import { World, type PlayerEntry } from "./world";
+import type { CharacterSheet } from "./GameServer";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -333,6 +335,73 @@ describe("players", () => {
     expect(left.character!.lastSeenAt).toBeGreaterThanOrEqual(leftAfter);
   });
 
+  it("shows one character's saved state, and its live state while it is in the world", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const [character] = (await me(guest)).characters;
+    const sheet = async () => {
+      const response = await api.handle(
+        new Request(`http://localhost/api/players/${character!.id}`, { headers: { cookie } }),
+      );
+      expect(response.status).toBe(200);
+      return (await response.json()) as { player: PlayerEntry; sheet: CharacterSheet };
+    };
+
+    const unplayed = await sheet();
+    expect(unplayed.player.character!.name).toBe("Maren Ormstead");
+    expect(unplayed.sheet).toMatchObject({ live: false, position: null, masteryXp: {} });
+
+    const socket = openSocket();
+    await world.join(socket, character!.id, { admin: false });
+    const playing = await sheet();
+    expect(playing.player.online).toBe(true);
+    expect(playing.sheet.live).toBe(true);
+    expect(playing.sheet.position).toMatchObject({ x: 0, y: 0, z: 0 });
+    expect(playing.sheet.spawn).toMatchObject({ x: 0, y: 0, z: 0 });
+    expect(playing.sheet.equipment).not.toBeNull();
+
+    await world.leave(socket);
+    await world.store.flush();
+    const left = await sheet();
+    expect(left.sheet.live).toBe(false);
+    expect(left.sheet.position).toEqual(playing.sheet.position);
+  });
+
+  it("shows what is inside a saved bag", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const [character] = (await me(guest)).characters;
+    const bag = {
+      id: "itm_bag",
+      tileId: "basic-bag",
+      contents: [
+        { id: "itm_sword", tileId: "rusty-sword" },
+        { id: "itm_apples", tileId: "apple", count: 5 },
+      ],
+    };
+    await world.store.put(`equip:${character!.id}`, {
+      equipment: { ...emptyEquipment(), bag },
+      savedAt: Date.now(),
+    });
+
+    const response = await api.handle(
+      new Request(`http://localhost/api/players/${character!.id}`, { headers: { cookie } }),
+    );
+    const { sheet } = (await response.json()) as { sheet: CharacterSheet };
+    expect(sheet.equipment?.bag?.contents).toEqual(bag.contents);
+  });
+
+  it("answers 404 for a character that does not exist, and to anyone but an administrator", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const [character] = (await me(guest)).characters;
+    const status = async (id: string, from: string) =>
+      (
+        await api.handle(
+          new Request(`http://localhost/api/players/${id}`, { headers: { cookie: from } }),
+        )
+      ).status;
+    expect(await status("no-such-character", cookie)).toBe(404);
+    expect(await status(character!.id, guest)).toBe(404);
+  });
+
   it("lists an account that has no character yet", async () => {
     expect(await players(cookie)).toContainEqual(
       expect.objectContaining({ username: SEEDED_ADMIN_USERNAME, admin: true, character: null }),
@@ -347,12 +416,6 @@ describe("players", () => {
     expect(response.status).toBe(404);
   });
 });
-
-function player(characterId: string, from: string): Promise<Response> {
-  return api.handle(
-    new Request(`http://localhost/api/players/${characterId}`, { headers: { cookie: from } }),
-  );
-}
 
 async function killInWorld(characterId: string, blame: Blame) {
   const internals = world.server as unknown as {
@@ -374,10 +437,16 @@ async function playing(name: string): Promise<string> {
   return character!.id;
 }
 
-type PlayerPage = { character: { name: string }; deaths: DeathRecord[]; kills: DeathRecord[] };
+type PlayerPage = {
+  player: PlayerEntry;
+  deaths: DeathRecord[];
+  kills: DeathRecord[];
+};
 
 async function page(characterId: string): Promise<PlayerPage> {
-  const response = await player(characterId, cookie);
+  const response = await api.handle(
+    new Request(`http://localhost/api/players/${characterId}`, { headers: { cookie } }),
+  );
   expect(response.status).toBe(200);
   return (await response.json()) as PlayerPage;
 }
@@ -400,7 +469,11 @@ describe("a player's deaths and kills", () => {
     });
 
     const tobinPage = await page(tobin);
-    expect(tobinPage.character.name).toBe("Tobin Reed");
+    expect(tobinPage.player).toMatchObject({
+      character: { name: "Tobin Reed" },
+      deaths: 1,
+      kills: 0,
+    });
     expect(tobinPage.deaths).toEqual([
       expect.objectContaining({
         cause: { source: "Rusty sword", by: "Maren Ormstead" },
@@ -412,15 +485,5 @@ describe("a player's deaths and kills", () => {
         victim: { id: tobin, name: "Tobin Reed", character: true },
       }),
     ]);
-  });
-
-  it("are shown to administrators only", async () => {
-    const guest = await startGuest("Maren Ormstead");
-    const [character] = (await me(guest)).characters;
-    expect((await player(character!.id, guest)).status).toBe(404);
-  });
-
-  it("answers 404 for a character that does not exist", async () => {
-    expect((await player("nobody", cookie)).status).toBe(404);
   });
 });

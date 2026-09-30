@@ -18,8 +18,6 @@ import {
 
 const FEEDBACK_LIST_LIMIT = 500;
 
-const DEATH_LIST_LIMIT = 500;
-
 const GUEST_SIGN_IN_PATH = "/api/auth/sign-in/anonymous";
 
 export function createApi(world: World, bundle: ClientBundle, config: Config) {
@@ -179,20 +177,12 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       if (!(await admin(request))) return status(404, "Not found");
       return { players: await world.players() };
     })
-    .get(
-      "/players/:characterId",
-      async ({ params, request, status }) => {
-        if (!(await admin(request))) return status(404, "Not found");
-        const name = await world.characters.nameOf(params.characterId);
-        if (name === null) return status(404, "Not found");
-        return {
-          character: { id: params.characterId, name },
-          deaths: await world.deaths.of(params.characterId, DEATH_LIST_LIMIT),
-          kills: await world.deaths.killsBy(params.characterId, DEATH_LIST_LIMIT),
-        };
-      },
-      { params: t.Object({ characterId: t.String() }) },
-    )
+    .get("/players/:characterId", async ({ params, request, status }) => {
+      if (!(await admin(request))) return status(404, "Not found");
+      const found = await world.player(params.characterId);
+      if (!found) return status(404, "No such character");
+      return found;
+    })
 
     .get("/tiles", async () => ({ tiles: await store.readTiles() }))
     .get("/statuses", async () => ({ statuses: await store.readStatuses() }))

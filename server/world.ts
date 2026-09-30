@@ -1,6 +1,6 @@
 import { DataStore, type Blobs } from "../app/lib/dataStore";
 import { flattenMap } from "../app/lib/mapData";
-import { GameServer } from "./GameServer";
+import { GameServer, type CharacterSheet } from "./GameServer";
 import { SqliteBlobs, DiskBlobs } from "./blobs";
 import { WorldStore } from "./WorldStore";
 import { GameSocket, SocketHub, type WorldContext } from "./sockets";
@@ -14,9 +14,11 @@ import { CLOSE_MAINTENANCE, KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
 import type { Database } from "./db";
 import { Feedback } from "./feedback";
-import { Deaths } from "./deaths";
+import { Deaths, type DeathRecord } from "./deaths";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+
+const DEATH_LIST_LIMIT = 500;
 
 export type PlayerEntry = RosterEntry & {
   online: boolean;
@@ -157,6 +159,35 @@ export class World {
       deaths: entry.character ? (deaths.get(entry.character.id) ?? 0) : 0,
       kills: entry.character ? (kills.get(entry.character.id) ?? 0) : 0,
     }));
+  }
+
+  async player(characterId: string): Promise<{
+    player: PlayerEntry;
+    sheet: CharacterSheet;
+    deaths: DeathRecord[];
+    kills: DeathRecord[];
+  } | null> {
+    const entry = await this.characters.rosterEntry(characterId);
+    if (!entry) return null;
+    const [ratings, sheet, counts, deaths, kills] = await Promise.all([
+      this.server.ratings(),
+      this.server.characterSheet(characterId),
+      this.deaths.counts(),
+      this.deaths.of(characterId, DEATH_LIST_LIMIT),
+      this.deaths.killsBy(characterId, DEATH_LIST_LIMIT),
+    ]);
+    return {
+      player: {
+        ...entry,
+        online: this.server.onlineActorIds().includes(characterId),
+        rating: ratings.get(characterId) ?? null,
+        deaths: counts.deaths.get(characterId) ?? 0,
+        kills: counts.kills.get(characterId) ?? 0,
+      },
+      sheet,
+      deaths,
+      kills,
+    };
   }
 
   async beginMaintenance(message: string | null): Promise<MaintenanceState> {

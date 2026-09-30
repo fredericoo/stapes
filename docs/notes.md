@@ -495,6 +495,14 @@ elsewhere:
 - **Deaths** and **Kills** count the character's rows in the `death` table, as
   victim and as killer. Both are described below.
 
+`/admin/players/:characterId` shows one character from `GameServer.characterSheet`.
+A character in the running session is read from it; any other is read from its
+saved `kv` rows, so its position and equipment are what the last actor flush
+wrote. Saved equipment is shown as stored, not through `restoredEquipment`,
+which needs a loaded world's tile catalogue and drops items it no longer
+accepts. HP is null at full health in both places, and the page says "Full"
+rather than computing a maximum the server does not store.
+
 ### Every death a character is part of is a row in `death`
 
 A row is written when a character dies, or when a character kills something,
