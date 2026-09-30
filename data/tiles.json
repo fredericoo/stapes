@@ -45383,12 +45383,7 @@
               "y": 1
             }
           },
-          "durationMs": 180,
-          "light": {
-            "radius": 6,
-            "intensity": 1,
-            "color": "#ffcc88"
-          }
+          "durationMs": 180
         }
       ]
     }
