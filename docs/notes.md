@@ -4588,16 +4588,21 @@ What replaced each of the three:
   box, exactly one lit. Pressing either says who *and* whether you are swinging
   — see `applyInteraction` — so the question is asked where the answer is about
   to be used, rather than a switch's width away from it.
-- **Left picks, right fights.** `target` outranks `attack` in `ACTION_ORDER`, so
-  the verb a plain press runs on a body is the target, and the right button runs
-  the fight beside it (`GameRenderer`'s `fightAt`). That is the arrangement
-  every game with a mouse in it uses, which is the whole argument for it: it is
-  the one part of this interface nobody has to be taught. A tap on a phone is
-  the left button, so a thumb cannot start a fight by accident — the row in the
-  list is how it starts one. The canvas cancels its context menu, because the
-  right button is a game button there. For an NPC authored with both a dialog
-  and hit points, `talk` still outranks both within `TALK_REACH_CELLS`, so a
-  press on a shopkeeper talks.
+- **Left fights, right picks.** `attack` outranks `target` in `ACTION_ORDER`,
+  so the verb a plain press runs on a fightable body is the fight, and the right
+  button runs the target beside it (`secondaryInteractionAt`, called from
+  `GameRenderer`'s `targetAt`). It was the other way round first — the
+  convention in games with a mouse — and players on desktop could not get past
+  the tutorial: a left click only picked the creature, and nothing on screen
+  said the right button swung at it. The row in the list reads the same way,
+  `[Attack | Target]`, and a mouse hovering a
+  body sees one line, each verb beside a pixel mouse icon for its button
+  (`MOUSE_PIXELS` in `textLabels.ts`), without the name the name tag already
+  shows. The pointer label is hidden on the body already targeted or being
+  attacked. A tap on a phone is the left button, so a tap starts a fight too. The canvas cancels its context menu, because the right button is
+  a game button there. For an NPC authored with both a dialog and hit points,
+  `talk` still outranks both within `TALK_REACH_CELLS`, so a press on a
+  shopkeeper talks; beyond that reach it attacks, like any other body.
 
   Hovering was tried first and did the targeting on its own, with alt to make it
   a fight. It reads well in a sentence and badly in the hand: every sweep of the

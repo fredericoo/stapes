@@ -32,13 +32,14 @@ import {
   applyInteraction,
   interactionText,
   listInteractionOptions,
+  secondaryInteractionAt,
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
 import type { Extraction } from "../game/extract";
 import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby } from "./nearbyInscriptions";
-import { WorldLabelLayer, type WorldLabel } from "./textLabels";
+import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
@@ -152,7 +153,7 @@ function interactionInk(option: InteractionOption): string {
 type PointerLabel = {
   ref: ObjectRef;
   height: number;
-  lines: { id: string; text: string }[];
+  lines: LabelLine[];
   color?: string;
 };
 
@@ -258,6 +259,7 @@ export class GameRenderer {
   private unbindAttackKey: (() => void) | null = null;
   private lookedAt: ObjectRef | null = null;
   private lastPointer: { x: number; y: number } | null = null;
+  private pointerIsMouse = false;
   private lookPickKey = "";
   private lookPickMap: MapFile | null = null;
   private lightingEnabled = true;
@@ -701,6 +703,7 @@ export class GameRenderer {
 
   private onPointerMove = (e: PointerEvent) => {
     this.lastPointer = this.localPoint(e);
+    this.pointerIsMouse = e.pointerType === "mouse";
     if (this.lookHold !== null && this.touchDownAt && e.pointerId === this.touchId) {
       const dx = this.lastPointer.x - this.touchDownAt.x;
       const dy = this.lastPointer.y - this.touchDownAt.y;
@@ -716,14 +719,11 @@ export class GameRenderer {
     this.pointerRef = this.pickRefAt(this.lastPointer, snap);
   };
 
-  private fightAt(point: { x: number; y: number }, snap: GameSnapshot) {
+  private targetAt(point: { x: number; y: number }, snap: GameSnapshot) {
     this.pointerRef = this.pickRefAt(point, snap);
     if (!this.pointerRef) return;
-    const ref = this.pointerRef;
-    const fight = this.interactionsSent.find(
-      (option) => option.action === "attack" && sameRef(option.ref, ref),
-    );
-    if (fight) applyInteraction(this.session, fight, this);
+    const watch = secondaryInteractionAt(this.interactionsSent, this.pointerRef);
+    if (watch) applyInteraction(this.session, watch, this);
   }
 
   private pickAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
@@ -747,6 +747,7 @@ export class GameRenderer {
 
     const point = this.localPoint(e);
     this.lastPointer = point;
+    this.pointerIsMouse = e.pointerType === "mouse";
 
     if (e.pointerType === "touch") {
       if (this.touchId !== null) return;
@@ -763,7 +764,7 @@ export class GameRenderer {
 
     if (e.button === 2) {
       e.preventDefault();
-      if (!this.lookMode) this.fightAt(point, this.session.getSnapshot());
+      if (!this.lookMode) this.targetAt(point, this.session.getSnapshot());
       return;
     }
 
@@ -1192,7 +1193,7 @@ export class GameRenderer {
   }
 
   private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
-    const said = this.lookMode ? this.lookLines(snap) : this.pointerLines();
+    const said = this.lookMode ? this.lookLines(snap) : this.pointerLines(snap);
     if (!said) return;
 
     const { ref, height, lines, color } = said;
@@ -1232,14 +1233,29 @@ export class GameRenderer {
     return { ref, height: def.height, lines };
   }
 
-  private pointerLines(): PointerLabel | null {
+  private pointerLines(snap: GameSnapshot): PointerLabel | null {
     const option = this.pointerOption();
     if (!option) return null;
+    if (option.actorId !== null && option.actorId === snap.targetId) return null;
     const def = this.tilesById[option.tileId];
+    const secondary = this.pointerIsMouse
+      ? secondaryInteractionAt(this.interactionsSent, option.ref)
+      : null;
+    const lines: LabelLine[] = secondary
+      ? [
+          {
+            id: "buttons",
+            hints: [
+              { button: "left", text: option.label },
+              { button: "right", text: secondary.label },
+            ],
+          },
+        ]
+      : [{ id: "action", text: interactionText(option) }];
     return {
       ref: option.ref,
       height: def?.height ?? 0,
-      lines: [{ id: "action", text: interactionText(option) }],
+      lines,
       color: interactionInk(option),
     };
   }
