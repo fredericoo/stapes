@@ -1193,7 +1193,7 @@ export class GameRenderer {
   }
 
   private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
-    const said = this.lookMode ? this.lookLines(snap) : this.pointerLines();
+    const said = this.lookMode ? this.lookLines(snap) : this.pointerLines(snap);
     if (!said) return;
 
     const { ref, height, lines, color } = said;
@@ -1233,17 +1233,23 @@ export class GameRenderer {
     return { ref, height: def.height, lines };
   }
 
-  private pointerLines(): PointerLabel | null {
+  private pointerLines(snap: GameSnapshot): PointerLabel | null {
     const option = this.pointerOption();
     if (!option) return null;
+    if (option.actorId !== null && option.actorId === snap.targetId) return null;
     const def = this.tilesById[option.tileId];
     const secondary = this.pointerIsMouse
       ? secondaryInteractionAt(this.interactionsSent, option.ref)
       : null;
     const lines: LabelLine[] = secondary
       ? [
-          { id: "action", text: interactionText(option), button: "left" },
-          { id: "secondary", text: interactionText(secondary), button: "right" },
+          {
+            id: "buttons",
+            hints: [
+              { button: "left", text: option.label },
+              { button: "right", text: secondary.label },
+            ],
+          },
         ]
       : [{ id: "action", text: interactionText(option) }];
     return {

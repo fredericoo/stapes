@@ -9,7 +9,9 @@ import { type LabelKind, type LabelPlacement, layoutLabels } from "./labelLayout
 
 export type MouseButton = "left" | "right";
 
-export type LabelLine = { id: string; text: string; button?: MouseButton };
+export type ButtonHint = { button: MouseButton; text: string };
+
+export type LabelLine = { id: string; text: string } | { id: string; hints: ButtonHint[] };
 
 export type WorldLabel = {
   id: string;
@@ -44,7 +46,8 @@ const PROGRESS_BAR_CLASS = `${BAR_CLASS}--progress`;
 const BRICKS_PER_EM = 10;
 
 const MOUSE_CLASS = "world-label__mouse";
-const BUTTON_LINE_CLASS = "world-label__line--button";
+const HINTS_LINE_CLASS = "world-label__line--hints";
+const HINT_CLASS = "world-label__hint";
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /**
@@ -86,17 +89,29 @@ function mouseIcon(button: MouseButton): SVGSVGElement {
   return svg;
 }
 
+function hintSpan(hint: ButtonHint): HTMLElement {
+  const span = document.createElement("span");
+  span.className = HINT_CLASS;
+  const text = document.createElement("span");
+  text.textContent = hint.text;
+  span.append(mouseIcon(hint.button), text);
+  return span;
+}
+
 function lineRow(line: LabelLine): HTMLElement {
   const row = document.createElement("div");
-  if (!line.button) {
+  if ("text" in line) {
     row.textContent = line.text;
     return row;
   }
-  row.className = BUTTON_LINE_CLASS;
-  const text = document.createElement("span");
-  text.textContent = line.text;
-  row.append(mouseIcon(line.button), text);
+  row.className = HINTS_LINE_CLASS;
+  row.append(...line.hints.map(hintSpan));
   return row;
+}
+
+function lineSignature(line: LabelLine): string {
+  if ("text" in line) return line.text;
+  return line.hints.map((hint) => `${hint.button}\u0002${hint.text}`).join("\u0003");
 }
 
 function fillBar(element: HTMLDivElement, fraction: number, trackBricks: number) {
@@ -150,9 +165,7 @@ type LabelEntry = {
  * data and `grep -r` across the repo skipped it silently.
  */
 function signatureOf(label: WorldLabel): string {
-  const lines = label.lines
-    .map((line) => `${line.id}\u0000${line.text}\u0000${line.button ?? ""}`)
-    .join("\u0001");
+  const lines = label.lines.map((line) => `${line.id}\u0000${lineSignature(line)}`).join("\u0001");
   const bar = label.bar ? "|bar" : "";
   const progress = label.progress ? "|progress" : "";
   return `${lines}${bar}${progress}`;

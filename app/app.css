@@ -234,7 +234,12 @@ body {
     var(--o2) var(--o2) 0 #000;
 }
 
-.world-label__line--button {
+.world-label__line--hints {
+  display: flex;
+  gap: calc(var(--world-label-brick) * 8);
+}
+
+.world-label__hint {
   display: flex;
   align-items: center;
   gap: calc(var(--world-label-brick) * 3);

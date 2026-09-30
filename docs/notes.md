@@ -4595,10 +4595,11 @@ What replaced each of the three:
   convention in games with a mouse — and players on desktop could not get past
   the tutorial: a left click only picked the creature, and nothing on screen
   said the right button swung at it. The row in the list reads the same way,
-  `[Attack | Target]`, and a mouse hovering a body sees both verbs in the
-  pointer label with a pixel mouse icon for each button (`MOUSE_PIXELS` in
-  `textLabels.ts`). A tap on a phone is the left button, so a tap starts a
-  fight too. The canvas cancels its context menu, because the right button is
+  `[Attack | Target]`, and a mouse hovering a
+  body sees one line, each verb beside a pixel mouse icon for its button
+  (`MOUSE_PIXELS` in `textLabels.ts`), without the name the name tag already
+  shows. The pointer label is hidden on the body already targeted or being
+  attacked. A tap on a phone is the left button, so a tap starts a fight too. The canvas cancels its context menu, because the right button is
   a game button there. For an NPC authored with both a dialog and hit points,
   `talk` still outranks both within `TALK_REACH_CELLS`, so a press on a
   shopkeeper talks; beyond that reach it attacks, like any other body.
