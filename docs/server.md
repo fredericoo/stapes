@@ -1,6 +1,7 @@
 # Server
 
 - `LocalStore.deleteAll()` and its server counterpart clear buffered key/value writes only, not tables written with raw `sql.exec`. `resetWorld` in `GameServer` drops the `chat` table and empties the `death` table by name for that reason.
+- `MIGRATIONS` in `server/db.ts` is applied by position: `schema_version` records how many entries have run, not which. An entry that has run anywhere, including a PR's preview (whose volume survives every push until the PR closes), is never edited; a change is appended as a new entry. An edited entry is skipped where it already ran, and the entries after it run against the old schema, which stops the server at boot.
 - `ClientBundle.stored()` (`server/clientBundle.ts`) orders build ids by write time. They are commit shas, so an alphabetical sort would make `collectGarbage` delete arbitrary builds, including one about to be activated.
 - `serveClient` (`server/serveClient.ts`) passes a GET's `Range` header on to `ClientBundle.respond`, which answers it with `206` and those bytes. Apple requires a server of media for iOS to answer byte ranges, and Safari asks for video that way, so a route that stops passing the header on is expected to break playback on an iPhone and nowhere else a desktop test would show.
 - `World.drain` (`server/world.ts`) closes every socket with code 1012 before exit, because Bun exits without sending close frames (oven-sh/bun#25722) and clients would otherwise wait for their own timeout.
