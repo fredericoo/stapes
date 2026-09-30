@@ -16,6 +16,7 @@ export default function PlayPage() {
   return (
     <WorldPage
       link={localLink}
+      lightingToggle
       tiles={tiles}
       tilesets={tilesets}
       statuses={statuses}
