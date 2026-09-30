@@ -27,8 +27,8 @@ export function Dangers() {
         ))}
       </ul>
       <p className="home-dangers-death">
-        When you die, everything you were wearing and carrying falls where you died. Your skills
-        stay with you.
+        When you die, your bag and everything in it falls where you died, and every skill loses 5%
+        of its experience, often enough to cost a level. You keep what you were wearing.
       </p>
     </section>
   );
