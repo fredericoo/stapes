@@ -5,6 +5,7 @@ import { countOf, fuses, stow, withCount } from "../lib/piles";
 import type { TileDef } from "../lib/types";
 import {
   carriedInstances,
+  EQUIPMENT_SLOTS,
   handAccepts,
   handHasRoomFor,
   type Equipment,
@@ -12,9 +13,11 @@ import {
 } from "./equipment";
 import { capacityOf } from "./itemMoves";
 
-type Place = { holder: Hand } | { holder: "weapon" | "offhand" | "bag"; index: number };
+type Place = { holder: keyof Equipment } | { holder: "weapon" | "offhand" | "bag"; index: number };
 
 const HAND_HOLDERS: readonly Hand[] = ["weapon", "offhand"];
+
+const WORN_HOLDERS = EQUIPMENT_SLOTS.filter((slot) => slot !== "weapon" && slot !== "offhand");
 
 export function carriedCount(
   tilesById: Record<string, TileDef>,
@@ -61,7 +64,11 @@ export function hasRoomFor(
 }
 
 function sources(equipment: Equipment): Place[] {
-  const places: Place[] = HAND_HOLDERS.map((holder) => ({ holder }));
+  /**
+   * Every square `carriedCount` counts, or a price it reports as met could
+   * still fail to be paid — a glowing pile worn in the charm slot is one.
+   */
+  const places: Place[] = [...HAND_HOLDERS, ...WORN_HOLDERS].map((holder) => ({ holder }));
   for (const holder of ["bag", "weapon", "offhand"] as const) {
     const contents = equipment[holder]?.contents ?? [];
     /**

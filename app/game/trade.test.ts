@@ -98,6 +98,13 @@ describe("paying", () => {
     });
   });
 
+  it("takes from a pile worn in the charm slot, since that is counted as carried", () => {
+    const kit = wearing([], { charm: pile("shard", 15) });
+    expect(carriedCount(tilesById, kit, "shard")).toBe(15);
+    const paid = planTrade(tilesById, kit, [{ tileId: "shard", count: 15 }], [], mint)!;
+    expect(paid.charm).toBeNull();
+  });
+
   it("refuses when short, and the kit is untouched", () => {
     const kit = wearing([pile("shard", 13)]);
     expect(planTrade(tilesById, kit, [{ tileId: "shard", count: 14 }], [], mint)).toBeNull();
