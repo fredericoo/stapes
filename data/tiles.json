@@ -35614,6 +35614,45 @@
     "walkDurationMs": 700
   },
   {
+    "id": "skull-troll",
+    "name": "Troll skull",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 11,
+      "y": 7
+    },
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 5
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "skull-player",
     "name": "%s's skull",
     "height": 0,
