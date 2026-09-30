@@ -101,12 +101,32 @@ function giveUnit(
   unit: ItemInstance,
 ): Equipment | null {
   const def = tilesById[unit.tileId];
-  if (!def || resolveContainer(def)) return null;
+  if (!def) return null;
+  if (resolveContainer(def)) return carryContainer(tilesById, equipment, unit, def);
   for (const holder of ["bag", "weapon", "offhand"] as const) {
     const stowed = stowIn(tilesById, equipment, holder, unit);
     if (stowed) return stowed;
   }
   for (const hand of ["offhand", "weapon"] as const) {
+    const held = holdIn(tilesById, equipment, hand, unit, def);
+    if (held) return held;
+  }
+  return null;
+}
+
+/**
+ * Nothing nests, so a given container goes on the back when the bag slot is
+ * free and into an empty hand otherwise — never into another container.
+ */
+function carryContainer(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  unit: ItemInstance,
+  def: TileDef,
+): Equipment | null {
+  if (!equipment.bag) return { ...equipment, bag: unit };
+  for (const hand of ["offhand", "weapon"] as const) {
+    if (equipment[hand]) continue;
     const held = holdIn(tilesById, equipment, hand, unit, def);
     if (held) return held;
   }

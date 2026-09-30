@@ -1348,8 +1348,10 @@ for its inputs and outputs; see *A craft spends what you carry*. Gives land worn
 piles first. **The plan is the kit**: there is no separate run, because
 finding room for every last thing is the check and having found it there is
 nothing left to decide. All or nothing, and nothing ever reaches the floor. A
-container is never on either side: the schema refuses it with a catalogue in
-hand, and the runtime refuses it without one.
+container is never *taken* — it would take its contents with it — and the
+schema and the runtime both refuse it. A container may be *given*, minted
+empty: nothing nests, so it goes on the back if the bag slot is free, else
+into an empty hand, else the trade is refused for want of room.
 
 **A trade has one side that is a kit, and the other side is nowhere.**
 `GameSession.attemptDialogEffects` resolves the *player* and runs `planTrade`
