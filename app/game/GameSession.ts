@@ -736,7 +736,9 @@ export type Death = {
   tags: readonly string[];
   cost: DeathCost | null;
   at: Coord | null;
+  name: string | null;
   blame: Blame | null;
+  killedByPlayer: boolean;
 };
 
 export class GameSession implements PlaySession {
@@ -2355,8 +2357,8 @@ export class GameSession implements PlaySession {
     if (outcome.inflicted.length > 0 && (this.hpOf(target) ?? 0) > 0) {
       for (const grant of outcome.inflicted) {
         this.grantStatus(target, grant, undefined, undefined, {
+          ...blow.blame,
           source: this.statusName(grant.id),
-          ...(blow.blame.by ? { by: blow.blame.by } : {}),
         });
       }
     }
@@ -2674,7 +2676,11 @@ export class GameSession implements PlaySession {
             this.tilesById,
           ),
       at: loc && { x: loc.x, y: loc.y, z: loc.z },
+      name: loc
+        ? bodyNameFor({ tileId: loc.placed.tileId, name: target.name }, this.tilesById)
+        : null,
       blame: blame ?? null,
+      killedByPlayer: this.isPlayer(blame?.byId ?? null),
     };
   }
 
@@ -2851,12 +2857,14 @@ export class GameSession implements PlaySession {
       return {
         source: this.tilesById[held.tileId]?.name ?? held.tileId,
         ...(by ? { by } : {}),
+        byId: attacker.id,
       };
     }
     const natural = resolveBattler(this.defFor(attacker))?.naturalWeapon;
     return {
       source: natural?.name?.trim() || UNNAMED_WEAPON,
       ...(by ? { by } : {}),
+      byId: attacker.id,
     };
   }
 
@@ -3228,7 +3236,7 @@ export class GameSession implements PlaySession {
         elements,
         spell,
         caster,
-        blame: { source: spell, ...(caster ? { by: caster } : {}) },
+        blame: { source: spell, ...(caster ? { by: caster } : {}), byId: casterId },
       }),
     );
   }
@@ -3265,6 +3273,7 @@ export class GameSession implements PlaySession {
       this.grantStatus(subject, grant, bolt.casterId, bolt.elements, {
         source: this.statusName(grant.id),
         by: possessive(bolt.caster, bolt.spell),
+        byId: bolt.casterId,
       });
     }
   }
@@ -5147,6 +5156,7 @@ export class GameSession implements PlaySession {
     this.grantStatus(actor, { id: statusId }, placed.castBy, placed.castElements, {
       source: this.statusName(statusId),
       by: conjuredName(def.name, placed, (id) => this.bodyName(id)),
+      ...(placed.castBy ? { byId: placed.castBy } : {}),
     });
   }
 

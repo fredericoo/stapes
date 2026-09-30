@@ -307,3 +307,29 @@ describe("a creature that dies", () => {
     expect(skull?.description).toBe("Cause of death: Burned by Hearth");
   });
 });
+
+describe("the death the session reports", () => {
+  it("names the actor that swung the killing blow", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "wolf"), tiles);
+    const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
+    fight(session, wolf.id);
+
+    advanceUntilDead(session);
+
+    const [death] = session.drainDeaths();
+    expect(death?.blame?.byId).toBe(wolf.id);
+    expect(death?.killedByPlayer).toBe(false);
+  });
+
+  it("marks a creature the player struck down as the player's kill", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "boss"), tiles);
+    const troll = session.actorSnapshots().find((a) => a.tileId === "boss")!;
+    fight(session, troll.id);
+
+    advanceUntilDead(session, troll.id);
+
+    const [death] = session.drainDeaths();
+    expect(death).toMatchObject({ id: troll.id, name: "Troll", killedByPlayer: true });
+    expect(death?.blame?.byId).toBe(LOCAL_ACTOR_ID);
+  });
+});

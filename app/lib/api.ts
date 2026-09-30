@@ -95,9 +95,11 @@ export async function fetchPlayers(): Promise<PlayerEntry[]> {
   return unwrap(await client.api.players.get()).players;
 }
 
-export async function fetchPlayer(
-  characterId: string,
-): Promise<{ character: { id: string; name: string }; deaths: DeathRecord[] }> {
+export async function fetchPlayer(characterId: string): Promise<{
+  character: { id: string; name: string };
+  deaths: DeathRecord[];
+  kills: DeathRecord[];
+}> {
   return unwrap(await client.api.players({ characterId }).get());
 }
 

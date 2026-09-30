@@ -1,6 +1,8 @@
+/** `by` is prose for the reader, and can name a spell or a trap; `byId` is the actor answerable. */
 export type Blame = {
   source: string;
   by?: string;
+  byId?: string;
 };
 
 const CAUSE_LABEL = "Cause of death:";

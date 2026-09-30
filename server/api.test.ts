@@ -354,7 +354,7 @@ function player(characterId: string, from: string): Promise<Response> {
   );
 }
 
-async function killInWorld(characterId: string) {
+async function killInWorld(characterId: string, blame: Blame) {
   const internals = world.server as unknown as {
     session: {
       actors: Map<string, unknown>;
@@ -362,34 +362,55 @@ async function killInWorld(characterId: string) {
     };
     tick(): void;
   };
-  internals.session.applyDamage(internals.session.actors.get(characterId), 10_000, {
-    source: "Fangs",
-    by: "a wolf",
-  });
+  internals.session.applyDamage(internals.session.actors.get(characterId), 10_000, blame);
   internals.tick();
   await world.store.flush();
 }
 
-describe("a player's deaths", () => {
-  it("counts them in the list and lists each with its cause on the character", async () => {
-    const guest = await startGuest("Maren Ormstead");
-    const [character] = (await me(guest)).characters;
-    const socket = openSocket();
-    await world.join(socket, character!.id, { admin: false });
-    await killInWorld(character!.id);
+async function playing(name: string): Promise<string> {
+  const guest = await startGuest(name);
+  const [character] = (await me(guest)).characters;
+  await world.join(openSocket(), character!.id, { admin: false });
+  return character!.id;
+}
 
-    const listed = (await players(cookie)).find((entry) => entry.character?.id === character!.id);
-    expect(listed?.deaths).toBe(1);
+type PlayerPage = { character: { name: string }; deaths: DeathRecord[]; kills: DeathRecord[] };
 
-    const response = await player(character!.id, cookie);
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as {
-      character: { name: string };
-      deaths: DeathRecord[];
-    };
-    expect(body.character.name).toBe("Maren Ormstead");
-    expect(body.deaths).toEqual([
-      expect.objectContaining({ cause: { source: "Fangs", by: "a wolf" } }),
+async function page(characterId: string): Promise<PlayerPage> {
+  const response = await player(characterId, cookie);
+  expect(response.status).toBe(200);
+  return (await response.json()) as PlayerPage;
+}
+
+describe("a player's deaths and kills", () => {
+  it("lists a death on the victim's page and the kill on the killer's, and counts both", async () => {
+    const maren = await playing("Maren Ormstead");
+    const tobin = await playing("Tobin Reed");
+
+    await killInWorld(tobin, { source: "Rusty sword", by: "Maren Ormstead", byId: maren });
+
+    const listed = await players(cookie);
+    expect(listed.find((entry) => entry.character?.id === tobin)).toMatchObject({
+      deaths: 1,
+      kills: 0,
+    });
+    expect(listed.find((entry) => entry.character?.id === maren)).toMatchObject({
+      deaths: 0,
+      kills: 1,
+    });
+
+    const tobinPage = await page(tobin);
+    expect(tobinPage.character.name).toBe("Tobin Reed");
+    expect(tobinPage.deaths).toEqual([
+      expect.objectContaining({
+        cause: { source: "Rusty sword", by: "Maren Ormstead" },
+        killer: { id: maren, character: true },
+      }),
+    ]);
+    expect((await page(maren)).kills).toEqual([
+      expect.objectContaining({
+        victim: { id: tobin, name: "Tobin Reed", character: true },
+      }),
     ]);
   });
 

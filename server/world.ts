@@ -22,6 +22,7 @@ export type PlayerEntry = RosterEntry & {
   online: boolean;
   rating: number | null;
   deaths: number;
+  kills: number;
 };
 
 export class World {
@@ -143,7 +144,7 @@ export class World {
   }
 
   async players(): Promise<PlayerEntry[]> {
-    const [roster, ratings, deaths] = await Promise.all([
+    const [roster, ratings, { deaths, kills }] = await Promise.all([
       this.characters.roster(),
       this.server.ratings(),
       this.deaths.counts(),
@@ -154,6 +155,7 @@ export class World {
       online: entry.character !== null && online.has(entry.character.id),
       rating: entry.character ? (ratings.get(entry.character.id) ?? null) : null,
       deaths: entry.character ? (deaths.get(entry.character.id) ?? 0) : 0,
+      kills: entry.character ? (kills.get(entry.character.id) ?? 0) : 0,
     }));
   }
 

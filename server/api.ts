@@ -188,6 +188,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         return {
           character: { id: params.characterId, name },
           deaths: await world.deaths.of(params.characterId, DEATH_LIST_LIMIT),
+          kills: await world.deaths.killsBy(params.characterId, DEATH_LIST_LIMIT),
         };
       },
       { params: t.Object({ characterId: t.String() }) },

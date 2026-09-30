@@ -651,8 +651,24 @@ function tilesWithDeer() {
       id: "deer",
       name: "Deer",
       type: "simple",
+      kind: "battler",
       height: 2,
       attributes: {},
+      interactions: {
+        battler: {
+          baseHp: 8,
+          masteries: {},
+          naturalWeapon: {
+            type: "weapon",
+            damage: 1,
+            def: 0,
+            mastery: "blunt",
+            accuracy: 100,
+            spd: 100,
+            variance: 0,
+          },
+        },
+      },
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -696,6 +712,31 @@ describe("residents", () => {
     const { hello } = await connect("bob");
 
     expect(deerCells(alice.hello.map as FlatMapFile)).toEqual(deerCells(hello.map as FlatMapFile));
+  });
+
+  const DEER_ID = `npc:${DEER_CELL},0,0,1`;
+
+  it("is logged as a kill when a player's blow ends it", async () => {
+    await connect("alice");
+
+    await killAndTick(DEER_ID, { source: "Bare hands", by: "Alice", byId: "alice" });
+
+    expect(await harness.query("SELECT * FROM death")).toEqual([
+      expect.objectContaining({
+        victim_id: DEER_ID,
+        victim_name: "Deer",
+        killer_id: "alice",
+        cost: null,
+      }),
+    ]);
+  });
+
+  it("is not logged when no player ended it", async () => {
+    await connect("alice");
+
+    await killAndTick(DEER_ID, { source: "Fangs", by: "Wolf", byId: "npc:9,0,0,1" });
+
+    expect(await harness.query("SELECT * FROM death")).toEqual([]);
   });
 
   it("survives an eviction, in place and unduplicated", async () => {
@@ -2882,20 +2923,21 @@ describe("dying and coming back", () => {
     expect(stored?.masteries.fist).toBeCloseTo(before!.fist! * (1 - XP_SHARE_LOST_ON_DEATH), 10);
   });
 
-  it("logs the death with where it happened, what caused it and what it cost", async () => {
+  it("logs the death with where it happened, what caused it, who did it and what it cost", async () => {
     await armedAlice();
 
-    await killAndTick("alice", { source: "Rusty sword", by: "Bob" });
+    await killAndTick("alice", { source: "Rusty sword", by: "Bob", byId: "bob" });
 
     const rows = await harness.query("SELECT * FROM death");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      character_id: "alice",
+      victim_id: "alice",
       x: AWAY_FROM_SPAWN,
       y: 0,
       z: 0,
-      source: "Rusty sword",
-      killer: "Bob",
+      cause_source: "Rusty sword",
+      cause_by: "Bob",
+      killer_id: "bob",
     });
     expect(JSON.parse(rows[0]!.cost as string)).toMatchObject({ packLeft: true });
   });

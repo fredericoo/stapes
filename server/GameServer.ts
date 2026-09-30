@@ -2459,9 +2459,10 @@ export class GameServer {
       if (point) this.armRespawn(point, this.now());
 
       const connected = this.hasSocket(actorId);
-      if (!connected && !this.lingering.has(actorId)) continue;
+      const character = connected || this.lingering.has(actorId);
+      if (character || death.killedByPlayer) this.logDeath(death);
+      if (!character) continue;
       this.pendingDeathWrites.set(actorId, death);
-      this.logDeath(death);
       if (connected) this.justDied.push(death);
     }
     if (this.pendingDeathWrites.size > 0) {
@@ -2472,14 +2473,16 @@ export class GameServer {
   private logDeath(death: Death) {
     this.ctx.storage.sql.exec(
       INSERT_DEATH_SQL,
-      death.id,
       this.now(),
+      death.id,
+      death.name,
       death.at?.x ?? null,
       death.at?.y ?? null,
       death.at?.z ?? null,
       death.blame?.source ?? null,
       death.blame?.by ?? null,
-      JSON.stringify(death.cost ?? NOTHING_LOST),
+      death.blame?.byId ?? null,
+      death.cost && JSON.stringify(death.cost),
     );
   }
 
