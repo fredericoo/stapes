@@ -1348,8 +1348,11 @@ for its inputs and outputs; see *A craft spends what you carry*. Gives land worn
 piles first. **The plan is the kit**: there is no separate run, because
 finding room for every last thing is the check and having found it there is
 nothing left to decide. All or nothing, and nothing ever reaches the floor. A
-container is never on either side: the schema refuses it with a catalogue in
-hand, and the runtime refuses it without one.
+container is never *taken* — it would take its contents with it — and the
+schema and the runtime both refuse it. A container may be *given*, minted
+empty: nothing nests, so it goes on the back if the bag slot is free, else
+into an empty hand, else the trade is refused for want of room. That is what
+lets the tanner sell the leather backpack.
 
 **A trade has one side that is a kit, and the other side is nowhere.**
 `GameSession.attemptDialogEffects` resolves the *player* and runs `planTrade`
@@ -1367,9 +1370,10 @@ is ever wanted, it is a feature to build and not a field to fill in.
 
 ### A shop with a catalogue is a menu of menus, and two limits shape it
 
-Two shops are authored this way: the blacksmith (`blacksmith`), who sells
-three rungs of each of four weapon families plus a rack of shields, and the
-armourer (`armourer`), who sells every piece of armour there is. The shape
+Three shops are authored this way: the blacksmith (`blacksmith`), who sells
+three rungs of each of four weapon families plus a rack of shields; the
+armourer (`armourer`), who sells body armour and charms; and the tanner
+(`tanner`), who sells head and foot pieces and the leather backpack. The shape
 they settled on is worth knowing before authoring the next one, because two
 authored ceilings decide it.
 
@@ -1406,8 +1410,15 @@ not being a ladder.** Defence is a flat subtraction and a resistance answers
 one mastery, so steel plate is not simply better than a warded robe — see
 *Armour is worn, and it may care what hit it* above. What a rack has to do is
 therefore put the pieces that compete for one square next to each other, so
-the armourer's menus are Body, Head, Feet and Charms, priced off what each
-piece actually does rather than off a rung.
+the armourer's menus are Body and Charms and the tanner's are Head and Feet,
+priced off what each piece actually does rather than off a rung.
+
+**The tanner is paid in animal skins, not only shards.** Every head and foot
+piece costs five `skin`; the basic cap and boots cost nothing else, and the
+upper rungs add 20 to 50 shards, about ten short of what the piece's defence
+would cost in shards alone, so the hide stands in for part of the price. The
+backpack is fifteen skins alone. Skins come only from what deer and rabbits drop, so the price is
+a reason to hunt. `skin` piles to 25 so a hunting trip fits in one square.
 
 **A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
 `resolveActor` is satisfied by a `dialog` alone, so a body that only talks is

@@ -16080,350 +16080,6 @@
                 ]
               },
               {
-                "label": "Head",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "Heads. Cheap next to what is under them."
-                  },
-                  {
-                    "kind": "anchor",
-                    "name": "head"
-                  },
-                  {
-                    "kind": "choices",
-                    "options": [
-                      {
-                        "label": "Leather Cap — 15",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Leather Cap. One point."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 15
-                              }
-                            ],
-                            "give": [
-                              {
-                                "tileId": "leather-cap",
-                                "count": 1
-                              }
-                            ],
-                            "min": 1,
-                            "max": 1,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "Better than your hair. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "head"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "On the rail it stays. Anything else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "head"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Iron Helm — 40",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Iron Helm. Two points, and two more against blunt."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 40
-                              }
-                            ],
-                            "give": [
-                              {
-                                "tileId": "iron-helm",
-                                "count": 1
-                              }
-                            ],
-                            "min": 1,
-                            "max": 1,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "That is what a helm is for. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "head"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "On the rail it stays. Anything else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "head"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Knight's Helm — 60",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Knight's Helm. Three points, and three more against sharp blows."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 60
-                              }
-                            ],
-                            "give": [
-                              {
-                                "tileId": "knights-helm",
-                                "count": 1
-                              }
-                            ],
-                            "min": 1,
-                            "max": 1,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "You'll see less and live longer. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "head"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "On the rail it stays. Anything else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "head"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Back",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "As you like. What else?"
-                          },
-                          {
-                            "kind": "goto",
-                            "name": "main"
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "label": "Feet",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "Boots. Nobody thinks about boots until something lands on them."
-                  },
-                  {
-                    "kind": "anchor",
-                    "name": "feet"
-                  },
-                  {
-                    "kind": "choices",
-                    "options": [
-                      {
-                        "label": "Worn Boots — 15",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Worn Boots. One point, and somebody else wore them first."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 15
-                              }
-                            ],
-                            "give": [
-                              {
-                                "tileId": "worn-boots",
-                                "count": 1
-                              }
-                            ],
-                            "min": 1,
-                            "max": 1,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "They'll do. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "feet"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "On the rail it stays. Anything else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "feet"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Hobnailed Boots — 30",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Hobnailed Boots. One point, and three against blunt."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 30
-                              }
-                            ],
-                            "give": [
-                              {
-                                "tileId": "hobnailed-boots",
-                                "count": 1
-                              }
-                            ],
-                            "min": 1,
-                            "max": 1,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "Nailed through. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "feet"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "On the rail it stays. Anything else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "feet"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Steel Sabatons — 40",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Steel Sabatons. Two points, and two against sharp blows."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 40
-                              }
-                            ],
-                            "give": [
-                              {
-                                "tileId": "steel-sabatons",
-                                "count": 1
-                              }
-                            ],
-                            "min": 1,
-                            "max": 1,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "Heavy, and worth it. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "feet"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "On the rail it stays. Anything else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "feet"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Back",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Fair enough. What else?"
-                          },
-                          {
-                            "kind": "goto",
-                            "name": "main"
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
                 "label": "Charms",
                 "then": [
                   {
@@ -16710,6 +16366,851 @@
               ]
             },
             "to": "idle"
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "tanner",
+    "name": "Tanner",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "townsfolk",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "serving": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "serving",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Skins, {partner}? I don't take shards for leather — I take leather for leather."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "Head",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Caps and helms. Every one of them starts as a skin — the iron is riveted onto my leather."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "head"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Leather Cap — 5 skins",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Leather Cap. One point."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 5
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "leather-cap",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Better than your hair. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Iron Helm — 5 skins, 30 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Iron Helm. Two points, and two more against blunt."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 5
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 30
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "iron-helm",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "That is what a helm is for. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Knight's Helm — 5 skins, 50 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Knight's Helm. Three points, and three more against sharp blows."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 5
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 50
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "knights-helm",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "You'll see less and live longer. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "As you like. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Feet",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Boots. A good sole is a good hide, and I have the hides."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "feet"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Worn Boots — 5 skins",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Worn Boots. One point, and soft enough to walk in on the first day."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 5
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "worn-boots",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "They'll do. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Hobnailed Boots — 5 skins, 20 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Hobnailed Boots. One point, and three against blunt."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 5
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "hobnailed-boots",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Nailed through. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Steel Sabatons — 5 skins, 30 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Steel Sabatons. Two points, and two against sharp blows."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 5
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 30
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "steel-sabatons",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Heavy, and worth it. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Fair enough. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Leather Backpack — 15 skins",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Leather Backpack. Eight more things carried, on your back where your hands stay free."
+                  },
+                  {
+                    "kind": "request_trade",
+                    "take": [
+                      {
+                        "tileId": "skin",
+                        "count": 15
+                      }
+                    ],
+                    "give": [
+                      {
+                        "tileId": "leather-backpack",
+                        "count": 1
+                      }
+                    ],
+                    "min": 1,
+                    "max": 1,
+                    "default": 1,
+                    "traded": [
+                      {
+                        "kind": "say",
+                        "text": "Fill it. What else?"
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ],
+                    "cancel": [
+                      {
+                        "kind": "say",
+                        "text": "It stays on the hook, then. Anything else?"
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Where do skins come from?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Off whatever you hunt. Deer and rabbits leave theirs behind when they fall — bring me the lot."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Nothing",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Bring me hides, {partner}. I'll make you something."
+                  }
+                ]
+              }
+            ]
           }
         ]
       }
@@ -44863,7 +45364,8 @@
     "affectedByGravity": true,
     "interactions": {
       "item": {
-        "type": "artifact"
+        "type": "artifact",
+        "pile": 25
       }
     },
     "sprite": {
@@ -44881,12 +45383,7 @@
               "y": 1
             }
           },
-          "durationMs": 180,
-          "light": {
-            "radius": 6,
-            "intensity": 1,
-            "color": "#ffcc88"
-          }
+          "durationMs": 180
         }
       ]
     }

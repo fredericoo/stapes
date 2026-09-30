@@ -231,14 +231,19 @@ describe("validating a dialog", () => {
       ]);
     });
 
-    it("refuses a container on either side of a trade", () => {
-      const issues = validateDialog(
+    it("refuses a container on the side a trade takes, and allows it on the side it gives", () => {
+      const takes = validateDialog(
+        { script: [{ ...trade, take: [{ tileId: "bag", count: 1 }], give: [] }] },
+        catalogue,
+      );
+      expect(takes).toEqual([
+        { severity: "error", message: expect.stringContaining("bag, and a container") },
+      ]);
+      const gives = validateDialog(
         { script: [{ ...trade, take: [], give: [{ tileId: "bag", count: 1 }] }] },
         catalogue,
       );
-      expect(issues).toEqual([
-        { severity: "error", message: expect.stringContaining("bag, and a container") },
-      ]);
+      expect(gives).toEqual([]);
     });
   });
 });

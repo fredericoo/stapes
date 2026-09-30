@@ -98,6 +98,13 @@ describe("paying", () => {
     });
   });
 
+  it("takes from a pile worn in the charm slot, since that is counted as carried", () => {
+    const kit = wearing([], { charm: pile("shard", 15) });
+    expect(carriedCount(tilesById, kit, "shard")).toBe(15);
+    const paid = planTrade(tilesById, kit, [{ tileId: "shard", count: 15 }], [], mint)!;
+    expect(paid.charm).toBeNull();
+  });
+
   it("refuses when short, and the kit is untouched", () => {
     const kit = wearing([pile("shard", 13)]);
     expect(planTrade(tilesById, kit, [{ tileId: "shard", count: 14 }], [], mint)).toBeNull();
@@ -153,8 +160,20 @@ describe("being paid", () => {
     expect(hasRoomFor(tilesById, kit, { tileId: "bottle", count: 1 }, mint)).toBe(false);
   });
 
-  it("never gives a container", () => {
-    expect(planTrade(tilesById, wearing([]), [], [{ tileId: "bag", count: 1 }], mint)).toBeNull();
+  it("gives a container onto an empty back first", () => {
+    const paid = planTrade(tilesById, emptyEquipment(), [], [{ tileId: "bag", count: 1 }], mint)!;
+    expect(paid.bag?.tileId).toBe("bag");
+  });
+
+  it("gives a container into an empty hand when a bag is already worn, never inside it", () => {
+    const kit = wearing([], { offhand: pile("sword") });
+    const paid = planTrade(tilesById, kit, [], [{ tileId: "bag", count: 1 }], mint)!;
+    expect(tally(paid)).toMatchObject({ weapon: "bag", offhand: "sword", bag: [] });
+  });
+
+  it("refuses a container when the back and both hands are taken", () => {
+    const kit = wearing([], { weapon: pile("sword"), offhand: pile("sword") });
+    expect(planTrade(tilesById, kit, [], [{ tileId: "bag", count: 1 }], mint)).toBeNull();
   });
 
   it("refuses a tile the catalogue does not hold", () => {

@@ -138,7 +138,8 @@ const tiles: TileDef[] = [
       "iron-sword",
       "war-bow",
       "buckler",
-      "armourer",
+      "tanner",
+      "skin",
       "leather-cap",
       "iron-helm",
     ].includes(t.id),
@@ -445,24 +446,26 @@ describe("the blacksmith, as authored", () => {
   });
 });
 
-describe("the armourer, as authored", () => {
-  it("sells a helm off the head rack and comes back to it", () => {
-    let map = fieldWith("armourer");
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 55 }]);
+describe("the tanner, as authored", () => {
+  it("sells a helm for skins and shards off the head rack and comes back to it", () => {
+    let map = fieldWith("tanner");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "skin", count: 12 }]);
+    map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 35 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+    session.pickUp({ x: 0, y: -1, z: 0, stackIndex: 1 });
 
-    talkTo(session, "armourer");
-    expect(lastLine(session)).toContain("Cloth, leather or plate");
+    talkTo(session, "tanner");
+    expect(lastLine(session)).toContain("leather for leather");
 
-    press(session, 1);
-    expect(lastLine(session)).toContain("Heads.");
+    press(session, 0);
+    expect(lastLine(session)).toContain("Caps and helms.");
     press(session, 1);
     trade(session, 1);
-    expect(bagOf(session)).toEqual(["arcane-shardx15", "iron-helm"]);
+    expect(bagOf(session)).toEqual(["skinx7", "arcane-shardx5", "iron-helm"]);
 
     press(session, 0);
     trade(session, 1);
-    expect(bagOf(session)).toEqual(["iron-helm", "leather-cap"]);
+    expect(bagOf(session)).toEqual(["skinx2", "arcane-shardx5", "iron-helm", "leather-cap"]);
   });
 });

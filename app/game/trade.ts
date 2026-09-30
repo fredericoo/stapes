@@ -5,6 +5,7 @@ import { countOf, fuses, stow, withCount } from "../lib/piles";
 import type { TileDef } from "../lib/types";
 import {
   carriedInstances,
+  EQUIPMENT_SLOTS,
   handAccepts,
   handHasRoomFor,
   type Equipment,
@@ -12,9 +13,11 @@ import {
 } from "./equipment";
 import { capacityOf } from "./itemMoves";
 
-type Place = { holder: Hand } | { holder: "weapon" | "offhand" | "bag"; index: number };
+type Place = { holder: keyof Equipment } | { holder: "weapon" | "offhand" | "bag"; index: number };
 
 const HAND_HOLDERS: readonly Hand[] = ["weapon", "offhand"];
+
+const WORN_HOLDERS = EQUIPMENT_SLOTS.filter((slot) => slot !== "weapon" && slot !== "offhand");
 
 export function carriedCount(
   tilesById: Record<string, TileDef>,
@@ -61,7 +64,11 @@ export function hasRoomFor(
 }
 
 function sources(equipment: Equipment): Place[] {
-  const places: Place[] = HAND_HOLDERS.map((holder) => ({ holder }));
+  /**
+   * Every square `carriedCount` counts, or a price it reports as met could
+   * still fail to be paid — a glowing pile worn in the charm slot is one.
+   */
+  const places: Place[] = [...HAND_HOLDERS, ...WORN_HOLDERS].map((holder) => ({ holder }));
   for (const holder of ["bag", "weapon", "offhand"] as const) {
     const contents = equipment[holder]?.contents ?? [];
     /**
@@ -101,12 +108,32 @@ function giveUnit(
   unit: ItemInstance,
 ): Equipment | null {
   const def = tilesById[unit.tileId];
-  if (!def || resolveContainer(def)) return null;
+  if (!def) return null;
+  if (resolveContainer(def)) return carryContainer(tilesById, equipment, unit, def);
   for (const holder of ["bag", "weapon", "offhand"] as const) {
     const stowed = stowIn(tilesById, equipment, holder, unit);
     if (stowed) return stowed;
   }
   for (const hand of ["offhand", "weapon"] as const) {
+    const held = holdIn(tilesById, equipment, hand, unit, def);
+    if (held) return held;
+  }
+  return null;
+}
+
+/**
+ * Nothing nests, so a given container goes on the back when the bag slot is
+ * free and into an empty hand otherwise — never into another container.
+ */
+function carryContainer(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  unit: ItemInstance,
+  def: TileDef,
+): Equipment | null {
+  if (!equipment.bag) return { ...equipment, bag: unit };
+  for (const hand of ["offhand", "weapon"] as const) {
+    if (equipment[hand]) continue;
     const held = holdIn(tilesById, equipment, hand, unit, def);
     if (held) return held;
   }

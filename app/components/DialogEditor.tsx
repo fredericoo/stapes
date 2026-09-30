@@ -117,6 +117,7 @@ function adjustedForRemoval(listPath: CommandPath, removed: CommandPath): number
 type EditorContext = {
   dialog: DialogDef;
   itemOptions: Array<{ value: string; label: string }>;
+  giveOptions: Array<{ value: string; label: string }>;
   statusOptions: Array<{ value: string; label: string }>;
   defaults: CatalogDefaults;
   update: (path: CommandPath, change: (command: DialogCommand) => DialogCommand) => void;
@@ -126,13 +127,21 @@ type EditorContext = {
 
 export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: Props) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
-  const itemOptions = useMemo(
+  const giveOptions = useMemo(
     () =>
       tiles
-        .filter((tile) => resolveItem(tile) != null && resolveContainer(tile) == null)
+        .filter((tile) => resolveItem(tile) != null)
         .map((tile) => ({ value: tile.id, label: tile.name }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [tiles],
+  );
+  const itemOptions = useMemo(
+    () =>
+      giveOptions.filter((option) => {
+        const def = tilesById[option.value];
+        return def != null && resolveContainer(def) == null;
+      }),
+    [giveOptions, tilesById],
   );
   const statusOptions = useMemo(
     () => Object.values(statusDefs).map((def) => ({ value: def.id, label: def.name })),
@@ -154,6 +163,7 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
   const ctx: EditorContext = {
     dialog,
     itemOptions,
+    giveOptions,
     statusOptions,
     defaults: { tileId: itemOptions[0]?.value ?? "", statusId: statusOptions[0]?.value ?? "" },
     update: (path, change) => onChange(updateCommandAt(dialog, path, change)),
@@ -495,12 +505,14 @@ function TradeBlocks({
       <TradeSides
         label="Takes"
         sides={trade.take}
+        options={ctx.itemOptions}
         ctx={ctx}
         onChange={(take) => onChange({ ...trade, take })}
       />
       <TradeSides
         label="Gives"
         sides={trade.give}
+        options={ctx.giveOptions}
         ctx={ctx}
         onChange={(give) => onChange({ ...trade, give })}
       />
@@ -551,11 +563,13 @@ function TradeBlocks({
 function TradeSides({
   label,
   sides,
+  options,
   ctx,
   onChange,
 }: {
   label: string;
   sides: readonly TradeSide[];
+  options: Array<{ value: string; label: string }>;
   ctx: EditorContext;
   onChange: (next: TradeSide[]) => void;
 }) {
@@ -578,7 +592,7 @@ function TradeSides({
             onValueChange={(v) =>
               v && onChange(sides.map((s, j) => (j === i ? { ...s, tileId: v } : s)))
             }
-            options={ctx.itemOptions}
+            options={options}
             placeholder="Tile…"
             className="min-w-[9rem]"
             ariaLabel="Tile"

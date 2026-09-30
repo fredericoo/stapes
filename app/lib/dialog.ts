@@ -277,10 +277,14 @@ function checkTrade(
   }
   if (!catalogue) return;
   for (const side of [...trade.take, ...trade.give]) {
+    if (!catalogue.tilesById[side.tileId]) {
+      error(`${where} names a tile "${side.tileId}" the catalogue does not hold`);
+    }
+  }
+  for (const side of trade.take) {
     const def = catalogue.tilesById[side.tileId];
-    if (!def) error(`${where} names a tile "${side.tileId}" the catalogue does not hold`);
-    else if (resolveContainer(def)) {
-      error(`${where} trades ${def.name}, and a container is not a thing a trade may move`);
+    if (def && resolveContainer(def)) {
+      error(`${where} takes ${def.name}, and a container is not a thing a trade may take`);
     }
   }
 }
