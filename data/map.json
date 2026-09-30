@@ -64553,7 +64553,7 @@
       "18,-1": [{"tileId":"dirt"},{"tileId":"dirt"},{"tileId":"sw2"}],
       "18,0": [{"tileId":"dirt"},{"tileId":"dirt"}],
       "18,1": [{"tileId":"dirt"},{"tileId":"dirt"}],
-      "18,2": [{"tileId":"dirt"},{"tileId":"dirt"},{"tileId":"bat","direction":"s"}],
+      "18,2": [{"tileId":"dirt"},{"tileId":"dirt"}],
       "18,3": [{"tileId":"dirt"},{"tileId":"dirt"},{"tileId":"empty-bottle"}],
       "18,4": [{"tileId":"dirt"},{"tileId":"dirt"}],
       "18,5": [{"tileId":"dirt"}],
