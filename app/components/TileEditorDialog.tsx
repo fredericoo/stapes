@@ -815,6 +815,7 @@ export function TileEditorDialog({
           : undefined,
       connectsTo:
         draft.type === "autotile" && draft.connectsTo?.length ? draft.connectsTo : undefined,
+      rawMaskSlices: draft.type === "autotile" && draft.rawMaskSlices ? true : undefined,
       scatterSeed: draft.type === "scatter" && draft.scatterSeed ? draft.scatterSeed : undefined,
       climbFrom: climbFromForSave(draft, climbByFacing),
       particles: draft.particles,
@@ -1139,89 +1140,96 @@ export function TileEditorDialog({
   const autotileSection = (
     <div className="flex flex-col gap-3">
       {climbPad}
-      <div className="flex flex-col gap-2">
-        <FieldLabel info="Each icon is a neighbourhood: dark green is this tile, light green a matching neighbour — its own id plus anything under Connects to. Sparse: a shape left undefined falls back to isolated.">
-          Autotile slices
-        </FieldLabel>
-        <div
-          className="grid w-fit gap-1"
-          style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
-          role="listbox"
-          aria-label="Autotile slices"
-        >
-          {Array.from({ length: AUTOTILE_SLICE_COUNT }, (_, i) => {
-            const defined = Boolean(draft.slices?.[i]);
-            const selected = slice === i;
-            return (
-              <button
-                key={i}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                aria-label={autotileSliceTitle(i)}
-                title={`${autotileSliceTitle(i)}${defined ? "" : " — empty"}`}
-                onClick={() => {
-                  setSlice(i);
-                  setFrameIndex(0);
-                  if (!draft.slices?.[i]) {
-                    const base = draft.slices?.[0] ?? emptySprite();
-                    setDraft({
-                      ...draft,
-                      slices: {
-                        ...draft.slices,
-                        [i]: structuredClone(base),
-                      },
-                    });
-                  }
-                }}
-                className={[
-                  "relative rounded-sm border-2 p-0.5",
-                  selected
-                    ? "border-accent bg-paper"
-                    : defined
-                      ? "border-border bg-panel hover:border-ink"
-                      : "border-dashed border-muted opacity-55 hover:opacity-100",
-                ].join(" ")}
-              >
-                <AutotileSlicePreview slice={i} size={32} />
-                <span
+      {draft.rawMaskSlices ? (
+        <p className="text-[11px] text-muted">
+          This tile has a slice for each of the 256 neighbourhoods, drawn by a script rather than by
+          hand. Change the script and run it again.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <FieldLabel info="Each icon is a neighbourhood: dark green is this tile, light green a matching neighbour — its own id plus anything under Connects to. Sparse: a shape left undefined falls back to isolated.">
+            Autotile slices
+          </FieldLabel>
+          <div
+            className="grid w-fit gap-1"
+            style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
+            role="listbox"
+            aria-label="Autotile slices"
+          >
+            {Array.from({ length: AUTOTILE_SLICE_COUNT }, (_, i) => {
+              const defined = Boolean(draft.slices?.[i]);
+              const selected = slice === i;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  aria-label={autotileSliceTitle(i)}
+                  title={`${autotileSliceTitle(i)}${defined ? "" : " — empty"}`}
+                  onClick={() => {
+                    setSlice(i);
+                    setFrameIndex(0);
+                    if (!draft.slices?.[i]) {
+                      const base = draft.slices?.[0] ?? emptySprite();
+                      setDraft({
+                        ...draft,
+                        slices: {
+                          ...draft.slices,
+                          [i]: structuredClone(base),
+                        },
+                      });
+                    }
+                  }}
                   className={[
-                    "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
-                    selected ? "bg-accent text-paper" : "bg-paper/90 text-ink",
+                    "relative rounded-sm border-2 p-0.5",
+                    selected
+                      ? "border-accent bg-paper"
+                      : defined
+                        ? "border-border bg-panel hover:border-ink"
+                        : "border-dashed border-muted opacity-55 hover:opacity-100",
                   ].join(" ")}
                 >
-                  {i}
-                </span>
-              </button>
-            );
-          })}
+                  <AutotileSlicePreview slice={i} size={32} />
+                  <span
+                    className={[
+                      "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
+                      selected ? "bg-accent text-paper" : "bg-paper/90 text-ink",
+                    ].join(" ")}
+                  >
+                    {i}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-muted">
+            <AutotileSlicePreview slice={slice} size={20} />
+            <span>{autotileSliceTitle(slice)}</span>
+            {definedSlice ? (
+              <span className="text-ink">· sprite defined</span>
+            ) : (
+              <span>· using fallback</span>
+            )}
+          </div>
+          {draft.slices?.[slice] && slice !== 0 ? (
+            <Button
+              size="sm"
+              variant="danger"
+              className="w-fit"
+              onClick={() => {
+                const next = { ...draft.slices };
+                delete next[slice];
+                setDraft({ ...draft, slices: next });
+                setSlice(0);
+                setFrameIndex(0);
+              }}
+            >
+              Clear this slice
+            </Button>
+          ) : null}
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-muted">
-          <AutotileSlicePreview slice={slice} size={20} />
-          <span>{autotileSliceTitle(slice)}</span>
-          {definedSlice ? (
-            <span className="text-ink">· sprite defined</span>
-          ) : (
-            <span>· using fallback</span>
-          )}
-        </div>
-        {draft.slices?.[slice] && slice !== 0 ? (
-          <Button
-            size="sm"
-            variant="danger"
-            className="w-fit"
-            onClick={() => {
-              const next = { ...draft.slices };
-              delete next[slice];
-              setDraft({ ...draft, slices: next });
-              setSlice(0);
-              setFrameIndex(0);
-            }}
-          >
-            Clear this slice
-          </Button>
-        ) : null}
-      </div>
+      )}
       <TileIdMultiSelect
         tiles={tiles.filter((t) => t.id !== draft.id)}
         tilesets={tilesets}
@@ -1231,7 +1239,7 @@ export function TileEditorDialog({
         info="Tiles this one reads as itself when it looks at its neighbours — a window a wall should run through. One-directional."
         emptyHint="Only its own id."
       />
-      {frameEditor}
+      {draft.rawMaskSlices ? null : frameEditor}
     </div>
   );
 
