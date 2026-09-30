@@ -31962,7 +31962,7 @@
           },
           "durationMs": 200,
           "light": {
-            "radius": 3,
+            "radius": 6,
             "intensity": 1,
             "color": "#43d1f4"
           }
@@ -32294,7 +32294,7 @@
           },
           "durationMs": 200,
           "light": {
-            "radius": 3,
+            "radius": 6,
             "intensity": 1,
             "color": "#43d1f4"
           }
@@ -32428,7 +32428,7 @@
           },
           "durationMs": 200,
           "light": {
-            "radius": 3,
+            "radius": 6,
             "intensity": 1,
             "color": "#43d1f4"
           }
