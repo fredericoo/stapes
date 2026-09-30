@@ -64,7 +64,7 @@ import type {
   PlacedTile,
   TileDef,
 } from "../app/lib/types";
-import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
+import { MAX_LEVEL, MIN_LEVEL, parseCoordKey, type Coord } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   CLOSE_REPLACED,
@@ -105,6 +105,10 @@ const [GROUND_ONLY_HEAD, GROUND_ONLY_TAIL] = (() => {
   const [head, tail] = JSON.stringify(empty).split('"cells":[]');
   return [`${head}"cells":[`, `]${tail}`];
 })();
+
+function sameCell(a: Coord, b: Coord): boolean {
+  return a.x === b.x && a.y === b.y && a.z === b.z;
+}
 
 function cellAfflictionKey(x: number, y: number, z: number): string {
   return `${x},${y},${z}`;
@@ -1024,10 +1028,19 @@ export class GameServer {
     return { at, carrying, tagged, earned, statuses, hp, pvp, hidden };
   }
 
-  private async deleteSavedSpawns() {
-    const stored = await this.ctx.storage.list({ prefix: SPAWN_KEY_PREFIX });
-    if (stored.size === 0) return;
-    await this.ctx.storage.delete([...stored.keys()]);
+  /**
+   * A row still on the old map's spawn was minted, not chosen, so it is dropped
+   * and re-minted from the new map. Any other row is a `setSpawn` mark and
+   * survives the save, which every deploy makes through `/api/seed`.
+   */
+  private async forgetMintedSpawns(previousSpawn: Coord | null) {
+    const stored = await this.ctx.storage.list<SavedSpawn>({ prefix: SPAWN_KEY_PREFIX });
+    const minted = [...stored]
+      .filter(([, spawn]) => !previousSpawn || sameCell(spawn, previousSpawn))
+      .map(([key]) => key);
+    for (const key of minted) this.spawns.delete(key.slice(SPAWN_KEY_PREFIX.length));
+    if (minted.length === 0) return;
+    await this.ctx.storage.delete(minted);
   }
 
   private async deleteCheckpointedBoard() {
@@ -2180,6 +2193,10 @@ export class GameServer {
     const tiles = await store.readTiles();
     const tilesById = tilesByIdFromList(tiles);
     const statusDefs = statusesById(await store.readStatuses());
+    const previousSpawn =
+      this.session?.getSpawnPoint() ??
+      (await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY))?.spawn ??
+      null;
 
     const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
     const session = new GameSession(map, tiles, {
@@ -2236,14 +2253,14 @@ export class GameServer {
     this.writtenActors.clear();
     this.dead.clear();
     this.silenced.clear();
-    this.spawns.clear();
-    await this.deleteSavedSpawns();
+    await this.forgetMintedSpawns(previousSpawn);
     this.lastSaidAt.clear();
     this.queuedIntents.clear();
     this.events = [];
 
     for (const actorId of present) {
       const kit = carried.get(actorId);
+      await this.rememberSpawn(actorId);
       this.session.spawn(
         actorId,
         {
@@ -2256,6 +2273,7 @@ export class GameServer {
           hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
           pvp: fighting.has(actorId) || (await this.lastPvpOf(actorId)),
           hidden: await this.lastHiddenOf(actorId),
+          spawnAt: this.spawnCellOf(actorId) ?? undefined,
         },
         { announce: false },
       );

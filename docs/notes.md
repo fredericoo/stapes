@@ -1427,9 +1427,12 @@ you are, and it does not move when you do. A death overwrites `pos:` with it,
 which is the whole of respawning — asked for from the death screen's Rebirth
 button, or by reloading. Keeping it per player is what lets a death answer the
 question without asking a map that may since have been re-authored out of the
-marker. `replaceWorld` drops the rows wholesale for exactly that reason: a save
-can move the marker, and a remembered door into a building that no longer stands
-is worse than no memory at all.
+marker. `replaceWorld` drops only the rows still on the old map's spawn: those
+were minted, not chosen, so they follow the `player` marker to wherever the save
+put it. Every other row is a `setSpawn` mark and survives, which matters because
+every deploy is a save — `/api/seed` calls `replaceWorld` — and dropping the
+rows wholesale sent everybody back to the authored spawn on each merge. A mark
+whose cell the save changed is still safe to keep, for the reason below.
 
 **The row moves, and a tile is what moves it.** It was write-once until the
 respawn point existed, on the grounds that every row held the same coordinates
