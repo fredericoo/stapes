@@ -36203,12 +36203,7 @@
                 "y": 0
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
