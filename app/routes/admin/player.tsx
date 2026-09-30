@@ -6,7 +6,9 @@ import { AdminShell } from "../../components/AppShell";
 import { ItemCard } from "../../components/ItemCard";
 import { AccountName, Badge, LastOnline, Moment } from "../../components/PlayerFacts";
 import { TilePreview } from "../../components/TilePreview";
+import { describeBlame } from "../../game/blame";
 import { COMMAND_PREFIX, GOTO_COMMAND } from "../../game/commands";
+import type { DeathCost } from "../../game/deathCost";
 import { EQUIPMENT_SLOTS, type Equipment } from "../../game/equipment";
 import { itemCard } from "../../game/itemCard";
 import { fetchBootstrap, fetchPlayer } from "../../lib/api";
@@ -26,6 +28,7 @@ import { type StatusDef, statusesById } from "../../lib/status";
 import type { TileDef, TilesetDef } from "../../lib/types";
 import { tilesByIdFromList } from "../../lib/validation";
 import { Tooltip } from "../../ui/Tooltip";
+import type { DeathRecord } from "../../../server/deaths";
 import type { CharacterSheet } from "../../../server/GameServer";
 
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
@@ -54,7 +57,7 @@ type Catalogue = {
 };
 
 export default function PlayerPage() {
-  const { player, sheet, tiles, tilesets, statuses, loadedAt } =
+  const { player, sheet, deaths, kills, tiles, tilesets, statuses, loadedAt } =
     useLoaderData<typeof clientLoader>();
   const catalogue = useMemo<Catalogue>(
     () => ({
@@ -141,6 +144,40 @@ export default function PlayerPage() {
                   </li>
                 ))}
               </ul>
+            )}
+          </Panel>
+          <Panel title={titled("Deaths", player.deaths)}>
+            {deaths.length === 0 ? (
+              <Empty>{character.name} has not died.</Empty>
+            ) : (
+              <DeathList>
+                {deaths.map((death) => (
+                  <DeathEntry
+                    key={death.id}
+                    record={death}
+                    now={loadedAt}
+                    title={<Cause death={death} />}
+                    detail={death.cost ? costText(death.cost) : null}
+                  />
+                ))}
+              </DeathList>
+            )}
+          </Panel>
+          <Panel title={titled("Kills", player.kills)}>
+            {kills.length === 0 ? (
+              <Empty>{character.name} has not killed anything.</Empty>
+            ) : (
+              <DeathList>
+                {kills.map((kill) => (
+                  <DeathEntry
+                    key={kill.id}
+                    record={kill}
+                    now={loadedAt}
+                    title={<Victim kill={kill} />}
+                    detail={kill.cause ? `With ${kill.cause.source}` : null}
+                  />
+                ))}
+              </DeathList>
             )}
           </Panel>
         </div>
@@ -329,4 +366,75 @@ function Effects({
       ))}
     </ul>
   );
+}
+
+function titled(title: string, count: number): string {
+  return count > 0 ? `${title} · ${count}` : title;
+}
+
+function DeathList({ children }: { children: ReactNode }) {
+  return <ol className="flex flex-col divide-y divide-border/20">{children}</ol>;
+}
+
+function DeathEntry({
+  record,
+  now,
+  title,
+  detail,
+}: {
+  record: DeathRecord;
+  now: number;
+  title: ReactNode;
+  detail: string | null;
+}) {
+  return (
+    <li className="flex flex-col gap-0.5 py-1.5 first:pt-0 last:pb-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <span className="text-sm">{title}</span>
+        <span className="text-xs text-muted">
+          <Moment at={record.at} now={now} />
+        </span>
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-3 text-xs text-muted">
+        {detail ? <span>{detail}</span> : null}
+        {record.where ? <Place at={record.where} /> : null}
+      </div>
+    </li>
+  );
+}
+
+function Cause({ death }: { death: DeathRecord }) {
+  const { cause, killer } = death;
+  if (!cause) return <span className="text-muted">No cause recorded</span>;
+  if (!cause.by || !killer?.character) return <>{describeBlame(cause)}</>;
+  return (
+    <>
+      {cause.source} by <CharacterLink id={killer.id}>{cause.by}</CharacterLink>
+    </>
+  );
+}
+
+function Victim({ kill }: { kill: DeathRecord }) {
+  const name = kill.victim.name ?? "Somebody unnamed";
+  if (!kill.victim.character) return <>{name}</>;
+  return <CharacterLink id={kill.victim.id}>{name}</CharacterLink>;
+}
+
+function CharacterLink({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <Link
+      to={`/admin/players/${id}`}
+      className="underline decoration-ink/30 underline-offset-2 hover:decoration-ink"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function costText(cost: DeathCost): string {
+  const parts = cost.levelsLost.map(
+    (level) => `${MASTERY_LABELS[level.mastery]} ${level.from} → ${level.to}`,
+  );
+  if (cost.packLeft) parts.unshift("Pack left behind");
+  return parts.length > 0 ? parts.join(" · ") : "Lost nothing";
 }

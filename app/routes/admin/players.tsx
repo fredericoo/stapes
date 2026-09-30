@@ -41,7 +41,7 @@ const features = tableFeatures({
 
 const column = createColumnHelper<typeof features, PlayerEntry>();
 
-const NUMERIC_COLUMNS = new Set(["rating"]);
+const NUMERIC_COLUMNS = new Set(["rating", "deaths", "kills"]);
 
 /** An online character sorts as seen at `now`, so "Online now" leads a newest-first sort. */
 function columns(now: number) {
@@ -80,6 +80,24 @@ function columns(now: number) {
         ) : (
           `${row.original.rating}${RATING_GLYPH}`
         ),
+    }),
+    column.accessor((entry) => (entry.character ? entry.deaths : undefined), {
+      id: "deaths",
+      header: "Deaths",
+      sortUndefined: "last",
+      sortDescFirst: true,
+      enableGlobalFilter: false,
+      cell: ({ row }) =>
+        row.original.character ? row.original.deaths : <span className="text-muted">—</span>,
+    }),
+    column.accessor((entry) => (entry.character ? entry.kills : undefined), {
+      id: "kills",
+      header: "Kills",
+      sortUndefined: "last",
+      sortDescFirst: true,
+      enableGlobalFilter: false,
+      cell: ({ row }) =>
+        row.original.character ? row.original.kills : <span className="text-muted">—</span>,
     }),
     column.accessor((entry) => (entry.online ? now : (entry.character?.lastSeenAt ?? undefined)), {
       id: "lastOnline",

@@ -108,6 +108,34 @@ const MIGRATIONS: readonly string[] = [
    )`,
   `CREATE INDEX IF NOT EXISTS feedback_user_at ON feedback(user_id, at)`,
   `ALTER TABLE character ADD COLUMN last_seen_at INTEGER`,
+  `CREATE TABLE IF NOT EXISTS death (
+     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+     character_id TEXT NOT NULL,
+     at           INTEGER NOT NULL,
+     x            INTEGER,
+     y            INTEGER,
+     z            INTEGER,
+     source       TEXT,
+     killer       TEXT,
+     cost         TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS death_character_at ON death(character_id, at)`,
+  `DROP TABLE IF EXISTS death`,
+  `CREATE TABLE IF NOT EXISTS death (
+     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+     at           INTEGER NOT NULL,
+     victim_id    TEXT NOT NULL,
+     victim_name  TEXT,
+     x            INTEGER,
+     y            INTEGER,
+     z            INTEGER,
+     cause_source TEXT,
+     cause_by     TEXT,
+     killer_id    TEXT,
+     cost         TEXT
+   )`,
+  `CREATE INDEX IF NOT EXISTS death_victim_at ON death(victim_id, at)`,
+  `CREATE INDEX IF NOT EXISTS death_killer_at ON death(killer_id, at)`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

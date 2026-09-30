@@ -7,6 +7,8 @@ import type { MapFile } from "../app/lib/types";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import { emptyEquipment } from "../app/game/equipment";
 import { createApi } from "./api";
+import type { Blame } from "../app/game/blame";
+import type { DeathRecord } from "./deaths";
 import { FEEDBACK_PER_WINDOW } from "./feedback";
 import { SEEDED_ADMIN_USERNAME } from "./auth";
 import { ClientBundle } from "./clientBundle";
@@ -412,5 +414,76 @@ describe("players", () => {
       new Request("http://localhost/api/players", { headers: { cookie: guest } }),
     );
     expect(response.status).toBe(404);
+  });
+});
+
+async function killInWorld(characterId: string, blame: Blame) {
+  const internals = world.server as unknown as {
+    session: {
+      actors: Map<string, unknown>;
+      applyDamage(actor: unknown, amount: number, blame?: Blame): void;
+    };
+    tick(): void;
+  };
+  internals.session.applyDamage(internals.session.actors.get(characterId), 10_000, blame);
+  internals.tick();
+  await world.store.flush();
+}
+
+async function playing(name: string): Promise<string> {
+  const guest = await startGuest(name);
+  const [character] = (await me(guest)).characters;
+  await world.join(openSocket(), character!.id, { admin: false });
+  return character!.id;
+}
+
+type PlayerPage = {
+  player: PlayerEntry;
+  deaths: DeathRecord[];
+  kills: DeathRecord[];
+};
+
+async function page(characterId: string): Promise<PlayerPage> {
+  const response = await api.handle(
+    new Request(`http://localhost/api/players/${characterId}`, { headers: { cookie } }),
+  );
+  expect(response.status).toBe(200);
+  return (await response.json()) as PlayerPage;
+}
+
+describe("a player's deaths and kills", () => {
+  it("lists a death on the victim's page and the kill on the killer's, and counts both", async () => {
+    const maren = await playing("Maren Ormstead");
+    const tobin = await playing("Tobin Reed");
+
+    await killInWorld(tobin, { source: "Rusty sword", by: "Maren Ormstead", byId: maren });
+
+    const listed = await players(cookie);
+    expect(listed.find((entry) => entry.character?.id === tobin)).toMatchObject({
+      deaths: 1,
+      kills: 0,
+    });
+    expect(listed.find((entry) => entry.character?.id === maren)).toMatchObject({
+      deaths: 0,
+      kills: 1,
+    });
+
+    const tobinPage = await page(tobin);
+    expect(tobinPage.player).toMatchObject({
+      character: { name: "Tobin Reed" },
+      deaths: 1,
+      kills: 0,
+    });
+    expect(tobinPage.deaths).toEqual([
+      expect.objectContaining({
+        cause: { source: "Rusty sword", by: "Maren Ormstead" },
+        killer: { id: maren, character: true },
+      }),
+    ]);
+    expect((await page(maren)).kills).toEqual([
+      expect.objectContaining({
+        victim: { id: tobin, name: "Tobin Reed", character: true },
+      }),
+    ]);
   });
 });

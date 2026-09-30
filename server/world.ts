@@ -14,10 +14,18 @@ import { CLOSE_MAINTENANCE, KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
 import type { Database } from "./db";
 import { Feedback } from "./feedback";
+import { Deaths, type DeathRecord } from "./deaths";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-export type PlayerEntry = RosterEntry & { online: boolean; rating: number | null };
+const DEATH_LIST_LIMIT = 500;
+
+export type PlayerEntry = RosterEntry & {
+  online: boolean;
+  rating: number | null;
+  deaths: number;
+  kills: number;
+};
 
 export class World {
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
@@ -36,6 +44,7 @@ export class World {
     readonly characters: Characters,
     readonly maintenance: Maintenance,
     readonly feedback: Feedback,
+    readonly deaths: Deaths,
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
@@ -74,6 +83,7 @@ export class World {
       characters,
       await Maintenance.load(db),
       new Feedback(db),
+      new Deaths(db),
       blobs,
       db,
       config,
@@ -136,31 +146,47 @@ export class World {
   }
 
   async players(): Promise<PlayerEntry[]> {
-    const [roster, ratings] = await Promise.all([this.characters.roster(), this.server.ratings()]);
+    const [roster, ratings, { deaths, kills }] = await Promise.all([
+      this.characters.roster(),
+      this.server.ratings(),
+      this.deaths.counts(),
+    ]);
     const online = new Set(this.server.onlineActorIds());
     return roster.map((entry) => ({
       ...entry,
       online: entry.character !== null && online.has(entry.character.id),
       rating: entry.character ? (ratings.get(entry.character.id) ?? null) : null,
+      deaths: entry.character ? (deaths.get(entry.character.id) ?? 0) : 0,
+      kills: entry.character ? (kills.get(entry.character.id) ?? 0) : 0,
     }));
   }
 
-  async player(
-    characterId: string,
-  ): Promise<{ player: PlayerEntry; sheet: CharacterSheet } | null> {
+  async player(characterId: string): Promise<{
+    player: PlayerEntry;
+    sheet: CharacterSheet;
+    deaths: DeathRecord[];
+    kills: DeathRecord[];
+  } | null> {
     const entry = await this.characters.rosterEntry(characterId);
     if (!entry) return null;
-    const [ratings, sheet] = await Promise.all([
+    const [ratings, sheet, counts, deaths, kills] = await Promise.all([
       this.server.ratings(),
       this.server.characterSheet(characterId),
+      this.deaths.counts(),
+      this.deaths.of(characterId, DEATH_LIST_LIMIT),
+      this.deaths.killsBy(characterId, DEATH_LIST_LIMIT),
     ]);
     return {
       player: {
         ...entry,
         online: this.server.onlineActorIds().includes(characterId),
         rating: ratings.get(characterId) ?? null,
+        deaths: counts.deaths.get(characterId) ?? 0,
+        kills: counts.kills.get(characterId) ?? 0,
       },
       sheet,
+      deaths,
+      kills,
     };
   }
 

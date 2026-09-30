@@ -476,10 +476,10 @@ The server adds what the client cannot be trusted with: the account, whether it
 is a guest, the character name (only when the id belongs to the sender) and the
 request's `User-Agent` header.
 
-### The players table reads two stores
+### The players table reads three stores
 
 `/admin/players` lists one row per character, plus one per account with no
-character, from `user` left-joined to `character`. Two columns come from
+character, from `user` left-joined to `character`. Three columns come from
 elsewhere:
 
 - **Last online** is `character.last_seen_at`, written by `World` when a
@@ -492,6 +492,8 @@ elsewhere:
   entered the world has no `mast:` row and shows no rating. The `mast:` rows are
   pruned past `MAX_REMEMBERED_ACTORS`, so the oldest-played characters lose
   their rating here the same way they lose their experience in the game.
+- **Deaths** and **Kills** count the character's rows in the `death` table, as
+  victim and as killer. Both are described below.
 
 `/admin/players/:characterId` shows one character from `GameServer.characterSheet`.
 A character in the running session is read from it; any other is read from its
@@ -500,6 +502,43 @@ wrote. Saved equipment is shown as stored, not through `restoredEquipment`,
 which needs a loaded world's tile catalogue and drops items it no longer
 accepts. HP is null at full health in both places, and the page says "Full"
 rather than computing a maximum the server does not store.
+
+### Every death a character is part of is a row in `death`
+
+A row is written when a character dies, or when a character kills something,
+creatures included. A creature killed by another creature is not logged.
+`/admin/players/:characterId` lists the character's deaths (`Deaths.of`) and
+kills (`Deaths.killsBy`), newest first, from `GET /api/players/:characterId`.
+The planned public character page is meant to read the same two functions
+rather than add a query of its own.
+
+- **`GameServer.noteDeaths` writes the row.** A victim with a socket or still
+  lingering is a character; `Death.killedByPlayer` says whether the killer was.
+  The insert goes through `ctx.storage.sql`, so it is committed in the same
+  batch as the kit and position the death overwrote, and a death appears on the
+  page only after the next checkpoint.
+- **`killedByPlayer` is decided when the victim dies**, from whether the
+  `Blame.byId` actor is still a non-resident body. A player who poisons a wolf
+  and leaves before it dies is not credited with the kill; a player killed by
+  somebody who has left is still logged, because the victim decides that half.
+- **The cause is kept twice: as prose and as an id.** `cause_source` and
+  `cause_by` are the `Blame` as it read on the remains, and `by` can name a
+  spell or a conjured fire rather than a body ("Maren's Firebolt"). `killer_id`
+  is `Blame.byId`, the actor answerable, which is what a kill list is read by.
+  Every place that builds a `Blame` for an actor's doing sets `byId`, and a
+  status granted by a blow or a bolt carries the blame it came from, so a
+  poison's death names whoever poisoned. A death with no blame (`/health 0`,
+  eating something harmful) has neither.
+- **`victim_name` is a snapshot** of the body's name at death, because a
+  creature's id (`npc:x,y,z,i`) names nothing a reader recognises. Whether the
+  victim or the killer is a character is read by joining `character` when the
+  list is read, not stored.
+- **Neither id is a foreign key.** The row is written inside the checkpoint's
+  transaction, and a constraint failure there would roll back the whole
+  checkpoint, not only the death. `killer_id` also holds creature ids.
+- **`resetWorld` empties the table.** A reset takes every character's
+  masteries back to nothing, and a death history from the old timeline beside a
+  rating from the new one would describe two different characters.
 
 ## A name is typed once and never again
 
@@ -631,10 +670,11 @@ forced by the runtime:
   `GameServer` hands over structures it goes on mutating — the live board among
   them — and a store that kept the reference would checkpoint a board from one
   tick beside actors from another.
-- **`storage.sql` goes nowhere.** `logChat` writes speech into a table nothing
-  ever reads back: not the client, not the world, not a later load. On the
-  server that is a record somebody can open the database and read; in a tab
-  there is nobody to read it and no database to open. Speech still reaches
+- **`storage.sql` goes nowhere.** `logChat` writes speech and `logDeath`
+  writes deaths into tables the world never reads back: not the client, not the
+  world, not a later load. On the server they are records `/api` and somebody
+  with the database can read; in a tab there is nobody to read them and no
+  database to open. Speech still reaches
   everyone it should, which is the broadcast and has nothing to do with the log.
 
 Persistence is best-effort on purpose. A private window, a blocked origin or a

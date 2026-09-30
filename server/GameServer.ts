@@ -30,6 +30,7 @@ import {
   withMigratedItemIds,
 } from "../app/game/respawn";
 import { NOTHING_LOST } from "../app/game/deathCost";
+import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
 import { DEFAULT_FACING, listActorOwners } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
@@ -2298,6 +2299,7 @@ export class GameServer {
     this.loading = null;
 
     this.ctx.storage.sql.exec("DROP TABLE IF EXISTS chat");
+    this.ctx.storage.sql.exec("DELETE FROM death");
     this.chatLogReady = false;
     await this.ctx.storage.deleteAlarm();
 
@@ -2528,13 +2530,31 @@ export class GameServer {
       if (point) this.armRespawn(point, this.now());
 
       const connected = this.hasSocket(actorId);
-      if (!connected && !this.lingering.has(actorId)) continue;
+      const character = connected || this.lingering.has(actorId);
+      if (character || death.killedByPlayer) this.logDeath(death);
+      if (!character) continue;
       this.pendingDeathWrites.set(actorId, death);
       if (connected) this.justDied.push(death);
     }
     if (this.pendingDeathWrites.size > 0) {
       this.saveActors(session.actorIds(), false, "kits");
     }
+  }
+
+  private logDeath(death: Death) {
+    this.ctx.storage.sql.exec(
+      INSERT_DEATH_SQL,
+      this.now(),
+      death.id,
+      death.name,
+      death.at?.x ?? null,
+      death.at?.y ?? null,
+      death.at?.z ?? null,
+      death.blame?.source ?? null,
+      death.blame?.by ?? null,
+      death.blame?.byId ?? null,
+      death.cost && JSON.stringify(death.cost),
+    );
   }
 
   private announceDeaths() {
