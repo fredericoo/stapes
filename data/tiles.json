@@ -26522,6 +26522,48 @@
     }
   },
   {
+    "id": "leather-backpack",
+    "name": "Leather Backpack",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 17,
+      "y": 10
+    },
+    "intangible": true,
+    "affectedByGravity": true,
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "container",
+        "size": 8,
+        "equippable": true
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "crate-chest",
     "name": "Chest",
     "height": 2,
@@ -29682,6 +29724,25 @@
           "down": 1
         },
         "kit": [
+          {
+            "slot": "bag",
+            "tileId": "leather-backpack",
+            "chance": 75,
+            "contents": [
+              {
+                "tileId": "skull-troll",
+                "chance": 100
+              },
+              {
+                "tileId": "arcane-stone",
+                "chance": 10
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 75
+              }
+            ]
+          },
           {
             "slot": "bag",
             "tileId": "basic-bag",
@@ -40567,7 +40628,7 @@
           },
           {
             "slot": "bag",
-            "tileId": "basic-bag",
+            "tileId": "leather-backpack",
             "chance": 100,
             "contents": [
               {
