@@ -23485,7 +23485,13 @@
           {
             "slot": "bag",
             "tileId": "basic-bag",
-            "chance": 100
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "skin",
+                "chance": 80
+              }
+            ]
           }
         ]
       },
@@ -29700,9 +29706,9 @@
         "baseHp": 100,
         "masteries": {
           "blunt": 60,
+          "arcane": 24,
           "toughness": 66,
           "agility": 6,
-          "arcane": 24,
           "fire": 20
         },
         "naturalWeapon": {
@@ -29726,39 +29732,20 @@
         "kit": [
           {
             "slot": "bag",
-            "tileId": "leather-backpack",
-            "chance": 75,
-            "contents": [
-              {
-                "tileId": "skull-troll",
-                "chance": 100
-              },
-              {
-                "tileId": "arcane-stone",
-                "chance": 10
-              },
-              {
-                "tileId": "raw-meat",
-                "chance": 75
-              }
-            ]
-          },
-          {
-            "slot": "bag",
             "tileId": "basic-bag",
             "chance": 100,
             "contents": [
               {
-                "tileId": "skull-troll",
-                "chance": 100
-              },
-              {
                 "tileId": "arcane-stone",
                 "chance": 10
               },
               {
                 "tileId": "raw-meat",
                 "chance": 75
+              },
+              {
+                "tileId": "skull-player",
+                "chance": 100
               }
             ]
           },
@@ -29780,7 +29767,6 @@
         "spells": [
           {
             "type": "stone",
-            "name": "Ember breath",
             "effect": {
               "kind": "bolt",
               "on": "target",
@@ -29806,7 +29792,8 @@
             "reach": {
               "cells": 5.5,
               "height": 3
-            }
+            },
+            "name": "Ember breath"
           }
         ]
       },
@@ -35627,45 +35614,6 @@
     "walkDurationMs": 700
   },
   {
-    "id": "skull-troll",
-    "name": "Troll skull",
-    "height": 0,
-    "type": "simple",
-    "kind": "item",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 11,
-      "y": 7
-    },
-    "lightPassing": true,
-    "interactions": {
-      "item": {
-        "type": "artifact",
-        "pile": 5
-      }
-    },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 0,
-              "w": 1,
-              "h": 1
-            },
-            "base": {
-              "x": 0,
-              "y": 0
-            }
-          },
-          "durationMs": 200
-        }
-      ]
-    }
-  },
-  {
     "id": "skull-player",
     "name": "%s's skull",
     "height": 0,
@@ -35900,6 +35848,11 @@
             "slot": "offhand",
             "tileId": "raw-meat",
             "chance": 12
+          },
+          {
+            "slot": "bag",
+            "tileId": "skin",
+            "chance": 25
           }
         ]
       },
@@ -44736,6 +44689,206 @@
           }
         ]
       }
+    }
+  },
+  {
+    "id": "bush-3",
+    "name": "Bush",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 2,
+      "y": 10
+    },
+    "lightPassing": true,
+    "interactions": {
+      "endure": {
+        "durability": 16,
+        "suffers": [
+          {
+            "statusId": "burned",
+            "tileId": ""
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 120000,
+        "toMs": 240000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 16,
+              "y": 8,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "bubble",
+    "name": "Bubble",
+    "height": 0,
+    "type": "simple",
+    "kind": "projectile",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 0
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 2
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 23,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 100
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 11,
+              "y": 23,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 100
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 23,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 100
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 17,
+              "y": 23,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 100
+        }
+      ]
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 300,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#8ce6ff",
+          "edgeWidth": 0.15
+        },
+        "scale": {}
+      },
+      "disappear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "sweep",
+          "from": {
+            "x": -1,
+            "y": -1
+          },
+          "clumpPx": 3,
+          "edgeColor": "#ff9e40",
+          "edgeWidth": 0.15
+        }
+      }
+    }
+  },
+  {
+    "id": "skin",
+    "name": "Animal Skin",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 10,
+      "y": 0
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 20,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 6,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        }
+      ]
     }
   }
 ]
