@@ -8,7 +8,7 @@ import { openWorldDatabaseExclusively } from "./lock";
 import { seedFromDirectory } from "./seed";
 import { createAuth, seedAdmin, type Auth } from "./auth";
 import { resolveAuthSecret } from "./authSecret";
-import { Characters } from "./characters";
+import { Characters, type RosterEntry } from "./characters";
 import { Maintenance, type MaintenanceState } from "./maintenance";
 import { CLOSE_MAINTENANCE, KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
@@ -17,12 +17,15 @@ import { Feedback } from "./feedback";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
+export type PlayerEntry = RosterEntry & { online: boolean; rating: number | null };
+
 export class World {
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private alarmTimer: ReturnType<typeof setTimeout> | null = null;
   private draining = false;
   private readonly adminSockets = new WeakSet<GameSocket>();
+  private readonly characterOf = new WeakMap<GameSocket, string>();
 
   private constructor(
     readonly server: GameServer,
@@ -127,7 +130,19 @@ export class World {
     { admin }: { admin: boolean },
   ): Promise<void> {
     if (admin) this.adminSockets.add(socket);
+    this.characterOf.set(socket, characterId);
     await this.server.join(socket, characterId, { admin });
+    if (!socket.closed) await this.characters.markSeen(characterId, Date.now());
+  }
+
+  async players(): Promise<PlayerEntry[]> {
+    const [roster, ratings] = await Promise.all([this.characters.roster(), this.server.ratings()]);
+    const online = new Set(this.server.onlineActorIds());
+    return roster.map((entry) => ({
+      ...entry,
+      online: entry.character !== null && online.has(entry.character.id),
+      rating: entry.character ? (ratings.get(entry.character.id) ?? null) : null,
+    }));
   }
 
   async beginMaintenance(message: string | null): Promise<MaintenanceState> {
@@ -150,6 +165,8 @@ export class World {
   async leave(socket: GameSocket): Promise<void> {
     this.hub.drop(socket);
     await this.server.webSocketClose(socket);
+    const characterId = this.characterOf.get(socket);
+    if (characterId && !this.draining) await this.characters.markSeen(characterId, Date.now());
   }
 
   async snapshot(directory: string): Promise<string> {
@@ -174,6 +191,23 @@ export class World {
     return this.hub.size;
   }
 
+  /**
+   * A socket that closes during a drain finds the database already shut, so the
+   * last-seen time of everyone still connected is written before that.
+   */
+  private async markEveryoneSeen() {
+    const at = Date.now();
+    for (const socket of this.hub.all()) {
+      const characterId = this.characterOf.get(socket);
+      if (!characterId) continue;
+      try {
+        await this.characters.markSeen(characterId, at);
+      } catch (error) {
+        console.error("[world] last-seen write failed", error);
+      }
+    }
+  }
+
   async drain(): Promise<void> {
     if (this.draining) return;
     this.draining = true;
@@ -193,6 +227,8 @@ export class World {
     } catch (error) {
       console.error("[world] final checkpoint failed", error);
     }
+
+    await this.markEveryoneSeen();
 
     for (const socket of this.hub.all()) {
       socket.close(WEBSOCKET_SERVICE_RESTART, "restarting");

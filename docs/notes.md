@@ -476,6 +476,23 @@ The server adds what the client cannot be trusted with: the account, whether it
 is a guest, the character name (only when the id belongs to the sender) and the
 request's `User-Agent` header.
 
+### The players table reads two stores
+
+`/admin/players` lists one row per character, plus one per account with no
+character, from `user` left-joined to `character`. Two columns come from
+elsewhere:
+
+- **Last online** is `character.last_seen_at`, written by `World` when a
+  character joins, when its socket closes, and for everyone still connected when
+  the world drains. Nothing writes it while a character stays connected, so a
+  process that dies without draining leaves the join time. A character that is
+  connected shows "Online now" from `GameServer.onlineActorIds()` instead.
+- **Rating** is `rating(masteriesFromXp(...))` over the `mast:` rows in `kv`,
+  overlaid with the live masteries of anyone seated. A character that has never
+  entered the world has no `mast:` row and shows no rating. The `mast:` rows are
+  pruned past `MAX_REMEMBERED_ACTORS`, so the oldest-played characters lose
+  their rating here the same way they lose their experience in the game.
+
 ## A name is typed once and never again
 
 `app/lib/characterName.ts` holds the rules and both halves run them: the form so

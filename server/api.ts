@@ -173,6 +173,11 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       return { entries: await world.feedback.recent(FEEDBACK_LIST_LIMIT) };
     })
 
+    .get("/players", async ({ request, status }) => {
+      if (!(await admin(request))) return status(404, "Not found");
+      return { players: await world.players() };
+    })
+
     .get("/tiles", async () => ({ tiles: await store.readTiles() }))
     .get("/statuses", async () => ({ statuses: await store.readStatuses() }))
     .get("/tilesets", async () => ({ tilesets: await store.readTilesets() }))

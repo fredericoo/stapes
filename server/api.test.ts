@@ -9,8 +9,9 @@ import { createApi } from "./api";
 import { FEEDBACK_PER_WINDOW } from "./feedback";
 import { SEEDED_ADMIN_USERNAME } from "./auth";
 import { ClientBundle } from "./clientBundle";
+import { GameSocket } from "./sockets";
 import { readConfig } from "./config";
-import { World } from "./world";
+import { World, type PlayerEntry } from "./world";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -278,5 +279,69 @@ describe("feedback", () => {
       statuses.push((await call("/feedback", { message: `note ${sent}` }, cookie)).status);
     }
     expect(statuses).toEqual([...Array<number>(FEEDBACK_PER_WINDOW).fill(200), 429]);
+  });
+});
+
+async function players(from: string): Promise<PlayerEntry[]> {
+  const response = await api.handle(
+    new Request("http://localhost/api/players", { headers: { cookie: from } }),
+  );
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { players: PlayerEntry[] }).players;
+}
+
+function openSocket(): GameSocket {
+  let closed = false;
+  return new GameSocket({
+    send: () => {},
+    close: () => {
+      closed = true;
+    },
+    get closed() {
+      return closed;
+    },
+  });
+}
+
+describe("players", () => {
+  it("lists each character with its account, whether it is online, and when it was last seen", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const [character] = (await me(guest)).characters;
+    const maren = async () =>
+      (await players(cookie)).find((entry) => entry.character?.id === character!.id)!;
+
+    expect(await maren()).toMatchObject({
+      guest: true,
+      online: false,
+      character: { name: "Maren Ormstead", lastSeenAt: null },
+    });
+
+    const socket = openSocket();
+    const joinedAfter = Date.now();
+    await world.join(socket, character!.id, { admin: false });
+    const playing = await maren();
+    expect(playing.online).toBe(true);
+    expect(playing.rating).toBeGreaterThanOrEqual(1);
+    expect(playing.character!.lastSeenAt).toBeGreaterThanOrEqual(joinedAfter);
+
+    const leftAfter = Date.now();
+    await world.leave(socket);
+    const left = await maren();
+    expect(left.online).toBe(false);
+    expect(left.character!.lastSeenAt).toBeGreaterThanOrEqual(leftAfter);
+  });
+
+  it("lists an account that has no character yet", async () => {
+    expect(await players(cookie)).toContainEqual(
+      expect.objectContaining({ username: SEEDED_ADMIN_USERNAME, admin: true, character: null }),
+    );
+  });
+
+  it("is listed for administrators only", async () => {
+    const guest = await startGuest("Maren Ormstead");
+    const response = await api.handle(
+      new Request("http://localhost/api/players", { headers: { cookie: guest } }),
+    );
+    expect(response.status).toBe(404);
   });
 });

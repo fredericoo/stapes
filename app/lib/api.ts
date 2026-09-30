@@ -2,6 +2,7 @@ import { treaty } from "@elysiajs/eden";
 import type { Api } from "../../server/api";
 import type { FeedbackEntry } from "../../server/feedback";
 import type { MaintenanceState } from "../../server/maintenance";
+import type { PlayerEntry } from "../../server/world";
 import type { TileDef, TilesetDef } from "./types";
 import type { RemovedPlacement } from "./validation";
 
@@ -87,6 +88,10 @@ export async function saveMaintenance(
 
 export async function fetchFeedback(): Promise<FeedbackEntry[]> {
   return unwrap(await client.api.feedback.get()).entries;
+}
+
+export async function fetchPlayers(): Promise<PlayerEntry[]> {
+  return unwrap(await client.api.players.get()).players;
 }
 
 export function tilesetUrl(file: string): string {

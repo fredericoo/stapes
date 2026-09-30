@@ -11,6 +11,27 @@ export type Character = {
   createdAt: number;
 };
 
+export type RosterEntry = {
+  userId: string;
+  username: string | null;
+  guest: boolean;
+  admin: boolean;
+  accountCreatedAt: number;
+  character: (Character & { lastSeenAt: number | null }) | null;
+};
+
+type RosterRow = {
+  user_id: string;
+  username: string | null;
+  isAnonymous: number;
+  role: string;
+  user_created_at: string;
+  id: string | null;
+  name: string | null;
+  created_at: number | null;
+  last_seen_at: number | null;
+};
+
 export class Characters {
   constructor(private readonly db: Database) {}
 
@@ -44,6 +65,38 @@ export class Characters {
     const statement = await this.db.prepare("SELECT name FROM character WHERE id = ?");
     const row = (await statement.get([characterId])) as { name: string } | undefined;
     return row?.name ?? null;
+  }
+
+  async markSeen(characterId: string, at: number): Promise<void> {
+    const update = await this.db.prepare("UPDATE character SET last_seen_at = ? WHERE id = ?");
+    await update.run([at, characterId]);
+  }
+
+  /** One entry per character, plus one for each account that has none yet. */
+  async roster(): Promise<RosterEntry[]> {
+    const select = await this.db.prepare(
+      `SELECT user.id AS user_id, user.username, user.isAnonymous, user.role,
+              user.createdAt AS user_created_at,
+              character.id, character.name, character.created_at, character.last_seen_at
+       FROM user LEFT JOIN character ON character.user_id = user.id`,
+    );
+    const rows = (await select.all()) as RosterRow[];
+    return rows.map((row) => ({
+      userId: row.user_id,
+      username: row.username,
+      guest: row.isAnonymous === 1,
+      admin: row.role === "ADMIN",
+      accountCreatedAt: Date.parse(row.user_created_at),
+      character:
+        row.id === null
+          ? null
+          : {
+              id: row.id,
+              name: row.name!,
+              createdAt: row.created_at!,
+              lastSeenAt: row.last_seen_at,
+            },
+    }));
   }
 
   async nameTaken(typed: string): Promise<boolean> {
