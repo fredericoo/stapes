@@ -118,22 +118,15 @@ function nickCorners(inside: boolean[][], mask: number, casting = false): boolea
 function bankOf(shape: boolean[][], inside: boolean[][]): boolean[][] {
   const at = (x: number, y: number): boolean =>
     x < 0 || y < 0 || x >= CELL || y >= CELL ? true : shape[y]![x]!;
-  const out = shape.map((row) => row.map(() => false));
-  for (let y = 0; y < CELL; y++) {
-    for (let x = 0; x < CELL; x++) {
-      if (!inside[y]![x]!) continue;
-      for (let dy = 0; dy <= BANK_DEPTH && !out[y]![x]; dy++) {
-        for (let dx = 0; dx <= BANK_DEPTH; dx++) {
-          if (dx === 0 && dy === 0) continue;
-          if (!at(x - dx, y - dy)) {
-            out[y]![x] = true;
-            break;
-          }
-        }
+  const groundUpLeft = (x: number, y: number): boolean => {
+    for (let dy = 0; dy <= BANK_DEPTH; dy++) {
+      for (let dx = 0; dx <= BANK_DEPTH; dx++) {
+        if ((dx !== 0 || dy !== 0) && !at(x - dx, y - dy)) return true;
       }
     }
-  }
-  return out;
+    return false;
+  };
+  return shape.map((row, y) => row.map((_, x) => inside[y]![x]! && groundUpLeft(x, y)));
 }
 
 const QUARTERS: {
