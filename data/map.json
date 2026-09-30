@@ -24119,7 +24119,7 @@
       "-14,1": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "-14,2": [{"tileId":"grass-2"}],
       "-14,3": [{"tileId":"grass-2"},{"tileId":"wooden-floor"},{"tileId":"sw2"}],
-      "-14,4": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
+      "-14,4": [{"tileId":"grass-2"},{"tileId":"wooden-floor"},{"tileId":"tanner","direction":"s"}],
       "-14,5": [{"tileId":"grass-2"},{"tileId":"wooden-floor"},{"tileId":"counter-top"}],
       "-14,6": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
       "-14,7": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
