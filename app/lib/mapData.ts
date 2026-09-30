@@ -131,23 +131,37 @@ function addChangedCells(out: Set<string>, a: ChunkCells | undefined, b: ChunkCe
   }
 }
 
-export function changedCellsOnLevel(prev: MapFile, next: MapFile, z: number): Set<string> {
+export function changedCellsOnLevel(
+  prev: MapFile,
+  next: MapFile,
+  z: number,
+  chunkFilter?: ChunkFilter,
+): Set<string> {
   const out = new Set<string>();
   const before = prev.levels[levelKey(z)];
   const after = next.levels[levelKey(z)];
   if (before === after) return out;
 
+  const add = (a: ChunkCells | undefined, b: ChunkCells | undefined) => {
+    if (a === b || (chunkFilter && !chunkFilter(a, b))) return;
+    addChangedCells(out, a, b);
+  };
   const chunks = before && after ? keysWrittenSince(before, after) : null;
   if (chunks) {
-    for (const chk of chunks) addChangedCells(out, before![chk], after![chk]);
+    for (const chk of chunks) add(before![chk], after![chk]);
     return out;
   }
-  for (const chk in after) addChangedCells(out, before?.[chk], after[chk]);
+  for (const chk in after) add(before?.[chk], after[chk]);
   for (const chk in before) {
-    if (after?.[chk] === undefined) addChangedCells(out, before[chk], undefined);
+    if (after?.[chk] === undefined) add(before[chk], undefined);
   }
   return out;
 }
+
+export type ChunkFilter = (
+  before: ChunkCells | undefined,
+  after: ChunkCells | undefined,
+) => boolean;
 
 export function changedCellsInChunk(
   prev: MapFile,

@@ -109,6 +109,14 @@ describe("boxSurfaceElevation", () => {
     expect(boxSurfaceElevation(box, topFace.sx + 1, topFace.sy - 1)).toBeGreaterThan(2);
   });
 
+  it("reads the top face over every cell of a wide footprint", () => {
+    const bed = depthBox(5, 4, 0, 1, { w: 2, d: 1 });
+    const { sx, sy } = footPixel(4, 4);
+    const west = { sx: sx + 4 - PX_PER_HEIGHT, sy: sy + 4 - PX_PER_HEIGHT };
+    expect(boxSurface(bed, west.sx, west.sy)).toEqual({ elevation: 1, overhang: false });
+    expect(boxSurface(depthBox(5, 4, 0, 1), west.sx, west.sy).overhang).toBe(true);
+  });
+
   it("stays continuous across the edge of the silhouette", () => {
     const column = depthBox(4, 4, 0, 2);
     const sy = 4 * CELL_SIZE + 4;

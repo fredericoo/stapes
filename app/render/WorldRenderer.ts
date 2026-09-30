@@ -75,6 +75,7 @@ import type {
   TileDef,
   TilesetDef,
 } from "../lib/types";
+import { isSpanPart } from "../lib/footprint";
 import {
   CELL_SIZE,
   HEIGHT_PER_LEVEL,
@@ -82,6 +83,7 @@ import {
   MIN_LEVEL,
   coordKey,
   cellPhaseMs,
+  footprintOf,
   frameIndexAtTime,
   levelKey,
   parseCoordKey,
@@ -1997,6 +1999,10 @@ export class WorldRenderer {
 
       const def = this.tilesById[placed.tileId];
       if (!def) return;
+      if (isSpanPart(placed)) {
+        elev += terrainHeight(placed, this.tilesById);
+        return;
+      }
 
       const instanceKey = this.tileKey({ x, y, z, stackIndex });
       const state = this.spriteStates?.get(instanceKey) ?? "idle";
@@ -2054,6 +2060,7 @@ export class WorldRenderer {
         y,
         boxFoot,
         offsets.length > 1 ? Math.max(boxTop, boxFoot + DEPTH_LEAST_BODY) : boxTop,
+        footprintOf(def, placed.direction),
       );
 
       const emitter: ParticleEmitterSpec | undefined = def.particles

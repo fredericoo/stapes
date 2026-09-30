@@ -1,4 +1,5 @@
 import { MAP_FILE_VERSION } from "../lib/types";
+import { settleAllSpans, settleSpans } from "../lib/footprint";
 import { create } from "zustand";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -192,9 +193,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   strokeBase: null,
   savedMap: EMPTY_MAP,
 
-  hydrate: (map, tiles) => {
+  hydrate: (loaded, tiles) => {
     const state = get();
     const tilesById = tilesByIdFromList(tiles);
+    const map = settleAllSpans(loaded, tilesById);
     const proceduralSettings = loadProceduralSettings((id: string) => id in tilesById);
     if (serializeMap(map) === serializeMap(state.map)) {
       set({
@@ -284,7 +286,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   markSaved: () => set({ dirty: false, savedMap: get().map }),
   clearToast: () => set({ lastToast: null }),
 
-  commitMap: (next, opts) => {
+  commitMap: (proposed, opts) => {
+    const next = settleSpans(get().map, proposed, get().tilesById);
     if (next === get().map) return;
 
     if (opts?.coalesceInStroke && get().strokeBase) {
@@ -390,9 +393,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
     const def = tilesById[armedTileId];
     if (!def) return { skipped: true, reason: "Unknown tile" };
-    const check = canPlace(map, x, y, currentLevel, def, tilesById);
-    if (!check.ok) return { skipped: true, reason: check.reason };
     const placed = armedPlacement(def, armedVariant);
+    const check = canPlace(map, x, y, currentLevel, def, tilesById, placed.direction);
+    if (!check.ok) return { skipped: true, reason: check.reason };
     get().commitMap(appendTile(map, x, y, currentLevel, placed), {
       coalesceInStroke: true,
     });
@@ -426,7 +429,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (!def) return { skipped: coords.length, reason: "Unknown tile" };
       const placed = armedPlacement(def, armedVariant);
       for (const { x, y } of coords) {
-        const check = canPlace(map, x, y, currentLevel, def, tilesById);
+        const check = canPlace(map, x, y, currentLevel, def, tilesById, placed.direction);
         if (!check.ok) {
           skipped++;
           reason = check.reason;
@@ -447,9 +450,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!armedTileId) return { ok: false, reason: "No tile armed" };
     const def = tilesById[armedTileId];
     if (!def) return { ok: false, reason: "Unknown tile" };
-    const check = canPlace(map, selected.x, selected.y, currentLevel, def, tilesById);
-    if (!check.ok) return { ok: false, reason: check.reason };
     const placed = armedPlacement(def, armedVariant);
+    const check = canPlace(
+      map,
+      selected.x,
+      selected.y,
+      currentLevel,
+      def,
+      tilesById,
+      placed.direction,
+    );
+    if (!check.ok) return { ok: false, reason: check.reason };
     get().commitMap(appendTile(map, selected.x, selected.y, currentLevel, placed));
     return { ok: true };
   },

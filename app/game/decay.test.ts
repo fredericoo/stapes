@@ -97,6 +97,13 @@ const tiles: TileDef[] = [
     interactions: { decay: { tileId: "", fromMs: STAIN_MS, toMs: STAIN_MS } },
   }),
   tile({
+    id: "cot",
+    kind: "prop",
+    height: 1,
+    footprint: { w: 2, d: 1 },
+    interactions: { decay: { tileId: "stain", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+  }),
+  tile({
     id: "ember",
     height: 0,
     transitions: {
@@ -425,6 +432,24 @@ describe("GameSession decay", () => {
 
     run(session, BLOOD_MS);
     expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "stain"]);
+  });
+
+  it("turns a footprint as one thing, at the anchor's size afterwards", () => {
+    const map = withIdlePlayer(
+      replaceStack(
+        replaceStack(emptyMap(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "cot" }]),
+        0,
+        0,
+        0,
+        [{ tileId: "grass" }],
+      ),
+    );
+    const session = new GameSession(map, tiles);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "cot"]);
+
+    run(session, BLOOD_MS);
+    expect(stackIds(session.getMap(), 1, 0)).toEqual(["grass", "stain"]);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass"]);
   });
 
   it("chains through a tile that decays in turn", () => {

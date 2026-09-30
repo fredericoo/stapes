@@ -1,3 +1,4 @@
+import { isSpanPart } from "./footprint";
 import type { ChunkCells, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
@@ -388,6 +389,7 @@ export function computeLightingFlood(
     for (let si = 0; si < c.stack.length; si++) {
       const placed = c.stack[si]!;
       if (omitLightTileIds?.has(placed.tileId)) continue;
+      if (isSpanPart(placed)) continue;
       const def = tilesById[placed.tileId];
       if (!def) continue;
       if (!canEmit(def)) continue;

@@ -87,15 +87,32 @@ export type DepthBox = {
   southPx: number;
   foot: number;
   top: number;
+  /**
+   * Cells the box reaches west and north of its base cell, which is the
+   * footprint's south-east corner; absent is one. Only the far faces move.
+   */
+  w?: number;
+  d?: number;
 };
 
-export function depthBox(x: number, y: number, foot: number, top: number): DepthBox {
-  return {
+export function depthBox(
+  x: number,
+  y: number,
+  foot: number,
+  top: number,
+  footprint?: { w: number; d: number },
+): DepthBox {
+  const box: DepthBox = {
     eastPx: (x + 1) * CELL_SIZE,
     southPx: (y + 1) * CELL_SIZE,
     foot,
     top,
   };
+  if (footprint && (footprint.w > 1 || footprint.d > 1)) {
+    box.w = footprint.w;
+    box.d = footprint.d;
+  }
+  return box;
 }
 
 /**
@@ -119,12 +136,13 @@ function boxExitElevation(box: DepthBox, screenX: number, screenY: number): numb
 
 /**
  * One cell of screen travel is one `HEIGHT_PER_LEVEL` of ray climb, so a far
- * face sits one level behind the corresponding near face.
+ * face sits as many levels behind the near face as the box is cells wide or
+ * deep.
  */
 function boxFarFaceElevation(box: DepthBox, screenX: number, screenY: number): number {
-  return (
-    Math.max((box.eastPx - screenX) / PX_PER_HEIGHT, (box.southPx - screenY) / PX_PER_HEIGHT) -
-    HEIGHT_PER_LEVEL
+  return Math.max(
+    (box.eastPx - screenX) / PX_PER_HEIGHT - (box.w ?? 1) * HEIGHT_PER_LEVEL,
+    (box.southPx - screenY) / PX_PER_HEIGHT - (box.d ?? 1) * HEIGHT_PER_LEVEL,
   );
 }
 

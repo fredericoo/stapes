@@ -1,3 +1,4 @@
+import { isSpanPart } from "./footprint";
 import type {
   AnimatedEmitter,
   LightGrid,
@@ -409,7 +410,7 @@ export class ChunkedLighting {
     if (!stack?.length) return "";
     let sig = "";
     for (const placed of stack) {
-      if (this.omittedFromBake(placed)) continue;
+      if (this.omittedFromBake(placed) || isSpanPart(placed)) continue;
       const def = this.tilesById[placed.tileId];
       if (!def || !tileCanEmitLight(def)) continue;
       sig += `${placed.tileId}:${placed.direction ?? ""}|`;

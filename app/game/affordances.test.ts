@@ -38,6 +38,7 @@ const tiles = [
   tile({ id: "bush", height: 2, walkable: false }),
   tile({ id: "water", walkable: false }),
   tile({ id: "wall", height: 4 }),
+  tile({ id: "bed", height: 1, footprint: { w: 2, d: 1 } }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({
     id: "shield",
@@ -147,6 +148,21 @@ describe("withinReach", () => {
   it("is a circle, not a square of side 1.5", () => {
     expect(REACH_CELLS).toBeGreaterThan(Math.SQRT2);
     expect(REACH_CELLS).toBeLessThan(2);
+  });
+
+  it("reaches a wide tile from beside any cell it covers", () => {
+    const bed = replaceStack(
+      replaceStack(emptyMap(), 2, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "bed", span: { id: "b", dx: 0, dy: 0 } },
+      ]),
+      1,
+      0,
+      0,
+      [{ tileId: "grass" }, { tileId: "bed", span: { id: "b", dx: 1, dy: 0 } }],
+    );
+    expect(withinReach(bed, tilesById, ME, ref(2, 0))).toBe(true);
+    expect(withinReach(bed, tilesById, { x: -1, y: 0, z: 0 }, ref(2, 0))).toBe(false);
   });
 
   it("reaches one floor up and down, and no further", () => {

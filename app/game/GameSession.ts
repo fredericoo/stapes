@@ -375,6 +375,7 @@ import {
   type Consumed,
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
+import { settleAllSpans, settleSpans, spanAnchor } from "../lib/footprint";
 import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
@@ -742,8 +743,19 @@ export type Death = {
 };
 
 export class GameSession implements PlaySession {
-  private map: MapFile;
+  private board!: MapFile;
   private readonly tilesById: Record<string, TileDef>;
+  /**
+   * Every write settles the multi-cell footprints it touched, so the value read
+   * back can differ from the one assigned. Derive the next edit from `this.map`,
+   * never from a value already assigned to it.
+   */
+  private get map(): MapFile {
+    return this.board;
+  }
+  private set map(next: MapFile) {
+    this.board = settleSpans(this.board, next, this.tilesById);
+  }
   private readonly actors = new Map<string, ActorRuntime>();
   private readonly walkingInto = new Map<string, ActorRuntime[]>();
   private tileIndex: Map<string, string[]> | null = null;
@@ -818,8 +830,8 @@ export class GameSession implements PlaySession {
     } = {},
   ) {
     this.clock = clock;
-    this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
+    this.board = settleAllSpans(structuredClone(map), this.tilesById);
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
@@ -1058,7 +1070,7 @@ export class GameSession implements PlaySession {
     const def = this.tilesById[point.placed.tileId];
     if (!def) return { kind: "done" };
     const { x, y, z } = point.cell;
-    if (!canPlace(this.map, x, y, z, def, this.tilesById).ok) {
+    if (!canPlace(this.map, x, y, z, def, this.tilesById, point.placed.direction).ok) {
       return { kind: "blocked" };
     }
 
@@ -5232,7 +5244,9 @@ export class GameSession implements PlaySession {
     }
   }
 
-  interact(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+  interact(target: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const ref = spanAnchor(this.map, target);
+    if (!ref) return false;
     const acted =
       this.takeReward(ref, id) ||
       this.activateTeleport(ref, id) ||
@@ -5248,7 +5262,9 @@ export class GameSession implements PlaySession {
     return acted;
   }
 
-  canInteract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+  canInteract(target: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const ref = spanAnchor(this.map, target);
+    if (!ref) return false;
     return (
       this.canTakeReward(ref, id) ||
       this.canTeleport(ref, id) ||

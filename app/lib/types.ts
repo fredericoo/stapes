@@ -29,6 +29,18 @@ export function nearestCardinal(octant: Octant): Direction {
   return NEAREST_CARDINAL[octant];
 }
 
+export type Footprint = {
+  w: number;
+  d: number;
+};
+
+export type Span = {
+  id: string;
+  /** Cells east and south from this placement to its anchor; `0, 0` on the anchor. */
+  dx: number;
+  dy: number;
+};
+
 export type CellRect = {
   x: number;
   y: number;
@@ -140,6 +152,12 @@ export type TileDef = StateSprites & {
   type: TileType;
   anchor: SpriteAnchor;
   kind: TileKind;
+  /**
+   * Cells covered facing south: `w` along x, `d` along y, swapped facing east
+   * or west. A placement is put in the south-east cell, and the other cells
+   * hold parts (placements carrying `span`) kept in step by `./footprint`.
+   */
+  footprint?: Footprint;
   attributes: Record<string, never>;
   connectsTo?: string[];
   scatterSeed?: number;
@@ -266,6 +284,13 @@ export type PlacedTile = {
   owner?: string;
   castBy?: string;
   castElements?: Element[];
+  /**
+   * Marks one cell of a multi-cell placement. `id` is shared by the anchor and
+   * its parts and tells apart two footprints anchored in one cell. A part
+   * carries only `tileId`, `direction` and `variant`; every other field is on
+   * the anchor.
+   */
+  span?: Span;
   itemId?: string;
   extractsLeft?: number;
   extractsReserved?: number;
@@ -710,4 +735,53 @@ export function cellPhaseMs(sprite: TileSprite, x: number, y: number): number {
   const count = sprite.frames.length;
   const step = (((phase.x * x + phase.y * y) % count) + count) % count;
   return frameStartMs(sprite.frames, step);
+}
+
+export const MAX_FOOTPRINT_SIDE = 4;
+
+const ONE_CELL: Footprint = { w: 1, d: 1 };
+
+/**
+ * Autotile and scatter tiles pick a face per cell, which has no answer for a
+ * placement in several cells; items and bodies would have to move whole.
+ */
+export function mayCoverCells(def: TileDef): boolean {
+  return (
+    def.kind === "prop" &&
+    !def.actor &&
+    (def.type === "simple" ||
+      def.type === "directional" ||
+      def.type === "directional8" ||
+      def.type === "variant")
+  );
+}
+
+function side(n: unknown): number {
+  if (typeof n !== "number" || !Number.isFinite(n)) return 1;
+  return Math.min(MAX_FOOTPRINT_SIDE, Math.max(1, Math.round(n)));
+}
+
+export function footprintOf(def: TileDef | undefined, direction?: Direction): Footprint {
+  if (!def?.footprint || !mayCoverCells(def)) return ONE_CELL;
+  const w = side(def.footprint.w);
+  const d = side(def.footprint.d);
+  if (w === 1 && d === 1) return ONE_CELL;
+  return direction === "e" || direction === "w" ? { w: d, d: w } : { w, d };
+}
+
+export function coversCells(footprint: Footprint): boolean {
+  return footprint.w > 1 || footprint.d > 1;
+}
+
+/** The anchor comes first; each cell carries its offset back to the anchor. */
+export function footprintCells(
+  x: number,
+  y: number,
+  footprint: Footprint,
+): Array<{ x: number; y: number; dx: number; dy: number }> {
+  const out: Array<{ x: number; y: number; dx: number; dy: number }> = [];
+  for (let dy = 0; dy < footprint.d; dy++) {
+    for (let dx = 0; dx < footprint.w; dx++) out.push({ x: x - dx, y: y - dy, dx, dy });
+  }
+  return out;
 }

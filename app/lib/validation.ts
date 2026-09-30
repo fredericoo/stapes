@@ -1,10 +1,13 @@
 import { PLAYER_TILE_ID } from "../game/constants";
-import type { MapFile, PlacedTile, TileDef } from "./types";
+import type { Direction, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
+  coversCells,
+  footprintCells,
+  footprintOf,
   levelKey,
   physicalHeight,
 } from "./types";
@@ -209,6 +212,11 @@ export function removeUnfitPlacements(
   return edits.length === 0 ? { map, removed } : { map: setStacks(map, edits), removed };
 }
 
+/**
+ * A multi-cell tile's cells must all stand at one height: each part is put on
+ * top of whatever its own cell holds, so across a step the tile would be drawn
+ * flat and stood on at two heights.
+ */
 export function canPlace(
   map: MapFile,
   x: number,
@@ -216,8 +224,20 @@ export function canPlace(
   z: number,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
+  direction?: Direction,
 ): PlaceResult {
-  return fitsTile(map, x, y, z, tileDef, tilesById);
+  const here = fitsTile(map, x, y, z, tileDef, tilesById);
+  const footprint = footprintOf(tileDef, direction);
+  if (!here.ok || !coversCells(footprint)) return here;
+  const level = stackHeight(getStack(map, x, y, z), tilesById);
+  for (const cell of footprintCells(x, y, footprint).slice(1)) {
+    const there = fitsTile(map, cell.x, cell.y, z, tileDef, tilesById);
+    if (!there.ok) return there;
+    if (stackHeight(getStack(map, cell.x, cell.y, z), tilesById) !== level) {
+      return { ok: false, reason: "The cells it covers are not level" };
+    }
+  }
+  return { ok: true };
 }
 
 export function footRange(

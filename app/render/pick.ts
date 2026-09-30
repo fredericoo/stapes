@@ -5,6 +5,7 @@ import { isBattler } from "../lib/battler";
 import { resolveDialog } from "../lib/dialog";
 import { isInteractive } from "../lib/interactions";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
+import { spanAnchor } from "../lib/footprint";
 import { elevationAt, getStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { CELL_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
@@ -85,7 +86,8 @@ function pickTopAt(
     if (!candidate) continue;
 
     const { stackIndex, actionable } = candidate;
-    const ref: ObjectRef = { x, y, z, stackIndex };
+    const ref: ObjectRef | null = spanAnchor(ctx.map, { x, y, z, stackIndex });
+    if (!ref) continue;
     const order = drawOrder(
       x,
       y,
