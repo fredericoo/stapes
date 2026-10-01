@@ -106,9 +106,13 @@ hostname — so production and every preview share port 443 without conflicting.
   and DDoS filtering, and edge caching for the content-hashed client assets —
   which is the CDN this single-region deployment otherwise gives up. WebSockets
   pass through it fine; verified with a live `wss://` handshake.
+- **`www.thelaststones.com` redirects to `thelaststones.com`** with a
+  Cloudflare Redirect Rule (301, path and query kept). Only `PUBLIC_ORIGIN`
+  may post to the account routes once a session cookie exists, so a page served
+  on `www` signs in and then has its sign-out and password change refused.
 - **`stapes.frederic.ooo` is the old public name.** It is still orange and
   still on the production app's domains, but it is no longer `PUBLIC_ORIGIN`,
-  so signing in there works and changing a password is refused.
+  so signing in there works and signing out or changing a password is refused.
 - **Everything else stays grey.** The Coolify panel gains nothing from being
   proxied, and `next.stapes` needs an unobstructed ACME renewal.
 
