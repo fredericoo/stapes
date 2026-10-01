@@ -39,6 +39,7 @@ import {
 import type { Extraction } from "../game/extract";
 import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby } from "./nearbyInscriptions";
+import { INTERACTION_COLORS } from "./interactionColors";
 import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
@@ -112,15 +113,7 @@ function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
 
 const DROP_GHOST_ALPHA = 0.55;
 
-const HOVER_COLOR = 0xffcc00;
-
-const TARGET_HOVER_COLOR = 0xffffff;
-
 const TARGET_COLOR = 0xffffff;
-
-const ATTACK_TARGET_COLOR = 0xff3b30;
-
-const ATTACK_LABEL_INK = "#ff9b94";
 
 const LOOK_COLOR = 0x3fa9ff;
 
@@ -130,40 +123,21 @@ const LOOK_HOLD_SLOP_PX = 10;
 
 const PICK_LEVEL_SLACK = 1;
 
-const HOVER_LABEL_INK = "#ffe27a";
-
-const REWARD_COLOR = 0xb15cff;
-
-const REWARD_LABEL_INK = "#d9a9ff";
-
 function interactionColor(option: InteractionOption): number {
-  if (option.action === "attack") return ATTACK_TARGET_COLOR;
-  if (option.action === "target") return TARGET_HOVER_COLOR;
-  if (option.action === "reward") return REWARD_COLOR;
-  return HOVER_COLOR;
+  return INTERACTION_COLORS[option.action].outline;
 }
 
 function interactionInk(option: InteractionOption): string {
-  if (option.action === "attack") return ATTACK_LABEL_INK;
-  if (option.action === "target") return "#ffffff";
-  if (option.action === "reward") return REWARD_LABEL_INK;
-  return HOVER_LABEL_INK;
+  return INTERACTION_COLORS[option.action].ink;
 }
 
-/**
- * A body with health already carries a name tag (`pushNameLabels`), so its
- * hints stand alone; anything else would otherwise lose its name to them.
- */
-function buttonLines(first: InteractionOption, second: InteractionOption): LabelLine[] {
-  const hints: LabelLine = {
+function buttonLine(first: InteractionOption, second: InteractionOption | null): LabelLine {
+  const left = { button: "left", text: first.label, color: interactionInk(first) } as const;
+  if (!second) return { id: "buttons", hints: [left] };
+  return {
     id: "buttons",
-    hints: [
-      { button: "left", text: first.label },
-      { button: "right", text: second.label },
-    ],
+    hints: [left, { button: "right", text: second.label, color: interactionInk(second) }],
   };
-  if (first.health !== null) return [hints];
-  return [{ id: "name", text: first.name }, hints];
 }
 
 type PointerLabel = {
@@ -171,6 +145,11 @@ type PointerLabel = {
   height: number;
   lines: LabelLine[];
   color?: string;
+  /**
+   * A name drawn where a body's name tag sits, for a thing that has none
+   * (`pushNameLabels` only tags bodies with health).
+   */
+  nameTag?: string;
 };
 
 /**
@@ -1010,7 +989,9 @@ export class GameRenderer {
     if (ghost) specs.push(ghost);
     const target = this.targetOutline(snap);
     if (target) {
-      specs.push(outline(target, snap.attacking ? ATTACK_TARGET_COLOR : TARGET_COLOR, true));
+      specs.push(
+        outline(target, snap.attacking ? INTERACTION_COLORS.attack.outline : TARGET_COLOR, true),
+      );
     }
     const pointed = this.pointerOption();
     if (pointed && !sameRef(pointed.ref, target)) {
@@ -1212,17 +1193,32 @@ export class GameRenderer {
     const said = this.lookMode ? this.lookLines(snap) : this.pointerLines(snap);
     if (!said) return;
 
-    const { ref, height, lines, color } = said;
+    const { ref, height, lines, color, nameTag } = said;
     const ground = this.cellWorldCenter(ref.x, ref.y, ref.z, snap.map, ref.stackIndex);
     const head = elevationScreenOffset(height);
+    /**
+     * Where a name tag sits on a thing this tall; the pointer label clears it
+     * from there, so a short thing's actions stay above its name rather than
+     * under it.
+     */
+    const nameY = ground.y + head.y - labelHeadroomPx(height);
 
     into.push({
       id: "look",
       kind: "look",
       x: ground.x + head.x,
-      y: ground.y + head.y,
+      y: this.lookMode ? ground.y + head.y : nameY,
       lines,
       ...(color ? { color } : {}),
+    });
+    if (nameTag === undefined) return;
+    into.push({
+      id: "look:name",
+      kind: "name",
+      x: ground.x + head.x,
+      y: nameY,
+      lines: [{ id: "name", text: nameTag }],
+      reserveBar: true,
     });
   }
 
@@ -1254,16 +1250,21 @@ export class GameRenderer {
     if (!option) return null;
     if (option.actorId !== null && option.actorId === snap.targetId) return null;
     const def = this.tilesById[option.tileId];
-    const second = this.pointerIsMouse
-      ? secondInteractionAt(this.interactionsSent, option.ref)
-      : null;
+    const height = def?.height ?? 0;
+    if (!this.pointerIsMouse) {
+      return {
+        ref: option.ref,
+        height,
+        lines: [{ id: "action", text: interactionText(option) }],
+        color: interactionInk(option),
+      };
+    }
+    const second = secondInteractionAt(this.interactionsSent, option.ref);
     return {
       ref: option.ref,
-      height: def?.height ?? 0,
-      lines: second
-        ? buttonLines(option, second)
-        : [{ id: "action", text: interactionText(option) }],
-      color: interactionInk(option),
+      height,
+      lines: [buttonLine(option, second)],
+      ...(option.health === null ? { nameTag: option.name } : {}),
     };
   }
 

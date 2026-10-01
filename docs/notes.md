@@ -4609,10 +4609,13 @@ What replaced each of the three:
   only picked the creature, and nothing on screen said the right button swung at
   it. The row in the list reads the same way, `[Attack | Target]`.
 
-  A mouse hovering anything with two verbs sees one line of hints, each verb
-  beside a pixel mouse icon for its button (`MOUSE_PIXELS` in `textLabels.ts`).
-  A body with health has a name tag already, so its hints stand alone; anything
-  else gets its name on a line above them. The pointer label is hidden on the
+  A mouse hovering anything actionable sees one line of hints, each verb beside
+  a pixel mouse icon for its button (`MOUSE_PIXELS` in `textLabels.ts`) and in
+  its own colour from `INTERACTION_COLORS`, so a body reads a red Attack beside
+  a white Target and a quest chest a purple Open. A thing with one verb shows
+  one hint. The name always sits in the name-tag slot under the hints: a body
+  with health has its own tag there, and anything else gets one drawn in the
+  same place with an invisible health bar (`reserveBar`) so the two line up. The pointer label is hidden on the
   body already targeted or being attacked. A tap on a phone is the left button,
   so a tap starts a fight too. The canvas cancels its context menu, because the
   right button is a game button there. A shopkeeper with hit points ranks
@@ -8247,8 +8250,8 @@ in. So **nothing on the board changes at all**. What changes is the taker.
   are refused outright — nothing nests, so a bag could only go on a back the
   reward's own items need occupied.
 - **Purple is a fifth colour and it says something the other four cannot.**
-  Yellow, red, white and blue all name what you would be *doing*; `REWARD_COLOR`
-  / `--color-reward` says the offer is finite, which is the one thing neither the
+  Yellow, red, white and blue all name what you would be *doing*;
+  `INTERACTION_COLORS.reward` / `--color-reward` says the offer is finite, which is the one thing neither the
   verb nor the sprite can tell you before you walk away from it. The list row
   wears it unlit, unlike every other row, because "only once" is a property of
   the offer rather than a state you are in.
