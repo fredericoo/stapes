@@ -85,6 +85,8 @@ export type Recall = {
   readonly random: () => number;
   /** Pulls finished since the current goal was set. */
   readonly pulls: number;
+  /** Places an explore never heads for: where the fleet saw something this bot fears. */
+  readonly avoid: (cell: Coord) => boolean;
 };
 
 /**
@@ -198,7 +200,9 @@ export function exploreErrand(
 ): Errand | null {
   const start = toward ? planDistance(self, toward) : 0;
   const fresh = (cell: Coord) =>
-    !recall.explored.has(exploredKey(cell)) && (!toward || planDistance(cell, toward) < start);
+    !recall.explored.has(exploredKey(cell)) &&
+    !recall.avoid(cell) &&
+    (!toward || planDistance(cell, toward) < start);
   const edges = knowledge
     .frontierCells()
     .filter(fresh)

@@ -2,15 +2,15 @@ import { carriedInstances, carriedLightTileIds, type Equipment } from "../app/ga
 import { carriedCount, planTrade } from "../app/game/trade";
 import type { BattlerDef } from "../app/lib/battler";
 import type { TradeSide } from "../app/lib/dialog";
-import { resolveConsumable } from "../app/lib/item";
 import { countOf } from "../app/lib/piles";
 import type { StatusDef } from "../app/lib/status";
 import { resolveLight } from "../app/lib/tileResolve";
 import type { TileDef } from "../app/lib/types";
+import { healing } from "./combat";
 import { bestUpgrade, type Style } from "./gear";
 import { currencyOf, offersIn, type Offer } from "./shops";
 
-/** Healing food a bot keeps rather than sells, and buys up to when it has none. */
+/** Healing food a bot keeps rather than sells, and buys back up to when it runs low. */
 export const FOOD_RESERVE = 4;
 
 /**
@@ -54,13 +54,15 @@ export class Economy {
 
   /**
    * The trades worth going to make now, most wanted first: food when the bag
-   * has none that heals, then every upgrade the bot can pay for.
+   * holds less than half of `FOOD_RESERVE`, then every upgrade the bot can
+   * pay for.
    */
   purchases(equipment: Equipment, body: BattlerDef): Deal[] {
     const out: Deal[] = [];
-    if (this.foodCount(equipment) === 0) {
+    const food = this.foodCount(equipment);
+    if (food < FOOD_RESERVE / 2) {
       for (const offer of this.foodOffers()) {
-        const amount = this.affordable(offer, equipment, FOOD_RESERVE);
+        const amount = this.affordable(offer, equipment, FOOD_RESERVE - food);
         if (amount > 0) out.push({ offer, amount, why: "food" });
       }
     }
@@ -187,14 +189,6 @@ export class Economy {
     const def = this.tilesById[tileId];
     return def && healing(def, this.statusDefs) > 0 ? FOOD_RESERVE : 0;
   }
-}
-
-/** Health a food gives without any risk of a bad status, or 0. */
-export function healing(def: TileDef, statusDefs: Record<string, StatusDef>): number {
-  const food = resolveConsumable(def);
-  if (!food || food.hp <= 0) return 0;
-  if (food.statuses?.some((grant) => statusDefs[grant.id]?.tone === "bad")) return 0;
-  return food.hp;
 }
 
 function soleGive(offer: Offer): string | null {

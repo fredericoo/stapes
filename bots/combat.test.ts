@@ -7,7 +7,9 @@ import { rating } from "../app/lib/mastery";
 import { statusesById } from "../app/lib/status";
 import { normalizeTileDef, type TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
-import { choosePrey, healingFood, isThreat, type PreyChoice, type Rated } from "./combat";
+import { choosePrey, healingFood, type PreyChoice, type Rated } from "./combat";
+import { bodyOf } from "./gear";
+import { fightOdds, swingsOf } from "./odds";
 import { DEFAULT_TEMPERAMENT } from "./temperament";
 
 const tilesById = tilesByIdFromList((tilesJson as TileDef[]).map(normalizeTileDef));
@@ -20,39 +22,47 @@ function body(tileId: string, x = 0): Rated {
 
 const newcomer = { ...body("player"), id: "self" };
 
-const RULE = DEFAULT_TEMPERAMENT;
+const newcomerSwings = swingsOf(
+  bodyOf(tilesById, {})!,
+  { ...emptyEquipment(), weapon: { id: "sword", tileId: "rusty-sword" } },
+  { tileId: "player", hp: null, maxHp: null, statuses: [] },
+  tilesById,
+  statusDefs,
+);
 
-const firstChoice: PreyChoice = {
-  threat: RULE,
+/** The margin a new character with a rusty sword expects against these foes, at full health. */
+function margin(...tileIds: string[]): number {
+  const foes = tileIds.map((tileId) => ({ tileId, hp: null, maxHp: null, statuses: [] }));
+  const self = { tileId: "player", hp: null, maxHp: null, statuses: [] };
+  return fightOdds(newcomerSwings, self, foes, tilesById, statusDefs)!.margin;
+}
+
+const firstChoice: PreyChoice<Rated> = {
+  margin: (prey) => margin(prey.tileId),
+  courage: DEFAULT_TEMPERAMENT.courage,
   choices: 1,
   random: () => 0,
   skipped: () => false,
   taken: () => false,
 };
 
-describe("isThreat", () => {
-  it("is a creature rated above 125% of the bot plus five that can hurt it", () => {
-    const line = newcomer.rating! * 1.25 + 5;
-    expect(isThreat(newcomer, body("wolf"), tilesById, RULE)).toBe(true);
-    expect(isThreat(newcomer, { ...body("wolf"), rating: line - 0.5 }, tilesById, RULE)).toBe(
-      false,
-    );
+describe("fightOdds", () => {
+  it("has a new character with a sword expect to beat a rat and lose to a wolf", () => {
+    expect(margin("rat")).toBeGreaterThan(DEFAULT_TEMPERAMENT.courage);
+    expect(margin("wolf")).toBeLessThan(DEFAULT_TEMPERAMENT.dread);
   });
 
-  it("leaves a new character free to fight a rat", () => {
-    const rat = body("rat");
-    expect(rat.rating!).toBeGreaterThan(newcomer.rating! * 1.25);
-    expect(isThreat(newcomer, rat, tilesById, RULE)).toBe(false);
+  it("is never afraid of a creature with no way to hurt anybody", () => {
+    expect(margin("rabbit")).toBe(Infinity);
   });
 
-  it("is never a creature with no way to hurt anybody, however it is rated", () => {
-    const rabbit = { ...body("rabbit"), rating: 1_000 };
-    expect(isThreat(newcomer, rabbit, tilesById, RULE)).toBe(false);
+  it("weighs two creatures fighting together as worse than either alone", () => {
+    expect(margin("cat", "cat")).toBeLessThan(margin("cat") / 2);
   });
 });
 
 describe("choosePrey", () => {
-  it("passes over a nearer threat for prey further off", () => {
+  it("passes over a nearer creature it does not expect to beat for prey further off", () => {
     const prey = choosePrey(newcomer, [body("wolf", 1), body("rabbit", 5)], tilesById, firstChoice);
     expect(prey?.tileId).toBe("rabbit");
   });
@@ -88,5 +98,9 @@ describe("healingFood", () => {
   it("eats what heals most and never raw meat", () => {
     expect(healingFood(bagOf("raw-meat", "cheese", "cooked-meat"), tilesById, statusDefs)).toBe(2);
     expect(healingFood(bagOf("raw-meat"), tilesById, statusDefs)).toBeNull();
+  });
+
+  it("counts a berry, which heals only through the status it gives", () => {
+    expect(healingFood(bagOf("raw-meat", "berry"), tilesById, statusDefs)).toBe(1);
   });
 });
