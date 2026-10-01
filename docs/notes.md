@@ -1627,6 +1627,20 @@ is what actually gets your feet out of the way: the player tile carries a `push`
 block, so it is an interactive candidate wherever it stands — but nobody can
 shove themselves, so it has no row, and the rung underneath does.
 
+**A tall thing is also picked by its art, but only where no foot answers**
+(`Reach` in `render/pick.ts`). Testing only foot squares meant a cyclops or a
+door three cells tall could be hovered on its bottom cell and nowhere else, and
+the cursor over its head found nothing. Testing the art alone has the opposite
+fault: a tall sprite takes clicks meant for whatever stands in the cells it is
+drawn across. So the pick runs twice. `foot` is the old test; `sprite` tests
+the bounds of each nearby tile's idle frame, and runs only once `foot` found
+nothing. `GameRenderer.pickRefAt` keeps body-before-interactive inside each
+reach, so a body's head never outranks a door's foot. The bounds are the
+idle frame's rectangle, not its opaque pixels and not an attack frame, so the
+area under the cursor does not change while the creature animates. Which feet
+to search comes from the largest sprite in the catalogue (`spriteReach`), about
+seven cells square per level with the shipped tiles.
+
 **A shove is the one action that reaches under a lid**, because nothing is left
 behind: `pushedColumn` is the object plus everything stacked on it, the group
 travels as one rigid volume (`fitsHeightAtElevation`, `moveColumn`), and the
