@@ -13322,13 +13322,16 @@ two cells and fights until that creature is gone or out of reach. When a goal
 asks for a place nobody has seen, such as a level with no known way up, the
 bot explores towards it instead of giving up.
 
-**A planner chooses the goal, and nothing finer.** A goal is one of six:
+**A planner chooses the goal, and nothing finer.** A goal is one of nine:
 
 - `reach_level`
 - `go_to`
 - `open_rewards`
 - `hunt`
 - `explore`
+- `shop`
+- `sell`
+- `gather`
 - `rest`
 
 `goalSchema` validates every goal. The planner is asked:
@@ -13339,12 +13342,27 @@ bot explores towards it instead of giving up.
 - when the bot dies;
 - every `THINK_EVERY_MS` otherwise.
 
-It is never asked per step. The one planner is `ScriptedPlanner`. It works
-through a fixed list in order, asks for a failed goal again, and keeps the
-last goal once the list runs out. `bun run bots` gives it `open_rewards`, then
-`reach_level` 0, then `hunt`. `bots/Bot.test.ts` gives it the first two and
-plays the tutorial's shape against a real `GameServer` over the real
-protocol.
+It is never asked per step, except that a pickup asks it early, so a bot that
+has just picked up enough money goes shopping at once rather than at the next
+timer. Each ask carries a `Situation`: whether the bot can buy, sell or gather
+anything right now.
+
+`ScriptedPlanner` works through a fixed list in order, asks for a failed goal
+again, and keeps the last goal once the list runs out. `bots/Bot.test.ts`
+gives it `open_rewards` then `reach_level` 0 and plays the tutorial's shape
+against a real `GameServer` over the real protocol.
+
+`ProgressPlanner` is what `bun run bots` uses. It plays the same two opening
+goals, then loops: `shop` when the bot can pay for something it needs from a
+seller somebody knows the place of, `sell` when it carries something it does
+not need that a seller pays money for, and otherwise `hunt`. After
+`HUNT_SPELL_MS` (four minutes) of hunting it goes to `gather` for
+`GATHER_PULLS` pulls when it knows of a resource worth working, because
+hunting grows mastery and pays in skins but the shops want shards, and on the
+shipped content shards come only from mining and from selling berries and
+apples. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
+does not spend its life looking for a seller nobody has found. It does not
+interrupt a `shop`, `sell` or `gather` on the timer.
 
 **Exploring walks to an unexplored edge, and roams once there is none.**
 `exploreErrand` picks at random among the `EXPLORE_CHOICES` nearest standing
@@ -13441,14 +13459,107 @@ surface 68 to 208 seconds in.
 
 **A bot always wears a light if it has one.** `nextDressing`
 (`bots/dress.ts`) runs before the goal, every frame. When nothing the bot
-wears gives light (`carriedLightTileIds`), it moves the first light in its bag
-to the square `equipDestination` picks: the charm square for the torch. Light
-does not change what a bot can see. It is there so that other players can see
-the bot in the dark. Next, while both hands are empty, it holds a weapon,
-preferring one without a projectile because the bot only fights what is beside
-it. It fills empty squares only and never takes anything off. The server
-confirms a move a tick later, so the same move is not sent again for
-`DRESS_RETRY_MS`.
+wears gives light (`carriedLightTileIds`), it moves the first light it
+carries to an empty square `equipDestination` picks: the charm square for the
+torch. The currency is never worn as a light, although an arcane shard
+glows. Light does not change what a bot can see. It is there so that other
+players can see the bot in the dark. The server confirms a move a tick later,
+so the same move is not sent again for `DRESS_RETRY_MS`, and one the server
+refuses `DRESS_ATTEMPTS` times is left alone for `DRESS_REFUSED_MS`.
+
+**A bot knows what it wants to wear, and swaps it on.** After the light,
+`nextDressing` moves on the carried piece that would improve the bot most,
+which swaps the old one into the square it came from. Then it empties a bag
+held in a hand into the worn one, and drops gear that is worse than what it
+wears and that no NPC pays for, because the basic bag holds four things.
+
+What a piece is worth comes from `bots/gear.ts`, against the bot's own body
+(`bodyOf`: the player battler with masteries from the experience the server
+sent):
+
+- **A weapon is worth its expected damage a second**, from `fightingStats`,
+  `damageBand` and `swingIntervalMs`, the same figures the stats panel shows.
+  Those already include the handling penalty for missing requirements, so a
+  new character values the knight's sword below the rusty one. A weapon of a
+  mastery other than the bot's `style` is worth `OFF_STYLE_SHARE` of that.
+  Mastery grows with use, so a bot that switched to whatever hit hardest would
+  never grow any of them.
+- **Armour and shields are worth their defence**, with a quarter of their
+  resistances, reduced by twice the encumbrance their physical shortfall
+  causes. Magic gear the bot cannot wake is worth nothing.
+- **A bag is worth a point a square.** The tanner's leather backpack is
+  usually the first thing a bot saves for.
+- **The charm square is left for the light**, so charms are never bought.
+
+**Each bot has a style: sword, club or bow.** `Temperament.style` is drawn
+with the rest of the temperament, so about a third of the bots are archers.
+An archer keeps a melee weapon in its off hand rather than a shield
+(`SIDEARM_SHARE`). A bow cannot shoot inside its `Reach.min`, and
+`handToSwing` passes to the hand that can reach, so the sidearm is what
+answers a creature that got close.
+
+**An archer kites.** With a ranged weapon in hand, `Bot.kite` replaces
+walking up to the foe. The bot stands and shoots while the foe is in reach, in
+sight and further than `kiteCells` (about 3.5). When the foe is closer, the
+bot backs away only if it walks faster than the foe (`resolveWalkDurationMs`)
+or has no sidearm. Otherwise it stays and fights with the sidearm, since
+backing away from a wolf (140ms a step against a player's 200ms) only gives it
+free bites. A retreat goes to one of `RETREAT_CHOICES` cells within
+`RETREAT_CELLS`, chosen by distance from the foe, by open ground around the
+cell (`OPENNESS_WEIGHT`) and by nearness. Without the open-ground term, a bot
+backed away in a straight line until the edge of the map caught it. Routes
+charge `BESIDE_FOE_PENALTY` for the cells next to the foe, because the board a
+route is planned on has no bodies on it. A fight is given up after
+`chaseGiveUpMs` without having the foe in reach, for melee and ranged alike.
+
+**A bot knows every NPC's trades from the catalogue.** `offersIn`
+(`bots/shops.ts`) walks every tile's dialog and lists each `request_trade` by
+its `CommandPath`, which is also the counter a conversation waits at.
+`currencyOf` takes the tile most offers ask for as the money, so nothing in
+the bots names `arcane-shard`. `Economy` (`bots/economy.ts`) turns the offers
+into decisions:
+
+- `purchases`: food when the bag has none that heals, up to
+  `FOOD_RESERVE`, then every upgrade it can pay for that adds at least
+  `MIN_GAIN`.
+- `savingFor`: the upgrade with the best gain for its price, whose inputs
+  (skins, for the tanner) are kept and picked up.
+- `sales`: anything carried beyond the food reserve that an NPC pays money
+  for, unless it is being saved.
+- `wanted`: what is worth picking up off the floor.
+
+**A trade is a conversation driven to one counter.** `nextTalk` answers a
+menu with the option whose branch holds the target trade, or one whose `goto`
+leads there. It cancels any other trade it is offered, and once at the target
+it sends `trade` with the amount. The bot closes the conversation when the
+transcript gains a line after the trade: `Traded` is a success, and a refusal
+fails the goal.
+
+**Where an NPC stands is learned by seeing it, and shared.** The bot process
+never opens the world's database, which the server holds exclusively.
+`Landmarks` (`bots/memory.ts`) is the bots' own SQLite file instead. By
+default it is `.dev/bots/<host>.db`, one per world because worlds are laid out
+differently, and with `BOTS=n` the server passes `BOT_MEMORY_DIR` under its
+`DATA_DIR`. Every NPC in view is written as it is seen, as are resources worth
+working. Entries are keyed by tile id and cell, never by actor or placement
+id, because those are minted afresh whenever the world loads. Two sightings
+of one tile within `SAME_PLACE_CELLS` are one thing that moved, so a strolling
+salesman is one entry. Each worker thread opens the same file and reads it
+again every `RELOAD_MS`, so one bot finding the blacksmith tells the rest, and
+the next run starts already knowing. A bot that reaches a remembered place
+and finds nothing there deletes the entry. A seller nobody knows the place of
+is looked for by exploring.
+
+**A bot picks up what is worth having.** Before following its goal, and after
+fighting, it looks every `LOOT_SCAN_MS` for a loose thing within `LOOT_CELLS`,
+in sight, that `wanted` says yes to. Then it walks beside it and picks it up.
+This is how a kill's dropped kit reaches the bag. A thing it could not pick
+up, usually for lack of room, is left for `LOOT_FORGET_MS`.
+
+**Gathering is pressing and standing still.** A `gather` errand walks beside
+the nearest resource whose yield is wanted and which has a pull free
+(`pullsFreeAt`), and presses it. While `extracting` is set the bot holds still
+and looks for no prey, because any step ends the pull.
 
 **A reward is taken only when all of it fits.** `rewardGoal` asks
 `canRewardFrom`, which includes `rewardFits`. When the bag is too full, no

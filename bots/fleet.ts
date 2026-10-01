@@ -6,7 +6,8 @@ import type { ClientSocket } from "../app/net/socket";
 import { takeSeat, type BotAccount } from "./account";
 import { Bot } from "./Bot";
 import type { Goal } from "./goals";
-import { ScriptedPlanner } from "./planner";
+import type { Landmarks } from "./memory";
+import { ProgressPlanner } from "./planner";
 import { between, drawTemperament, seededRandom } from "./temperament";
 
 /** How often the client state is advanced, which keeps prediction smooth. */
@@ -51,13 +52,12 @@ export type FleetConfig = {
   /** What requests claim to come from, which a deployed server checks. */
   readonly origin: string;
   readonly password: string;
+  /** The fleet's memory file, one per world, since every world is laid out differently. */
+  readonly memory: string;
 };
 
-const GOALS: readonly Goal[] = [
-  { goal: "open_rewards" },
-  { goal: "reach_level", level: 0 },
-  { goal: "hunt" },
-];
+/** What every bot does first, before it plays for gear: the tutorial's rewards, then the surface. */
+const OPENING: readonly Goal[] = [{ goal: "open_rewards" }, { goal: "reach_level", level: 0 }];
 
 /**
  * Bot `index`'s account: a name from the game's own generator, seeded by the
@@ -79,6 +79,7 @@ function refused(error: unknown): boolean {
 async function play(
   fleet: FleetConfig,
   account: BotAccount,
+  landmarks: Landmarks,
   log: (line: string) => void,
 ): Promise<"again" | "stop"> {
   const { base, origin } = fleet;
@@ -87,14 +88,18 @@ async function play(
     headers: { Cookie: seat.cookie, Origin: origin },
   });
   const remote = new RemoteSession(socket, seat.tiles, seat.statusDefs);
+  const temperament = drawTemperament(seededRandom(account.character));
+  log(`plays ${temperament.style}`);
   const bot = new Bot(
     remote,
-    new ScriptedPlanner(GOALS),
+    new ProgressPlanner(OPENING),
     tilesByIdFromList(seat.tiles),
     seat.statusDefs,
-    log,
-    Math.random,
-    drawTemperament(seededRandom(account.character)),
+    {
+      log,
+      temperament,
+      landmarks,
+    },
   );
 
   let last = performance.now();
@@ -124,13 +129,13 @@ async function play(
  * Plays bot `index` until the server replaces or outdates it, signing in again
  * after every other disconnection.
  */
-export async function runBot(fleet: FleetConfig, index: number) {
+export async function runBot(fleet: FleetConfig, index: number, landmarks: Landmarks) {
   await new Promise((resolve) => setTimeout(resolve, between(Math.random, 0, START_JITTER_MS)));
   for (let attempt = 0; attempt < NAME_ATTEMPTS;) {
     const account = accountFor(index, attempt, fleet.password);
     const log = (line: string) => console.log(`[${account.character}] ${line}`);
     try {
-      if ((await play(fleet, account, log)) === "stop") return;
+      if ((await play(fleet, account, landmarks, log)) === "stop") return;
     } catch (error) {
       log(String(error));
       if (refused(error)) attempt++;

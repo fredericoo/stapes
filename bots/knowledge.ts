@@ -10,7 +10,9 @@ import {
   removeTileAt,
   tileIdsInChunk,
 } from "../app/lib/mapData";
-import { resolveReward } from "../app/lib/interactions";
+import { pullsFreeAt } from "../app/game/extract";
+import { hasLineOfSight } from "../app/game/sight";
+import { resolveExtract, resolveReward } from "../app/lib/interactions";
 import type { StatusDef } from "../app/lib/status";
 import { levelKey, MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../app/lib/types";
@@ -80,6 +82,42 @@ export class Knowledge {
     };
   }
 
+  /**
+   * Anywhere within `cells` of `at` on its level with a clear line to it,
+   * which is where a bot can talk to somebody standing there.
+   */
+  talkGoal(at: Coord, cells: number): NavGoal {
+    return {
+      reached: (cell) => {
+        if (cell.z !== at.z) return false;
+        const dx = cell.x - at.x;
+        const dy = cell.y - at.y;
+        if (dx * dx + dy * dy > cells * cells) return false;
+        return hasLineOfSight(this.board, this.tilesById, cell, at);
+      },
+      estimate: (cell) => Math.max(0, Math.abs(cell.x - at.x) + Math.abs(cell.y - at.y) - cells),
+    };
+  }
+
+  /** Tiles that can be worked for something `wanted` says yes to. */
+  resourceTileIds(wanted: (tileId: string) => boolean): string[] {
+    return Object.values(this.tilesById)
+      .filter((def) => resolveExtract(def)?.slots.some((slot) => wanted(slot.tileId)))
+      .map((def) => def.id);
+  }
+
+  /** Every remembered resource that yields something wanted and has a pull left for the bot. */
+  resources(wanted: (tileId: string) => boolean): Array<{ ref: ObjectRef; tileId: string }> {
+    const out: Array<{ ref: ObjectRef; tileId: string }> = [];
+    this.placementsOf(new Set(this.resourceTileIds(wanted)), (ref, def) => {
+      const extract = resolveExtract(def);
+      if (extract && pullsFreeAt(this.board, this.tilesById, extract, ref) > 0) {
+        out.push({ ref, tileId: def.id });
+      }
+    });
+    return out;
+  }
+
   /** Standing cells on level `z` between `near` and `far` cells of `from`. */
   standingCellsAround(from: Coord, near: number, far: number): Coord[] {
     const out: Coord[] = [];
@@ -88,6 +126,22 @@ export class Knowledge {
       if (away < near || away > far) continue;
       const surfaces = listStandingSurfaces(this.board, x, y, this.tilesById);
       if (surfaces.some((surface) => surface.z === from.z)) out.push({ x, y, z: from.z });
+    }
+    return out;
+  }
+
+  /**
+   * Standing cells on level `from.z` within `radius` cells either way, read
+   * cell by cell rather than over the whole remembered level, for questions
+   * asked many times a fight.
+   */
+  standingWithin(from: Coord, radius: number): Coord[] {
+    const out: Coord[] = [];
+    for (let y = from.y - radius; y <= from.y + radius; y++) {
+      for (let x = from.x - radius; x <= from.x + radius; x++) {
+        const surfaces = listStandingSurfaces(this.board, x, y, this.tilesById);
+        if (surfaces.some((surface) => surface.z === from.z)) out.push({ x, y, z: from.z });
+      }
     }
     return out;
   }

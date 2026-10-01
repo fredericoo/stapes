@@ -15,7 +15,8 @@ import { tilesByIdFromList } from "../app/lib/validation";
 import { RemoteSession } from "../app/net/RemoteSession";
 import { Harness, Pair } from "../server/testHarness";
 import { Bot } from "./Bot";
-import { ScriptedPlanner } from "./planner";
+import { ProgressPlanner, ScriptedPlanner } from "./planner";
+import { DEFAULT_TEMPERAMENT } from "./temperament";
 
 const JSON_TYPE = "application/json";
 const tiles: TileDef[] = (tilesJson as TileDef[]).map(normalizeTileDef);
@@ -39,6 +40,33 @@ function tutorialWorld(): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels };
 }
 
+/**
+ * An open field with the bot at its west end, a pile of shards on the way
+ * and the blacksmith at the east end.
+ */
+function marketWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 7; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["1,3"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  cells["5,3"]!.push({ tileId: "arcane-shard", itemId: "shards", count: 30 });
+  cells["14,3"]!.push({ tileId: "blacksmith", direction: "w" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+/** A wide field with the bot, a bow on the grass beside it, and a cat a little way off. */
+function huntingWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 30; x++) {
+    for (let y = 0; y < 30; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["10,15"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  cells["11,15"]!.push({ tileId: "simple-bow", itemId: "bow" });
+  cells["18,15"]!.push({ tileId: "cat", direction: "w" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
 let harness: Harness;
 
 beforeEach(async () => {
@@ -60,6 +88,64 @@ afterEach(async () => {
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+async function play(bot: Bot, remote: RemoteSession, until: () => boolean, clock: { ms: number }) {
+  let debt = 0;
+  while (clock.ms < GIVE_UP_MS && !until()) {
+    clock.ms += FRAME_MS;
+    remote.update(FRAME_MS);
+    bot.steer(clock.ms);
+    bot.act(clock.ms);
+    await flush();
+    debt += FRAME_MS;
+    const ticks = Math.floor(debt / TICK_MS);
+    debt -= ticks * TICK_MS;
+    if (ticks > 0) await harness.server.step(ticks);
+    await flush();
+  }
+}
+
+it("picks up shards it walks past, buys a hammer from the blacksmith, and wields it", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(marketWorld()), JSON_TYPE);
+  const pair = new Pair();
+  pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
+  const clock = { ms: 0 };
+  const remote = new RemoteSession(pair.client() as never, tiles, statuses, () => clock.ms);
+  await harness.server.join(pair.server, "bot", { admin: false });
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, style: "blunt", wanderChance: 0 },
+  });
+
+  await play(
+    bot,
+    remote,
+    () => remote.getSnapshot().equipment.weapon?.tileId === "simple-hammer",
+    clock,
+  );
+
+  expect(remote.getSnapshot().equipment.weapon?.tileId).toBe("simple-hammer");
+});
+
+it("takes up a bow and shoots a slower creature without letting it close", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(huntingWorld()), JSON_TYPE);
+  const pair = new Pair();
+  pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
+  const clock = { ms: 0 };
+  const remote = new RemoteSession(pair.client() as never, tiles, statuses, () => clock.ms);
+  await harness.server.join(pair.server, "bot", { admin: false });
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, style: "ranged", wanderChance: 0 },
+  });
+  const catGone = () => !remote.getSnapshot().actors.some((a) => a.tileId === "cat");
+
+  await play(bot, remote, catGone, clock);
+
+  const { self } = remote.getSnapshot();
+  expect(catGone()).toBe(true);
+  expect(self.hp).toBe(self.maxHp);
+});
 
 it("opens the chest, wears the torch from it, and drops, climbs and walks up to the surface", async () => {
   const pair = new Pair();

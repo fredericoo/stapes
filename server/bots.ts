@@ -11,6 +11,8 @@ export type RunningBots = { stop(): void };
  * localhost but signs in with `PUBLIC_ORIGIN`, the only origin a deployed
  * server accepts. It is passed only what it reads, never `ADMIN_SECRET`, and
  * runs `--smol`, since it shares the container's memory limit with the server.
+ * Its memory of the world is its own file beside the world's database, on the
+ * same volume so it survives a deploy, and never the database itself.
  */
 export function startBots(config: Config, port: number): RunningBots {
   let child: ReturnType<typeof Bun.spawn> | null = null;
@@ -24,6 +26,7 @@ export function startBots(config: Config, port: number): RunningBots {
         STAPES_ORIGIN: config.PUBLIC_ORIGIN,
         BOT_PASSWORD: config.BOT_PASSWORD,
         BOTS: String(config.BOTS),
+        BOT_MEMORY_DIR: `${config.DATA_DIR.replace(/\/+$/, "")}/bots`,
       },
       stdout: "inherit",
       stderr: "inherit",

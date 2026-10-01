@@ -175,10 +175,12 @@ an agent drives", lists every call.
   against the world at `--url` (`https://` is assumed when no scheme is
   given; the default is `http://localhost:3000`). Each signs in as a player,
   with a name from the game's name generator and an account created the first
-  time, and plays a fixed list of goals. They run in one process over worker
+  time, and plays the tutorial and then for gear: hunting, gathering, picking
+  things up and trading with NPCs. They run in one process over worker
   threads; ten took about 70% of one core and 650 MB. `BOT_PASSWORD` sets the
   accounts' password, and `STAPES_ORIGIN` the origin they claim, which
-  defaults to the URL. A server started with `BOTS=n` (`bun dev`, `bun run
+  defaults to the URL. What they learn of where NPCs stand is kept in
+  `BOT_MEMORY_DIR` (default `.dev/bots`), one SQLite file per world. A server started with `BOTS=n` (`bun dev`, `bun run
   start`) runs `n` of them itself. `docs/notes.md`, "A bot is a player in
   another process", has how it works
 - `node scripts/record-hero.ts <client url>` — record the landing page's hero
