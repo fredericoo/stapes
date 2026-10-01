@@ -20,10 +20,10 @@ function body(tileId: string, x = 0): Rated {
 
 const newcomer = { ...body("player"), id: "self" };
 
-const RATIO = DEFAULT_TEMPERAMENT.threatRatio;
+const RULE = DEFAULT_TEMPERAMENT;
 
 const firstChoice: PreyChoice = {
-  threatRatio: RATIO,
+  threat: RULE,
   choices: 1,
   random: () => 0,
   skipped: () => false,
@@ -31,17 +31,23 @@ const firstChoice: PreyChoice = {
 };
 
 describe("isThreat", () => {
-  it("is a creature rated above 125% of the bot that can hurt it", () => {
-    expect(isThreat(newcomer, body("wolf"), tilesById, RATIO)).toBe(true);
-    expect(
-      isThreat(newcomer, { ...body("wolf"), rating: newcomer.rating! * 1.2 }, tilesById, RATIO),
-    ).toBe(false);
+  it("is a creature rated above 125% of the bot plus five that can hurt it", () => {
+    const line = newcomer.rating! * 1.25 + 5;
+    expect(isThreat(newcomer, body("wolf"), tilesById, RULE)).toBe(true);
+    expect(isThreat(newcomer, { ...body("wolf"), rating: line - 0.5 }, tilesById, RULE)).toBe(
+      false,
+    );
+  });
+
+  it("leaves a new character free to fight a rat", () => {
+    const rat = body("rat");
+    expect(rat.rating!).toBeGreaterThan(newcomer.rating! * 1.25);
+    expect(isThreat(newcomer, rat, tilesById, RULE)).toBe(false);
   });
 
   it("is never a creature with no way to hurt anybody, however it is rated", () => {
-    const rabbit = body("rabbit");
-    expect(rabbit.rating!).toBeGreaterThan(newcomer.rating! * 1.25);
-    expect(isThreat(newcomer, rabbit, tilesById, RATIO)).toBe(false);
+    const rabbit = { ...body("rabbit"), rating: 1_000 };
+    expect(isThreat(newcomer, rabbit, tilesById, RULE)).toBe(false);
   });
 });
 

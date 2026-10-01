@@ -13335,8 +13335,11 @@ every frame.
 **A bot judges a creature by its rating, and acts before the goal does.**
 Every frame, before its goal, a bot checks three things in order:
 
-1. **It avoids threats.** A threat is a creature rated above `threatRatio`
-   (about 125%) of the bot's own rating that can hurt it. A creature with no natural
+1. **It avoids threats.** A threat is a creature that can hurt the bot and
+   whose rating is above the bot's times `threatRatio` (about 125%) plus
+   `threatMargin` (about 5). The margin is there for new characters: by ratio
+   alone, a rat (about 8.9) outrated a new player (6) enough that bots backed
+   away from rats. A creature with no natural
    damage and no spell, such as a rabbit, is never a threat, because rating
    counts agility and a rabbit outrates a new player. The bot backs away to the
    cell furthest from every threat within `waryCells`, and it backs away from
@@ -13351,6 +13354,14 @@ Every frame, before its goal, a bot checks three things in order:
 3. **It eats.** Below `eatHpShare` of its health, it eats the bag's food
    that heals most. Food that can give a bad status, such as raw meat or
    anything stale, is never eaten to heal.
+
+**A bot fights what it can beat, under any goal.** Before following its
+goal, it looks for prey: a creature on its own level, in line of sight
+(`hasLineOfSight`), within `huntSightCells`. If it finds one, it fights it
+first, and the goal is the same once the fight is over, so a bot opening the
+tutorial's rewards takes on the rat on the way. Prey must be in line of sight
+because a rat in the next cave room is one the bot cannot reach, and chasing
+each such rat in turn was a route search that failed every frame or so.
 
 `hunt` picks prey with `choosePrey`: never a threat, and never a creature
 within `waryCells` of one. It takes a creature rated at least a third of the
@@ -13381,8 +13392,16 @@ after the same rabbit. Three things now separate them:
 - **Prey choice.** `choosePrey` picks at random among the `preyChoices` best,
   and puts prey another player stands within `TAKEN_CELLS` of at the back.
 
-Six bots started together reached their `hunt` goal 48, 58, 76 and 80 seconds
-in, rather than in the same second.
+- **Wandering.** Before each new errand, with probability `wanderChance`, a
+  bot first walks to a spot between `wanderNearCells` and `wanderFarCells`
+  away and looks about for a few seconds. It walks a route in stretches of
+  `stretchMinLegs` to `stretchMaxLegs` legs, stopping after each one to
+  hesitate and decide again, which is when it may wander. A wander never
+  takes a drop, so it cannot strand the bot below where it was going.
+
+Without wandering, bots crossed the tutorial in single file, as if they
+already knew the way. With it, six bots started together came out onto the
+surface 68 to 208 seconds in.
 
 **A bot always wears a light if it has one.** `nextDressing`
 (`bots/dress.ts`) runs before the goal, every frame. When nothing the bot

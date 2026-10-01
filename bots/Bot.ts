@@ -1,11 +1,26 @@
 import type { ObjectRef } from "../app/game/affordances";
 import { PLAYER_TILE_ID } from "../app/game/constants";
+import { hasLineOfSight } from "../app/game/sight";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
-import { cellGoal, NAVIGATION_MAX_NODES, planRoute } from "../app/game/navigation";
+import {
+  cellGoal,
+  NAVIGATION_MAX_NODES,
+  planRoute,
+  type NavLeg,
+  type NavWorld,
+} from "../app/game/navigation";
 import type { StatusDef } from "../app/lib/status";
 import type { Coord, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
-import { choosePrey, creaturesAround, healingFood, isThreat, reach, steps } from "./combat";
+import {
+  canHurt,
+  choosePrey,
+  creaturesAround,
+  healingFood,
+  isThreat,
+  reach,
+  steps,
+} from "./combat";
 import { nextDressing } from "./dress";
 import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
 import { describeGoal, exploreErrand, nextErrand, type Errand, type Goal } from "./goals";
@@ -91,7 +106,14 @@ export type BotBody = Pick<
 
 type Course =
   | { readonly kind: "idle" }
-  | { readonly kind: "travel"; readonly errand: Errand; readonly pilot: Pilot }
+  | {
+      readonly kind: "travel";
+      readonly errand: Errand;
+      readonly pilot: Pilot;
+      /** Legs left when this stretch ends and the bot stops to decide again. */
+      readonly stopAtRemaining: number;
+      readonly wandering: boolean;
+    }
   | { readonly kind: "press"; readonly ref: ObjectRef; readonly sinceMs: number }
   | { readonly kind: "rest"; readonly untilMs: number }
   | { readonly kind: "pause"; readonly untilMs: number };
@@ -178,10 +200,11 @@ export class Bot {
     const self = snapshot.self;
     if (!this.goal) return;
 
-    if (this.goal.goal === "hunt" && this.course.kind !== "travel") {
+    if (this.course.kind !== "press") {
       const prey = this.preyIn(snapshot, nowMs);
       if (prey) {
         if (this.hesitating(nowMs)) return;
+        this.body.setInput({ directions: [] });
         this.engage(prey.id, nowMs, `hunting ${nameOf(prey)}`);
         return;
       }
@@ -217,6 +240,14 @@ export class Bot {
     const travel = this.course;
     const state = travel.pilot.drive(this.body, self, snapshot.map, nowMs);
     if (state === "arrived") {
+      if (travel.wandering) {
+        const { glanceMinMs, glanceMaxMs } = this.temperament;
+        this.course = {
+          kind: "pause",
+          untilMs: nowMs + between(this.random, glanceMinMs, glanceMaxMs),
+        };
+        return;
+      }
       if (travel.errand.explores) {
         this.explored.add(exploredKey(travel.errand.explores));
         const { loiterMinMs, loiterMaxMs } = this.temperament;
@@ -233,7 +264,47 @@ export class Bot {
       if (travel.errand.explores) this.explored.add(exploredKey(travel.errand.explores));
       this.body.setInput({ directions: [] });
       this.course = { kind: "idle" };
+      return;
     }
+    if (!self.walk && !self.fall && travel.pilot.remaining <= travel.stopAtRemaining) {
+      this.body.setInput({ directions: [] });
+      this.course = { kind: "idle" };
+    }
+  }
+
+  /**
+   * Sometimes, before a new errand, the bot first wanders a few cells to one
+   * side and looks about. Returns whether it set off.
+   */
+  private wander(knowledge: Knowledge, world: NavWorld, at: Coord, nowMs: number): boolean {
+    const { wanderChance, wanderNearCells, wanderFarCells } = this.temperament;
+    if (this.random() >= wanderChance) return false;
+    const spots = knowledge.standingCellsAround(at, wanderNearCells, wanderFarCells);
+    if (spots.length === 0) return false;
+    const spot = spots[Math.floor(this.random() * spots.length)]!;
+    const route = planRoute(world, at, cellGoal(spot, "on"), SHORT_ROUTE_MAX_NODES);
+    if (!route.ok || route.legs.some((leg) => leg.kind === "walk" && leg.drop)) return false;
+    this.travel(
+      { nav: cellGoal(spot, "on"), press: null, explores: null },
+      at,
+      route.legs,
+      nowMs,
+      true,
+    );
+    return true;
+  }
+
+  private travel(errand: Errand, at: Coord, legs: NavLeg[], nowMs: number, wandering: boolean) {
+    const { stretchMinLegs, stretchMaxLegs } = this.temperament;
+    const stretch = Math.round(between(this.random, stretchMinLegs, stretchMaxLegs));
+    this.lastMove = { at: cellOf(at), sinceMs: nowMs };
+    this.course = {
+      kind: "travel",
+      errand,
+      pilot: new Pilot(at, legs, this.tilesById),
+      stopAtRemaining: Math.max(0, legs.length - stretch),
+      wandering,
+    };
   }
 
   /** Works out the next errand of the goal and a route to it. */
@@ -267,8 +338,8 @@ export class Bot {
         route = errand ? planRoute(world, at, errand.nav, budgetFor(errand)) : null;
       }
       if (errand && route?.ok) {
-        this.lastMove = { at: cellOf(self), sinceMs: nowMs };
-        this.course = { kind: "travel", errand, pilot: new Pilot(at, route.legs, this.tilesById) };
+        if (this.wander(knowledge, world, at, nowMs)) return;
+        this.travel(errand, at, route.legs, nowMs, false);
         return;
       }
       if (errand?.press) {
@@ -303,13 +374,13 @@ export class Bot {
     const creatures = creaturesAround(self, snapshot.actors, this.tilesById);
     const dangers = creatures.filter(
       (a) =>
-        isThreat(self, a, this.tilesById, this.temperament.threatRatio) &&
+        isThreat(self, a, this.tilesById, this.temperament) &&
         reach(self, a) <= this.temperament.waryCells,
     );
     const weak =
       self.hp !== null && !!self.maxHp && self.hp / self.maxHp < this.temperament.fleeHpShare;
     const foe = this.foe && creatures.find((a) => a.id === this.foe!.id);
-    if (weak && foe) dangers.push(foe);
+    if (weak && foe && canHurt(this.tilesById[foe.tileId])) dangers.push(foe);
     if (dangers.length === 0) {
       if (this.flight) {
         this.flight = null;
@@ -430,16 +501,20 @@ export class Bot {
 
   private preyIn(snapshot: GameSnapshot, nowMs: number): ActorSnapshot | null {
     const self = snapshot.self;
-    const { threatRatio, waryCells, huntSightCells, preyChoices } = this.temperament;
+    const { waryCells, huntSightCells, preyChoices } = this.temperament;
     const threats = creaturesAround(self, snapshot.actors, this.tilesById).filter((a) =>
-      isThreat(self, a, this.tilesById, threatRatio),
+      isThreat(self, a, this.tilesById, this.temperament),
     );
     const others = snapshot.actors.filter((a) => a.tileId === PLAYER_TILE_ID && a.id !== self.id);
     const near = snapshot.actors.filter(
-      (a) => steps(self, a) <= huntSightCells && threats.every((t) => steps(a, t) > waryCells),
+      (a) =>
+        a.z === self.z &&
+        steps(self, a) <= huntSightCells &&
+        threats.every((t) => steps(a, t) > waryCells) &&
+        hasLineOfSight(snapshot.map, this.tilesById, self, a),
     );
     return choosePrey(self, near, this.tilesById, {
-      threatRatio,
+      threat: this.temperament,
       choices: preyChoices,
       random: this.random,
       skipped: (id) => (this.preySkipped.get(id) ?? 0) > nowMs,
@@ -465,7 +540,7 @@ export class Bot {
   private threatPenalty(snapshot: GameSnapshot): ((cell: Coord) => number) | undefined {
     const self = snapshot.self;
     const threats = creaturesAround(self, snapshot.actors, this.tilesById).filter((a) =>
-      isThreat(self, a, this.tilesById, this.temperament.threatRatio),
+      isThreat(self, a, this.tilesById, this.temperament),
     );
     if (threats.length === 0) return undefined;
     return (cell) =>

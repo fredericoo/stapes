@@ -37,18 +37,21 @@ export function creaturesAround<T extends Rated>(
   });
 }
 
+export type ThreatRule = { readonly threatRatio: number; readonly threatMargin: number };
+
 export function isThreat(
   self: Rated,
   other: Rated,
   tilesById: Record<string, TileDef>,
-  threatRatio: number,
+  rule: ThreatRule,
 ): boolean {
   if (other.rating === null) return false;
-  return other.rating > (self.rating ?? 1) * threatRatio && canHurt(tilesById[other.tileId]);
+  const line = (self.rating ?? 1) * rule.threatRatio + rule.threatMargin;
+  return other.rating > line && canHurt(tilesById[other.tileId]);
 }
 
 export type PreyChoice = {
-  readonly threatRatio: number;
+  readonly threat: ThreatRule;
   /** Picked at random among this many of the best. */
   readonly choices: number;
   readonly random: () => number;
@@ -72,8 +75,7 @@ export function choosePrey<T extends Rated>(
 ): T | null {
   const floor = (self.rating ?? 1) * PREY_EXPERIENCE_RATIO;
   const candidates = creaturesAround(self, actors, tilesById).filter(
-    (a) =>
-      a.rating !== null && !isThreat(self, a, tilesById, how.threatRatio) && !how.skipped(a.id),
+    (a) => a.rating !== null && !isThreat(self, a, tilesById, how.threat) && !how.skipped(a.id),
   );
   const rank = (a: T) => (how.taken(a) ? 2 : 0) + ((a.rating ?? 0) >= floor ? 0 : 1);
   candidates.sort((a, b) => rank(a) - rank(b) || steps(self, a) - steps(self, b));

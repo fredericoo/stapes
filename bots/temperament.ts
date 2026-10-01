@@ -3,8 +3,14 @@
  * made the same choice in the same frame, and a crowd of them moved as one.
  */
 export type Temperament = {
-  /** A creature rated above this share of the bot's rating is a threat. */
+  /**
+   * A creature is a threat when its rating is above the bot's times
+   * `threatRatio`, plus `threatMargin`. The margin lets a new character take
+   * on what outrates it only a little: a rat's agility rates it about 8.9
+   * against a new player's 6, and its bite does 1 damage.
+   */
   readonly threatRatio: number;
+  readonly threatMargin: number;
   /** A threat this close is backed away from. */
   readonly waryCells: number;
   /** Below this share of its health the bot backs away from its foe. */
@@ -23,10 +29,28 @@ export type Temperament = {
   /** Time spent standing about after reaching a spot it explored. */
   readonly loiterMinMs: number;
   readonly loiterMaxMs: number;
+  /**
+   * The chance, before each new errand, of first wandering to a spot between
+   * `wanderNearCells` and `wanderFarCells` away and looking about for between
+   * `glanceMinMs` and `glanceMaxMs`. Without it a bot walks every route as if
+   * it knew the way, and a crowd crosses the tutorial in single file.
+   */
+  readonly wanderChance: number;
+  readonly wanderNearCells: number;
+  readonly wanderFarCells: number;
+  readonly glanceMinMs: number;
+  readonly glanceMaxMs: number;
+  /**
+   * A route is walked this many legs at a time; at the end of each stretch the
+   * bot stops, hesitates and decides again, which is when it may wander.
+   */
+  readonly stretchMinLegs: number;
+  readonly stretchMaxLegs: number;
 };
 
 export const DEFAULT_TEMPERAMENT: Temperament = {
   threatRatio: 1.25,
+  threatMargin: 5,
   waryCells: 7,
   fleeHpShare: 0.35,
   eatHpShare: 0.6,
@@ -37,6 +61,13 @@ export const DEFAULT_TEMPERAMENT: Temperament = {
   reactionMaxMs: 2_500,
   loiterMinMs: 5_000,
   loiterMaxMs: 30_000,
+  wanderChance: 0.35,
+  wanderNearCells: 3,
+  wanderFarCells: 9,
+  glanceMinMs: 1_000,
+  glanceMaxMs: 6_000,
+  stretchMinLegs: 6,
+  stretchMaxLegs: 18,
 };
 
 /** How far each number may stray from `DEFAULT_TEMPERAMENT`, as a share of it. */
@@ -53,8 +84,12 @@ export function drawTemperament(random: () => number): Temperament {
   const d = DEFAULT_TEMPERAMENT;
   const reactionMinMs = near(d.reactionMinMs);
   const loiterMinMs = near(d.loiterMinMs);
+  const wanderNearCells = whole(d.wanderNearCells);
+  const glanceMinMs = near(d.glanceMinMs);
+  const stretchMinLegs = whole(d.stretchMinLegs);
   return {
     threatRatio: near(d.threatRatio, 0.08),
+    threatMargin: near(d.threatMargin),
     waryCells: whole(d.waryCells),
     fleeHpShare: near(d.fleeHpShare),
     eatHpShare: near(d.eatHpShare),
@@ -65,6 +100,13 @@ export function drawTemperament(random: () => number): Temperament {
     reactionMaxMs: Math.max(reactionMinMs, near(d.reactionMaxMs)),
     loiterMinMs,
     loiterMaxMs: Math.max(loiterMinMs, near(d.loiterMaxMs)),
+    wanderChance: near(d.wanderChance, 0.5),
+    wanderNearCells,
+    wanderFarCells: Math.max(wanderNearCells + 1, whole(d.wanderFarCells)),
+    glanceMinMs,
+    glanceMaxMs: Math.max(glanceMinMs, near(d.glanceMaxMs)),
+    stretchMinLegs,
+    stretchMaxLegs: Math.max(stretchMinLegs, whole(d.stretchMaxLegs)),
   };
 }
 
