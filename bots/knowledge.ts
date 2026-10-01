@@ -3,10 +3,16 @@ import type { Equipment } from "../app/game/equipment";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import { listStandingSurfaces } from "../app/game/movement";
 import type { NavGoal, NavWorld } from "../app/game/navigation";
-import { chunkKeyFor, listChunkKeys, listCoords, removeTileAt } from "../app/lib/mapData";
-import { resolveReward, resolveTeleport } from "../app/lib/interactions";
+import {
+  chunkKeyFor,
+  listChunkKeys,
+  listCoords,
+  removeTileAt,
+  tileIdsInChunk,
+} from "../app/lib/mapData";
+import { resolveReward } from "../app/lib/interactions";
 import type { StatusDef } from "../app/lib/status";
-import { MAX_LEVEL, MIN_LEVEL } from "../app/lib/types";
+import { levelKey, MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../app/lib/types";
 
 /**
@@ -59,28 +65,10 @@ export class Knowledge {
 
   rewardsOnOffer(tags: readonly string[]): Array<{ ref: ObjectRef; tag: string; name: string }> {
     const out: Array<{ ref: ObjectRef; tag: string; name: string }> = [];
-    this.eachPlacement((ref, def, placed) => {
+    this.placementsOf(rewardTileIds(this.tilesById), (ref, def, placed) => {
       const reward = resolveReward(placed, def);
       if (!reward || tags.includes(reward.tag)) return;
       out.push({ ref, tag: reward.tag, name: def.name });
-    });
-    return out;
-  }
-
-  signs(): Array<{ at: Coord; text: string }> {
-    const out: Array<{ at: Coord; text: string }> = [];
-    this.eachPlacement((ref, _def, placed) => {
-      const text = placed.inscription?.trim();
-      if (text) out.push({ at: { x: ref.x, y: ref.y, z: ref.z }, text });
-    });
-    return out;
-  }
-
-  ways(): Array<{ at: Coord; to: Coord; name: string }> {
-    const out: Array<{ at: Coord; to: Coord; name: string }> = [];
-    this.eachPlacement((ref, def, placed) => {
-      const teleport = resolveTeleport(placed, def, ref);
-      if (teleport) out.push({ at: ref, to: teleport.to, name: teleport.actionName ?? def.name });
     });
     return out;
   }
@@ -122,13 +110,32 @@ export class Knowledge {
     return out;
   }
 
-  private eachPlacement(visit: (ref: ObjectRef, def: TileDef, placed: PlacedTile) => void) {
+  /**
+   * Every placement of one of `tileIds`. A chunk records which tiles it holds
+   * (`tileIdsInChunk`), so only chunks holding one are read: a bot asks this
+   * on every decision, and reading the whole remembered map each time was a
+   * quarter of what ten bots cost.
+   */
+  private placementsOf(
+    tileIds: ReadonlySet<string>,
+    visit: (ref: ObjectRef, def: TileDef, placed: PlacedTile) => void,
+  ) {
     for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-      for (const { x, y, stack } of listCoords(this.board, z)) {
-        stack.forEach((placed, stackIndex) => {
-          const def = this.tilesById[placed.tileId];
-          if (def) visit({ x, y, z, stackIndex }, def, placed);
-        });
+      const level = this.board.levels[levelKey(z)];
+      if (!level) continue;
+      for (const chunkKey in level) {
+        const chunk = level[chunkKey]!;
+        const held = tileIdsInChunk(chunk);
+        let any = false;
+        for (const id of tileIds) if (held.has(id)) any = true;
+        if (!any) continue;
+        for (const cell in chunk) {
+          const { x, y } = parseCoordKey(cell);
+          chunk[cell]!.forEach((placed, stackIndex) => {
+            const def = this.tilesById[placed.tileId];
+            if (def && tileIds.has(placed.tileId)) visit({ x, y, z, stackIndex }, def, placed);
+          });
+        }
       }
     }
   }
@@ -154,4 +161,16 @@ function withoutBodies(map: MapFile, bodies: readonly ActorSnapshot[]): MapFile 
     board = removeTileAt(board, body.x, body.y, body.z, body.stackIndex);
   }
   return board;
+}
+
+const rewardTilesByCatalogue = new WeakMap<Record<string, TileDef>, ReadonlySet<string>>();
+
+function rewardTileIds(tilesById: Record<string, TileDef>): ReadonlySet<string> {
+  let ids = rewardTilesByCatalogue.get(tilesById);
+  if (!ids) {
+    const rewards = Object.values(tilesById).filter((def) => def.interactions?.reward);
+    ids = new Set(rewards.map((def) => def.id));
+    rewardTilesByCatalogue.set(tilesById, ids);
+  }
+  return ids;
 }

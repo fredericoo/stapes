@@ -38,6 +38,13 @@ function request(origin: string, cookie: string | null, body?: unknown): Request
   };
 }
 
+/**
+ * Better Auth limits sign-ins per client, and bots on one machine are one
+ * client. A refusal for that is not an answer about the account, so the bot
+ * waits and tries the same name again rather than drawing a new one.
+ */
+const RATE_LIMITED = 429;
+
 function cookieFrom(response: Response): string | null {
   const pairs = response.headers.getSetCookie().map((line) => line.split(";")[0]!);
   return pairs.length ? pairs.join("; ") : null;
@@ -50,11 +57,13 @@ async function signIn(base: string, origin: string, account: BotAccount): Promis
     request(origin, null, credentials),
   );
   if (signedIn.ok) return cookieFrom(signedIn) ?? fail("signing in set no cookie");
+  if (signedIn.status === RATE_LIMITED) fail("signing in was rate limited");
 
   const signedUp = await fetch(
     `${base}/api/account`,
     request(origin, null, { ...credentials, email: `${account.username}@bots.invalid` }),
   );
+  if (signedUp.status === RATE_LIMITED) fail("signing up was rate limited");
   if (!signedUp.ok) {
     fail(`could not sign in or sign up as ${account.username}: ${await signedUp.text()}`);
   }

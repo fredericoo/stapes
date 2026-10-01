@@ -13220,26 +13220,48 @@ Not yet fixed, and worth knowing before you profile something else:
 
 ## A bot is a player in another process
 
-`bun run bots` runs one bot: a Bun process that signs in to an account like
-anybody else, opens `/online/ws` with the session cookie, and plays through a
-`RemoteSession`, the same client state the browser keeps. The world cannot
+`bun run bots --qty 10 --url thelaststones.com` plays ten bots. Each signs in
+to an account like anybody else, opens `/online/ws` with the session cookie,
+and plays through a `RemoteSession`, the same client state the browser keeps. The world cannot
 tell it from a person, and nothing on the server was added for it. It never
 opens the database, so it does not compete with the server for the lock.
 
-**The account is created on first use.** `bots/account.ts` signs in with
-`BOT_USERNAME` and `BOT_PASSWORD`, signs up if that fails, and creates the
-character named `BOT_CHARACTER` if the account has no character by that name.
-Every later run finds both. A username takes letters, digits, underscores and
-dots, so the default is `wandererbot`, not `wanderer-bot`. The password has a
-default too. It is in the repository, so set your own on anything public.
+**A bot's name is generated, and the same every run.** Bot number `i` is
+named by `randomCharacterName`, seeded with `bot-i-0`, and its username is
+that name's letters plus `bot`. `bots/account.ts` signs in, signs up if that
+fails, and creates the character if the account has no character by that
+name. Every later run finds both. When the name or username belongs to
+somebody else, the bot draws again with `bot-i-1`, and so on.
+
+Better Auth limits sign-ins per client, and every bot on one machine is one
+client: ten bots starting together are refused a few times. A refused sign-in
+(429) is retried under the same name after a pause, because it says nothing
+about the account. The password defaults to one in the repository, so set
+`BOT_PASSWORD` on anything public.
+
+**All the bots are one process over worker threads.** One process per bot
+cost about 150 MB each, mostly a runtime and a tile catalogue apiece. One
+thread for all of them could not keep up: ten bots kept one core at 100% and
+barely moved. `bots/index.ts` deals the bots out over one fewer worker thread
+than the machine has cores (`bots/worker.ts`). Ten bots took about 70% of one
+core and 650 MB in all.
+
+**A bot steers every frame and decides every `DECIDE_MS` (200ms).** Deciding
+reads every body in view and may search for a route, and deciding every frame
+was most of what a bot cost. Steering cannot wait that long: a held direction
+keeps stepping until it is changed, so a step shorter than the gap between
+decisions, as on a road, carried the bot past its route, and the replan that
+followed made it hesitate. `Bot.steer` holds the right direction every frame
+from `RemoteSession.selfSnapshot`, which builds no other body. Looking for
+rewards reads only the chunks that hold a reward tile, by `tileIdsInChunk`;
+reading the whole remembered map each time was a quarter of the cost.
 
 **A server can start its own bots.** `BOTS=n` in the server's environment
-starts `n` bot processes when it begins listening (`server/bots.ts`), named
-from `BOT_NAMES` with accounts `<name>bot` and the password `BOT_PASSWORD`.
-Each is passed only the variables a bot reads, never `ADMIN_SECRET`. One that
-exits is started again after `BOT_RESTART_MS`, and all of them are stopped
-when the server starts to drain. Each runs with `--smol` to share a preview's
-memory limit with the server.
+starts the bot process with `n` bots when it begins listening
+(`server/bots.ts`). It is passed only the variables a bot reads, never
+`ADMIN_SECRET`. If it exits it is started again after `BOT_RESTART_MS`, and it
+is stopped when the server starts to drain. It runs with `--smol` to share a
+preview's memory limit with the server.
 
 **The address is not the origin.** `STAPES_URL` is where the requests go, and
 `STAPES_ORIGIN` (default: the same) is what they send as `Origin`. A deployed

@@ -1,98 +1,53 @@
-import { tilesByIdFromList } from "../app/lib/validation";
-import { RemoteSession } from "../app/net/RemoteSession";
-import type { ClientSocket } from "../app/net/socket";
-import { takeSeat, type BotAccount } from "./account";
-import { Bot } from "./Bot";
-import type { Goal } from "./goals";
-import { ScriptedPlanner } from "./planner";
-import { between, drawTemperament, seededRandom } from "./temperament";
+import { availableParallelism } from "node:os";
+import { parseArgs } from "node:util";
+import { Worker } from "node:worker_threads";
+import type { FleetConfig } from "./fleet";
 
-const FRAME_MS = 50;
-
-const RECONNECT_MS = 5_000;
-
-const CLOSE_OUTDATED = 4001;
-
-const CLOSE_REPLACED = 4002;
-
-/**
- * A server starts all its bots at once, and bots that join in the same
- * second walk out of the tutorial in a line. Each waits up to this long first.
- */
-const START_JITTER_MS = 20_000;
-
-/**
- * Bun's `WebSocket` takes request headers, which is how the session cookie
- * reaches the upgrade; the DOM type this project compiles against does not
- * know the option.
- */
-const BunWebSocket = WebSocket as unknown as new (
-  url: string,
-  options: { headers: Record<string, string> },
-) => ClientSocket;
+const { values } = parseArgs({
+  args: Bun.argv.slice(2),
+  options: {
+    qty: { type: "string" },
+    url: { type: "string" },
+  },
+});
 
 const env = process.env;
-const base = env.STAPES_URL ?? "http://localhost:3000";
-const origin = env.STAPES_ORIGIN ?? base;
-const account: BotAccount = {
-  username: env.BOT_USERNAME ?? "wandererbot",
+
+/** `thelaststones.com` is read as `https://thelaststones.com`. */
+function withScheme(url: string): string {
+  return /^[a-z]+:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+const base = withScheme(values.url ?? env.STAPES_URL ?? "http://localhost:3000").replace(
+  /\/+$/,
+  "",
+);
+const fleet: FleetConfig = {
+  base,
+  origin: env.STAPES_ORIGIN ?? base,
   password: env.BOT_PASSWORD ?? "wanderer-bot-password",
-  character: env.BOT_CHARACTER ?? "Wanderer",
 };
+const count = Math.max(1, Number(values.qty ?? env.BOTS ?? 1) || 1);
 
-function log(line: string) {
-  console.log(`[${account.character}] ${line}`);
-}
+/**
+ * Each bot keeps a whole client — the socket's stream parsed and applied, and
+ * a map of everything it has seen — on one thread, so bots are spread over
+ * worker threads, one fewer than the machine has cores.
+ */
+const threads = Math.max(1, Math.min(count, availableParallelism() - 1));
+const shares = Array.from({ length: threads }, (_, t) =>
+  Array.from({ length: count }, (_, i) => i).filter((i) => i % threads === t),
+);
 
-const temperament = drawTemperament(seededRandom(account.character));
-
-const GOALS: readonly Goal[] = [
-  { goal: "open_rewards" },
-  { goal: "reach_level", level: 0 },
-  { goal: "hunt" },
-];
-
-async function play(): Promise<"again" | "stop"> {
-  const seat = await takeSeat(base, origin, account);
-  const socket = new BunWebSocket(seat.socketUrl, {
-    headers: { Cookie: seat.cookie, Origin: origin },
-  });
-  const remote = new RemoteSession(socket, seat.tiles, seat.statusDefs);
-  const bot = new Bot(
-    remote,
-    new ScriptedPlanner(GOALS),
-    tilesByIdFromList(seat.tiles),
-    seat.statusDefs,
-    log,
-    Math.random,
-    temperament,
-  );
-
-  let last = performance.now();
-  const frame = setInterval(() => {
-    const now = performance.now();
-    remote.update(now - last);
-    last = now;
-    if (remote.isReady()) bot.act(now);
-  }, FRAME_MS);
-
-  return new Promise((resolve) => {
-    socket.addEventListener("close", (event) => {
-      clearInterval(frame);
-      remote.dispose();
-      log(`socket closed: ${event.code} ${event.reason}`);
-      resolve(event.code === CLOSE_REPLACED || event.code === CLOSE_OUTDATED ? "stop" : "again");
-    });
-  });
-}
-
-await new Promise((resolve) => setTimeout(resolve, between(Math.random, 0, START_JITTER_MS)));
-
-for (;;) {
-  try {
-    if ((await play()) === "stop") break;
-  } catch (error) {
-    log(String(error));
-  }
-  await new Promise((resolve) => setTimeout(resolve, RECONNECT_MS));
-}
+console.log(`[bots] ${count} on ${base}, over ${threads} threads`);
+const entry = new URL("./worker.ts", import.meta.url).href;
+await Promise.all(
+  shares.map(
+    (indices) =>
+      new Promise<void>((resolve) => {
+        const worker = new Worker(entry, { workerData: { fleet, indices } });
+        worker.on("error", (error) => console.error("[bots]", error));
+        worker.on("exit", () => resolve());
+      }),
+  ),
+);

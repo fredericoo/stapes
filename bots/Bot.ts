@@ -26,7 +26,7 @@ import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
 import { describeGoal, exploreErrand, nextErrand, type Errand, type Goal } from "./goals";
 import { exploredKey, Knowledge } from "./knowledge";
 import { Pilot } from "./Pilot";
-import type { AskReason, Observation, Planner, Seen } from "./planner";
+import type { AskReason, Planner } from "./planner";
 
 export const THINK_EVERY_MS = 30_000;
 
@@ -85,10 +85,6 @@ export const SHORT_ROUTE_MAX_NODES = 4_000;
 
 export const DRESS_RETRY_MS = 1_000;
 
-const SEEN_LISTED = 8;
-
-const HAPPENINGS_KEPT = 12;
-
 export type BotBody = Pick<
   RemoteSession,
   | "getSnapshot"
@@ -96,12 +92,13 @@ export type BotBody = Pick<
   | "interact"
   | "setTarget"
   | "setAttackMode"
-  | "say"
   | "isDead"
   | "rebirth"
   | "drainNotices"
   | "moveItem"
   | "consume"
+  | "selfSnapshot"
+  | "getMap"
 >;
 
 type Course =
@@ -126,8 +123,6 @@ type Course =
 export class Bot {
   private goal: Goal | null = null;
   private course: Course = { kind: "idle" };
-  private notes = "";
-  private happenings: string[] = [];
   private skipped = new Set<string>();
   private explored = new Set<string>();
   private asking = false;
@@ -160,6 +155,22 @@ export class Bot {
 
   get currentGoal(): Goal | null {
     return this.goal;
+  }
+
+  /**
+   * Keeps whichever route the bot is on held correctly, every frame. A held
+   * direction keeps stepping until it is changed, so steering only when the
+   * bot decides let a step shorter than the gap between decisions, as on a
+   * road, carry it a cell past its route.
+   */
+  steer(nowMs: number) {
+    const pilot =
+      this.flight?.pilot ??
+      this.chase?.pilot ??
+      (this.course.kind === "travel" ? this.course.pilot : null);
+    if (!pilot || this.body.isDead()) return;
+    const self = this.body.selfSnapshot();
+    if (self) pilot.drive(this.body, self, this.body.getMap(), nowMs);
   }
 
   act(nowMs: number) {
@@ -601,14 +612,10 @@ export class Bot {
     this.pendingAsk = null;
     this.asking = true;
     this.lastAskMs = nowMs;
-    const observation = this.observe(ask.reason, ask.outcome);
-    this.happenings = [];
     this.planner
-      .decide(observation)
+      .decide({ reason: ask.reason, goal: this.goal, outcome: ask.outcome })
       .then((decision) => {
         if (!decision) return;
-        if (decision.notes !== undefined) this.notes = decision.notes;
-        if (decision.say) this.body.say(decision.say);
         const changed = JSON.stringify(decision.goal) !== JSON.stringify(this.goal);
         if (!changed) return;
         this.log(`goal: ${describeGoal(decision.goal)}`);
@@ -623,42 +630,8 @@ export class Bot {
       });
   }
 
-  private observe(reason: AskReason, outcome: string | null): Observation {
-    const snapshot = this.body.getSnapshot();
-    const self = snapshot.self;
-    const knowledge = new Knowledge(snapshot.map, snapshot.actors, this.tilesById, this.statusDefs);
-    const near = <T extends Seen>(items: T[]) =>
-      items.sort((a, b) => distance(self, a) - distance(self, b)).slice(0, SEEN_LISTED);
-    const bag = snapshot.equipment.bag?.contents ?? [];
-    const worn = Object.values(snapshot.equipment).filter((item) => item !== null);
-    return {
-      reason,
-      goal: this.goal,
-      outcome,
-      self: { x: self.x, y: self.y, z: self.z, hp: self.hp, maxHp: self.maxHp },
-      carrying: [...worn, ...bag].map((item) => this.tilesById[item.tileId]?.name ?? item.tileId),
-      tags: snapshot.tags,
-      signs: near(knowledge.signs().map(({ at, text }) => ({ ...at, text }))),
-      rewards: near(
-        knowledge.rewardsOnOffer(snapshot.tags).map(({ ref, name }) => ({ ...ref, text: name })),
-      ),
-      ways: near(
-        knowledge.ways().map(({ at, to, name }) => ({ ...at, text: `${name} (to level ${to.z})` })),
-      ),
-      creatures: near(
-        snapshot.actors
-          .filter((a) => a.id !== self.id)
-          .map((a) => ({ x: a.x, y: a.y, z: a.z, text: nameOf(a) })),
-      ),
-      happenings: [...this.happenings],
-      notes: this.notes,
-    };
-  }
-
   private happen(line: string) {
     this.log(line);
-    this.happenings.push(line);
-    if (this.happenings.length > HAPPENINGS_KEPT) this.happenings.shift();
   }
 }
 
@@ -672,10 +645,6 @@ function refKey(ref: ObjectRef): string {
 
 function cellOf(at: Coord): string {
   return `${at.x},${at.y},${at.z}`;
-}
-
-function distance(a: Coord, b: Coord): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.z - b.z) * 4;
 }
 
 function nameOf(actor: ActorSnapshot): string {

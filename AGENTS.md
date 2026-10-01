@@ -13,8 +13,9 @@ an oblique cabinet projection with Three.js.
   `app/lib/` are imported by both halves.
 - **`bots/` is a third process that plays as a player.** It signs in, opens the
   same socket a tab does and drives a `RemoteSession`; the server cannot tell
-  it from a person. It never opens the database. With `BOTS=n` set, the server
-  starts `n` of them in its own container (`server/bots.ts`).
+  it from a person. It never opens the database. `bun run bots --qty n --url <world>`
+  plays `n` of them from any machine; with `BOTS=n` set, the server starts
+  them in its own container (`server/bots.ts`).
 - **Exactly one process may hold the database.** `server/lock.ts` opens it with
   `PRAGMA locking_mode = EXCLUSIVE` so a second one fails at open. Two processes
   on one world persist a board blended from two timelines. Do not remove this to
