@@ -13396,6 +13396,7 @@ bot explores towards it instead of giving up.
 - when a goal is done;
 - when a goal fails;
 - when the bot dies;
+- when it hears another player speak;
 - every `THINK_EVERY_MS` otherwise.
 
 It is never asked per step, except that a pickup asks it early, so a bot that
@@ -13419,6 +13420,9 @@ shipped content shards come only from mining and from selling berries and
 apples. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
 does not spend its life looking for a seller nobody has found. It does not
 interrupt a `shop`, `sell` or `gather` on the timer.
+
+Without `OPENAI_API_KEY` that is all; with one, `LlmPlanner` sits over
+`ProgressPlanner` (below).
 
 **Exploring walks to an unexplored edge, and roams once there is none.**
 `exploreErrand` picks at random among the `EXPLORE_CHOICES` nearest standing
@@ -13622,3 +13626,54 @@ and looks for no prey, because any step ends the pull.
 cell satisfies the goal, so the route search fails, and the bot skips that
 reward and goes to the next. Wearing the torch and the sword is what leaves
 room for the tutorial's food crate, which gives two items.
+
+**With `OPENAI_API_KEY`, a model steers the bot and answers chat.**
+`LlmPlanner` (`bots/LlmPlanner.ts`) asks `ProgressPlanner` first and lets
+`gpt-5-nano` override it, so a bot the model leaves alone still works through
+its own goals, and one whose request fails still moves. Each ask is one
+request through TanStack AI: the model gets the bot's position, health, goal,
+the players in view and the last `MEMORY_LINES` things that happened to it
+(`bots/recollection.ts`: notices, fights, goals finished or failed, chat heard and
+said), with the lines since its last ask marked new. Whatever text it writes is
+said out loud and an empty answer is silence; it steers with the `set_goal` and
+`set_peaceful` tools. `maxIterations(1)` stops the loop after the tools have
+run, so a decision is one model call; without it TanStack sends the tool
+results back for another. Whether a line needs an answer is the model's call,
+not a list of phrases.
+
+Measured against the live model on eight chat situations, a few runs each:
+
+- **Forcing every answer through a tool made it answer everything.** With a
+  `say` tool and `tool_choice: required` it picked one tool per turn, usually
+  a no-op `set_goal`. With one `act` tool holding every choice as a nullable
+  field, it filled every field: a reply and a walk over to the player for
+  "noob" as much as for "hi". As plain text it judged well.
+- **`minimal` reasoning answered insults and other people's chatter; `low`
+  did not**, for about two seconds more per answer (two to five in all).
+  Reasoning counts against `max_output_tokens`, and at `low` 400 cut most
+  answers off.
+- **What it still gets wrong:** a turn that calls a tool rarely writes a reply
+  too, so "come here" walks over in silence; "stop killing the rats" is
+  answered but seldom sets peaceful; and asked where things are, it makes an
+  answer up. `set_goal` with the goal the bot already has is ignored.
+- `goalSchema` is a union, which OpenAI's strict tool mode refuses (TanStack
+  then sends the tool non-strict, with a warning), so `set_goal` takes every
+  field flat and `goalFrom` checks the result against `goalSchema`.
+
+- **A bot hears every player near it, bots included**, by reading the chat
+  bubbles its `RemoteSession` already keeps. Its own lines come back from the
+  server and are skipped by actor id; creatures' speech is skipped by tile.
+- **Two bots can talk forever**, so a bot says at most `SAY_LIMIT` lines in
+  any `SAY_WINDOW_MS`, whatever the model asks for.
+- **A bot cannot be talked into a command.** `RemoteSession.say` sends a line
+  that starts with `/` as a command, and commands can rewrite the map, so
+  `Bot.say` strips leading slashes first.
+- **A bot speaks only when another player has said something since its last
+  ask.** On prod, an ask made because it picked something up had it greet a
+  line it had already answered, prompt or no prompt. Lines another player said
+  are marked `heard` in the recollection, and anything the model writes
+  without a fresh one is dropped.
+- **A timer ask with nothing new is not sent.** Only something happening costs
+  a request.
+- **Peaceful** stops the bot hunting and drops a hunt in progress; it still
+  fights back against whatever attacks it.

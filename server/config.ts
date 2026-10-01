@@ -24,6 +24,8 @@ const schema = v.object({
 
   BOT_PASSWORD: v.optional(v.string(), "wanderer-bot-password"),
 
+  OPENAI_API_KEY: v.optional(v.string()),
+
   CHECKPOINT_INTERVAL_MS: v.optional(
     v.pipe(v.string(), v.transform(Number), v.number(), v.minValue(100)),
     "2000",
