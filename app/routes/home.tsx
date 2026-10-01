@@ -4,7 +4,7 @@ import { Dangers } from "../components/home/Dangers";
 import { FeatureTour } from "../components/home/FeatureTour";
 import { FinalCall } from "../components/home/FinalCall";
 import { Gallery } from "../components/home/Gallery";
-import { media } from "../components/home/content";
+import { DISCORD_INVITE, media } from "../components/home/content";
 import { Hero } from "../components/home/Hero";
 import { NAV_HEIGHT_PX, NavBar } from "../components/home/NavBar";
 import { PlaybackProvider, usePlayback } from "../components/home/playback";
@@ -101,7 +101,12 @@ export default function HomePage() {
           <FinalCall />
         </main>
         <footer className="home-footer">
-          <p>The Last Stones</p>
+          <p>
+            The Last Stones, in alpha ·{" "}
+            <a href={DISCORD_INVITE} rel="noreferrer" target="_blank">
+              Discord
+            </a>
+          </p>
           <p>
             Made by {MAKER.name}
             {MAKER.profiles.map((profile) => (

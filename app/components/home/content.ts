@@ -211,3 +211,5 @@ export const SHOTS: Shot[] = [
     pixelated: true,
   },
 ];
+
+export const DISCORD_INVITE = "https://discord.gg/QbZ6rtG92";

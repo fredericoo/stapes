@@ -12,7 +12,7 @@ const HERO_SOURCES = [
 ];
 
 /** The order the hero's parts rise into place in, a tenth of a second apart. */
-const RISE_ORDER = { logo: 0, tagline: 1, lede: 2, buttons: 3, cue: 4 } as const;
+const RISE_ORDER = { logo: 0, stage: 1, tagline: 2, lede: 3, buttons: 4, cue: 5 } as const;
 
 function rise(part: keyof typeof RISE_ORDER): CSSProperties {
   return { "--rise-order": RISE_ORDER[part] };
@@ -36,6 +36,9 @@ export function Hero({ heroRef }: { heroRef: RefObject<HTMLElement | null> }) {
         <h1 className="home-rise" style={rise("logo")}>
           <DoorLogo />
         </h1>
+        <p className="home-rise home-pixel home-alpha-badge" style={rise("stage")}>
+          Alpha
+        </p>
         <p className="home-rise home-pixel home-tagline home-outline" style={rise("tagline")}>
           A small MMO that runs in your browser.
         </p>

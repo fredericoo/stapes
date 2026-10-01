@@ -34,6 +34,13 @@ export function FinalCall() {
           A small MMO that runs in your browser.
         </p>
         <PlayButtons />
+        <div className="home-final-alpha">
+          <p>
+            <span className="home-pixel home-alpha-badge">Alpha</span> This is an early version.
+            Things will break, change and get rebalanced, and what you tell us decides what gets
+            built next.
+          </p>
+        </div>
       </div>
       <PlaybackToggle className="home-final-toggle" />
     </section>
