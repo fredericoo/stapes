@@ -97,7 +97,7 @@ import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
 import { NoticeQueue, NotificationLayer } from "./notifications";
-import { healthBarColor, healthFraction } from "./healthBar";
+import { healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 import { clampZoomOut, debugSpanPx, DEBUG_ZOOM_OUT, playSquareOrigin } from "./debugView";
 import { DebugPanel } from "./debugPanel";
@@ -142,6 +142,8 @@ function buttonLine(first: InteractionOption, second: InteractionOption | null):
 
 const POINTER_NAME_ID = "look:name";
 
+const NOTHING_TO_DO_INK = INTERACTION_COLORS.target.ink;
+
 function nameLabelId(actorId: string): string {
   return `name:${actorId}`;
 }
@@ -157,6 +159,7 @@ type PointerLabel = {
    * (`pushNameLabels` only tags bodies with health).
    */
   nameTag?: string;
+  nameColor?: string;
 };
 
 /**
@@ -1200,7 +1203,7 @@ export class GameRenderer {
     const said = this.lookMode ? this.lookLines(snap) : this.pointerLines(snap);
     if (!said) return;
 
-    const { ref, height, lines, color, nameTag } = said;
+    const { ref, height, lines, color, nameTag, nameColor } = said;
     const body = this.lookMode ? undefined : snap.actors.find((a) => a.id === said.actorId);
     const ground = body
       ? this.actorVisualWorld(snap.map, body)
@@ -1230,6 +1233,7 @@ export class GameRenderer {
       y: nameY,
       lines: [{ id: "name", text: nameTag }],
       reserveBar: true,
+      ...(nameColor ? { color: nameColor } : {}),
     });
   }
 
@@ -1287,8 +1291,20 @@ export class GameRenderer {
       actorId: option.actorId,
       height,
       lines: [buttonLine(option, second)],
-      ...(option.health === null ? { nameTag: option.name } : {}),
+      ...(option.health === null
+        ? { nameTag: option.name, nameColor: interactionInk(option) }
+        : {}),
     };
+  }
+
+  /**
+   * A name is written in the colour of the first thing a click would do to it,
+   * so red means a fight and purple a reward before the pointer gets there;
+   * with nothing to do, as on yourself, it is white.
+   */
+  private nameInk(actor: ActorSnapshot): string {
+    const first = topInteractionAt(this.interactionsSent, actor);
+    return first ? interactionInk(first) : NOTHING_TO_DO_INK;
   }
 
   private pushNameLabels(
@@ -1320,7 +1336,7 @@ export class GameRenderer {
           standingFootAbs(snap.map, this.tilesById, actor, actor.stackIndex),
           actor.stackIndex,
         ),
-        color: healthBarColor(fraction),
+        color: this.nameInk(actor),
         bar: { fraction },
         progress: actor.casting
           ? { fraction: progressFraction(actor.casting) }
