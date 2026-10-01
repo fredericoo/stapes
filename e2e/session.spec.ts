@@ -87,8 +87,10 @@ test.describe("the way in", () => {
     await landsOn("/characters");
 
     await page.getByRole("button", { name: "Sign out" }).click();
+    await landsOn("/");
+
+    await page.goto("/sign-in", { waitUntil: "networkidle" });
     await page.getByLabel("Username").waitFor({ timeout: 30_000 });
-    await landsOn("/sign-in");
 
     await page.getByLabel("Username").fill(username);
     await page.getByLabel("Password").fill("a-different-password");
@@ -133,6 +135,8 @@ test.describe("playing as a guest", () => {
     await pressLeaveWorld(page);
     await expect(page.getByText(`Signed in as ${username}`)).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Sign out" }).click();
+    await page.waitForURL((url) => url.pathname === "/", { timeout: 30_000 });
+    await page.goto("/sign-in", { waitUntil: "networkidle" });
     await page.getByLabel("Username").fill(username);
     await page.getByLabel("Password").fill("a-long-enough-password");
     await page.getByRole("button", { name: "Sign in" }).click();
