@@ -79,7 +79,7 @@ export function offeredRecipes(
   craft.recipes.forEach((recipe, index) => {
     if (affordsRecipe(tilesById, equipment, recipe)) recipes.push({ index, recipe });
   });
-  return recipes.length > 0 ? { craft, recipes } : null;
+  return { craft, recipes };
 }
 
 export function rollCraft(output: CraftOutput, random: () => number): string[] {
