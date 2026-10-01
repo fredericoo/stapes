@@ -8,6 +8,8 @@ import { footRect, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 
 const SPRAWLING_SPRITE_CELLS = 4;
 
+const GIANT_HEIGHT_CELLS = 3;
+
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   return normalizeTileDef({
     name: partial.id,
@@ -88,6 +90,38 @@ const tilesById = tilesByIdFromList([
     },
   }),
   tile({
+    id: "giant",
+    height: 4,
+    kind: "battler",
+    variants: {
+      default: [
+        {
+          sprite: {
+            tilesetId: "basic",
+            rect: { x: 0, y: 0, w: 1, h: GIANT_HEIGHT_CELLS },
+            base: { x: 0, y: GIANT_HEIGHT_CELLS - 1 },
+          },
+          durationMs: 200,
+        },
+      ],
+    },
+    interactions: {
+      battler: {
+        baseHp: 30,
+        masteries: { toughness: 10 },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 1,
+          def: 0,
+          accuracy: 50,
+          variance: 0,
+          spd: 0,
+          mastery: "fist",
+        },
+      },
+    },
+  }),
+  tile({
     id: "salesman",
     height: 4,
     kind: "prop",
@@ -121,14 +155,14 @@ describe("pickInteractiveAt", () => {
 
     for (const ref of [behind, inFront]) {
       const p = onFoot(ref);
-      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual(ref);
+      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot")).toEqual(ref);
     }
   });
 
   it("finds nothing on a cell with nothing standing on it", () => {
     const map = twoCrates();
     const p = onFoot({ x: 5, y: 5, z: 0 });
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toBeNull();
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot")).toBeNull();
   });
 
   it("finds nothing where the interactive thing is buried under another tile", () => {
@@ -138,7 +172,7 @@ describe("pickInteractiveAt", () => {
       { tileId: "slab" },
     ]);
     const p = onFoot({ x: 0, y: 0, z: 0 });
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toBeNull();
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot")).toBeNull();
   });
 
   it("reaches under the body standing on it", () => {
@@ -148,7 +182,7 @@ describe("pickInteractiveAt", () => {
       { tileId: "cat", owner: "player-1" },
     ]);
     const p = onFoot({ x: 0, y: 0, z: 0 });
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual({
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot")).toEqual({
       x: 0,
       y: 0,
       z: 0,
@@ -165,7 +199,7 @@ describe("pickInteractiveAt", () => {
     const ladder: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
     const p = onFoot(ladder);
 
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(ladder))).toEqual(ladder);
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot", sameRef(ladder))).toEqual(ladder);
   });
 
   it("reaches under something lying flat on it", () => {
@@ -178,8 +212,8 @@ describe("pickInteractiveAt", () => {
     const coin: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 2 };
     const p = onFoot(door);
 
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual(coin);
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(door))).toEqual(door);
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot")).toEqual(coin);
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot", sameRef(door))).toEqual(door);
   });
 
   it("still refuses what a body is standing on under a crate", () => {
@@ -190,13 +224,13 @@ describe("pickInteractiveAt", () => {
       { tileId: "cat", owner: "player-1" },
     ]);
     const p = onFoot({ x: 0, y: 0, z: 0 });
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toBeNull();
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot")).toBeNull();
   });
 
   it("finds a switch-only tile", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "door-closed" }]);
     const p = onFoot({ x: 0, y: 0, z: 0 });
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual({
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot")).toEqual({
       x: 0,
       y: 0,
       z: 0,
@@ -207,7 +241,7 @@ describe("pickInteractiveAt", () => {
   it("ignores a tile that offers nothing to do", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     const p = onFoot({ x: 0, y: 0, z: 0 });
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toBeNull();
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, "foot")).toBeNull();
   });
 
   describe("across levels", () => {
@@ -221,7 +255,7 @@ describe("pickInteractiveAt", () => {
     it("reaches the floor above and below when levelSlack is 1", () => {
       const map = crateOnEachLevel();
       const p = onFoot({ x: 5, y: 0, z: 1 });
-      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
+      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, "foot")).toEqual({
         x: 5,
         y: 0,
         z: 1,
@@ -232,7 +266,7 @@ describe("pickInteractiveAt", () => {
     it("does not reach a floor further away than the slack allows", () => {
       const map = crateOnEachLevel();
       const p = onFoot({ x: 9, y: 0, z: 2 });
-      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1)).toBeNull();
+      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, "foot")).toBeNull();
     });
   });
 
@@ -256,19 +290,19 @@ describe("pickInteractiveAt", () => {
     it("takes the frontmost when nothing is actionable", () => {
       const map = stackedLevels();
       const p = sharedPoint();
-      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1)).toEqual(upper);
+      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, "foot")).toEqual(upper);
     });
 
     it("reaches past an inert one to the one that can be acted on", () => {
       const map = stackedLevels();
       const p = sharedPoint();
-      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, sameRef(lower))).toEqual(lower);
+      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, "foot", sameRef(lower))).toEqual(lower);
     });
 
     it("still prefers the frontmost when both can be acted on", () => {
       const map = stackedLevels();
       const p = sharedPoint();
-      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, () => true)).toEqual(upper);
+      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, "foot", () => true)).toEqual(upper);
     });
   });
 });
@@ -277,7 +311,7 @@ describe("pickBodyAt", () => {
   it("finds a body with hit points", () => {
     const map = replaceStack(emptyMap(), 2, 2, 0, [{ tileId: "grass" }, { tileId: "cat" }]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
-    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
+    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1, "foot")).toEqual({
       x: 2,
       y: 2,
       z: 0,
@@ -288,7 +322,7 @@ describe("pickBodyAt", () => {
   it("finds a body with only a dialog", () => {
     const map = replaceStack(emptyMap(), 2, 2, 0, [{ tileId: "grass" }, { tileId: "salesman" }]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
-    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
+    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1, "foot")).toEqual({
       x: 2,
       y: 2,
       z: 0,
@@ -299,7 +333,47 @@ describe("pickBodyAt", () => {
   it("passes over a thing you can act on but cannot fight", () => {
     const map = replaceStack(emptyMap(), 2, 2, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
-    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toBeNull();
+    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1, "foot")).toBeNull();
+  });
+});
+
+describe("sprite reach", () => {
+  const giant: ObjectRef = { x: 0, y: 4, z: 0, stackIndex: 1 };
+
+  function giantOnGrass(): MapFile {
+    let map = emptyMap();
+    for (let y = 0; y <= giant.y; y++) {
+      map = replaceStack(map, giant.x, y, 0, [{ tileId: "grass" }]);
+    }
+    return replaceStack(map, giant.x, giant.y, 0, [{ tileId: "grass" }, { tileId: "giant" }]);
+  }
+
+  it("finds a tall body by its art, which foot reach does not", () => {
+    const map = giantOnGrass();
+    const head = onFoot({ x: giant.x, y: giant.y - (GIANT_HEIGHT_CELLS - 1), z: 0 });
+
+    expect(pickBodyAt(ctx(map), head.x, head.y, 0, 1, "foot")).toBeNull();
+    expect(pickBodyAt(ctx(map), head.x, head.y, 0, 1, "sprite")).toEqual(giant);
+  });
+
+  it("stops at the edge of the art", () => {
+    const map = giantOnGrass();
+    const above = onFoot({ x: giant.x, y: giant.y - GIANT_HEIGHT_CELLS, z: 0 });
+    const beside = onFoot({ x: giant.x + 1, y: giant.y - 1, z: 0 });
+
+    expect(pickBodyAt(ctx(map), above.x, above.y, 0, 1, "sprite")).toBeNull();
+    expect(pickBodyAt(ctx(map), beside.x, beside.y, 0, 1, "sprite")).toBeNull();
+  });
+
+  it("gives a cell's own tile precedence over art drawn across it when looking", () => {
+    let map = replaceStack(emptyMap(), giant.x, giant.y, 0, [{ tileId: "giant" }]);
+    map = replaceStack(map, giant.x, giant.y - 1, 0, [{ tileId: "grass" }]);
+    const grass: ObjectRef = { x: giant.x, y: giant.y - 1, z: 0, stackIndex: 0 };
+    const neck = onFoot(grass);
+    const head = onFoot({ x: giant.x, y: giant.y - 2, z: 0 });
+
+    expect(pickTileAt(ctx(map), neck.x, neck.y, 0, 1)).toEqual(grass);
+    expect(pickTileAt(ctx(map), head.x, head.y, 0, 1)).toEqual({ ...giant, stackIndex: 0 });
   });
 });
 

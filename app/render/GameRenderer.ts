@@ -91,7 +91,7 @@ import type { StatusDef } from "../lib/status";
 import { taperAt, taperedGlow, taperedTint, type StatusTint } from "../lib/statusVfx";
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
-import { pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
+import { type Reach, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 import { rangedWeaponReaches } from "../game/combat";
 import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
@@ -123,6 +123,8 @@ const LOOK_HOLD_MS = DWELL_MS;
 const LOOK_HOLD_SLOP_PX = 10;
 
 const PICK_LEVEL_SLACK = 1;
+
+const REACHES: readonly Reach[] = ["foot", "sprite"];
 
 function interactionColor(option: InteractionOption): number {
   return INTERACTION_COLORS[option.action].outline;
@@ -736,7 +738,11 @@ export class GameRenderer {
     if (second) this.runOption(second);
   }
 
-  private pickAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
+  private pickAt(
+    point: { x: number; y: number },
+    snap: GameSnapshot,
+    reach: Reach,
+  ): ObjectRef | null {
     return pickInteractiveAt(
       {
         map: snap.map,
@@ -748,6 +754,7 @@ export class GameRenderer {
       point.y,
       snap.self.z,
       PICK_LEVEL_SLACK,
+      reach,
       (ref) => topInteractionAt(this.interactionsSent, ref) !== null,
     );
   }
@@ -887,7 +894,11 @@ export class GameRenderer {
     this.pointerRef = null;
   };
 
-  private bodyAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
+  private bodyAt(
+    point: { x: number; y: number },
+    snap: GameSnapshot,
+    reach: Reach,
+  ): ObjectRef | null {
     const found = pickBodyAt(
       {
         map: snap.map,
@@ -899,6 +910,7 @@ export class GameRenderer {
       point.y,
       snap.self.z,
       PICK_LEVEL_SLACK,
+      reach,
     );
     if (!found) return null;
     return this.actorIdAt(found, snap) === snap.self.id ? null : found;
@@ -1112,9 +1124,13 @@ export class GameRenderer {
   }
 
   private pickRefAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
-    const body = this.bodyAt(point, snap);
-    if (body && topInteractionAt(this.interactionsSent, body)) return body;
-    return this.pickAt(point, snap);
+    for (const reach of REACHES) {
+      const body = this.bodyAt(point, snap, reach);
+      if (body && topInteractionAt(this.interactionsSent, body)) return body;
+      const found = this.pickAt(point, snap, reach);
+      if (found) return found;
+    }
+    return null;
   }
 
   private pointerOption(): InteractionOption | null {
