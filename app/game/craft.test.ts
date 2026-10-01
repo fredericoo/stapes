@@ -304,8 +304,9 @@ describe("what a crafter offers", () => {
     ).toBe(true);
   });
 
-  it("is nothing at all to somebody with nothing to spend", () => {
-    expect(offeredRecipes(board(), tilesById, ACTOR, carrying("raw-meat"), FORGE)).toBeNull();
+  it("still offers the crafter, with no recipes, to somebody with nothing to spend", () => {
+    const offered = offeredRecipes(board(), tilesById, ACTOR, carrying("raw-meat"), FORGE);
+    expect(offered?.recipes).toEqual([]);
   });
 
   it("is nothing from too far away", () => {
@@ -549,7 +550,7 @@ describe("the row a crafter offers", () => {
     expect(rows(carrying("cinder", "cinder"), FORGE)[0]?.active).toBe(true);
   });
 
-  it("is not offered to somebody who can afford nothing", () => {
-    expect(rows(carrying("raw-meat"))).toEqual([]);
+  it("is still offered to somebody who can afford nothing", () => {
+    expect(rows(carrying("raw-meat"))).toHaveLength(1);
   });
 });

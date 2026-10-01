@@ -8281,16 +8281,19 @@ luck.
   that a weight on an `all` item cannot be left behind by the editor;
   `craftForSave` rebuilds the output by its arm.
 - **One row per crafter, and a window behind it.** The row is named by the
-  tile's `actionName` ("Forge", "Cook"; blank reads "Craft") and appears only
-  while at least one recipe is affordable. Pressing it opens `CraftPanel` in
-  the interaction list's place, the way Talk does, listing only the affordable
-  recipes by their authored names with their inputs drawn beside them. What a
+  tile's `actionName` ("Forge", "Cook"; blank reads "Craft") and appears
+  whenever the crafter is in reach, affordable or not, so a player learns the
+  forge exists before they can pay for anything. Pressing it opens `CraftPanel`
+  in the interaction list's place, the way Talk does, listing only the
+  affordable recipes by their authored names with their inputs drawn beside
+  them, or "No recipes available" when there are none. What a
   recipe gives is deliberately not drawn — the odds are part of the game.
 - **The window is the client's own.** `GameRenderer.setCrafting` holds a
   reference; `pushCrafting` re-asks `offeredRecipes` whenever the map, the
   viewer's cell or the kit changes identity, and drops the reference when the
-  answer is null. So walking off, the forge going away, or spending your last
-  affordable input closes it, and walking back does not reopen it — the opened
+  answer is null. So walking off or the forge going away closes it, while
+  spending your last affordable input leaves it open on the empty state; walking
+  back does not reopen it — the opened
   container's "closed is closed" rule. The `craft` row press goes through
   `applyInteraction` to `Follower.setCrafting`, like `follow`, and never
   reaches a session; only a recipe press does.

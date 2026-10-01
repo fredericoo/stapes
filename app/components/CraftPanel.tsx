@@ -17,6 +17,8 @@ import { TilePreview } from "./TilePreview";
 
 const INPUT_SPRITE_SIZE_PX = 16;
 
+const NO_RECIPES_TEXT = "No recipes available";
+
 type Props = {
   crafting: CraftingWindow;
   tiles: TileDef[];
@@ -81,6 +83,9 @@ export function CraftPanel({
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
+        {recipes.length === 0 ? (
+          <p className="px-1 py-2 text-center text-[11px] text-paper/60">{NO_RECIPES_TEXT}</p>
+        ) : null}
         {recipes.map(({ index, recipe }, position) => (
           <PanelButton key={index} onPress={() => onCraft(index)}>
             {hotkeys ? <KeyHint label={numberKeyLabel(position)} /> : null}
