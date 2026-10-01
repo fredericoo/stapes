@@ -32,7 +32,7 @@ import {
   applyInteraction,
   interactionText,
   listInteractionOptions,
-  secondaryInteractionAt,
+  secondInteractionAt,
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
@@ -148,6 +148,22 @@ function interactionInk(option: InteractionOption): string {
   if (option.action === "target") return "#ffffff";
   if (option.action === "reward") return REWARD_LABEL_INK;
   return HOVER_LABEL_INK;
+}
+
+/**
+ * A body with health already carries a name tag (`pushNameLabels`), so its
+ * hints stand alone; anything else would otherwise lose its name to them.
+ */
+function buttonLines(first: InteractionOption, second: InteractionOption): LabelLine[] {
+  const hints: LabelLine = {
+    id: "buttons",
+    hints: [
+      { button: "left", text: first.label },
+      { button: "right", text: second.label },
+    ],
+  };
+  if (first.health !== null) return [hints];
+  return [{ id: "name", text: first.name }, hints];
 }
 
 type PointerLabel = {
@@ -719,11 +735,11 @@ export class GameRenderer {
     this.pointerRef = this.pickRefAt(this.lastPointer, snap);
   };
 
-  private targetAt(point: { x: number; y: number }, snap: GameSnapshot) {
+  private actSecondAt(point: { x: number; y: number }, snap: GameSnapshot) {
     this.pointerRef = this.pickRefAt(point, snap);
     if (!this.pointerRef) return;
-    const watch = secondaryInteractionAt(this.interactionsSent, this.pointerRef);
-    if (watch) applyInteraction(this.session, watch, this);
+    const second = secondInteractionAt(this.interactionsSent, this.pointerRef);
+    if (second) this.runOption(second);
   }
 
   private pickAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
@@ -764,7 +780,7 @@ export class GameRenderer {
 
     if (e.button === 2) {
       e.preventDefault();
-      if (!this.lookMode) this.targetAt(point, this.session.getSnapshot());
+      if (!this.lookMode) this.actSecondAt(point, this.session.getSnapshot());
       return;
     }
 
@@ -1238,24 +1254,15 @@ export class GameRenderer {
     if (!option) return null;
     if (option.actorId !== null && option.actorId === snap.targetId) return null;
     const def = this.tilesById[option.tileId];
-    const secondary = this.pointerIsMouse
-      ? secondaryInteractionAt(this.interactionsSent, option.ref)
+    const second = this.pointerIsMouse
+      ? secondInteractionAt(this.interactionsSent, option.ref)
       : null;
-    const lines: LabelLine[] = secondary
-      ? [
-          {
-            id: "buttons",
-            hints: [
-              { button: "left", text: option.label },
-              { button: "right", text: secondary.label },
-            ],
-          },
-        ]
-      : [{ id: "action", text: interactionText(option) }];
     return {
       ref: option.ref,
       height: def?.height ?? 0,
-      lines,
+      lines: second
+        ? buttonLines(option, second)
+        : [{ id: "action", text: interactionText(option) }],
       color: interactionInk(option),
     };
   }
