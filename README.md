@@ -171,6 +171,13 @@ an agent drives", lists every call.
   smaller crowd. Run it with `BUN_OPTIONS=` empty if your shell sets `--smol`,
   which collects garbage far more often than production does. `docs/notes.md`,
   "A thousand players, profiled", has what it measured and how to compare runs
+- `bun run bots` — run one bot against a running world: it signs in as a
+  player and plays from its own process, following a fixed list of goals.
+  `STAPES_URL` is the world (default `http://localhost:3000`), and
+  `STAPES_ORIGIN` is the origin it claims (default `STAPES_URL`).
+  `BOT_USERNAME`, `BOT_PASSWORD` and `BOT_CHARACTER` name its account and
+  character, which are created the first time. `docs/notes.md`, "A bot is a
+  player in another process", has how it works
 - `node scripts/record-hero.ts <client url>` — record the landing page's hero
   video, a walk through town with no interface, into
   `app/components/home/media/` as WebM, MP4 and a poster. Needs `bun dev`

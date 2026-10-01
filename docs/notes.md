@@ -13217,3 +13217,125 @@ Not yet fixed, and worth knowing before you profile something else:
   anywhere on the board is what gives it one.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.
+
+## A bot is a player in another process
+
+`bun run bots` runs one bot: a Bun process that signs in to an account like
+anybody else, opens `/online/ws` with the session cookie, and plays through a
+`RemoteSession`, the same client state the browser keeps. The world cannot
+tell it from a person, and nothing on the server was added for it. It never
+opens the database, so it does not compete with the server for the lock.
+
+**The account is created on first use.** `bots/account.ts` signs in with
+`BOT_USERNAME` and `BOT_PASSWORD`, signs up if that fails, and creates the
+character named `BOT_CHARACTER` if the account has no character by that name.
+Every later run finds both. A username takes letters, digits, underscores and
+dots, so the default is `wandererbot`, not `wanderer-bot`. The password has a
+default too. It is in the repository, so set your own on anything public.
+
+**The address is not the origin.** `STAPES_URL` is where the requests go, and
+`STAPES_ORIGIN` (default: the same) is what they send as `Origin`. A deployed
+server accepts sign-ins only from its public origin, so a bot that reaches it
+on localhost still has to claim the public origin.
+
+**What a bot knows is what its socket was sent.** `RemoteSession` keeps every
+chunk it has ever been sent, so the client map is the bot's memory of the
+world: accurate where it has been, stale where it has not been since, and
+absent where it has never been. `Knowledge` (`bots/knowledge.ts`) removes the
+bodies from it before routing, because a body moves and a route should not
+treat one as a wall. A chunk absent on every level is one the bot has never
+seen, which is what exploring walks towards.
+
+**A route is `planRoute`, not `findPath`.** `findPath` is the creatures'
+search: 128 nodes, no ladders, and a drop only onto the goal. That limit keeps
+a round of creature turns affordable, and a creature using it can never leave
+the tutorial. `app/game/navigation.ts` is a second search with a budget of
+40,000 nodes. It runs in the bot's process, so it costs the server nothing.
+Its legs are:
+
+- a step, which `canWalk` allows, or which opens a closed door first;
+- a drop, which is a step that leaves the body in the air, landing where
+  `dropLanding` says, and which can never be walked back;
+- a step onto a portal, landing where the portal sends the body;
+- a ladder or other teleport used with a press, from wherever
+  `canTeleportFrom` allows.
+
+A drop costs four steps more than its walk, so a route takes one only when it
+is that much shorter. The real tutorial plans in about 60ms: drop through the
+unstable floor, climb the ladder at -8,40, then up the ramps at 20,36 to the
+surface.
+
+**Goals are decided slowly; everything else is decided every frame.**
+`Bot.act` runs each frame. It turns the current goal into the next errand
+(`nextErrand` in `bots/goals.ts`), plans a route to it, and has the `Pilot`
+hold one direction at a time, as a player's keys would. The `Pilot` switches
+to the next leg's direction as soon as the current walk is heading for the
+right cell, so the client's prediction starts the next step the moment this
+one lands, and the bot does not stop on every cell. The bot plans again when
+it ends up off its route, or when it has not moved for `STUCK_AFTER_MS`.
+Being hurt interrupts the route: the bot targets the nearest creature within
+two cells and fights until that creature is gone or out of reach. When a goal
+asks for a place nobody has seen, such as a level with no known way up, the
+bot explores towards it instead of giving up.
+
+**A planner chooses the goal, and nothing finer.** A goal is one of five:
+
+- `reach_level`
+- `go_to`
+- `open_rewards`
+- `explore`
+- `rest`
+
+`goalSchema` validates every goal. The planner is asked:
+
+- at the start;
+- when a goal is done;
+- when a goal fails;
+- when the bot dies;
+- every `THINK_EVERY_MS` otherwise.
+
+It is never asked per step. The one planner is `ScriptedPlanner`. It works
+through a fixed list in order, asks for a failed goal again, and keeps the
+last goal once the list runs out. `bun run bots` gives it `open_rewards`, then
+`reach_level` 0, then `explore`. `bots/Bot.test.ts` gives it the first two and
+plays the tutorial's shape against a real `GameServer` over the real
+protocol.
+
+**Exploring walks to an unexplored edge, and roams once there is none.**
+`exploreErrand` picks at random among the `EXPLORE_CHOICES` nearest standing
+cells beside a chunk the bot has never been sent. Picking at random means two
+bots in one place do not walk off together. The edge of the map is never sent,
+because there is nothing beyond it, so on a world the bot has seen all of,
+every edge left is the outside of the map. That is why a bot remembers where
+it has been as `EXPLORED_BLOCK_CELLS`-square blocks rather than cells: a bot
+remembering cells would creep along the map's edge one cell at a time. With no
+unexplored edge left, the bot roams to a known cell on its own level between
+`ROAM_NEAR_CELLS` and `ROAM_FAR_CELLS` away, again in a block it has not
+visited. When it runs out of those, it forgets every block it has visited and
+starts again.
+
+A route to an explore target is searched with `EXPLORE_MAX_NODES` rather than
+the full budget, and up to `EXPLORE_ATTEMPTS` targets are tried. A search for
+an unreachable target can take a third of a second. After reaching a target,
+the bot loiters for 5 to 30 seconds. A bot that never stops keeps every
+creature along its way awake on the server, so the loitering is also how it
+limits its load on the server. A goal that finds no route waits
+`FAILED_PAUSE_MS` before it is searched again, so the bot does not search
+every frame.
+
+**A bot always wears a light if it has one.** `nextDressing`
+(`bots/dress.ts`) runs before the goal, every frame. When nothing the bot
+wears gives light (`carriedLightTileIds`), it moves the first light in its bag
+to the square `equipDestination` picks: the charm square for the torch. Light
+does not change what a bot can see. It is there so that other players can see
+the bot in the dark. Next, while both hands are empty, it holds a weapon,
+preferring one without a projectile because the bot only fights what is beside
+it. It fills empty squares only and never takes anything off. The server
+confirms a move a tick later, so the same move is not sent again for
+`DRESS_RETRY_MS`.
+
+**A reward is taken only when all of it fits.** `rewardGoal` asks
+`canRewardFrom`, which includes `rewardFits`. When the bag is too full, no
+cell satisfies the goal, so the route search fails, and the bot skips that
+reward and goes to the next. Wearing the torch and the sword is what leaves
+room for the tutorial's food crate, which gives two items.

@@ -1,5 +1,5 @@
 {
-  "include": ["server/**/*", "app/lib/**/*", "app/game/**/*", "app/net/**/*"],
+  "include": ["server/**/*", "bots/**/*", "app/lib/**/*", "app/game/**/*", "app/net/**/*"],
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["bun"],
