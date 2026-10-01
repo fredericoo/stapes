@@ -15,6 +15,7 @@ RUN apt-get update \
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY server ./server
+COPY bots ./bots
 COPY app ./app
 COPY data ./data
 

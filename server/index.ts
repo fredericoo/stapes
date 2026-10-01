@@ -9,6 +9,7 @@ import {
   PROTOCOL_VERSION_PARAM,
 } from "../app/net/protocol";
 import { viewerOf } from "./auth";
+import { startBots } from "./bots";
 import { readConfig } from "./config";
 import { createApi } from "./api";
 import { ClientBundle } from "./clientBundle";
@@ -103,9 +104,12 @@ const server = app.listen(config.PORT);
 const port = server.server?.port ?? config.PORT;
 console.log(`[server] listening on ${port} (protocol v${PROTOCOL_VERSION})`);
 
+const bots = startBots(config, port);
+
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, () => {
     console.log(`[server] ${signal} — draining`);
+    bots.stop();
     void world
       .drain()
       .catch((error: unknown) => console.error("[server] drain failed", error))

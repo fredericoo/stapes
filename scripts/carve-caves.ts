@@ -8,10 +8,9 @@ import {
   replaceStack,
   serializeMap,
 } from "../app/lib/mapData";
-import { canTeleportFrom, teleportFits } from "../app/game/affordances";
 import { canWalk, listStandingSurfaces } from "../app/game/movement";
 import { findPlayers } from "../app/game/player";
-import { resolveSwitch, resolveTeleport } from "../app/lib/interactions";
+import { reachableCells } from "../app/game/navigation";
 import { mulberry32 } from "../app/editor/generator";
 import { isSkyExposed, stackOcclusion } from "../app/lib/lighting";
 import { computeLightingFlood } from "../app/lib/lightingFlood";
@@ -23,7 +22,6 @@ import {
   MIN_LEVEL,
   coordKey,
   normalizeTileDef,
-  resolveIntangible,
 } from "../app/lib/types";
 import type { Direction, PlacedTile, TileDef } from "../app/lib/types";
 
@@ -941,24 +939,6 @@ function checkWritten(carved?: Carved): string[] {
     }
   }
 
-  /**
-   * Whoever walks up to a closed door can open it, so the walk sees every
-   * switch that turns its tile into an intangible one as already thrown.
-   */
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    for (const { x, y, stack } of listCoords(live, z)) {
-      let opened = false;
-      const next = stack.map((placed) => {
-        const def = tilesById[placed.tileId];
-        const target = def && tilesById[resolveSwitch(def)?.targetTileId ?? ""];
-        if (!target || !resolveIntangible(target)) return placed;
-        opened = true;
-        return { ...placed, tileId: target.id };
-      });
-      if (opened) live = replaceStack(live, x, y, z, next);
-    }
-  }
-
   const settle = (x: number, y: number, feetAbs: number) => {
     const surfaces = listStandingSurfaces(live, x, y, tilesById);
     return (
@@ -980,40 +960,10 @@ function checkWritten(carved?: Carved): string[] {
     return problems;
   }
 
+  const starts = [{ ...approach, z: start.z }, ...spawns.map(({ x, y, z }) => ({ x, y, z }))];
+  const world = { board: live, traveller: playerDef, tilesById, statusDefs: {} };
   const seen = new Set<string>();
-  const queue: Array<{ x: number; y: number; z: number }> = [];
-  const arrive = (x: number, y: number, z: number) => {
-    const landed = settle(x, y, feetAt(x, y, z));
-    if (!landed || seen.has(`${x},${y},${landed.z}`)) return;
-    seen.add(`${x},${y},${landed.z}`);
-    queue.push({ x, y, z: landed.z });
-  };
-  arrive(approach.x, approach.y, start.z);
-  for (const spawn of spawns) arrive(spawn.x, spawn.y, spawn.z);
-
-  for (let head = 0; head < queue.length; head++) {
-    const from = queue[head]!;
-    const stack = getMapStack(live, from.x, from.y, from.z);
-    for (const direction of DIRS) {
-      const step = canWalk(
-        live,
-        { ...from, stackIndex: stack.length },
-        direction,
-        playerDef,
-        tilesById,
-      );
-      if (step.ok) arrive(step.to.x, step.to.y, step.to.z);
-    }
-    stack.forEach((placed, stackIndex) => {
-      const teleport = resolveTeleport(placed, tilesById[placed.tileId], from);
-      if (!teleport) return;
-      const usable =
-        teleport.trigger === "step"
-          ? teleportFits(live, tilesById, playerDef, teleport.to)
-          : canTeleportFrom(live, tilesById, from, { ...from, stackIndex }, playerDef);
-      if (usable) arrive(teleport.to.x, teleport.to.y, teleport.to.z);
-    });
-  }
+  for (const { x, y, z } of reachableCells(world, starts).values()) seen.add(`${x},${y},${z}`);
 
   /**
    * Only a cell a body can stand in has to be reachable. A wall, or a barrel
