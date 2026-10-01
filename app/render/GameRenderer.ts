@@ -33,9 +33,13 @@ import {
   interactionText,
   listInteractionOptions,
   rankedInteractionsAt,
+  refOptionsFrom,
   topInteractionAt,
   type InteractionOption,
+  type RefContext,
 } from "../game/interactionOptions";
+import { TALK_REACH_CELLS } from "../game/affordances";
+import type { Reaching } from "../game/pathfinding";
 import type { Extraction } from "../game/extract";
 import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby } from "./nearbyInscriptions";
@@ -109,6 +113,10 @@ function sameRef(a: ObjectRef | null, b: ObjectRef | null): boolean {
   return a.x === b.x && a.y === b.y && a.z === b.z && a.stackIndex === b.stackIndex;
 }
 
+function sameCell(a: Coord, b: Coord): boolean {
+  return a.x === b.x && a.y === b.y && a.z === b.z;
+}
+
 function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
   return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight), spanPx);
 }
@@ -126,6 +134,12 @@ const LOOK_HOLD_SLOP_PX = 10;
 const PICK_LEVEL_SLACK = 1;
 
 const APPROACH_PATIENCE_MS = 1000;
+
+/**
+ * The most steps apart, on the grid, a cell can be from a thing it still acts
+ * on: the corner of talking reach. The 3×3 object window is two steps.
+ */
+const APPROACH_WITHIN_CELLS = Math.floor(TALK_REACH_CELLS * Math.SQRT2);
 
 const REACHES: readonly Reach[] = ["foot", "sprite"];
 
@@ -900,7 +914,9 @@ export class GameRenderer {
     const snap = this.session.getSnapshot();
     const view = this.walkView(snap, this.cameraFor(snap));
     if (!view) return;
-    walkTo.approach(option.ref, view);
+    const offered = (options: readonly InteractionOption[]) =>
+      options.some((o) => o.id === option.id && o.label === option.label);
+    walkTo.approach(option.ref, this.reaching(option.ref, offered), view);
     this.approaching = walkTo.approaching
       ? { id: option.id, label: option.label, stillSinceMs: null }
       : null;
@@ -1223,24 +1239,74 @@ export class GameRenderer {
   }
 
   /**
-   * Asks the full option list what `ref` offers to a player standing where a
-   * walk beside it would end, so every reach rule, including which side a push
-   * goes from, is the one the walk will meet on arrival.
+   * Asks what `ref` offers from the nearest cell a route reaches that offers
+   * anything, so talking reach, a ladder you stand on and a counter between
+   * you and a shopkeeper are the rules the walk will meet on arrival. That
+   * cell can be a corner, where a push or a switch is not offered, so the cell
+   * a walk beside `ref` ends on is asked as well.
    */
   private optionsFromAfar(ref: ObjectRef): InteractionOption[] {
     const snap = this.session.getSnapshot();
     if (!this.offersFromAfar(snap, ref)) return [];
     const view = this.walkView(snap, this.cameraFor(snap));
     if (!view) return [];
-    const stand = approachStand(view, ref);
-    if (!stand) return [];
-    const standsStill =
-      stand.x === snap.self.x && stand.y === snap.self.y && stand.z === snap.self.z;
+    const nearest = approachStand(
+      view,
+      ref,
+      this.reaching(ref, (options) => options.length > 0),
+    );
+    if (!nearest) return [];
+    const beside = approachStand(view, ref, "beside");
+    const found = this.optionsStandingAt(snap, nearest, ref);
+    if (beside && !sameCell(beside, nearest)) {
+      const seen = new Set(found.map((option) => option.id));
+      for (const option of this.optionsStandingAt(snap, beside, ref)) {
+        if (!seen.has(option.id)) found.push(option);
+      }
+    }
+    return rankedInteractionsAt(found, ref);
+  }
+
+  /** Reads the board afresh on each call, since a walk asks it at every leg. */
+  private reaching(
+    ref: ObjectRef,
+    offers: (options: readonly InteractionOption[]) => boolean,
+  ): Reaching {
+    return {
+      within: APPROACH_WITHIN_CELLS,
+      accepts: (cell) => {
+        const snap = this.session.getSnapshot();
+        return offers(rankedInteractionsAt(this.optionsStandingAt(snap, cell, ref), ref));
+      },
+    };
+  }
+
+  private optionsStandingAt(snap: GameSnapshot, cell: Coord, ref: ObjectRef): InteractionOption[] {
+    const standsStill = sameCell(cell, snap.self);
     const stackIndex = standsStill
       ? snap.self.stackIndex
-      : getStack(snap.map, stand.x, stand.y, stand.z).length;
-    const self = { ...snap.self, ...stand, stackIndex };
-    return rankedInteractionsAt(this.optionsFrom(snap, self, this.interactionsActors), ref);
+      : getStack(snap.map, cell.x, cell.y, cell.z).length;
+    const self = { ...snap.self, x: cell.x, y: cell.y, z: cell.z, stackIndex };
+    return refOptionsFrom(
+      snap.map,
+      this.tilesById,
+      self,
+      this.interactionsActors,
+      ref,
+      this.refContext(snap),
+    );
+  }
+
+  private refContext(snap: GameSnapshot): RefContext {
+    return {
+      equipment: snap.equipment,
+      openedRef: this.openedRef,
+      tags: snap.tags,
+      spawnAt: snap.spawnAt,
+      extracting: snap.extracting,
+      conversation: snap.conversation,
+      craftingRef: this.craftingRef,
+    };
   }
 
   /** A body only offers Talk from afar: Attack, Target and Follow already reach it. */

@@ -2806,16 +2806,26 @@ nothing more. Now a mouse over it shows "Open", and a left click walks there
 and opens it. This is the screen click only; the list still shows only what
 is in reach, because it is a list of what you can do from where you stand.
 
-- **What a far thing offers is asked from where the walk would stop.**
-  `approachStand` runs the same `findPath` the walk will (`arrive: "beside"`)
-  and returns its last cell. `GameRenderer.optionsFromAfar` then calls
-  `listInteractionOptions` with the player moved to that cell. Every reach rule
-  — a switch's orthogonal neighbour, `REACH_CELLS`, `TALK_REACH_CELLS`, line of
-  sight, which way a push goes — is therefore the rule the player will meet on
-  arrival, with no list of "far verbs" to keep in step with `affordances.ts`.
-  A thing with no route offers nothing, so the hover never promises a walk
-  that cannot happen. The answer is cached per ref until `interactionsSent`
-  changes.
+- **The walk stops on the first cell from which the verb is offered**, not
+  beside the thing. `findPath` takes a third kind of arrival, `Reaching`: any
+  cell its `accepts` takes, with `within` bounding how far such a cell can be
+  from the goal so the search's estimate stays a lower bound. The predicate is
+  `refOptionsFrom` — the near list's own rules for one thing, asked with the
+  player moved to the candidate cell. Two cases needed it:
+  - *A ladder is used from on top of it* (`interactOver`), and a walk that
+    stops beside its goal never stands there.
+  - *A shopkeeper behind a counter has no cell beside them anybody can reach.*
+    A beside-route was refused and the hover offered nothing; the walk now
+    stops at the first cell in talking reach with line of sight.
+  Every other reach rule — a switch's straight neighbour, `REACH_CELLS`, which
+  way a push goes — comes along with no list of "far verbs" to keep in step
+  with `affordances.ts`.
+- **The hover asks two cells.** It asks the first cell from which the thing
+  offers anything. That can be a corner, where a push or a switch is not
+  offered, so it also asks the cell a walk beside the thing ends on. A click
+  then walks to the nearest cell offering the verb that was clicked. A thing
+  with no route offers nothing, so the hover never promises a walk that cannot
+  happen. The answer is cached per ref until `interactionsSent` changes.
 - **Near and far verbs are ranked as one list** (`pointerOptions`), so a far
   verb can take the left button from a near one. A shopkeeper with hit points
   is the case that matters: Attack is in reach from anywhere, but Talk ranks

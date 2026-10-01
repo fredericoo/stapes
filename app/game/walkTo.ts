@@ -1,7 +1,13 @@
 import type { HeldDirections } from "./heldDirections";
 import { listStandingSurfaces, standingAbs } from "./movement";
 import { noRouteNotice } from "./notices";
-import { dropLanding, findPath, type PathOptions, type PathRefusal } from "./pathfinding";
+import {
+  dropLanding,
+  findPath,
+  type PathOptions,
+  type PathRefusal,
+  type Reaching,
+} from "./pathfinding";
 import { absoluteStandingElevation, getStack } from "../lib/mapData";
 import type { StatusDef } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
@@ -20,8 +26,6 @@ export type WalkView = {
 type Errand =
   | { kind: "cell"; at: Coord; arrive: NonNullable<PathOptions["arrive"]>; linger: boolean }
   | { kind: "body"; actorId: string };
-
-const BESIDE_ROUTE: PathOptions = { arrive: "beside", drops: "toGoal" };
 
 export class WalkTo {
   private errand: Errand | null = null;
@@ -61,12 +65,13 @@ export class WalkTo {
   }
 
   /**
-   * Walks beside `goal` and then holds the errand, so whoever is waiting to act
-   * there can see it arrive. It ends on `cancel`, or when a key is pressed.
+   * Walks to the nearest cell `reaching` accepts around `goal` and then holds
+   * the errand, so whoever is waiting to act there can see it arrive. It ends
+   * on `cancel`, or when a key is pressed.
    */
-  approach(goal: Coord, view: WalkView) {
+  approach(goal: Coord, reaching: Reaching, view: WalkView) {
     this.begin(
-      { kind: "cell", at: { x: goal.x, y: goal.y, z: goal.z }, arrive: "beside", linger: true },
+      { kind: "cell", at: { x: goal.x, y: goal.y, z: goal.z }, arrive: reaching, linger: true },
       view,
     );
   }
@@ -203,10 +208,14 @@ export class WalkTo {
 }
 
 /**
- * The cell `approach` would stop on beside `goal`, or null when no route
- * reaches it. It is where a thing out of reach is asked what it offers.
+ * The cell a walk to `goal` would stop on, or null when no route reaches it.
+ * It is where a thing out of reach is asked what it offers.
  */
-export function approachStand(view: WalkView, goal: Coord): Coord | null {
+export function approachStand(
+  view: WalkView,
+  goal: Coord,
+  arrive: NonNullable<PathOptions["arrive"]>,
+): Coord | null {
   const from = view.stepping ?? view.at;
   const found = findPath(
     view.map,
@@ -215,7 +224,7 @@ export function approachStand(view: WalkView, goal: Coord): Coord | null {
     view.def,
     view.tilesById,
     view.statusDefs,
-    BESIDE_ROUTE,
+    { arrive, drops: "toGoal" },
   );
   if (!found.ok) return null;
   const last = found.route.at(-1)?.to ?? from;

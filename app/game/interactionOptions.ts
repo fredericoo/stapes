@@ -223,6 +223,66 @@ export function listInteractionOptions(
     .map((ranked) => ranked.option);
 }
 
+export type RefContext = {
+  equipment: Equipment;
+  openedRef: ObjectRef | null;
+  tags: readonly string[];
+  spawnAt: Coord | null;
+  extracting: Extraction | null;
+  conversation: Conversation | null;
+  craftingRef: ObjectRef | null;
+};
+
+/**
+ * The Talk and object options `listInteractionOptions` would give `ref` for
+ * `self`, without the rest of the board. It is asked once per cell a search
+ * reaches, so it keeps the same 3×3 and level window `objectOptions` does
+ * rather than looking at `ref` from wherever `self` is.
+ */
+export function refOptionsFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  visibleActors: readonly ActorSnapshot[],
+  ref: ObjectRef,
+  context: RefContext,
+): InteractionOption[] {
+  const bodies = bodiesByCell(self, visibleActors);
+  const body = bodies.get(refKey(ref));
+  const out = body
+    ? talkOptions(map, tilesById, self, new Map([[refKey(ref), body]]), context.conversation)
+    : [];
+  if (!inObjectWindow(self, ref)) return out;
+  const nameOf = bodyNameIn([self, ...visibleActors], tilesById);
+  out.push(
+    ...slotOptions(
+      map,
+      tilesById,
+      self,
+      bodies,
+      nameOf,
+      context.equipment,
+      ref,
+      context.openedRef,
+      context.tags,
+      context.spawnAt,
+      context.extracting,
+      context.craftingRef,
+    ),
+  );
+  return out;
+}
+
+function inObjectWindow(self: ActorSnapshot, ref: ObjectRef): boolean {
+  return (
+    Math.abs(ref.x - self.x) <= 1 &&
+    Math.abs(ref.y - self.y) <= 1 &&
+    Math.abs(ref.z - self.z) <= INTERACT_LEVEL_SLACK &&
+    ref.z >= MIN_LEVEL &&
+    ref.z <= MAX_LEVEL
+  );
+}
+
 function compareRows(a: InteractionOption, b: InteractionOption): number {
   return (
     ACTION_ORDER[a.action] - ACTION_ORDER[b.action] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
