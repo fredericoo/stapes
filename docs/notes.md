@@ -13233,6 +13233,14 @@ Every later run finds both. A username takes letters, digits, underscores and
 dots, so the default is `wandererbot`, not `wanderer-bot`. The password has a
 default too. It is in the repository, so set your own on anything public.
 
+**A server can start its own bots.** `BOTS=n` in the server's environment
+starts `n` bot processes when it begins listening (`server/bots.ts`), named
+from `BOT_NAMES` with accounts `<name>bot` and the password `BOT_PASSWORD`.
+Each is passed only the variables a bot reads, never `ADMIN_SECRET`. One that
+exits is started again after `BOT_RESTART_MS`, and all of them are stopped
+when the server starts to drain. Each runs with `--smol` to share a preview's
+memory limit with the server.
+
 **The address is not the origin.** `STAPES_URL` is where the requests go, and
 `STAPES_ORIGIN` (default: the same) is what they send as `Origin`. A deployed
 server accepts sign-ins only from its public origin, so a bot that reaches it

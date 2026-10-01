@@ -17,6 +17,13 @@ const schema = v.object({
 
   PUBLIC_ORIGIN: v.optional(v.string(), "http://localhost:3000"),
 
+  BOTS: v.optional(
+    v.pipe(v.string(), v.transform(Number), v.number(), v.integer(), v.minValue(0)),
+    "0",
+  ),
+
+  BOT_PASSWORD: v.optional(v.string(), "wanderer-bot-password"),
+
   CHECKPOINT_INTERVAL_MS: v.optional(
     v.pipe(v.string(), v.transform(Number), v.number(), v.minValue(100)),
     "2000",
