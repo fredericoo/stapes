@@ -1,3 +1,5 @@
+import { STYLES, type Style } from "./gear";
+
 /**
  * What sets one bot apart from another. Bots that shared one set of numbers
  * made the same choice in the same frame, and a crowd of them moved as one.
@@ -46,6 +48,13 @@ export type Temperament = {
    */
   readonly stretchMinLegs: number;
   readonly stretchMaxLegs: number;
+  /** The weapon mastery the bot grows, and so the weapons it buys. */
+  readonly style: Style;
+  /**
+   * Fighting with a ranged weapon, the bot steps back from a foe closer than
+   * this, and otherwise stands and shoots from as far as the weapon reaches.
+   */
+  readonly kiteCells: number;
 };
 
 export const DEFAULT_TEMPERAMENT: Temperament = {
@@ -68,6 +77,8 @@ export const DEFAULT_TEMPERAMENT: Temperament = {
   glanceMaxMs: 6_000,
   stretchMinLegs: 6,
   stretchMaxLegs: 18,
+  style: "sharp",
+  kiteCells: 3.5,
 };
 
 /** How far each number may stray from `DEFAULT_TEMPERAMENT`, as a share of it. */
@@ -107,6 +118,8 @@ export function drawTemperament(random: () => number): Temperament {
     glanceMaxMs: Math.max(glanceMinMs, near(d.glanceMaxMs)),
     stretchMinLegs,
     stretchMaxLegs: Math.max(stretchMinLegs, whole(d.stretchMaxLegs)),
+    style: STYLES[Math.floor(random() * STYLES.length)]!,
+    kiteCells: near(d.kiteCells, 0.15),
   };
 }
 

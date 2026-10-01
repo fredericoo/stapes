@@ -3,7 +3,11 @@ import { cellGoal, levelGoal, type NavGoal } from "../app/game/navigation";
 import type { ObjectRef } from "../app/game/affordances";
 import type { Equipment } from "../app/game/equipment";
 import { MAX_LEVEL, MIN_LEVEL, type Coord } from "../app/lib/types";
+import type { ActorSnapshot } from "../app/game/GameSession";
+import type { BattlerDef } from "../app/lib/battler";
+import type { Deal, Economy } from "./economy";
 import { exploredKey, type Knowledge } from "./knowledge";
+import type { Landmarks } from "./memory";
 
 const level = v.pipe(v.number(), v.integer(), v.minValue(MIN_LEVEL), v.maxValue(MAX_LEVEL));
 const coordinate = v.pipe(v.number(), v.integer());
@@ -16,6 +20,12 @@ export const goalSchema = v.variant("goal", [
   v.object({
     goal: v.literal("explore"),
     toward: v.optional(v.object({ x: coordinate, y: coordinate })),
+  }),
+  v.object({ goal: v.literal("shop") }),
+  v.object({ goal: v.literal("sell") }),
+  v.object({
+    goal: v.literal("gather"),
+    pulls: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
   }),
   v.object({
     goal: v.literal("rest"),
@@ -37,18 +47,34 @@ export function describeGoal(goal: Goal): string {
       return "hunt";
     case "explore":
       return goal.toward ? `explore toward ${goal.toward.x},${goal.toward.y}` : "explore";
+    case "shop":
+      return "buy what I can afford and need";
+    case "sell":
+      return "sell what I carry and do not need";
+    case "gather":
+      return `gather ${goal.pulls} times`;
     case "rest":
       return `rest for ${goal.seconds}s`;
   }
 }
 
 /**
- * One leg of a goal: where to walk, what to press on arrival, and the edge
- * cell it is exploring, if that is what it is for.
+ * What a bot does on arriving: press a thing, talk an NPC through a trade,
+ * or work a resource until it gives.
+ */
+export type Act =
+  | { readonly kind: "press"; readonly ref: ObjectRef }
+  | { readonly kind: "talk"; readonly deal: Deal; readonly at: Coord }
+  | { readonly kind: "gather"; readonly ref: ObjectRef }
+  | { readonly kind: "visit"; readonly tileId: string; readonly at: Coord };
+
+/**
+ * One leg of a goal: where to walk, what to do on arrival, and the edge cell
+ * it is exploring, if that is what it is for.
  */
 export type Errand = {
   readonly nav: NavGoal;
-  readonly press: ObjectRef | null;
+  readonly act: Act | null;
   readonly explores: Coord | null;
 };
 
@@ -57,6 +83,8 @@ export type Recall = {
   readonly skipped: ReadonlySet<string>;
   readonly explored: ReadonlySet<string>;
   readonly random: () => number;
+  /** Pulls finished since the current goal was set. */
+  readonly pulls: number;
 };
 
 /**
@@ -66,7 +94,18 @@ export type Recall = {
  */
 export const EXPLORE_CHOICES = 12;
 
-export type Holdings = { readonly equipment: Equipment; readonly tags: readonly string[] };
+export type Holdings = {
+  readonly equipment: Equipment;
+  readonly tags: readonly string[];
+  readonly body: BattlerDef | null;
+};
+
+/** What the bot knows of trade: the catalogue's offers, the fleet's memory, and who is in view. */
+export type Market = {
+  readonly economy: Economy;
+  readonly landmarks: Landmarks;
+  readonly bodies: readonly ActorSnapshot[];
+};
 
 /**
  * The next errand towards a goal, or `"done"` when there is nothing left to
@@ -79,27 +118,47 @@ export function nextErrand(
   self: Coord,
   holdings: Holdings,
   recall: Recall,
+  market: Market,
 ): Errand | "done" | "rest" | "exhausted" {
   switch (goal.goal) {
     case "reach_level":
       return self.z >= goal.level
         ? "done"
-        : { nav: levelGoal(goal.level), press: null, explores: null };
+        : { nav: levelGoal(goal.level), act: null, explores: null };
     case "go_to": {
       const nav = cellGoal({ x: goal.x, y: goal.y, z: goal.z }, "beside");
-      return nav.reached(self) ? "done" : { nav, press: null, explores: null };
+      return nav.reached(self) ? "done" : { nav, act: null, explores: null };
     }
     case "open_rewards": {
       const offers = knowledge
         .rewardsOnOffer(holdings.tags)
-        .filter(({ ref }) => !recall.skipped.has(`${ref.x},${ref.y},${ref.z},${ref.stackIndex}`));
+        .filter(({ ref }) => !recall.skipped.has(refKey(ref)));
       const nearest = offers.sort((a, b) => distance(self, a.ref) - distance(self, b.ref))[0];
       if (!nearest) return "done";
       return {
         nav: knowledge.rewardGoal(nearest.ref, holdings.equipment, holdings.tags),
-        press: nearest.ref,
+        act: { kind: "press", ref: nearest.ref },
         explores: null,
       };
+    }
+    case "shop":
+    case "sell": {
+      if (!holdings.body) return "done";
+      const { economy } = market;
+      const deals =
+        goal.goal === "shop"
+          ? economy.purchases(holdings.equipment, holdings.body)
+          : economy.sales(holdings.equipment, holdings.body);
+      if (deals.length === 0) return "done";
+      for (const deal of deals) {
+        const errand = talkErrand(deal, knowledge, self, recall, market);
+        if (errand) return errand;
+      }
+      return exploreErrand(knowledge, self, null, recall) ?? "exhausted";
+    }
+    case "gather": {
+      if (recall.pulls >= goal.pulls || !holdings.body) return "done";
+      return gatherErrand(knowledge, self, holdings, recall, market) ?? "done";
     }
     case "explore":
     case "hunt":
@@ -150,7 +209,93 @@ export function exploreErrand(
     : knowledge.standingCellsAround(self, ROAM_NEAR_CELLS, ROAM_FAR_CELLS).filter(fresh);
   if (choices.length === 0) return null;
   const target = choices[Math.floor(recall.random() * choices.length)]!;
-  return { nav: cellGoal(target, "on"), press: null, explores: target };
+  return { nav: cellGoal(target, "on"), act: null, explores: target };
+}
+
+/**
+ * Talk is a counter's width, not an arm's: `canTalkFrom` allows 3.5 cells.
+ * A bot stops a little inside it, so a step by the NPC does not end the talk.
+ */
+export const TALK_CELLS = 3;
+
+/**
+ * The walk to whoever makes a deal: the nearest one in view, else the
+ * nearest place the fleet remembers one. Null when nobody knows where any
+ * is, which is a reason to explore.
+ */
+function talkErrand(
+  deal: Deal,
+  knowledge: Knowledge,
+  self: Coord,
+  recall: Recall,
+  market: Market,
+): Errand | null {
+  const npc = deal.offer.npc;
+  const at = whereIs(npc, self, market, recall.skipped);
+  if (!at) return null;
+  return {
+    nav: knowledge.talkGoal(at, TALK_CELLS),
+    act: { kind: "talk", deal, at },
+    explores: null,
+  };
+}
+
+/**
+ * The nearest resource in what the bot has seen whose yield it wants, else
+ * the nearest the fleet remembers. A resource with every pull taken by
+ * somebody else is passed over.
+ */
+function gatherErrand(
+  knowledge: Knowledge,
+  self: Coord,
+  holdings: Holdings,
+  recall: Recall,
+  market: Market,
+): Errand | null {
+  const wanted = market.economy.wanted(holdings.equipment, holdings.body!);
+  const found = knowledge
+    .resources(wanted)
+    .filter(({ ref }) => !recall.skipped.has(refKey(ref)))
+    .sort((a, b) => distance(self, a.ref) - distance(self, b.ref));
+  for (const { ref, tileId } of found) market.landmarks.saw(tileId, ref);
+  const nearest = found[0];
+  if (nearest) {
+    return {
+      nav: cellGoal(nearest.ref, "beside"),
+      act: { kind: "gather", ref: nearest.ref },
+      explores: null,
+    };
+  }
+  for (const tileId of knowledge.resourceTileIds(wanted)) {
+    const at = market.landmarks
+      .where(tileId, self)
+      .find((spot) => !recall.skipped.has(landmarkKey(tileId, spot)));
+    if (at)
+      return { nav: cellGoal(at, "beside"), act: { kind: "visit", tileId, at }, explores: null };
+  }
+  return null;
+}
+
+/** The nearest of `npc` in view, else the nearest place the fleet remembers one not given up on. */
+export function whereIs(
+  npc: string,
+  self: Coord,
+  market: Market,
+  skipped: ReadonlySet<string>,
+): Coord | null {
+  const seen = market.bodies
+    .filter((body) => body.tileId === npc)
+    .sort((a, b) => distance(self, a) - distance(self, b))[0];
+  if (seen) return { x: seen.x, y: seen.y, z: seen.z };
+  return market.landmarks.where(npc, self).find((at) => !skipped.has(landmarkKey(npc, at))) ?? null;
+}
+
+export function refKey(ref: ObjectRef): string {
+  return `${ref.x},${ref.y},${ref.z},${ref.stackIndex}`;
+}
+
+export function landmarkKey(tileId: string, at: Coord): string {
+  return `${tileId}@${at.x},${at.y},${at.z}`;
 }
 
 function planDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
