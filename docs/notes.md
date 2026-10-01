@@ -2472,13 +2472,14 @@ started at the mouth and only took `canWalk` steps reached none of them: it
 reported 355 cells nobody could walk to, and a bat walled in behind a door.
 
 The walk now starts at the `player` marker as well as at the mouth, because
-that is where everybody enters the world, and the tutorial's only way out is a
-one-way portal. It treats every door as open, since anybody who reaches one
-can open it: a tile whose `switch` turns it into an intangible tile is
-switched before the walk. And from every cell it reaches it takes the ladders
-and portals in that cell's stack, asking `canTeleportFrom` and `teleportFits`,
-the same questions the game asks before it moves a body. A ladder whose top is
-covered by something is still refused, as it is in the game.
+that is where everybody enters the world, and the tutorial's only way out
+starts with a drop nobody can climb back up. The walk is `reachableCells` in
+`app/game/navigation.ts`, the same graph `planRoute` searches: it walks
+through a door as though it were open, since anybody who reaches one can open
+it, falls wherever a step leaves a body in the air, and takes every ladder and
+portal it can use, asking `canTeleportFrom` and `teleportFits`, the same
+questions the game asks before it moves a body. A ladder whose top is covered
+by something is still refused, as it is in the game.
 
 A dirt cell only has to be reached if a body could stand in it: a walkable
 surface on that level with room for `player` above it. The check used to

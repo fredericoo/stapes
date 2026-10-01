@@ -305,3 +305,27 @@ function unwind(node: Node): NavLeg[] {
   for (let at: Node | null = node; at?.leg; at = at.cameFrom) legs.push(at.leg);
   return legs.reverse();
 }
+
+/**
+ * Every standing cell reachable from `starts`, keyed by `cellKey`. The walk
+ * `carve:caves --verify` checks the underground with.
+ */
+export function reachableCells(world: NavWorld, starts: readonly Coord[]): Map<string, Coord> {
+  const seen = new Map<string, Coord>();
+  const queue: Coord[] = [];
+  for (const start of starts) {
+    const key = cellKey(start);
+    if (seen.has(key)) continue;
+    seen.set(key, start);
+    queue.push(start);
+  }
+  for (let head = 0; head < queue.length; head++) {
+    for (const leg of navigationLegs(world, queue[head]!)) {
+      const key = cellKey(leg.to);
+      if (seen.has(key)) continue;
+      seen.set(key, leg.to);
+      queue.push(leg.to);
+    }
+  }
+  return seen;
+}
