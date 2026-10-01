@@ -7044,8 +7044,11 @@ reads the light grid last uploaded to the GPU, carried lights included, tinted b
 the same ambient the shader uses, and counts the eight neighbours as well as the
 cell because the light texture is linearly filtered: a body one cell from a lit
 one is half lit on screen and stays named. The threshold is `PITCH_BLACK_LIGHT`,
-2% on every channel. Open ground at night is dim, not black, so it keeps its
-tags.
+12% on every channel, set just above the brightest channel of the night
+keyframe in `ILLUMINATION_KEYFRAMES` (blue, 0.1). Open ground under the night sky
+therefore counts as black and hides its tags: at night a body is named only near
+a light. Brightening the night keyframe past the threshold brings the tags back
+outdoors; the `isPitchBlack` test samples the clock at 02:00 to catch that.
 
 The interaction list drops the same bodies, and every row whose subject is one:
 `targetableActors` leaves them out, and the list is then filtered by reference,
