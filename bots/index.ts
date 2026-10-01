@@ -40,7 +40,7 @@ function log(line: string) {
 const GOALS: readonly Goal[] = [
   { goal: "open_rewards" },
   { goal: "reach_level", level: 0 },
-  { goal: "explore" },
+  { goal: "hunt" },
 ];
 
 async function play(): Promise<"again" | "stop"> {

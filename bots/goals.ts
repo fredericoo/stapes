@@ -12,6 +12,7 @@ export const goalSchema = v.variant("goal", [
   v.object({ goal: v.literal("reach_level"), level }),
   v.object({ goal: v.literal("go_to"), x: coordinate, y: coordinate, z: level }),
   v.object({ goal: v.literal("open_rewards") }),
+  v.object({ goal: v.literal("hunt") }),
   v.object({
     goal: v.literal("explore"),
     toward: v.optional(v.object({ x: coordinate, y: coordinate })),
@@ -32,6 +33,8 @@ export function describeGoal(goal: Goal): string {
       return `go to ${goal.x},${goal.y} on level ${goal.z}`;
     case "open_rewards":
       return "open every reward I know of";
+    case "hunt":
+      return "hunt";
     case "explore":
       return goal.toward ? `explore toward ${goal.toward.x},${goal.toward.y}` : "explore";
     case "rest":
@@ -99,7 +102,15 @@ export function nextErrand(
       };
     }
     case "explore":
-      return exploreErrand(knowledge, self, goal.toward ?? null, recall) ?? "exhausted";
+    case "hunt":
+      return (
+        exploreErrand(
+          knowledge,
+          self,
+          goal.goal === "explore" ? (goal.toward ?? null) : null,
+          recall,
+        ) ?? "exhausted"
+      );
     case "rest":
       return "rest";
   }

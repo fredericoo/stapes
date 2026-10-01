@@ -32,13 +32,14 @@ export class Knowledge {
     this.seenChunks = seen;
   }
 
-  world(selfId: string): NavWorld {
+  world(selfId: string, penalty?: (cell: Coord) => number): NavWorld {
     return {
       board: this.board,
       traveller: this.tilesById.player!,
       tilesById: this.tilesById,
       statusDefs: this.statusDefs,
       who: selfId,
+      ...(penalty ? { penalty } : {}),
     };
   }
 

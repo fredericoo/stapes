@@ -13286,11 +13286,12 @@ two cells and fights until that creature is gone or out of reach. When a goal
 asks for a place nobody has seen, such as a level with no known way up, the
 bot explores towards it instead of giving up.
 
-**A planner chooses the goal, and nothing finer.** A goal is one of five:
+**A planner chooses the goal, and nothing finer.** A goal is one of six:
 
 - `reach_level`
 - `go_to`
 - `open_rewards`
+- `hunt`
 - `explore`
 - `rest`
 
@@ -13305,7 +13306,7 @@ bot explores towards it instead of giving up.
 It is never asked per step. The one planner is `ScriptedPlanner`. It works
 through a fixed list in order, asks for a failed goal again, and keeps the
 last goal once the list runs out. `bun run bots` gives it `open_rewards`, then
-`reach_level` 0, then `explore`. `bots/Bot.test.ts` gives it the first two and
+`reach_level` 0, then `hunt`. `bots/Bot.test.ts` gives it the first two and
 plays the tutorial's shape against a real `GameServer` over the real
 protocol.
 
@@ -13330,6 +13331,37 @@ creature along its way awake on the server, so the loitering is also how it
 limits its load on the server. A goal that finds no route waits
 `FAILED_PAUSE_MS` before it is searched again, so the bot does not search
 every frame.
+
+**A bot judges a creature by its rating, and acts before the goal does.**
+Every frame, before its goal, a bot checks three things in order:
+
+1. **It avoids threats.** A threat is a creature rated above `THREAT_RATIO`
+   (125%) of the bot's own rating that can hurt it. A creature with no natural
+   damage and no spell, such as a rabbit, is never a threat, because rating
+   counts agility and a rabbit outrates a new player. The bot backs away to the
+   cell furthest from every threat within `WARY_CELLS`, and it backs away from
+   the creature it is fighting once its health falls below `FLEE_HP_SHARE`.
+   It drops a fight only once it has found somewhere to back away to, so a bot
+   with nowhere to go stays and fights. Every route pays `THREAT_PENALTY` for
+   each cell within `THREAT_BERTH_CELLS` of a threat (`NavWorld.penalty`).
+2. **It fights its foe.** It strikes from within `STRIKE_REACH_CELLS`, and
+   walks after the foe when it is further away. It gives up after
+   `CHASE_GIVE_UP_MS`, because deer and rabbits run faster than a player
+   walks. A creature that hurts a bot with no foe becomes its foe.
+3. **It eats.** Below `EAT_HP_SHARE` of its health, it eats the bag's food
+   that heals most. Food that can give a bad status, such as raw meat or
+   anything stale, is never eaten to heal.
+
+`hunt` picks prey with `choosePrey`: never a threat, and never a creature
+within `WARY_CELLS` of one. It takes a creature rated at least a third of the
+bot's own rating before one rated lower, because below that a kill earns no
+experience. When it can see no prey, it explores the way `explore` does. With
+`hunt` as the last goal, two bots on the shipped world ran for five minutes
+without dying.
+
+On the shipped world, rats count as threats to a new character. A rat's
+agility rates it about 8.9 against a new player's 6, although its bite does 1
+damage.
 
 **A bot always wears a light if it has one.** `nextDressing`
 (`bots/dress.ts`) runs before the goal, every frame. When nothing the bot

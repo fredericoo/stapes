@@ -1,9 +1,10 @@
 import type { ObjectRef } from "../app/game/affordances";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
-import { NAVIGATION_MAX_NODES, planRoute } from "../app/game/navigation";
+import { cellGoal, NAVIGATION_MAX_NODES, planRoute } from "../app/game/navigation";
 import type { StatusDef } from "../app/lib/status";
 import type { Coord, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
+import { choosePrey, creaturesAround, healingFood, isThreat, reach, steps } from "./combat";
 import { nextDressing } from "./dress";
 import { describeGoal, exploreErrand, nextErrand, type Errand, type Goal } from "./goals";
 import { exploredKey, Knowledge } from "./knowledge";
@@ -43,7 +44,51 @@ export const EXPLORE_MAX_NODES = 8_000;
 /** Edge cells tried in one search before an explore counts as failed. */
 export const EXPLORE_ATTEMPTS = 4;
 
-export const FIGHT_REACH_CELLS = 2;
+/** A threat this close is backed away from. */
+export const WARY_CELLS = 7;
+
+/** Routes pay `THREAT_PENALTY` a cell to keep this far from a threat. */
+export const THREAT_BERTH_CELLS = 4;
+
+export const THREAT_PENALTY = 6;
+
+/** Below this share of its health a bot backs away from the fight it is in. */
+export const FLEE_HP_SHARE = 0.35;
+
+/** Below this share of its health a bot eats, if it has something safe to. */
+export const EAT_HP_SHARE = 0.6;
+
+export const EAT_RETRY_MS = 3_000;
+
+/** Backing away is to a cell this far off, as far from the danger as any. */
+export const FLEE_NEAR_CELLS = 8;
+
+export const FLEE_FAR_CELLS = 18;
+
+export const FLEE_MS = 6_000;
+
+/** A creature this close that hurt the bot is the one it turns on. */
+export const RETALIATE_CELLS = 2;
+
+/** Bare hands and the swords a bot picks up reach this far. */
+export const STRIKE_REACH_CELLS = 1.5;
+
+/** A chase replans when its quarry has moved, but no more often than this. */
+export const CHASE_REPLAN_MS = 600;
+
+/**
+ * Deer and rabbits flee faster than a player walks, so a chase that has not
+ * closed in this long is given up and the quarry left alone for a while.
+ */
+export const CHASE_GIVE_UP_MS = 15_000;
+
+export const PREY_FORGET_MS = 120_000;
+
+/** Prey further away than this is not worth setting off after. */
+export const HUNT_SIGHT_CELLS = 16;
+
+/** Route budget for a chase or a flight, which only ever go a short way. */
+export const SHORT_ROUTE_MAX_NODES = 4_000;
 
 export const DRESS_RETRY_MS = 1_000;
 
@@ -63,6 +108,7 @@ export type BotBody = Pick<
   | "rebirth"
   | "drainNotices"
   | "moveItem"
+  | "consume"
 >;
 
 type Course =
@@ -92,7 +138,11 @@ export class Bot {
   private lastAskMs = 0;
   private lastMove: { at: string; sinceMs: number } = { at: "", sinceMs: 0 };
   private lastHp: number | null = null;
-  private foe: string | null = null;
+  private foe: { id: string; sinceMs: number } | null = null;
+  private chase: { pilot: Pilot; toward: string; plannedMs: number } | null = null;
+  private flight: { pilot: Pilot; untilMs: number } | null = null;
+  private preySkipped = new Map<string, number>();
+  private lastEatMs = -Infinity;
   private deadSinceMs: number | null = null;
   private lastDressMs = -Infinity;
   private nowMs = 0;
@@ -120,13 +170,14 @@ export class Bot {
 
     const snapshot = this.body.getSnapshot();
     for (const notice of this.body.drainNotices()) this.happen(notice);
-    this.fightBack(snapshot);
+    const self = snapshot.self;
+    const hurt = this.lastHp !== null && self.hp !== null && self.hp < this.lastHp;
+    this.lastHp = self.hp;
     this.dress(snapshot, nowMs);
+    this.eat(snapshot, nowMs);
     this.maybeAsk(nowMs);
-    if (this.foe) {
-      this.body.setInput({ directions: [] });
-      return;
-    }
+    if (this.evade(snapshot, nowMs)) return;
+    if (this.fight(snapshot, nowMs, hurt)) return;
     this.pursue(snapshot, nowMs);
   }
 
@@ -135,6 +186,8 @@ export class Bot {
       this.deadSinceMs = nowMs;
       this.course = { kind: "idle" };
       this.foe = null;
+      this.chase = null;
+      this.flight = null;
       this.happen("you died and will come back where you last set your respawn");
       this.ask("died", null);
     }
@@ -144,6 +197,14 @@ export class Bot {
   private pursue(snapshot: GameSnapshot, nowMs: number) {
     const self = snapshot.self;
     if (!this.goal) return;
+
+    if (this.goal.goal === "hunt") {
+      const prey = this.preyIn(snapshot, nowMs);
+      if (prey) {
+        this.engage(prey.id, nowMs, `hunting ${nameOf(prey)}`);
+        return;
+      }
+    }
 
     if (this.course.kind === "rest") {
       if (nowMs >= this.course.untilMs) this.finish("done", `rested`);
@@ -203,7 +264,7 @@ export class Bot {
 
     const knowledge = new Knowledge(snapshot.map, snapshot.actors, this.tilesById, this.statusDefs);
     const holdings = { equipment: snapshot.equipment, tags: snapshot.tags };
-    const world = knowledge.world(self.id);
+    const world = knowledge.world(self.id, this.threatPenalty(snapshot));
     const at = { x: self.x, y: self.y, z: self.z };
 
     const recall = { skipped: this.skipped, explored: this.explored, random: this.random };
@@ -249,36 +310,172 @@ export class Bot {
   }
 
   /**
-   * Being hurt is the one thing that interrupts a route: the bot turns on the
-   * nearest creature within reach and fights until it is gone or out of reach.
+   * Backs away from every threat within `WARY_CELLS`, and from the creature it
+   * is fighting once its own health is low. Returns whether that took the
+   * frame. A fight is dropped only once there is somewhere to back away to;
+   * with nowhere, the bot stays and fights.
    */
-  private fightBack(snapshot: GameSnapshot) {
+  private evade(snapshot: GameSnapshot, nowMs: number): boolean {
     const self = snapshot.self;
-    const hurt = this.lastHp !== null && self.hp !== null && self.hp < this.lastHp;
-    this.lastHp = self.hp;
-
-    if (this.foe) {
-      const foe = snapshot.actors.find((a) => a.id === this.foe);
-      if (!foe || (foe.hp !== null && foe.hp <= 0) || reach(self, foe) > FIGHT_REACH_CELLS) {
-        this.happen(foe ? `stopped fighting ${nameOf(foe)}` : "the creature you fought is gone");
-        this.foe = null;
-        this.body.setAttackMode(false);
-        this.body.setTarget(null);
+    const creatures = creaturesAround(self, snapshot.actors, this.tilesById);
+    const dangers = creatures.filter(
+      (a) => isThreat(self, a, this.tilesById) && reach(self, a) <= WARY_CELLS,
+    );
+    const weak = self.hp !== null && !!self.maxHp && self.hp / self.maxHp < FLEE_HP_SHARE;
+    const foe = this.foe && creatures.find((a) => a.id === this.foe!.id);
+    if (weak && foe) dangers.push(foe);
+    if (dangers.length === 0) {
+      if (this.flight) {
+        this.flight = null;
+        this.course = { kind: "idle" };
       }
-      return;
+      return false;
     }
-    if (!hurt) return;
 
-    const nearest = snapshot.actors
-      .filter(
-        (a) => a.id !== self.id && a.tileId !== "player" && reach(self, a) <= FIGHT_REACH_CELLS,
-      )
-      .sort((a, b) => reach(self, a) - reach(self, b))[0];
-    if (!nearest) return;
-    this.foe = nearest.id;
-    this.happen(`${nameOf(nearest)} attacked you; fighting back`);
-    this.body.setTarget(nearest.id);
+    if (this.flight && nowMs < this.flight.untilMs) {
+      const state = this.flight.pilot.drive(this.body, self, snapshot.map, nowMs);
+      if (state !== "underway") this.flight = null;
+      return true;
+    }
+
+    const knowledge = new Knowledge(snapshot.map, snapshot.actors, this.tilesById, this.statusDefs);
+    const world = knowledge.world(self.id, this.threatPenalty(snapshot));
+    const at = { x: self.x, y: self.y, z: self.z };
+    const away = (cell: Coord) => Math.min(...dangers.map((d) => steps(cell, d)));
+    const refuges = knowledge
+      .standingCellsAround(at, FLEE_NEAR_CELLS, FLEE_FAR_CELLS)
+      .sort((a, b) => away(b) - away(a))
+      .slice(0, EXPLORE_ATTEMPTS);
+    for (const refuge of refuges) {
+      const route = planRoute(world, at, cellGoal(refuge, "on"), SHORT_ROUTE_MAX_NODES);
+      if (!route.ok) continue;
+      if (!this.flight) this.happen(`backing away from ${dangers.map(nameOf).join(", ")}`);
+      if (this.foe) this.disengage();
+      this.flight = { pilot: new Pilot(at, route.legs, this.tilesById), untilMs: nowMs + FLEE_MS };
+      this.course = { kind: "idle" };
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Fights the current foe: strikes it from within reach, and walks after it
+   * when it is further. Being hurt with no foe turns the bot on the nearest
+   * creature, which is how a bot answers a creature that attacked first.
+   */
+  private fight(snapshot: GameSnapshot, nowMs: number, hurt: boolean): boolean {
+    const self = snapshot.self;
+    const creatures = creaturesAround(self, snapshot.actors, this.tilesById);
+    if (!this.foe && hurt) {
+      const attacker = creatures
+        .filter((a) => reach(self, a) <= RETALIATE_CELLS)
+        .sort((a, b) => reach(self, a) - reach(self, b))[0];
+      if (attacker)
+        this.engage(attacker.id, nowMs, `${nameOf(attacker)} attacked you; fighting back`);
+    }
+    if (!this.foe) return false;
+
+    const foe = creatures.find((a) => a.id === this.foe!.id);
+    if (!foe) {
+      const gone = snapshot.actors.find((a) => a.id === this.foe!.id);
+      this.happen(gone ? `killed ${nameOf(gone)}` : "the creature you fought is gone");
+      this.disengage();
+      return false;
+    }
+
+    if (reach(self, foe) <= STRIKE_REACH_CELLS) {
+      this.chase = null;
+      this.body.setInput({ directions: [] });
+      return true;
+    }
+
+    if (nowMs - this.foe.sinceMs > CHASE_GIVE_UP_MS) {
+      this.preySkipped.set(foe.id, nowMs + PREY_FORGET_MS);
+      this.happen(`gave up chasing ${nameOf(foe)}`);
+      this.disengage();
+      return false;
+    }
+
+    const toward = cellOf(foe);
+    const stale = this.chase && this.chase.toward !== toward;
+    if (!this.chase || (stale && nowMs - this.chase.plannedMs > CHASE_REPLAN_MS)) {
+      const knowledge = new Knowledge(
+        snapshot.map,
+        snapshot.actors,
+        this.tilesById,
+        this.statusDefs,
+      );
+      const world = knowledge.world(self.id, this.threatPenalty(snapshot));
+      const at = { x: self.x, y: self.y, z: self.z };
+      const route = planRoute(world, at, cellGoal(foe, "beside"), SHORT_ROUTE_MAX_NODES);
+      if (!route.ok) {
+        this.preySkipped.set(foe.id, nowMs + PREY_FORGET_MS);
+        this.happen(`found no way to reach ${nameOf(foe)}`);
+        this.disengage();
+        return false;
+      }
+      this.chase = {
+        pilot: new Pilot(at, route.legs, this.tilesById),
+        toward,
+        plannedMs: nowMs,
+      };
+    }
+    const state = this.chase.pilot.drive(this.body, self, snapshot.map, nowMs);
+    if (state !== "underway") this.chase = null;
+    return true;
+  }
+
+  private engage(id: string, nowMs: number, why: string) {
+    this.happen(why);
+    this.foe = { id, sinceMs: nowMs };
+    this.chase = null;
+    this.course = { kind: "idle" };
+    this.body.setTarget(id);
     this.body.setAttackMode(true);
+  }
+
+  private disengage() {
+    this.foe = null;
+    this.chase = null;
+    this.body.setAttackMode(false);
+    this.body.setTarget(null);
+    this.body.setInput({ directions: [] });
+  }
+
+  private preyIn(snapshot: GameSnapshot, nowMs: number): ActorSnapshot | null {
+    const self = snapshot.self;
+    const threats = creaturesAround(self, snapshot.actors, this.tilesById).filter((a) =>
+      isThreat(self, a, this.tilesById),
+    );
+    const near = snapshot.actors.filter(
+      (a) => steps(self, a) <= HUNT_SIGHT_CELLS && threats.every((t) => steps(a, t) > WARY_CELLS),
+    );
+    const skipped = (id: string) => (this.preySkipped.get(id) ?? 0) > nowMs;
+    return choosePrey(self, near, this.tilesById, skipped);
+  }
+
+  private threatPenalty(snapshot: GameSnapshot): ((cell: Coord) => number) | undefined {
+    const self = snapshot.self;
+    const threats = creaturesAround(self, snapshot.actors, this.tilesById).filter((a) =>
+      isThreat(self, a, this.tilesById),
+    );
+    if (threats.length === 0) return undefined;
+    return (cell) =>
+      threats.some((t) => t.z === cell.z && steps(cell, t) <= THREAT_BERTH_CELLS)
+        ? THREAT_PENALTY
+        : 0;
+  }
+
+  private eat(snapshot: GameSnapshot, nowMs: number) {
+    const self = snapshot.self;
+    if (self.hp === null || !self.maxHp || self.hp / self.maxHp >= EAT_HP_SHARE) return;
+    if (nowMs - this.lastEatMs < EAT_RETRY_MS) return;
+    const index = healingFood(snapshot.equipment, this.tilesById, this.statusDefs);
+    if (index === null) return;
+    const tileId = snapshot.equipment.bag?.contents?.[index]?.tileId ?? "";
+    if (!this.body.consume({ kind: "slot", slot: { kind: "contents", index } })) return;
+    this.lastEatMs = nowMs;
+    this.happen(`ate ${this.tilesById[tileId]?.name ?? tileId}`);
   }
 
   /**
@@ -391,11 +588,6 @@ function refKey(ref: ObjectRef): string {
 
 function cellOf(at: Coord): string {
   return `${at.x},${at.y},${at.z}`;
-}
-
-function reach(a: Coord, b: Coord): number {
-  if (a.z !== b.z) return Infinity;
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function distance(a: Coord, b: Coord): number {

@@ -40,6 +40,8 @@ export type NavWorld = {
   readonly tilesById: Record<string, TileDef>;
   readonly statusDefs: Record<string, StatusDef>;
   readonly who?: string;
+  /** Extra cost for arriving at a cell, for places a caller would rather avoid. */
+  readonly penalty?: (cell: Coord) => number;
 };
 
 export type NavGoal = {
@@ -220,9 +222,10 @@ export function navigationLegs(world: NavWorld, at: Coord): NavLeg[] {
 }
 
 function costOf(world: NavWorld, from: Coord, leg: NavLeg): number {
-  if (leg.kind === "use") return USE_COST;
+  if (leg.kind === "use") return USE_COST + (world.penalty?.(leg.to) ?? 0);
   const walk = legCost(world.board, from, world.tilesById);
-  return walk + (leg.drop ? DROP_COST : 0) + (leg.opens ? USE_COST : 0);
+  const extra = world.penalty?.(leg.to) ?? 0;
+  return walk + (leg.drop ? DROP_COST : 0) + (leg.opens ? USE_COST : 0) + extra;
 }
 
 type Node = {
