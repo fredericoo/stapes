@@ -28186,7 +28186,8 @@
     "affectedByGravity": true,
     "interactions": {
       "reward": {
-        "actionName": "Open"
+        "actionName": "Open",
+        "claimedTileId": "quest-chest-claimed"
       }
     },
     "sprite": {
@@ -28210,6 +28211,78 @@
             "intensity": 0.5,
             "color": "#ffdd00"
           }
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 1200,
+      "ttlToMs": 2000,
+      "spawnRadiusCells": 0.4,
+      "spawnElevFrom": 1,
+      "spawnElevTo": 1.5,
+      "riseFrom": 0.8,
+      "riseTo": 1.2,
+      "driftCellsPerSecond": 0.03,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 3,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#fff6c0"
+        },
+        {
+          "at": 0.5,
+          "color": "#ffdd00"
+        },
+        {
+          "at": 1,
+          "color": "#c08a00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "quest-chest-claimed",
+    "name": "Quest Chest (open)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 18,
+      "y": 12
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 14,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
         }
       ]
     }
