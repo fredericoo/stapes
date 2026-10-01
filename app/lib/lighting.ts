@@ -808,7 +808,7 @@ export function sampleLevelLight(
   return [level.rgb[i]! / 255, level.rgb[i + 1]! / 255, level.rgb[i + 2]! / 255];
 }
 
-export const PITCH_BLACK_LIGHT = 0.02;
+export const PITCH_BLACK_LIGHT = 0.12;
 
 export function isPitchBlack(
   grid: PackedLightGrid,

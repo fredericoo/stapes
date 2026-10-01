@@ -15,6 +15,7 @@ import {
 } from "./lighting";
 import type { PackedLightGrid } from "./lighting";
 import { MAX_LIGHT_LEVEL } from "./lightingFlood";
+import { sampleIllumination } from "./clock";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
 
@@ -687,10 +688,10 @@ describe("isPitchBlack", () => {
     expect(isPitchBlack(grid, night, 1, 1, 0)).toBe(true);
   });
 
-  it("tints the sky by the ambient, so open ground at night is dim rather than black", () => {
+  it("counts open ground under the darkest hour of the night as black, and at dusk as lit", () => {
     const grid = gridWith([{ x: 2, y: 2, rgba: [0, 0, 0, 255] }]);
-    expect(isPitchBlack(grid, night, 2, 2, 0)).toBe(false);
-    expect(isPitchBlack(grid, [0, 0, 0], 2, 2, 0)).toBe(true);
+    expect(isPitchBlack(grid, sampleIllumination(2 * 60).ambient, 2, 2, 0)).toBe(true);
+    expect(isPitchBlack(grid, AMBIENT_PRESETS.dusk, 2, 2, 0)).toBe(false);
   });
 
   it("is black on a level the grid holds nothing for, which is uploaded dark", () => {
