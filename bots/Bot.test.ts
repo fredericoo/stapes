@@ -73,6 +73,19 @@ function huntingWorld(): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
+/** A field with the bot and a sword and leathers at its feet. */
+function armouryWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 30; x++) {
+    for (let y = 0; y < 30; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["15,15"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  cells["16,15"]!.push({ tileId: "rusty-sword", itemId: "sword" });
+  cells["15,16"]!.push({ tileId: "leather-jerkin", itemId: "jerkin" });
+  cells["15,14"]!.push({ tileId: "leather-cap", itemId: "cap" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
 let harness: Harness;
 
 beforeEach(async () => {
@@ -151,6 +164,39 @@ it("takes up a bow and shoots a slower creature without letting it close", async
   const { self } = remote.getSnapshot();
   expect(catGone()).toBe(true);
   expect(self.hp).toBe(self.maxHp);
+});
+
+it("turns on a creature it fears but cannot outrun, rather than being chased down", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(armouryWorld()), JSON_TYPE);
+  const pair = new Pair();
+  pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
+  const clock = { ms: 0 };
+  const remote = new RemoteSession(pair.client() as never, tiles, statuses, () => clock.ms);
+  await harness.server.join(pair.server, "bot", { admin: true });
+  const bot = new Bot(
+    remote,
+    new ScriptedPlanner([{ goal: "rest", seconds: 300 }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread: 8 },
+    },
+  );
+  const dressed = () => {
+    const { equipment } = remote.getSnapshot();
+    return !!equipment.weapon && equipment.armor?.tileId === "leather-jerkin" && !!equipment.head;
+  };
+  await play(bot, remote, dressed, clock);
+  const { self } = remote.getSnapshot();
+  void remote.command(`/spawn bat ${self.x + 3} ${self.y} ${self.z}`);
+  const batGone = () => !remote.getSnapshot().actors.some((a) => a.tileId === "bat");
+  await play(bot, remote, () => remote.getSnapshot().actors.some((a) => a.tileId === "bat"), clock);
+
+  await play(bot, remote, () => batGone() || remote.isDead(), clock);
+
+  expect(remote.isDead()).toBe(false);
+  expect(batGone()).toBe(true);
 });
 
 it("opens the chest, wears the torch from it, and drops, climbs and walks up to the surface", async () => {

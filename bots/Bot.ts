@@ -1,7 +1,8 @@
 import { coveredBySomething, type ObjectRef } from "../app/game/affordances";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import type { Equipment } from "../app/game/equipment";
-import { resolveWalkDurationMs } from "../app/game/movement";
+import { walkDurationMsFor } from "../app/game/movement";
+import { walkSpeedPercentFrom } from "../app/game/statuses";
 import { hasLineOfSight } from "../app/game/sight";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
 import {
@@ -12,7 +13,7 @@ import {
   type NavLeg,
   type NavWorld,
 } from "../app/game/navigation";
-import type { BattlerDef } from "../app/lib/battler";
+import type { BattlerDef, FightingStats } from "../app/lib/battler";
 import { resolveDialog } from "../app/lib/dialog";
 import { isRanged, resolveItem, resolveWeapon, type Reach } from "../app/lib/item";
 import { getStack } from "../app/lib/mapData";
@@ -20,16 +21,9 @@ import type { StatusDef } from "../app/lib/status";
 import type { Coord, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
 import { MAX_CHAT_LENGTH } from "../app/net/chat";
-import {
-  canHurt,
-  choosePrey,
-  creaturesAround,
-  healingFood,
-  isThreat,
-  reach,
-  steps,
-} from "./combat";
+import { canHurt, choosePrey, creaturesAround, healingFood, reach, steps } from "./combat";
 import { nextDressing } from "./dress";
+import { fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
 import { Economy, type Deal } from "./economy";
 import { bodyOf, rangedReach } from "./gear";
 import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
@@ -95,6 +89,31 @@ export const FLEE_NEAR_CELLS = 8;
 export const FLEE_FAR_CELLS = 18;
 
 export const FLEE_MS = 6_000;
+
+/**
+ * A threat this close that walks at least as fast as the bot cannot be
+ * escaped, so the bot stands and fights it, and keeps fighting it once it
+ * has turned on it: backing away from a wolf only gives it free bites, a bat
+ * that veers off comes straight back, and a snake's bolt slows its target to
+ * a crawl.
+ */
+export const CORNERED_CELLS = 2.5;
+
+/** Remembered dangers further than this from the bot do not shape its routes. */
+export const DANGER_RECALL_CELLS = 60;
+
+/** Retreats from one errand after which the bot gives the errand up. */
+export const TURN_BACK_LIMIT = 3;
+
+/** Creatures that can hurt this close to the bot's foe are counted as joining the fight. */
+export const GANG_CELLS = 3;
+
+/**
+ * What a creature the bot outwalks does to an archer that kites it, as a
+ * share of what it would do standing beside it: it lands a blow only when
+ * the bot is caught by a wall or by another creature.
+ */
+export const KITED_SHARE = 0.25;
 
 /** A creature this close that hurt the bot is the one it turns on. */
 export const RETALIATE_CELLS = 2;
@@ -170,6 +189,7 @@ export type BotBody = Pick<
   | "getMap"
   | "talk"
   | "pickUp"
+  | "equip"
   | "drop"
   | "say"
 >;
@@ -253,6 +273,24 @@ export class Bot {
   private lastLootScanMs = -Infinity;
   private pulls = 0;
   private nowMs = 0;
+  /** The bot's own swings and the margins worked out this decision, which fights ask for often. */
+  private sizing: {
+    mine: FightingStats[];
+    margins: Map<string, number>;
+    zones?: Zone[];
+  } | null = null;
+  private feared: { key: string; tiles: ReadonlySet<string> } | null = null;
+  /** Where the bot stood last decision, which is where its bag lies if it has just died. */
+  private lastAt: Coord | null = null;
+  private hadBag = false;
+  /**
+   * Where the bot died and left its bag, until a walk back there ends. It is
+   * not cleared on seeing a bag worn: just after coming back, the client
+   * still shows what the bot wore before it died.
+   */
+  private lostKitAt: Coord | null = null;
+  /** Retreats from each errand, by `skipKey` or `exploredKey`, since the goal was set. */
+  private turnedBack = new Map<string, number>();
   private readonly log: (line: string) => void;
   private readonly random: () => number;
   private readonly temperament: Temperament;
@@ -312,6 +350,15 @@ export class Bot {
     const self = snapshot.self;
     const hurt = this.lastHp !== null && self.hp !== null && self.hp < this.lastHp;
     this.lastHp = self.hp;
+    this.lastAt = { x: self.x, y: self.y, z: self.z };
+    this.hadBag = snapshot.equipment.bag !== null;
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    this.sizing = body
+      ? {
+          mine: swingsOf(body, snapshot.equipment, self, this.tilesById, this.statusDefs),
+          margins: new Map(),
+        }
+      : null;
     this.remember(snapshot);
     this.dress(snapshot, nowMs);
     this.eat(snapshot, nowMs);
@@ -330,6 +377,7 @@ export class Bot {
       this.chase = null;
       this.flight = null;
       this.looting = null;
+      if (this.hadBag && this.lastAt) this.lostKitAt = this.lastAt;
       this.happen("you died and will come back where you last set your respawn");
       this.ask("died", null);
     }
@@ -503,11 +551,13 @@ export class Bot {
     const world = knowledge.world(self.id, this.threatPenalty(snapshot));
     const at = { x: self.x, y: self.y, z: self.z };
 
+    const zones = this.dangerZones(snapshot);
     const recall = {
       skipped: this.skipped,
       explored: this.explored,
       random: this.random,
       pulls: this.pulls,
+      avoid: (cell: Coord) => inZone(zones, cell),
     };
     const market = this.market(snapshot);
     for (let attempts = 0; attempts < EXPLORE_ATTEMPTS;) {
@@ -559,16 +609,35 @@ export class Bot {
    */
   private evade(snapshot: GameSnapshot, nowMs: number): boolean {
     const self = snapshot.self;
-    const creatures = creaturesAround(self, snapshot.actors, this.tilesById);
-    const dangers = creatures.filter(
-      (a) =>
-        isThreat(self, a, this.tilesById, this.temperament) &&
-        reach(self, a) <= this.temperament.waryCells,
+    const hostile = this.hostiles(snapshot);
+    const threats = hostile.filter(
+      (a) => reach(self, a) <= this.waryOf(a) && this.threatens(snapshot, [a]),
     );
-    const weak =
-      self.hp !== null && !!self.maxHp && self.hp / self.maxHp < this.temperament.fleeHpShare;
-    const foe = this.foe && creatures.find((a) => a.id === this.foe!.id);
-    if (weak && foe && canHurt(this.tilesById[foe.tileId])) dangers.push(foe);
+    const foe = this.foe && hostile.find((a) => a.id === this.foe!.id);
+    if (foe && !threats.includes(foe)) {
+      const fighting = [foe, ...hostile.filter((a) => a !== foe && reach(self, a) <= GANG_CELLS)];
+      if (this.threatens(snapshot, fighting))
+        threats.push(...fighting.filter((a) => !threats.includes(a)));
+    }
+
+    const cornering = threats
+      .filter(
+        (a) =>
+          (reach(self, a) <= CORNERED_CELLS || a.id === this.foe?.id) &&
+          !this.outpaces(snapshot, a),
+      )
+      .sort((a, b) => reach(self, a) - reach(self, b));
+    if (cornering.length > 0) {
+      if (this.flight) this.body.setInput({ directions: [] });
+      this.flight = null;
+      const nearest = cornering[0]!;
+      if (!cornering.some((a) => a.id === this.foe?.id)) {
+        this.engage(nearest.id, nowMs, true, `cannot outrun ${nameOf(nearest)}; standing to fight`);
+      }
+      return false;
+    }
+
+    const dangers = threats;
     if (dangers.length === 0) {
       if (this.flight) {
         this.flight = null;
@@ -594,7 +663,10 @@ export class Bot {
     for (const refuge of refuges) {
       const route = planRoute(world, at, cellGoal(refuge, "on"), SHORT_ROUTE_MAX_NODES);
       if (!route.ok) continue;
-      if (!this.flight) this.happen(`backing away from ${dangers.map(nameOf).join(", ")}`);
+      if (!this.flight) {
+        this.happen(`backing away from ${dangers.map(nameOf).join(", ")}`);
+        this.turnBack();
+      }
       if (this.foe) this.disengage();
       this.flight = { pilot: new Pilot(at, route.legs, this.tilesById), untilMs: nowMs + FLEE_MS };
       this.course = { kind: "idle" };
@@ -605,7 +677,8 @@ export class Bot {
 
   /**
    * Fights the current foe: strikes it from within reach, and walks after it
-   * when it is further. Being hurt with no foe turns the bot on the nearest
+   * when it is further. A foe the bot fears and cannot outrun, standing
+   * somewhere it cannot walk to, is waited for where the bot stands. Being hurt with no foe turns the bot on the nearest
    * creature, which is how a bot answers a creature that attacked first.
    */
   private fight(snapshot: GameSnapshot, nowMs: number, hurt: boolean): boolean {
@@ -658,6 +731,11 @@ export class Bot {
       const world = knowledge.world(self.id, this.threatPenalty(snapshot));
       const at = { x: self.x, y: self.y, z: self.z };
       const route = planRoute(world, at, cellGoal(foe, "beside"), SHORT_ROUTE_MAX_NODES);
+      if (!route.ok && this.threatens(snapshot, [foe]) && !this.outpaces(snapshot, foe)) {
+        this.chase = null;
+        this.body.setInput({ directions: [] });
+        return true;
+      }
       if (!route.ok) {
         this.preySkipped.set(foe.id, nowMs + PREY_FORGET_MS);
         this.happen(`found no way to reach ${nameOf(foe)}`);
@@ -695,7 +773,7 @@ export class Bot {
     const parries =
       distance <= STRIKE_REACH_CELLS &&
       holdsSidearm(snapshot.equipment, this.tilesById) &&
-      !this.outpaces(foe);
+      !this.outpaces(snapshot, foe);
     if (shoots || parries) {
       this.chase = null;
       this.foe = { id: foe.id, sinceMs: nowMs, provoked: this.foe?.provoked ?? false };
@@ -757,12 +835,87 @@ export class Bot {
     return true;
   }
 
-  /** Whether the bot walks faster than `foe`, so stepping back from it gains ground. */
-  private outpaces(foe: ActorSnapshot): boolean {
+  /**
+   * Whether the bot walks faster than `foe` as both are now, so stepping back
+   * from it gains ground. A status that slows the bot, such as a snake's
+   * constriction, counts.
+   */
+  private outpaces(snapshot: GameSnapshot, foe: ActorSnapshot): boolean {
     const foeDef = this.tilesById[foe.tileId];
     const selfDef = this.tilesById[PLAYER_TILE_ID];
     if (!foeDef || !selfDef) return false;
-    return resolveWalkDurationMs(foeDef) > resolveWalkDurationMs(selfDef);
+    const pace = (def: TileDef, statuses: ActorSnapshot["statuses"]) =>
+      walkDurationMsFor(def, walkSpeedPercentFrom(statuses, this.statusDefs));
+    return pace(foeDef, foe.statuses) > pace(selfDef, snapshot.self.statuses);
+  }
+
+  /**
+   * Counts a retreat against the errand it interrupted, and gives the errand
+   * up after `TURN_BACK_LIMIT` of them: a reward or an edge that a snake lies
+   * beside is one the bot would otherwise walk at and back away from for
+   * ever.
+   */
+  private turnBack() {
+    if (this.course.kind !== "travel") return;
+    const { act, explores } = this.course.errand;
+    const key = act ? skipKey(act) : explores ? exploredKey(explores) : null;
+    if (!key) return;
+    const times = (this.turnedBack.get(key) ?? 0) + 1;
+    this.turnedBack.set(key, times);
+    if (times < TURN_BACK_LIMIT) return;
+    if (act) this.skipped.add(key);
+    if (explores) this.explored.add(key);
+    this.happen("gave up on where it was going: something dangerous lies that way");
+  }
+
+  /**
+   * How close a threat may come before the bot backs away: its `waryCells`,
+   * or a cell beyond where the creature would notice it, whichever is
+   * further.
+   */
+  private waryOf(creature: ActorSnapshot): number {
+    return Math.max(this.temperament.waryCells, noticeCells(this.tilesById[creature.tileId]) + 1);
+  }
+
+  /** Creatures in view that can hurt anybody. */
+  private hostiles(snapshot: GameSnapshot): ActorSnapshot[] {
+    return creaturesAround(snapshot.self, snapshot.actors, this.tilesById).filter((a) =>
+      canHurt(this.tilesById[a.tileId]),
+    );
+  }
+
+  /**
+   * How a fight against all of `foes` at once would go, as `Odds.margin`.
+   * An archer counts only `KITED_SHARE` of what foes it outwalks would do.
+   */
+  private marginAgainst(snapshot: GameSnapshot, foes: readonly ActorSnapshot[]): number {
+    if (!this.sizing) return Infinity;
+    const key = foes.map((a) => `${a.id}:${a.hp}`).join(",");
+    const known = this.sizing.margins.get(key);
+    if (known !== undefined) return known;
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    const kites =
+      body !== null &&
+      rangedReach(snapshot.equipment, this.tilesById, body.masteries) !== null &&
+      foes.every(
+        (a) =>
+          this.outpaces(snapshot, a) && !slowsItsTarget(this.tilesById[a.tileId], this.statusDefs),
+      );
+    const odds = fightOdds(
+      this.sizing.mine,
+      snapshot.self,
+      foes,
+      this.tilesById,
+      this.statusDefs,
+      kites ? KITED_SHARE : 1,
+    );
+    const margin = odds?.margin ?? Infinity;
+    this.sizing.margins.set(key, margin);
+    return margin;
+  }
+
+  private threatens(snapshot: GameSnapshot, foes: readonly ActorSnapshot[]): boolean {
+    return this.marginAgainst(snapshot, foes) < this.temperament.dread;
   }
 
   private engage(id: string, nowMs: number, provoked: boolean, why: string) {
@@ -782,22 +935,35 @@ export class Bot {
     this.body.setInput({ directions: [] });
   }
 
+  /**
+   * The prey in sight worth setting off after, judged with every creature
+   * near it that could join in. A bot hurt below `huntHpShare` with no food
+   * that mends starts nothing.
+   */
   private preyIn(snapshot: GameSnapshot, nowMs: number): ActorSnapshot | null {
     const self = snapshot.self;
-    const { waryCells, huntSightCells, preyChoices } = this.temperament;
-    const threats = creaturesAround(self, snapshot.actors, this.tilesById).filter((a) =>
-      isThreat(self, a, this.tilesById, this.temperament),
-    );
+    const { huntSightCells, preyChoices, courage, dread, huntHpShare } = this.temperament;
+    const hurt = self.hp !== null && !!self.maxHp && self.hp / self.maxHp < huntHpShare;
+    if (hurt && healingFood(snapshot.equipment, this.tilesById, this.statusDefs) === null) {
+      return null;
+    }
+    const hostile = this.hostiles(snapshot);
+    const threats = hostile.filter((a) => this.threatens(snapshot, [a]));
     const others = snapshot.actors.filter((a) => a.tileId === PLAYER_TILE_ID && a.id !== self.id);
     const near = snapshot.actors.filter(
       (a) =>
         a.z === self.z &&
         steps(self, a) <= huntSightCells &&
-        threats.every((t) => steps(a, t) > waryCells) &&
+        threats.every((t) => t === a || steps(a, t) > this.waryOf(t)) &&
         hasLineOfSight(snapshot.map, this.tilesById, self, a),
     );
     return choosePrey(self, near, this.tilesById, {
-      threat: this.temperament,
+      margin: (prey) =>
+        this.marginAgainst(snapshot, [
+          prey,
+          ...hostile.filter((a) => a !== prey && reach(prey, a) <= GANG_CELLS),
+        ]),
+      courage: Math.max(courage, dread),
       choices: preyChoices,
       random: this.random,
       skipped: (id) => (this.preySkipped.get(id) ?? 0) > nowMs,
@@ -820,16 +986,67 @@ export class Bot {
     return false;
   }
 
+  /**
+   * What a route pays to pass a cell: `THREAT_PENALTY` within reach of a
+   * threat in view, or of a place the fleet has seen a creature this bot
+   * fears. The reach is `THREAT_BERTH_CELLS`, or the creature's
+   * `noticeCells` when that is further.
+   */
   private threatPenalty(snapshot: GameSnapshot): ((cell: Coord) => number) | undefined {
+    const live = this.hostiles(snapshot)
+      .filter((a) => this.threatens(snapshot, [a]))
+      .map((a) => ({ at: a as Coord, cells: this.berthOf(a.tileId) }));
+    const zones = [...live, ...this.dangerZones(snapshot)];
+    if (zones.length === 0) return undefined;
+    return (cell) => (inZone(zones, cell) ? THREAT_PENALTY : 0);
+  }
+
+  private berthOf(tileId: string): number {
+    return Math.max(THREAT_BERTH_CELLS, noticeCells(this.tilesById[tileId]));
+  }
+
+  /**
+   * Places within `DANGER_RECALL_CELLS` where the fleet has seen a creature
+   * this bot would lose to at full health. A wolf is usually seen only once
+   * it has noticed the bot, so the place it was seen last is what keeps the
+   * next bot away.
+   */
+  private dangerZones(snapshot: GameSnapshot): Zone[] {
+    if (!this.sizing) return [];
+    if (this.sizing.zones) return this.sizing.zones;
     const self = snapshot.self;
-    const threats = creaturesAround(self, snapshot.actors, this.tilesById).filter((a) =>
-      isThreat(self, a, this.tilesById, this.temperament),
-    );
-    if (threats.length === 0) return undefined;
-    return (cell) =>
-      threats.some((t) => t.z === cell.z && steps(cell, t) <= THREAT_BERTH_CELLS)
-        ? THREAT_PENALTY
-        : 0;
+    const zones: Zone[] = [];
+    for (const tileId of this.fearedTiles(snapshot)) {
+      for (const at of this.landmarks.where(tileId, self)) {
+        if (steps(at, self) > DANGER_RECALL_CELLS) break;
+        zones.push({ at, cells: this.berthOf(tileId) });
+      }
+    }
+    this.sizing.zones = zones;
+    return zones;
+  }
+
+  /**
+   * Creatures the bot, as it is now and at full health, would lose to,
+   * worked out again only when its gear or experience changes.
+   */
+  private fearedTiles(snapshot: GameSnapshot): ReadonlySet<string> {
+    const key = JSON.stringify([snapshot.equipment, snapshot.masteryXp]);
+    if (this.feared?.key === key) return this.feared.tiles;
+    const tiles = new Set<string>();
+    const fresh = { ...snapshot.self, hp: null, statuses: [] };
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    if (body) {
+      const mine = swingsOf(body, snapshot.equipment, fresh, this.tilesById, this.statusDefs);
+      for (const def of Object.values(this.tilesById)) {
+        if (def.id === PLAYER_TILE_ID || !canHurt(def)) continue;
+        const foe = { tileId: def.id, hp: null, maxHp: null, statuses: [] };
+        const odds = fightOdds(mine, fresh, [foe], this.tilesById, this.statusDefs);
+        if (odds && odds.margin < this.temperament.dread) tiles.add(def.id);
+      }
+    }
+    this.feared = { key, tiles };
+    return tiles;
   }
 
   private eat(snapshot: GameSnapshot, nowMs: number) {
@@ -887,11 +1104,16 @@ export class Bot {
     );
   }
 
-  /** Every NPC in view is remembered where it stands, for the whole fleet. */
+  /**
+   * Every NPC in view, and every creature that can hurt, is remembered where
+   * it stands, for the whole fleet: the NPCs to trade with, the creatures so
+   * that a bot that fears them keeps away from where they were seen.
+   */
   private remember(snapshot: GameSnapshot) {
     for (const actor of snapshot.actors) {
       const def = this.tilesById[actor.tileId];
-      if (def && resolveDialog(def)) this.landmarks.saw(actor.tileId, actor);
+      if (!def || actor.tileId === PLAYER_TILE_ID) continue;
+      if (resolveDialog(def) || canHurt(def)) this.landmarks.saw(actor.tileId, actor);
     }
   }
 
@@ -1060,7 +1282,7 @@ export class Bot {
         this.looting = null;
         return false;
       }
-      if (this.body.pickUp(ref)) {
+      if (this.body.pickUp(ref) || this.body.equip(ref)) {
         this.happen(`picked up ${this.tilesById[tileId]?.name ?? tileId}`);
         this.looting = null;
         this.pendingAsk ??= { reason: "timer", outcome: null };
@@ -1143,7 +1365,7 @@ export class Bot {
   /** What the planner is told: whether there is anything to buy, sell or gather. */
   private situation(snapshot: GameSnapshot): Situation {
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
-    if (!body) return NOTHING_TO_DO;
+    if (!body) return { ...NOTHING_TO_DO, lostKitAt: this.lostKitAt };
     const { equipment } = snapshot;
     const wanted = this.economy.wanted(equipment, body);
     const knowledge = new Knowledge(snapshot.map, snapshot.actors, this.tilesById, this.statusDefs);
@@ -1159,11 +1381,18 @@ export class Bot {
       canBuy: this.economy.purchases(equipment, body).some(known),
       canSell: this.economy.sales(equipment, body).some(known),
       canGather: seen.length > 0 || remembered,
+      wounded:
+        self.hp !== null &&
+        !!self.maxHp &&
+        self.hp / self.maxHp < this.temperament.huntHpShare &&
+        healingFood(equipment, this.tilesById, this.statusDefs) === null,
+      lostKitAt: this.lostKitAt,
     };
   }
 
   private finish(reason: "done" | "failed", outcome: string) {
     this.happen(outcome);
+    if (this.goal?.goal === "go_to") this.lostKitAt = null;
     this.course =
       reason === "failed"
         ? { kind: "pause", untilMs: this.nowMs + FAILED_PAUSE_MS }
@@ -1229,6 +1458,7 @@ export class Bot {
     this.goal = decision.goal;
     this.pulls = 0;
     this.skipped.clear();
+    this.turnedBack.clear();
     this.course = { kind: "idle" };
     this.body.setInput({ directions: [] });
   }
@@ -1284,6 +1514,12 @@ function holdsSidearm(equipment: Equipment, tilesById: Record<string, TileDef>):
     const weapon = held && tilesById[held.tileId] && resolveWeapon(tilesById[held.tileId]!);
     return !!weapon && !isRanged(weapon);
   });
+}
+
+type Zone = { readonly at: Coord; readonly cells: number };
+
+function inZone(zones: readonly Zone[], cell: Coord): boolean {
+  return zones.some(({ at, cells }) => at.z === cell.z && steps(cell, at) <= cells);
 }
 
 function lootKey(ref: ObjectRef, tileId: string): string {

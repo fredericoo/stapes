@@ -13446,28 +13446,69 @@ limits its load on the server. A goal that finds no route waits
 `FAILED_PAUSE_MS` before it is searched again, so the bot does not search
 every frame.
 
-**A bot judges a creature by its rating, and acts before the goal does.**
+**A bot judges a fight by working it out, and acts before the goal does.**
+`fightOdds` (`bots/odds.ts`) estimates how long the bot would take to kill a
+creature and how long the creature would take to kill it, both from the
+health each has now. It uses the same per-second figures the Arena reports:
+`rotationOdds` over every hand the bot swings (`effectiveBattler`, with its
+statuses applied), against the creature's authored battler, plus the creature's
+damaging bolts spread over their cooldowns. A fight against several creatures
+counts all of them hitting the bot while it kills them one by one. `margin` is
+time-to-die over time-to-kill.
+
+This replaced a rule on ratings, which could not see gear, health, statuses or
+numbers. Rating counts agility, so a rabbit outrated a new player, while a
+leather jerkin and cap turn a bat from an even fight (margin about 1) into a
+five-to-one fight.
+
 Every frame, before its goal, a bot checks three things in order:
 
-1. **It avoids threats.** A threat is a creature that can hurt the bot and
-   whose rating is above the bot's times `threatRatio` (about 125%) plus
-   `threatMargin` (about 5). The margin is there for new characters: by ratio
-   alone, a rat (about 8.9) outrated a new player (6) enough that bots backed
-   away from rats. A creature with no natural
-   damage and no spell, such as a rabbit, is never a threat, because rating
-   counts agility and a rabbit outrates a new player. The bot backs away to the
-   cell furthest from every threat within `waryCells`, and it backs away from
-   the creature it is fighting once its health falls below `fleeHpShare`.
-   It drops a fight only once it has found somewhere to back away to, so a bot
-   with nowhere to go stays and fights. Every route pays `THREAT_PENALTY` for
-   each cell within `THREAT_BERTH_CELLS` of a threat (`NavWorld.penalty`).
+1. **It avoids threats.** A threat is a creature that can hurt and that the
+   bot expects to outlast by less than its `dread` (about 1.1). Its own foe
+   becomes one when the fight turns, counting every creature that can hurt
+   within `GANG_CELLS` of the bot. The bot backs away to the cell furthest
+   from every threat within its `waryCells`, or a cell beyond the threat's
+   `noticeCells`, whichever is further. `noticeCells` reads the widest
+   `in_los` or `in_range` in the creature's brain that names the player tile
+   (a wolf's is 9). Keeping beyond it means the creature never notices the
+   bot, which is better than any way of fighting it. It drops a fight only once it has
+   found somewhere to back away to, so a bot with nowhere to go stays and
+   fights. Every route pays `THREAT_PENALTY` for each cell within
+   `THREAT_BERTH_CELLS` of a threat, or within its `noticeCells` when that is
+   further (`NavWorld.penalty`). After backing away `TURN_BACK_LIMIT` times
+   from one errand, such as a reward a snake lies beside, the bot gives that
+   errand up rather than walking at it and backing off again.
+
+   **The fleet remembers where it saw danger.** `Landmarks` also records
+   every creature that can hurt where it was seen. Each bot works out which
+   creatures it would lose to at full health (`fearedTiles`, worked out again
+   when its gear or experience changes). Routes pay `THREAT_PENALTY` near
+   remembered places of those creatures within `DANGER_RECALL_CELLS`, just as
+   near live ones, and exploring never heads for such a place. A bot usually
+   sees a wolf only once the wolf has noticed it, so where a wolf was seen
+   last is what keeps the next bot out of its reach. A bot that outgrows the
+   wolves stops avoiding those places, because it no longer fears them.
+
+   **A threat it cannot outrun, it fights.** Backing away gains ground only
+   from something slower (`walkDurationMsFor`, with both bodies' statuses
+   applied). A threat within `CORNERED_CELLS` that is at least as fast,
+   such as a wolf, a bat, or anything while a snake's constriction slows the
+   bot, becomes the foe, and stays the foe however far it veers off. A bat
+   that veers off comes straight back, so a foe like that
+   standing where the bot cannot walk is waited for, not given up on.
+   Switching from backing away to fighting releases the held direction first;
+   without that, the bot kept walking the way it had been fleeing.
 2. **It fights its foe.** It strikes from within `STRIKE_REACH_CELLS`, and
    walks after the foe when it is further away. It gives up after
-   `chaseGiveUpMs`, because deer and rabbits run faster than a player
-   walks. A creature that hurts a bot with no foe becomes its foe.
-3. **It eats.** Below `eatHpShare` of its health, it eats the bag's food
-   that heals most. Food that can give a bad status, such as raw meat or
-   anything stale, is never eaten to heal.
+   `chaseGiveUpMs` without the foe in reach, because deer and rabbits run
+   faster than a player walks. A creature that hurts a bot with no foe
+   becomes its foe.
+3. **It eats.** Below `eatHpShare` of its health, it eats the bag's food that
+   heals most (`healing`). Most food heals through `fed`, a good status that
+   mends a point every few seconds, so a mending status counts as
+   `MENDING_STATUS_HP`. A berry gives nothing at once, and a rule that counted
+   only immediate health did not see it as food. Food that can give a bad
+   status, such as raw meat or anything stale, is never eaten to heal.
 
 **A bot fights what it can beat, under any goal.** Before following its
 goal, it looks for prey: a creature on its own level, in line of sight
@@ -13477,16 +13518,31 @@ tutorial's rewards takes on the rat on the way. Prey must be in line of sight
 because a rat in the next cave room is one the bot cannot reach, and chasing
 each such rat in turn was a route search that failed every frame or so.
 
-`hunt` picks prey with `choosePrey`: never a threat, and never a creature
-within `waryCells` of one. It takes a creature rated at least a third of the
-bot's own rating before one rated lower, because below that a kill earns no
-experience. When it can see no prey, it explores the way `explore` does. With
-`hunt` as the last goal, two bots on the shipped world ran for five minutes
-without dying.
+`hunt` picks prey with `choosePrey`: a creature the bot expects to beat by
+its `courage` (about 1.6), judged together with every creature that can hurt
+within `GANG_CELLS` of it, and never one within `waryCells` of a threat. It
+takes a creature rated at least a third of the bot's own rating before one
+rated lower, because below that a kill earns no experience. When it can see no
+prey, it explores the way `explore` does. An archer counts only `KITED_SHARE`
+of what a creature it outwalks would do, since it keeps that creature at a
+distance, unless the creature has a spell that slows its target
+(`slowsItsTarget`). A snake's first constriction ends the kiting.
 
-On the shipped world, rats count as threats to a new character. A rat's
-agility rates it about 8.9 against a new player's 6, although its bite does 1
-damage.
+**Health comes back only from food, so a hurt bot starts nothing.** Below
+`huntHpShare` of its health, with no food that heals, it picks no prey, and
+`ProgressPlanner` sends it to gather instead of hunt, because bushes give
+berries. Food is bought back up to `FOOD_RESERVE` once the bag holds less
+than half of it.
+
+**A bot goes back for the bag it died with.** A dead player drops its bag
+where it fell (`dropPacks`), with the money and food in it. The bot remembers
+where it last stood. After it comes back, `ProgressPlanner` gives it a
+`go_to` there before anything else, the opening goals included, and the loot
+reflex picks the bag up. A goal that finishes is reported to the planner
+without the goal, so the planner remembers which goal it gave last: finishing
+the `go_to` must not move the opening on. A
+thing whose square is empty is taken with `equip`, because `pickUp` refuses
+anything that has an empty square to go in.
 
 **Each bot has a temperament, so a crowd of them does not move as one.**
 Bots that shared one set of numbers made the same choice in the same frame:
@@ -13497,8 +13553,8 @@ after the same rabbit. Three things now separate them:
   (`bots/temperament.ts`), drawn by `drawTemperament` up to
   `TEMPERAMENT_SPREAD` (25%) either side of `DEFAULT_TEMPERAMENT`. The draw
   is seeded from the character's name, so a bot keeps its temperament across
-  restarts. The threat ratio strays only 8%, so every bot still roughly keeps
-  the 125% rule.
+  restarts. `dread` strays only 8%, so no bot stands its ground in a fight it
+  expects to lose.
 - **Hesitation.** A bot waits a random time between `reactionMinMs` and
   `reactionMaxMs` before it charts a new errand or sets off after prey, drawn
   afresh each time. The start is staggered too: each bot waits up to
@@ -13600,8 +13656,8 @@ never opens the world's database, which the server holds exclusively.
 `Landmarks` (`bots/memory.ts`) is the bots' own SQLite file instead. By
 default it is `.dev/bots/<host>.db`, one per world because worlds are laid out
 differently, and with `BOTS=n` the server passes `BOT_MEMORY_DIR` under its
-`DATA_DIR`. Every NPC in view is written as it is seen, as are resources worth
-working. Entries are keyed by tile id and cell, never by actor or placement
+`DATA_DIR`. Every NPC and every creature that can hurt is written as it is
+seen, as are resources worth working. Entries are keyed by tile id and cell, never by actor or placement
 id, because those are minted afresh whenever the world loads. Two sightings
 of one tile within `SAME_PLACE_CELLS` are one thing that moved, so a strolling
 salesman is one entry. Each worker thread opens the same file and reads it

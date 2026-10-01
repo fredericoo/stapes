@@ -14,9 +14,19 @@ export type Situation = {
   readonly canSell: boolean;
   /** It knows of a resource whose yield it wants. */
   readonly canGather: boolean;
+  /** It is hurt and carries no food that heals, so it should start no fight. */
+  readonly wounded: boolean;
+  /** Where it died and left its bag, until it has been back for it. */
+  readonly lostKitAt: Coord | null;
 };
 
-export const NOTHING_TO_DO: Situation = { canBuy: false, canSell: false, canGather: false };
+export const NOTHING_TO_DO: Situation = {
+  canBuy: false,
+  canSell: false,
+  canGather: false,
+  wounded: false,
+  lostKitAt: null,
+};
 
 export type Observation = {
   readonly reason: AskReason;
@@ -77,29 +87,45 @@ export const GATHER_PULLS = 8;
 export const FAILED_GOAL_MS = 3 * 60_000;
 
 /**
- * The opening goals in order, then a loop that plays the game: buy what it
- * can afford, sell what it does not need, and otherwise hunt, breaking off
- * now and then to gather the money that hunting does not pay.
+ * The opening goals in order, then a loop that plays the game: go back for
+ * the bag it died with, buy what it can afford, sell what it does not need,
+ * and otherwise hunt, breaking off now and then to gather the money that
+ * hunting does not pay. A bot hurt with no food gathers instead of hunting,
+ * since bushes give food and health comes back only from food.
  */
 export class ProgressPlanner implements Planner {
   private at = 0;
   private huntingSinceMs: number | null = null;
   private failedAt = new Map<Goal["goal"], number>();
+  private given: Goal | null = null;
 
   constructor(private readonly opening: readonly Goal[]) {}
 
   async decide(observation: Observation): Promise<Decision | null> {
+    const goal = this.choose(observation);
+    if (goal) this.given = goal;
+    return goal ? { goal } : null;
+  }
+
+  /**
+   * A finished goal is reported with no goal attached, so which one finished
+   * is the one this planner last gave; only finishing an opening goal moves
+   * the opening on.
+   */
+  private choose(observation: Observation): Goal | null {
     const { reason, goal, nowMs } = observation;
     if (reason === "failed" && goal) this.failedAt.set(goal.goal, nowMs);
     if (reason === "heard") return null;
+    const finishedOpening = reason === "done" && this.given === this.opening[this.at];
+    if (finishedOpening) this.at++;
+    const kit = observation.situation.lostKitAt;
+    if (kit && goal?.goal !== "go_to" && reason !== "timer") return { goal: "go_to", ...kit };
     if (this.at < this.opening.length) {
-      if (reason === "done") this.at++;
-      if (this.at < this.opening.length) {
-        return reason === "timer" ? null : { goal: this.opening[this.at]! };
-      }
+      if (reason === "timer") return null;
+      return this.opening[this.at]!;
     }
     if (reason === "timer" && goal && goal.goal !== "hunt") return null;
-    return { goal: this.next(observation) };
+    return this.next(observation);
   }
 
   private next({ goal, nowMs, situation }: Observation): Goal {
@@ -108,7 +134,9 @@ export class ProgressPlanner implements Planner {
     if (situation.canBuy && fresh("shop")) return this.leaveHunt({ goal: "shop" });
     if (situation.canSell && fresh("sell")) return this.leaveHunt({ goal: "sell" });
     const hunted = this.huntingSinceMs === null ? 0 : nowMs - this.huntingSinceMs;
-    if (situation.canGather && fresh("gather") && hunted >= HUNT_SPELL_MS) {
+    const gather = situation.canGather && fresh("gather");
+    if (gather && (situation.wounded || hunted >= HUNT_SPELL_MS)) {
+      if (goal?.goal === "gather") return goal;
       return this.leaveHunt({ goal: "gather", pulls: GATHER_PULLS });
     }
     if (goal?.goal !== "hunt" || this.huntingSinceMs === null) this.huntingSinceMs = nowMs;

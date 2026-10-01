@@ -6,17 +6,23 @@ import { STYLES, type Style } from "./gear";
  */
 export type Temperament = {
   /**
-   * A creature is a threat when its rating is above the bot's times
-   * `threatRatio`, plus `threatMargin`. The margin lets a new character take
-   * on what outrates it only a little: a rat's agility rates it about 8.9
-   * against a new player's 6, and its bite does 1 damage.
+   * Prey is only hunted when `fightOdds` expects the bot to outlast it by
+   * this many times: a fight the numbers call even is lost half the time.
    */
-  readonly threatRatio: number;
-  readonly threatMargin: number;
+  readonly courage: number;
+  /**
+   * A creature the bot is expected to outlast by less than this is a threat,
+   * backed away from; that includes its own foe once a fight turns. Between
+   * `dread` and `courage` it neither hunts nor flees.
+   */
+  readonly dread: number;
   /** A threat this close is backed away from. */
   readonly waryCells: number;
-  /** Below this share of its health the bot backs away from its foe. */
-  readonly fleeHpShare: number;
+  /**
+   * Below this share of its health a bot with no food that mends starts no
+   * new fight: health comes back only from food, so fights taken hurt add up.
+   */
+  readonly huntHpShare: number;
   /** Below this share of its health the bot eats. */
   readonly eatHpShare: number;
   /** Prey further away than this is not worth setting off after. */
@@ -58,10 +64,10 @@ export type Temperament = {
 };
 
 export const DEFAULT_TEMPERAMENT: Temperament = {
-  threatRatio: 1.25,
-  threatMargin: 5,
+  courage: 1.6,
+  dread: 1.1,
   waryCells: 7,
-  fleeHpShare: 0.35,
+  huntHpShare: 0.5,
   eatHpShare: 0.6,
   huntSightCells: 16,
   chaseGiveUpMs: 15_000,
@@ -85,8 +91,8 @@ export const DEFAULT_TEMPERAMENT: Temperament = {
 export const TEMPERAMENT_SPREAD = 0.25;
 
 /**
- * A temperament drawn around `DEFAULT_TEMPERAMENT`. The threat ratio strays
- * less than the rest, so every bot still keeps roughly to the 125% rule.
+ * A temperament drawn around `DEFAULT_TEMPERAMENT`. `dread` strays less than
+ * the rest, so no bot stands its ground in a fight it expects to lose.
  */
 export function drawTemperament(random: () => number): Temperament {
   const near = (value: number, spread = TEMPERAMENT_SPREAD) =>
@@ -99,10 +105,10 @@ export function drawTemperament(random: () => number): Temperament {
   const glanceMinMs = near(d.glanceMinMs);
   const stretchMinLegs = whole(d.stretchMinLegs);
   return {
-    threatRatio: near(d.threatRatio, 0.08),
-    threatMargin: near(d.threatMargin),
+    courage: near(d.courage),
+    dread: near(d.dread, 0.08),
     waryCells: whole(d.waryCells),
-    fleeHpShare: near(d.fleeHpShare),
+    huntHpShare: near(d.huntHpShare),
     eatHpShare: near(d.eatHpShare),
     huntSightCells: whole(d.huntSightCells),
     chaseGiveUpMs: near(d.chaseGiveUpMs),

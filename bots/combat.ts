@@ -37,45 +37,35 @@ export function creaturesAround<T extends Rated>(
   });
 }
 
-export type ThreatRule = { readonly threatRatio: number; readonly threatMargin: number };
-
-export function isThreat(
-  self: Rated,
-  other: Rated,
-  tilesById: Record<string, TileDef>,
-  rule: ThreatRule,
-): boolean {
-  if (other.rating === null) return false;
-  const line = (self.rating ?? 1) * rule.threatRatio + rule.threatMargin;
-  return other.rating > line && canHurt(tilesById[other.tileId]);
-}
-
-export type PreyChoice = {
-  readonly threat: ThreatRule;
+export type PreyChoice<T> = {
+  /** How a fight with this prey would go, as `Odds.margin`; prey below `courage` is left alone. */
+  readonly margin: (prey: T) => number;
+  readonly courage: number;
   /** Picked at random among this many of the best. */
   readonly choices: number;
   readonly random: () => number;
   readonly skipped: (id: string) => boolean;
   /** Prey somebody else is already beside, which goes to the back. */
-  readonly taken: (prey: Rated) => boolean;
+  readonly taken: (prey: T) => boolean;
 };
 
 /**
- * The creature to hunt: never a threat, nor one whose rating is unknown.
- * Among the rest, prey nobody else is beside comes before prey that is taken,
- * then one that teaches something before one that does not, then the nearest;
- * the pick is random among the first `choices`, so two bots in one place do
- * not set off after the same rabbit.
+ * The creature to hunt: one the bot expects to beat by at least `courage`
+ * (`fightOdds`), never one whose rating is unknown. Among those, prey nobody
+ * else is beside comes before prey that is taken, then one that teaches
+ * something before one that does not, then the nearest; the pick is random
+ * among the first `choices`, so two bots in one place do not set off after
+ * the same rabbit.
  */
 export function choosePrey<T extends Rated>(
   self: Rated,
   actors: readonly T[],
   tilesById: Record<string, TileDef>,
-  how: PreyChoice,
+  how: PreyChoice<T>,
 ): T | null {
   const floor = (self.rating ?? 1) * PREY_EXPERIENCE_RATIO;
   const candidates = creaturesAround(self, actors, tilesById).filter(
-    (a) => a.rating !== null && !isThreat(self, a, tilesById, how.threat) && !how.skipped(a.id),
+    (a) => a.rating !== null && !how.skipped(a.id) && how.margin(a) >= how.courage,
   );
   const rank = (a: T) => (how.taken(a) ? 2 : 0) + ((a.rating ?? 0) >= floor ? 0 : 1);
   candidates.sort((a, b) => rank(a) - rank(b) || steps(self, a) - steps(self, b));
@@ -97,13 +87,35 @@ export function healingFood(
   let bestHp = 0;
   for (let index = 0; index < bag.length; index++) {
     const def = tilesById[bag[index]!.tileId];
-    const food = def ? resolveConsumable(def) : null;
-    if (!food || food.hp <= bestHp) continue;
-    if (food.statuses?.some((grant) => statusDefs[grant.id]?.tone === "bad")) continue;
+    const hp = def ? healing(def, statusDefs) : 0;
+    if (hp <= bestHp) continue;
     bestIndex = index;
-    bestHp = food.hp;
+    bestHp = hp;
   }
   return bestIndex;
+}
+
+/**
+ * Most food heals by a status rather than at once: a berry gives nothing but
+ * `fed`, which mends a point every few seconds for as long as it lasts. A
+ * good status that mends is counted as this much health.
+ */
+export const MENDING_STATUS_HP = 2;
+
+/**
+ * Health a food is worth, given at once or through a good status that
+ * mends, or 0 for food that heals nothing or risks a bad status.
+ */
+export function healing(def: TileDef, statusDefs: Record<string, StatusDef>): number {
+  const food = resolveConsumable(def);
+  if (!food) return 0;
+  const grants = food.statuses ?? [];
+  if (grants.some((grant) => statusDefs[grant.id]?.tone === "bad")) return 0;
+  const mending = grants.filter((grant) => {
+    const status = statusDefs[grant.id];
+    return status?.tone === "good" && status.effects?.hp !== undefined;
+  }).length;
+  return Math.max(0, food.hp) + mending * MENDING_STATUS_HP;
 }
 
 export function steps(a: Coord, b: Coord): number {
