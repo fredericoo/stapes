@@ -176,7 +176,9 @@ an agent drives", lists every call.
   given; the default is `http://localhost:3000`). Each signs in as a player,
   with a name from the game's name generator and an account created the first
   time, and plays the tutorial and then for gear: hunting, gathering, picking
-  things up and trading with NPCs. They run in one process over worker
+  things up and trading with NPCs. With `OPENAI_API_KEY` set, a model
+  (`gpt-5-nano`) also answers players who talk to them and can change their
+  goals. They run in one process over worker
   threads; ten took about 70% of one core and 650 MB. `BOT_PASSWORD` sets the
   accounts' password, and `STAPES_ORIGIN` the origin they claim, which
   defaults to the URL. What they learn of where NPCs stand is kept in

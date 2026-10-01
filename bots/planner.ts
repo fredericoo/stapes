@@ -1,6 +1,10 @@
+import type { Coord } from "../app/lib/types";
 import type { Goal } from "./goals";
+import type { Recalled } from "./recollection";
 
-export type AskReason = "start" | "done" | "failed" | "timer" | "died";
+export type AskReason = "start" | "done" | "failed" | "timer" | "died" | "heard";
+
+export type Someone = Coord & { readonly name: string };
 
 /** What the bot could usefully do about its gear right now, as `Economy` reckons it. */
 export type Situation = {
@@ -20,9 +24,20 @@ export type Observation = {
   readonly outcome: string | null;
   readonly nowMs: number;
   readonly situation: Situation;
+  readonly self: Someone & { readonly hp: number | null; readonly maxHp: number | null };
+  /** Other players the bot can see, bots among them. */
+  readonly players: readonly Someone[];
+  readonly peaceful: boolean;
+  readonly recent: readonly Recalled[];
 };
 
-export type Decision = { readonly goal: Goal };
+/** Each field left out leaves that part of the bot as it was. */
+export type Decision = {
+  readonly goal?: Goal;
+  readonly say?: string;
+  /** A peaceful bot hunts nothing, and fights only what attacks it. */
+  readonly peaceful?: boolean;
+};
 
 export interface Planner {
   decide(observation: Observation): Promise<Decision | null>;
@@ -30,7 +45,7 @@ export interface Planner {
 
 /**
  * Goals in a fixed order, one after the other. A failed goal is asked for
- * again, and the last one is kept once the list runs out.
+ * again, and the last one is kept once the list runs out. It never speaks.
  */
 export class ScriptedPlanner implements Planner {
   private at = 0;
@@ -39,7 +54,7 @@ export class ScriptedPlanner implements Planner {
 
   async decide(observation: Observation): Promise<Decision | null> {
     if (observation.reason === "done") this.at++;
-    if (observation.reason === "timer") return null;
+    if (observation.reason === "timer" || observation.reason === "heard") return null;
     const goal = this.goals[Math.min(this.at, this.goals.length - 1)];
     return goal ? { goal } : null;
   }
@@ -76,6 +91,7 @@ export class ProgressPlanner implements Planner {
   async decide(observation: Observation): Promise<Decision | null> {
     const { reason, goal, nowMs } = observation;
     if (reason === "failed" && goal) this.failedAt.set(goal.goal, nowMs);
+    if (reason === "heard") return null;
     if (this.at < this.opening.length) {
       if (reason === "done") this.at++;
       if (this.at < this.opening.length) {

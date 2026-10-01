@@ -27,6 +27,7 @@ const fleet: FleetConfig = {
   origin: env.STAPES_ORIGIN ?? base,
   password: env.BOT_PASSWORD ?? "wanderer-bot-password",
   memory: `${(env.BOT_MEMORY_DIR ?? "./.dev/bots").replace(/\/+$/, "")}/${new URL(base).host.replace(/[^\w.-]/g, "_")}.db`,
+  openaiApiKey: env.OPENAI_API_KEY || null,
 };
 const count = Math.max(1, Number(values.qty ?? env.BOTS ?? 1) || 1);
 
@@ -40,7 +41,9 @@ const shares = Array.from({ length: threads }, (_, t) =>
   Array.from({ length: count }, (_, i) => i).filter((i) => i % threads === t),
 );
 
-console.log(`[bots] ${count} on ${base}, over ${threads} threads, remembering in ${fleet.memory}`);
+console.log(
+  `[bots] ${count} on ${base}, over ${threads} threads, remembering in ${fleet.memory}, ${fleet.openaiApiKey ? "talking" : "silent: no OPENAI_API_KEY"}`,
+);
 const entry = new URL("./worker.ts", import.meta.url).href;
 await Promise.all(
   shares.map(

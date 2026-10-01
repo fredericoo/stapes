@@ -19,6 +19,7 @@ import { getStack } from "../app/lib/mapData";
 import type { StatusDef } from "../app/lib/status";
 import type { Coord, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
+import { MAX_CHAT_LENGTH } from "../app/net/chat";
 import {
   canHurt,
   choosePrey,
@@ -48,7 +49,14 @@ import { exploredKey, Knowledge } from "./knowledge";
 import { Landmarks, SAME_PLACE_CELLS } from "./memory";
 import { Pilot } from "./Pilot";
 import { nextTalk } from "./shops";
-import { NOTHING_TO_DO, type AskReason, type Planner, type Situation } from "./planner";
+import {
+  NOTHING_TO_DO,
+  type AskReason,
+  type Decision,
+  type Planner,
+  type Situation,
+} from "./planner";
+import { Recollection } from "./recollection";
 
 export const THINK_EVERY_MS = 30_000;
 
@@ -138,6 +146,14 @@ export const TALK_RETRY_MS = 1_200;
  */
 export const BESIDE_FOE_PENALTY = 25;
 
+/**
+ * Bots hear each other, so two of them answering everything could talk
+ * forever. A bot says at most `SAY_LIMIT` things in any `SAY_WINDOW_MS`.
+ */
+export const SAY_LIMIT = 4;
+
+export const SAY_WINDOW_MS = 60_000;
+
 export type BotBody = Pick<
   RemoteSession,
   | "getSnapshot"
@@ -155,6 +171,7 @@ export type BotBody = Pick<
   | "talk"
   | "pickUp"
   | "drop"
+  | "say"
 >;
 
 export type BotOptions = {
@@ -221,7 +238,7 @@ export class Bot {
   private lastAskMs = 0;
   private lastMove: { at: string; sinceMs: number } = { at: "", sinceMs: 0 };
   private lastHp: number | null = null;
-  private foe: { id: string; sinceMs: number } | null = null;
+  private foe: { id: string; sinceMs: number; provoked: boolean } | null = null;
   private chase: { pilot: Pilot; toward: string; plannedMs: number } | null = null;
   private flight: { pilot: Pilot; untilMs: number } | null = null;
   private preySkipped = new Map<string, number>();
@@ -241,6 +258,10 @@ export class Bot {
   private readonly temperament: Temperament;
   private readonly economy: Economy;
   private readonly landmarks: Landmarks;
+  private peaceful = false;
+  private readonly memory = new Recollection();
+  private heard = new Set<string>();
+  private saidAtMs: number[] = [];
 
   constructor(
     private readonly body: BotBody,
@@ -287,6 +308,7 @@ export class Bot {
 
     const snapshot = this.body.getSnapshot();
     for (const notice of this.body.drainNotices()) this.happen(notice);
+    this.hear(snapshot);
     const self = snapshot.self;
     const hurt = this.lastHp !== null && self.hp !== null && self.hp < this.lastHp;
     this.lastHp = self.hp;
@@ -314,6 +336,28 @@ export class Bot {
     if (nowMs - this.deadSinceMs >= REBIRTH_AFTER_MS) this.body.rebirth();
   }
 
+  /**
+   * Remembers what other players said since the last frame. A bubble lasts
+   * `CHAT_LIFETIME_MS`, far longer than a frame, so one seen before is skipped
+   * by its id. The bot's own lines come back from the server too, and
+   * creatures' speech is not a player talking.
+   */
+  private hear(snapshot: GameSnapshot) {
+    const self = snapshot.self;
+    const fresh = snapshot.chats.filter(
+      (chat) =>
+        !this.heard.has(chat.id) && chat.actorId !== self.id && chat.tileId === PLAYER_TILE_ID,
+    );
+    this.heard = new Set(snapshot.chats.map((chat) => chat.id));
+    for (const chat of fresh) {
+      this.happen(
+        `${chat.name ?? "someone"} (at ${chat.x},${chat.y},${chat.z}) said: "${chat.text}"`,
+        true,
+      );
+    }
+    if (fresh.length > 0) this.ask("heard", null);
+  }
+
   private pursue(snapshot: GameSnapshot, nowMs: number) {
     const self = snapshot.self;
     if (!this.goal) return;
@@ -336,12 +380,12 @@ export class Bot {
       return;
     }
 
-    if (this.course.kind !== "press") {
+    if (this.course.kind !== "press" && !this.peaceful) {
       const prey = this.preyIn(snapshot, nowMs);
       if (prey) {
         if (this.hesitating(nowMs)) return;
         this.body.setInput({ directions: [] });
-        this.engage(prey.id, nowMs, `hunting ${nameOf(prey)}`);
+        this.engage(prey.id, nowMs, false, `hunting ${nameOf(prey)}`);
         return;
       }
     }
@@ -572,7 +616,7 @@ export class Bot {
         .filter((a) => reach(self, a) <= RETALIATE_CELLS)
         .sort((a, b) => reach(self, a) - reach(self, b))[0];
       if (attacker)
-        this.engage(attacker.id, nowMs, `${nameOf(attacker)} attacked you; fighting back`);
+        this.engage(attacker.id, nowMs, true, `${nameOf(attacker)} attacked you; fighting back`);
     }
     if (!this.foe) return false;
 
@@ -654,7 +698,7 @@ export class Bot {
       !this.outpaces(foe);
     if (shoots || parries) {
       this.chase = null;
-      this.foe = { id: foe.id, sinceMs: nowMs };
+      this.foe = { id: foe.id, sinceMs: nowMs, provoked: this.foe?.provoked ?? false };
       this.body.setInput({ directions: [] });
       return true;
     }
@@ -721,9 +765,9 @@ export class Bot {
     return resolveWalkDurationMs(foeDef) > resolveWalkDurationMs(selfDef);
   }
 
-  private engage(id: string, nowMs: number, why: string) {
+  private engage(id: string, nowMs: number, provoked: boolean, why: string) {
     this.happen(why);
-    this.foe = { id, sinceMs: nowMs };
+    this.foe = { id, sinceMs: nowMs, provoked };
     this.chase = null;
     this.course = { kind: "idle" };
     this.body.setTarget(id);
@@ -1119,7 +1163,7 @@ export class Bot {
   }
 
   private finish(reason: "done" | "failed", outcome: string) {
-    this.log(outcome);
+    this.happen(outcome);
     this.course =
       reason === "failed"
         ? { kind: "pause", untilMs: this.nowMs + FAILED_PAUSE_MS }
@@ -1128,7 +1172,9 @@ export class Bot {
     this.ask(reason, outcome);
   }
 
+  /** A line heard is in the memory the next ask reads, so it never displaces another reason. */
   private ask(reason: AskReason, outcome: string | null) {
+    if (reason === "heard" && this.pendingAsk) return;
     this.pendingAsk = { reason, outcome };
   }
 
@@ -1143,23 +1189,9 @@ export class Bot {
     this.asking = true;
     this.lastAskMs = nowMs;
     this.planner
-      .decide({
-        reason: ask.reason,
-        goal: this.goal,
-        outcome: ask.outcome,
-        nowMs,
-        situation: this.situation(snapshot),
-      })
+      .decide(this.observe(ask.reason, ask.outcome, snapshot))
       .then((decision) => {
-        if (!decision) return;
-        const changed = JSON.stringify(decision.goal) !== JSON.stringify(this.goal);
-        if (!changed) return;
-        this.log(`goal: ${describeGoal(decision.goal)}`);
-        this.goal = decision.goal;
-        this.pulls = 0;
-        this.skipped.clear();
-        this.course = { kind: "idle" };
-        this.body.setInput({ directions: [] });
+        if (decision) this.follow(decision);
       })
       .catch((error: unknown) => this.log(`planner failed: ${String(error)}`))
       .finally(() => {
@@ -1167,8 +1199,57 @@ export class Bot {
       });
   }
 
-  private happen(line: string) {
+  private observe(reason: AskReason, outcome: string | null, snapshot: GameSnapshot) {
+    const { self, actors } = snapshot;
+    const players = actors
+      .filter((a) => a.tileId === PLAYER_TILE_ID && a.id !== self.id)
+      .map((a) => ({ name: nameOf(a), x: a.x, y: a.y, z: a.z }));
+    return {
+      reason,
+      goal: this.goal,
+      outcome,
+      nowMs: this.nowMs,
+      situation: this.situation(snapshot),
+      self: { name: nameOf(self), x: self.x, y: self.y, z: self.z, hp: self.hp, maxHp: self.maxHp },
+      players,
+      peaceful: this.peaceful,
+      recent: this.memory.recent(),
+    };
+  }
+
+  private follow(decision: Decision) {
+    if (decision.say) this.say(decision.say);
+    if (decision.peaceful !== undefined && decision.peaceful !== this.peaceful) {
+      this.peaceful = decision.peaceful;
+      this.happen(decision.peaceful ? "you stopped hunting" : "you started hunting again");
+      if (decision.peaceful && this.foe && !this.foe.provoked) this.disengage();
+    }
+    if (!decision.goal || JSON.stringify(decision.goal) === JSON.stringify(this.goal)) return;
+    this.happen(`your goal is now: ${describeGoal(decision.goal)}`);
+    this.goal = decision.goal;
+    this.pulls = 0;
+    this.skipped.clear();
+    this.course = { kind: "idle" };
+    this.body.setInput({ directions: [] });
+  }
+
+  /**
+   * A leading slash would make the line a command, and commands can rewrite
+   * the map, so whatever a player talks a bot into typing is only ever said.
+   */
+  private say(text: string) {
+    const line = text.replace(/^\/+/, "").trim().slice(0, MAX_CHAT_LENGTH);
+    if (!line) return;
+    this.saidAtMs = this.saidAtMs.filter((atMs) => this.nowMs - atMs < SAY_WINDOW_MS);
+    if (this.saidAtMs.length >= SAY_LIMIT) return;
+    this.saidAtMs.push(this.nowMs);
+    this.body.say(line);
+    this.happen(`you said: "${line}"`);
+  }
+
+  private happen(line: string, heard = false) {
     this.log(line);
+    this.memory.add(this.nowMs, line, heard);
   }
 }
 

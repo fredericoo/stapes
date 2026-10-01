@@ -4,10 +4,11 @@ import { tilesByIdFromList } from "../app/lib/validation";
 import { RemoteSession } from "../app/net/RemoteSession";
 import type { ClientSocket } from "../app/net/socket";
 import { takeSeat, type BotAccount } from "./account";
+import { openaiPlanner } from "./LlmPlanner";
 import { Bot } from "./Bot";
 import type { Goal } from "./goals";
 import type { Landmarks } from "./memory";
-import { ProgressPlanner } from "./planner";
+import { ProgressPlanner, type Planner } from "./planner";
 import { between, drawTemperament, seededRandom } from "./temperament";
 
 /** How often the client state is advanced, which keeps prediction smooth. */
@@ -54,6 +55,8 @@ export type FleetConfig = {
   readonly password: string;
   /** The fleet's memory file, one per world, since every world is laid out differently. */
   readonly memory: string;
+  /** Without one, bots play the scripted goals and never speak. */
+  readonly openaiApiKey: string | null;
 };
 
 /** What every bot does first, before it plays for gear: the tutorial's rewards, then the surface. */
@@ -90,17 +93,15 @@ async function play(
   const remote = new RemoteSession(socket, seat.tiles, seat.statusDefs);
   const temperament = drawTemperament(seededRandom(account.character));
   log(`plays ${temperament.style}`);
-  const bot = new Bot(
-    remote,
-    new ProgressPlanner(OPENING),
-    tilesByIdFromList(seat.tiles),
-    seat.statusDefs,
-    {
-      log,
-      temperament,
-      landmarks,
-    },
-  );
+  const progress = new ProgressPlanner(OPENING);
+  const planner: Planner = fleet.openaiApiKey
+    ? openaiPlanner(fleet.openaiApiKey, progress, log)
+    : progress;
+  const bot = new Bot(remote, planner, tilesByIdFromList(seat.tiles), seat.statusDefs, {
+    log,
+    temperament,
+    landmarks,
+  });
 
   let last = performance.now();
   let decidedAt = last - between(Math.random, 0, DECIDE_MS);

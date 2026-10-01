@@ -27,6 +27,7 @@ export function startBots(config: Config, port: number): RunningBots {
         BOT_PASSWORD: config.BOT_PASSWORD,
         BOTS: String(config.BOTS),
         BOT_MEMORY_DIR: `${config.DATA_DIR.replace(/\/+$/, "")}/bots`,
+        ...(config.OPENAI_API_KEY ? { OPENAI_API_KEY: config.OPENAI_API_KEY } : {}),
       },
       stdout: "inherit",
       stderr: "inherit",
