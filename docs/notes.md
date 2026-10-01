@@ -4621,12 +4621,10 @@ What replaced each of the three:
   casting bar inside the name pushes them up and a walking body carries them
   with its tag.
 
-  A name tag is written in the ink of the first interaction on its body
-  (`nameInk`), not in its health: a creature you can fight and a player with
-  PvP on are red, a player with PvP off is white, a quest chest is purple, and
-  a body with nothing to do to it — yourself — is white. The health bar under
-  it still carries the health colour. A shopkeeper with hit points is yellow in
-  talking reach and red beyond it, because its first verb changes there. The pointer label is hidden on the
+  A body with health writes its name tag in its health colour
+  (`healthBarColor`), the same as its bar, from green down to black. A thing
+  without health has no bar, so its pointer name label takes the ink of its
+  first interaction instead: a quest chest's name is purple. The pointer label is hidden on the
   body already targeted or being attacked. A tap on a phone is the left button,
   so a tap starts a fight too. The canvas cancels its context menu, because the
   right button is a game button there. A shopkeeper with hit points ranks
