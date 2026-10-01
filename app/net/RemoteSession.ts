@@ -1236,6 +1236,12 @@ export class RemoteSession implements PlaySession {
     };
   }
 
+  /** The player's own body, without building every other body's snapshot as well. */
+  selfSnapshot(): ActorSnapshot | null {
+    const motion = this.motions.get(this.selfId);
+    return motion ? this.actorSnapshot(this.selfId, motion) : null;
+  }
+
   getSnapshot(): GameSnapshot {
     const actors: ActorSnapshot[] = [];
     let self: ActorSnapshot | null = null;

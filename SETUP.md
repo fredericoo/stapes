@@ -374,7 +374,10 @@ cron files below.
 - **Preview deployments**: enabled
 - **Memory limit**: `512m` — smaller than production on purpose. Previews are for
   looking at, and the tighter ceiling means a broken branch runs out of room
-  before it can crowd the live world.
+  before it can crowd the live world. With `BOTS` set, raise it. The bots
+  are a second process in the same container: one bot is about 130 MB, ten
+  about 650 MB. A server with players roaming the map measured 400–510 MB, so
+  `768m` holds one bot and about `1280m` holds ten.
 - Persistent storage `/data`, same as production. Coolify scopes the volume to
   the pull request, so each gets its own world.
 - Same environment variables, except `PUBLIC_ORIGIN`, plus
@@ -384,6 +387,8 @@ cron files below.
   `Secure` cookie flag needs. Better Auth reads the wildcard from the
   environment and adds it to the origins allowed to post to the account routes.
   Without it, a preview signs in and then refuses sign-out and password changes.
+- `BOTS=1` if previews should have a bot walking about (see below). Leave it
+  out and none start.
 - And a **different** `ADMIN_SECRET`, which goes into `PREVIEW_ADMIN_SECRET`.
   Leave `AUTH_SECRET` unset here: each preview is its own world with its own
   database, and generating a secret per preview is exactly right.

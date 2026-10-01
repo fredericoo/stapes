@@ -106,19 +106,24 @@ const FAMILY_ENDINGS = [
   "wick",
 ];
 
-function pick(words: readonly string[]): string {
-  return words[Math.floor(Math.random() * words.length)]!;
+function pick(words: readonly string[], random: () => number): string {
+  return words[Math.floor(random() * words.length)]!;
 }
 
 /** Joins that repeat a letter across the seam, like `Orm` + `more`, read as typos. */
-function join(openings: readonly string[], endings: readonly string[]): string {
+function join(
+  openings: readonly string[],
+  endings: readonly string[],
+  random: () => number,
+): string {
   for (;;) {
-    const opening = pick(openings);
-    const ending = pick(endings);
+    const opening = pick(openings, random);
+    const ending = pick(endings, random);
     if (opening.at(-1)!.toLowerCase() !== ending[0]) return opening + ending;
   }
 }
 
-export function randomCharacterName(): string {
-  return `${join(GIVEN_OPENINGS, GIVEN_ENDINGS)} ${join(FAMILY_OPENINGS, FAMILY_ENDINGS)}`;
+export function randomCharacterName(random: () => number = Math.random): string {
+  const given = join(GIVEN_OPENINGS, GIVEN_ENDINGS, random);
+  return `${given} ${join(FAMILY_OPENINGS, FAMILY_ENDINGS, random)}`;
 }

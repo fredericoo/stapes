@@ -1627,6 +1627,20 @@ is what actually gets your feet out of the way: the player tile carries a `push`
 block, so it is an interactive candidate wherever it stands — but nobody can
 shove themselves, so it has no row, and the rung underneath does.
 
+**A tall thing is also picked by its art, but only where no foot answers**
+(`Reach` in `render/pick.ts`). Testing only foot squares meant a cyclops or a
+door three cells tall could be hovered on its bottom cell and nowhere else, and
+the cursor over its head found nothing. Testing the art alone has the opposite
+fault: a tall sprite takes clicks meant for whatever stands in the cells it is
+drawn across. So the pick runs twice. `foot` is the old test; `sprite` tests
+the bounds of each nearby tile's idle frame, and runs only once `foot` found
+nothing. `GameRenderer.pickRefAt` keeps body-before-interactive inside each
+reach, so a body's head never outranks a door's foot. The bounds are the
+idle frame's rectangle, not its opaque pixels and not an attack frame, so the
+area under the cursor does not change while the creature animates. Which feet
+to search comes from the largest sprite in the catalogue (`spriteReach`), about
+seven cells square per level with the shipped tiles.
+
 **A shove is the one action that reaches under a lid**, because nothing is left
 behind: `pushedColumn` is the object plus everything stacked on it, the group
 travels as one rigid volume (`fitsHeightAtElevation`, `moveColumn`), and the
@@ -2472,13 +2486,14 @@ started at the mouth and only took `canWalk` steps reached none of them: it
 reported 355 cells nobody could walk to, and a bat walled in behind a door.
 
 The walk now starts at the `player` marker as well as at the mouth, because
-that is where everybody enters the world, and the tutorial's only way out is a
-one-way portal. It treats every door as open, since anybody who reaches one
-can open it: a tile whose `switch` turns it into an intangible tile is
-switched before the walk. And from every cell it reaches it takes the ladders
-and portals in that cell's stack, asking `canTeleportFrom` and `teleportFits`,
-the same questions the game asks before it moves a body. A ladder whose top is
-covered by something is still refused, as it is in the game.
+that is where everybody enters the world, and the tutorial's only way out
+starts with a drop nobody can climb back up. The walk is `reachableCells` in
+`app/game/navigation.ts`, the same graph `planRoute` searches: it walks
+through a door as though it were open, since anybody who reaches one can open
+it, falls wherever a step leaves a body in the air, and takes every ladder and
+portal it can use, asking `canTeleportFrom` and `teleportFits`, the same
+questions the game asks before it moves a body. A ladder whose top is covered
+by something is still refused, as it is in the game.
 
 A dirt cell only has to be reached if a body could stand in it: a walkable
 surface on that level with room for `player` above it. The check used to
@@ -13258,3 +13273,227 @@ Not yet fixed, and worth knowing before you profile something else:
   anywhere on the board is what gives it one.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.
+
+## A bot is a player in another process
+
+`bun run bots --qty 10 --url thelaststones.com` plays ten bots. Each signs in
+to an account like anybody else, opens `/online/ws` with the session cookie,
+and plays through a `RemoteSession`, the same client state the browser keeps. The world cannot
+tell it from a person, and nothing on the server was added for it. It never
+opens the database, so it does not compete with the server for the lock.
+
+**A bot's name is generated, and the same every run.** Bot number `i` is
+named by `randomCharacterName`, seeded with `bot-i-0`, and its username is
+that name's letters plus `bot`. `bots/account.ts` signs in, signs up if that
+fails, and creates the character if the account has no character by that
+name. Every later run finds both. When the name or username belongs to
+somebody else, the bot draws again with `bot-i-1`, and so on.
+
+Better Auth limits sign-ins per client, and every bot on one machine is one
+client: ten bots starting together are refused a few times. A refused sign-in
+(429) is retried under the same name after a pause, because it says nothing
+about the account. The password defaults to one in the repository, so set
+`BOT_PASSWORD` on anything public.
+
+**All the bots are one process over worker threads.** One process per bot
+cost about 150 MB each, mostly a runtime and a tile catalogue apiece. One
+thread for all of them could not keep up: ten bots kept one core at 100% and
+barely moved. `bots/index.ts` deals the bots out over one fewer worker thread
+than the machine has cores (`bots/worker.ts`). Ten bots took about 70% of one
+core and 650 MB in all.
+
+**A bot steers every frame and decides every `DECIDE_MS` (200ms).** Deciding
+reads every body in view and may search for a route, and deciding every frame
+was most of what a bot cost. Steering cannot wait that long: a held direction
+keeps stepping until it is changed, so a step shorter than the gap between
+decisions, as on a road, carried the bot past its route, and the replan that
+followed made it hesitate. `Bot.steer` holds the right direction every frame
+from `RemoteSession.selfSnapshot`, which builds no other body. Looking for
+rewards reads only the chunks that hold a reward tile, by `tileIdsInChunk`;
+reading the whole remembered map each time was a quarter of the cost.
+
+**A server can start its own bots.** `BOTS=n` in the server's environment
+starts the bot process with `n` bots when it begins listening
+(`server/bots.ts`). It is passed only the variables a bot reads, never
+`ADMIN_SECRET`. If it exits it is started again after `BOT_RESTART_MS`, and it
+is stopped when the server starts to drain. It runs with `--smol` to share a
+preview's memory limit with the server.
+
+**The address is not the origin.** `STAPES_URL` is where the requests go, and
+`STAPES_ORIGIN` (default: the same) is what they send as `Origin`. A deployed
+server accepts sign-ins only from its public origin, so a bot that reaches it
+on localhost still has to claim the public origin.
+
+**What a bot knows is what its socket was sent.** `RemoteSession` keeps every
+chunk it has ever been sent, so the client map is the bot's memory of the
+world: accurate where it has been, stale where it has not been since, and
+absent where it has never been. `Knowledge` (`bots/knowledge.ts`) removes the
+bodies from it before routing, because a body moves and a route should not
+treat one as a wall. A chunk absent on every level is one the bot has never
+seen, which is what exploring walks towards.
+
+**A route is `planRoute`, not `findPath`.** `findPath` is the creatures'
+search: 128 nodes, no ladders, and a drop only onto the goal. That limit keeps
+a round of creature turns affordable, and a creature using it can never leave
+the tutorial. `app/game/navigation.ts` is a second search with a budget of
+40,000 nodes. It runs in the bot's process, so it costs the server nothing.
+Its legs are:
+
+- a step, which `canWalk` allows, or which opens a closed door first;
+- a drop, which is a step that leaves the body in the air, landing where
+  `dropLanding` says, and which can never be walked back;
+- a step onto a portal, landing where the portal sends the body;
+- a ladder or other teleport used with a press, from wherever
+  `canTeleportFrom` allows.
+
+A drop costs four steps more than its walk, so a route takes one only when it
+is that much shorter. The real tutorial plans in about 60ms: drop through the
+unstable floor, climb the ladder at -8,40, then up the ramps at 20,36 to the
+surface.
+
+**Goals are decided slowly; everything else is decided every frame.**
+`Bot.act` runs each frame. It turns the current goal into the next errand
+(`nextErrand` in `bots/goals.ts`), plans a route to it, and has the `Pilot`
+hold one direction at a time, as a player's keys would. The `Pilot` switches
+to the next leg's direction as soon as the current walk is heading for the
+right cell, so the client's prediction starts the next step the moment this
+one lands, and the bot does not stop on every cell. The bot plans again when
+it ends up off its route, or when it has not moved for `STUCK_AFTER_MS`.
+Being hurt interrupts the route: the bot targets the nearest creature within
+two cells and fights until that creature is gone or out of reach. When a goal
+asks for a place nobody has seen, such as a level with no known way up, the
+bot explores towards it instead of giving up.
+
+**A planner chooses the goal, and nothing finer.** A goal is one of six:
+
+- `reach_level`
+- `go_to`
+- `open_rewards`
+- `hunt`
+- `explore`
+- `rest`
+
+`goalSchema` validates every goal. The planner is asked:
+
+- at the start;
+- when a goal is done;
+- when a goal fails;
+- when the bot dies;
+- every `THINK_EVERY_MS` otherwise.
+
+It is never asked per step. The one planner is `ScriptedPlanner`. It works
+through a fixed list in order, asks for a failed goal again, and keeps the
+last goal once the list runs out. `bun run bots` gives it `open_rewards`, then
+`reach_level` 0, then `hunt`. `bots/Bot.test.ts` gives it the first two and
+plays the tutorial's shape against a real `GameServer` over the real
+protocol.
+
+**Exploring walks to an unexplored edge, and roams once there is none.**
+`exploreErrand` picks at random among the `EXPLORE_CHOICES` nearest standing
+cells beside a chunk the bot has never been sent. Picking at random means two
+bots in one place do not walk off together. The edge of the map is never sent,
+because there is nothing beyond it, so on a world the bot has seen all of,
+every edge left is the outside of the map. That is why a bot remembers where
+it has been as `EXPLORED_BLOCK_CELLS`-square blocks rather than cells: a bot
+remembering cells would creep along the map's edge one cell at a time. With no
+unexplored edge left, the bot roams to a known cell on its own level between
+`ROAM_NEAR_CELLS` and `ROAM_FAR_CELLS` away, again in a block it has not
+visited. When it runs out of those, it forgets every block it has visited and
+starts again.
+
+A route to an explore target is searched with `EXPLORE_MAX_NODES` rather than
+the full budget, and up to `EXPLORE_ATTEMPTS` targets are tried. A search for
+an unreachable target can take a third of a second. After reaching a target,
+the bot loiters for between its temperament's `loiterMinMs` and `loiterMaxMs` (about 5 to 30 seconds). A bot that never stops keeps every
+creature along its way awake on the server, so the loitering is also how it
+limits its load on the server. A goal that finds no route waits
+`FAILED_PAUSE_MS` before it is searched again, so the bot does not search
+every frame.
+
+**A bot judges a creature by its rating, and acts before the goal does.**
+Every frame, before its goal, a bot checks three things in order:
+
+1. **It avoids threats.** A threat is a creature that can hurt the bot and
+   whose rating is above the bot's times `threatRatio` (about 125%) plus
+   `threatMargin` (about 5). The margin is there for new characters: by ratio
+   alone, a rat (about 8.9) outrated a new player (6) enough that bots backed
+   away from rats. A creature with no natural
+   damage and no spell, such as a rabbit, is never a threat, because rating
+   counts agility and a rabbit outrates a new player. The bot backs away to the
+   cell furthest from every threat within `waryCells`, and it backs away from
+   the creature it is fighting once its health falls below `fleeHpShare`.
+   It drops a fight only once it has found somewhere to back away to, so a bot
+   with nowhere to go stays and fights. Every route pays `THREAT_PENALTY` for
+   each cell within `THREAT_BERTH_CELLS` of a threat (`NavWorld.penalty`).
+2. **It fights its foe.** It strikes from within `STRIKE_REACH_CELLS`, and
+   walks after the foe when it is further away. It gives up after
+   `chaseGiveUpMs`, because deer and rabbits run faster than a player
+   walks. A creature that hurts a bot with no foe becomes its foe.
+3. **It eats.** Below `eatHpShare` of its health, it eats the bag's food
+   that heals most. Food that can give a bad status, such as raw meat or
+   anything stale, is never eaten to heal.
+
+**A bot fights what it can beat, under any goal.** Before following its
+goal, it looks for prey: a creature on its own level, in line of sight
+(`hasLineOfSight`), within `huntSightCells`. If it finds one, it fights it
+first, and the goal is the same once the fight is over, so a bot opening the
+tutorial's rewards takes on the rat on the way. Prey must be in line of sight
+because a rat in the next cave room is one the bot cannot reach, and chasing
+each such rat in turn was a route search that failed every frame or so.
+
+`hunt` picks prey with `choosePrey`: never a threat, and never a creature
+within `waryCells` of one. It takes a creature rated at least a third of the
+bot's own rating before one rated lower, because below that a kill earns no
+experience. When it can see no prey, it explores the way `explore` does. With
+`hunt` as the last goal, two bots on the shipped world ran for five minutes
+without dying.
+
+On the shipped world, rats count as threats to a new character. A rat's
+agility rates it about 8.9 against a new player's 6, although its bite does 1
+damage.
+
+**Each bot has a temperament, so a crowd of them does not move as one.**
+Bots that shared one set of numbers made the same choice in the same frame:
+a dozen started together walked out of the tutorial in a line and set off
+after the same rabbit. Three things now separate them:
+
+- **Temperament.** Every threshold named above is a field of `Temperament`
+  (`bots/temperament.ts`), drawn by `drawTemperament` up to
+  `TEMPERAMENT_SPREAD` (25%) either side of `DEFAULT_TEMPERAMENT`. The draw
+  is seeded from the character's name, so a bot keeps its temperament across
+  restarts. The threat ratio strays only 8%, so every bot still roughly keeps
+  the 125% rule.
+- **Hesitation.** A bot waits a random time between `reactionMinMs` and
+  `reactionMaxMs` before it charts a new errand or sets off after prey, drawn
+  afresh each time. The start is staggered too: each bot waits up to
+  `START_JITTER_MS` before its first sign-in.
+- **Prey choice.** `choosePrey` picks at random among the `preyChoices` best,
+  and puts prey another player stands within `TAKEN_CELLS` of at the back.
+
+- **Wandering.** Before each new errand, with probability `wanderChance`, a
+  bot first walks to a spot between `wanderNearCells` and `wanderFarCells`
+  away and looks about for a few seconds. It walks a route in stretches of
+  `stretchMinLegs` to `stretchMaxLegs` legs, stopping after each one to
+  hesitate and decide again, which is when it may wander. A wander never
+  takes a drop, so it cannot strand the bot below where it was going.
+
+Without wandering, bots crossed the tutorial in single file, as if they
+already knew the way. With it, six bots started together came out onto the
+surface 68 to 208 seconds in.
+
+**A bot always wears a light if it has one.** `nextDressing`
+(`bots/dress.ts`) runs before the goal, every frame. When nothing the bot
+wears gives light (`carriedLightTileIds`), it moves the first light in its bag
+to the square `equipDestination` picks: the charm square for the torch. Light
+does not change what a bot can see. It is there so that other players can see
+the bot in the dark. Next, while both hands are empty, it holds a weapon,
+preferring one without a projectile because the bot only fights what is beside
+it. It fills empty squares only and never takes anything off. The server
+confirms a move a tick later, so the same move is not sent again for
+`DRESS_RETRY_MS`.
+
+**A reward is taken only when all of it fits.** `rewardGoal` asks
+`canRewardFrom`, which includes `rewardFits`. When the bag is too full, no
+cell satisfies the goal, so the route search fails, and the bot skips that
+reward and goes to the next. Wearing the torch and the sword is what leaves
+room for the tutorial's food crate, which gives two items.
