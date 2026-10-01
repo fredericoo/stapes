@@ -100,6 +100,7 @@ import { healthBarColor, healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 import { clampZoomOut, debugSpanPx, DEBUG_ZOOM_OUT, playSquareOrigin } from "./debugView";
 import { DebugPanel } from "./debugPanel";
+import { withClaimedRewards } from "./claimedRewards";
 
 function sameRef(a: ObjectRef | null, b: ObjectRef | null): boolean {
   if (!a || !b) return false;
@@ -223,6 +224,12 @@ export class GameRenderer {
   private onInteractions: ((options: InteractionOption[]) => void) | null = null;
   private interactionsMap: MapFile | null = null;
   private unseenFrom: { map: MapFile; at: string; drawn: MapFile } | null = null;
+  private claimedFrom: {
+    map: MapFile;
+    tilesById: Record<string, TileDef>;
+    tags: readonly string[];
+    drawn: MapFile;
+  } | null = null;
   private interactionsAt = "";
   private interactionsHealth = 0;
   private interactionsKey = "";
@@ -1045,6 +1052,21 @@ export class GameRenderer {
     return { ...snap, map, actors: snap.actors.filter((actor) => !actor.hidden) };
   }
 
+  private withClaimedLooks(snap: GameSnapshot): GameSnapshot {
+    const kept = this.claimedFrom;
+    if (
+      kept &&
+      kept.map === snap.map &&
+      kept.tilesById === this.tilesById &&
+      kept.tags === snap.tags
+    ) {
+      return { ...snap, map: kept.drawn };
+    }
+    const drawn = withClaimedRewards(snap.map, this.tilesById, snap.tags);
+    this.claimedFrom = { map: snap.map, tilesById: this.tilesById, tags: snap.tags, drawn };
+    return drawn === snap.map ? snap : { ...snap, map: drawn };
+  }
+
   private isInDarkness(snap: GameSnapshot, actor: ActorSnapshot): boolean {
     return actor.id !== snap.self.id && this.world.isCellPitchBlack(actor.x, actor.y, actor.z);
   }
@@ -1471,7 +1493,7 @@ export class GameRenderer {
     this.pushInteractionOptions(snap, camera, cut);
     this.repickPointer(snap, camera);
 
-    const seen = this.withoutHiddenBodies(snap);
+    const seen = this.withClaimedLooks(this.withoutHiddenBodies(snap));
     const motions = this.tileMotionsFor(seen);
     const vfx = this.statusVfxFor(seen, dtMs);
     const transitions = this.session.takeTransitions();

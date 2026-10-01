@@ -137,6 +137,7 @@ export type SetSpawnInteraction = {
 
 export type RewardInteraction = {
   actionName?: string;
+  claimedTileId?: string;
 };
 
 export type PlacedReward = {
@@ -382,6 +383,7 @@ export function resolveSwitch(def: TileDef): SwitchInteraction | null {
 
 const rewardSchema = v.object({
   actionName: v.optional(v.string()),
+  claimedTileId: v.optional(v.string()),
 });
 
 const rewardCache = new WeakMap<TileDef, RewardInteraction | null>();
