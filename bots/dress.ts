@@ -1,4 +1,4 @@
-import { carriedLightTileIds, type Equipment } from "../app/game/equipment";
+import type { Equipment } from "../app/game/equipment";
 import { equipDestination, isBodySlot, type SlotRef } from "../app/game/itemMoves";
 import type { BattlerDef } from "../app/lib/battler";
 import { resolveContainer } from "../app/lib/item";
@@ -6,7 +6,8 @@ import type { ItemInstance } from "../app/lib/itemInstance";
 import { resolveLight } from "../app/lib/tileResolve";
 import type { TileDef } from "../app/lib/types";
 import type { EquipSlot } from "../app/game/affordances";
-import { bestUpgrade, gearSlots, type Style } from "./gear";
+import { isLit } from "./arcane";
+import { bestUpgrade, gearSlots, type Taste } from "./gear";
 
 export type Dressing =
   | { readonly kind: "move"; readonly from: SlotRef; readonly to: SlotRef; readonly tileId: string }
@@ -15,8 +16,8 @@ export type Dressing =
 /** How the bot judges what it carries. */
 export type Judge = {
   readonly body: BattlerDef;
-  readonly style: Style;
-  /** Things never thrown away: money, anything an NPC buys, anything saved for. */
+  readonly taste: Taste;
+  /** Things never thrown away: money, anything an NPC buys, anything saved for, stones. */
   readonly keeps: (tileId: string) => boolean;
   /** Things never worn as a light, though they glow: the money. */
   readonly spends: (tileId: string) => boolean;
@@ -28,8 +29,8 @@ type Carried = { readonly from: SlotRef; readonly instance: ItemInstance };
 
 /**
  * The next thing a bot should do with what it carries, or null. A light
- * comes first, whenever nothing worn gives one, so a bot carries light
- * wherever it goes. Then the best upgrade it carries goes on, the old piece
+ * comes first, whenever nothing worn gives one and no worn stone makes one,
+ * so a bot carries light wherever it goes. Then the best upgrade it carries goes on, the old piece
  * coming off into its place; a bag held in a hand is emptied into the one on
  * its back; and gear that is worse than what it wears, and that nobody buys,
  * is dropped, because a bag holds four things.
@@ -42,7 +43,8 @@ export function nextDressing(
   const carried = carriedLoose(equipment);
   const usable = carried.filter(({ instance }) => !judge.refused(instance.tileId));
 
-  if (carriedLightTileIds(equipment, tilesById).length === 0) {
+  const { body, taste } = judge;
+  if (!isLit(equipment, tilesById, taste.statusDefs, body.masteries)) {
     for (const { from, instance } of usable) {
       if (judge.spends(instance.tileId) || !givesLight(instance, tilesById)) continue;
       const to = equipDestination(equipment, tilesById, instance);
@@ -56,7 +58,7 @@ export function nextDressing(
   for (const { from, instance } of usable) {
     const def = tilesById[instance.tileId];
     const heldIn = isBodySlot(from) ? from.kind : null;
-    const upgrade = def && bestUpgrade(def, equipment, tilesById, judge.body, judge.style, heldIn);
+    const upgrade = def && bestUpgrade(def, equipment, tilesById, body, taste, heldIn);
     if (!upgrade || upgrade.gain <= 0) continue;
     if (!best || upgrade.gain > best.gain) {
       const to = { kind: upgrade.slot };
@@ -71,8 +73,8 @@ export function nextDressing(
   for (const { from, instance } of carried) {
     if (judge.keeps(instance.tileId) || (instance.contents?.length ?? 0) > 0) continue;
     const def = tilesById[instance.tileId];
-    if (!def || gearSlots(def, judge.style).includes(from.kind as EquipSlot)) continue;
-    const upgrade = bestUpgrade(def, equipment, tilesById, judge.body, judge.style);
+    if (!def || gearSlots(def, taste.style).includes(from.kind as EquipSlot)) continue;
+    const upgrade = bestUpgrade(def, equipment, tilesById, body, taste);
     if (upgrade && upgrade.gain <= 0) return { kind: "drop", from, tileId: def.id };
   }
   return null;

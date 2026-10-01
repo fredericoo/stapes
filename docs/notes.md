@@ -13378,7 +13378,7 @@ two cells and fights until that creature is gone or out of reach. When a goal
 asks for a place nobody has seen, such as a level with no known way up, the
 bot explores towards it instead of giving up.
 
-**A planner chooses the goal, and nothing finer.** A goal is one of nine:
+**A planner chooses the goal, and nothing finer.** A goal is one of ten:
 
 - `reach_level`
 - `go_to`
@@ -13387,6 +13387,7 @@ bot explores towards it instead of giving up.
 - `explore`
 - `shop`
 - `sell`
+- `forge`
 - `gather`
 - `rest`
 
@@ -13452,7 +13453,11 @@ creature and how long the creature would take to kill it, both from the
 health each has now. It uses the same per-second figures the Arena reports:
 `rotationOdds` over every hand the bot swings (`effectiveBattler`, with its
 statuses applied), against the creature's authored battler, plus the creature's
-damaging bolts spread over their cooldowns. A fight against several creatures
+damaging bolts spread over their cooldowns. The bolts the bot wears add their
+damage over the time between casts (`boltsPerSecond`); without them a caster
+with a Spark and bare hands judged every creature too strong to hunt, and one
+with bolts in both hands kites, so it takes `KITED_SHARE` as an archer does.
+A fight against several creatures
 counts all of them hitting the bot while it kills them one by one. `margin` is
 time-to-die over time-to-kill.
 
@@ -13604,9 +13609,11 @@ surface 68 to 208 seconds in.
 
 **A bot always wears a light if it has one.** `nextDressing`
 (`bots/dress.ts`) runs before the goal, every frame. When nothing the bot
-wears gives light (`carriedLightTileIds`), it moves the first light it
-carries to an empty square `equipDestination` picks: the charm square for the
-torch. The currency is never worn as a light, although an arcane shard
+wears gives light, it moves the first light it carries to an empty square
+`equipDestination` picks: the charm square for the torch. A worn stone the
+bot can cast that lights its caster counts as a light (`isLit` in
+`bots/arcane.ts`), so a bot wearing the Light stone leaves its torch in the
+bag. The currency is never worn as a light, although an arcane shard
 glows. Light does not change what a bot can see. It is there so that other
 players can see the bot in the dark. The server confirms a move a tick later,
 so the same move is not sent again for `DRESS_RETRY_MS`, and one the server
@@ -13634,10 +13641,15 @@ sent):
   causes. Magic gear the bot cannot wake is worth nothing.
 - **A bag is worth a point a square.** The tanner's leather backpack is
   usually the first thing a bot saves for.
-- **The charm square is left for the light**, so charms are never bought.
+- **A stone is worth what it does a second** (`stoneWorth`), on the same
+  scale as a weapon; see below.
+- **The charm square holds a light or a stone.** A light there is worth
+  `LIGHT_WORTH`, so a stone that out-damages it takes the square and the
+  torch goes to the bag. Charms and the armourer's amulets are never bought.
 
-**Each bot has a style: sword, club or bow.** `Temperament.style` is drawn
-with the rest of the temperament, so about a third of the bots are archers.
+**Each bot has a style: sword, club, bow or stones.** `Temperament.style` is
+drawn with the rest of the temperament, so about a quarter of the bots are
+archers and a quarter are arcane.
 An archer keeps a melee weapon in its off hand rather than a shield
 (`SIDEARM_SHARE`). A bow cannot shoot inside its `Reach.min`, and
 `handToSwing` passes to the hand that can reach, so the sidearm is what
@@ -13656,6 +13668,62 @@ backed away in a straight line until the edge of the map caught it. Routes
 charge `BESIDE_FOE_PENALTY` for the cells next to the foe, because the board a
 route is planned on has no bodies on it. A fight is given up after
 `chaseGiveUpMs` without having the foe in reach, for melee and ranged alike.
+
+**A bot with a bolt in hand kites like an archer.** An arcane bot holds
+stones in both hands as well as the charm square. When either hand holds a
+bolt it can cast, `castingReach` stands in for the bow's reach and `Bot.kite`
+runs as above. A bot of any other style casts only from the charm square and
+still walks up to swing.
+
+**A bot casts one stone a frame, chosen by the moment** (`Bot.spellcast`).
+It reads `spells()`, the same buttons the spell bar draws, so a stone it has
+not learnt, one cooling down, or a target out of reach is never sent. In
+order:
+
+- **Fighting:** the ready bolt that does most damage after the wheel
+  (`bestBolt`): Sleet before Cinder at a cave troll, which is made of fire. A
+  bolt fires as soon as the foe is in its reach, which is before a melee bot
+  reaches it, and again at a foe that has run out of sword's reach.
+- **Backing away:** a conjure whose tile puts a bad status on whoever steps in
+  (`harmfulTileIds`), at the nearest danger. The target is set a frame before
+  the cast, because a conjure with nobody targeted lands on the cell ahead,
+  which is the way the bot is running.
+- **Otherwise:** a stone on its caster. It recasts its light `LIGHT_RENEW_MS`
+  before the last one goes out, and while it carries a stone it cannot cast
+  yet it casts whenever one is ready, since every cast pays `XP_PER_CAST`
+  Arcane. A conjure is never cast just to train, because it leaves fire on
+  the ground.
+
+Nothing is cast while talking, gathering, crafting or cooking: a cast cancels
+an extraction.
+
+**Stones come from chests and the forge, never a shop.** A bot keeps every
+stone and every forge input (`Economy.forges`), and picks them up.
+`forgeRecipes` finds every recipe whose outputs are all stones, so nothing in
+the bots names the stone forge. `forgeOrders` decides which are worth making:
+
+- Anything that is not yet a stone, such as a blank, is always forged.
+- A pair is merged only when the result can be cast now and is worth more,
+  on average over its chance, than the better stone going in.
+
+The second rule rarely passes, and that is the catalogue rather than the
+rule. Every cast adds a flat amount from mastery (`spellPower`), so the fast
+first-rung stones gain most from it: at Arcane 20 and Fire 5 a Cinder does
+about 1.9 a second and an Ember 1.8. `stoneWorth` counts damage only, not a
+bolt's statuses or reach.
+
+The planner sends the bot to forge when it carries something worth forging
+and has seen a forge or remembers one (`canForge`). A `craft` act walks to a
+cell `craftGoal` accepts and sends the craft once; the goal then looks again
+at what the bot carries.
+
+**A bot cooks on a fire, or on one it conjures.** When food is short of
+`FOOD_RESERVE` and the bot carries something a fire turns into food
+(`Economy.cookers`), an idle bot stops. It cooks on a fire within
+`COOK_REACH_CELLS`, or else casts a stone that conjures one on the cell ahead
+of it, with nobody targeted, and cooks on that. A flame that has not appeared
+in `COOK_GIVE_UP_MS` is given up for `COOK_RETRY_MS`. Routes keep off the
+flame afterwards because `unsafeToStepOn` already refuses a cell that burns.
 
 **A bot knows every NPC's trades from the catalogue.** `offersIn`
 (`bots/shops.ts`) walks every tile's dialog and lists each `request_trade` by

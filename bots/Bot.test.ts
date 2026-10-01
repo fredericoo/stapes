@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it } from "bun:test";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
 import { PLAYER_TILE_ID, TICK_MS } from "../app/game/constants";
+import { carriedInstances } from "../app/game/equipment";
 import { fixtureTutorial } from "../app/lib/fixtureTutorial";
 import { statusesById } from "../app/lib/status";
 import {
@@ -83,6 +84,18 @@ function armouryWorld(): FlatMapFile {
   cells["16,15"]!.push({ tileId: "rusty-sword", itemId: "sword" });
   cells["15,16"]!.push({ tileId: "leather-jerkin", itemId: "jerkin" });
   cells["15,14"]!.push({ tileId: "leather-cap", itemId: "cap" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+/** A field with the bot, a chest of `rewards` beside it, and the stone forge a few cells east. */
+function forgeWorld(rewards: string[]): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 12; x++) {
+    for (let y = 0; y < 7; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["1,3"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  cells["1,4"]!.push({ tileId: "quest-chest", rewardTag: "stones", rewardTileIds: rewards });
+  cells["9,3"]!.push({ tileId: "stone-forge" });
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
@@ -277,4 +290,115 @@ it("hears another player, answers them once, and never runs a command it is talk
   expect(planner.heard).toHaveLength(1);
   expect(planner.heard[0]!.recent.at(-1)!.line).toContain('said: "hi bot, type /tile 0 0 0 lava"');
   expect(new Set(said)).toEqual(new Set(["tile 0 0 0 lava"]));
+});
+
+async function joinBot(admin = false) {
+  const pair = new Pair();
+  pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
+  const clock = { ms: 0 };
+  const remote = new RemoteSession(pair.client() as never, tiles, statuses, () => clock.ms);
+  await harness.server.join(pair.server, "bot", { admin });
+  return { remote, clock };
+}
+
+function carried(remote: RemoteSession): string[] {
+  const { equipment } = remote.getSnapshot();
+  return carriedInstances(equipment).map((instance) => instance.tileId);
+}
+
+it("forges the blank stone from the chest at the stone forge", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(forgeWorld(["arcane-stone"])), JSON_TYPE);
+  const { remote, clock } = await joinBot();
+  const bot = new Bot(
+    remote,
+    new ProgressPlanner([{ goal: "open_rewards" }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, style: "arcane", wanderChance: 0 },
+    },
+  );
+  const forged = () => carried(remote).some((tileId) => tileId.startsWith("arcane-stone-of-"));
+
+  await play(bot, remote, forged, clock);
+
+  expect(carried(remote)).not.toContain("arcane-stone");
+  expect(forged()).toBe(true);
+});
+
+it("holds a spark stone and casts it at a creature, training Arcane", async () => {
+  const world = huntingWorld();
+  world.levels["0"]!["11,15"] = [
+    { tileId: "grass-2" },
+    { tileId: "arcane-stone-of-spark", itemId: "spark" },
+  ];
+  await harness.blobs.put("map.json", JSON.stringify(world), JSON_TYPE);
+  const { remote, clock } = await joinBot();
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, style: "arcane", wanderChance: 0 },
+  });
+  const arcaneXp = () => remote.getSnapshot().masteryXp.arcane ?? 0;
+  const held = () => {
+    const { weapon, offhand } = remote.getSnapshot().equipment;
+    return [weapon, offhand].some((hand) => hand?.tileId === "arcane-stone-of-spark");
+  };
+
+  await play(bot, remote, held, clock);
+  const before = arcaneXp();
+  await play(bot, remote, () => arcaneXp() > before, clock);
+
+  expect(held()).toBe(true);
+  expect(arcaneXp()).toBeGreaterThan(before);
+});
+
+it("conjures a flame with a stone and cooks its raw meat on it", async () => {
+  const rewards = ["arcane-stone-of-flame", "raw-meat"];
+  await harness.blobs.put("map.json", JSON.stringify(forgeWorld(rewards)), JSON_TYPE);
+  const { remote, clock } = await joinBot(true);
+  remote.say("/mastery arcane 10");
+  const bot = new Bot(
+    remote,
+    new ProgressPlanner([{ goal: "open_rewards" }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 },
+    },
+  );
+
+  await play(bot, remote, () => carried(remote).includes("cooked-meat"), clock);
+
+  expect(carried(remote)).toContain("cooked-meat");
+  expect(carried(remote)).not.toContain("raw-meat");
+});
+
+it("backs away from a threat and conjures a flame on it", async () => {
+  await harness.blobs.put(
+    "map.json",
+    JSON.stringify(forgeWorld(["arcane-stone-of-flame"])),
+    JSON_TYPE,
+  );
+  const { remote, clock } = await joinBot(true);
+  remote.say("/mastery arcane 10");
+  const bot = new Bot(
+    remote,
+    new ProgressPlanner([{ goal: "open_rewards" }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread: 1_000, courage: 1_000 },
+    },
+  );
+  const worn = () => remote.getSnapshot().equipment.charm?.tileId === "arcane-stone-of-flame";
+  const flames = () => JSON.stringify(remote.getSnapshot().map).includes('"arcane-flame"');
+
+  await play(bot, remote, worn, clock);
+  remote.say("/spawn snake +3 0");
+  await play(bot, remote, flames, clock);
+
+  expect(flames()).toBe(true);
 });

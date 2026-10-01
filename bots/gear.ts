@@ -8,6 +8,7 @@ import {
   isTwoHanded,
   reachOf,
   resolveItem,
+  resolveStone,
   resolveWeapon,
   type Reach,
   type WeaponItem,
@@ -20,12 +21,24 @@ import {
   type MasteryXp,
   type WeaponMastery,
 } from "../app/lib/mastery";
+import type { StatusDef } from "../app/lib/status";
+import { resolveLight } from "../app/lib/tileResolve";
 import type { TileDef } from "../app/lib/types";
+import { LIGHT_WORTH, stoneWorth } from "./arcane";
 
-/** The weapon mastery a bot means to grow, and so the weapons it buys. */
-export type Style = Extract<WeaponMastery, "sharp" | "blunt" | "ranged">;
+/**
+ * The weapon mastery a bot means to grow, and so the weapons it buys. An
+ * arcane bot holds stones in both hands instead of a weapon.
+ */
+export type Style = Extract<WeaponMastery, "sharp" | "blunt" | "ranged" | "arcane">;
 
-export const STYLES: readonly Style[] = ["sharp", "blunt", "ranged"];
+export const STYLES: readonly Style[] = ["sharp", "blunt", "ranged", "arcane"];
+
+/** What a bot judges gear by: the mastery it grows, and the statuses a stone may grant. */
+export type Taste = {
+  readonly style: Style;
+  readonly statusDefs: Record<string, StatusDef>;
+};
 
 /**
  * A weapon of another mastery is worth this share of what it does. Mastery
@@ -43,7 +56,10 @@ export const OFF_STYLE_SHARE = 0.3;
  */
 export const ENCUMBRANCE_WEIGHT = 2;
 
-/** The squares a bot buys for and swaps in. The charm square is kept for a light. */
+/**
+ * The squares a bot buys for and swaps in. The charm square is kept for a
+ * light or a stone (`gearSlots`), so the armourer's amulets are never bought.
+ */
 export const GEAR_SLOTS: readonly EquipSlot[] = [
   "weapon",
   "offhand",
@@ -81,13 +97,21 @@ export function weaponWorth(weapon: WeaponItem, body: BattlerDef, style: Style):
 
 /**
  * What one item is worth to the bot in the square it would go in: damage a
- * second for a weapon, defence for armour and shields, room for a bag, and
- * nothing for anything else. Magic gear the bot cannot wake is worth nothing.
+ * second for a weapon or a stone, defence for armour and shields, room for a
+ * bag, a light's worth for a light in the charm square, and nothing for
+ * anything else. Magic gear the bot cannot wake is worth nothing.
  */
-export function gearWorth(def: TileDef, slot: EquipSlot, body: BattlerDef, style: Style): number {
+export function gearWorth(def: TileDef, slot: EquipSlot, body: BattlerDef, taste: Taste): number {
   if (magicDormant(def, body.masteries)) return 0;
   const item = resolveItem(def);
   if (!item) return 0;
+  const { style } = taste;
+  if (item.type === "stone") {
+    return gearSlots(def, style).includes(slot)
+      ? stoneWorth(def, body.masteries, taste.statusDefs)
+      : 0;
+  }
+  if (slot === "charm" && resolveLight(def, {}) !== undefined) return LIGHT_WORTH;
   if (item.type === "weapon" && slot === "weapon") return weaponWorth(item, body, style);
   if (item.type === "weapon" && slot === "offhand" && isSidearm(item, style)) {
     return weaponWorth(item, body, item.mastery as Style) * SIDEARM_SHARE;
@@ -112,6 +136,8 @@ export function gearWorth(def: TileDef, slot: EquipSlot, body: BattlerDef, style
  */
 export const SIDEARM_SHARE = 0.5;
 
+const STONE_HANDS: readonly EquipSlot[] = ["weapon", "offhand"];
+
 function isSidearm(weapon: WeaponItem, style: Style): boolean {
   return style === "ranged" && !isRanged(weapon) && weapon.mastery !== "arcane";
 }
@@ -122,6 +148,7 @@ function kept(shortfall: number): number {
 
 /** The squares a bot might put `def` in, if it is gear it buys for at all. */
 export function gearSlots(def: TileDef, style: Style): EquipSlot[] {
+  if (resolveStone(def)) return style === "arcane" ? [...STONE_HANDS, "charm"] : ["charm"];
   const item = resolveItem(def);
   if (item?.type === "weapon") {
     return isSidearm(item, style) && !isTwoHanded(def) ? ["weapon", "offhand"] : ["weapon"];
@@ -147,19 +174,19 @@ export function bestUpgrade(
   equipment: Equipment,
   tilesById: Record<string, TileDef>,
   body: BattlerDef,
-  style: Style,
+  taste: Taste,
   heldIn: EquipSlot | null = null,
 ): Upgrade | null {
   const worthOf = (tileId: string | undefined, at: EquipSlot) => {
     const held = tileId ? tilesById[tileId] : undefined;
-    if (held) return gearWorth(held, at, body, style);
-    return at === "weapon" ? weaponWorth(body.naturalWeapon, body, style) : 0;
+    if (held) return gearWorth(held, at, body, taste);
+    return at === "weapon" ? weaponWorth(body.naturalWeapon, body, taste.style) : 0;
   };
-  const leaving = heldIn ? gearWorth(def, heldIn, body, style) - worthOf(undefined, heldIn) : 0;
+  const leaving = heldIn ? gearWorth(def, heldIn, body, taste) - worthOf(undefined, heldIn) : 0;
   let best: Upgrade | null = null;
-  for (const slot of gearSlots(def, style)) {
+  for (const slot of gearSlots(def, taste.style)) {
     if (slot === heldIn) continue;
-    let gain = gearWorth(def, slot, body, style) - worthOf(equipment[slot]?.tileId, slot) - leaving;
+    let gain = gearWorth(def, slot, body, taste) - worthOf(equipment[slot]?.tileId, slot) - leaving;
     if (slot === "weapon" && isTwoHanded(def)) {
       gain -= worthOf(equipment.offhand?.tileId, "offhand");
     }

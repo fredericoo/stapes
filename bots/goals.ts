@@ -5,6 +5,7 @@ import type { Equipment } from "../app/game/equipment";
 import { MAX_LEVEL, MIN_LEVEL, type Coord } from "../app/lib/types";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import type { BattlerDef } from "../app/lib/battler";
+import { forgeOrders, type ForgeOrder } from "./arcane";
 import type { Deal, Economy } from "./economy";
 import { exploredKey, type Knowledge } from "./knowledge";
 import type { Landmarks } from "./memory";
@@ -23,6 +24,7 @@ export const goalSchema = v.variant("goal", [
   }),
   v.object({ goal: v.literal("shop") }),
   v.object({ goal: v.literal("sell") }),
+  v.object({ goal: v.literal("forge") }),
   v.object({
     goal: v.literal("gather"),
     pulls: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
@@ -51,6 +53,8 @@ export function describeGoal(goal: Goal): string {
       return "buy what I can afford and need";
     case "sell":
       return "sell what I carry and do not need";
+    case "forge":
+      return "forge the stones I carry";
     case "gather":
       return `gather ${goal.pulls} times`;
     case "rest":
@@ -60,12 +64,13 @@ export function describeGoal(goal: Goal): string {
 
 /**
  * What a bot does on arriving: press a thing, talk an NPC through a trade,
- * or work a resource until it gives.
+ * work a resource until it gives, or craft a recipe at a crafter.
  */
 export type Act =
   | { readonly kind: "press"; readonly ref: ObjectRef }
   | { readonly kind: "talk"; readonly deal: Deal; readonly at: Coord }
   | { readonly kind: "gather"; readonly ref: ObjectRef }
+  | { readonly kind: "craft"; readonly ref: ObjectRef; readonly recipe: number }
   | { readonly kind: "visit"; readonly tileId: string; readonly at: Coord };
 
 /**
@@ -157,6 +162,17 @@ export function nextErrand(
         if (errand) return errand;
       }
       return exploreErrand(knowledge, self, null, recall) ?? "exhausted";
+    }
+    case "forge": {
+      if (!holdings.body) return "done";
+      const { tilesById, statusDefs } = market.economy;
+      const orders = forgeOrders(tilesById, statusDefs, holdings.equipment, holdings.body);
+      if (orders.length === 0) return "done";
+      return (
+        forgeErrand(orders, knowledge, self, recall, market) ??
+        exploreErrand(knowledge, self, null, recall) ??
+        "exhausted"
+      );
     }
     case "gather": {
       if (recall.pulls >= goal.pulls || !holdings.body) return "done";
@@ -271,6 +287,42 @@ function gatherErrand(
     };
   }
   for (const tileId of knowledge.resourceTileIds(wanted)) {
+    const at = market.landmarks
+      .where(tileId, self)
+      .find((spot) => !recall.skipped.has(landmarkKey(tileId, spot)));
+    if (at)
+      return { nav: cellGoal(at, "beside"), act: { kind: "visit", tileId, at }, explores: null };
+  }
+  return null;
+}
+
+/**
+ * The walk to the nearest crafter of a forge order in what the bot has seen,
+ * else to the nearest the fleet remembers. Null when nobody knows of one.
+ */
+function forgeErrand(
+  orders: readonly ForgeOrder[],
+  knowledge: Knowledge,
+  self: Coord,
+  recall: Recall,
+  market: Market,
+): Errand | null {
+  const crafters = new Set(orders.map((order) => order.crafter));
+  const seen = knowledge
+    .placements(crafters)
+    .filter(({ ref }) => !recall.skipped.has(refKey(ref)))
+    .sort((a, b) => distance(self, a.ref) - distance(self, b.ref));
+  for (const { ref, tileId } of seen) market.landmarks.saw(tileId, ref);
+  const nearest = seen[0];
+  if (nearest) {
+    const order = orders.find((candidate) => candidate.crafter === nearest.tileId)!;
+    return {
+      nav: knowledge.craftGoal(nearest.ref),
+      act: { kind: "craft", ref: nearest.ref, recipe: order.index },
+      explores: null,
+    };
+  }
+  for (const tileId of crafters) {
     const at = market.landmarks
       .where(tileId, self)
       .find((spot) => !recall.skipped.has(landmarkKey(tileId, spot)));

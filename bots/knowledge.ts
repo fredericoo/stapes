@@ -1,4 +1,4 @@
-import { canRewardFrom, type ObjectRef } from "../app/game/affordances";
+import { canRewardFrom, reachableCraftAt, type ObjectRef } from "../app/game/affordances";
 import type { Equipment } from "../app/game/equipment";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import { listStandingSurfaces } from "../app/game/movement";
@@ -80,6 +80,21 @@ export class Knowledge {
       reached: (cell) => canRewardFrom(this.board, this.tilesById, cell, ref, equipment, tags),
       estimate: (cell) => Math.max(0, Math.abs(cell.x - ref.x) + Math.abs(cell.y - ref.y) - 1),
     };
+  }
+
+  /** Anywhere the crafter at `ref` can be worked from. */
+  craftGoal(ref: ObjectRef): NavGoal {
+    return {
+      reached: (cell) => reachableCraftAt(this.board, this.tilesById, cell, ref) !== null,
+      estimate: (cell) => Math.max(0, Math.abs(cell.x - ref.x) + Math.abs(cell.y - ref.y) - 1),
+    };
+  }
+
+  /** Every remembered placement of one of `tileIds`. */
+  placements(tileIds: ReadonlySet<string>): Array<{ ref: ObjectRef; tileId: string }> {
+    const out: Array<{ ref: ObjectRef; tileId: string }> = [];
+    this.placementsOf(tileIds, (ref, def) => out.push({ ref, tileId: def.id }));
+    return out;
   }
 
   /**

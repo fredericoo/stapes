@@ -1,13 +1,16 @@
-import { carriedInstances, carriedLightTileIds, type Equipment } from "../app/game/equipment";
+import { carriedInstances, type Equipment } from "../app/game/equipment";
+import { affordsRecipe } from "../app/game/craft";
 import { carriedCount, planTrade } from "../app/game/trade";
 import type { BattlerDef } from "../app/lib/battler";
 import type { TradeSide } from "../app/lib/dialog";
+import { resolveCraft, type CraftRecipe } from "../app/lib/interactions";
 import { countOf } from "../app/lib/piles";
 import type { StatusDef } from "../app/lib/status";
 import { resolveLight } from "../app/lib/tileResolve";
 import type { TileDef } from "../app/lib/types";
+import { forgeInputs, isLit } from "./arcane";
 import { healing } from "./combat";
-import { bestUpgrade, type Style } from "./gear";
+import { bestUpgrade, type Style, type Taste } from "./gear";
 import { currencyOf, offersIn, type Offer } from "./shops";
 
 /** Healing food a bot keeps rather than sells, and buys back up to when it runs low. */
@@ -30,14 +33,41 @@ export type Deal = { readonly offer: Offer; readonly amount: number; readonly wh
 export class Economy {
   readonly offers: readonly Offer[];
   readonly currency: string | null;
+  readonly taste: Taste;
+  /** Tiles with a recipe that turns something into food that heals, such as a fire. */
+  readonly cookers: ReadonlySet<string>;
+  private readonly forging: ReadonlySet<string>;
 
   constructor(
     readonly tilesById: Record<string, TileDef>,
     readonly statusDefs: Record<string, StatusDef>,
-    readonly style: Style,
+    style: Style,
   ) {
     this.offers = offersIn(tilesById);
     this.currency = currencyOf(this.offers);
+    this.taste = { style, statusDefs };
+    this.forging = forgeInputs(tilesById);
+    this.cookers = new Set(
+      Object.values(tilesById)
+        .filter((def) => resolveCraft(def)?.recipes.some((recipe) => this.cooks(recipe)))
+        .map((def) => def.id),
+    );
+  }
+
+  /** The recipe at `crafter` that cooks something the bot carries into food, or null. */
+  cookingRecipe(crafter: TileDef, equipment: Equipment): number | null {
+    const recipes = resolveCraft(crafter)?.recipes ?? [];
+    const index = recipes.findIndex(
+      (recipe) => this.cooks(recipe) && affordsRecipe(this.tilesById, equipment, recipe),
+    );
+    return index === -1 ? null : index;
+  }
+
+  private cooks(recipe: CraftRecipe): boolean {
+    return recipe.output.items.every((item) => {
+      const def = this.tilesById[item.tileId];
+      return def !== undefined && healing(def, this.statusDefs) > 0;
+    });
   }
 
   /** Every gear offer that would make the bot better, best first. */
@@ -46,7 +76,7 @@ export class Economy {
     for (const offer of this.offers) {
       const bought = soleGive(offer);
       const def = bought && this.tilesById[bought];
-      const upgrade = def && bestUpgrade(def, equipment, this.tilesById, body, this.style);
+      const upgrade = def && bestUpgrade(def, equipment, this.tilesById, body, this.taste);
       if (upgrade && upgrade.gain >= MIN_GAIN) out.push({ offer, gain: upgrade.gain });
     }
     return out.sort((a, b) => b.gain - a.gain);
@@ -108,25 +138,31 @@ export class Economy {
 
   /**
    * What is worth picking up off the floor, as a test on a tile id: money,
-   * anything the bot is saving for, anything an NPC buys, food while it has
-   * little, a light while it has none, and gear better than what it wears
-   * that it does not already carry one of.
+   * anything the bot is saving for, anything an NPC buys, anything it could
+   * forge with, food while it has little, a light while it has none, and gear
+   * better than what it wears that it does not already carry one of.
    * Built once for a decision, since it is asked of every thing in view.
    */
   wanted(equipment: Equipment, body: BattlerDef): (tileId: string) => boolean {
     const saving = new Set(this.savingFor(equipment, body)?.take.map((side) => side.tileId));
     const hungry = this.foodCount(equipment) < FOOD_RESERVE * 2;
-    const dark = carriedLightTileIds(equipment, this.tilesById).length === 0;
+    const dark = !isLit(equipment, this.tilesById, this.statusDefs, body.masteries);
     const carried = new Set(carriedInstances(equipment).map((instance) => instance.tileId));
     return (tileId) => {
       const def = this.tilesById[tileId];
       if (!def) return false;
       if (tileId === this.currency || saving.has(tileId) || this.bought(tileId)) return true;
+      if (this.forges(tileId)) return true;
       if (hungry && healing(def, this.statusDefs) > 0) return true;
       if (dark && resolveLight(def, {}) !== undefined) return true;
       if (carried.has(tileId)) return false;
-      return (bestUpgrade(def, equipment, this.tilesById, body, this.style)?.gain ?? 0) > 0;
+      return (bestUpgrade(def, equipment, this.tilesById, body, this.taste)?.gain ?? 0) > 0;
     };
+  }
+
+  /** Whether this is a stone, or goes into making one. A bot keeps all of them. */
+  forges(tileId: string): boolean {
+    return this.forging.has(tileId);
   }
 
   /** Whether some NPC pays money for this. */

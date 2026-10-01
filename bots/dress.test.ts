@@ -13,7 +13,7 @@ const tilesById = tilesByIdFromList((tilesJson as TileDef[]).map(normalizeTileDe
 function judge(style: Style): Judge {
   return {
     body: bodyOf(tilesById, {})!,
-    style,
+    taste: { style, statusDefs: {} },
     keeps: () => false,
     spends: () => false,
     refused: () => false,
