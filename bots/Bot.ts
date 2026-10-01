@@ -1,4 +1,5 @@
 import type { ObjectRef } from "../app/game/affordances";
+import { PLAYER_TILE_ID } from "../app/game/constants";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
 import { cellGoal, NAVIGATION_MAX_NODES, planRoute } from "../app/game/navigation";
 import type { StatusDef } from "../app/lib/status";
@@ -6,6 +7,7 @@ import type { Coord, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
 import { choosePrey, creaturesAround, healingFood, isThreat, reach, steps } from "./combat";
 import { nextDressing } from "./dress";
+import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
 import { describeGoal, exploreErrand, nextErrand, type Errand, type Goal } from "./goals";
 import { exploredKey, Knowledge } from "./knowledge";
 import { Pilot } from "./Pilot";
@@ -26,15 +28,6 @@ export const REBIRTH_AFTER_MS = 3_000;
 export const FAILED_PAUSE_MS = 15_000;
 
 /**
- * After reaching a spot it went to explore, a bot stands about for a while, as
- * a person looking around would. A bot that never stops keeps every creature
- * along its way awake on the server, so the pause is also its share of load.
- */
-export const LOITER_MIN_MS = 5_000;
-
-export const LOITER_MAX_MS = 30_000;
-
-/**
  * Exploring searches outward for any unexplored edge, which on a large known
  * map is the most expensive search a bot makes. An edge further than this is
  * left for later rather than paid for in one frame.
@@ -44,19 +37,10 @@ export const EXPLORE_MAX_NODES = 8_000;
 /** Edge cells tried in one search before an explore counts as failed. */
 export const EXPLORE_ATTEMPTS = 4;
 
-/** A threat this close is backed away from. */
-export const WARY_CELLS = 7;
-
 /** Routes pay `THREAT_PENALTY` a cell to keep this far from a threat. */
 export const THREAT_BERTH_CELLS = 4;
 
 export const THREAT_PENALTY = 6;
-
-/** Below this share of its health a bot backs away from the fight it is in. */
-export const FLEE_HP_SHARE = 0.35;
-
-/** Below this share of its health a bot eats, if it has something safe to. */
-export const EAT_HP_SHARE = 0.6;
 
 export const EAT_RETRY_MS = 3_000;
 
@@ -76,16 +60,10 @@ export const STRIKE_REACH_CELLS = 1.5;
 /** A chase replans when its quarry has moved, but no more often than this. */
 export const CHASE_REPLAN_MS = 600;
 
-/**
- * Deer and rabbits flee faster than a player walks, so a chase that has not
- * closed in this long is given up and the quarry left alone for a while.
- */
-export const CHASE_GIVE_UP_MS = 15_000;
-
 export const PREY_FORGET_MS = 120_000;
 
-/** Prey further away than this is not worth setting off after. */
-export const HUNT_SIGHT_CELLS = 16;
+/** Another player this close to prey has it, and the bot looks elsewhere. */
+export const TAKEN_CELLS = 3;
 
 /** Route budget for a chase or a flight, which only ever go a short way. */
 export const SHORT_ROUTE_MAX_NODES = 4_000;
@@ -143,6 +121,7 @@ export class Bot {
   private flight: { pilot: Pilot; untilMs: number } | null = null;
   private preySkipped = new Map<string, number>();
   private lastEatMs = -Infinity;
+  private reactAtMs: number | null = null;
   private deadSinceMs: number | null = null;
   private lastDressMs = -Infinity;
   private nowMs = 0;
@@ -154,6 +133,7 @@ export class Bot {
     private readonly statusDefs: Record<string, StatusDef>,
     private readonly log: (line: string) => void = () => {},
     private readonly random: () => number = Math.random,
+    private readonly temperament: Temperament = DEFAULT_TEMPERAMENT,
   ) {}
 
   get currentGoal(): Goal | null {
@@ -198,9 +178,10 @@ export class Bot {
     const self = snapshot.self;
     if (!this.goal) return;
 
-    if (this.goal.goal === "hunt") {
+    if (this.goal.goal === "hunt" && this.course.kind !== "travel") {
       const prey = this.preyIn(snapshot, nowMs);
       if (prey) {
+        if (this.hesitating(nowMs)) return;
         this.engage(prey.id, nowMs, `hunting ${nameOf(prey)}`);
         return;
       }
@@ -228,6 +209,7 @@ export class Bot {
     }
 
     if (this.course.kind === "idle") {
+      if (this.hesitating(nowMs)) return;
       this.chart(snapshot, nowMs);
       return;
     }
@@ -237,7 +219,8 @@ export class Bot {
     if (state === "arrived") {
       if (travel.errand.explores) {
         this.explored.add(exploredKey(travel.errand.explores));
-        const loiterMs = LOITER_MIN_MS + this.random() * (LOITER_MAX_MS - LOITER_MIN_MS);
+        const { loiterMinMs, loiterMaxMs } = this.temperament;
+        const loiterMs = between(this.random, loiterMinMs, loiterMaxMs);
         this.course = { kind: "pause", untilMs: nowMs + loiterMs };
         return;
       }
@@ -310,7 +293,7 @@ export class Bot {
   }
 
   /**
-   * Backs away from every threat within `WARY_CELLS`, and from the creature it
+   * Backs away from every threat within `waryCells`, and from the creature it
    * is fighting once its own health is low. Returns whether that took the
    * frame. A fight is dropped only once there is somewhere to back away to;
    * with nowhere, the bot stays and fights.
@@ -319,9 +302,12 @@ export class Bot {
     const self = snapshot.self;
     const creatures = creaturesAround(self, snapshot.actors, this.tilesById);
     const dangers = creatures.filter(
-      (a) => isThreat(self, a, this.tilesById) && reach(self, a) <= WARY_CELLS,
+      (a) =>
+        isThreat(self, a, this.tilesById, this.temperament.threatRatio) &&
+        reach(self, a) <= this.temperament.waryCells,
     );
-    const weak = self.hp !== null && !!self.maxHp && self.hp / self.maxHp < FLEE_HP_SHARE;
+    const weak =
+      self.hp !== null && !!self.maxHp && self.hp / self.maxHp < this.temperament.fleeHpShare;
     const foe = this.foe && creatures.find((a) => a.id === this.foe!.id);
     if (weak && foe) dangers.push(foe);
     if (dangers.length === 0) {
@@ -389,7 +375,7 @@ export class Bot {
       return true;
     }
 
-    if (nowMs - this.foe.sinceMs > CHASE_GIVE_UP_MS) {
+    if (nowMs - this.foe.sinceMs > this.temperament.chaseGiveUpMs) {
       this.preySkipped.set(foe.id, nowMs + PREY_FORGET_MS);
       this.happen(`gave up chasing ${nameOf(foe)}`);
       this.disengage();
@@ -444,20 +430,42 @@ export class Bot {
 
   private preyIn(snapshot: GameSnapshot, nowMs: number): ActorSnapshot | null {
     const self = snapshot.self;
+    const { threatRatio, waryCells, huntSightCells, preyChoices } = this.temperament;
     const threats = creaturesAround(self, snapshot.actors, this.tilesById).filter((a) =>
-      isThreat(self, a, this.tilesById),
+      isThreat(self, a, this.tilesById, threatRatio),
     );
+    const others = snapshot.actors.filter((a) => a.tileId === PLAYER_TILE_ID && a.id !== self.id);
     const near = snapshot.actors.filter(
-      (a) => steps(self, a) <= HUNT_SIGHT_CELLS && threats.every((t) => steps(a, t) > WARY_CELLS),
+      (a) => steps(self, a) <= huntSightCells && threats.every((t) => steps(a, t) > waryCells),
     );
-    const skipped = (id: string) => (this.preySkipped.get(id) ?? 0) > nowMs;
-    return choosePrey(self, near, this.tilesById, skipped);
+    return choosePrey(self, near, this.tilesById, {
+      threatRatio,
+      choices: preyChoices,
+      random: this.random,
+      skipped: (id) => (this.preySkipped.get(id) ?? 0) > nowMs,
+      taken: (prey) => others.some((p) => steps(p, prey) <= TAKEN_CELLS),
+    });
+  }
+
+  /**
+   * A bot takes a moment before acting on a new decision, drawn afresh each
+   * time, so bots that see the same thing in the same frame do not all move
+   * in it. Returns whether the bot is still making up its mind.
+   */
+  private hesitating(nowMs: number): boolean {
+    if (this.reactAtMs === null) {
+      const { reactionMinMs, reactionMaxMs } = this.temperament;
+      this.reactAtMs = nowMs + between(this.random, reactionMinMs, reactionMaxMs);
+    }
+    if (nowMs < this.reactAtMs) return true;
+    this.reactAtMs = null;
+    return false;
   }
 
   private threatPenalty(snapshot: GameSnapshot): ((cell: Coord) => number) | undefined {
     const self = snapshot.self;
     const threats = creaturesAround(self, snapshot.actors, this.tilesById).filter((a) =>
-      isThreat(self, a, this.tilesById),
+      isThreat(self, a, this.tilesById, this.temperament.threatRatio),
     );
     if (threats.length === 0) return undefined;
     return (cell) =>
@@ -468,7 +476,8 @@ export class Bot {
 
   private eat(snapshot: GameSnapshot, nowMs: number) {
     const self = snapshot.self;
-    if (self.hp === null || !self.maxHp || self.hp / self.maxHp >= EAT_HP_SHARE) return;
+    if (self.hp === null || !self.maxHp) return;
+    if (self.hp / self.maxHp >= this.temperament.eatHpShare) return;
     if (nowMs - this.lastEatMs < EAT_RETRY_MS) return;
     const index = healingFood(snapshot.equipment, this.tilesById, this.statusDefs);
     if (index === null) return;

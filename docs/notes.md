@@ -13326,7 +13326,7 @@ starts again.
 A route to an explore target is searched with `EXPLORE_MAX_NODES` rather than
 the full budget, and up to `EXPLORE_ATTEMPTS` targets are tried. A search for
 an unreachable target can take a third of a second. After reaching a target,
-the bot loiters for 5 to 30 seconds. A bot that never stops keeps every
+the bot loiters for between its temperament's `loiterMinMs` and `loiterMaxMs` (about 5 to 30 seconds). A bot that never stops keeps every
 creature along its way awake on the server, so the loitering is also how it
 limits its load on the server. A goal that finds no route waits
 `FAILED_PAUSE_MS` before it is searched again, so the bot does not search
@@ -13335,25 +13335,25 @@ every frame.
 **A bot judges a creature by its rating, and acts before the goal does.**
 Every frame, before its goal, a bot checks three things in order:
 
-1. **It avoids threats.** A threat is a creature rated above `THREAT_RATIO`
-   (125%) of the bot's own rating that can hurt it. A creature with no natural
+1. **It avoids threats.** A threat is a creature rated above `threatRatio`
+   (about 125%) of the bot's own rating that can hurt it. A creature with no natural
    damage and no spell, such as a rabbit, is never a threat, because rating
    counts agility and a rabbit outrates a new player. The bot backs away to the
-   cell furthest from every threat within `WARY_CELLS`, and it backs away from
-   the creature it is fighting once its health falls below `FLEE_HP_SHARE`.
+   cell furthest from every threat within `waryCells`, and it backs away from
+   the creature it is fighting once its health falls below `fleeHpShare`.
    It drops a fight only once it has found somewhere to back away to, so a bot
    with nowhere to go stays and fights. Every route pays `THREAT_PENALTY` for
    each cell within `THREAT_BERTH_CELLS` of a threat (`NavWorld.penalty`).
 2. **It fights its foe.** It strikes from within `STRIKE_REACH_CELLS`, and
    walks after the foe when it is further away. It gives up after
-   `CHASE_GIVE_UP_MS`, because deer and rabbits run faster than a player
+   `chaseGiveUpMs`, because deer and rabbits run faster than a player
    walks. A creature that hurts a bot with no foe becomes its foe.
-3. **It eats.** Below `EAT_HP_SHARE` of its health, it eats the bag's food
+3. **It eats.** Below `eatHpShare` of its health, it eats the bag's food
    that heals most. Food that can give a bad status, such as raw meat or
    anything stale, is never eaten to heal.
 
 `hunt` picks prey with `choosePrey`: never a threat, and never a creature
-within `WARY_CELLS` of one. It takes a creature rated at least a third of the
+within `waryCells` of one. It takes a creature rated at least a third of the
 bot's own rating before one rated lower, because below that a kill earns no
 experience. When it can see no prey, it explores the way `explore` does. With
 `hunt` as the last goal, two bots on the shipped world ran for five minutes
@@ -13362,6 +13362,27 @@ without dying.
 On the shipped world, rats count as threats to a new character. A rat's
 agility rates it about 8.9 against a new player's 6, although its bite does 1
 damage.
+
+**Each bot has a temperament, so a crowd of them does not move as one.**
+Bots that shared one set of numbers made the same choice in the same frame:
+a dozen started together walked out of the tutorial in a line and set off
+after the same rabbit. Three things now separate them:
+
+- **Temperament.** Every threshold named above is a field of `Temperament`
+  (`bots/temperament.ts`), drawn by `drawTemperament` up to
+  `TEMPERAMENT_SPREAD` (25%) either side of `DEFAULT_TEMPERAMENT`. The draw
+  is seeded from the character's name, so a bot keeps its temperament across
+  restarts. The threat ratio strays only 8%, so every bot still roughly keeps
+  the 125% rule.
+- **Hesitation.** A bot waits a random time between `reactionMinMs` and
+  `reactionMaxMs` before it charts a new errand or sets off after prey, drawn
+  afresh each time. The start is staggered too: each bot waits up to
+  `START_JITTER_MS` before its first sign-in.
+- **Prey choice.** `choosePrey` picks at random among the `preyChoices` best,
+  and puts prey another player stands within `TAKEN_CELLS` of at the back.
+
+Six bots started together reached their `hunt` goal 48, 58, 76 and 80 seconds
+in, rather than in the same second.
 
 **A bot always wears a light if it has one.** `nextDressing`
 (`bots/dress.ts`) runs before the goal, every frame. When nothing the bot

@@ -6,9 +6,6 @@ import type { StatusDef } from "../app/lib/status";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import type { Coord, TileDef } from "../app/lib/types";
 
-/** A creature rated above this share of the bot's own rating is one to avoid. */
-export const THREAT_RATIO = 1.25;
-
 /**
  * Below a third of the bot's rating a kill teaches nothing
  * (`experienceMultiplier`), so prey at or above it is hunted first.
@@ -40,29 +37,48 @@ export function creaturesAround<T extends Rated>(
   });
 }
 
-export function isThreat(self: Rated, other: Rated, tilesById: Record<string, TileDef>): boolean {
+export function isThreat(
+  self: Rated,
+  other: Rated,
+  tilesById: Record<string, TileDef>,
+  threatRatio: number,
+): boolean {
   if (other.rating === null) return false;
-  return other.rating > (self.rating ?? 1) * THREAT_RATIO && canHurt(tilesById[other.tileId]);
+  return other.rating > (self.rating ?? 1) * threatRatio && canHurt(tilesById[other.tileId]);
 }
 
+export type PreyChoice = {
+  readonly threatRatio: number;
+  /** Picked at random among this many of the best. */
+  readonly choices: number;
+  readonly random: () => number;
+  readonly skipped: (id: string) => boolean;
+  /** Prey somebody else is already beside, which goes to the back. */
+  readonly taken: (prey: Rated) => boolean;
+};
+
 /**
- * The creature to hunt: never a threat, nor one whose rating is unknown, and
- * among the rest one that teaches something before one that does not, then
- * the nearest.
+ * The creature to hunt: never a threat, nor one whose rating is unknown.
+ * Among the rest, prey nobody else is beside comes before prey that is taken,
+ * then one that teaches something before one that does not, then the nearest;
+ * the pick is random among the first `choices`, so two bots in one place do
+ * not set off after the same rabbit.
  */
 export function choosePrey<T extends Rated>(
   self: Rated,
   actors: readonly T[],
   tilesById: Record<string, TileDef>,
-  skipped: (id: string) => boolean,
+  how: PreyChoice,
 ): T | null {
   const floor = (self.rating ?? 1) * PREY_EXPERIENCE_RATIO;
   const candidates = creaturesAround(self, actors, tilesById).filter(
-    (a) => a.rating !== null && !isThreat(self, a, tilesById) && !skipped(a.id),
+    (a) =>
+      a.rating !== null && !isThreat(self, a, tilesById, how.threatRatio) && !how.skipped(a.id),
   );
-  const teaches = (a: T) => ((a.rating ?? 0) >= floor ? 0 : 1);
-  candidates.sort((a, b) => teaches(a) - teaches(b) || steps(self, a) - steps(self, b));
-  return candidates[0] ?? null;
+  const rank = (a: T) => (how.taken(a) ? 2 : 0) + ((a.rating ?? 0) >= floor ? 0 : 1);
+  candidates.sort((a, b) => rank(a) - rank(b) || steps(self, a) - steps(self, b));
+  const best = candidates.slice(0, Math.max(1, how.choices));
+  return best[Math.floor(how.random() * best.length)] ?? null;
 }
 
 /**

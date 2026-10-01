@@ -5,6 +5,7 @@ import { takeSeat, type BotAccount } from "./account";
 import { Bot } from "./Bot";
 import type { Goal } from "./goals";
 import { ScriptedPlanner } from "./planner";
+import { between, drawTemperament, seededRandom } from "./temperament";
 
 const FRAME_MS = 50;
 
@@ -13,6 +14,12 @@ const RECONNECT_MS = 5_000;
 const CLOSE_OUTDATED = 4001;
 
 const CLOSE_REPLACED = 4002;
+
+/**
+ * A server starts all its bots at once, and bots that join in the same
+ * second walk out of the tutorial in a line. Each waits up to this long first.
+ */
+const START_JITTER_MS = 20_000;
 
 /**
  * Bun's `WebSocket` takes request headers, which is how the session cookie
@@ -37,6 +44,8 @@ function log(line: string) {
   console.log(`[${account.character}] ${line}`);
 }
 
+const temperament = drawTemperament(seededRandom(account.character));
+
 const GOALS: readonly Goal[] = [
   { goal: "open_rewards" },
   { goal: "reach_level", level: 0 },
@@ -55,6 +64,8 @@ async function play(): Promise<"again" | "stop"> {
     tilesByIdFromList(seat.tiles),
     seat.statusDefs,
     log,
+    Math.random,
+    temperament,
   );
 
   let last = performance.now();
@@ -74,6 +85,8 @@ async function play(): Promise<"again" | "stop"> {
     });
   });
 }
+
+await new Promise((resolve) => setTimeout(resolve, between(Math.random, 0, START_JITTER_MS)));
 
 for (;;) {
   try {

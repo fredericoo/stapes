@@ -7,7 +7,8 @@ import { rating } from "../app/lib/mastery";
 import { statusesById } from "../app/lib/status";
 import { normalizeTileDef, type TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
-import { choosePrey, healingFood, isThreat, type Rated } from "./combat";
+import { choosePrey, healingFood, isThreat, type PreyChoice, type Rated } from "./combat";
+import { DEFAULT_TEMPERAMENT } from "./temperament";
 
 const tilesById = tilesByIdFromList((tilesJson as TileDef[]).map(normalizeTileDef));
 const statusDefs = statusesById(statusesJson as unknown[]);
@@ -19,31 +20,50 @@ function body(tileId: string, x = 0): Rated {
 
 const newcomer = { ...body("player"), id: "self" };
 
+const RATIO = DEFAULT_TEMPERAMENT.threatRatio;
+
+const firstChoice: PreyChoice = {
+  threatRatio: RATIO,
+  choices: 1,
+  random: () => 0,
+  skipped: () => false,
+  taken: () => false,
+};
+
 describe("isThreat", () => {
   it("is a creature rated above 125% of the bot that can hurt it", () => {
-    expect(isThreat(newcomer, body("wolf"), tilesById)).toBe(true);
-    expect(isThreat(newcomer, { ...body("wolf"), rating: newcomer.rating! * 1.2 }, tilesById)).toBe(
-      false,
-    );
+    expect(isThreat(newcomer, body("wolf"), tilesById, RATIO)).toBe(true);
+    expect(
+      isThreat(newcomer, { ...body("wolf"), rating: newcomer.rating! * 1.2 }, tilesById, RATIO),
+    ).toBe(false);
   });
 
   it("is never a creature with no way to hurt anybody, however it is rated", () => {
     const rabbit = body("rabbit");
     expect(rabbit.rating!).toBeGreaterThan(newcomer.rating! * 1.25);
-    expect(isThreat(newcomer, rabbit, tilesById)).toBe(false);
+    expect(isThreat(newcomer, rabbit, tilesById, RATIO)).toBe(false);
   });
 });
 
 describe("choosePrey", () => {
   it("passes over a nearer threat for prey further off", () => {
-    const prey = choosePrey(newcomer, [body("wolf", 1), body("rabbit", 5)], tilesById, () => false);
+    const prey = choosePrey(newcomer, [body("wolf", 1), body("rabbit", 5)], tilesById, firstChoice);
     expect(prey?.tileId).toBe("rabbit");
   });
 
   it("takes prey that teaches something before nearer prey that does not", () => {
     const tiny = { ...body("deer", 1), rating: newcomer.rating! / 4 };
-    const prey = choosePrey(newcomer, [tiny, body("deer", 6)], tilesById, () => false);
+    const prey = choosePrey(newcomer, [tiny, body("deer", 6)], tilesById, firstChoice);
     expect(prey?.x).toBe(6);
+  });
+
+  it("leaves prey somebody else is beside for prey nobody is", () => {
+    const near = body("deer", 1);
+    const prey = choosePrey(newcomer, [near, body("deer", 8)], tilesById, {
+      ...firstChoice,
+      taken: (p) => p.id === near.id,
+    });
+    expect(prey?.x).toBe(8);
   });
 });
 
