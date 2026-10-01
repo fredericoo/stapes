@@ -469,6 +469,19 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
               fallback="Take"
               onChange={(actionName) => patchReward({ actionName })}
             />
+            <TileIdMultiSelect
+              tiles={others}
+              tilesets={tilesets}
+              selectedIds={reward.claimedTileId ? [reward.claimedTileId] : []}
+              onChange={(ids) => patchReward({ claimedTileId: ids[0] || undefined })}
+              label="Look once taken"
+              emptyHint="Unchanged."
+              single
+            />
+            <p className="text-[11px] leading-snug text-muted">
+              Only the player who took it sees this tile. Everyone else, and the rules, still see
+              this one.
+            </p>
           </div>
         ) : null}
       </section>

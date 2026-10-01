@@ -8256,6 +8256,30 @@ it is the only one that can happen to a given player once: a chest authored to
 both give its contents and swing open would otherwise spend its one chance on the
 hinge. It falls through cleanly, since a reward already taken is not on offer.
 
+### A taken reward looks taken to the taker, and to nobody else
+
+`interactions.reward.claimedTileId` names the tile a player sees in place of the
+reward once they hold its tag: `quest-chest` sparkles and glows, and
+`quest-chest-claimed` does neither. The board still does not change, because the
+swap is in what is drawn, not in the map.
+
+- **The swap is a copy of the map that only the world renderer sees.**
+  `withClaimedRewards` (`app/render/claimedRewards.ts`) rewrites `tileId` on the
+  matching placements, on the same terms as `withoutHiddenBodies`. Picking,
+  affordances and the server keep reading `snap.map`, so the claimed tile needs
+  no interactions, and none of its other fields reach the rules either.
+- **Everything drawn from the map follows it with no change of its own.** The
+  mesh builder takes the emitter from the drawn def, and the light baker mirrors
+  `view.map`, so the sparkles and the glow go with the sprite. A second
+  mechanism to gate particles alone would be a second thing to keep in step with
+  this one.
+- **A chunk with nothing to swap keeps its identity.** `diffMapChunks` and the
+  level rebuild compare chunks by reference, so a new object for every chunk on
+  every map change would rebuild the whole map each time anyone moved. Swapped
+  chunks are cached per source chunk, tag set and catalogue, so they keep their
+  identity too until one of those changes.
+- **The editor has no viewer, so it always draws the unclaimed tile.**
+
 ## A craft spends what you carry and rolls for what comes back
 
 `interactions.craft` turns carried things into others — a forge that turns two
