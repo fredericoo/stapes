@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, redirect, useLoaderData, useNavigate } from "react-router";
-import { Door, DoorButton, DoorNote, DoorTitle, SYSTEM_MONO } from "../components/door";
+import { Door, DoorButton, DoorError, DoorNote, DoorTitle, SYSTEM_MONO } from "../components/door";
 import { MAX_CHARACTERS_PER_ACCOUNT } from "../lib/characterName";
 import { fetchMe, signOut } from "../lib/auth";
 import { forgetCharacter, rememberCharacter } from "../lib/playing";
@@ -23,6 +23,8 @@ export default function CharactersPage() {
   const closed = maintenance !== null && !admin;
   const navigate = useNavigate();
   const [entering, setEntering] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const enter = (character: Character) => {
     setEntering(character.id);
@@ -30,9 +32,17 @@ export default function CharactersPage() {
     void navigate("/online");
   };
 
-  const leave = () => {
+  const leave = async () => {
+    setLeaving(true);
+    setError(null);
+    const signedOut = await signOut();
+    if (!signedOut.ok) {
+      setLeaving(false);
+      setError(signedOut.error);
+      return;
+    }
     forgetCharacter();
-    void signOut().then(() => void navigate("/sign-in"));
+    void navigate("/");
   };
 
   const full = characters.length >= MAX_CHARACTERS_PER_ACCOUNT;
@@ -91,12 +101,14 @@ export default function CharactersPage() {
           type="button"
           className="text-xs uppercase tracking-widest text-paper/50 underline underline-offset-4 hover:text-paper disabled:opacity-50"
           style={{ fontFamily: SYSTEM_MONO }}
-          disabled={entering !== null}
-          onClick={leave}
+          disabled={entering !== null || leaving}
+          onClick={() => void leave()}
         >
-          Sign out
+          {leaving ? "Signing out…" : "Sign out"}
         </button>
       </div>
+
+      {error ? <DoorError>{error}</DoorError> : null}
     </Door>
   );
 }
