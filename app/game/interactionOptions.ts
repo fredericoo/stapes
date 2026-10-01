@@ -130,37 +130,29 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   push: 16,
 };
 
+export function rankedInteractionsAt(
+  options: readonly InteractionOption[],
+  ref: ObjectRef,
+): InteractionOption[] {
+  const key = refKey(ref);
+  return options
+    .filter((option) => !option.blocked && refKey(option.ref) === key)
+    .sort((a, b) => ACTION_ORDER[a.action] - ACTION_ORDER[b.action]);
+}
+
 export function topInteractionAt(
   options: readonly InteractionOption[],
   ref: ObjectRef,
 ): InteractionOption | null {
-  let best: InteractionOption | null = null;
-  const key = refKey(ref);
-  for (const option of options) {
-    if (refKey(option.ref) !== key) continue;
-    if (option.blocked) continue;
-    if (!best || ACTION_ORDER[option.action] < ACTION_ORDER[best.action]) {
-      best = option;
-    }
-  }
-  return best;
+  return rankedInteractionsAt(options, ref)[0] ?? null;
 }
 
-/**
- * The right button runs `target` on a body whose left button attacks it, so a
- * mouse has a second verb there; everywhere else it has none.
- */
-export function secondaryInteractionAt(
+/** What the right mouse button runs on a thing, as `topInteractionAt` is the left. */
+export function secondInteractionAt(
   options: readonly InteractionOption[],
   ref: ObjectRef,
 ): InteractionOption | null {
-  if (topInteractionAt(options, ref)?.action !== "attack") return null;
-  const key = refKey(ref);
-  return (
-    options.find(
-      (option) => option.action === "target" && !option.blocked && refKey(option.ref) === key,
-    ) ?? null
-  );
+  return rankedInteractionsAt(options, ref)[1] ?? null;
 }
 
 const TIER = {

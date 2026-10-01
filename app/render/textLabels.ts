@@ -9,7 +9,7 @@ import { type LabelKind, type LabelPlacement, layoutLabels } from "./labelLayout
 
 export type MouseButton = "left" | "right";
 
-export type ButtonHint = { button: MouseButton; text: string };
+export type ButtonHint = { button: MouseButton; text: string; color?: string };
 
 export type LabelLine = { id: string; text: string } | { id: string; hints: ButtonHint[] };
 
@@ -20,6 +20,9 @@ export type WorldLabel = {
   y: number;
   lines: LabelLine[];
   bar?: { fraction: number };
+  /** Lays out an empty, invisible health bar, so a name sits where a body's would. */
+  reserveBar?: boolean;
+  above?: string;
   progress?: { fraction: number };
   order?: number;
   color?: string;
@@ -42,6 +45,7 @@ const ANCHOR_CLEARANCE_EMS = 2.75;
 const BAR_CLASS = "world-label__bar";
 const HEALTH_BAR_CLASS = `${BAR_CLASS}--health`;
 const PROGRESS_BAR_CLASS = `${BAR_CLASS}--progress`;
+const RESERVED_BAR_CLASS = `${BAR_CLASS}--reserved`;
 
 const BRICKS_PER_EM = 10;
 
@@ -92,6 +96,7 @@ function mouseIcon(button: MouseButton): SVGSVGElement {
 function hintSpan(hint: ButtonHint): HTMLElement {
   const span = document.createElement("span");
   span.className = HINT_CLASS;
+  if (hint.color) span.style.color = hint.color;
   const text = document.createElement("span");
   text.textContent = hint.text;
   span.append(mouseIcon(hint.button), text);
@@ -111,7 +116,9 @@ function lineRow(line: LabelLine): HTMLElement {
 
 function lineSignature(line: LabelLine): string {
   if ("text" in line) return line.text;
-  return line.hints.map((hint) => `${hint.button}\u0002${hint.text}`).join("\u0003");
+  return line.hints
+    .map((hint) => `${hint.button}\u0002${hint.text}\u0002${hint.color ?? ""}`)
+    .join("\u0003");
 }
 
 function fillBar(element: HTMLDivElement, fraction: number, trackBricks: number) {
@@ -166,7 +173,7 @@ type LabelEntry = {
  */
 function signatureOf(label: WorldLabel): string {
   const lines = label.lines.map((line) => `${line.id}\u0000${lineSignature(line)}`).join("\u0001");
-  const bar = label.bar ? "|bar" : "";
+  const bar = label.bar ? "|bar" : label.reserveBar ? "|reserved" : "";
   const progress = label.progress ? "|progress" : "";
   return `${lines}${bar}${progress}`;
 }
@@ -259,6 +266,7 @@ export class WorldLabelLayer {
         kind: label.kind,
         anchorX: anchor.left,
         anchorY: anchor.top,
+        ...(label.above === undefined ? {} : { above: label.above }),
         ...this.measure(entry, label.kind),
       };
     });
@@ -366,6 +374,7 @@ export class WorldLabelLayer {
     if (label.progress) rows.push(this.track(PROGRESS_BAR_CLASS));
     for (const line of label.lines) rows.push(lineRow(line));
     if (label.bar) rows.push(this.track(HEALTH_BAR_CLASS));
+    else if (label.reserveBar) rows.push(this.track(`${HEALTH_BAR_CLASS} ${RESERVED_BAR_CLASS}`));
 
     element.replaceChildren(...rows);
   }

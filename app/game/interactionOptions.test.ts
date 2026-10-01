@@ -21,7 +21,7 @@ import {
   listedActionRows,
   listInteractionOptions,
   rowPress,
-  secondaryInteractionAt,
+  secondInteractionAt,
   topInteractionAt,
   type InteractionOption,
 } from "./interactionOptions";
@@ -1460,24 +1460,35 @@ describe("topInteractionAt", () => {
   });
 });
 
-describe("secondaryInteractionAt", () => {
-  it("targets a body whose primary verb attacks it", () => {
+describe("secondInteractionAt", () => {
+  it("targets a body whose first verb attacks it", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "deer"]);
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
     const options = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(secondaryInteractionAt(options, deer)?.action).toBe("target");
+    expect(secondInteractionAt(options, deer)?.action).toBe("target");
   });
 
-  it("has nothing for a thing whose primary verb is not a fight", () => {
+  it("opens a bag whose first verb puts it on", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bag"]);
+    const me = playerAt(map);
+    const options = listInteractionOptions(map, tilesById, me, [me], null, NO_BAG);
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+    expect(topInteractionAt(options, ref)?.action).toBe("equip");
+    expect(secondInteractionAt(options, ref)?.action).toBe("open");
+  });
+
+  it("has nothing for a thing with a single verb", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "crate"]);
     const me = playerAt(map);
     const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
-    expect(secondaryInteractionAt(options, { x: 1, y: 0, z: 0, stackIndex: 1 })).toBeNull();
+    expect(secondInteractionAt(options, { x: 1, y: 0, z: 0, stackIndex: 1 })).toBeNull();
   });
 });
 

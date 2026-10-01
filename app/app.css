@@ -21,12 +21,13 @@
   --color-accent: #2d6a4f;
   --color-danger: #9b2226;
   --color-danger-on-ink: #ff6b6b;
-  /* Must be the same value as `HOVER_COLOR` in `render/GameRenderer.ts`: the
-     outline drawn in the world when the pointer is over something actionable
-     uses this colour too, and the two are meant to be one mode. */
+  /* Must be the same value as the shared `outline` in
+     `render/interactionColors.ts`: the outline drawn in the world when the
+     pointer is over something actionable uses this colour too, and the two are
+     meant to be one mode. */
   --color-interact: #ffcc00;
-  /* Must be the same value as `REWARD_COLOR` in `render/GameRenderer.ts`, for
-     the same reason `--color-interact` matches `HOVER_COLOR`. */
+  /* Must be the same value as `INTERACTION_COLORS.reward.outline` in
+     `render/interactionColors.ts`, for the same reason as `--color-interact`. */
   --color-reward: #b15cff;
   --color-look: #3fa9ff;
   /* The yellow the world writes names and noises in, and the landing page its
@@ -284,6 +285,10 @@ body {
 .world-label__bar > div {
   height: 100%;
   width: 100%;
+}
+
+.world-label__bar--reserved {
+  visibility: hidden;
 }
 
 .world-label__bar--progress {

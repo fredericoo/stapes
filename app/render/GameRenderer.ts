@@ -32,13 +32,14 @@ import {
   applyInteraction,
   interactionText,
   listInteractionOptions,
-  secondaryInteractionAt,
+  secondInteractionAt,
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
 import type { Extraction } from "../game/extract";
 import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby } from "./nearbyInscriptions";
+import { INTERACTION_COLORS } from "./interactionColors";
 import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
@@ -96,7 +97,7 @@ import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
 import { NoticeQueue, NotificationLayer } from "./notifications";
-import { healthBarColor, healthFraction } from "./healthBar";
+import { healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 import { clampZoomOut, debugSpanPx, DEBUG_ZOOM_OUT, playSquareOrigin } from "./debugView";
 import { DebugPanel } from "./debugPanel";
@@ -113,15 +114,7 @@ function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
 
 const DROP_GHOST_ALPHA = 0.55;
 
-const HOVER_COLOR = 0xffcc00;
-
-const TARGET_HOVER_COLOR = 0xffffff;
-
 const TARGET_COLOR = 0xffffff;
-
-const ATTACK_TARGET_COLOR = 0xff3b30;
-
-const ATTACK_LABEL_INK = "#ff9b94";
 
 const LOOK_COLOR = 0x3fa9ff;
 
@@ -131,31 +124,43 @@ const LOOK_HOLD_SLOP_PX = 10;
 
 const PICK_LEVEL_SLACK = 1;
 
-const HOVER_LABEL_INK = "#ffe27a";
-
-const REWARD_COLOR = 0xb15cff;
-
-const REWARD_LABEL_INK = "#d9a9ff";
-
 function interactionColor(option: InteractionOption): number {
-  if (option.action === "attack") return ATTACK_TARGET_COLOR;
-  if (option.action === "target") return TARGET_HOVER_COLOR;
-  if (option.action === "reward") return REWARD_COLOR;
-  return HOVER_COLOR;
+  return INTERACTION_COLORS[option.action].outline;
 }
 
 function interactionInk(option: InteractionOption): string {
-  if (option.action === "attack") return ATTACK_LABEL_INK;
-  if (option.action === "target") return "#ffffff";
-  if (option.action === "reward") return REWARD_LABEL_INK;
-  return HOVER_LABEL_INK;
+  return INTERACTION_COLORS[option.action].ink;
+}
+
+function buttonLine(first: InteractionOption, second: InteractionOption | null): LabelLine {
+  const left = { button: "left", text: first.label, color: interactionInk(first) } as const;
+  if (!second) return { id: "buttons", hints: [left] };
+  return {
+    id: "buttons",
+    hints: [left, { button: "right", text: second.label, color: interactionInk(second) }],
+  };
+}
+
+const POINTER_NAME_ID = "look:name";
+
+const NOTHING_TO_DO_INK = INTERACTION_COLORS.target.ink;
+
+function nameLabelId(actorId: string): string {
+  return `name:${actorId}`;
 }
 
 type PointerLabel = {
   ref: ObjectRef;
+  actorId?: string | null;
   height: number;
   lines: LabelLine[];
   color?: string;
+  /**
+   * A name drawn where a body's name tag sits, for a thing that has none
+   * (`pushNameLabels` only tags bodies with health).
+   */
+  nameTag?: string;
+  nameColor?: string;
 };
 
 /**
@@ -726,11 +731,11 @@ export class GameRenderer {
     this.pointerRef = this.pickRefAt(this.lastPointer, snap);
   };
 
-  private targetAt(point: { x: number; y: number }, snap: GameSnapshot) {
+  private actSecondAt(point: { x: number; y: number }, snap: GameSnapshot) {
     this.pointerRef = this.pickRefAt(point, snap);
     if (!this.pointerRef) return;
-    const watch = secondaryInteractionAt(this.interactionsSent, this.pointerRef);
-    if (watch) applyInteraction(this.session, watch, this);
+    const second = secondInteractionAt(this.interactionsSent, this.pointerRef);
+    if (second) this.runOption(second);
   }
 
   private pickAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
@@ -771,7 +776,7 @@ export class GameRenderer {
 
     if (e.button === 2) {
       e.preventDefault();
-      if (!this.lookMode) this.targetAt(point, this.session.getSnapshot());
+      if (!this.lookMode) this.actSecondAt(point, this.session.getSnapshot());
       return;
     }
 
@@ -1001,7 +1006,9 @@ export class GameRenderer {
     if (ghost) specs.push(ghost);
     const target = this.targetOutline(snap);
     if (target) {
-      specs.push(outline(target, snap.attacking ? ATTACK_TARGET_COLOR : TARGET_COLOR, true));
+      specs.push(
+        outline(target, snap.attacking ? INTERACTION_COLORS.attack.outline : TARGET_COLOR, true),
+      );
     }
     const pointed = this.pointerOption();
     if (pointed && !sameRef(pointed.ref, target)) {
@@ -1218,18 +1225,48 @@ export class GameRenderer {
     const said = this.lookMode ? this.lookLines(snap) : this.pointerLines(snap);
     if (!said) return;
 
-    const { ref, height, lines, color } = said;
-    const ground = this.cellWorldCenter(ref.x, ref.y, ref.z, snap.map, ref.stackIndex);
+    const { ref, height, lines, color, nameTag, nameColor } = said;
+    const body = this.lookMode ? undefined : snap.actors.find((a) => a.id === said.actorId);
+    const ground = body
+      ? this.actorVisualWorld(snap.map, body)
+      : this.cellWorldCenter(ref.x, ref.y, ref.z, snap.map, ref.stackIndex);
     const head = elevationScreenOffset(height);
+    /**
+     * Where a name tag sits on a thing this tall; the pointer label clears it
+     * from there, so a short thing's actions stay above its name rather than
+     * under it.
+     */
+    const nameY = ground.y + head.y - labelHeadroomPx(height);
 
     into.push({
       id: "look",
       kind: "look",
       x: ground.x + head.x,
-      y: ground.y + head.y,
+      y: this.lookMode ? ground.y + head.y : nameY,
       lines,
       ...(color ? { color } : {}),
+      ...this.pointerNameId(nameTag, body),
     });
+    if (nameTag === undefined) return;
+    into.push({
+      id: POINTER_NAME_ID,
+      kind: "name",
+      x: ground.x + head.x,
+      y: nameY,
+      lines: [{ id: "name", text: nameTag }],
+      reserveBar: true,
+      ...(nameColor ? { color: nameColor } : {}),
+    });
+  }
+
+  private pointerNameId(
+    nameTag: string | undefined,
+    body: ActorSnapshot | undefined,
+  ): { above: string } | null {
+    if (this.lookMode) return null;
+    if (nameTag !== undefined) return { above: POINTER_NAME_ID };
+    if (body && body.hp !== null) return { above: nameLabelId(body.id) };
+    return null;
   }
 
   private lookLines(snap: GameSnapshot): PointerLabel | null {
@@ -1260,26 +1297,36 @@ export class GameRenderer {
     if (!option) return null;
     if (option.actorId !== null && option.actorId === snap.targetId) return null;
     const def = this.tilesById[option.tileId];
-    const secondary = this.pointerIsMouse
-      ? secondaryInteractionAt(this.interactionsSent, option.ref)
-      : null;
-    const lines: LabelLine[] = secondary
-      ? [
-          {
-            id: "buttons",
-            hints: [
-              { button: "left", text: option.label },
-              { button: "right", text: secondary.label },
-            ],
-          },
-        ]
-      : [{ id: "action", text: interactionText(option) }];
+    const height = def?.height ?? 0;
+    if (!this.pointerIsMouse) {
+      return {
+        ref: option.ref,
+        actorId: option.actorId,
+        height,
+        lines: [{ id: "action", text: interactionText(option) }],
+        color: interactionInk(option),
+      };
+    }
+    const second = secondInteractionAt(this.interactionsSent, option.ref);
     return {
       ref: option.ref,
-      height: def?.height ?? 0,
-      lines,
-      color: interactionInk(option),
+      actorId: option.actorId,
+      height,
+      lines: [buttonLine(option, second)],
+      ...(option.health === null
+        ? { nameTag: option.name, nameColor: interactionInk(option) }
+        : {}),
     };
+  }
+
+  /**
+   * A name is written in the colour of the first thing a click would do to it,
+   * so red means a fight and purple a reward before the pointer gets there;
+   * with nothing to do, as on yourself, it is white.
+   */
+  private nameInk(actor: ActorSnapshot): string {
+    const first = topInteractionAt(this.interactionsSent, actor);
+    return first ? interactionInk(first) : NOTHING_TO_DO_INK;
   }
 
   private pushNameLabels(
@@ -1300,7 +1347,7 @@ export class GameRenderer {
       const sized = sizedUpName(name, actor.rating, this.lookMode);
       const fraction = healthFraction(actor.hp, actor.maxHp);
       into.push({
-        id: `name:${actor.id}`,
+        id: nameLabelId(actor.id),
         kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y - labelHeadroomPx(height),
@@ -1311,7 +1358,7 @@ export class GameRenderer {
           standingFootAbs(snap.map, this.tilesById, actor, actor.stackIndex),
           actor.stackIndex,
         ),
-        color: healthBarColor(fraction),
+        color: this.nameInk(actor),
         bar: { fraction },
         progress: actor.casting
           ? { fraction: progressFraction(actor.casting) }
