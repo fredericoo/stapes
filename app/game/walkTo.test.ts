@@ -9,7 +9,8 @@ import type { GameInput } from "./GameSession";
 import { PLAYER_TILE_ID } from "./constants";
 import { HeldDirections } from "./heldDirections";
 import { noRouteNotice } from "./notices";
-import { WalkTo, standingCellOn, type WalkView } from "./walkTo";
+import type { Reaching } from "./pathfinding";
+import { WalkTo, approachStand, standingCellOn, type WalkView } from "./walkTo";
 import { tile } from "../lib/testTile";
 
 const tiles: TileDef[] = [
@@ -356,6 +357,95 @@ describe("clicking something you cannot stand on", () => {
     expect(last()?.[0]).toMatch(/^[ns]$/);
   });
 });
+
+function reachingWhere(accepts: (at: Coord) => boolean, within = 4): Reaching {
+  return { within, accepts };
+}
+
+const WALL_AT = { x: 2, y: 0, z: 0 };
+
+const besideTheWall = reachingWhere((at) => at.x === 1 && at.y === 0, 1);
+
+describe("approaching something to act on it", () => {
+  const BESIDE_THE_WALL = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+  function arrivedBesideWall() {
+    const { walk, input, last } = walker();
+    let map = put(field(6), 2, 0, "wall");
+    walk.approach(WALL_AT, besideTheWall, view(map));
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
+    walk.tick(view(map, { at: BESIDE_THE_WALL }));
+    return { walk, input, last, map };
+  }
+
+  it("lets go of the input where it is accepted but holds the errand for whoever acts there", () => {
+    const { walk, last } = arrivedBesideWall();
+
+    expect(last()).toEqual([]);
+    expect(walk.arrived).toBe(true);
+    expect(walk.approaching).toBe(true);
+  });
+
+  it("ends when a key is pressed after arriving", () => {
+    const { walk, input, map } = arrivedBesideWall();
+
+    input.press("n");
+    walk.tick(view(map, { at: BESIDE_THE_WALL }));
+
+    expect(walk.walking).toBe(false);
+    expect(walk.approaching).toBe(false);
+  });
+
+  it("is not an approach once a plain click replaces it", () => {
+    const { walk } = walker();
+    const map = put(field(6), 2, 0, "wall");
+
+    walk.approach(WALL_AT, besideTheWall, view(map));
+    walk.start(ground(0, 3), view(map));
+
+    expect(walk.approaching).toBe(false);
+  });
+});
+
+describe("where an approach would stop", () => {
+  it("stands on the goal when that is the only cell that will do, as on a ladder", () => {
+    const goal = { x: 3, y: 0, z: 0 };
+
+    expect(
+      approachStand(
+        view(field(6)),
+        goal,
+        reachingWhere((at) => sameSpot(at, goal)),
+      ),
+    ).toEqual(goal);
+  });
+
+  it("stops in reach of a goal behind a wall rather than refusing it", () => {
+    let map = field(6);
+    for (let y = -6; y <= 6; y++) map = put(map, 3, y, "wall");
+    const inReach = reachingWhere((at) => at.x === 2 && Math.abs(at.y) <= 1);
+
+    expect(approachStand(view(map), { x: 4, y: 0, z: 0 }, inReach)).toEqual({ x: 2, y: 0, z: 0 });
+  });
+
+  it("names nothing when no route reaches a cell that will do", () => {
+    let map = field(6);
+    for (let y = -6; y <= 6; y++) map = put(map, 1, y, "wall");
+
+    expect(
+      approachStand(
+        view(map),
+        { x: 3, y: 0, z: 0 },
+        reachingWhere((at) => at.x === 2),
+      ),
+    ).toBeNull();
+  });
+});
+
+function sameSpot(a: Coord, b: Coord): boolean {
+  return a.x === b.x && a.y === b.y && a.z === b.z;
+}
 
 describe("a cell below the one it is standing on", () => {
   it("walks to the bottom of a hole that was clicked", () => {

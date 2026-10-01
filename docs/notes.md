@@ -2798,6 +2798,61 @@ version of a client making up where it is allowed to go.
     true of a long way round and of no way at all. Being wrong the other way
     stops a player who could have walked round the back.
 
+### Clicking a thing out of reach walks to it and does it
+
+The interaction list only offers what is in reach, so a door across the room
+was neither outlined nor clickable: a click on it walked you beside it and did
+nothing more. Now a mouse over it shows "Open", and a left click walks there
+and opens it. This is the screen click only; the list still shows only what
+is in reach, because it is a list of what you can do from where you stand.
+
+- **The walk stops on the first cell from which the verb is offered**, not
+  beside the thing. `findPath` takes a third kind of arrival, `Reaching`: any
+  cell its `accepts` takes, with `within` bounding how far such a cell can be
+  from the goal so the search's estimate stays a lower bound. The predicate is
+  `refOptionsFrom` — the near list's own rules for one thing, asked with the
+  player moved to the candidate cell. Two cases needed it:
+  - *A ladder is used from on top of it* (`interactOver`), and a walk that
+    stops beside its goal never stands there.
+  - *A shopkeeper behind a counter has no cell beside them anybody can reach.*
+    A beside-route was refused and the hover offered nothing; the walk now
+    stops at the first cell in talking reach with line of sight.
+  Every other reach rule — a switch's straight neighbour, `REACH_CELLS`, which
+  way a push goes — comes along with no list of "far verbs" to keep in step
+  with `affordances.ts`.
+- **The hover asks two cells.** It asks the first cell from which the thing
+  offers anything. That can be a corner, where a push or a switch is not
+  offered, so it also asks the cell a walk beside the thing ends on. A click
+  then walks to the nearest cell offering the verb that was clicked. A thing
+  with no route offers nothing, so the hover never promises a walk that cannot
+  happen. The answer is cached per ref until `interactionsSent` changes.
+- **Near and far verbs are ranked as one list** (`pointerOptions`), so a far
+  verb can take the left button from a near one. A shopkeeper with hit points
+  is the case that matters: Attack is in reach from anywhere, but Talk ranks
+  first, so a left click walks up and talks. A body offers only Talk from afar
+  (`offersFromAfar`); its other verbs already reach it.
+- **Only what is drawn counts.** A far thing must pass `isCellVisible` and not
+  be pitch black, the same rules a body is listed under.
+- **The errand waits on the option, not on the cell.** `WalkTo.approach` is a
+  cell errand that holds after it arrives instead of ending, and
+  `stepApproach` looks every frame for the clicked option's id in the near
+  list. Talk at 3.5 cells is found before the walk is beside the NPC, and the
+  walk stops there. The label must match as well: a door somebody opened on
+  the way is now "Close", and the walk stops without closing it.
+- **A session refuses to act mid-step.** `GameSession.readyToAct` and
+  `RemoteSession`'s own checks turn down an interact while the body is
+  walking or has unacknowledged steps, and the snapshot does not say which.
+  So `applyInteraction` returns whether the session accepted the action, and
+  `stepApproach` retries every frame once the walk has stopped, giving up
+  after `APPROACH_PATIENCE_MS`. Firing once when the walk stopped was the first
+  version, and it dropped a pie pickup every time.
+  - *Opening a conversation used to skip that check.* `RemoteSession.talk`
+    sent while a predicted step was unacknowledged, the server measured reach
+    from the cell before it, and the conversation silently never opened. It
+    refuses like the rest now, and the retry picks it up.
+- **Nothing reaches the wire.** The server sees ordinary steps and then an
+  ordinary interact, and validates both as it already did.
+
 ## A step used to wait for a decision, which set the pace of every creature
 
 `step_toward` pressed one direction and returned, so a creature took a step per
@@ -4615,8 +4670,8 @@ What replaced each of the three:
   — see `applyInteraction` — so the question is asked where the answer is about
   to be used, rather than a switch's width away from it.
 - **Left runs a thing's first verb, right runs its second.** `rankedInteractionsAt`
-  orders one thing's verbs by `ACTION_ORDER`; `topInteractionAt` is the left
-  button (and a tap) and `secondInteractionAt` the right, for every thing in the
+  orders one thing's verbs by `ACTION_ORDER`; its first is the left
+  button (and a tap) and its second the right, for every thing in the
   world, not only bodies — a bag is Wear / Open, a fightable body is
   Attack / Target. `attack` outranks `target`, so a left click on a creature
   fights it. It was the other way round first — the convention in games with a
@@ -4643,8 +4698,9 @@ What replaced each of the three:
   body already targeted or being attacked. A tap on a phone is the left button,
   so a tap starts a fight too. The canvas cancels its context menu, because the
   right button is a game button there. A shopkeeper with hit points ranks
-  `talk` first within `TALK_REACH_CELLS`, so a left click talks and a right
-  click attacks; beyond that reach a left click attacks, like any other body.
+  `talk` first at any distance, so a left click talks and a right click
+  attacks; beyond `TALK_REACH_CELLS` the left click walks up to talk (see
+  "Clicking a thing out of reach walks to it and does it").
 
   Hovering was tried first and did the targeting on its own, with alt to make it
   a fight. It reads well in a sentence and badly in the hand: every sweep of the

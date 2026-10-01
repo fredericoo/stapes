@@ -1,7 +1,13 @@
 import type { HeldDirections } from "./heldDirections";
 import { listStandingSurfaces, standingAbs } from "./movement";
 import { noRouteNotice } from "./notices";
-import { dropLanding, findPath, type PathOptions, type PathRefusal } from "./pathfinding";
+import {
+  dropLanding,
+  findPath,
+  type PathOptions,
+  type PathRefusal,
+  type Reaching,
+} from "./pathfinding";
 import { absoluteStandingElevation, getStack } from "../lib/mapData";
 import type { StatusDef } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
@@ -18,7 +24,7 @@ export type WalkView = {
 };
 
 type Errand =
-  | { kind: "cell"; at: Coord; arrive: NonNullable<PathOptions["arrive"]> }
+  | { kind: "cell"; at: Coord; arrive: NonNullable<PathOptions["arrive"]>; linger: boolean }
   | { kind: "body"; actorId: string };
 
 export class WalkTo {
@@ -28,6 +34,7 @@ export class WalkTo {
   private searchedGoal: Coord | null = null;
   private searchedMap: MapFile | null = null;
   private stalled = false;
+  private landed = false;
 
   constructor(private readonly input: HeldDirections) {}
 
@@ -39,12 +46,32 @@ export class WalkTo {
     return this.errand?.kind === "body" ? this.errand.actorId : null;
   }
 
+  get approaching(): boolean {
+    return this.errand?.kind === "cell" && this.errand.linger;
+  }
+
+  get arrived(): boolean {
+    return this.landed;
+  }
+
   start(on: Coord & { stackIndex: number }, view: WalkView) {
     const standing = standingCellOn(view, on);
     this.begin(
       standing
-        ? { kind: "cell", at: standing, arrive: "on" }
-        : { kind: "cell", at: { x: on.x, y: on.y, z: on.z }, arrive: "beside" },
+        ? { kind: "cell", at: standing, arrive: "on", linger: false }
+        : { kind: "cell", at: { x: on.x, y: on.y, z: on.z }, arrive: "beside", linger: false },
+      view,
+    );
+  }
+
+  /**
+   * Walks to the nearest cell `reaching` accepts around `goal` and then holds
+   * the errand, so whoever is waiting to act there can see it arrive. It ends
+   * on `cancel`, or when a key is pressed.
+   */
+  approach(goal: Coord, reaching: Reaching, view: WalkView) {
+    this.begin(
+      { kind: "cell", at: { x: goal.x, y: goal.y, z: goal.z }, arrive: reaching, linger: true },
       view,
     );
   }
@@ -69,6 +96,7 @@ export class WalkTo {
     this.searchedGoal = null;
     this.searchedMap = null;
     this.stalled = false;
+    this.landed = false;
   }
 
   cancel() {
@@ -88,6 +116,11 @@ export class WalkTo {
         return;
       }
       this.route(view);
+      return;
+    }
+
+    if (this.landed) {
+      if (this.input.pressed) this.cancel();
       return;
     }
 
@@ -146,13 +179,20 @@ export class WalkTo {
 
     const leg = found.route[0];
     if (!leg) {
-      if (errand.kind === "cell") this.cancel();
+      if (errand.kind === "cell" && errand.linger) this.hold();
+      else if (errand.kind === "cell") this.cancel();
       else this.input.setAuto(null);
       return null;
     }
 
     this.input.setAuto(leg.direction);
     return null;
+  }
+
+  /** Stops short where it is, keeping an approach's errand for `cancel` to end. */
+  hold() {
+    this.landed = true;
+    this.input.setAuto(null);
   }
 
   private goalOf(errand: Errand, view: WalkView): Coord | null {
@@ -165,6 +205,30 @@ export class WalkTo {
     this.notices = [];
     return said;
   }
+}
+
+/**
+ * The cell a walk to `goal` would stop on, or null when no route reaches it.
+ * It is where a thing out of reach is asked what it offers.
+ */
+export function approachStand(
+  view: WalkView,
+  goal: Coord,
+  arrive: NonNullable<PathOptions["arrive"]>,
+): Coord | null {
+  const from = view.stepping ?? view.at;
+  const found = findPath(
+    view.map,
+    { at: from, self: view.at, who: view.who },
+    goal,
+    view.def,
+    view.tilesById,
+    view.statusDefs,
+    { arrive, drops: "toGoal" },
+  );
+  if (!found.ok) return null;
+  const last = found.route.at(-1)?.to ?? from;
+  return { x: last.x, y: last.y, z: last.z };
 }
 
 export function standingCellOn(view: WalkView, on: Coord & { stackIndex: number }): Coord | null {

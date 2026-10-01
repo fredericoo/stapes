@@ -1490,6 +1490,11 @@ export class RemoteSession implements PlaySession {
   talk(action: TalkAction): boolean {
     if (action.kind !== "close" && this.incapacitated()) return false;
     if (action.kind === "open") {
+      /**
+       * The server measures talking reach from where it has the body, which is
+       * a step behind while a predicted step is unacknowledged.
+       */
+      if (this.pending.length > 0) return false;
       const motion = this.motions.get(this.selfId);
       const loc = motion && this.locate(this.selfId, motion);
       if (!loc) return false;

@@ -34,10 +34,17 @@ export type PathRefusal = "unreachable" | "detour" | "budget";
 
 export type PathOutcome = { ok: true; route: PathStep[] } | { ok: false; why: PathRefusal };
 
+/**
+ * Arrives on the first cell `accepts` takes. `within` must bound the steps from
+ * any accepted cell to the goal: the search's estimate subtracts it, and an
+ * accepted cell further out may come back by a longer route or be pruned.
+ */
+export type Reaching = { within: number; accepts: (at: Coord) => boolean };
+
 export type PathOptions = {
   drops?: "never" | "toGoal" | "anywhere";
   maxNodes?: number;
-  arrive?: "beside" | "on";
+  arrive?: "beside" | "on" | Reaching;
   avoidWade?: boolean;
 };
 
@@ -62,13 +69,15 @@ function sameCell(a: Coord, b: Coord): boolean {
 const NOTHING_ASKED_FOR = () => false;
 
 function arrived(at: Coord, goal: Coord, arrive: Arrival): boolean {
-  if (at.z !== goal.z) return false;
   const steps = stepsApart(at, goal);
+  if (typeof arrive === "object") return steps <= arrive.within && arrive.accepts(at);
+  if (at.z !== goal.z) return false;
   return arrive === "on" ? steps === 0 : steps <= 1;
 }
 
 function remaining(at: Coord, goal: Coord, arrive: Arrival): number {
   const steps = stepsApart(at, goal);
+  if (typeof arrive === "object") return Math.max(0, steps - arrive.within);
   return arrive === "on" ? steps : Math.max(0, steps - 1);
 }
 

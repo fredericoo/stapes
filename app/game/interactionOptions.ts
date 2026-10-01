@@ -147,14 +147,6 @@ export function topInteractionAt(
   return rankedInteractionsAt(options, ref)[0] ?? null;
 }
 
-/** What the right mouse button runs on a thing, as `topInteractionAt` is the left. */
-export function secondInteractionAt(
-  options: readonly InteractionOption[],
-  ref: ObjectRef,
-): InteractionOption | null {
-  return rankedInteractionsAt(options, ref)[1] ?? null;
-}
-
 const TIER = {
   engaged: 0,
   adjacent: 1,
@@ -229,6 +221,66 @@ export function listInteractionOptions(
         (a.subject === b.subject ? compareRows(a.option, b.option) : compareRows(a.lead, b.lead)),
     )
     .map((ranked) => ranked.option);
+}
+
+export type RefContext = {
+  equipment: Equipment;
+  openedRef: ObjectRef | null;
+  tags: readonly string[];
+  spawnAt: Coord | null;
+  extracting: Extraction | null;
+  conversation: Conversation | null;
+  craftingRef: ObjectRef | null;
+};
+
+/**
+ * The Talk and object options `listInteractionOptions` would give `ref` for
+ * `self`, without the rest of the board. It is asked once per cell a search
+ * reaches, so it keeps the same 3×3 and level window `objectOptions` does
+ * rather than looking at `ref` from wherever `self` is.
+ */
+export function refOptionsFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  visibleActors: readonly ActorSnapshot[],
+  ref: ObjectRef,
+  context: RefContext,
+): InteractionOption[] {
+  const bodies = bodiesByCell(self, visibleActors);
+  const body = bodies.get(refKey(ref));
+  const out = body
+    ? talkOptions(map, tilesById, self, new Map([[refKey(ref), body]]), context.conversation)
+    : [];
+  if (!inObjectWindow(self, ref)) return out;
+  const nameOf = bodyNameIn([self, ...visibleActors], tilesById);
+  out.push(
+    ...slotOptions(
+      map,
+      tilesById,
+      self,
+      bodies,
+      nameOf,
+      context.equipment,
+      ref,
+      context.openedRef,
+      context.tags,
+      context.spawnAt,
+      context.extracting,
+      context.craftingRef,
+    ),
+  );
+  return out;
+}
+
+function inObjectWindow(self: ActorSnapshot, ref: ObjectRef): boolean {
+  return (
+    Math.abs(ref.x - self.x) <= 1 &&
+    Math.abs(ref.y - self.y) <= 1 &&
+    Math.abs(ref.z - self.z) <= INTERACT_LEVEL_SLACK &&
+    ref.z >= MIN_LEVEL &&
+    ref.z <= MAX_LEVEL
+  );
 }
 
 function compareRows(a: InteractionOption, b: InteractionOption): number {
@@ -358,53 +410,44 @@ export type Follower = {
   setCrafting(ref: ObjectRef | null): void;
 };
 
+/** Answers whether the session took it; a body still mid-step is refused. */
 export function applyInteraction(
   session: PlaySession | null,
   option: InteractionOption,
   follower: Follower | null = null,
-) {
-  if (option.blocked) return;
+): boolean {
+  if (option.blocked) return false;
   if (option.action === "follow") {
     follower?.setFollow(option.active ? null : option.actorId);
-    return;
+    return true;
   }
   if (option.action === "craft") {
     follower?.setCrafting(option.active ? null : option.ref);
-    return;
+    return true;
   }
-  if (!session) return;
+  if (!session) return false;
   if (option.action === "attack") {
     if (option.active) {
       session.setAttackMode(false);
-      return;
+      return true;
     }
     session.setTarget(option.actorId);
     session.setAttackMode(true);
-    return;
+    return true;
   }
   if (option.action === "target") {
     session.setTarget(option.active ? null : option.actorId);
     session.setAttackMode(false);
-    return;
+    return true;
   }
   if (option.action === "talk") {
-    session.talk(option.active ? { kind: "close" } : { kind: "open", ref: option.ref });
-    return;
+    return session.talk(option.active ? { kind: "close" } : { kind: "open", ref: option.ref });
   }
-  if (option.action === "pickUp") {
-    session.pickUp(option.ref);
-    return;
-  }
-  if (option.action === "equip") {
-    session.equip(option.ref);
-    return;
-  }
-  if (option.action === "consume") {
-    session.consume({ kind: "floor", ref: option.ref });
-    return;
-  }
-  if (option.action === "open") return;
-  session.interact(option.ref);
+  if (option.action === "pickUp") return session.pickUp(option.ref);
+  if (option.action === "equip") return session.equip(option.ref);
+  if (option.action === "consume") return session.consume({ kind: "floor", ref: option.ref });
+  if (option.action === "open") return false;
+  return session.interact(option.ref);
 }
 
 function refKey(ref: ObjectRef): string {

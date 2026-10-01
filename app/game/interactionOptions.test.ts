@@ -12,7 +12,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { extractKey } from "./extract";
-import type { ActorSnapshot, PlaySession } from "./GameSession";
+import type { ActorSnapshot, ObjectRef, PlaySession } from "./GameSession";
 import {
   actionRows,
   applyInteraction,
@@ -20,8 +20,9 @@ import {
   interactionText,
   listedActionRows,
   listInteractionOptions,
+  rankedInteractionsAt,
+  refOptionsFrom,
   rowPress,
-  secondInteractionAt,
   topInteractionAt,
   type InteractionOption,
 } from "./interactionOptions";
@@ -1460,7 +1461,73 @@ describe("topInteractionAt", () => {
   });
 });
 
-describe("secondInteractionAt", () => {
+function refKey(ref: ObjectRef): string {
+  return `${ref.x},${ref.y},${ref.z},${ref.stackIndex}`;
+}
+
+describe("refOptionsFrom", () => {
+  const NOTHING_HAPPENING = {
+    equipment: NO_BAG,
+    openedRef: null,
+    tags: [],
+    spawnAt: null,
+    extracting: null,
+    conversation: null,
+    craftingRef: null,
+  };
+
+  function both(map: MapFile, me: ActorSnapshot, others: ActorSnapshot[], ref: ObjectRef) {
+    const list = listInteractionOptions(map, tilesById, me, [me, ...others], null, NO_BAG);
+    return {
+      listed: list
+        .filter((option) => option.action !== "attack" && option.action !== "target")
+        .filter((option) => option.action !== "follow")
+        .filter((option) => refKey(option.ref) === refKey(ref))
+        .map((option) => option.id)
+        .sort(),
+      asked: refOptionsFrom(map, tilesById, me, [me, ...others], ref, NOTHING_HAPPENING)
+        .map((option) => option.id)
+        .sort(),
+    };
+  }
+
+  it("offers Talk from across talking reach, as the full list does", () => {
+    let map = field();
+    map = place(map, 3, 0, ["grass", "salesman"]);
+    const me = playerAt(map);
+    const npc = actor("npc:salesman", "salesman", 3, 0, map, 10);
+
+    const { listed, asked } = both(map, me, [npc], npc);
+
+    expect(asked).toEqual(["talk:npc:salesman"]);
+    expect(asked).toEqual(listed);
+  });
+
+  it("offers what the full list does for a thing beside it", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bag"]);
+    const me = playerAt(map);
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+    const { listed, asked } = both(map, me, [], ref);
+
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked).toEqual(listed);
+  });
+
+  it("offers nothing for a thing two cells off, as the full list does", () => {
+    let map = field();
+    map = place(map, 2, 0, ["grass", "bag"]);
+    const me = playerAt(map);
+
+    const { listed, asked } = both(map, me, [], { x: 2, y: 0, z: 0, stackIndex: 1 });
+
+    expect(asked).toEqual([]);
+    expect(listed).toEqual([]);
+  });
+});
+
+describe("the second ranked verb, which the right button runs", () => {
   it("targets a body whose first verb attacks it", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "deer"]);
@@ -1468,7 +1535,7 @@ describe("secondInteractionAt", () => {
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
     const options = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(secondInteractionAt(options, deer)?.action).toBe("target");
+    expect(rankedInteractionsAt(options, deer)[1]?.action).toBe("target");
   });
 
   it("opens a bag whose first verb puts it on", () => {
@@ -1479,7 +1546,7 @@ describe("secondInteractionAt", () => {
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
     expect(topInteractionAt(options, ref)?.action).toBe("equip");
-    expect(secondInteractionAt(options, ref)?.action).toBe("open");
+    expect(rankedInteractionsAt(options, ref)[1]?.action).toBe("open");
   });
 
   it("has nothing for a thing with a single verb", () => {
@@ -1488,7 +1555,7 @@ describe("secondInteractionAt", () => {
     const me = playerAt(map);
     const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
-    expect(secondInteractionAt(options, { x: 1, y: 0, z: 0, stackIndex: 1 })).toBeNull();
+    expect(rankedInteractionsAt(options, { x: 1, y: 0, z: 0, stackIndex: 1 })[1]).toBeUndefined();
   });
 });
 
