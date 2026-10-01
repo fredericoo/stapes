@@ -22,6 +22,7 @@ export type WorldLabel = {
   bar?: { fraction: number };
   /** Lays out an empty, invisible health bar, so a name sits where a body's would. */
   reserveBar?: boolean;
+  above?: string;
   progress?: { fraction: number };
   order?: number;
   color?: string;
@@ -265,6 +266,7 @@ export class WorldLabelLayer {
         kind: label.kind,
         anchorX: anchor.left,
         anchorY: anchor.top,
+        ...(label.above === undefined ? {} : { above: label.above }),
         ...this.measure(entry, label.kind),
       };
     });

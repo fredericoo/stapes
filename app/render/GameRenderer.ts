@@ -140,8 +140,15 @@ function buttonLine(first: InteractionOption, second: InteractionOption | null):
   };
 }
 
+const POINTER_NAME_ID = "look:name";
+
+function nameLabelId(actorId: string): string {
+  return `name:${actorId}`;
+}
+
 type PointerLabel = {
   ref: ObjectRef;
+  actorId?: string | null;
   height: number;
   lines: LabelLine[];
   color?: string;
@@ -1194,7 +1201,10 @@ export class GameRenderer {
     if (!said) return;
 
     const { ref, height, lines, color, nameTag } = said;
-    const ground = this.cellWorldCenter(ref.x, ref.y, ref.z, snap.map, ref.stackIndex);
+    const body = this.lookMode ? undefined : snap.actors.find((a) => a.id === said.actorId);
+    const ground = body
+      ? this.actorVisualWorld(snap.map, body)
+      : this.cellWorldCenter(ref.x, ref.y, ref.z, snap.map, ref.stackIndex);
     const head = elevationScreenOffset(height);
     /**
      * Where a name tag sits on a thing this tall; the pointer label clears it
@@ -1210,16 +1220,27 @@ export class GameRenderer {
       y: this.lookMode ? ground.y + head.y : nameY,
       lines,
       ...(color ? { color } : {}),
+      ...this.pointerNameId(nameTag, body),
     });
     if (nameTag === undefined) return;
     into.push({
-      id: "look:name",
+      id: POINTER_NAME_ID,
       kind: "name",
       x: ground.x + head.x,
       y: nameY,
       lines: [{ id: "name", text: nameTag }],
       reserveBar: true,
     });
+  }
+
+  private pointerNameId(
+    nameTag: string | undefined,
+    body: ActorSnapshot | undefined,
+  ): { above: string } | null {
+    if (this.lookMode) return null;
+    if (nameTag !== undefined) return { above: POINTER_NAME_ID };
+    if (body && body.hp !== null) return { above: nameLabelId(body.id) };
+    return null;
   }
 
   private lookLines(snap: GameSnapshot): PointerLabel | null {
@@ -1254,6 +1275,7 @@ export class GameRenderer {
     if (!this.pointerIsMouse) {
       return {
         ref: option.ref,
+        actorId: option.actorId,
         height,
         lines: [{ id: "action", text: interactionText(option) }],
         color: interactionInk(option),
@@ -1262,6 +1284,7 @@ export class GameRenderer {
     const second = secondInteractionAt(this.interactionsSent, option.ref);
     return {
       ref: option.ref,
+      actorId: option.actorId,
       height,
       lines: [buttonLine(option, second)],
       ...(option.health === null ? { nameTag: option.name } : {}),
@@ -1286,7 +1309,7 @@ export class GameRenderer {
       const sized = sizedUpName(name, actor.rating, this.lookMode);
       const fraction = healthFraction(actor.hp, actor.maxHp);
       into.push({
-        id: `name:${actor.id}`,
+        id: nameLabelId(actor.id),
         kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y - labelHeadroomPx(height),

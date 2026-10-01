@@ -13,6 +13,11 @@ export type LabelRequest = {
   height: number;
   lift: number;
   barWidth?: number;
+  /**
+   * The id of a name to sit directly on top of, a gap above its measured box,
+   * so a casting bar inside it pushes this up and a walking body carries it.
+   */
+  above?: string;
 };
 
 export type LabelPlacement = {
@@ -38,9 +43,10 @@ export function layoutLabels(
 ): LabelLayout {
   const layout: LabelLayout = new Map();
   const taken: Rect[] = [];
+  const names = namesById(requests, view);
 
   for (const request of byPriority(requests)) {
-    const wanted = wantedRect(request, view);
+    const wanted = stackedRect(request, names, view) ?? wantedRect(request, view);
     if (!wanted) continue;
 
     const barLeft = barLeftFor(request, view);
@@ -62,6 +68,38 @@ export function layoutLabels(
   }
 
   return layout;
+}
+
+function namesById(
+  requests: LabelRequest[],
+  view: { width: number; height: number },
+): Map<string, { request: LabelRequest; rect: Rect }> {
+  const names = new Map<string, { request: LabelRequest; rect: Rect }>();
+  for (const request of requests) {
+    if (request.kind !== "name") continue;
+    const rect = wantedRect(request, view);
+    if (rect) names.set(request.id, { request, rect });
+  }
+  return names;
+}
+
+function stackedRect(
+  request: LabelRequest,
+  names: Map<string, { request: LabelRequest; rect: Rect }>,
+  view: { width: number; height: number },
+): Rect | null {
+  if (request.above === undefined) return null;
+  const name = names.get(request.above);
+  if (!name) return null;
+  return wantedRect(
+    {
+      ...request,
+      anchorX: name.request.anchorX,
+      anchorY: name.rect.top - LABEL_GAP_PX,
+      lift: 0,
+    },
+    view,
+  );
 }
 
 function byPriority(requests: LabelRequest[]): LabelRequest[] {

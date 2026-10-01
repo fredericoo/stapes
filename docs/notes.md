@@ -4615,7 +4615,11 @@ What replaced each of the three:
   a white Target and a quest chest a purple Open. A thing with one verb shows
   one hint. The name always sits in the name-tag slot under the hints: a body
   with health has its own tag there, and anything else gets one drawn in the
-  same place with an invisible health bar (`reserveBar`) so the two line up. The pointer label is hidden on the
+  same place with an invisible health bar (`reserveBar`) so the two line up. The
+  hints are laid out on top of that name label rather than at their own lift
+  (`above` in `labelLayout.ts`), a `LABEL_GAP_PX` over its measured box, so a
+  casting bar inside the name pushes them up and a walking body carries them
+  with its tag. The pointer label is hidden on the
   body already targeted or being attacked. A tap on a phone is the left button,
   so a tap starts a fight too. The canvas cancels its context menu, because the
   right button is a game button there. A shopkeeper with hit points ranks

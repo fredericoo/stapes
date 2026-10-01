@@ -195,6 +195,48 @@ describe("names", () => {
   });
 });
 
+describe("a look stacked on a name", () => {
+  function stacked(nameAnchorX: number, nameHeight: number) {
+    const requests = [
+      request("name", "name", nameAnchorX, 400, { height: nameHeight }),
+      { ...request("looked", "look", 300, 400, { height: 20, lift: 55 }), above: "name" },
+    ];
+    return { requests, layout: layoutLabels(requests, VIEW) };
+  }
+
+  it("sits a gap above the name, not at its own lift", () => {
+    const { requests, layout } = stacked(300, 24);
+    const name = boxOf(layout, "name", requests);
+    const looked = boxOf(layout, "looked", requests);
+
+    expect(looked.bottom).toBeLessThan(name.top);
+    expect(name.top - looked.bottom).toBeLessThan(10);
+  });
+
+  it("rises with a name that grew a casting bar", () => {
+    const plain = stacked(300, 24);
+    const casting = stacked(300, 34);
+
+    expect(boxOf(casting.layout, "looked", casting.requests).top).toBe(
+      boxOf(plain.layout, "looked", plain.requests).top - 10,
+    );
+  });
+
+  it("is carried sideways by its name", () => {
+    const { requests, layout } = stacked(340, 24);
+
+    expect(boxOf(layout, "looked", requests).left).toBe(boxOf(layout, "name", requests).left);
+  });
+
+  it("falls back to its own anchor when the name is not drawn", () => {
+    const alone = { ...request("looked", "look", 300, 400, { lift: 55 }), above: "name" };
+
+    expect(layoutLabels([alone], VIEW).get("looked")).toEqual(
+      layoutLabels([request("looked", "look", 300, 400, { lift: 55 })], VIEW).get("looked"),
+    );
+  });
+});
+
 describe("a health bar inside a name", () => {
   const BAR = 52;
 
