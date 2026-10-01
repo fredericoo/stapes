@@ -51,6 +51,13 @@ const tiles: TileDef[] = [
     variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
   tile({
+    id: "keeper",
+    height: 4,
+    walkable: false,
+    actor: true,
+    interactions: { dialog: { script: [{ kind: "say", text: "Hello." }] } },
+  }),
+  tile({
     id: "rat",
     height: 4,
     directional: true,
@@ -1808,5 +1815,51 @@ describe("RemoteSession tile transitions", () => {
     const taken = session.takeTransitions();
     expect(taken).toHaveLength(MAX_HELD_TRANSITIONS);
     expect(taken[0]?.note.id).toBe("transition-1");
+  });
+});
+
+describe("RemoteSession talk", () => {
+  const KEEPER = { x: 3, y: 0, z: 0, stackIndex: 1 };
+  const keeper: PlacedTile = {
+    tileId: "keeper",
+    direction: "s",
+    owner: "npc:keeper",
+  } as PlacedTile;
+
+  function besideKeeper() {
+    const socket = new FakeSocket();
+    const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+    const map = flatMap();
+    map.levels["0"]!["3,0"] = [grass, keeper];
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map,
+      actorIds: [SELF, "npc:keeper"],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    });
+    return { socket, session };
+  }
+
+  it("holds an opening line back until the server has the step it predicted", () => {
+    const { socket, session } = besideKeeper();
+    session.setInput({ directions: ["e"] });
+    session.setInput({ directions: [] });
+    session.update(WALK_DURATION_MS);
+
+    expect(session.talk({ kind: "open", ref: KEEPER })).toBe(false);
+
+    socket.deliver(patch(stepCommitted, [walkStarted]));
+
+    expect(session.talk({ kind: "open", ref: KEEPER })).toBe(true);
+    expect(framesOfType(socket, "talk")).toEqual([
+      { type: "talk", action: { kind: "open", ref: KEEPER } },
+    ]);
   });
 });

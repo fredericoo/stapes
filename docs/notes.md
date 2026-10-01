@@ -2836,6 +2836,10 @@ is in reach, because it is a list of what you can do from where you stand.
   `stepApproach` retries every frame once the walk has stopped, giving up
   after `APPROACH_PATIENCE_MS`. Firing once when the walk stopped was the first
   version, and it dropped a pie pickup every time.
+  - *Opening a conversation used to skip that check.* `RemoteSession.talk`
+    sent while a predicted step was unacknowledged, the server measured reach
+    from the cell before it, and the conversation silently never opened. It
+    refuses like the rest now, and the retry picks it up.
 - **Nothing reaches the wire.** The server sees ordinary steps and then an
   ordinary interact, and validates both as it already did.
 
