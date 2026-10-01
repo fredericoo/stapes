@@ -377,12 +377,13 @@ cron files below.
   before it can crowd the live world.
 - Persistent storage `/data`, same as production. Coolify scopes the volume to
   the pull request, so each gets its own world.
-- Same environment variables, except `PUBLIC_ORIGIN` — which must be the name
-  the preview is actually served on, not any name under the preview domain. It
-  decides two things now: whether the session cookie is marked `Secure`, and
-  which origin may post to the account routes. A preview whose `PUBLIC_ORIGIN`
-  is somebody else's hostname is one where signing in works and changing a
-  password is refused.
+- Same environment variables, except `PUBLIC_ORIGIN`, plus
+  `BETTER_AUTH_TRUSTED_ORIGINS=https://*.preview.example.com`. Coolify gives
+  every preview the same values, so `PUBLIC_ORIGIN` cannot name each `pr-N`
+  host; set it to any `https://` name under the preview domain, which is all the
+  `Secure` cookie flag needs. Better Auth reads the wildcard from the
+  environment and adds it to the origins allowed to post to the account routes.
+  Without it, a preview signs in and then refuses sign-out and password changes.
 - And a **different** `ADMIN_SECRET`, which goes into `PREVIEW_ADMIN_SECRET`.
   Leave `AUTH_SECRET` unset here: each preview is its own world with its own
   database, and generating a secret per preview is exactly right.
