@@ -106,9 +106,13 @@ hostname — so production and every preview share port 443 without conflicting.
   and DDoS filtering, and edge caching for the content-hashed client assets —
   which is the CDN this single-region deployment otherwise gives up. WebSockets
   pass through it fine; verified with a live `wss://` handshake.
+- **`www.thelaststones.com` redirects to `thelaststones.com`** with a
+  Cloudflare Redirect Rule (301, path and query kept). Only `PUBLIC_ORIGIN`
+  may post to the account routes once a session cookie exists, so a page served
+  on `www` signs in and then has its sign-out and password change refused.
 - **`stapes.frederic.ooo` is the old public name.** It is still orange and
   still on the production app's domains, but it is no longer `PUBLIC_ORIGIN`,
-  so signing in there works and changing a password is refused.
+  so signing in there works and signing out or changing a password is refused.
 - **Everything else stays grey.** The Coolify panel gains nothing from being
   proxied, and `next.stapes` needs an unobstructed ACME renewal.
 
@@ -373,12 +377,13 @@ cron files below.
   before it can crowd the live world.
 - Persistent storage `/data`, same as production. Coolify scopes the volume to
   the pull request, so each gets its own world.
-- Same environment variables, except `PUBLIC_ORIGIN` — which must be the name
-  the preview is actually served on, not any name under the preview domain. It
-  decides two things now: whether the session cookie is marked `Secure`, and
-  which origin may post to the account routes. A preview whose `PUBLIC_ORIGIN`
-  is somebody else's hostname is one where signing in works and changing a
-  password is refused.
+- Same environment variables, except `PUBLIC_ORIGIN`, plus
+  `BETTER_AUTH_TRUSTED_ORIGINS=https://*.preview.example.com`. Coolify gives
+  every preview the same values, so `PUBLIC_ORIGIN` cannot name each `pr-N`
+  host; set it to any `https://` name under the preview domain, which is all the
+  `Secure` cookie flag needs. Better Auth reads the wildcard from the
+  environment and adds it to the origins allowed to post to the account routes.
+  Without it, a preview signs in and then refuses sign-out and password changes.
 - And a **different** `ADMIN_SECRET`, which goes into `PREVIEW_ADMIN_SECRET`.
   Leave `AUTH_SECRET` unset here: each preview is its own world with its own
   database, and generating a secret per preview is exactly right.
