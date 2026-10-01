@@ -32,7 +32,7 @@ import {
   applyInteraction,
   interactionText,
   listInteractionOptions,
-  secondInteractionAt,
+  rankedInteractionsAt,
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
@@ -56,7 +56,8 @@ import {
   isTypingTarget,
   type HeldDirections,
 } from "../game/heldDirections";
-import { WalkTo, type WalkView } from "../game/walkTo";
+import { approachStand, WalkTo, type WalkView } from "../game/walkTo";
+import { resolveDialog } from "../lib/dialog";
 import type { EmitterOverride } from "../lib/lighting";
 import { DEFAULT_PLAY_MINUTES, clockAfter, wrapMinutes, type MinutesOfDay } from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
@@ -123,6 +124,8 @@ const LOOK_HOLD_MS = DWELL_MS;
 const LOOK_HOLD_SLOP_PX = 10;
 
 const PICK_LEVEL_SLACK = 1;
+
+const APPROACH_PATIENCE_MS = 1000;
 
 function interactionColor(option: InteractionOption): number {
   return INTERACTION_COLORS[option.action].outline;
@@ -237,6 +240,10 @@ export class GameRenderer {
   private interactionsHealth = 0;
   private interactionsKey = "";
   private interactionsSent: InteractionOption[] = [];
+  private interactionsActors: ActorSnapshot[] = [];
+  private afarSent: InteractionOption[] | null = null;
+  private readonly afarByRef = new Map<string, InteractionOption[]>();
+  private approaching: { id: string; label: string; stillSinceMs: number | null } | null = null;
   private listHoverId: string | null = null;
   private dropDrag: { from: SlotRef; tileId: string; point: { x: number; y: number } } | null =
     null;
@@ -731,9 +738,8 @@ export class GameRenderer {
 
   private actSecondAt(point: { x: number; y: number }, snap: GameSnapshot) {
     this.pointerRef = this.pickRefAt(point, snap);
-    if (!this.pointerRef) return;
-    const second = secondInteractionAt(this.interactionsSent, this.pointerRef);
-    if (second) this.runOption(second);
+    const second = this.pointerOptions()[1];
+    if (second) this.runPointerOption(second);
   }
 
   private pickAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
@@ -813,7 +819,7 @@ export class GameRenderer {
     const option = this.pointerOption();
     if (option) {
       e.preventDefault();
-      this.runOption(option);
+      this.runPointerOption(option);
       return;
     }
 
@@ -873,12 +879,63 @@ export class GameRenderer {
     };
   }
 
-  private runOption(option: InteractionOption) {
-    if (option.action === "open") {
-      this.setOpenedContainer(option.active ? null : option.ref);
+  private runPointerOption(option: InteractionOption) {
+    if (this.listOption(option.id)) {
+      this.runOption(option);
       return;
     }
-    applyInteraction(this.session, option, this);
+    this.approach(option);
+  }
+
+  private approach(option: InteractionOption) {
+    const walkTo = this.walkTo;
+    if (!walkTo) return;
+    const snap = this.session.getSnapshot();
+    const view = this.walkView(snap, this.cameraFor(snap));
+    if (!view) return;
+    walkTo.approach(option.ref, view);
+    this.approaching = walkTo.approaching
+      ? { id: option.id, label: option.label, stillSinceMs: null }
+      : null;
+  }
+
+  /**
+   * Runs the option `approach` walked for once it is in reach. The label is
+   * compared too, so a door somebody else opened on the way is not closed. A
+   * session refuses to act mid-step, so the walk is held and the run retried
+   * until it is taken or `APPROACH_PATIENCE_MS` runs out.
+   */
+  private stepApproach(snap: GameSnapshot, nowMs: number) {
+    const pending = this.approaching;
+    if (!pending) return;
+    const walkTo = this.walkTo;
+    if (!walkTo?.approaching) {
+      this.approaching = null;
+      return;
+    }
+    const ready = this.listOption(pending.id);
+    const runnable = ready && !ready.blocked && ready.label === pending.label ? ready : null;
+    if (runnable && !walkTo.arrived) walkTo.hold();
+    if (!walkTo.arrived || snap.self.walk !== null) return;
+    pending.stillSinceMs ??= nowMs;
+    if (runnable && this.runOption(runnable)) {
+      this.endApproach();
+      return;
+    }
+    if (!runnable || nowMs - pending.stillSinceMs > APPROACH_PATIENCE_MS) this.endApproach();
+  }
+
+  private endApproach() {
+    this.approaching = null;
+    this.walkTo?.cancel();
+  }
+
+  private runOption(option: InteractionOption): boolean {
+    if (option.action === "open") {
+      this.setOpenedContainer(option.active ? null : option.ref);
+      return true;
+    }
+    return applyInteraction(this.session, option, this);
   }
 
   private onPointerLeave = () => {
@@ -1114,12 +1171,72 @@ export class GameRenderer {
   private pickRefAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     const body = this.bodyAt(point, snap);
     if (body && topInteractionAt(this.interactionsSent, body)) return body;
+    if (body && this.afarAt(body).length > 0) return body;
     return this.pickAt(point, snap);
   }
 
+  /**
+   * What the pointed thing offers in reach, merged with what it would offer
+   * from beside it. The merged list is ranked as one, so a far verb can take
+   * the left button from a near one, as Talk does from Attack.
+   */
+  private pointerOptions(): InteractionOption[] {
+    const ref = this.pointerRef;
+    if (!ref) return [];
+    const near = rankedInteractionsAt(this.interactionsSent, ref);
+    const afar = this.afarAt(ref).filter((option) => !this.listOption(option.id));
+    if (afar.length === 0) return near;
+    return rankedInteractionsAt([...near, ...afar], ref);
+  }
+
   private pointerOption(): InteractionOption | null {
-    if (!this.pointerRef) return null;
-    return topInteractionAt(this.interactionsSent, this.pointerRef);
+    return this.pointerOptions()[0] ?? null;
+  }
+
+  private afarAt(ref: ObjectRef): InteractionOption[] {
+    if (this.afarSent !== this.interactionsSent) {
+      this.afarSent = this.interactionsSent;
+      this.afarByRef.clear();
+    }
+    const key = `${ref.x},${ref.y},${ref.z},${ref.stackIndex}`;
+    const cached = this.afarByRef.get(key);
+    if (cached) return cached;
+    const options = this.optionsFromAfar(ref);
+    this.afarByRef.set(key, options);
+    return options;
+  }
+
+  /**
+   * Asks the full option list what `ref` offers to a player standing where a
+   * walk beside it would end, so every reach rule, including which side a push
+   * goes from, is the one the walk will meet on arrival.
+   */
+  private optionsFromAfar(ref: ObjectRef): InteractionOption[] {
+    const snap = this.session.getSnapshot();
+    if (!this.offersFromAfar(snap, ref)) return [];
+    const view = this.walkView(snap, this.cameraFor(snap));
+    if (!view) return [];
+    const stand = approachStand(view, ref);
+    if (!stand) return [];
+    const standsStill =
+      stand.x === snap.self.x && stand.y === snap.self.y && stand.z === snap.self.z;
+    const stackIndex = standsStill
+      ? snap.self.stackIndex
+      : getStack(snap.map, stand.x, stand.y, stand.z).length;
+    const self = { ...snap.self, ...stand, stackIndex };
+    return rankedInteractionsAt(this.optionsFrom(snap, self, this.interactionsActors), ref);
+  }
+
+  /** A body only offers Talk from afar: Attack, Target and Follow already reach it. */
+  private offersFromAfar(snap: GameSnapshot, ref: ObjectRef): boolean {
+    const placed = getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const def = placed && this.tilesById[placed.tileId];
+    if (!def) return false;
+    if (placed.owner && !resolveDialog(def)) return false;
+    if (!isCellVisible(snap.map, this.tilesById, ref, snap.self.z, this.roofCutFor(snap))) {
+      return false;
+    }
+    return !this.world.isCellPitchBlack(ref.x, ref.y, ref.z);
   }
 
   private enforceTargetVisibility(snap: GameSnapshot, camera: { x: number; y: number }) {
@@ -1305,7 +1422,7 @@ export class GameRenderer {
         color: interactionInk(option),
       };
     }
-    const second = secondInteractionAt(this.interactionsSent, option.ref);
+    const second = this.pointerOptions()[1] ?? null;
     return {
       ref: option.ref,
       actorId: option.actorId,
@@ -1562,6 +1679,7 @@ export class GameRenderer {
     this.pushMasteries(snap);
     this.pushSpells();
     this.stepWalkTo(snap, camera);
+    this.stepApproach(snap, nowMs);
     this.pushNotices(nowMs);
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);
@@ -1614,11 +1732,30 @@ export class GameRenderer {
     this.interactionsAt = at;
     this.interactionsHealth = health;
 
-    const options = listInteractionOptions(
+    const actors = this.targetableActors(snap, camera, cut);
+    this.interactionsActors = actors;
+    const options = this.optionsFrom(snap, snap.self, actors).filter(
+      (option) => !unlisted.some((a) => sameRef(option.ref, a)),
+    );
+    this.interactionsSent = options;
+    const key = options
+      .map((o) => `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`)
+      .join("|");
+    if (key === this.interactionsKey && !waitChanged) return;
+    this.interactionsKey = key;
+    this.onInteractions(options);
+  }
+
+  private optionsFrom(
+    snap: GameSnapshot,
+    self: ActorSnapshot,
+    actors: readonly ActorSnapshot[],
+  ): InteractionOption[] {
+    return listInteractionOptions(
       snap.map,
       this.tilesById,
-      snap.self,
-      this.targetableActors(snap, camera, cut),
+      self,
+      actors,
       snap.targetId,
       snap.equipment,
       this.openedRef,
@@ -1631,14 +1768,7 @@ export class GameRenderer {
       this.interactionsSent,
       snap.nextBlow,
       this.craftingRef,
-    ).filter((option) => !unlisted.some((a) => sameRef(option.ref, a)));
-    this.interactionsSent = options;
-    const key = options
-      .map((o) => `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`)
-      .join("|");
-    if (key === this.interactionsKey && !waitChanged) return;
-    this.interactionsKey = key;
-    this.onInteractions(options);
+    );
   }
 
   private targetableActors(

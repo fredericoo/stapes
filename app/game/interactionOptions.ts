@@ -147,14 +147,6 @@ export function topInteractionAt(
   return rankedInteractionsAt(options, ref)[0] ?? null;
 }
 
-/** What the right mouse button runs on a thing, as `topInteractionAt` is the left. */
-export function secondInteractionAt(
-  options: readonly InteractionOption[],
-  ref: ObjectRef,
-): InteractionOption | null {
-  return rankedInteractionsAt(options, ref)[1] ?? null;
-}
-
 const TIER = {
   engaged: 0,
   adjacent: 1,
@@ -358,53 +350,44 @@ export type Follower = {
   setCrafting(ref: ObjectRef | null): void;
 };
 
+/** Answers whether the session took it; a body still mid-step is refused. */
 export function applyInteraction(
   session: PlaySession | null,
   option: InteractionOption,
   follower: Follower | null = null,
-) {
-  if (option.blocked) return;
+): boolean {
+  if (option.blocked) return false;
   if (option.action === "follow") {
     follower?.setFollow(option.active ? null : option.actorId);
-    return;
+    return true;
   }
   if (option.action === "craft") {
     follower?.setCrafting(option.active ? null : option.ref);
-    return;
+    return true;
   }
-  if (!session) return;
+  if (!session) return false;
   if (option.action === "attack") {
     if (option.active) {
       session.setAttackMode(false);
-      return;
+      return true;
     }
     session.setTarget(option.actorId);
     session.setAttackMode(true);
-    return;
+    return true;
   }
   if (option.action === "target") {
     session.setTarget(option.active ? null : option.actorId);
     session.setAttackMode(false);
-    return;
+    return true;
   }
   if (option.action === "talk") {
-    session.talk(option.active ? { kind: "close" } : { kind: "open", ref: option.ref });
-    return;
+    return session.talk(option.active ? { kind: "close" } : { kind: "open", ref: option.ref });
   }
-  if (option.action === "pickUp") {
-    session.pickUp(option.ref);
-    return;
-  }
-  if (option.action === "equip") {
-    session.equip(option.ref);
-    return;
-  }
-  if (option.action === "consume") {
-    session.consume({ kind: "floor", ref: option.ref });
-    return;
-  }
-  if (option.action === "open") return;
-  session.interact(option.ref);
+  if (option.action === "pickUp") return session.pickUp(option.ref);
+  if (option.action === "equip") return session.equip(option.ref);
+  if (option.action === "consume") return session.consume({ kind: "floor", ref: option.ref });
+  if (option.action === "open") return false;
+  return session.interact(option.ref);
 }
 
 function refKey(ref: ObjectRef): string {

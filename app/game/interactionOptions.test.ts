@@ -20,8 +20,8 @@ import {
   interactionText,
   listedActionRows,
   listInteractionOptions,
+  rankedInteractionsAt,
   rowPress,
-  secondInteractionAt,
   topInteractionAt,
   type InteractionOption,
 } from "./interactionOptions";
@@ -1460,7 +1460,7 @@ describe("topInteractionAt", () => {
   });
 });
 
-describe("secondInteractionAt", () => {
+describe("the second ranked verb, which the right button runs", () => {
   it("targets a body whose first verb attacks it", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "deer"]);
@@ -1468,7 +1468,7 @@ describe("secondInteractionAt", () => {
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
     const options = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(secondInteractionAt(options, deer)?.action).toBe("target");
+    expect(rankedInteractionsAt(options, deer)[1]?.action).toBe("target");
   });
 
   it("opens a bag whose first verb puts it on", () => {
@@ -1479,7 +1479,7 @@ describe("secondInteractionAt", () => {
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
     expect(topInteractionAt(options, ref)?.action).toBe("equip");
-    expect(secondInteractionAt(options, ref)?.action).toBe("open");
+    expect(rankedInteractionsAt(options, ref)[1]?.action).toBe("open");
   });
 
   it("has nothing for a thing with a single verb", () => {
@@ -1488,7 +1488,7 @@ describe("secondInteractionAt", () => {
     const me = playerAt(map);
     const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
-    expect(secondInteractionAt(options, { x: 1, y: 0, z: 0, stackIndex: 1 })).toBeNull();
+    expect(rankedInteractionsAt(options, { x: 1, y: 0, z: 0, stackIndex: 1 })[1]).toBeUndefined();
   });
 });
 
