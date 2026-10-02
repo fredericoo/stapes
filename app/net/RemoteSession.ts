@@ -1384,11 +1384,14 @@ export class RemoteSession implements PlaySession {
   }
 
   private combatant(id: string, loc: ActorLocation): Combatant {
-    return combatantOf({
-      id,
-      tileId: loc.placed.tileId,
-      pvp: this.pvpOn.has(id),
-    });
+    return combatantOf(
+      {
+        id,
+        tileId: loc.placed.tileId,
+        pvp: this.pvpOn.has(id),
+      },
+      this.tilesById,
+    );
   }
 
   private castPoint(loc: ActorLocation): CastPoint {

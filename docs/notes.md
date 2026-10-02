@@ -1357,6 +1357,8 @@ cause of death.
   his night rest) would pull a fleeing body straight back to its attacker.
 - **Guards hunt a named list**, not "any non-player". There is no such
   selector, and a list keeps deer, rabbits and the townsfolk themselves off it.
+- **Only a player with PvP on can hurt one** (`battler.pvp`). See *Two players
+  do not hurt each other until both have asked to*.
 - **Bots do not see them** (`creaturesAround` in `bots/combat.ts`). Otherwise
   a bot would hunt the weakest shopkeepers and flee from the rest.
 - **The night guard crosses his door by hand.** Brain routing does not open
@@ -9992,7 +9994,8 @@ the whole rule:
 ```ts
 export function mayHarm(from: Combatant, to: Combatant): boolean {
   if (from.id === to.id) return true;
-  if (from.resident || to.resident) return true;
+  if (from.resident) return true;
+  if (to.resident) return !to.pvp || from.pvp;
   return from.pvp && to.pvp;
 }
 ```
@@ -10002,6 +10005,16 @@ test comes first and everything a body does to a rat — and the rat does back �
 is exactly what it was. A body may also always harm itself: a stone authored to
 hurt its caster is a curse somebody chose to press, and a flag about other
 people has no business refusing it.
+
+**A townsperson is the one resident in it.** A battler authored with `pvp: true`
+(every town NPC with a dialog) may be harmed by a player only while that
+player's own switch is on. It exists so a misclick on the blacksmith cannot start
+a fight: killing a civilian means being open to other players first. It binds
+only the player who swings. A resident's own harm is still never refused, so a
+wolf still bites the beggar and the guard still answers whoever struck him. The
+flag is on the tile, not on `ActorRuntime.pvp`. That keeps the `[PvP]` mark off
+NPC names, and it means `combatantOf` on both ends reads it from the tile
+catalogue they already hold.
 
 **Both, not either.** The switch is not a shield you raise while you go on
 swinging: a player with it off cannot be hurt by another player *and* cannot hurt
@@ -10052,7 +10065,7 @@ share the decision with, and attack mode can perfectly well be on because of a
 fight with somebody else.
 
 The rule has to be asked on both sides, so `pvp.ts`'s `combatantOf` reads
-residency off the tile — a player wears the player tile — which is the same test
+residency, and a resident's `pvp`, off the tile — a player wears the player tile — which is the same test
 `bodyNameFor` reads identity off. The simulation builds its own from
 `ActorRuntime.resident`; the two agree because that is what the tile means.
 

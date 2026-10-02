@@ -10,7 +10,7 @@ import { MAX_MASTERY, type Mastery, masteryLevel, MIN_MASTERY } from "../lib/mas
 import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Input, SectionTitle, Select, Switch } from "../ui";
+import { FieldLabel, Input, SectionTitle, Select, Switch, SwitchField } from "../ui";
 import { BattlerIssues } from "./BattlerIssues";
 import { ElementFields } from "./ElementFields";
 import { KitEditor } from "./KitEditor";
@@ -201,6 +201,15 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssu
             options={remainsOptions}
             placeholder="Nothing"
             ariaLabel="What this body leaves where it falls"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <SwitchField
+            checked={battler.pvp === true}
+            onCheckedChange={(on) => setBattler({ ...battler, pvp: on || undefined })}
+            label="PvP only"
+            info="Only a player with PvP on can attack it, so killing it means being open to other players too. Nobody else is held back: creatures still bite it, and it still fights whoever hits it. Its name and health show either way."
           />
         </div>
 

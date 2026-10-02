@@ -14161,7 +14161,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -15638,7 +15639,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -16891,7 +16893,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -17905,7 +17908,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -35110,7 +35114,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -35808,7 +35813,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -36665,7 +36671,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -37482,7 +37489,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -40147,7 +40155,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -40962,7 +40971,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -41838,7 +41848,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -43183,7 +43194,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -43946,7 +43958,8 @@
           "down": 0
         },
         "kit": [],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
@@ -44732,7 +44745,8 @@
             "chance": 100
           }
         ],
-        "remains": "skull-player"
+        "remains": "skull-player",
+        "pvp": true
       }
     },
     "states": {
