@@ -578,6 +578,13 @@ describe("what a row of buttons says", () => {
     expect(at(4_400).replace(/itm_\d+/, "x")).not.toBe(at(3_400).replace(/itm_\d+/, "x"));
   });
 
+  it("changes when the same stone moves to another square", () => {
+    const stone = instance("mend-stone");
+    const inHand = spellReading(castableSpells(context({ offhand: stone })));
+    const worn = spellReading(castableSpells(context({ charm: stone })));
+    expect(worn).not.toBe(inHand);
+  });
+
   it("is empty for a body with nothing to press", () => {
     expect(spellReading([])).toBe("");
   });
