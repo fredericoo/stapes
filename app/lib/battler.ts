@@ -34,6 +34,7 @@ export type BattlerDef = {
   immuneTo?: string[];
   remains?: string;
   spells?: NaturalSpell[];
+  pvp?: boolean;
 };
 
 export type NaturalSpell = ArcaneStoneItem & {
@@ -254,6 +255,7 @@ const battlerSchema = v.object({
   elements: v.optional(v.array(v.picklist(ELEMENTS))),
   immuneTo: v.optional(v.array(v.pipe(v.string(), v.minLength(1)))),
   remains: v.optional(v.pipe(v.string(), v.minLength(1))),
+  pvp: v.optional(v.boolean()),
   spells: v.optional(
     v.array(
       v.object({

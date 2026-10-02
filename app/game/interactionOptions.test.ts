@@ -154,6 +154,30 @@ const tiles: TileDef[] = [
     },
   }),
   tile({
+    id: "townsperson",
+    name: "Townsperson",
+    height: 4,
+    kind: "battler",
+    actor: true,
+    interactions: {
+      battler: {
+        baseHp: 8,
+        masteries: {},
+        naturalWeapon: {
+          type: "weapon",
+          damage: 1,
+          def: 0,
+          accuracy: 80,
+          variance: 0,
+          spd: 50,
+          mastery: "fist",
+        },
+        pvp: true,
+      },
+      dialog: { script: [{ kind: "say", text: "Hello." }] },
+    },
+  }),
+  tile({
     id: "player",
     name: "Player",
     height: 4,
@@ -580,6 +604,27 @@ describe("listInteractionOptions — battlers", () => {
       const fight = rows(null, true).find((o) => o.action === "attack")!;
 
       expect(fight.wait).toBeNull();
+    });
+  });
+
+  describe("a body only PvP may harm", () => {
+    function rows(pvp: boolean) {
+      let map = field();
+      map = place(map, 1, 0, ["grass", "townsperson"]);
+      const me = actor("me", "player", 0, 0, map, null, pvp);
+      const them = actor("npc:t", "townsperson", 1, 0, map, 10);
+      return listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
+    }
+
+    it("offers no attack to a player with PvP off, and still lets them target it", () => {
+      const actions = rows(false).map((o) => o.action);
+
+      expect(actions).not.toContain("attack");
+      expect(actions).toContain("target");
+    });
+
+    it("offers the attack once the player's PvP is on", () => {
+      expect(rows(true).map((o) => o.action)).toContain("attack");
     });
   });
 

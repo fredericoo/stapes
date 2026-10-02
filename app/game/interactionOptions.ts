@@ -738,7 +738,7 @@ function battlerOptions(
   nextBlow: Progress | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
-  const me = combatantOf(self);
+  const me = combatantOf(self, tilesById);
 
   for (const actor of bodies.values()) {
     if (actor.hp === null) continue;
@@ -752,7 +752,7 @@ function battlerOptions(
     const name = bodyNameFor(actor, tilesById);
     const health = healthOf(actor);
     const picked = actor.id === targetId;
-    const fightable = mayHarm(me, combatantOf(actor));
+    const fightable = mayHarm(me, combatantOf(actor, tilesById));
     const fighting = fightable && picked && attacking;
     if (fightable) {
       out.push({

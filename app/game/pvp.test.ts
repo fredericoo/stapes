@@ -14,7 +14,11 @@ const MAX_HP = maxHpFrom(BASE_HP, TOUGHNESS);
 
 const FELT = defFrom(TOUGHNESS) + 5;
 
-function body(id: string, extra: Record<string, unknown> = {}): TileDef {
+function body(
+  id: string,
+  extra: Record<string, unknown> = {},
+  battler: Record<string, unknown> = {},
+): TileDef {
   return tile({
     id,
     height: 4,
@@ -35,6 +39,7 @@ function body(id: string, extra: Record<string, unknown> = {}): TileDef {
           spd: 100,
           mastery: "fist",
         },
+        ...battler,
       },
     },
     ...extra,
@@ -45,6 +50,7 @@ const tiles: TileDef[] = [
   tile({ id: "grass" }),
   body("player", { affectedByGravity: true }),
   body("deer", { actor: true, affectedByGravity: true }),
+  body("townsperson", { actor: true, affectedByGravity: true }, { pvp: true }),
   tile({
     id: "fire",
     interactions: { addStatus: { trigger: "step", statusId: "burned" } },
@@ -117,6 +123,7 @@ function twoPlayers(mine: boolean, theirs: boolean) {
 describe("whether harm may pass", () => {
   const player = (id: string, pvp: boolean) => ({ id, resident: false, pvp });
   const creature = (id: string) => ({ id, resident: true, pvp: false });
+  const townsperson = (id: string) => ({ id, resident: true, pvp: true });
 
   it("passes between two players who have both asked for it", () => {
     expect(mayHarm(player("a", true), player("b", true))).toBe(true);
@@ -134,6 +141,16 @@ describe("whether harm may pass", () => {
     expect(mayHarm(player("a", false), creature("rat"))).toBe(true);
     expect(mayHarm(creature("rat"), player("a", false))).toBe(true);
     expect(mayHarm(creature("rat"), creature("wolf"))).toBe(true);
+  });
+
+  it("stops a player with PvP off at a resident only PvP may harm", () => {
+    expect(mayHarm(player("a", false), townsperson("guard"))).toBe(false);
+    expect(mayHarm(player("a", true), townsperson("guard"))).toBe(true);
+  });
+
+  it("does not hold back the resident itself, or a creature", () => {
+    expect(mayHarm(townsperson("guard"), player("a", false))).toBe(true);
+    expect(mayHarm(creature("wolf"), townsperson("guard"))).toBe(true);
   });
 
   it("lets a body harm itself, whatever its switch says", () => {
@@ -175,6 +192,31 @@ describe("swinging at another player", () => {
     play.setAttackMode(true, "local");
     advance(play, A_FEW_ROUNDS_MS);
     expect(hpOf(play, deer)!).toBeLessThan(MAX_HP);
+  });
+});
+
+describe("swinging at a townsperson only PvP may harm", () => {
+  function swingAt(pvp: boolean) {
+    const play = session(
+      replaceStack(field(), 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "townsperson", direction: "w" },
+      ]),
+    );
+    const them = play.actorIds().find((id) => id !== "local")!;
+    play.setPvp(pvp, "local");
+    play.setTarget(them, "local");
+    play.setAttackMode(true, "local");
+    advance(play, A_FEW_ROUNDS_MS);
+    return hpOf(play, them)!;
+  }
+
+  it("takes nothing off it while the swinger's PvP is off", () => {
+    expect(swingAt(false)).toBe(MAX_HP);
+  });
+
+  it("lands once the swinger's PvP is on", () => {
+    expect(swingAt(true)).toBeLessThan(MAX_HP);
   });
 });
 

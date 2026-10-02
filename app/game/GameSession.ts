@@ -3532,7 +3532,8 @@ export class GameSession implements PlaySession {
   }
 
   private combatantOf(actor: ActorRuntime): Combatant {
-    return { id: actor.id, resident: actor.resident, pvp: actor.pvp };
+    const pvp = actor.resident ? resolveBattler(this.defFor(actor))?.pvp === true : actor.pvp;
+    return { id: actor.id, resident: actor.resident, pvp };
   }
 
   private mayHarm(from: ActorRuntime, to: ActorRuntime): boolean {
