@@ -111,11 +111,19 @@ export function healing(def: TileDef, statusDefs: Record<string, StatusDef>): nu
   if (!food) return 0;
   const grants = food.statuses ?? [];
   if (grants.some((grant) => statusDefs[grant.id]?.tone === "bad")) return 0;
-  const mending = grants.filter((grant) => {
-    const status = statusDefs[grant.id];
-    return status?.tone === "good" && status.effects?.hp !== undefined;
-  }).length;
+  const mending = grants.filter((grant) => mends(statusDefs[grant.id])).length;
   return Math.max(0, food.hp) + mending * MENDING_STATUS_HP;
+}
+
+function mends(status: StatusDef | undefined): boolean {
+  return status?.tone === "good" && status.effects?.hp !== undefined;
+}
+
+export function isMending(
+  statuses: readonly { readonly defId: string }[],
+  statusDefs: Record<string, StatusDef>,
+): boolean {
+  return statuses.some((instance) => mends(statusDefs[instance.defId]));
 }
 
 export function steps(a: Coord, b: Coord): number {

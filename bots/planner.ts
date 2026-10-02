@@ -14,8 +14,13 @@ export type Situation = {
   readonly canSell: boolean;
   /** It knows of a resource whose yield it wants. */
   readonly canGather: boolean;
-  /** It is hurt and carries no food that heals, so it should start no fight. */
-  readonly wounded: boolean;
+  /**
+   * It fell below its `huntHpShare` and is not yet back to its
+   * `restedHpShare`, so it starts no fight.
+   */
+  readonly recovering: boolean;
+  /** It carries food that heals, which is the only way health comes back. */
+  readonly hasFood: boolean;
   /** Where it died and left its bag, until it has been back for it. */
   readonly lostKitAt: Coord | null;
 };
@@ -24,7 +29,8 @@ export const NOTHING_TO_DO: Situation = {
   canBuy: false,
   canSell: false,
   canGather: false,
-  wounded: false,
+  recovering: false,
+  hasFood: false,
   lostKitAt: null,
 };
 
@@ -87,11 +93,18 @@ export const GATHER_PULLS = 8;
 export const FAILED_GOAL_MS = 3 * 60_000;
 
 /**
+ * A recovering bot rests this long at a time and is then asked again, so it
+ * gets up soon after it has healed.
+ */
+export const REST_SPELL_SECONDS = 30;
+
+/**
  * The opening goals in order, then a loop that plays the game: go back for
  * the bag it died with, buy what it can afford, sell what it does not need,
  * and otherwise hunt, breaking off now and then to gather the money that
- * hunting does not pay. A bot hurt with no food gathers instead of hunting,
- * since bushes give food and health comes back only from food.
+ * hunting does not pay. A recovering bot rests while it has food and gathers
+ * when it has none, since bushes give food and health comes back only from
+ * food.
  */
 export class ProgressPlanner implements Planner {
   private at = 0;
@@ -133,9 +146,12 @@ export class ProgressPlanner implements Planner {
       nowMs - (this.failedAt.get(kind) ?? -Infinity) > FAILED_GOAL_MS;
     if (situation.canBuy && fresh("shop")) return this.leaveHunt({ goal: "shop" });
     if (situation.canSell && fresh("sell")) return this.leaveHunt({ goal: "sell" });
+    if (situation.recovering && situation.hasFood) {
+      return this.leaveHunt({ goal: "rest", seconds: REST_SPELL_SECONDS });
+    }
     const hunted = this.huntingSinceMs === null ? 0 : nowMs - this.huntingSinceMs;
     const gather = situation.canGather && fresh("gather");
-    if (gather && (situation.wounded || hunted >= HUNT_SPELL_MS)) {
+    if (gather && (situation.recovering || hunted >= HUNT_SPELL_MS)) {
       if (goal?.goal === "gather") return goal;
       return this.leaveHunt({ goal: "gather", pulls: GATHER_PULLS });
     }

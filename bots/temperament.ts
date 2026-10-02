@@ -19,10 +19,17 @@ export type Temperament = {
   /** A threat this close is backed away from. */
   readonly waryCells: number;
   /**
-   * Below this share of its health a bot with no food that mends starts no
-   * new fight: health comes back only from food, so fights taken hurt add up.
+   * Below this share of its health a bot starts no new fight and recovers
+   * until it is back to `restedHpShare`: health comes back only through food,
+   * so fights taken hurt add up.
    */
   readonly huntHpShare: number;
+  /**
+   * A recovering bot hunts again only from this share of its health. Hunting
+   * again at `huntHpShare` itself would send it into the next fight half
+   * dead.
+   */
+  readonly restedHpShare: number;
   /** Below this share of its health the bot eats. */
   readonly eatHpShare: number;
   /** Prey further away than this is not worth setting off after. */
@@ -69,6 +76,7 @@ export const DEFAULT_TEMPERAMENT: Temperament = {
   waryCells: 7,
   huntHpShare: 0.5,
   eatHpShare: 0.6,
+  restedHpShare: 0.9,
   huntSightCells: 16,
   chaseGiveUpMs: 15_000,
   preyChoices: 3,
@@ -89,6 +97,9 @@ export const DEFAULT_TEMPERAMENT: Temperament = {
 
 /** How far each number may stray from `DEFAULT_TEMPERAMENT`, as a share of it. */
 export const TEMPERAMENT_SPREAD = 0.25;
+
+/** `restedHpShare` strays only this far, so no bot waits for more health than it has. */
+const RESTED_SPREAD = 0.1;
 
 /**
  * A temperament drawn around `DEFAULT_TEMPERAMENT`. `dread` strays less than
@@ -126,6 +137,8 @@ export function drawTemperament(random: () => number): Temperament {
     stretchMaxLegs: Math.max(stretchMinLegs, whole(d.stretchMaxLegs)),
     style: STYLES[Math.floor(random() * STYLES.length)]!,
     kiteCells: near(d.kiteCells, 0.15),
+    /** Drawn last so that every bot keeps the rest of the temperament it already had. */
+    restedHpShare: near(d.restedHpShare, RESTED_SPREAD),
   };
 }
 
