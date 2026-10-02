@@ -8981,6 +8981,15 @@ player already uses rather than a parallel set for animals.
   the damage path a player's poison apple takes. `extract` reports `running` for
   the whole of a pick, which is what stops a lower line in the priority list from
   stepping and ending the pull it is under.
+- **`switch` is the player's door handle.** It calls `GameSession.activateSwitch`
+  with the creature's own id, so a brain flips only what a player standing in
+  the same cell could: straight beside it (`pushDirectionFrom`, never a
+  diagonal), with the flipped tile still fitting. It answers `success` and
+  never `running`, because a flip is instant. The bound `thing` reads as gone
+  the moment it flips, since the cell no longer holds that tile id, so
+  `out_of_range $lamp` is how a brain notices it has finished. The lamplighter
+  works the town's lampposts this way: `lamppost-off` by day, `lamppost` from
+  18:00 to 06:00, nearest first, then home.
 - **`carrying` reads the bag and only the bag.** What a body wears it is using;
   what is in its bag it is merely carrying. A body with no bag carries nothing,
   which is the answer for every creature nobody authored a container onto — and

@@ -75,6 +75,7 @@ export type BrainContext = {
   attack(actorId: string): boolean;
   cast(spell: number, targetId?: string | null): "cast" | "casting" | "no";
   extract(at: Coord, tileId: string): boolean;
+  switchThing(at: Coord, tileId: string): boolean;
   consume(tileId: string | undefined): boolean;
   consumeOn(at: Coord, tileId: string): boolean;
   carrying(tileId: string | undefined): boolean;
@@ -396,6 +397,11 @@ function runAction(
       const bound = identify(action.of, memory, ctx);
       if (bound?.kind !== "thing") return "failure";
       return ctx.extract(bound.at, bound.tileId) ? "running" : "failure";
+    }
+    case "switch": {
+      const bound = identify(action.of, memory, ctx);
+      if (bound?.kind !== "thing") return "failure";
+      return ctx.switchThing(bound.at, bound.tileId) ? "success" : "failure";
     }
     case "consume": {
       if (!action.of) return ctx.consume(action.tileId) ? "success" : "failure";

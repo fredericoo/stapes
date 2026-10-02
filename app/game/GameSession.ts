@@ -1817,6 +1817,7 @@ export class GameSession implements PlaySession {
       attack: (id) => this.orderAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
+      switchThing: (at, tileId) => this.switchForBrain(actor, at, tileId),
       consume: (tileId) => this.consumeForBrain(actor, tileId),
       consumeOn: (at, tileId) => this.consumeOnGround(actor, at, tileId),
       carrying: (tileId) => this.carryingInBag(actor, tileId),
@@ -3902,6 +3903,14 @@ export class GameSession implements PlaySession {
     );
     if (stackIndex < 0) return false;
     return this.extract({ ...at, stackIndex }, actor.id);
+  }
+
+  private switchForBrain(actor: ActorRuntime, at: Coord, tileId: string): boolean {
+    const stackIndex = getStack(this.map, at.x, at.y, at.z).findIndex(
+      (placed) => placed.tileId === tileId,
+    );
+    if (stackIndex < 0) return false;
+    return this.activateSwitch({ ...at, stackIndex }, actor.id);
   }
 
   private consumeForBrain(actor: ActorRuntime, tileId: string | undefined): boolean {

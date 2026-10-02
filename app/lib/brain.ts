@@ -100,6 +100,7 @@ export type BrainActionDef =
   | { action: "attack"; of: Selector }
   | { action: "cast"; spell: number; of?: Selector }
   | { action: "extract"; of: Selector }
+  | { action: "switch"; of: Selector }
   | { action: "consume"; of?: Selector; tileId?: string };
 
 export type BrainEffectDef = { effect: "say"; text: string } | { effect: "noise"; text: string };
@@ -251,6 +252,7 @@ const actionSchema = v.variant("action", [
     of: v.optional(selectorSchema),
   }),
   v.object({ action: v.literal("extract"), of: selectorSchema }),
+  v.object({ action: v.literal("switch"), of: selectorSchema }),
   v.object({
     action: v.literal("consume"),
     of: v.optional(selectorSchema),

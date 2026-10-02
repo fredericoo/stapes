@@ -222,6 +222,7 @@ describe("deciding", () => {
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
+      switchThing: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
@@ -1047,6 +1048,7 @@ describe("giving up", () => {
       attack: () => false,
       cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
+      switchThing: vi.fn(() => false),
       consume: () => false,
       consumeOn: () => false,
       carrying: () => false,
@@ -1466,6 +1468,7 @@ describe("actions that take time", () => {
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
+      switchThing: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
@@ -1872,6 +1875,7 @@ describe("a deer that yelps", () => {
       attack: () => false,
       cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
+      switchThing: vi.fn(() => false),
       consume: () => false,
       consumeOn: () => false,
       carrying: () => false,
@@ -1950,6 +1954,7 @@ describe("a deer that yelps", () => {
       attack: () => false,
       cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
+      switchThing: vi.fn(() => false),
       consume: () => false,
       consumeOn: () => false,
       carrying: () => false,
@@ -2560,6 +2565,7 @@ describe("composing conditions", () => {
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
+      switchThing: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
@@ -3395,6 +3401,7 @@ describe("knowing where it belongs", () => {
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
+      switchThing: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
@@ -4464,6 +4471,79 @@ describe("browsing a bush", () => {
   });
 });
 
+describe("lighting the lamps", () => {
+  const LAMP_CELLS = 8;
+
+  function lamplighterBrain(): BrainDef {
+    return {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        lighting: {
+          do: [
+            { action: "switch", of: slot("lamp") },
+            { action: "step_toward", of: slot("lamp") },
+            { action: "hold" },
+          ],
+        },
+      },
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "in_range", of: thing("lamp-off"), cells: LAMP_CELLS },
+          bind: { lamp: thing("lamp-off") },
+          to: "lighting",
+        },
+        {
+          from: "lighting",
+          if: { cond: "out_of_range", of: slot("lamp"), cells: LAMP_CELLS },
+          to: "idle",
+        },
+      ],
+    };
+  }
+
+  const street: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "lamp-off",
+      height: 4,
+      walkable: false,
+      interactions: { switch: { targetTileId: "lamp-on", actionName: "Light" } },
+    }),
+    tile({
+      id: "lamp-on",
+      height: 4,
+      walkable: false,
+      interactions: { switch: { targetTileId: "lamp-off", actionName: "Put out" } },
+    }),
+    tile({
+      id: "lamplighter",
+      height: 4,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: lamplighterBrain() },
+    }),
+  ];
+
+  it("walks to each unlit lamp in turn and lights it", () => {
+    let map = field(6);
+    map = withDeer(map, 0, 0, "lamplighter");
+    map = replaceStack(map, 3, 0, 0, [{ tileId: "grass" }, { tileId: "lamp-off" }]);
+    map = replaceStack(map, -3, 2, 0, [{ tileId: "grass" }, { tileId: "lamp-off" }]);
+    const session = new GameSession(map, street, {
+      actorIds: ["alice"],
+      spawnAt: { x: -6, y: -6, z: 0, stackIndex: 1 },
+    });
+
+    advance(session, BRAIN_TICK_MS * 40);
+
+    const lampAt = (x: number, y: number) => getStack(session.getMap(), x, y, 0)[1]?.tileId;
+    expect([lampAt(3, 0), lampAt(-3, 2)]).toEqual(["lamp-on", "lamp-on"]);
+  });
+});
+
 describe("naming a thing", () => {
   const BUSH_AT = { x: 2, y: 0, z: 0 };
 
@@ -4495,6 +4575,7 @@ describe("naming a thing", () => {
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => true),
+      switchThing: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
@@ -4654,6 +4735,7 @@ describe("asking what a body is under", () => {
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
+      switchThing: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => true),
       carrying: () => false,
@@ -4849,6 +4931,7 @@ describe("casting a spell of its own", () => {
       attack: vi.fn(() => false),
       cast: vi.fn((): "cast" | "casting" | "no" => "cast"),
       extract: vi.fn(() => false),
+      switchThing: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
