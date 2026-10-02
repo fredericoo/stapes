@@ -256,6 +256,7 @@ Repository secrets:
 PREVIEW_ADMIN_SECRET                same value as the preview app's env, step 6
 COOLIFY_TOKEN                       Coolify → Keys & Tokens → API tokens
 BUTLER_API_KEY                      itch.io → Settings → API keys, step 9
+DISCORD_CHANGELOG_WEBHOOK_URL       Discord channel → Edit → Integrations → Webhooks
 ```
 
 Repository variables:
@@ -299,7 +300,9 @@ what the origin serves rather than what Cloudflare serves.
 
 Push to `main` and both halves deploy to **staging** (step 6, "Staging"). Production
 deploys when a release does: merging the release PR that `release.yml` keeps open
-tags the version and calls `deploy.yml` with `environment: production`.
+tags the version and calls `deploy.yml` with `environment: production`. Once that
+succeeds it posts the release notes to the Discord channel behind
+`DISCORD_CHANGELOG_WEBHOOK_URL`; without that secret it warns and posts nothing.
 
 The order in `deploy.yml` is the one thing worth knowing: it uploads the client
 *without activating it*, restarts the server, waits for health, and only then

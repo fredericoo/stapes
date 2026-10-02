@@ -1,6 +1,6 @@
 # Changesets
 
-Every pull request adds one file here, written for players: it becomes a line in `CHANGELOG.md` and on the GitHub Release when the next release ships.
+Every pull request adds one file here, written for players: it becomes a line in `CHANGELOG.md`, on the GitHub Release and in the Discord post when the next release ships.
 
 ```bash
 bunx changeset add
