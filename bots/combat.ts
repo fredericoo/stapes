@@ -1,6 +1,7 @@
 import type { Equipment } from "../app/game/equipment";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import { resolveBattler } from "../app/lib/battler";
+import { resolveDialog } from "../app/lib/dialog";
 import { resolveConsumable } from "../app/lib/item";
 import type { StatusDef } from "../app/lib/status";
 import { PLAYER_TILE_ID } from "../app/game/constants";
@@ -24,6 +25,11 @@ export function canHurt(def: TileDef | undefined): boolean {
   return battler.naturalWeapon.damage > 0 || (battler.spells?.length ?? 0) > 0;
 }
 
+/**
+ * Townsfolk are battlers so a player can kill one, but a bot that hunted or
+ * feared them would empty the shops it buys from and flee every street. A body
+ * with a dialog is somebody to talk to, so it is never a creature here.
+ */
 export function creaturesAround<T extends Rated>(
   self: Rated,
   actors: readonly T[],
@@ -33,7 +39,7 @@ export function creaturesAround<T extends Rated>(
     if (a.id === self.id || a.tileId === PLAYER_TILE_ID) return false;
     if (a.hp !== null && a.hp <= 0) return false;
     const def = tilesById[a.tileId];
-    return def !== undefined && resolveBattler(def) !== null;
+    return def !== undefined && resolveBattler(def) !== null && resolveDialog(def) === null;
   });
 }
 
