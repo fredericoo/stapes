@@ -55,6 +55,22 @@ describe("creaturesAround", () => {
     const around = [body("town-guard", 1), body("beggar", 2), body("wolf", 3)];
     expect(creaturesAround(newcomer, around, tilesById).map((a) => a.tileId)).toEqual(["wolf"]);
   });
+
+  it("leaves out a body only PvP may harm, even with no dialog", () => {
+    const wolf = tilesById["wolf"]!;
+    const outlaw: TileDef = {
+      ...wolf,
+      id: "outlaw",
+      interactions: {
+        ...wolf.interactions,
+        battler: { ...resolveBattler(wolf)!, pvp: true },
+      },
+    };
+    const around = [{ ...body("wolf", 1), tileId: "outlaw" }, body("wolf", 2)];
+    expect(
+      creaturesAround(newcomer, around, { ...tilesById, outlaw }).map((a) => a.tileId),
+    ).toEqual(["wolf"]);
+  });
 });
 
 describe("fightOdds", () => {
