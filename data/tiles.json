@@ -33284,6 +33284,12 @@
     },
     "lightPassing": true,
     "walkable": false,
+    "interactions": {
+      "switch": {
+        "targetTileId": "lamppost-off",
+        "actionName": "Put out"
+      }
+    },
     "sprite": {
       "frames": [
         {
@@ -33305,6 +33311,46 @@
             "intensity": 0.99,
             "color": "#ffcc88"
           }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lamppost-off",
+    "name": "Unlit Lamppost",
+    "height": 4,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 14,
+      "y": 26
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "switch": {
+        "targetTileId": "lamppost",
+        "actionName": "Light"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
         }
       ]
     }
@@ -42264,7 +42310,7 @@
     "walkDurationMs": 750,
     "interactions": {
       "brain": {
-        "initial": "dozing",
+        "initial": "home",
         "states": {
           "listening": {
             "do": [
@@ -42273,7 +42319,7 @@
               }
             ]
           },
-          "dozing": {
+          "home": {
             "do": [
               {
                 "action": "step_toward",
@@ -42283,34 +42329,35 @@
               },
               {
                 "action": "hold"
-              }
-            ]
-          },
-          "homing": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "step_random"
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "rounds": {
-            "do": [
-              {
-                "action": "walk_n_steps",
-                "steps": 4
               }
             ]
           },
           "lighting": {
+            "do": [
+              {
+                "action": "switch",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "lamp"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "lamp"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "lit": {
             "onEnter": [
               {
                 "effect": "say",
@@ -42318,6 +42365,31 @@
               }
             ],
             "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "dousing": {
+            "do": [
+              {
+                "action": "switch",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "lamp"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "lamp"
+                  }
+                }
+              },
               {
                 "action": "hold"
               }
@@ -42343,77 +42415,137 @@
                 }
               ]
             },
-            "to": "dozing"
+            "to": "home"
           },
           {
-            "from": "any",
+            "from": "home",
             "if": {
               "combinator": "and",
-              "not": true,
               "rules": [
                 {
                   "cond": "time_of_day",
                   "fromHour": 18,
-                  "toHour": 23
+                  "toHour": 6
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "lamppost-off"
+                      ]
+                    }
+                  },
+                  "cells": 60
                 }
               ]
             },
-            "to": "dozing"
+            "to": "lighting",
+            "bind": {
+              "lamp": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "lamppost-off"
+                  ]
+                }
+              }
+            }
           },
           {
-            "from": "dozing",
+            "from": "home",
             "if": {
-              "cond": "time_of_day",
-              "fromHour": 18,
-              "toHour": 23
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "time_of_day",
+                      "fromHour": 18,
+                      "toHour": 6
+                    }
+                  ]
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "lamppost"
+                      ]
+                    }
+                  },
+                  "cells": 60
+                }
+              ]
             },
-            "to": "rounds"
+            "to": "dousing",
+            "bind": {
+              "lamp": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "lamppost"
+                  ]
+                }
+              }
+            }
           },
           {
-            "from": "rounds",
+            "from": "lighting",
             "if": {
               "cond": "out_of_range",
               "of": {
-                "type": "home"
+                "type": "slot",
+                "data": {
+                  "name": "lamp"
+                }
               },
-              "cells": 12
+              "cells": 60
             },
-            "to": "homing"
-          },
-          {
-            "from": "homing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 2
-            },
-            "to": "rounds"
-          },
-          {
-            "from": "homing",
-            "if": {
-              "cond": "after",
-              "ms": 15000
-            },
-            "to": "rounds"
-          },
-          {
-            "from": "rounds",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "lighting"
+            "to": "lit"
           },
           {
             "from": "lighting",
             "if": {
               "cond": "after",
-              "ms": 5000,
-              "toMs": 9000
+              "ms": 60000
             },
-            "to": "rounds"
+            "to": "home"
+          },
+          {
+            "from": "lit",
+            "if": {
+              "cond": "after",
+              "ms": 1500
+            },
+            "to": "home"
+          },
+          {
+            "from": "dousing",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "lamp"
+                }
+              },
+              "cells": 60
+            },
+            "to": "home"
+          },
+          {
+            "from": "dousing",
+            "if": {
+              "cond": "after",
+              "ms": 60000
+            },
+            "to": "home"
           }
         ]
       },
@@ -42421,7 +42553,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "Mm? Oh. Evening already?"
+            "text": "Mm? Oh, hello. Mind the lamps."
           },
           {
             "kind": "anchor",
@@ -42435,7 +42567,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "I light the lamps from six until the small hours. Somebody has to, or nobody would find their way home from the Barrel."
+                    "text": "Every evening at six I light every lamp in town, and at six in the morning I put them all out again. Then it's home to bed."
                   },
                   {
                     "kind": "goto",
@@ -42448,7 +42580,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Off you go. I'll have the lamps lit by dark."
+                    "text": "Off you go. The lamps will be lit by dark."
                   }
                 ]
               }
