@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { DISCORD_INVITE } from "./content";
 
 export function PlayButtons() {
   return (
@@ -6,9 +7,14 @@ export function PlayButtons() {
       <Link to="/guest" className="home-btn home-btn--primary">
         Play now
       </Link>
-      <Link to="/sign-up" className="home-btn home-btn--secondary">
-        Create account
-      </Link>
+      <a
+        href={DISCORD_INVITE}
+        rel="noreferrer"
+        target="_blank"
+        className="home-btn home-btn--secondary"
+      >
+        Join on Discord
+      </a>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { DISCORD_INVITE } from "./content";
 
 export const NAV_HEIGHT_PX = 52;
 
@@ -14,6 +15,9 @@ export function NavBar({ shown }: { shown: boolean }) {
         The Last Stones
       </a>
       <div className="home-nav-actions">
+        <a href={DISCORD_INVITE} rel="noreferrer" target="_blank" className="home-nav-link">
+          Discord
+        </a>
         <Link to="/sign-in" className="home-nav-link">
           Sign in
         </Link>
