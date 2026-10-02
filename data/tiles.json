@@ -38472,22 +38472,6 @@
               }
             ]
           },
-          "following": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "customer"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
           "homing": {
             "do": [
               {
@@ -38512,6 +38496,17 @@
               }
             ],
             "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "nearest",
+                  "data": {
+                    "tileIds": [
+                      "player"
+                    ]
+                  }
+                }
+              },
               {
                 "action": "hold"
               }
@@ -38560,176 +38555,6 @@
               "cells": 2
             },
             "to": "pausing"
-          },
-          {
-            "from": "following",
-            "if": {
-              "cond": "out_of_los",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "customer"
-                }
-              },
-              "cells": 10
-            },
-            "to": "pausing"
-          },
-          {
-            "from": "pausing",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "customer": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
-            "from": "strolling",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "customer": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
-            "from": "lingering",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "customer": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
-            "from": "ambling",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "customer": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
-            "from": "hawking",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "customer": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
-            "from": "wandering",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "customer": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "following"
           },
           {
             "from": "pausing",
@@ -39863,6 +39688,19 @@
                 "action": "hold"
               }
             ]
+          },
+          "resting": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -39881,6 +39719,30 @@
               "rules": [
                 {
                   "cond": "talking"
+                }
+              ]
+            },
+            "to": "walk0"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "time_of_day",
+              "fromHour": 18,
+              "toHour": 6
+            },
+            "to": "resting"
+          },
+          {
+            "from": "resting",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 18,
+                  "toHour": 6
                 }
               ]
             },
@@ -40425,7 +40287,7 @@
     "walkDurationMs": 700,
     "interactions": {
       "brain": {
-        "initial": "walking",
+        "initial": "off_duty",
         "states": {
           "listening": {
             "do": [
@@ -40434,7 +40296,7 @@
               }
             ]
           },
-          "homing": {
+          "off_duty": {
             "do": [
               {
                 "action": "step_toward",
@@ -40443,7 +40305,47 @@
                 }
               },
               {
-                "action": "step_random"
+                "action": "step_toward",
+                "of": {
+                  "type": "thing",
+                  "data": {
+                    "tileIds": [
+                      "door-closed"
+                    ]
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "opening": {
+            "do": [
+              {
+                "action": "switch",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "door"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "closing": {
+            "do": [
+              {
+                "action": "switch",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "door"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -40485,6 +40387,22 @@
                 "action": "hold"
               }
             ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -40506,16 +40424,311 @@
                 }
               ]
             },
+            "to": "off_duty"
+          },
+          {
+            "from": "walking",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 18,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "pausing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 18,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "walking2",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 18,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "reporting",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 18,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 18,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "off_duty",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "time_of_day",
+                      "fromHour": 18,
+                      "toHour": 6
+                    }
+                  ]
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 0
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "door-open"
+                      ]
+                    }
+                  },
+                  "cells": 1
+                }
+              ]
+            },
+            "to": "closing",
+            "bind": {
+              "door": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "door-open"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "off_duty",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "time_of_day",
+                      "fromHour": 18,
+                      "toHour": 6
+                    }
+                  ]
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 0
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "door-closed"
+                      ]
+                    }
+                  },
+                  "cells": 1
+                }
+              ]
+            },
+            "to": "opening",
+            "bind": {
+              "door": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "door-closed"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "off_duty",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 18,
+                  "toHour": 6
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "door-closed"
+                      ]
+                    }
+                  },
+                  "cells": 1
+                }
+              ]
+            },
+            "to": "opening",
+            "bind": {
+              "door": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "door-closed"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "off_duty",
+            "if": {
+              "cond": "time_of_day",
+              "fromHour": 18,
+              "toHour": 6
+            },
             "to": "walking"
           },
           {
-            "from": "any",
+            "from": "opening",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "door"
+                }
+              },
+              "cells": 1
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "opening",
+            "if": {
+              "cond": "after",
+              "ms": 3000
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "closing",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "door"
+                }
+              },
+              "cells": 1
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "closing",
+            "if": {
+              "cond": "after",
+              "ms": 3000
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "walking",
             "if": {
               "cond": "out_of_range",
               "of": {
                 "type": "home"
               },
-              "cells": 5
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "pausing",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "walking2",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "reporting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
             },
             "to": "homing"
           },
@@ -40526,9 +40739,9 @@
               "of": {
                 "type": "home"
               },
-              "cells": 1
+              "cells": 3
             },
-            "to": "pausing"
+            "to": "walking"
           },
           {
             "from": "homing",
@@ -40536,7 +40749,7 @@
               "cond": "after",
               "ms": 15000
             },
-            "to": "pausing"
+            "to": "walking"
           },
           {
             "from": "walking",
@@ -42357,19 +42570,6 @@
               }
             ]
           },
-          "lit": {
-            "onEnter": [
-              {
-                "effect": "say",
-                "text": "There we are. Nice and bright."
-              }
-            ],
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
-          },
           "dousing": {
             "do": [
               {
@@ -42507,21 +42707,13 @@
               },
               "cells": 60
             },
-            "to": "lit"
+            "to": "home"
           },
           {
             "from": "lighting",
             "if": {
               "cond": "after",
               "ms": 60000
-            },
-            "to": "home"
-          },
-          {
-            "from": "lit",
-            "if": {
-              "cond": "after",
-              "ms": 1500
             },
             "to": "home"
           },
