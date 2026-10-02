@@ -33132,7 +33132,7 @@
       "14,-2": [{"tileId":"grass-2"}],
       "14,-1": [{"tileId":"grass-2"}],
       "14,0": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
-      "14,1": [{"tileId":"grass-2"},{"tileId":"cobblestone"},{"tileId":"town-child","direction":"s"}],
+      "14,1": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "14,2": [{"tileId":"grass-2"},{"tileId":"dirt"}],
       "14,3": [{"tileId":"grass-2"},{"tileId":"dirt"},{"tileId":"wooden-floor"},{"tileId":"sw2"}],
       "14,4": [{"tileId":"wooden-floor"}],

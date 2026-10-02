@@ -1353,8 +1353,8 @@ cause of death.
   Everyone else goes to `panicking`: one plea on entry, then
   `step_away_from` the attacker. These rules sit at the top of each
   brain's transition list, with a rule that keeps the brain in its current
-  state. Without that, a lower `any` rule (the crier's home leash, the
-  child's bedtime) would pull a fleeing body straight back to its attacker.
+  state. Without that, a lower `any` rule (the crier's home leash or
+  his night rest) would pull a fleeing body straight back to its attacker.
 - **Guards hunt a named list**, not "any non-player". There is no such
   selector, and a list keeps deer, rabbits and the townsfolk themselves off it.
 - **Bots do not see them** (`creaturesAround` in `bots/combat.ts`). Otherwise
