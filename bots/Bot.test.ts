@@ -402,3 +402,49 @@ it("backs away from a threat and conjures a flame on it", async () => {
 
   expect(flames()).toBe(true);
 });
+
+it.each([
+  {
+    stone: "arcane-stone-of-verdance",
+    masteries: { arcane: 20, water: 8, nature: 8 },
+    hurt: "/health 3",
+    mended: (remote: RemoteSession) => (remote.getSnapshot().self.hp ?? 0) > 3,
+  },
+  {
+    stone: "arcane-stone-of-bloom",
+    masteries: { arcane: 38, water: 15, nature: 15 },
+    hurt: "/status poison",
+    mended: (remote: RemoteSession) =>
+      !remote.getSnapshot().self.statuses.some((status) => status.defId === "poison"),
+  },
+])("mends itself with $stone before anything else", async ({ stone, masteries, hurt, mended }) => {
+  await harness.blobs.put("map.json", JSON.stringify(forgeWorld([stone])), JSON_TYPE);
+  const { remote, clock } = await joinBot(true);
+  for (const [mastery, level] of Object.entries(masteries)) {
+    remote.say(`/mastery ${mastery} ${level}`);
+  }
+  const bot = new Bot(
+    remote,
+    new ProgressPlanner([{ goal: "open_rewards" }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 },
+    },
+  );
+  const worn = () => remote.getSnapshot().equipment.charm?.tileId === stone;
+
+  await play(bot, remote, worn, clock);
+  remote.say(hurt);
+  await play(
+    bot,
+    remote,
+    () =>
+      remote.getSnapshot().equipment.charm?.cooldownMs !== undefined &&
+      (remote.getSnapshot().equipment.charm?.cooldownMs ?? 0) > 0,
+    clock,
+  );
+
+  expect(mended(remote)).toBe(true);
+});

@@ -52,6 +52,24 @@ export function boltDamage(stone: ArcaneStoneItem, masteries: Masteries): number
   return spellPower(effect.damage!, stone.requirements, masteries);
 }
 
+/** Health a stone puts back into its own caster, on average; 0 for any other stone. */
+export function boltHealing(stone: ArcaneStoneItem, masteries: Masteries): number {
+  const { effect } = stone;
+  if (effect.kind !== "bolt" || effect.on !== "caster" || (effect.damage ?? 0) >= 0) return 0;
+  return -spellPower(effect.damage!, stone.requirements, masteries);
+}
+
+/** Whether a stone heals or cures its caster, which is kept for when it is needed. */
+export function mends(stone: ArcaneStoneItem, masteries: Masteries): boolean {
+  return boltHealing(stone, masteries) > 0 || curesOf(stone).length > 0;
+}
+
+/** The statuses a stone takes off its own caster. */
+export function curesOf(stone: ArcaneStoneItem): readonly string[] {
+  const { effect } = stone;
+  return effect.kind === "bolt" && effect.on === "caster" ? (effect.cures ?? []) : [];
+}
+
 /** The statuses a stone puts on its own caster that light the room. */
 export function lightStatuses(
   stone: ArcaneStoneItem,
@@ -103,9 +121,11 @@ function castsUnaimed(stone: ArcaneStoneItem): boolean {
 
 /**
  * What a stone in a cast square is worth, in damage a second like a weapon:
- * a bolt's damage over the time between two casts, a light's worth for a
- * stone that lights its caster, and something for any stone that trains
- * Arcane on its own. A stone the bot cannot cast yet is worth nothing.
+ * a bolt's damage or a mend's healing over the time between two casts, a
+ * light's worth for a stone that lights its caster, and something for any
+ * stone that trains Arcane on its own. A point healed counts as a point dealt,
+ * since either is a point of the fight won. A stone the bot cannot cast yet
+ * is worth nothing.
  */
 export function stoneWorth(
   def: TileDef,
@@ -114,7 +134,8 @@ export function stoneWorth(
 ): number {
   const stone = usableStone(def, masteries);
   if (!stone) return 0;
-  const points = perSecond(boltDamage(stone, masteries), stone, masteries);
+  const dealt = boltDamage(stone, masteries) + boltHealing(stone, masteries);
+  const points = perSecond(dealt, stone, masteries);
   const light = lightStatuses(stone, statusDefs).length > 0 ? LIGHT_WORTH : 0;
   return points + light + (castsUnaimed(stone) ? TRAINING_WORTH : 0);
 }
@@ -179,6 +200,30 @@ export function bestBolt(
     const elements = spellElements(stone.requirements);
     const damage = boltDamage(stone, masteries) * effectiveness(elements, foe);
     if (damage > 0 && (!best || damage > best.damage)) best = { slot: button.slot, damage };
+  }
+  return best?.slot ?? null;
+}
+
+/**
+ * The ready stone that mends the caster most when it is `hurt`, else one
+ * that cures a status in `afflictedBy`.
+ */
+export function bestMend(
+  buttons: readonly Button[],
+  tilesById: Record<string, TileDef>,
+  masteries: Masteries,
+  hurt: boolean,
+  afflictedBy: ReadonlySet<string>,
+): CastSlot | null {
+  let best: { slot: CastSlot; healing: number } | null = null;
+  for (const button of buttons) {
+    if (!button.castability.ok || !button.tileId) continue;
+    const stone = usableStone(tilesById[button.tileId], masteries);
+    if (!stone) continue;
+    const healing = hurt ? boltHealing(stone, masteries) : 0;
+    const cures = curesOf(stone).some((id) => afflictedBy.has(id));
+    if (healing <= 0 && !cures) continue;
+    if (!best || healing > best.healing) best = { slot: button.slot, healing };
   }
   return best?.slot ?? null;
 }

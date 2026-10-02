@@ -13642,7 +13642,7 @@ sent):
 - **A bag is worth a point a square.** The tanner's leather backpack is
   usually the first thing a bot saves for.
 - **A stone is worth what it does a second** (`stoneWorth`), on the same
-  scale as a weapon; see below.
+  scale as a weapon, a point healed counting as a point dealt; see below.
 - **The charm square holds a light or a stone.** A light there is worth
   `LIGHT_WORTH`, so a stone that out-damages it takes the square and the
   torch goes to the bag. Charms and the armourer's amulets are never bought.
@@ -13688,6 +13688,10 @@ It reads `spells()`, the same buttons the spell bar draws, so a stone it has
 not learnt, one cooling down, or a target out of reach is never sent. In
 order:
 
+- **Mending:** below `eatHpShare` of its health or while recovering, the
+  ready stone that heals most; under a bad status, one that cures it (`bestMend`). This comes before
+  every other cast, and `eat` waits while a mend is ready, because a stone
+  costs only a cooldown and food runs out.
 - **Fighting:** the ready bolt that does most damage after the wheel
   (`bestBolt`): Sleet before Cinder at a cave troll, which is made of fire. A
   bolt fires as soon as the foe is in its reach, which is before a melee bot
@@ -13700,7 +13704,7 @@ order:
   before the last one goes out, and while it carries a stone it cannot cast
   yet it casts whenever one is ready, since every cast pays `XP_PER_CAST`
   Arcane. A conjure is never cast just to train, because it leaves fire on
-  the ground.
+  the ground, and a mend is not, because it would be cooling when needed.
 
 Nothing is cast while talking, gathering, crafting or cooking: a cast cancels
 an extraction.

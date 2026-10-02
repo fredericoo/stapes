@@ -43,12 +43,14 @@ import {
   awaitsMastery,
   bestBolt,
   boltsPerSecond,
+  bestMend,
   forgeOrders,
   castingReach,
   conjures,
   harmfulTileIds,
   LIGHT_RENEW_MS,
   lightStatuses,
+  mends,
   onCaster,
   readyStone,
 } from "./arcane";
@@ -1179,6 +1181,7 @@ export class Bot {
     const unmended = this.recovering && !isMending(self.statuses, this.statusDefs);
     if (!low && !unmended) return;
     if (nowMs - this.lastEatMs < EAT_RETRY_MS) return;
+    if (this.mendReady(snapshot)) return;
     const index = healingFood(snapshot.equipment, this.tilesById, this.statusDefs);
     if (index === null) return;
     const tileId = snapshot.equipment.bag?.contents?.[index]?.tileId ?? "";
@@ -1437,6 +1440,8 @@ export class Bot {
     buttons: readonly SpellButton[],
     masteries: Masteries,
   ): CastSlot | null {
+    const mend = this.mendIn(snapshot, buttons, masteries);
+    if (mend) return mend;
     if (this.foe) {
       if (snapshot.targetId !== this.foe.id) return null;
       const foe = snapshot.actors.find((a) => a.id === this.foe!.id);
@@ -1447,9 +1452,37 @@ export class Bot {
     if (this.flight) return this.scorch(snapshot, buttons, masteries);
     const training = awaitsMastery(carriedInstances(snapshot.equipment), this.tilesById, masteries);
     return readyStone(buttons, this.tilesById, masteries, (stone) => {
-      if (!onCaster(stone)) return false;
+      if (!onCaster(stone) || mends(stone, masteries)) return false;
       return training || this.lightRunningOut(snapshot, stone);
     });
+  }
+
+  /**
+   * A stone that heals the bot once it is hurt as far as it would eat or is
+   * recovering, or cures a bad status it is under. It comes before every other cast, and
+   * before eating, because the stone costs nothing but a cooldown.
+   */
+  private mendIn(
+    snapshot: GameSnapshot,
+    buttons: readonly SpellButton[],
+    masteries: Masteries,
+  ): CastSlot | null {
+    const { self } = snapshot;
+    const low = !!self.maxHp && (self.hp ?? 0) / self.maxHp < this.temperament.eatHpShare;
+    const hurt = low || this.recovering;
+    const afflictedBy = new Set(
+      self.statuses
+        .filter((status) => this.statusDefs[status.defId]?.tone === "bad")
+        .map((status) => status.defId),
+    );
+    return bestMend(buttons, this.tilesById, masteries, hurt, afflictedBy);
+  }
+
+  /** Whether a stone could mend the bot this frame, so food is kept for when none can. */
+  private mendReady(snapshot: GameSnapshot): boolean {
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    if (!body || snapshot.self.casting) return false;
+    return this.mendIn(snapshot, this.body.spells(), body.masteries) !== null;
   }
 
   /**
