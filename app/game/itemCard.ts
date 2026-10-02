@@ -22,7 +22,7 @@ import {
 import type { Element } from "../lib/element";
 import { engravedName } from "../lib/engraving";
 import type { ItemInstance } from "../lib/itemInstance";
-import { seconds } from "../lib/duration";
+import { formatDuration } from "../lib/duration";
 import { countOf } from "../lib/piles";
 import {
   asEarned,
@@ -109,7 +109,9 @@ function bodyWith(masteries: BattlerDef["masteries"], weapon: WeaponItem): Battl
 function durationOf(grant: StatusGrant, def: StatusDef): string {
   const fromMs = grant.fromMs ?? def.fromMs;
   const toMs = grant.toMs ?? def.toMs;
-  return fromMs === toMs ? seconds(toMs) : `${seconds(fromMs)}–${seconds(toMs)}`;
+  return fromMs === toMs
+    ? formatDuration(toMs)
+    : `${formatDuration(fromMs)}–${formatDuration(toMs)}`;
 }
 
 function reachLine(thing: { reach?: Reach; projectile?: string }): string {
@@ -179,8 +181,8 @@ function weaponStats(weapon: WeaponItem, masteries: BattlerDef["masteries"]): It
     },
     {
       term: "swing",
-      value: seconds(yourIntervalMs),
-      ...(yourIntervalMs === ownIntervalMs ? {} : { base: seconds(ownIntervalMs) }),
+      value: formatDuration(yourIntervalMs),
+      ...(yourIntervalMs === ownIntervalMs ? {} : { base: formatDuration(ownIntervalMs) }),
       tone: toneOf(ownIntervalMs, yourIntervalMs),
     },
     {
@@ -296,7 +298,7 @@ function charmStats(charm: CharmItem, masteries: BattlerDef["masteries"]): ItemC
   }
   stats.push({
     term: "cadence",
-    value: seconds(charm.everyMs),
+    value: formatDuration(charm.everyMs),
     tone: "plain",
   });
   return [...stats, ...encumbranceStats(charm.requirements, masteries)];
@@ -420,7 +422,7 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
 
   stats.push({
     term: "cooldown",
-    value: seconds(stone.cooldownMs),
+    value: formatDuration(stone.cooldownMs),
     tone: "plain",
   });
   stats.push({
