@@ -28426,8 +28426,8 @@
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 10000,
-            "toMs": 30000
+            "fromMs": 45000,
+            "toMs": 75000
           }
         ],
         "pile": 12
@@ -31288,8 +31288,8 @@
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 60000,
-            "toMs": 300000
+            "fromMs": 120000,
+            "toMs": 180000
           }
         ],
         "pile": 3
@@ -32271,8 +32271,8 @@
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 15000,
-            "toMs": 45000
+            "fromMs": 45000,
+            "toMs": 75000
           }
         ],
         "pile": 8
@@ -33764,8 +33764,8 @@
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 45000,
-            "toMs": 90000
+            "fromMs": 105000,
+            "toMs": 135000
           }
         ],
         "pile": 6
