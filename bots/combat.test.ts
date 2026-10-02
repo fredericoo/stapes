@@ -9,7 +9,7 @@ import { normalizeTileDef, type TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { choosePrey, healingFood, type PreyChoice, type Rated } from "./combat";
 import { bodyOf } from "./gear";
-import { fightOdds, swingsOf } from "./odds";
+import { fightOdds, swingsOf, type Fighter } from "./odds";
 import { DEFAULT_TEMPERAMENT } from "./temperament";
 
 const tilesById = tilesByIdFromList((tilesJson as TileDef[]).map(normalizeTileDef));
@@ -30,11 +30,15 @@ const newcomerSwings = swingsOf(
   statusDefs,
 );
 
+const fresh: Fighter = { tileId: "player", hp: null, maxHp: null, statuses: [] };
+
+function foe(tileId: string): Fighter {
+  return { tileId, hp: null, maxHp: null, statuses: [] };
+}
+
 /** The margin a new character with a rusty sword expects against these foes, at full health. */
 function margin(...tileIds: string[]): number {
-  const foes = tileIds.map((tileId) => ({ tileId, hp: null, maxHp: null, statuses: [] }));
-  const self = { tileId: "player", hp: null, maxHp: null, statuses: [] };
-  return fightOdds(newcomerSwings, self, foes, tilesById, statusDefs)!.margin;
+  return fightOdds(newcomerSwings, fresh, tileIds.map(foe), tilesById, statusDefs)!.margin;
 }
 
 const firstChoice: PreyChoice<Rated> = {
@@ -58,6 +62,37 @@ describe("fightOdds", () => {
 
   it("weighs two creatures fighting together as worse than either alone", () => {
     expect(margin("cat", "cat")).toBeLessThan(margin("cat") / 2);
+  });
+
+  it("weighs a snake's poison and constriction against it", () => {
+    const snake = tilesById.snake!;
+    const battler = snake.interactions!.battler!;
+    const harmless: TileDef = {
+      ...snake,
+      id: "harmless-snake",
+      interactions: {
+        ...snake.interactions,
+        battler: {
+          ...battler,
+          naturalWeapon: { ...battler.naturalWeapon, statuses: [] },
+          spells: [],
+        },
+      },
+    };
+    const withHarmless = { ...tilesById, [harmless.id]: harmless };
+    const odds = (tileId: string) =>
+      fightOdds(newcomerSwings, fresh, [foe(tileId)], withHarmless, statusDefs)!.margin;
+    expect(odds("snake")).toBeLessThan(odds("harmless-snake") * 0.8);
+  });
+
+  it("counts the poison already in the bot against the fight ahead", () => {
+    const poisoned = {
+      ...fresh,
+      statuses: [{ defId: "poison", durationMs: 60_000, remainingMs: 60_000, sinceEffectMs: 0 }],
+    };
+    const odds = (self: typeof fresh) =>
+      fightOdds(newcomerSwings, self, [foe("cat")], tilesById, statusDefs)!.margin;
+    expect(odds(poisoned)).toBeLessThan(odds(fresh));
   });
 });
 
