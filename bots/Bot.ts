@@ -123,6 +123,21 @@ export const FLEE_FAR_CELLS = 18;
 export const FLEE_MS = 6_000;
 
 /**
+ * After backing away, the bot keeps clear of the creatures it backed away
+ * from for this long, where they stood: it hunts, gathers and explores
+ * elsewhere, and routes around them. `FLEE_MS` alone sent it straight back
+ * into the same ground.
+ */
+export const SCARE_MS = 120_000;
+
+/**
+ * After dying, the bot hunts and gathers away from where it died, and from
+ * what was near it, for this long. The walk back for its bag does not wait
+ * for it: see `kitToFetch`.
+ */
+export const DEATH_SCARE_MS = 300_000;
+
+/**
  * A threat this close that walks at least as fast as the bot cannot be
  * escaped, so the bot stands and fights it, and keeps fighting it once it
  * has turned on it: backing away from a wolf only gives it free bites, a bat
@@ -363,6 +378,10 @@ export class Bot {
    * still shows what the bot wore before it died.
    */
   private lostKitAt: Coord | null = null;
+  /** Places the bot backed away from or died in, by `cellOf`, kept until `untilMs`. */
+  private scares = new Map<string, Scare>();
+  /** The creatures that could hurt in view last decision, which are what killed the bot if it has just died. */
+  private lastHostiles: readonly ActorSnapshot[] = [];
   /** Retreats from each errand, by `skipKey` or `exploredKey`, since the goal was set. */
   private turnedBack = new Map<string, number>();
   private readonly log: (line: string) => void;
@@ -414,6 +433,7 @@ export class Bot {
 
   act(nowMs: number) {
     this.nowMs = nowMs;
+    this.forgetScares(nowMs);
     if (this.body.isDead()) {
       this.whileDead(nowMs);
       return;
@@ -458,6 +478,7 @@ export class Bot {
       this.looting = null;
       this.recovering = false;
       if (this.hadBag && this.lastAt) this.lostKitAt = this.lastAt;
+      if (this.lastAt) this.fearDeathPlace(this.lastAt, nowMs);
       this.happen("you died and will come back where you last set your respawn");
       this.ask("died", null);
     }
@@ -642,7 +663,7 @@ export class Bot {
     const world = knowledge.world(self.id, this.threatPenalty(snapshot));
     const at = { x: self.x, y: self.y, z: self.z };
 
-    const zones = this.dangerZones(snapshot);
+    const zones = this.avoided(snapshot);
     const recall = {
       skipped: this.skipped,
       explored: this.explored,
@@ -701,6 +722,7 @@ export class Bot {
   private evade(snapshot: GameSnapshot, nowMs: number): boolean {
     const self = snapshot.self;
     const hostile = this.hostiles(snapshot);
+    this.lastHostiles = hostile;
     const threats = hostile.filter(
       (a) => reach(self, a) <= this.waryOf(a) && this.threatens(snapshot, [a]),
     );
@@ -759,6 +781,10 @@ export class Bot {
         this.happen(`backing away from ${dangers.map(nameOf).join(", ")}`);
         this.turnBack();
       }
+      for (const danger of dangers) {
+        this.scare(danger, this.berthOf(danger.tileId), nowMs + SCARE_MS);
+      }
+      this.abandonKitWalk(snapshot);
       if (this.foe) this.disengage();
       const from = dangers.sort((a, b) => reach(self, a) - reach(self, b))[0]!.id;
       this.flight = {
@@ -1053,6 +1079,7 @@ export class Bot {
       (a) =>
         a.z === self.z &&
         steps(self, a) <= huntSightCells &&
+        !this.isScared(a) &&
         threats.every((t) => t === a || steps(a, t) > this.waryOf(t)) &&
         hasLineOfSight(snapshot.map, this.tilesById, self, a),
     );
@@ -1115,13 +1142,96 @@ export class Bot {
     const live = this.hostiles(snapshot)
       .filter((a) => this.threatens(snapshot, [a]))
       .map((a) => ({ at: a as Coord, cells: this.berthOf(a.tileId) }));
-    const zones = [...live, ...this.dangerZones(snapshot)];
+    const zones = [...live, ...this.avoided(snapshot)];
     if (zones.length === 0) return undefined;
     return (cell) => (inZone(zones, cell) ? THREAT_PENALTY : 0);
   }
 
   private berthOf(tileId: string): number {
     return Math.max(THREAT_BERTH_CELLS, noticeCells(this.tilesById[tileId]));
+  }
+
+  /** Where routes keep clear of and errands never head for: the fleet's danger zones and this bot's scares. */
+  private avoided(snapshot: GameSnapshot): Zone[] {
+    return [...this.dangerZones(snapshot), ...this.scares.values()];
+  }
+
+  private isScared(cell: Coord): boolean {
+    return inZone([...this.scares.values()], cell);
+  }
+
+  /** Keeps the longer and wider of two scares at one cell, so a creature backed away from twice is one scare. */
+  private scare(at: Coord, cells: number, untilMs: number, killer?: string) {
+    const key = cellOf(at);
+    const known = this.scares.get(key);
+    this.scares.set(key, {
+      at: { x: at.x, y: at.y, z: at.z },
+      cells: Math.max(cells, known?.cells ?? 0),
+      untilMs: Math.max(untilMs, known?.untilMs ?? 0),
+      killer: killer ?? known?.killer,
+    });
+  }
+
+  private forgetScares(nowMs: number) {
+    for (const [key, { untilMs }] of this.scares) {
+      if (untilMs <= nowMs) this.scares.delete(key);
+    }
+  }
+
+  /**
+   * Scares the bot off the place it died and off each creature that could
+   * hurt within its wary distance of it, remembering which creature each
+   * was so `kitToFetch` can tell whether it would lose to it again.
+   */
+  private fearDeathPlace(at: Coord, nowMs: number) {
+    const untilMs = nowMs + DEATH_SCARE_MS;
+    const killers = this.lastHostiles.filter((a) => a.z === at.z && steps(a, at) <= this.waryOf(a));
+    for (const killer of killers) {
+      this.scare(killer, this.berthOf(killer.tileId), untilMs, killer.tileId);
+    }
+    const widest = Math.max(THREAT_BERTH_CELLS, ...killers.map((a) => this.berthOf(a.tileId)));
+    this.scare(at, widest, untilMs);
+  }
+
+  /**
+   * Drops a walk back for the bag once something the bot would lose to is
+   * near the bag, keeping where it lies for later. `finish` would forget it.
+   */
+  private abandonKitWalk(snapshot: GameSnapshot) {
+    const kit = this.lostKitAt;
+    const goal = this.goal;
+    if (!kit || goal?.goal !== "go_to" || !this.guarded(snapshot, kit)) return;
+    if (goal.x !== kit.x || goal.y !== kit.y || goal.z !== kit.z) return;
+    this.goal = null;
+    this.course = { kind: "idle" };
+    this.happen("gave up walking back for your bag: something dangerous is there");
+    this.ask("failed", null);
+  }
+
+  /**
+   * Where the bag the bot died with lies, unless something it would lose to
+   * is near the bag. Waiting out `DEATH_SCARE_MS` left the bot without its
+   * kit for minutes, and a second death in that time lost the first bag.
+   */
+  private kitToFetch(snapshot: GameSnapshot): Coord | null {
+    const kit = this.lostKitAt;
+    return kit && !this.guarded(snapshot, kit) ? kit : null;
+  }
+
+  /**
+   * Whether a creature the bot would lose to is within its berth of `cell`:
+   * one in view that threatens it as it is now, or one that killed it there
+   * that it would lose to even at full health.
+   */
+  private guarded(snapshot: GameSnapshot, cell: Coord): boolean {
+    const live = this.hostiles(snapshot)
+      .filter((a) => this.threatens(snapshot, [a]))
+      .map((a) => ({ at: a as Coord, cells: this.berthOf(a.tileId) }));
+    const feared = this.fearedTiles(snapshot);
+    const killers = [...this.scares.values()].filter(
+      (scare) => scare.killer !== undefined && feared.has(scare.killer),
+    );
+    return inZone([...live, ...killers], cell);
   }
 
   /**
@@ -1702,7 +1812,7 @@ export class Bot {
   /** What the planner is told: whether there is anything to buy, sell or gather. */
   private situation(snapshot: GameSnapshot): Situation {
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
-    if (!body) return { ...NOTHING_TO_DO, lostKitAt: this.lostKitAt };
+    if (!body) return { ...NOTHING_TO_DO, lostKitAt: this.kitToFetch(snapshot) };
     const { equipment } = snapshot;
     const wanted = this.economy.wanted(equipment, body);
     const knowledge = new Knowledge(snapshot.map, snapshot.actors, this.tilesById, this.statusDefs);
@@ -1720,7 +1830,7 @@ export class Bot {
       canGather: seen.length > 0 || remembered,
       recovering: this.recovering,
       hasFood: healingFood(equipment, this.tilesById, this.statusDefs) !== null,
-      lostKitAt: this.lostKitAt,
+      lostKitAt: this.kitToFetch(snapshot),
       canForge: this.knowsAForge(knowledge, equipment, body, self),
     };
   }
@@ -1891,6 +2001,12 @@ function holdsSidearm(equipment: Equipment, tilesById: Record<string, TileDef>):
 }
 
 type Zone = { readonly at: Coord; readonly cells: number };
+
+type Scare = Zone & {
+  readonly untilMs: number;
+  /** The tile of the creature scared of, when it was near where the bot died. */
+  readonly killer?: string;
+};
 
 function inZone(zones: readonly Zone[], cell: Coord): boolean {
   return zones.some(({ at, cells }) => at.z === cell.z && steps(cell, at) <= cells);
