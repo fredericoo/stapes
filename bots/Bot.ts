@@ -21,7 +21,15 @@ import type { StatusDef } from "../app/lib/status";
 import type { Coord, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
 import { MAX_CHAT_LENGTH } from "../app/net/chat";
-import { canHurt, choosePrey, creaturesAround, healingFood, reach, steps } from "./combat";
+import {
+  canHurt,
+  choosePrey,
+  creaturesAround,
+  healingFood,
+  isMending,
+  reach,
+  steps,
+} from "./combat";
 import { nextDressing } from "./dress";
 import { fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
 import { Economy, type Deal } from "./economy";
@@ -263,6 +271,7 @@ export class Bot {
   private flight: { pilot: Pilot; untilMs: number } | null = null;
   private preySkipped = new Map<string, number>();
   private lastEatMs = -Infinity;
+  private recovering = false;
   private reactAtMs: number | null = null;
   private deadSinceMs: number | null = null;
   private lastDressMs = -Infinity;
@@ -350,6 +359,7 @@ export class Bot {
     const self = snapshot.self;
     const hurt = this.lastHp !== null && self.hp !== null && self.hp < this.lastHp;
     this.lastHp = self.hp;
+    this.checkRecovery(self);
     this.lastAt = { x: self.x, y: self.y, z: self.z };
     this.hadBag = snapshot.equipment.bag !== null;
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
@@ -377,6 +387,7 @@ export class Bot {
       this.chase = null;
       this.flight = null;
       this.looting = null;
+      this.recovering = false;
       if (this.hadBag && this.lastAt) this.lostKitAt = this.lastAt;
       this.happen("you died and will come back where you last set your respawn");
       this.ask("died", null);
@@ -937,16 +948,13 @@ export class Bot {
 
   /**
    * The prey in sight worth setting off after, judged with every creature
-   * near it that could join in. A bot hurt below `huntHpShare` with no food
-   * that mends starts nothing.
+   * near it that could join in. A recovering bot starts nothing, whatever
+   * food it carries.
    */
   private preyIn(snapshot: GameSnapshot, nowMs: number): ActorSnapshot | null {
+    if (this.recovering) return null;
     const self = snapshot.self;
-    const { huntSightCells, preyChoices, courage, dread, huntHpShare } = this.temperament;
-    const hurt = self.hp !== null && !!self.maxHp && self.hp / self.maxHp < huntHpShare;
-    if (hurt && healingFood(snapshot.equipment, this.tilesById, this.statusDefs) === null) {
-      return null;
-    }
+    const { huntSightCells, preyChoices, courage, dread } = this.temperament;
     const hostile = this.hostiles(snapshot);
     const threats = hostile.filter((a) => this.threatens(snapshot, [a]));
     const others = snapshot.actors.filter((a) => a.tileId === PLAYER_TILE_ID && a.id !== self.id);
@@ -969,6 +977,26 @@ export class Bot {
       skipped: (id) => (this.preySkipped.get(id) ?? 0) > nowMs,
       taken: (prey) => others.some((p) => steps(p, prey) <= TAKEN_CELLS),
     });
+  }
+
+  /**
+   * A bot that falls below `huntHpShare` recovers until it is back to
+   * `restedHpShare`, and asks the planner at once rather than finishing the
+   * hunt it is on until the next timer.
+   */
+  private checkRecovery(self: ActorSnapshot) {
+    if (self.hp === null || !self.maxHp) return;
+    const share = self.hp / self.maxHp;
+    const { huntHpShare, restedHpShare } = this.temperament;
+    if (this.recovering && share >= restedHpShare) {
+      this.recovering = false;
+      this.happen("recovered, and ready to fight again");
+      return;
+    }
+    if (this.recovering || share >= huntHpShare) return;
+    this.recovering = true;
+    this.happen("hurt, so recovering before starting another fight");
+    this.pendingAsk ??= { reason: "timer", outcome: null };
   }
 
   /**
@@ -1049,10 +1077,17 @@ export class Bot {
     return tiles;
   }
 
+  /**
+   * A bot recovering above `eatHpShare` still eats whenever nothing is
+   * mending it, because without a mending status it gets no health back at
+   * all, however long it rests.
+   */
   private eat(snapshot: GameSnapshot, nowMs: number) {
     const self = snapshot.self;
     if (self.hp === null || !self.maxHp) return;
-    if (self.hp / self.maxHp >= this.temperament.eatHpShare) return;
+    const low = self.hp / self.maxHp < this.temperament.eatHpShare;
+    const unmended = this.recovering && !isMending(self.statuses, this.statusDefs);
+    if (!low && !unmended) return;
     if (nowMs - this.lastEatMs < EAT_RETRY_MS) return;
     const index = healingFood(snapshot.equipment, this.tilesById, this.statusDefs);
     if (index === null) return;
@@ -1381,11 +1416,8 @@ export class Bot {
       canBuy: this.economy.purchases(equipment, body).some(known),
       canSell: this.economy.sales(equipment, body).some(known),
       canGather: seen.length > 0 || remembered,
-      wounded:
-        self.hp !== null &&
-        !!self.maxHp &&
-        self.hp / self.maxHp < this.temperament.huntHpShare &&
-        healingFood(equipment, this.tilesById, this.statusDefs) === null,
+      recovering: this.recovering,
+      hasFood: healingFood(equipment, this.tilesById, this.statusDefs) !== null,
       lostKitAt: this.lostKitAt,
     };
   }

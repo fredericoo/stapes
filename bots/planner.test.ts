@@ -1,6 +1,13 @@
 import { expect, it } from "bun:test";
 import type { Goal } from "./goals";
-import { NOTHING_TO_DO, ProgressPlanner, type AskReason, type Situation } from "./planner";
+import {
+  GATHER_PULLS,
+  NOTHING_TO_DO,
+  ProgressPlanner,
+  REST_SPELL_SECONDS,
+  type AskReason,
+  type Situation,
+} from "./planner";
 
 const OPENING: Goal[] = [{ goal: "open_rewards" }, { goal: "reach_level", level: 0 }];
 
@@ -32,4 +39,34 @@ it("goes back for a lost bag and then carries on with the opening where it left 
   expect(await ask("done", null)).toEqual({ goal: "open_rewards" });
   expect(await ask("done", null)).toEqual({ goal: "reach_level", level: 0 });
   expect(await ask("done", null)).toEqual({ goal: "hunt" });
+});
+
+it("rests a recovering bot that has food, gathers for one that has none, and hunts once it has recovered", async () => {
+  const planner = new ProgressPlanner([]);
+  const ask = async (situation: Situation) =>
+    (
+      await planner.decide({
+        reason: "done",
+        goal: null,
+        outcome: null,
+        nowMs: 0,
+        situation,
+        self: { name: "bot", x: 0, y: 0, z: 0, hp: 4, maxHp: 10 },
+        players: [],
+        peaceful: false,
+        recent: [],
+      })
+    )?.goal ?? null;
+
+  expect(await ask({ ...NOTHING_TO_DO, recovering: true, hasFood: true, canGather: true })).toEqual(
+    {
+      goal: "rest",
+      seconds: REST_SPELL_SECONDS,
+    },
+  );
+  expect(await ask({ ...NOTHING_TO_DO, recovering: true, canGather: true })).toEqual({
+    goal: "gather",
+    pulls: GATHER_PULLS,
+  });
+  expect(await ask({ ...NOTHING_TO_DO, hasFood: true, canGather: true })).toEqual({ goal: "hunt" });
 });

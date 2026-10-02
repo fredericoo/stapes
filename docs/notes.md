@@ -13503,8 +13503,8 @@ Every frame, before its goal, a bot checks three things in order:
    `chaseGiveUpMs` without the foe in reach, because deer and rabbits run
    faster than a player walks. A creature that hurts a bot with no foe
    becomes its foe.
-3. **It eats.** Below `eatHpShare` of its health, it eats the bag's food that
-   heals most (`healing`). Most food heals through `fed`, a good status that
+3. **It eats.** Below `eatHpShare` of its health, or while recovering with
+   nothing mending it, it eats the bag's food that heals most (`healing`). Most food heals through `fed`, a good status that
    mends a point every few seconds, so a mending status counts as
    `MENDING_STATUS_HP`. A berry gives nothing at once, and a rule that counted
    only immediate health did not see it as food. Food that can give a bad
@@ -13528,11 +13528,26 @@ of what a creature it outwalks would do, since it keeps that creature at a
 distance, unless the creature has a spell that slows its target
 (`slowsItsTarget`). A snake's first constriction ends the kiting.
 
-**Health comes back only from food, so a hurt bot starts nothing.** Below
-`huntHpShare` of its health, with no food that heals, it picks no prey, and
-`ProgressPlanner` sends it to gather instead of hunt, because bushes give
-berries. Food is bought back up to `FOOD_RESERVE` once the bag holds less
-than half of it.
+**A hurt bot recovers before it fights again.** Players have no passive
+regeneration: health comes back only from food, through `fed`, which mends
+twice as fast out of a fight. `sleep` mends faster, but only creatures can
+put themselves to sleep. Once a bot falls below `huntHpShare` of its health
+it is recovering until it is back to `restedHpShare` (about 0.9):
+
+- it picks no prey, whatever food it carries;
+- it eats whenever no mending status is running, not only below
+  `eatHpShare`, because without one resting gives nothing back;
+- it asks the planner at once, and `ProgressPlanner` gives it `rest` for
+  `REST_SPELL_SECONDS` at a time while it has food, or `gather` while it has
+  none, because bushes give berries.
+
+It still backs away from threats and fights back while resting. Before this,
+a bot carrying one berry counted as able to heal and hunted on: an overnight
+run of five bots died 249 times, and they had eaten to `fed` 346 times
+without once waiting for it to work. Hunting again at `huntHpShare` itself
+would send the bot into the next fight half dead, which is why recovery stops
+higher than it starts. Food is bought back up to `FOOD_RESERVE` once the bag
+holds less than half of it.
 
 **A bot goes back for the bag it died with.** A dead player drops its bag
 where it fell (`dropPacks`), with the money and food in it. The bot remembers
