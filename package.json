@@ -1,5 +1,6 @@
 {
   "name": "the-last-stones",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@base-ui/react": "^1.6.0",
+    "@changesets/cli": "3.0.3",
     "@dnd-kit/react": "^0.5.0",
     "@elysiajs/eden": "1.4.9",
     "@playwright/test": "^1.62.1",

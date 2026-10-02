@@ -40,6 +40,25 @@ jobs:
       - name: Build client
         run: bun run build
 
+  changeset:
+    name: changeset
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+
+      # A PR that changes nothing a player can see still needs `bunx changeset add --empty`.
+      - name: Changeset present
+        run: bun --bun x changeset status --since=origin/${{ github.base_ref }}
+
   perf:
     name: renderer budgets
     runs-on: ubuntu-latest

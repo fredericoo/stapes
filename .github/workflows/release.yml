@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      # changesets/action runs the CLI with `node`, and @changesets/cli 3 needs Node 22.11 or later.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - run: bun install --frozen-lockfile
+
+      # With changesets pending this opens or updates the release PR. With none, it tags a version
+      # that has no tag yet and creates its GitHub Release from the CHANGELOG.md entry.
+      - uses: changesets/action@v2.1.2
+        with:
+          publish-script: bun --bun x changeset git-tag
+          pr-title: "chore(release): version the game and write its changelog"
+          commit-message: "chore(release): version the game and write its changelog"
+          pr-draft: create

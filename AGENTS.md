@@ -150,6 +150,19 @@ and the PR stays marked ready.
 The description is a different document with its own rules — see the
 `pull-request-standards` skill in `.claude/skills/`.
 
+### Every PR carries a changeset
+
+`CHANGELOG.md` is read by players, so the PR title is not what goes in it. Each
+PR adds a file under `.changeset/` with `bunx changeset add`, written for
+somebody playing rather than somebody reading the diff, or
+`bunx changeset add --empty` when a player could not notice the change. CI's
+`changeset` job fails without one. `.changeset/README.md` has the wording.
+
+Merging to `main` keeps a draft release PR up to date
+(`chore(release): …`, opened by `.github/workflows/release.yml`). Merging that
+PR bumps `package.json`, writes `CHANGELOG.md`, tags `v<version>` and creates
+the GitHub Release.
+
 ### Commit messages
 
 Conventional commits, `type(scope): summary`:
