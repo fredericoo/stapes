@@ -54,6 +54,7 @@ import {
   onCaster,
   readyStone,
 } from "./arcane";
+import { ALLY_CELLS, alliesBeside, COMPANY_CELLS, companyGoal, leaderOf } from "./company";
 import { nextDressing } from "./dress";
 import { fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
 import { Economy, FOOD_RESERVE, type Deal } from "./economy";
@@ -157,9 +158,6 @@ export const STRIKE_REACH_CELLS = 1.5;
 export const CHASE_REPLAN_MS = 600;
 
 export const PREY_FORGET_MS = 120_000;
-
-/** Another player this close to prey has it, and the bot looks elsewhere. */
-export const TAKEN_CELLS = 3;
 
 /** Route budget for a chase or a flight, which only ever go a short way. */
 export const SHORT_ROUTE_MAX_NODES = 4_000;
@@ -365,6 +363,8 @@ export class Bot {
   private lostKitAt: Coord | null = null;
   /** Retreats from each errand, by `skipKey` or `exploredKey`, since the goal was set. */
   private turnedBack = new Map<string, number>();
+  /** The player last walked over to, so joining the same one is told once. */
+  private leaderId: string | null = null;
   private readonly log: (line: string) => void;
   private readonly random: () => number;
   private readonly temperament: Temperament;
@@ -641,6 +641,7 @@ export class Bot {
     };
     const world = knowledge.world(self.id, this.threatPenalty(snapshot));
     const at = { x: self.x, y: self.y, z: self.z };
+    if (goal.goal === "hunt" && this.keepCompany(snapshot, world, at, nowMs)) return;
 
     const zones = this.dangerZones(snapshot);
     const recall = {
@@ -681,6 +682,31 @@ export class Bot {
     }
     if (goal.goal === "explore") this.explored.clear();
     this.finish("failed", `found no way to ${describeGoal(goal)} in what you have seen`);
+  }
+
+  /**
+   * A hunting bot with no prey in sight walks over to its leader
+   * (`leaderOf`) rather than exploring alone, and waits a glance's time once
+   * it has caught up. Returns whether that took the errand.
+   */
+  private keepCompany(snapshot: GameSnapshot, world: NavWorld, at: Coord, nowMs: number): boolean {
+    const leader = leaderOf(snapshot.self, snapshot.actors);
+    if (!leader) return false;
+    if (steps(at, leader) <= COMPANY_CELLS) {
+      const { glanceMinMs, glanceMaxMs } = this.temperament;
+      this.course = {
+        kind: "pause",
+        untilMs: nowMs + between(this.random, glanceMinMs, glanceMaxMs),
+      };
+      return true;
+    }
+    const nav = companyGoal(leader);
+    const route = planRoute(world, at, nav, SHORT_ROUTE_MAX_NODES);
+    if (!route.ok) return false;
+    if (this.leaderId !== leader.id) this.happen(`joining ${nameOf(leader)} to hunt together`);
+    this.leaderId = leader.id;
+    this.travel({ nav, act: null, explores: null }, at, route.legs, nowMs, false);
+    return true;
   }
 
   private stuck(self: ActorSnapshot, nowMs: number): boolean {
@@ -990,7 +1016,8 @@ export class Bot {
    */
   private marginAgainst(snapshot: GameSnapshot, foes: readonly ActorSnapshot[]): number {
     if (!this.sizing) return Infinity;
-    const key = foes.map((a) => `${a.id}:${a.hp}`).join(",");
+    const allies = alliesBeside(snapshot.self, snapshot.actors, foes);
+    const key = `${allies}|${foes.map((a) => `${a.id}:${a.hp}`).join(",")}`;
     const known = this.sizing.margins.get(key);
     if (known !== undefined) return known;
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
@@ -1010,6 +1037,7 @@ export class Bot {
       this.statusDefs,
       kites ? KITED_SHARE : 1,
       this.sizing.bolts,
+      allies,
     );
     const margin = odds?.margin ?? Infinity;
     this.sizing.margins.set(key, margin);
@@ -1066,7 +1094,7 @@ export class Bot {
       choices: preyChoices,
       random: this.random,
       skipped: (id) => (this.preySkipped.get(id) ?? 0) > nowMs,
-      taken: (prey) => others.some((p) => steps(p, prey) <= TAKEN_CELLS),
+      shared: (prey) => others.some((p) => steps(p, prey) <= ALLY_CELLS),
     });
   }
 

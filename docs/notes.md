@@ -13475,6 +13475,16 @@ shortly after being paralysed. A new character with a rusty sword went from a
 margin of 0.75 against a snake to 0.53. A status that heals counts as nothing,
 so being fed never makes a bot braver.
 
+Other players count. Each live player within `ALLY_CELLS` of the bot or of
+any creature in the fight (`alliesBeside`, `bots/company.ts`) shortens the
+time to kill by `ALLY_SHARE` (half) of what the bot does itself: the bot
+cannot see another player's masteries, and a player standing near it may not
+be fighting. The creatures are still counted as hitting only the bot, because
+any of them may pick it; the shorter fight does leave less time for the foes'
+statuses to land and drain. So a wolf that a lone bot backs away from can be
+hunted by three bots together. What the fleet remembers as dangerous
+(`fearedTiles`) is still worked out alone, since nobody is promised company.
+
 This replaced a rule on ratings, which could not see gear, health, statuses or
 numbers. Rating counts agility, so a rabbit outrated a new player, while a
 leather jerkin and cap turn a bat from an even fight (margin about 1) into a
@@ -13568,6 +13578,20 @@ would send the bot into the next fight half dead, which is why recovery stops
 higher than it starts. Food is bought back up to `FOOD_RESERVE` once the bag
 holds less than half of it.
 
+**Bots hunt together.** Prey another player stands within `ALLY_CELLS` of
+goes first in `choosePrey`, ahead of prey that teaches more or is nearer:
+that fight is already shared, and the odds above count the player in. It
+used to go last, so bots skipped each other's prey and every one of them
+fought alone. A `hunt` with no prey in sight first walks to the bot's leader
+(`leaderOf`): the nearest player on its level within `COMPANY_SEEK_CELLS`
+whose actor id sorts before its own. Once within `COMPANY_CELLS` it waits a
+glance's time and looks again, rather than exploring. Following only towards
+lower ids gives every group one player who follows nobody and explores for
+the rest; when each of two bots walked towards the other, they met, explored
+apart and met again. The leader may be a person, and a bot following a person
+who stands still in town stands with them until `ProgressPlanner` gives it
+another goal.
+
 **A bot goes back for the bag it died with.** A dead player drops its bag
 where it fell (`dropPacks`), with the money and food in it. The bot remembers
 where it last stood. After it comes back, `ProgressPlanner` gives it a
@@ -13593,8 +13617,7 @@ after the same rabbit. Three things now separate them:
   `reactionMaxMs` before it charts a new errand or sets off after prey, drawn
   afresh each time. The start is staggered too: each bot waits up to
   `START_JITTER_MS` before its first sign-in.
-- **Prey choice.** `choosePrey` picks at random among the `preyChoices` best,
-  and puts prey another player stands within `TAKEN_CELLS` of at the back.
+- **Prey choice.** `choosePrey` picks at random among the `preyChoices` best.
 
 - **Wandering.** Before each new errand, with probability `wanderChance`, a
   bot first walks to a spot between `wanderNearCells` and `wanderFarCells`

@@ -221,6 +221,13 @@ function drainedBy(
 }
 
 /**
+ * What another player fighting beside the bot adds, as a share of what the
+ * bot itself does. The bot cannot see another player's masteries, and a
+ * player standing near it may not be fighting at all.
+ */
+export const ALLY_SHARE = 0.5;
+
+/**
  * The bot against `foes` all at once: it kills them one after the other
  * while all of them hit it, which is how a pack fight goes. `theirShare`
  * scales what they do to it, for a bot that keeps them at a distance, and
@@ -230,6 +237,8 @@ function drainedBy(
  * drain, and what the statuses the bot already carries will drain, comes off
  * the bot's health before the fight starts: nothing mends a player between
  * fights, so poison that outlasts the snake still costs the bot that health.
+ * Each of `allies` speeds the killing by `ALLY_SHARE`; the foes are still
+ * counted as hitting only the bot, since any of them may pick it.
  * Null when any foe is a body whose fighting the bot cannot work out.
  */
 export function fightOdds(
@@ -240,6 +249,7 @@ export function fightOdds(
   statusDefs: Record<string, StatusDef>,
   theirShare = 1,
   boltsPerSecond = 0,
+  allies = 0,
 ): Odds | null {
   if (mine.length === 0 || foes.length === 0) return null;
   const guard = mine[0]!;
@@ -278,6 +288,7 @@ export function fightOdds(
     );
     incoming += blows + spellDamagePerSecond(tilesById[foe.tileId]);
   }
+  killSeconds /= 1 + allies * ALLY_SHARE;
   let drained = drainedBy(afflictions, killSeconds, bearer, statusDefs) * theirShare;
   for (const instance of self.statuses) drained += drainOf(instance, bearer, statusDefs);
   const left = health - drained;
