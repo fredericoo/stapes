@@ -21,7 +21,7 @@ export type Situation = {
   readonly recovering: boolean;
   /** It carries food that heals, which is the only way health comes back. */
   readonly hasFood: boolean;
-  /** Where it died and left its bag, until it has been back for it. */
+  /** Where it died and left its bag, until it has been back for it, unless something it would lose to is near the bag. */
   readonly lostKitAt: Coord | null;
   /** It carries stones worth forging and knows where a forge is. */
   readonly canForge: boolean;

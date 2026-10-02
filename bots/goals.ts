@@ -90,7 +90,10 @@ export type Recall = {
   readonly random: () => number;
   /** Pulls finished since the current goal was set. */
   readonly pulls: number;
-  /** Places an explore never heads for: where the fleet saw something this bot fears. */
+  /**
+   * Places an explore or a gather never heads for: where the fleet saw
+   * something this bot fears, and where the bot itself backed away or died.
+   */
   readonly avoid: (cell: Coord) => boolean;
 };
 
@@ -176,7 +179,7 @@ export function nextErrand(
     }
     case "gather": {
       if (recall.pulls >= goal.pulls || !holdings.body) return "done";
-      return gatherErrand(knowledge, self, holdings, recall, market) ?? "done";
+      return gatherErrand(knowledge, self, holdings, recall, market) ?? "exhausted";
     }
     case "explore":
     case "hunt":
@@ -275,7 +278,7 @@ function gatherErrand(
   const wanted = market.economy.wanted(holdings.equipment, holdings.body!);
   const found = knowledge
     .resources(wanted)
-    .filter(({ ref }) => !recall.skipped.has(refKey(ref)))
+    .filter(({ ref }) => !recall.skipped.has(refKey(ref)) && !recall.avoid(ref))
     .sort((a, b) => distance(self, a.ref) - distance(self, b.ref));
   for (const { ref, tileId } of found) market.landmarks.saw(tileId, ref);
   const nearest = found[0];
@@ -289,7 +292,7 @@ function gatherErrand(
   for (const tileId of knowledge.resourceTileIds(wanted)) {
     const at = market.landmarks
       .where(tileId, self)
-      .find((spot) => !recall.skipped.has(landmarkKey(tileId, spot)));
+      .find((spot) => !recall.skipped.has(landmarkKey(tileId, spot)) && !recall.avoid(spot));
     if (at)
       return { nav: cellGoal(at, "beside"), act: { kind: "visit", tileId, at }, explores: null };
   }

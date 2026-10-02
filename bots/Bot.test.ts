@@ -212,6 +212,63 @@ it("turns on a creature it fears but cannot outrun, rather than being chased dow
   expect(batGone()).toBe(true);
 });
 
+/** Answers every ask with `rest`, and keeps what it was asked. */
+class Recorder implements Planner {
+  readonly asked: Observation[] = [];
+
+  async decide(observation: Observation): Promise<Decision> {
+    this.asked.push(observation);
+    return { goal: { goal: "rest", seconds: 300 } };
+  }
+}
+
+/**
+ * Plays a dressed bot in the armoury, has `before` set the scene, then kills
+ * it, and returns where the planner was told its bag lies on the ask that
+ * follows its death.
+ */
+async function bagToldAfterDying(
+  dread: number,
+  before: (remote: RemoteSession, clock: { ms: number }, bot: Bot) => Promise<void>,
+) {
+  await harness.blobs.put("map.json", JSON.stringify(armouryWorld()), JSON_TYPE);
+  const pair = new Pair();
+  pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
+  const clock = { ms: 0 };
+  const remote = new RemoteSession(pair.client() as never, tiles, statuses, () => clock.ms);
+  await harness.server.join(pair.server, "bot", { admin: true });
+  const planner = new Recorder();
+  const bot = new Bot(remote, planner, tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread },
+  });
+  const askedAfterDying = () => planner.asked.find((ask) => ask.reason === "died");
+  await play(bot, remote, () => remote.getSnapshot().equipment.bag !== null, clock);
+  await before(remote, clock, bot);
+
+  void remote.command("/health 0");
+  await play(bot, remote, () => askedAfterDying() !== undefined, clock);
+
+  return askedAfterDying()?.situation;
+}
+
+it("walks back for its bag at once when nothing it fears was near where it died", async () => {
+  const situation = await bagToldAfterDying(DEFAULT_TEMPERAMENT.dread, async () => {});
+
+  expect(situation?.lostKitAt).not.toBeNull();
+});
+
+it("leaves its bag while a creature it fears killed it beside it", async () => {
+  const situation = await bagToldAfterDying(8, async (remote, clock, bot) => {
+    const { self } = remote.getSnapshot();
+    void remote.command(`/spawn bat ${self.x + 3} ${self.y} ${self.z}`);
+    const batSeen = () => remote.getSnapshot().actors.some((a) => a.tileId === "bat");
+    await play(bot, remote, batSeen, clock);
+  });
+
+  expect(situation?.lostKitAt).toBeNull();
+});
+
 it("opens the chest, wears the torch from it, and drops, climbs and walks up to the surface", async () => {
   const pair = new Pair();
   pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);

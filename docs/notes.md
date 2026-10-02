@@ -13518,6 +13518,17 @@ Every frame, before its goal, a bot checks three things in order:
    last is what keeps the next bot out of its reach. A bot that outgrows the
    wolves stops avoiding those places, because it no longer fears them.
 
+   **A bot stays away from where it backed away or died.** Backing away
+   lasts `FLEE_MS`, and the fleet's danger zones hold only creatures the bot
+   would lose to at full health, so a hurt bot that backed away from a wolf
+   used to walk straight back into it after six seconds to hunt or pick
+   berries. Each creature it backs away from now scares it off the place it
+   stood, within the creature's berth, for `SCARE_MS`. Dying scares it off
+   the place it died and off every creature that could hurt within its wary
+   distance for `DEATH_SCARE_MS`. Scares work like danger zones: routes pay
+   `THREAT_PENALTY` through them, and exploring and gathering never head for
+   them. Prey standing in one is passed over.
+
    **A threat it cannot outrun, it fights.** Backing away gains ground only
    from something slower (`walkDurationMsFor`, with both bodies' statuses
    applied). A threat within `CORNERED_CELLS` that is at least as fast,
@@ -13594,9 +13605,16 @@ another goal.
 
 **A bot goes back for the bag it died with.** A dead player drops its bag
 where it fell (`dropPacks`), with the money and food in it. The bot remembers
-where it last stood. After it comes back, `ProgressPlanner` gives it a
-`go_to` there before anything else, the opening goals included, and the loot
-reflex picks the bag up. A goal that finishes is reported to the planner
+where it last stood. `ProgressPlanner` gives it a `go_to` there before
+anything else, the opening goals included, and the loot reflex picks the bag
+up. The planner is not told where the bag is while a creature the bot would
+lose to is within its berth of the bag: one in view that threatens it, or
+one near where it died that it would lose to even at full health. Walking
+straight back into such a creature was a quarter of all deaths in one
+overnight run. Waiting out `DEATH_SCARE_MS` instead left a bot without its
+kit for minutes, and a second death in that time replaced the first bag's
+place, so the walk does not wait for the scare. A walk back that meets such
+a creature is dropped, and the bag is remembered for later. A goal that finishes is reported to the planner
 without the goal, so the planner remembers which goal it gave last: finishing
 the `go_to` must not move the opening on. A
 thing whose square is empty is taken with `equip`, because `pickUp` refuses
