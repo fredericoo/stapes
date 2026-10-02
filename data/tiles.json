@@ -31093,6 +31093,11 @@
           }
         ],
         "pile": 12
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 600000,
+        "toMs": 1200000
       }
     },
     "sprite": {
@@ -31111,6 +31116,40 @@
             }
           },
           "durationMs": 200
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 1500,
+      "ttlToMs": 2800,
+      "spawnRadiusCells": 0.25,
+      "spawnElevFrom": 0.5,
+      "spawnElevTo": 1.5,
+      "riseFrom": 1.5,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.05,
+      "lit": true,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "0.12 * sin(AGE_SEC * 3 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.85,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#3d6b24"
+        },
+        {
+          "at": 1,
+          "color": "#1b3311"
         }
       ]
     }
@@ -31352,6 +31391,11 @@
           }
         ],
         "pile": 3
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 600000,
+        "toMs": 1200000
       }
     },
     "sprite": {
@@ -31370,6 +31414,40 @@
             }
           },
           "durationMs": 200
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 1500,
+      "ttlToMs": 2800,
+      "spawnRadiusCells": 0.25,
+      "spawnElevFrom": 0.5,
+      "spawnElevTo": 1.5,
+      "riseFrom": 1.5,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.05,
+      "lit": true,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "0.12 * sin(AGE_SEC * 3 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.85,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#3d6b24"
+        },
+        {
+          "at": 1,
+          "color": "#1b3311"
         }
       ]
     }
@@ -32285,6 +32363,11 @@
           }
         ],
         "pile": 4
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 600000,
+        "toMs": 1200000
       }
     },
     "sprite": {
@@ -32303,6 +32386,40 @@
             }
           },
           "durationMs": 200
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 1500,
+      "ttlToMs": 2800,
+      "spawnRadiusCells": 0.25,
+      "spawnElevFrom": 0.5,
+      "spawnElevTo": 1.5,
+      "riseFrom": 1.5,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.05,
+      "lit": true,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "0.12 * sin(AGE_SEC * 3 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.85,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#3d6b24"
+        },
+        {
+          "at": 1,
+          "color": "#1b3311"
         }
       ]
     }
