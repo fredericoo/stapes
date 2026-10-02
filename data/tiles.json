@@ -14576,9 +14576,90 @@
                 "action": "hold"
               }
             ]
+          },
+          "healing": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "healing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "healing"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": 10
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
           {
             "from": "any",
             "if": {
@@ -15640,7 +15721,21 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60,
+              "projectile": "verdant-light"
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500
+          }
+        ]
       }
     },
     "states": {
@@ -16054,9 +16149,90 @@
                 "action": "hold"
               }
             ]
+          },
+          "healing": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "healing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "healing"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": 10
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
           {
             "from": "any",
             "if": {
@@ -16894,7 +17070,21 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60,
+              "projectile": "verdant-light"
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500
+          }
+        ]
       }
     },
     "states": {
@@ -35529,9 +35719,90 @@
                 "action": "hold"
               }
             ]
+          },
+          "healing": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "healing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "healing"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": 10
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
           {
             "from": "any",
             "if": {
@@ -35814,7 +36085,21 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60,
+              "projectile": "verdant-light"
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500
+          }
+        ]
       }
     },
     "states": {
@@ -40670,9 +40955,90 @@
                 "action": "hold"
               }
             ]
+          },
+          "healing": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "healing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "healing"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": 10
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
           {
             "from": "any",
             "if": {
@@ -40972,7 +41338,21 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60,
+              "projectile": "verdant-light"
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500
+          }
+        ]
       }
     },
     "states": {
@@ -42365,9 +42745,90 @@
                 "action": "hold"
               }
             ]
+          },
+          "healing": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "healing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "healing"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": 10
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
           {
             "from": "any",
             "if": {
@@ -43195,7 +43656,21 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60,
+              "projectile": "verdant-light"
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500
+          }
+        ]
       }
     },
     "states": {
