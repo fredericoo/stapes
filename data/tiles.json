@@ -31093,6 +31093,11 @@
           }
         ],
         "pile": 12
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 600000,
+        "toMs": 1200000
       }
     },
     "sprite": {
@@ -31111,6 +31116,40 @@
             }
           },
           "durationMs": 200
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 1500,
+      "ttlToMs": 2800,
+      "spawnRadiusCells": 0.25,
+      "spawnElevFrom": 0.5,
+      "spawnElevTo": 1.5,
+      "riseFrom": 1.5,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.05,
+      "lit": true,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "0.12 * sin(AGE_SEC * 3 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.85,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#3d6b24"
+        },
+        {
+          "at": 1,
+          "color": "#1b3311"
         }
       ]
     }
@@ -31243,6 +31282,11 @@
           }
         ],
         "pile": 3
+      },
+      "decay": {
+        "tileId": "rotten-meat",
+        "fromMs": 1200000,
+        "toMs": 1800000
       }
     },
     "sprite": {
@@ -31311,6 +31355,99 @@
             }
           },
           "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "rotten-meat",
+    "name": "Rotten Meat",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 18,
+      "y": 15
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "squish",
+        "hp": -2,
+        "statuses": [
+          {
+            "id": "fed",
+            "fromMs": 5000,
+            "toMs": 20000
+          },
+          {
+            "id": "food-poisoning",
+            "chance": 100
+          }
+        ],
+        "pile": 3
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 600000,
+        "toMs": 1200000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 1500,
+      "ttlToMs": 2800,
+      "spawnRadiusCells": 0.25,
+      "spawnElevFrom": 0.5,
+      "spawnElevTo": 1.5,
+      "riseFrom": 1.5,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.05,
+      "lit": true,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "0.12 * sin(AGE_SEC * 3 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.85,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#3d6b24"
+        },
+        {
+          "at": 1,
+          "color": "#1b3311"
         }
       ]
     }
@@ -32226,6 +32363,11 @@
           }
         ],
         "pile": 4
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 600000,
+        "toMs": 1200000
       }
     },
     "sprite": {
@@ -32244,6 +32386,40 @@
             }
           },
           "durationMs": 200
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 1500,
+      "ttlToMs": 2800,
+      "spawnRadiusCells": 0.25,
+      "spawnElevFrom": 0.5,
+      "spawnElevTo": 1.5,
+      "riseFrom": 1.5,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.05,
+      "lit": true,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "0.12 * sin(AGE_SEC * 3 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.85,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#3d6b24"
+        },
+        {
+          "at": 1,
+          "color": "#1b3311"
         }
       ]
     }
