@@ -13456,6 +13456,20 @@ damaging bolts spread over their cooldowns. A fight against several creatures
 counts all of them hitting the bot while it kills them one by one. `margin` is
 time-to-die over time-to-kill.
 
+**It counts what a foe's blows and bolts leave on it.** `afflictionsFrom`
+lists the statuses a creature's weapon and target bolts put on the bot, how
+many land a second, and the share of the fight the bot spends under each: how
+often one lands times how long it lasts, capped at the whole fight. Each
+status's modifiers change both sides' swings for its share, and one that
+incapacitates stops the bot's swings for its share. Health a status drains
+comes off the bot's health before the fight, not off its rate: nothing mends a
+player between fights, so poison that outlasts the snake still costs that
+health. The statuses the bot already carries drain it the same way. Ignoring
+both, bots hunted snakes 663 times in one night, and 89 of 249 deaths came
+shortly after being paralysed. A new character with a rusty sword went from a
+margin of 0.75 against a snake to 0.53. A status that heals counts as nothing,
+so being fed never makes a bot braver.
+
 This replaced a rule on ratings, which could not see gear, health, statuses or
 numbers. Rating counts agility, so a rabbit outrated a new player, while a
 leather jerkin and cap turn a bat from an even fight (margin about 1) into a
