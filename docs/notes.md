@@ -1357,6 +1357,8 @@ cause of death.
   his night rest) would pull a fleeing body straight back to its attacker.
 - **Guards hunt a named list**, not "any non-player". There is no such
   selector, and a list keeps deer, rabbits and the townsfolk themselves off it.
+- **Only a player with PvP on can hurt one** (`battler.pvp`). See *Two players
+  do not hurt each other until both have asked to*.
 - **Bots do not see them** (`creaturesAround` in `bots/combat.ts`). Otherwise
   a bot would hunt the weakest shopkeepers and flee from the rest.
 - **The night guard crosses his door by hand.** Brain routing does not open
