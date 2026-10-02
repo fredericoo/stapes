@@ -223,7 +223,8 @@ function drainedBy(
 /**
  * The bot against `foes` all at once: it kills them one after the other
  * while all of them hit it, which is how a pack fight goes. `theirShare`
- * scales what they do to it, for a bot that keeps them at a distance.
+ * scales what they do to it, for a bot that keeps them at a distance, and
+ * `boltsPerSecond` is what the stones it wears add to its swings.
  * What the foes' blows and bolts put on the bot (`afflictionsFrom`) changes
  * both sides' swings for the share of the fight it lasts. The health it will
  * drain, and what the statuses the bot already carries will drain, comes off
@@ -238,6 +239,7 @@ export function fightOdds(
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
   theirShare = 1,
+  boltsPerSecond = 0,
 ): Odds | null {
   if (mine.length === 0 || foes.length === 0) return null;
   const guard = mine[0]!;
@@ -259,9 +261,11 @@ export function fightOdds(
   let incoming = 0;
   for (const [i, foe] of foes.entries()) {
     const theirs = theirSwings[i]!;
-    const mineOnThem = averagedOver(afflictions, (under) =>
-      afflictedDamagePerSecond(mine, theirs, under, statusDefs, health),
-    );
+    const mineOnThem =
+      boltsPerSecond +
+      averagedOver(afflictions, (under) =>
+        afflictedDamagePerSecond(mine, theirs, under, statusDefs, health),
+      );
     if (mineOnThem <= 0) return { killSeconds: Infinity, dieSeconds: 0, margin: 0 };
     killSeconds += (foe.hp ?? theirs.maxHp) / mineOnThem;
     const blows = averagedOver(

@@ -1,6 +1,7 @@
 import { coveredBySomething, type ObjectRef } from "../app/game/affordances";
 import { PLAYER_TILE_ID } from "../app/game/constants";
-import type { Equipment } from "../app/game/equipment";
+import type { CastSlot, SpellButton } from "../app/game/casting";
+import { carriedInstances, type Equipment } from "../app/game/equipment";
 import { walkDurationMsFor } from "../app/game/movement";
 import { walkSpeedPercentFrom } from "../app/game/statuses";
 import { hasLineOfSight } from "../app/game/sight";
@@ -13,9 +14,17 @@ import {
   type NavLeg,
   type NavWorld,
 } from "../app/game/navigation";
-import type { BattlerDef, FightingStats } from "../app/lib/battler";
+import { resolveBattler, type BattlerDef, type FightingStats } from "../app/lib/battler";
 import { resolveDialog } from "../app/lib/dialog";
-import { isRanged, resolveItem, resolveWeapon, type Reach } from "../app/lib/item";
+import { resolveExtract } from "../app/lib/interactions";
+import {
+  isRanged,
+  resolveItem,
+  resolveWeapon,
+  type ArcaneStoneItem,
+  type Reach,
+} from "../app/lib/item";
+import type { Masteries } from "../app/lib/mastery";
 import { getStack } from "../app/lib/mapData";
 import type { StatusDef } from "../app/lib/status";
 import type { Coord, TileDef } from "../app/lib/types";
@@ -30,9 +39,24 @@ import {
   reach,
   steps,
 } from "./combat";
+import {
+  awaitsMastery,
+  bestBolt,
+  boltsPerSecond,
+  bestMend,
+  forgeOrders,
+  castingReach,
+  conjures,
+  harmfulTileIds,
+  LIGHT_RENEW_MS,
+  lightStatuses,
+  mends,
+  onCaster,
+  readyStone,
+} from "./arcane";
 import { nextDressing } from "./dress";
 import { fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
-import { Economy, type Deal } from "./economy";
+import { Economy, FOOD_RESERVE, type Deal } from "./economy";
 import { bodyOf, rangedReach } from "./gear";
 import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
 import {
@@ -143,6 +167,27 @@ export const SHORT_ROUTE_MAX_NODES = 4_000;
 export const DRESS_RETRY_MS = 1_000;
 
 /**
+ * A spell the server is still answering is not sent again for this long:
+ * the cast and its cooldown come back a tick or two after the press.
+ */
+export const CAST_RETRY_MS = 500;
+
+/** A crafter that has not crafted in this long since the bot arrived is given up. */
+export const CRAFT_GIVE_UP_MS = 3_000;
+
+/** One cooking craft is sent this often, so the next is judged on the kit the last one left. */
+export const COOK_EVERY_MS = 1_000;
+
+/**
+ * Cooking that has not moved on in this long is given up: a flame stone's
+ * cast takes three seconds at the mastery it asks for.
+ */
+export const COOK_GIVE_UP_MS = 6_000;
+
+/** A bot that gave up cooking does not try again for this long. */
+export const COOK_RETRY_MS = 60_000;
+
+/**
  * A dressing the server keeps refusing is sent this many times before the
  * thing is left alone for `DRESS_REFUSED_MS`.
  */
@@ -200,6 +245,9 @@ export type BotBody = Pick<
   | "equip"
   | "drop"
   | "say"
+  | "craft"
+  | "cast"
+  | "spells"
 >;
 
 export type BotOptions = {
@@ -238,6 +286,18 @@ type Course =
       readonly sinceMs: number;
       readonly pulling: boolean;
     }
+  | {
+      readonly kind: "craft";
+      readonly ref: ObjectRef;
+      readonly recipe: number;
+      readonly sinceMs: number;
+    }
+  | {
+      readonly kind: "cook";
+      readonly sinceMs: number;
+      readonly conjured: boolean;
+      readonly lastCookMs: number;
+    }
   | { readonly kind: "rest"; readonly untilMs: number }
   | { readonly kind: "pause"; readonly untilMs: number };
 
@@ -268,7 +328,8 @@ export class Bot {
   private lastHp: number | null = null;
   private foe: { id: string; sinceMs: number; provoked: boolean } | null = null;
   private chase: { pilot: Pilot; toward: string; plannedMs: number } | null = null;
-  private flight: { pilot: Pilot; untilMs: number } | null = null;
+  /** A flight backs away from `from`, the nearest danger, which a flame stone is cast at. */
+  private flight: { pilot: Pilot; untilMs: number; from: string } | null = null;
   private preySkipped = new Map<string, number>();
   private lastEatMs = -Infinity;
   private recovering = false;
@@ -280,11 +341,15 @@ export class Bot {
   private looting: Looting | null = null;
   private lootSkipped = new Map<string, number>();
   private lastLootScanMs = -Infinity;
+  private lastCastMs = -Infinity;
+  private cookAgainAtMs = -Infinity;
   private pulls = 0;
   private nowMs = 0;
   /** The bot's own swings and the margins worked out this decision, which fights ask for often. */
   private sizing: {
     mine: FightingStats[];
+    /** What the bolts it wears add to `mine`, in damage a second. */
+    bolts: number;
     margins: Map<string, number>;
     zones?: Zone[];
   } | null = null;
@@ -309,6 +374,7 @@ export class Bot {
   private readonly memory = new Recollection();
   private heard = new Set<string>();
   private saidAtMs: number[] = [];
+  private readonly harmful: ReadonlySet<string>;
 
   constructor(
     private readonly body: BotBody,
@@ -322,6 +388,7 @@ export class Bot {
     this.temperament = options.temperament ?? DEFAULT_TEMPERAMENT;
     this.landmarks = options.landmarks ?? new Landmarks(":memory:");
     this.economy = new Economy(tilesById, statusDefs, this.temperament.style);
+    this.harmful = harmfulTileIds(tilesById, statusDefs);
   }
 
   get currentGoal(): Goal | null {
@@ -366,6 +433,7 @@ export class Bot {
     this.sizing = body
       ? {
           mine: swingsOf(body, snapshot.equipment, self, this.tilesById, this.statusDefs),
+          bolts: boltsPerSecond(snapshot.equipment, this.tilesById, body.masteries),
           margins: new Map(),
         }
       : null;
@@ -373,6 +441,7 @@ export class Bot {
     this.dress(snapshot, nowMs);
     this.eat(snapshot, nowMs);
     this.maybeAsk(snapshot, nowMs);
+    this.spellcast(snapshot, nowMs);
     if (this.evade(snapshot, nowMs)) return;
     if (this.fight(snapshot, nowMs, hurt)) return;
     if (this.loot(snapshot, nowMs)) return;
@@ -439,6 +508,16 @@ export class Bot {
       return;
     }
 
+    if (this.course.kind === "craft") {
+      this.forge(this.course, nowMs);
+      return;
+    }
+
+    if (this.course.kind === "cook") {
+      this.cook(snapshot, this.course, nowMs);
+      return;
+    }
+
     if (this.course.kind !== "press" && !this.peaceful) {
       const prey = this.preyIn(snapshot, nowMs);
       if (prey) {
@@ -471,6 +550,7 @@ export class Bot {
     }
 
     if (this.course.kind === "idle") {
+      if (this.startCooking(snapshot, nowMs)) return;
       if (this.hesitating(nowMs)) return;
       this.chart(snapshot, nowMs);
       return;
@@ -653,6 +733,7 @@ export class Bot {
       if (this.flight) {
         this.flight = null;
         this.course = { kind: "idle" };
+        if (!this.foe) this.body.setTarget(null);
       }
       return false;
     }
@@ -679,7 +760,12 @@ export class Bot {
         this.turnBack();
       }
       if (this.foe) this.disengage();
-      this.flight = { pilot: new Pilot(at, route.legs, this.tilesById), untilMs: nowMs + FLEE_MS };
+      const from = dangers.sort((a, b) => reach(self, a) - reach(self, b))[0]!.id;
+      this.flight = {
+        pilot: new Pilot(at, route.legs, this.tilesById),
+        untilMs: nowMs + FLEE_MS,
+        from,
+      };
       this.course = { kind: "idle" };
       return true;
     }
@@ -713,7 +799,10 @@ export class Bot {
     }
 
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
-    const ranged = body && rangedReach(snapshot.equipment, this.tilesById, body.masteries);
+    const ranged =
+      body &&
+      (rangedReach(snapshot.equipment, this.tilesById, body.masteries) ??
+        castingReach(snapshot.equipment, this.tilesById, body.masteries));
     if (ranged) return this.kite(snapshot, foe, ranged, nowMs);
 
     if (reach(self, foe) <= STRIKE_REACH_CELLS) {
@@ -765,7 +854,7 @@ export class Bot {
   }
 
   /**
-   * Fights with a ranged weapon: stands and shoots while the foe is in reach
+   * Fights with a ranged weapon or a bolt in hand: stands and shoots while the foe is in reach
    * and in sight, and further than `kiteCells`; otherwise walks to a cell
    * that is, which backs away from a foe that closes and comes forward to
    * one out of reach. A bow cannot shoot inside its `Reach.min`, so a foe
@@ -907,7 +996,8 @@ export class Bot {
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
     const kites =
       body !== null &&
-      rangedReach(snapshot.equipment, this.tilesById, body.masteries) !== null &&
+      (rangedReach(snapshot.equipment, this.tilesById, body.masteries) ??
+        castingReach(snapshot.equipment, this.tilesById, body.masteries)) !== null &&
       foes.every(
         (a) =>
           this.outpaces(snapshot, a) && !slowsItsTarget(this.tilesById[a.tileId], this.statusDefs),
@@ -919,6 +1009,7 @@ export class Bot {
       this.tilesById,
       this.statusDefs,
       kites ? KITED_SHARE : 1,
+      this.sizing.bolts,
     );
     const margin = odds?.margin ?? Infinity;
     this.sizing.margins.set(key, margin);
@@ -1066,10 +1157,11 @@ export class Bot {
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
     if (body) {
       const mine = swingsOf(body, snapshot.equipment, fresh, this.tilesById, this.statusDefs);
+      const bolts = boltsPerSecond(snapshot.equipment, this.tilesById, body.masteries);
       for (const def of Object.values(this.tilesById)) {
         if (def.id === PLAYER_TILE_ID || !canHurt(def)) continue;
         const foe = { tileId: def.id, hp: null, maxHp: null, statuses: [] };
-        const odds = fightOdds(mine, fresh, [foe], this.tilesById, this.statusDefs);
+        const odds = fightOdds(mine, fresh, [foe], this.tilesById, this.statusDefs, 1, bolts);
         if (odds && odds.margin < this.temperament.dread) tiles.add(def.id);
       }
     }
@@ -1089,6 +1181,7 @@ export class Bot {
     const unmended = this.recovering && !isMending(self.statuses, this.statusDefs);
     if (!low && !unmended) return;
     if (nowMs - this.lastEatMs < EAT_RETRY_MS) return;
+    if (this.mendReady(snapshot)) return;
     const index = healingFood(snapshot.equipment, this.tilesById, this.statusDefs);
     if (index === null) return;
     const tileId = snapshot.equipment.bag?.contents?.[index]?.tileId ?? "";
@@ -1111,8 +1204,12 @@ export class Bot {
     const currency = this.economy.currency;
     const dressing = nextDressing(equipment, this.tilesById, {
       body,
-      style: this.temperament.style,
-      keeps: (tileId) => tileId === currency || saving.has(tileId) || this.economy.bought(tileId),
+      taste: this.economy.taste,
+      keeps: (tileId) =>
+        tileId === currency ||
+        saving.has(tileId) ||
+        this.economy.bought(tileId) ||
+        this.economy.forges(tileId),
       spends: (tileId) => tileId === currency,
       refused: (tileId) => (this.dressRefused.get(tileId) ?? 0) > nowMs,
     });
@@ -1168,6 +1265,9 @@ export class Bot {
       case "gather":
         this.course = { kind: "gather", ref: act.ref, sinceMs: nowMs, pulling: false };
         return;
+      case "craft":
+        this.course = { kind: "craft", ref: act.ref, recipe: act.recipe, sinceMs: nowMs };
+        return;
       case "talk":
         this.course = {
           kind: "talk",
@@ -1187,11 +1287,13 @@ export class Bot {
           this.tilesById,
           this.statusDefs,
         );
-        const there = knowledge
-          .resources((tileId) => tileId !== "")
-          .some(
-            ({ ref, tileId }) => tileId === act.tileId && steps(ref, act.at) <= SAME_PLACE_CELLS,
-          );
+        const sameOne = ({ ref, tileId }: { ref: ObjectRef; tileId: string }) =>
+          tileId === act.tileId && steps(ref, act.at) <= SAME_PLACE_CELLS;
+        const def = this.tilesById[act.tileId];
+        const there =
+          def && resolveExtract(def)
+            ? knowledge.resources((tileId) => tileId !== "").some(sameOne)
+            : knowledge.placements(new Set([act.tileId])).some(sameOne);
         if (!there) this.landmarks.missing(act.tileId, act.at);
         this.course = { kind: "idle" };
         return;
@@ -1300,14 +1402,214 @@ export class Bot {
     }
   }
 
+  /** Crafts the recipe the walk was for, once; the goal then decides whether there is more. */
+  private forge(course: Extract<Course, { kind: "craft" }>, nowMs: number) {
+    if (this.body.craft(course.ref, course.recipe)) {
+      this.course = { kind: "idle" };
+      return;
+    }
+    if (nowMs - course.sinceMs > CRAFT_GIVE_UP_MS) {
+      this.skipped.add(refKey(course.ref));
+      this.happen(`could not craft at ${course.ref.x},${course.ref.y}`);
+      this.course = { kind: "idle" };
+    }
+  }
+
+  /**
+   * Casts what the moment asks for, at most one stone a frame: the bolt that
+   * hurts the foe most, a flame at whatever the bot is backing away from, and
+   * otherwise a stone on itself — to keep its light up, or to train Arcane
+   * towards a stone it carries and cannot cast yet.
+   */
+  private spellcast(snapshot: GameSnapshot, nowMs: number) {
+    if (snapshot.self.casting || snapshot.extracting || busyWithHands(this.course)) return;
+    if (nowMs - this.lastCastMs < CAST_RETRY_MS) return;
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    if (!body) return;
+    const buttons = this.body.spells();
+    if (buttons.length === 0) return;
+    const slot = this.chooseSpell(snapshot, buttons, body.masteries);
+    if (!slot || !this.body.cast(slot)) return;
+    this.lastCastMs = nowMs;
+    const button = buttons.find((candidate) => candidate.slot === slot);
+    this.happen(`cast ${button?.name ?? "a stone"}`);
+  }
+
+  private chooseSpell(
+    snapshot: GameSnapshot,
+    buttons: readonly SpellButton[],
+    masteries: Masteries,
+  ): CastSlot | null {
+    const mend = this.mendIn(snapshot, buttons, masteries);
+    if (mend) return mend;
+    if (this.foe) {
+      if (snapshot.targetId !== this.foe.id) return null;
+      const foe = snapshot.actors.find((a) => a.id === this.foe!.id);
+      const def = foe && this.tilesById[foe.tileId];
+      const elements = (def && resolveBattler(def)?.elements) ?? [];
+      return bestBolt(buttons, this.tilesById, masteries, elements);
+    }
+    if (this.flight) return this.scorch(snapshot, buttons, masteries);
+    const training = awaitsMastery(carriedInstances(snapshot.equipment), this.tilesById, masteries);
+    return readyStone(buttons, this.tilesById, masteries, (stone) => {
+      if (!onCaster(stone) || mends(stone, masteries)) return false;
+      return training || this.lightRunningOut(snapshot, stone);
+    });
+  }
+
+  /**
+   * A stone that heals the bot once it is hurt as far as it would eat or is
+   * recovering, or cures a bad status it is under. It comes before every other cast, and
+   * before eating, because the stone costs nothing but a cooldown.
+   */
+  private mendIn(
+    snapshot: GameSnapshot,
+    buttons: readonly SpellButton[],
+    masteries: Masteries,
+  ): CastSlot | null {
+    const { self } = snapshot;
+    const low = !!self.maxHp && (self.hp ?? 0) / self.maxHp < this.temperament.eatHpShare;
+    const hurt = low || this.recovering;
+    const afflictedBy = new Set(
+      self.statuses
+        .filter((status) => this.statusDefs[status.defId]?.tone === "bad")
+        .map((status) => status.defId),
+    );
+    return bestMend(buttons, this.tilesById, masteries, hurt, afflictedBy);
+  }
+
+  /** Whether a stone could mend the bot this frame, so food is kept for when none can. */
+  private mendReady(snapshot: GameSnapshot): boolean {
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    if (!body || snapshot.self.casting) return false;
+    return this.mendIn(snapshot, this.body.spells(), body.masteries) !== null;
+  }
+
+  /**
+   * A flame on the cell of whatever the bot is backing away from, which it
+   * then has to walk through or round. The target is set first and the cast
+   * waits a frame for it, because a conjure with nobody targeted lands on the
+   * cell ahead, which is the way the bot is running.
+   */
+  private scorch(
+    snapshot: GameSnapshot,
+    buttons: readonly SpellButton[],
+    masteries: Masteries,
+  ): CastSlot | null {
+    const chaser = snapshot.actors.find((a) => a.id === this.flight!.from);
+    const slot = readyStone(buttons, this.tilesById, masteries, conjures(this.harmful));
+    if (!chaser || !slot) return null;
+    if (snapshot.targetId !== chaser.id) {
+      this.body.setTarget(chaser.id);
+      return null;
+    }
+    return slot;
+  }
+
+  /** Whether `stone` lights its caster and the light it last made is nearly out. */
+  private lightRunningOut(snapshot: GameSnapshot, stone: ArcaneStoneItem): boolean {
+    const lights = lightStatuses(stone, this.statusDefs);
+    if (lights.length === 0) return false;
+    const lit = snapshot.self.statuses.find((status) => lights.includes(status.defId));
+    return (lit?.remainingMs ?? 0) < LIGHT_RENEW_MS;
+  }
+
+  /**
+   * Stops to cook when food is short and the bot carries something a fire
+   * turns into food: on a fire within reach, or on one it conjures ahead of
+   * itself with a stone. Returns whether it stopped.
+   */
+  private startCooking(snapshot: GameSnapshot, nowMs: number): boolean {
+    if (nowMs < this.cookAgainAtMs || this.foe || this.flight) return false;
+    if (!this.wantsToCook(snapshot.equipment)) return false;
+    if (!this.cookerInReach(snapshot) && !this.flameSlot(snapshot)) return false;
+    this.body.setInput({ directions: [] });
+    this.course = { kind: "cook", sinceMs: nowMs, conjured: false, lastCookMs: -Infinity };
+    return true;
+  }
+
+  /**
+   * Cooks one thing at a time on a fire within reach, conjuring one first if
+   * there is none. `sinceMs` moves on with every cook and every cast, so the
+   * course is given up only once nothing has happened for `COOK_GIVE_UP_MS`.
+   */
+  private cook(snapshot: GameSnapshot, course: Extract<Course, { kind: "cook" }>, nowMs: number) {
+    if (!this.wantsToCook(snapshot.equipment)) {
+      this.course = { kind: "idle" };
+      return;
+    }
+    if (nowMs - course.sinceMs > COOK_GIVE_UP_MS) {
+      this.cookAgainAtMs = nowMs + COOK_RETRY_MS;
+      this.course = { kind: "idle" };
+      return;
+    }
+    const cooker = this.cookerInReach(snapshot);
+    if (cooker) {
+      if (nowMs - course.lastCookMs < COOK_EVERY_MS) return;
+      if (this.body.craft(cooker.ref, cooker.recipe)) {
+        this.course = { ...course, sinceMs: nowMs, lastCookMs: nowMs };
+      }
+      return;
+    }
+    if (course.conjured || snapshot.self.casting) return;
+    const slot = this.flameSlot(snapshot);
+    if (!slot || !this.body.cast(slot)) return;
+    this.happen("conjured a flame to cook on");
+    this.course = { ...course, sinceMs: nowMs, conjured: true };
+  }
+
+  /** Food is short of the reserve, and the bot carries something a fire turns into food. */
+  private wantsToCook(equipment: Equipment): boolean {
+    if (this.economy.foodCount(equipment) >= FOOD_RESERVE) return false;
+    return [...this.economy.cookers].some((id) => {
+      const def = this.tilesById[id];
+      return def !== undefined && this.economy.cookingRecipe(def, equipment) !== null;
+    });
+  }
+
+  /** A fire within reach with a recipe that cooks something the bot carries. */
+  private cookerInReach(snapshot: GameSnapshot): { ref: ObjectRef; recipe: number } | null {
+    for (const cell of cellsAround(snapshot.self, COOK_REACH_CELLS)) {
+      const found = this.cookerAt(snapshot, cell);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  private cookerAt(snapshot: GameSnapshot, cell: Coord): { ref: ObjectRef; recipe: number } | null {
+    const stack = getStack(snapshot.map, cell.x, cell.y, cell.z);
+    for (let stackIndex = 0; stackIndex < stack.length; stackIndex++) {
+      const def = this.tilesById[stack[stackIndex]!.tileId];
+      if (!def || !this.economy.cookers.has(def.id)) continue;
+      const recipe = this.economy.cookingRecipe(def, snapshot.equipment);
+      if (recipe !== null) return { ref: { ...cell, stackIndex }, recipe };
+    }
+    return null;
+  }
+
+  /**
+   * A ready stone that conjures a fire to cook on, with nobody targeted, so
+   * the castability `spells` reports is for the cell ahead of the bot.
+   */
+  private flameSlot(snapshot: GameSnapshot): CastSlot | null {
+    if (snapshot.targetId !== null) return null;
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    if (!body) return null;
+    return readyStone(
+      this.body.spells(),
+      this.tilesById,
+      body.masteries,
+      conjures(this.economy.cookers),
+    );
+  }
+
   /**
    * Picks up loose things worth having that lie in sight nearby, before the
    * goal: what a kill drops is at the bot's feet, and a bot that walked on
    * past it would never buy anything. Returns whether that took the frame.
    */
   private loot(snapshot: GameSnapshot, nowMs: number): boolean {
-    if (this.course.kind === "talk" || this.course.kind === "gather") return false;
-    if (this.course.kind === "press") return false;
+    if (busyWithHands(this.course)) return false;
     const self = snapshot.self;
 
     if (this.looting) {
@@ -1419,7 +1721,23 @@ export class Bot {
       recovering: this.recovering,
       hasFood: healingFood(equipment, this.tilesById, this.statusDefs) !== null,
       lostKitAt: this.lostKitAt,
+      canForge: this.knowsAForge(knowledge, equipment, body, self),
     };
+  }
+
+  /** Whether the bot carries stones worth forging and has seen, or remembers, where. */
+  private knowsAForge(
+    knowledge: Knowledge,
+    equipment: Equipment,
+    body: BattlerDef,
+    self: Coord,
+  ): boolean {
+    const orders = forgeOrders(this.tilesById, this.statusDefs, equipment, body);
+    if (orders.length === 0) return false;
+    const crafters = new Set(orders.map((order) => order.crafter));
+    const seen = knowledge.placements(crafters);
+    for (const { ref, tileId } of seen) this.landmarks.saw(tileId, ref);
+    return seen.length > 0 || [...crafters].some((id) => this.landmarks.where(id, self).length > 0);
   }
 
   private finish(reason: "done" | "failed", outcome: string) {
@@ -1515,6 +1833,29 @@ export class Bot {
   }
 }
 
+/** A fire this many cells off either way is near enough to cook on. */
+export const COOK_REACH_CELLS = 1;
+
+/** Every cell on `at`'s level within `cells` either way, `at`'s own included. */
+function cellsAround(at: Coord, cells: number): Coord[] {
+  const out: Coord[] = [];
+  for (let dy = -cells; dy <= cells; dy++) {
+    for (let dx = -cells; dx <= cells; dx++) out.push({ x: at.x + dx, y: at.y + dy, z: at.z });
+  }
+  return out;
+}
+
+/** Courses that keep the bot's hands on something, which a cast or a pick-up would break. */
+function busyWithHands(course: Course): boolean {
+  return (
+    course.kind === "talk" ||
+    course.kind === "gather" ||
+    course.kind === "press" ||
+    course.kind === "craft" ||
+    course.kind === "cook"
+  );
+}
+
 function budgetFor(errand: Errand): number {
   return errand.explores ? EXPLORE_MAX_NODES : NAVIGATION_MAX_NODES;
 }
@@ -1523,6 +1864,7 @@ function skipKey(act: Act): string {
   switch (act.kind) {
     case "press":
     case "gather":
+    case "craft":
       return refKey(act.ref);
     case "talk":
       return landmarkKey(act.deal.offer.npc, act.at);

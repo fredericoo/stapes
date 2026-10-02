@@ -13,7 +13,7 @@ const tilesById = tilesByIdFromList((tilesJson as TileDef[]).map(normalizeTileDe
 function judge(style: Style): Judge {
   return {
     body: bodyOf(tilesById, {})!,
-    style,
+    taste: { style, statusDefs: {} },
     keeps: () => false,
     spends: () => false,
     refused: () => false,
@@ -63,6 +63,19 @@ describe("nextDressing", () => {
     expect(equipment.weapon?.tileId).toBe("simple-bow");
     expect(equipment.offhand?.tileId).toBe("rusty-sword");
     expect(dropped).toEqual([]);
+  });
+
+  it("has an arcane bot keep its sword while it carries one bolt, and put it down for two", () => {
+    const sword = { weapon: { id: "s", tileId: "rusty-sword" } };
+
+    const one = dressed(kit(sword, ["arcane-stone-of-spark"]), "arcane");
+    expect(one.equipment.weapon?.tileId).toBe("rusty-sword");
+    expect(one.equipment.offhand?.tileId).toBe("arcane-stone-of-spark");
+
+    const two = dressed(kit(sword, ["arcane-stone-of-spark", "arcane-stone-of-spark"]), "arcane");
+    expect(two.equipment.weapon?.tileId).toBe("arcane-stone-of-spark");
+    expect(two.equipment.offhand?.tileId).toBe("arcane-stone-of-spark");
+    expect(two.dropped).toEqual(["rusty-sword"]);
   });
 
   it("has a swordsman drop a bow it picked up rather than carry it", () => {

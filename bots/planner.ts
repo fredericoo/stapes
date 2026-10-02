@@ -23,6 +23,8 @@ export type Situation = {
   readonly hasFood: boolean;
   /** Where it died and left its bag, until it has been back for it. */
   readonly lostKitAt: Coord | null;
+  /** It carries stones worth forging and knows where a forge is. */
+  readonly canForge: boolean;
 };
 
 export const NOTHING_TO_DO: Situation = {
@@ -32,6 +34,7 @@ export const NOTHING_TO_DO: Situation = {
   recovering: false,
   hasFood: false,
   lostKitAt: null,
+  canForge: false,
 };
 
 export type Observation = {
@@ -101,10 +104,10 @@ export const REST_SPELL_SECONDS = 30;
 /**
  * The opening goals in order, then a loop that plays the game: go back for
  * the bag it died with, buy what it can afford, sell what it does not need,
- * and otherwise hunt, breaking off now and then to gather the money that
- * hunting does not pay. A recovering bot rests while it has food and gathers
- * when it has none, since bushes give food and health comes back only from
- * food.
+ * forge the stones it carries, and otherwise hunt, breaking off now and then
+ * to gather the money that hunting does not pay. A recovering bot rests while
+ * it has food and gathers when it has none, since bushes give food and health
+ * comes back only from food.
  */
 export class ProgressPlanner implements Planner {
   private at = 0;
@@ -149,6 +152,7 @@ export class ProgressPlanner implements Planner {
     if (situation.recovering && situation.hasFood) {
       return this.leaveHunt({ goal: "rest", seconds: REST_SPELL_SECONDS });
     }
+    if (situation.canForge && fresh("forge")) return this.leaveHunt({ goal: "forge" });
     const hunted = this.huntingSinceMs === null ? 0 : nowMs - this.huntingSinceMs;
     const gather = situation.canGather && fresh("gather");
     if (gather && (situation.recovering || hunted >= HUNT_SPELL_MS)) {
