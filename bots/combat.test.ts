@@ -7,7 +7,7 @@ import { rating } from "../app/lib/mastery";
 import { statusesById } from "../app/lib/status";
 import { normalizeTileDef, type TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
-import { choosePrey, healingFood, type PreyChoice, type Rated } from "./combat";
+import { choosePrey, creaturesAround, healingFood, type PreyChoice, type Rated } from "./combat";
 import { bodyOf } from "./gear";
 import { fightOdds, swingsOf, type Fighter } from "./odds";
 import { DEFAULT_TEMPERAMENT } from "./temperament";
@@ -49,6 +49,13 @@ const firstChoice: PreyChoice<Rated> = {
   skipped: () => false,
   shared: () => false,
 };
+
+describe("creaturesAround", () => {
+  it("leaves out townsfolk, who are battlers with a dialog", () => {
+    const around = [body("town-guard", 1), body("beggar", 2), body("wolf", 3)];
+    expect(creaturesAround(newcomer, around, tilesById).map((a) => a.tileId)).toEqual(["wolf"]);
+  });
+});
 
 describe("fightOdds", () => {
   it("has a new character with a sword expect to beat a rat and lose to a wolf", () => {
