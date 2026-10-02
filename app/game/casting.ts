@@ -265,13 +265,21 @@ export function castableSpells(context: CastContext): SpellButton[] {
   return buttons;
 }
 
+/**
+ * A stone keeps its instance id when it moves between squares, so the key alone would leave
+ * the bar holding a button that casts from the square the stone has left.
+ */
+function slotReading(slot: CastSlot): string {
+  return slot.from === "square" ? slot.square : `natural.${slot.name}`;
+}
+
 export function spellReading(buttons: readonly SpellButton[]): string {
   if (buttons.length === 0) return "";
   return buttons
     .map((button) => {
       const refusal = button.castability.ok ? "" : button.castability.reason;
       const seconds = Math.ceil(button.cooldownMs / MS_PER_SECOND);
-      return `${button.key}:${seconds}:${button.castTimeMs}:${refusal}`;
+      return `${button.key}:${slotReading(button.slot)}:${seconds}:${button.castTimeMs}:${refusal}`;
     })
     .join("|");
 }
