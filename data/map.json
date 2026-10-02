@@ -30237,7 +30237,7 @@
       "5,10": [{"tileId":"grass-2"},{"tileId":"dirt"},{"tileId":"wooden-floor"},{"tileId":"sw2"}],
       "5,11": [{"tileId":"dirt"},{"tileId":"brick-slab"},{"tileId":"brick-slab"}],
       "5,12": [{"tileId":"dirt"},{"tileId":"cobblestone"}],
-      "5,13": [{"tileId":"grass-2"},{"tileId":"dirt"}],
+      "5,13": [{"tileId":"grass-2"},{"tileId":"dirt"},{"tileId":"town-guard","direction":"s"}],
       "5,14": [{"tileId":"grass-2"},{"tileId":"dirt"}],
       "5,15": [{"tileId":"grass-2"}],
       "5,16": [{"tileId":"grass-2"}],
