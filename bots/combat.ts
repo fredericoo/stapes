@@ -45,17 +45,17 @@ export type PreyChoice<T> = {
   readonly choices: number;
   readonly random: () => number;
   readonly skipped: (id: string) => boolean;
-  /** Prey somebody else is already beside, which goes to the back. */
-  readonly taken: (prey: T) => boolean;
+  /** Prey another player is already beside, which goes first: the fight is shared. */
+  readonly shared: (prey: T) => boolean;
 };
 
 /**
  * The creature to hunt: one the bot expects to beat by at least `courage`
- * (`fightOdds`), never one whose rating is unknown. Among those, prey nobody
- * else is beside comes before prey that is taken, then one that teaches
- * something before one that does not, then the nearest; the pick is random
- * among the first `choices`, so two bots in one place do not set off after
- * the same rabbit.
+ * (`fightOdds`), never one whose rating is unknown. Among those, prey another
+ * player is beside comes first, then one that teaches something before one
+ * that does not, then the nearest; the pick is random among the first
+ * `choices`, so two bots alone in one place do not always set off after the
+ * same rabbit.
  */
 export function choosePrey<T extends Rated>(
   self: Rated,
@@ -67,7 +67,7 @@ export function choosePrey<T extends Rated>(
   const candidates = creaturesAround(self, actors, tilesById).filter(
     (a) => a.rating !== null && !how.skipped(a.id) && how.margin(a) >= how.courage,
   );
-  const rank = (a: T) => (how.taken(a) ? 2 : 0) + ((a.rating ?? 0) >= floor ? 0 : 1);
+  const rank = (a: T) => (how.shared(a) ? 0 : 2) + ((a.rating ?? 0) >= floor ? 0 : 1);
   candidates.sort((a, b) => rank(a) - rank(b) || steps(self, a) - steps(self, b));
   const best = candidates.slice(0, Math.max(1, how.choices));
   return best[Math.floor(how.random() * best.length)] ?? null;

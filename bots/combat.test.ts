@@ -47,7 +47,7 @@ const firstChoice: PreyChoice<Rated> = {
   choices: 1,
   random: () => 0,
   skipped: () => false,
-  taken: () => false,
+  shared: () => false,
 };
 
 describe("fightOdds", () => {
@@ -94,6 +94,14 @@ describe("fightOdds", () => {
       fightOdds(newcomerSwings, self, [foe("cat")], tilesById, statusDefs)!.margin;
     expect(odds(poisoned)).toBeLessThan(odds(fresh));
   });
+
+  it("expects a fight to go better with other players beside the bot", () => {
+    const wolf = [foe("wolf")];
+    const alone = fightOdds(newcomerSwings, fresh, wolf, tilesById, statusDefs)!;
+    const together = fightOdds(newcomerSwings, fresh, wolf, tilesById, statusDefs, 1, 0, 2)!;
+    expect(together.killSeconds).toBeLessThan(alone.killSeconds);
+    expect(together.margin).toBeGreaterThan(alone.margin);
+  });
 });
 
 describe("choosePrey", () => {
@@ -108,11 +116,11 @@ describe("choosePrey", () => {
     expect(prey?.x).toBe(6);
   });
 
-  it("leaves prey somebody else is beside for prey nobody is", () => {
-    const near = body("deer", 1);
-    const prey = choosePrey(newcomer, [near, body("deer", 8)], tilesById, {
+  it("joins prey another player is beside before nearer prey nobody is", () => {
+    const far = body("deer", 8);
+    const prey = choosePrey(newcomer, [body("deer", 1), far], tilesById, {
       ...firstChoice,
-      taken: (p) => p.id === near.id,
+      shared: (p) => p.id === far.id,
     });
     expect(prey?.x).toBe(8);
   });
