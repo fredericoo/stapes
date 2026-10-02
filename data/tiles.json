@@ -31243,6 +31243,11 @@
           }
         ],
         "pile": 3
+      },
+      "decay": {
+        "tileId": "rotten-meat",
+        "fromMs": 1200000,
+        "toMs": 1800000
       }
     },
     "sprite": {
@@ -31290,6 +31295,60 @@
             "id": "fed",
             "fromMs": 60000,
             "toMs": 300000
+          }
+        ],
+        "pile": 3
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "rotten-meat",
+    "name": "Rotten Meat",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 18,
+      "y": 15
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "squish",
+        "hp": -2,
+        "statuses": [
+          {
+            "id": "fed",
+            "fromMs": 5000,
+            "toMs": 20000
+          },
+          {
+            "id": "food-poisoning",
+            "chance": 100
           }
         ],
         "pile": 3
