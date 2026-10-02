@@ -267,6 +267,12 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
     params: [{ key: "of", kind: "selector", label: "of" }],
     make: () => ({ action: "extract", of: DEFAULT_THING }),
   },
+  switch: {
+    label: "switch",
+    hint: "Flip a thing beside it to the tile its switch names, as a player opening a door or lighting a lamp does. Fails on anything that is not a thing, has no switch, is not straight beside it, or would not fit once flipped.",
+    params: [{ key: "of", kind: "selector", label: "of" }],
+    make: () => ({ action: "switch", of: DEFAULT_THING }),
+  },
   consume: {
     label: "consume",
     hint: "Eat or drink. Out of the bag by default — leave the tile empty for the first consumable in there — or off the ground by naming a thing beside it, which is what a wolf does with a carcass.",
