@@ -28,7 +28,7 @@ export function canHurt(def: TileDef | undefined): boolean {
 /**
  * Townsfolk are battlers so a player can kill one, but a bot that hunted or
  * feared them would empty the shops it buys from and flee every street. A body
- * with a dialog is somebody to talk to, so it is never a creature here.
+ * with a dialog, or one only PvP may harm, is never a creature here.
  */
 export function creaturesAround<T extends Rated>(
   self: Rated,
@@ -39,7 +39,8 @@ export function creaturesAround<T extends Rated>(
     if (a.id === self.id || a.tileId === PLAYER_TILE_ID) return false;
     if (a.hp !== null && a.hp <= 0) return false;
     const def = tilesById[a.tileId];
-    return def !== undefined && resolveBattler(def) !== null && resolveDialog(def) === null;
+    const battler = def && resolveBattler(def);
+    return !!battler && battler.pvp !== true && resolveDialog(def) === null;
   });
 }
 
