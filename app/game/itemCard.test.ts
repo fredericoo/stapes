@@ -702,7 +702,7 @@ describe("itemCard", () => {
       };
       expect(
         itemCard(tileWith(blessing), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!.duration,
-      ).toBe("60m");
+      ).toBe("1h");
     });
 
     it("says nothing about a status the world no longer has", () => {

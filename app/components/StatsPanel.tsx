@@ -10,7 +10,7 @@ import {
 } from "../lib/mastery";
 import type { Attributes } from "../game/attributes";
 import type { Vitals } from "../game/GameSession";
-import { seconds as inSeconds } from "../lib/duration";
+import { formatCountdown, formatDuration } from "../lib/duration";
 import { bandLabel, HEADINGS, termLabel, type TermKey } from "../lib/terms";
 import type { TilesetDef } from "../lib/types";
 import { healthBarColor, healthFraction } from "../render/healthBar";
@@ -91,6 +91,7 @@ export function StatsPanel({
 }
 
 const STATS_BODY_MAX_HEIGHT = 200;
+const MS_PER_SECOND = 1000;
 
 function Combat({ attributes }: { attributes: Attributes | null }) {
   if (!attributes) return null;
@@ -105,7 +106,7 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
       <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
         <Reading term="damage" value={bandLabel(minDamage, maxDamage)} />
         <Reading term="defence" value={`${def}`} />
-        <Reading term="swing" value={inSeconds(swingMs)} />
+        <Reading term="swing" value={formatDuration(swingMs)} />
         <Reading term="evasion" value={`${flee}`} />
         <Reading term="hit" value={`${Math.round(hitChance * 100)}%`} />
         <Reading term="move" value={`${walkPace.toFixed(1)}c/s`} />
@@ -162,7 +163,7 @@ function EffectRow({ status, tilesets }: { status: ActiveStatus; tilesets: Tiles
           {status.name}
         </span>
         <span aria-hidden="true" className="ml-auto shrink-0 tabular-nums text-paper/70">
-          {seconds}s
+          {formatCountdown(seconds * MS_PER_SECOND)}
         </span>
       </li>
     </Tooltip>
