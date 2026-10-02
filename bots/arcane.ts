@@ -5,7 +5,13 @@ import { spellPower, type BattlerDef } from "../app/lib/battler";
 import { effectiveness, type Element } from "../app/lib/element";
 import type { CraftOutput, CraftRecipe } from "../app/lib/interactions";
 import { MAX_CRAFT_CHANCE, resolveAddStatus, resolveCraft } from "../app/lib/interactions";
-import { reachOf, resolveStone, type ArcaneStoneItem, type Reach } from "../app/lib/item";
+import {
+  reachOf,
+  resolveStone,
+  resolveWeapon,
+  type ArcaneStoneItem,
+  type Reach,
+} from "../app/lib/item";
 import { meetsRequirements, spellElements, type Masteries } from "../app/lib/mastery";
 import type { StatusDef } from "../app/lib/status";
 import type { TileDef } from "../app/lib/types";
@@ -60,15 +66,23 @@ export function lightStatuses(
 
 /**
  * The longest reach of a bolt held in either hand, or null when neither holds
- * one: a bot that casts from its hands fights from as far off as an archer.
+ * one or either holds a weapon: a bot that casts from both hands fights from
+ * as far off as an archer, and one with a sword walks up to swing it and
+ * casts on the way.
  */
 export function castingReach(
   equipment: Equipment,
   tilesById: Record<string, TileDef>,
   masteries: Masteries,
 ): Reach | null {
+  const hands = ["weapon", "offhand"] as const;
+  const armed = hands.some((hand) => {
+    const def = tilesById[equipment[hand]?.tileId ?? ""];
+    return def !== undefined && resolveWeapon(def) !== null;
+  });
+  if (armed) return null;
   let best: Reach | null = null;
-  for (const hand of ["weapon", "offhand"] as const) {
+  for (const hand of hands) {
     const stone = usableStone(tilesById[equipment[hand]?.tileId ?? ""], masteries);
     if (!stone || boltDamage(stone, masteries) <= 0) continue;
     const reach = reachOf(stone);

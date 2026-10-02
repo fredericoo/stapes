@@ -1,5 +1,5 @@
 import { damageBand, swingIntervalMs } from "../app/game/combat";
-import { magicDormant, type Equipment } from "../app/game/equipment";
+import { carriedInstances, magicDormant, type Equipment } from "../app/game/equipment";
 import type { EquipSlot } from "../app/game/affordances";
 import { fightingStats, encumbrance, resolveBattler, type BattlerDef } from "../app/lib/battler";
 import {
@@ -24,11 +24,12 @@ import {
 import type { StatusDef } from "../app/lib/status";
 import { resolveLight } from "../app/lib/tileResolve";
 import type { TileDef } from "../app/lib/types";
-import { LIGHT_WORTH, stoneWorth } from "./arcane";
+import { boltDamage, LIGHT_WORTH, stoneWorth, usableStone } from "./arcane";
 
 /**
  * The weapon mastery a bot means to grow, and so the weapons it buys. An
- * arcane bot holds stones in both hands instead of a weapon.
+ * arcane bot holds a stone in its off hand and a weapon of any kind in the
+ * other, until it carries a bolt for each hand (`stoneHanded`).
  */
 export type Style = Extract<WeaponMastery, "sharp" | "blunt" | "ranged" | "arcane">;
 
@@ -87,8 +88,48 @@ export function bodyOf(tilesById: Record<string, TileDef>, xp: MasteryXp): Battl
   return { ...authored, masteries };
 }
 
+/** An arcane bot puts down its weapon once it carries this many bolts, one for each hand. */
+export const BOLTS_FOR_BOTH_HANDS = 2;
+
+/**
+ * Whether the bot's hands are both for stones: an arcane bot carrying
+ * `BOLTS_FOR_BOTH_HANDS` bolts it can cast. Before that one hand swings a
+ * weapon, because a single bolt cooling between casts leaves a caster with
+ * nothing but fists.
+ */
+export function stoneHanded(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  taste: Taste,
+  masteries: Masteries,
+): boolean {
+  if (taste.style !== "arcane") return false;
+  const bolts = carriedInstances(equipment).filter((instance) => {
+    const stone = usableStone(tilesById[instance.tileId], masteries);
+    return stone !== null && boltDamage(stone, masteries) > 0;
+  });
+  return bolts.length >= BOLTS_FOR_BOTH_HANDS;
+}
+
+/**
+ * What swinging `weapon` in the weapon hand is worth. An arcane bot takes
+ * whatever hits hardest while it still swings one, because it means to put
+ * it down; once it is `stoneHanded`, a weapon is worth nothing there, or a
+ * new caster's sword would outweigh its first bolts for ever.
+ */
+function swingWorth(
+  weapon: WeaponItem,
+  body: BattlerDef,
+  taste: Taste,
+  stoneHands: boolean,
+): number {
+  if (stoneHands) return 0;
+  const style = taste.style === "arcane" ? weapon.mastery : taste.style;
+  return weaponWorth(weapon, body, style);
+}
+
 /** Expected damage a second, the same figures the stats panel reads. */
-export function weaponWorth(weapon: WeaponItem, body: BattlerDef, style: Style): number {
+export function weaponWorth(weapon: WeaponItem, body: BattlerDef, style: WeaponMastery): number {
   const stats = fightingStats(body, weapon);
   const band = damageBand(stats);
   const perSecond = (((band.min + band.max) / 2) * stats.hitChance * 1000) / swingIntervalMs(stats);
@@ -101,18 +142,26 @@ export function weaponWorth(weapon: WeaponItem, body: BattlerDef, style: Style):
  * bag, a light's worth for a light in the charm square, and nothing for
  * anything else. Magic gear the bot cannot wake is worth nothing.
  */
-export function gearWorth(def: TileDef, slot: EquipSlot, body: BattlerDef, taste: Taste): number {
+export function gearWorth(
+  def: TileDef,
+  slot: EquipSlot,
+  body: BattlerDef,
+  taste: Taste,
+  stoneHands: boolean,
+): number {
   if (magicDormant(def, body.masteries)) return 0;
   const item = resolveItem(def);
   if (!item) return 0;
   const { style } = taste;
   if (item.type === "stone") {
-    return gearSlots(def, style).includes(slot)
+    return gearSlots(def, style, stoneHands).includes(slot)
       ? stoneWorth(def, body.masteries, taste.statusDefs)
       : 0;
   }
   if (slot === "charm" && resolveLight(def, {}) !== undefined) return LIGHT_WORTH;
-  if (item.type === "weapon" && slot === "weapon") return weaponWorth(item, body, style);
+  if (item.type === "weapon" && slot === "weapon") {
+    return swingWorth(item, body, taste, stoneHands);
+  }
   if (item.type === "weapon" && slot === "offhand" && isSidearm(item, style)) {
     return weaponWorth(item, body, item.mastery as Style) * SIDEARM_SHARE;
   }
@@ -136,8 +185,6 @@ export function gearWorth(def: TileDef, slot: EquipSlot, body: BattlerDef, taste
  */
 export const SIDEARM_SHARE = 0.5;
 
-const STONE_HANDS: readonly EquipSlot[] = ["weapon", "offhand"];
-
 function isSidearm(weapon: WeaponItem, style: Style): boolean {
   return style === "ranged" && !isRanged(weapon) && weapon.mastery !== "arcane";
 }
@@ -146,14 +193,20 @@ function kept(shortfall: number): number {
   return Math.max(0, 1 - ENCUMBRANCE_WEIGHT * encumbrance(shortfall));
 }
 
-/** The squares a bot might put `def` in, if it is gear it buys for at all. */
-export function gearSlots(def: TileDef, style: Style): EquipSlot[] {
-  if (resolveStone(def)) return style === "arcane" ? [...STONE_HANDS, "charm"] : ["charm"];
+/**
+ * The squares a bot might put `def` in, if it is gear it buys for at all. An
+ * arcane bot's off hand is for a stone, so it never takes up a shield.
+ */
+export function gearSlots(def: TileDef, style: Style, stoneHands: boolean): EquipSlot[] {
+  if (resolveStone(def)) {
+    if (style !== "arcane") return ["charm"];
+    return stoneHands ? ["weapon", "offhand", "charm"] : ["offhand", "charm"];
+  }
   const item = resolveItem(def);
   if (item?.type === "weapon") {
     return isSidearm(item, style) && !isTwoHanded(def) ? ["weapon", "offhand"] : ["weapon"];
   }
-  if (item?.type === "shield") return ["offhand"];
+  if (item?.type === "shield") return style === "arcane" ? [] : ["offhand"];
   if (item?.type === "container") return item.equippable ? ["bag"] : [];
   if (item?.type !== "armor") return [];
   const slot = armorSlotOf(item);
@@ -177,16 +230,20 @@ export function bestUpgrade(
   taste: Taste,
   heldIn: EquipSlot | null = null,
 ): Upgrade | null {
+  const stoneHands = stoneHanded(equipment, tilesById, taste, body.masteries);
+  const fists = body.naturalWeapon;
   const worthOf = (tileId: string | undefined, at: EquipSlot) => {
     const held = tileId ? tilesById[tileId] : undefined;
-    if (held) return gearWorth(held, at, body, taste);
-    return at === "weapon" ? weaponWorth(body.naturalWeapon, body, taste.style) : 0;
+    if (held) return gearWorth(held, at, body, taste, stoneHands);
+    if (at !== "weapon") return 0;
+    return swingWorth(fists, body, taste, stoneHands);
   };
-  const leaving = heldIn ? gearWorth(def, heldIn, body, taste) - worthOf(undefined, heldIn) : 0;
+  const worth = (at: EquipSlot) => gearWorth(def, at, body, taste, stoneHands);
+  const leaving = heldIn ? worth(heldIn) - worthOf(undefined, heldIn) : 0;
   let best: Upgrade | null = null;
-  for (const slot of gearSlots(def, taste.style)) {
+  for (const slot of gearSlots(def, taste.style, stoneHands)) {
     if (slot === heldIn) continue;
-    let gain = gearWorth(def, slot, body, taste) - worthOf(equipment[slot]?.tileId, slot) - leaving;
+    let gain = worth(slot) - worthOf(equipment[slot]?.tileId, slot) - leaving;
     if (slot === "weapon" && isTwoHanded(def)) {
       gain -= worthOf(equipment.offhand?.tileId, "offhand");
     }

@@ -13669,11 +13669,19 @@ charge `BESIDE_FOE_PENALTY` for the cells next to the foe, because the board a
 route is planned on has no bodies on it. A fight is given up after
 `chaseGiveUpMs` without having the foe in reach, for melee and ranged alike.
 
-**A bot with a bolt in hand kites like an archer.** An arcane bot holds
-stones in both hands as well as the charm square. When either hand holds a
-bolt it can cast, `castingReach` stands in for the bow's reach and `Bot.kite`
-runs as above. A bot of any other style casts only from the charm square and
-still walks up to swing.
+**An arcane bot swings a weapon until it has a bolt for each hand.** Until it
+carries `BOLTS_FOR_BOTH_HANDS` bolts it can cast (`stoneHanded`), it holds a
+stone in its off hand and whatever weapon hits hardest in the other, of any
+mastery, because it means to put it down. A single bolt cooling between casts
+otherwise leaves it with nothing but fists. Once it is stone-handed, a weapon
+in the weapon hand is worth nothing, so the second bolt takes its place: a
+new caster's rusty sword at `OFF_STYLE_SHARE` still out-damages a Spark. An
+arcane bot never takes up a shield.
+
+**A bot with bolts in both hands kites like an archer.** When neither hand
+holds a weapon and either holds a bolt it can cast, `castingReach` stands in
+for the bow's reach and `Bot.kite` runs as above. A bot with a weapon in hand
+walks up to swing it and casts on the way.
 
 **A bot casts one stone a frame, chosen by the moment** (`Bot.spellcast`).
 It reads `spells()`, the same buttons the spell bar draws, so a stone it has

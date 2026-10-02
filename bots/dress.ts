@@ -7,7 +7,7 @@ import { resolveLight } from "../app/lib/tileResolve";
 import type { TileDef } from "../app/lib/types";
 import type { EquipSlot } from "../app/game/affordances";
 import { isLit } from "./arcane";
-import { bestUpgrade, gearSlots, type Taste } from "./gear";
+import { bestUpgrade, gearSlots, stoneHanded, type Taste } from "./gear";
 
 export type Dressing =
   | { readonly kind: "move"; readonly from: SlotRef; readonly to: SlotRef; readonly tileId: string }
@@ -70,10 +70,11 @@ export function nextDressing(
   const emptying = emptyHandBag(equipment, tilesById);
   if (emptying) return emptying;
 
+  const stoneHands = stoneHanded(equipment, tilesById, taste, body.masteries);
   for (const { from, instance } of carried) {
     if (judge.keeps(instance.tileId) || (instance.contents?.length ?? 0) > 0) continue;
     const def = tilesById[instance.tileId];
-    if (!def || gearSlots(def, taste.style).includes(from.kind as EquipSlot)) continue;
+    if (!def || gearSlots(def, taste.style, stoneHands).includes(from.kind as EquipSlot)) continue;
     const upgrade = bestUpgrade(def, equipment, tilesById, body, taste);
     if (upgrade && upgrade.gain <= 0) return { kind: "drop", from, tileId: def.id };
   }
