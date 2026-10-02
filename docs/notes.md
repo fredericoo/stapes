@@ -1338,6 +1338,31 @@ terms: a conversation is a state of play.
 - **Passed through the tile save untouched**, like the brain and for the same
   reason: the script is `./dialog`'s to know.
 
+### Townsfolk are battlers, and nothing brings them back
+
+Every town NPC with a dialog is `kind: "battler"`, so a player can kill any of
+them, and a dead one stays dead. None has `interactions.respawn`. That is
+deliberate: the whole world is meant to reset once a day, and a per-NPC timer
+would come back before that. Killing one drops its kit through `dropKit` and a
+`skull-player` engraved with its tile name (`remains`), with the killer in the
+cause of death.
+
+- **Fighters and civilians differ only in their brain.** Both guards, the
+  blacksmith, the armourer and the bartender go to `fighting` on `attacked`,
+  and break off at their leash or when the foe is out of chase range.
+  Everyone else goes to `panicking`: one plea on entry, then
+  `step_away_from` the attacker. These rules sit at the top of each
+  brain's transition list, with a rule that keeps the brain in its current
+  state. Without that, a lower `any` rule (the crier's home leash, the
+  child's bedtime) would pull a fleeing body straight back to its attacker.
+- **Guards hunt a named list**, not "any non-player". There is no such
+  selector, and a list keeps deer, rabbits and the townsfolk themselves off it.
+- **Bots do not see them** (`creaturesAround` in `bots/combat.ts`). Otherwise
+  a bot would hunt the weakest shopkeepers and flee from the rest.
+- **The night guard crosses his door by hand.** Brain routing does not open
+  doors, so the guardhouse door at 5,8 is a `switch` in its own state each
+  way, and his home is the cell inside it.
+
 ### A trade is `app/game/trade.ts`, and a craft is a trade with a roll in front
 
 Several things on each side, counted, because a price is a number and a

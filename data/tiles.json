@@ -13810,7 +13810,7 @@
     "name": "Potion Salesman",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -13837,9 +13837,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please, don't hurt me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "idle"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "idle"
+          },
           {
             "from": "idle",
             "if": {
@@ -13998,6 +14113,55 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 20,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "warded-robe",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -14346,7 +14510,7 @@
     "name": "Blacksmith",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "smith",
@@ -14357,6 +14521,168 @@
     "affectedByGravity": true,
     "walkable": false,
     "interactions": {
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "serving": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "idle"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "idle"
+          },
+          {
+            "from": "idle",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "serving",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ]
+      },
       "dialog": {
         "script": [
           {
@@ -15260,46 +15586,59 @@
           }
         ]
       },
-      "brain": {
-        "initial": "idle",
-        "states": {
-          "idle": {
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
+      "battler": {
+        "baseHp": 50,
+        "masteries": {
+          "fist": 5,
+          "sharp": 5,
+          "blunt": 60,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 50,
+          "agility": 20,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
           },
-          "serving": {
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
           }
         },
-        "transitions": [
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
           {
-            "from": "idle",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "serving"
+            "slot": "weapon",
+            "tileId": "iron-mace",
+            "chance": 100
           },
           {
-            "from": "serving",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "talking"
-                }
-              ]
-            },
-            "to": "idle"
+            "slot": "armor",
+            "tileId": "leather-jerkin",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "hobnailed-boots",
+            "chance": 100
           }
-        ]
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -15648,7 +15987,7 @@
     "name": "Armourer",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "armourer",
@@ -15659,6 +15998,168 @@
     "affectedByGravity": true,
     "walkable": false,
     "interactions": {
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "serving": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "idle"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "idle"
+          },
+          {
+            "from": "idle",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "serving",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ]
+      },
       "dialog": {
         "script": [
           {
@@ -16328,46 +16829,69 @@
           }
         ]
       },
-      "brain": {
-        "initial": "idle",
-        "states": {
-          "idle": {
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
+      "battler": {
+        "baseHp": 50,
+        "masteries": {
+          "fist": 5,
+          "sharp": 55,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 50,
+          "agility": 25,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
           },
-          "serving": {
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
           }
         },
-        "transitions": [
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
           {
-            "from": "idle",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "serving"
+            "slot": "weapon",
+            "tileId": "iron-sword",
+            "chance": 100
           },
           {
-            "from": "serving",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "talking"
-                }
-              ]
-            },
-            "to": "idle"
+            "slot": "offhand",
+            "tileId": "buckler",
+            "chance": 100
+          },
+          {
+            "slot": "armor",
+            "tileId": "chain-mail",
+            "chance": 100
+          },
+          {
+            "slot": "head",
+            "tileId": "iron-helm",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "hobnailed-boots",
+            "chance": 100
           }
-        ]
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -16716,7 +17240,7 @@
     "name": "Tanner",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -16743,9 +17267,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please, don't hurt me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "idle"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "idle"
+          },
           {
             "from": "idle",
             "if": {
@@ -17213,6 +17852,60 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "leather-jerkin",
+            "chance": 100
+          },
+          {
+            "slot": "head",
+            "tileId": "leather-cap",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -34055,7 +34748,7 @@
     "name": "Pie Maker",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -34078,9 +34771,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please, don't hurt me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "idle"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "idle"
+          },
           {
             "from": "idle",
             "if": {
@@ -34259,6 +35067,50 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -34607,7 +35459,7 @@
     "name": "Bartender",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -34634,9 +35486,130 @@
                 "action": "hold"
               }
             ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "idle"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "idle"
+          },
           {
             "from": "idle",
             "if": {
@@ -34792,6 +35765,50 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 50,
+        "masteries": {
+          "fist": 60,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 45,
+          "agility": 25,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Fists",
+          "damage": 6,
+          "def": 0,
+          "accuracy": 88,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "padded-gambeson",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -35140,7 +36157,7 @@
     "name": "Miner",
     "height": 3,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -35211,9 +36228,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please, don't hurt me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "sitting"
+          },
           {
             "from": "any",
             "if": {
@@ -35485,6 +36617,55 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "padded-gambeson",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "hobnailed-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -35834,7 +37015,7 @@
     "name": "Peat Cutter",
     "height": 3,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -35905,9 +37086,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please, don't hurt me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "sitting"
+          },
           {
             "from": "any",
             "if": {
@@ -36138,6 +37434,55 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -38406,7 +39751,7 @@
     "name": "Torch Salesman",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -38511,9 +39856,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please, don't hurt me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "pausing"
+          },
           {
             "from": "any",
             "if": {
@@ -38639,6 +40099,55 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -39087,7 +40596,7 @@
     "name": "Town Guard",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "guard",
@@ -39114,9 +40623,180 @@
                 "action": "hold"
               }
             ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "watching"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "watching"
+          },
+          {
+            "from": "watching",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops"
+                      ]
+                    }
+                  },
+                  "cells": 8
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops"
+                  ]
+                }
+              }
+            }
+          },
           {
             "from": "watching",
             "if": {
@@ -39219,6 +40899,70 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 80,
+        "masteries": {
+          "fist": 5,
+          "sharp": 70,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 70,
+          "agility": 40,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "weapon",
+            "tileId": "knights-sword",
+            "chance": 100
+          },
+          {
+            "slot": "offhand",
+            "tileId": "iron-shield",
+            "chance": 100
+          },
+          {
+            "slot": "armor",
+            "tileId": "steel-plate",
+            "chance": 100
+          },
+          {
+            "slot": "head",
+            "tileId": "knights-helm",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "steel-sabatons",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -39567,7 +41311,7 @@
     "name": "Town Crier",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -39701,9 +41445,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please, don't hurt me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "walk0"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "walk0"
+          },
           {
             "from": "any",
             "if": {
@@ -39926,6 +41785,60 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 100
+          },
+          {
+            "slot": "head",
+            "tileId": "leather-cap",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -40274,7 +42187,7 @@
     "name": "Patrolling Guard",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "guard",
@@ -40403,9 +42316,380 @@
                 "action": "hold"
               }
             ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 12
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 12
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "off_duty"
+          },
+          {
+            "from": "walking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops"
+                      ]
+                    }
+                  },
+                  "cells": 8
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "pausing",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops"
+                      ]
+                    }
+                  },
+                  "cells": 8
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "walking2",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops"
+                      ]
+                    }
+                  },
+                  "cells": 8
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "reporting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops"
+                      ]
+                    }
+                  },
+                  "cells": 8
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "homing",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops"
+                      ]
+                    }
+                  },
+                  "cells": 8
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops"
+                  ]
+                }
+              }
+            }
+          },
           {
             "from": "any",
             "if": {
@@ -40836,6 +43120,70 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 80,
+        "masteries": {
+          "fist": 5,
+          "sharp": 70,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 70,
+          "agility": 40,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "weapon",
+            "tileId": "knights-sword",
+            "chance": 100
+          },
+          {
+            "slot": "offhand",
+            "tileId": "iron-shield",
+            "chance": 100
+          },
+          {
+            "slot": "armor",
+            "tileId": "steel-plate",
+            "chance": 100
+          },
+          {
+            "slot": "head",
+            "tileId": "knights-helm",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "steel-sabatons",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -41184,7 +43532,7 @@
     "name": "Child",
     "height": 3,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -41308,9 +43656,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Mum! Mum, help!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "playing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "playing"
+          },
           {
             "from": "any",
             "if": {
@@ -41552,6 +44015,50 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 15,
+        "masteries": {
+          "fist": 5,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 10,
+          "agility": 40,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -41900,7 +44407,7 @@
     "name": "Beggar",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -41940,9 +44447,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please! I've nothing worth taking!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "sitting"
+          },
           {
             "from": "any",
             "if": {
@@ -42162,6 +44784,44 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 18,
+        "masteries": {
+          "fist": 5,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 10,
+          "agility": 15,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [],
+        "remains": "skull-player"
       }
     },
     "states": {
@@ -42510,7 +45170,7 @@
     "name": "Lamplighter",
     "height": 4,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "anchor": {
       "tilesetId": "townsfolk",
@@ -42594,9 +45254,124 @@
                 "action": "hold"
               }
             ]
+          },
+          "panicking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Please, don't hurt me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "after",
+                      "ms": 12000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "panicking"
+          },
+          {
+            "from": "panicking",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "panicking",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "home"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "home"
+          },
           {
             "from": "any",
             "if": {
@@ -42779,6 +45554,60 @@
             ]
           }
         ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 100
+          },
+          {
+            "slot": "offhand",
+            "tileId": "hand-lantern",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player"
       }
     },
     "states": {
