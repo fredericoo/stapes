@@ -39692,6 +39692,3213 @@
     }
   },
   {
+    "id": "town-crier",
+    "name": "Town Crier",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "townsfolk",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 650,
+    "interactions": {
+      "brain": {
+        "initial": "walk0",
+        "states": {
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "walk0": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "cry0": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Hear ye! Wolves sleep by day and hunt by night. Carry meat beyond the gate!"
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "walk1": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "cry1": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Hear ye! The tanner trades leather for skins. Bring him your hides!"
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "walk2": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "cry2": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Hear ye! Bog imps sleep round their campfires after dark. Give them a wide berth!"
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "walk3": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "cry3": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Hear ye! Ale and a warm bed at the Gilded Barrel!"
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "walk0"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "walk0"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "after",
+              "ms": 15000
+            },
+            "to": "walk0"
+          },
+          {
+            "from": "walk0",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "cry0"
+          },
+          {
+            "from": "walk0",
+            "if": {
+              "cond": "after",
+              "ms": 8000
+            },
+            "to": "cry0"
+          },
+          {
+            "from": "cry0",
+            "if": {
+              "cond": "after",
+              "ms": 6000,
+              "toMs": 10000
+            },
+            "to": "walk1"
+          },
+          {
+            "from": "walk1",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "cry1"
+          },
+          {
+            "from": "walk1",
+            "if": {
+              "cond": "after",
+              "ms": 8000
+            },
+            "to": "cry1"
+          },
+          {
+            "from": "cry1",
+            "if": {
+              "cond": "after",
+              "ms": 6000,
+              "toMs": 10000
+            },
+            "to": "walk2"
+          },
+          {
+            "from": "walk2",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "cry2"
+          },
+          {
+            "from": "walk2",
+            "if": {
+              "cond": "after",
+              "ms": 8000
+            },
+            "to": "cry2"
+          },
+          {
+            "from": "cry2",
+            "if": {
+              "cond": "after",
+              "ms": 6000,
+              "toMs": 10000
+            },
+            "to": "walk3"
+          },
+          {
+            "from": "walk3",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "cry3"
+          },
+          {
+            "from": "walk3",
+            "if": {
+              "cond": "after",
+              "ms": 8000
+            },
+            "to": "cry3"
+          },
+          {
+            "from": "cry3",
+            "if": {
+              "cond": "after",
+              "ms": 6000,
+              "toMs": 10000
+            },
+            "to": "walk0"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "News, {partner}? I call it all day, but I'll say it again for you."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "What's the news?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Wolves sleep by day and hunt by night. Carry meat beyond the gate!"
+                  },
+                  {
+                    "kind": "say",
+                    "text": "The tanner trades leather for skins. Bring him your hides!"
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Bog imps sleep round their campfires after dark. Give them a wide berth!"
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Ale and a warm bed at the Gilded Barrel!"
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Keep your ears open!"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "patrolling-guard",
+    "name": "Patrolling Guard",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "guard",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 700,
+    "interactions": {
+      "brain": {
+        "initial": "walking",
+        "states": {
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "walking": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 4
+              }
+            ]
+          },
+          "pausing": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "walking2": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 4
+              }
+            ]
+          },
+          "reporting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "All quiet."
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "walking"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 5
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "after",
+              "ms": 15000
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "walking",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "pausing",
+            "if": {
+              "cond": "after",
+              "ms": 4000,
+              "toMs": 7000
+            },
+            "to": "walking2"
+          },
+          {
+            "from": "walking2",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "reporting"
+          },
+          {
+            "from": "reporting",
+            "if": {
+              "cond": "after",
+              "ms": 4000,
+              "toMs": 7000
+            },
+            "to": "walking"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Keep moving, {partner}. Gate's my watch."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "Anything to report?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Quiet in here. It's out there you want to worry about."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "I'm heading south.",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Then talk to the guard just outside the gate first. He'll tell you about the wolves."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Mind how you go."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "town-child",
+    "name": "Child",
+    "height": 3,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "townsfolk",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 450,
+    "interactions": {
+      "brain": {
+        "initial": "playing",
+        "states": {
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "asleep": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "playing": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "lingering": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "tagging": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Tag! You're it!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "playmate"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "fleeing": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Can't catch me!"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "playmate"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "bored": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "resting": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "playing"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "time_of_day",
+              "fromHour": 20,
+              "toHour": 6
+            },
+            "to": "asleep"
+          },
+          {
+            "from": "asleep",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 20,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "playing"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "playing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "after",
+              "ms": 15000
+            },
+            "to": "playing"
+          },
+          {
+            "from": "playing",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 5
+            },
+            "to": "tagging",
+            "bind": {
+              "playmate": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "lingering",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 5
+            },
+            "to": "tagging",
+            "bind": {
+              "playmate": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "tagging",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "playmate"
+                }
+              },
+              "cells": 1
+            },
+            "to": "fleeing"
+          },
+          {
+            "from": "tagging",
+            "if": {
+              "cond": "after",
+              "ms": 6000
+            },
+            "to": "bored"
+          },
+          {
+            "from": "fleeing",
+            "if": {
+              "cond": "after",
+              "ms": 3000
+            },
+            "to": "bored"
+          },
+          {
+            "from": "playing",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "lingering"
+          },
+          {
+            "from": "lingering",
+            "if": {
+              "cond": "after",
+              "ms": 1500,
+              "toMs": 4000
+            },
+            "to": "playing"
+          },
+          {
+            "from": "bored",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "resting"
+          },
+          {
+            "from": "resting",
+            "if": {
+              "cond": "after",
+              "ms": 20000,
+              "toMs": 30000
+            },
+            "to": "playing"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Are you an adventurer? Have you ever fought a wolf?"
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "Lots of them.",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Whoa! Mum says they only come out at night, so I have to be home before dark."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Not yet.",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Me neither. When I'm big I'm going to guard the gate."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Bye! Tag, you're it!"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "beggar",
+    "name": "Beggar",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "townsfolk",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "sitting",
+        "states": {
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "sitting": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "asking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Spare a bite to eat?"
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "sitting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 25000,
+                  "toMs": 40000
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "player"
+                      ]
+                    }
+                  },
+                  "cells": 4
+                }
+              ]
+            },
+            "to": "asking"
+          },
+          {
+            "from": "asking",
+            "if": {
+              "cond": "after",
+              "ms": 2000
+            },
+            "to": "sitting"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Haven't eaten since yesterday, {partner}. Spare something? I'll pay you in what I hear."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "Give an apple",
+                "then": [
+                  {
+                    "kind": "request_trade",
+                    "take": [
+                      {
+                        "tileId": "apple",
+                        "count": 1
+                      }
+                    ],
+                    "give": [],
+                    "min": 1,
+                    "max": 1,
+                    "default": 1,
+                    "traded": [
+                      {
+                        "kind": "say",
+                        "text": "Bless you."
+                      },
+                      {
+                        "kind": "say",
+                        "text": "Here's one for you. Out east, past the woods, there's a stream running south."
+                      },
+                      {
+                        "kind": "say",
+                        "text": "On its far bank sits a chest. Folk say whoever opens it finds a stone inside."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ],
+                    "cancel": [
+                      {
+                        "kind": "say",
+                        "text": "Ah. Another time, maybe."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Give some bread",
+                "then": [
+                  {
+                    "kind": "request_trade",
+                    "take": [
+                      {
+                        "tileId": "bread",
+                        "count": 1
+                      }
+                    ],
+                    "give": [],
+                    "min": 1,
+                    "max": 1,
+                    "default": 1,
+                    "traded": [
+                      {
+                        "kind": "say",
+                        "text": "Bless you."
+                      },
+                      {
+                        "kind": "say",
+                        "text": "Here's one for you. Out east, past the woods, there's a stream running south."
+                      },
+                      {
+                        "kind": "say",
+                        "text": "On its far bank sits a chest. Folk say whoever opens it finds a stone inside."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ],
+                    "cancel": [
+                      {
+                        "kind": "say",
+                        "text": "Ah. Another time, maybe."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Give some cheese",
+                "then": [
+                  {
+                    "kind": "request_trade",
+                    "take": [
+                      {
+                        "tileId": "cheese",
+                        "count": 1
+                      }
+                    ],
+                    "give": [],
+                    "min": 1,
+                    "max": 1,
+                    "default": 1,
+                    "traded": [
+                      {
+                        "kind": "say",
+                        "text": "Bless you."
+                      },
+                      {
+                        "kind": "say",
+                        "text": "Here's one for you. Out east, past the woods, there's a stream running south."
+                      },
+                      {
+                        "kind": "say",
+                        "text": "On its far bank sits a chest. Folk say whoever opens it finds a stone inside."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ],
+                    "cancel": [
+                      {
+                        "kind": "say",
+                        "text": "Ah. Another time, maybe."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Bless you anyway."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "lamplighter",
+    "name": "Lamplighter",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "townsfolk",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 750,
+    "interactions": {
+      "brain": {
+        "initial": "dozing",
+        "states": {
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "dozing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "rounds": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 4
+              }
+            ]
+          },
+          "lighting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "There we are. Nice and bright."
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "dozing"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 18,
+                  "toHour": 23
+                }
+              ]
+            },
+            "to": "dozing"
+          },
+          {
+            "from": "dozing",
+            "if": {
+              "cond": "time_of_day",
+              "fromHour": 18,
+              "toHour": 23
+            },
+            "to": "rounds"
+          },
+          {
+            "from": "rounds",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 12
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "rounds"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "after",
+              "ms": 15000
+            },
+            "to": "rounds"
+          },
+          {
+            "from": "rounds",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "lighting"
+          },
+          {
+            "from": "lighting",
+            "if": {
+              "cond": "after",
+              "ms": 5000,
+              "toMs": 9000
+            },
+            "to": "rounds"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Mm? Oh. Evening already?"
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "What do you do?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "I light the lamps from six until the small hours. Somebody has to, or nobody would find their way home from the Barrel."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Off you go. I'll have the lamps lit by dark."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 6,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 6,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 6,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 6,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "thrown-stone",
     "name": "Thrown Stone",
     "height": 0,
