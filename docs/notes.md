@@ -1355,6 +1355,14 @@ cause of death.
   brain's transition list, with a rule that keeps the brain in its current
   state. Without that, a lower `any` rule (the crier's home leash or
   his night rest) would pull a fleeing body straight back to its attacker.
+- **They heal by eating, not by regenerating.** Every townsperson casts the
+  natural spell "Eat a snack" whenever it is not `fed` and nobody is talking
+  to it. The spell grants `fed` for 5 minutes, and `fed` is what heals: a full
+  bar in about 150s out of a fight. Its cooldown (1 minute) is shorter than
+  that grant, so the spell is always ready when hunger comes back; a brain
+  waiting in `snacking` on a cooling spell would only stand still. Fighters
+  also carry "Second wind", a 62-hp heal they cast at 40% health or less,
+  once every 5 minutes.
 - **Guards hunt a named list**, not "any non-player". There is no such
   selector, and a list keeps deer, rabbits and the townsfolk themselves off it.
 - **Only a player with PvP on can hurt one** (`battler.pvp`). See *Two players

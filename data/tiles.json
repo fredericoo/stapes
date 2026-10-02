@@ -13872,6 +13872,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -13952,6 +13963,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "idle"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "idle"
           },
@@ -14162,7 +14209,27 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
@@ -14605,6 +14672,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -14740,6 +14818,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "idle"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "idle"
           },
@@ -15734,6 +15848,24 @@
             },
             "cooldownMs": 300000,
             "castTimeMs": 1500
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
           }
         ]
       }
@@ -16178,6 +16310,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -16313,6 +16456,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "idle"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "idle"
           },
@@ -17083,6 +17262,24 @@
             },
             "cooldownMs": 300000,
             "castTimeMs": 1500
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
           }
         ]
       }
@@ -17495,6 +17692,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -17575,6 +17783,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "idle"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "idle"
           },
@@ -18099,7 +18343,27 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
@@ -35000,6 +35264,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -35080,6 +35355,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "idle"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "idle"
           },
@@ -35305,7 +35616,27 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
@@ -35748,6 +36079,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -35883,6 +36225,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "idle"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "idle"
           },
@@ -36098,6 +36476,24 @@
             },
             "cooldownMs": 300000,
             "castTimeMs": 1500
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
           }
         ]
       }
@@ -36554,6 +36950,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -36634,6 +37041,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "sitting"
           },
@@ -36957,7 +37400,27 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
@@ -37413,6 +37876,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -37493,6 +37967,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "sitting"
           },
@@ -37775,7 +38285,27 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
@@ -40184,6 +40714,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -40264,6 +40805,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "pausing"
           },
@@ -40441,7 +41018,27 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
@@ -40984,6 +41581,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -41173,6 +41781,42 @@
             }
           },
           {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
+            },
+            "to": "watching"
+          },
+          {
             "from": "watching",
             "if": {
               "cond": "talking"
@@ -41351,6 +41995,24 @@
             },
             "cooldownMs": 300000,
             "castTimeMs": 1500
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
           }
         ]
       }
@@ -41870,6 +42532,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -41950,6 +42623,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "walk0"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "walk0"
           },
@@ -42229,7 +42938,27 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
@@ -42774,6 +43503,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -43161,6 +43901,42 @@
                 }
               }
             }
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
+            },
+            "to": "off_duty"
           },
           {
             "from": "any",
@@ -43669,6 +44445,24 @@
             },
             "cooldownMs": 300000,
             "castTimeMs": 1500
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
           }
         ]
       }
@@ -44094,6 +44888,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -44174,6 +44979,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "sitting"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "sitting"
           },
@@ -44434,7 +45275,27 @@
         },
         "kit": [],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
@@ -44902,6 +45763,17 @@
                 "action": "hold"
               }
             ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -44982,6 +45854,42 @@
             "if": {
               "cond": "after",
               "ms": 20000
+            },
+            "to": "home"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
             },
             "to": "home"
           },
@@ -45221,7 +46129,27 @@
           }
         ],
         "remains": "skull-player",
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
+          }
+        ]
       }
     },
     "states": {
