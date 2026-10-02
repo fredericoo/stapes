@@ -314,7 +314,15 @@ import {
   wadesAt,
   walkDurationMsFor,
 } from "./movement";
-import { dropLanding, findPath, findRefuge, unsafeToStepOn, wadesIn } from "./pathfinding";
+import {
+  dropLanding,
+  findPath,
+  findRefuge,
+  HOME_DETOUR_SLACK,
+  HOME_PATH_MAX_NODES,
+  unsafeToStepOn,
+  wadesIn,
+} from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog } from "../lib/dialog";
 import {
@@ -3622,6 +3630,7 @@ export class GameSession implements PlaySession {
     if (this.failedJustNow(actor, route)) return null;
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
     const def = this.defFor(actor);
+    const homeward = actor.home !== null && walkKey(actor.home) === walkKey(at);
     const found = findPath(
       this.map,
       { at: self, self, who: actor.id },
@@ -3629,7 +3638,12 @@ export class GameSession implements PlaySession {
       def,
       this.tilesById,
       this.statusDefs,
-      { drops: allowDrops ? "anywhere" : "never", arrive, avoidWade: !def.swims },
+      {
+        drops: allowDrops ? "anywhere" : "never",
+        arrive,
+        avoidWade: !def.swims,
+        ...(homeward && { maxNodes: HOME_PATH_MAX_NODES, detourSlack: HOME_DETOUR_SLACK }),
+      },
     );
     if (!found.ok) {
       actor.failedRoute = { ...route, atMs: this.elapsedMs };

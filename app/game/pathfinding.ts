@@ -22,6 +22,10 @@ export const PATH_MAX_NODES = 128;
 
 export const PATH_DETOUR_SLACK = 16;
 
+export const HOME_PATH_MAX_NODES = 512;
+
+export const HOME_DETOUR_SLACK = 48;
+
 export type PathStep = { direction: Direction; to: Coord };
 
 export type PathStart = {
@@ -44,6 +48,7 @@ export type Reaching = { within: number; accepts: (at: Coord) => boolean };
 export type PathOptions = {
   drops?: "never" | "toGoal" | "anywhere";
   maxNodes?: number;
+  detourSlack?: number;
   arrive?: "beside" | "on" | Reaching;
   avoidWade?: boolean;
 };
@@ -393,7 +398,7 @@ export function findPath(
   );
 
   const budget = opts.maxNodes ?? PATH_MAX_NODES;
-  const longest = remaining(from, goal, arrive) + PATH_DETOUR_SLACK;
+  const longest = remaining(from, goal, arrive) + (opts.detourSlack ?? PATH_DETOUR_SLACK);
   const frontier = new Frontier();
   const best = new Map<string, number>();
   let pruned = false;
