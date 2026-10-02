@@ -39212,6 +39212,486 @@
     }
   },
   {
+    "id": "town-guard",
+    "name": "Town Guard",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "guard",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "watching",
+        "states": {
+          "watching": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "watching",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "watching"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Heading out past the gate, {partner}? Then you'd best know about the wolves."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "When do wolves hunt?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "By day they curl up in their dens and sleep. Walk past quietly and they'll never know you were there."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Come seven in the evening they wake, and they hunt until six in the morning. Those hours, the woods are theirs."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Down in the caves there's no day to sleep through. A wolf underground is always awake."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Do they always attack?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Only when they're hungry. A wolf with a full belly will let you walk right by."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "But strike one, day or night, fed or not, and it will fight back."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "How do I escape one?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Drop some meat on the ground, raw or cooked. A hungry wolf goes for the meat before it goes for you."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Drop it where the wolf can see it, then run while it eats."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Stay on the road, and keep some meat in your pack."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "thrown-stone",
     "name": "Thrown Stone",
     "height": 0,
