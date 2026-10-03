@@ -34,7 +34,9 @@ import {
   canHurt,
   choosePrey,
   creaturesAround,
+  healing,
   healingFood,
+  healsAtOnce,
   isMending,
   reach,
   steps,
@@ -1349,7 +1351,8 @@ export class Bot {
   /**
    * A bot recovering above `eatHpShare` still eats whenever nothing is
    * mending it, because without a mending status it gets no health back at
-   * all, however long it rests.
+   * all, however long it rests. While it fights or backs away it eats only
+   * food that heals at once (`healsAtOnce`), and keeps the rest for after.
    */
   private eat(snapshot: GameSnapshot, nowMs: number) {
     const self = snapshot.self;
@@ -1359,7 +1362,13 @@ export class Bot {
     if (!low && !unmended) return;
     if (nowMs - this.lastEatMs < EAT_RETRY_MS) return;
     if (this.mendReady(snapshot)) return;
-    const index = healingFood(snapshot.equipment, this.tilesById, this.statusDefs);
+    const fighting = this.foe !== null || this.flight !== null;
+    const index = healingFood(
+      snapshot.equipment,
+      this.tilesById,
+      this.statusDefs,
+      fighting ? healsAtOnce : healing,
+    );
     if (index === null) return;
     const tileId = snapshot.equipment.bag?.contents?.[index]?.tileId ?? "";
     if (!this.body.consume({ kind: "slot", slot: { kind: "contents", index } })) return;

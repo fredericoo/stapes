@@ -14076,6 +14076,10 @@ Every frame, before its goal, a bot checks three things in order:
    `MENDING_STATUS_HP`. A berry gives nothing at once, and a rule that counted
    only immediate health did not see it as food. Food that can give a bad
    status, such as raw meat or anything stale, is never eaten to heal.
+   While it fights or backs away, it eats only food that heals at once
+   (`healsAtOnce`): in a fight `fed` mends a character's whole health over
+   five minutes, far slower than any creature that can hurt deals damage, so
+   a berry eaten then is a berry missing when the bot recovers.
 
 **A bot fights what it can beat, under any goal.** Before following its
 goal, it looks for prey: a creature on its own level, in line of sight
