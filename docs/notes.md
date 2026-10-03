@@ -14123,8 +14123,8 @@ another goal.
 **A bot goes back for the bag it died with.** A dead player drops its bag
 where it fell (`dropPacks`), with the money and food in it. The bot remembers
 where it last stood. `ProgressPlanner` gives it a `go_to` there before
-anything else, the opening goals included, and the loot reflex picks the bag
-up. The planner is not told where the bag is while a creature the bot would
+anything else, the opening goals included, and the loot reflex takes what
+it wants out of the bag. The planner is not told where the bag is while a creature the bot would
 lose to is within its berth of the bag: one in view that threatens it, or
 one near where it died that it would lose to even at full health. Walking
 straight back into such a creature was a quarter of all deaths in one
@@ -14338,6 +14338,15 @@ fighting, it looks every `LOOT_SCAN_MS` for a loose thing within `LOOT_CELLS`,
 in sight, that `wanted` says yes to. Then it walks beside it and picks it up.
 This is how a kill's dropped kit reaches the bag. A thing it could not pick
 up, usually for lack of room, is left for `LOOT_FORGET_MS`.
+
+**A bag on the floor is opened, not judged as a bag.** A dead player's bag
+lies unowned where it fell, its own or anybody's. A bot judged it with
+`wanted` as one thing, and to a bot already wearing a bag of that kind it is
+no upgrade, so the bot never touched it: a reborn bot wears a fresh empty
+bag, so even the walk back for its own bag came away with nothing. When the
+bag itself is not wanted, the bot now looks at what it holds, and takes
+the first thing `wanted` says yes to and its own bag has room for, one at a
+time, with `moveItem` from the floor into its bag.
 
 **Gathering is pressing and standing still.** A `gather` errand walks beside
 the nearest resource whose yield is wanted and which has a pull free
