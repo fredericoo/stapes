@@ -33,6 +33,7 @@ import type { ActiveStatus, StatusDef } from "../lib/status";
 import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
+import { bagGained, newlyEquipped, statsMood, useNotice } from "./panelNotice";
 
 const NO_STATUSES: ActiveStatus[] = [];
 
@@ -218,6 +219,18 @@ export function GameViewport({
     if (openHand && !equipment[openHand]) setOpenHand(null);
   }, [openHand, equipment]);
 
+  const live = vitals !== NO_VITALS;
+  const bagNotice = useNotice(equipment.bag, live, (prev, next) =>
+    !showBag && bagGained(prev, next) ? "neutral" : null,
+  );
+  const equipmentNotice = useNotice(equipment, live, (prev, next) =>
+    !showEquipment && newlyEquipped(prev, next) ? "neutral" : null,
+  );
+  const statsReading = useMemo(() => ({ statuses, masteryXp }), [statuses, masteryXp]);
+  const statsNotice = useNotice(statsReading, live, (prev, next) =>
+    showStats ? null : statsMood(prev, next),
+  );
+
   const panelCoversList =
     coarse &&
     (showEquipment || showBag || showStats || heldContainer != null || openedContainer != null);
@@ -283,10 +296,11 @@ export function GameViewport({
           <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
         </>
       ) : null}
-      <StatsToggle open={showStats} onChange={openStats} size={size} />
+      <StatsToggle open={showStats} onChange={openStats} notice={statsNotice} size={size} />
       <EquipmentToggle
         open={showEquipment}
         onChange={openEquipment}
+        notice={equipmentNotice}
         equipment={equipment}
         tilesById={tilesById}
         drag={drag}
@@ -296,6 +310,7 @@ export function GameViewport({
         bag={equipment.bag}
         open={showBag}
         onChange={openBag}
+        notice={bagNotice}
         tilesById={tilesById}
         drag={drag}
         size={size}

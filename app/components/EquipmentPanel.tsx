@@ -133,7 +133,7 @@ export function EquipmentPanel({
       className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label="Equipment"
     >
-      <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">Equipment</h2>
+      <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">Equipment</h2>
       <div
         className="grid self-start"
         style={{

@@ -123,7 +123,7 @@ export function ContainerPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
+        <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">
           {title}
           <span className="ml-1 tabular-nums text-paper/40">
             {contents.length}/{size}
@@ -167,7 +167,7 @@ export function ContainerPanel({
             {captioned ? (
               <span
                 aria-hidden="true"
-                className="block h-4 truncate text-[11px] leading-4 text-paper/60"
+                className="block h-4 truncate text-detail leading-4 text-paper/60"
               >
                 {slotCaptionFor(instance, tilesById)}
               </span>

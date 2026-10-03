@@ -52,16 +52,14 @@ export function ItemCard({
             )}
           </span>
           {card.kind ? (
-            <span className="text-[10px] font-bold uppercase tracking-wide text-ink/70">
-              {card.kind}
-            </span>
+            <span className="text-detail font-bold text-ink/70">{card.kind}</span>
           ) : null}
           {card.elements.length > 0 ? (
             <span className="mt-0.5 flex flex-wrap gap-1">
               {card.elements.map((element) => (
                 <span
                   key={element}
-                  className="border border-ink/30 px-1 text-[9px] font-bold uppercase tracking-wide text-ink/70"
+                  className="border border-ink/30 px-1 text-2xs font-bold uppercase tracking-wide text-ink/70"
                 >
                   {element}
                 </span>
@@ -72,13 +70,13 @@ export function ItemCard({
       </header>
 
       {card.dormant ? (
-        <p className="border-l-2 border-danger pl-1.5 text-[11px] font-bold leading-snug text-danger">
+        <p className="border-l-2 border-danger pl-1.5 text-detail font-bold leading-snug text-danger">
           {card.dormant}
         </p>
       ) : null}
 
       {card.inscription || card.description ? (
-        <div className="flex flex-col gap-0.5 border-l-2 border-ink/20 pl-1.5 text-[11px] leading-snug text-ink/70 italic">
+        <div className="flex flex-col gap-0.5 border-l-2 border-ink/20 pl-1.5 text-detail leading-snug text-ink/70 italic">
           {card.inscription ? <p>{card.inscription}</p> : null}
           {card.description ? <p>{card.description}</p> : null}
         </div>
@@ -128,7 +126,7 @@ export function ItemCard({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-0.5 border-t-2 border-ink/15 pt-1">
-      <h4 className="text-[9px] font-bold uppercase tracking-widest text-ink/60">{title}</h4>
+      <h4 className="text-2xs font-bold uppercase tracking-widest text-ink/60">{title}</h4>
       {children}
     </section>
   );
@@ -136,7 +134,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function StatRow({ stat }: { stat: ItemCardStat }) {
   return (
-    <div className="flex items-baseline gap-2 text-[11px] leading-tight">
+    <div className="flex items-baseline gap-2 text-detail leading-tight">
       <dt className="shrink-0 text-ink/70">{termLabel(stat.term)}</dt>
       <dd className="flex min-w-0 flex-1 items-baseline gap-1 tabular-nums">
         <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
@@ -155,7 +153,7 @@ const TONE_TEXT = {
 
 function RequirementRow({ row }: { row: ItemCardRequirement }) {
   return (
-    <li className="flex items-baseline gap-2 text-[11px] leading-tight">
+    <li className="flex items-baseline gap-2 text-detail leading-tight">
       <span className={`shrink-0 font-bold ${row.met ? "text-accent" : "text-danger"}`}>
         {row.met ? "✓" : "✕"}
       </span>
@@ -172,7 +170,7 @@ function RequirementRow({ row }: { row: ItemCardRequirement }) {
 
 function ResistRow({ row }: { row: ItemCardResist }) {
   return (
-    <li className="flex items-baseline gap-2 text-[11px] leading-tight">
+    <li className="flex items-baseline gap-2 text-detail leading-tight">
       <span className="shrink-0 text-ink/80">{MASTERY_LABELS[row.mastery]}</span>
       <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
       <span className="shrink-0 tabular-nums text-ink/50 line-through">
@@ -195,7 +193,7 @@ function EffectRow({ effect, tilesets }: { effect: ItemCardEffect; tilesets: Til
         ) : null}
       </span>
       <span className="flex min-w-0 flex-col leading-tight">
-        <span className="flex flex-wrap items-baseline gap-x-1.5 text-[11px]">
+        <span className="flex flex-wrap items-baseline gap-x-1.5 text-detail">
           <span className={`font-bold ${effect.tone === "bad" ? "text-danger" : "text-accent"}`}>
             {effect.name}
           </span>
@@ -203,7 +201,7 @@ function EffectRow({ effect, tilesets }: { effect: ItemCardEffect; tilesets: Til
             {effect.chance === null ? effect.duration : `${effect.chance}% · ${effect.duration}`}
           </span>
         </span>
-        <span className="text-[10px] leading-snug text-ink/70">{effect.description}</span>
+        <span className="text-2xs leading-snug text-ink/70">{effect.description}</span>
       </span>
     </li>
   );

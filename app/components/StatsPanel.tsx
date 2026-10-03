@@ -48,7 +48,7 @@ export function StatsPanel({
       className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label="Stats"
     >
-      <h2 className="flex items-baseline gap-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+      <h2 className="flex items-baseline gap-1 text-detail font-bold uppercase tracking-wide text-paper/50">
         {HEADINGS.stats}
         <span className="ml-auto tabular-nums text-paper/70">
           {RATING_GLYPH}
@@ -69,7 +69,7 @@ export function StatsPanel({
 
         <Effects statuses={statuses} tilesets={tilesets} />
 
-        <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+        <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
           {HEADINGS.masteries}
         </h3>
         <ul className="flex flex-col gap-1">
@@ -100,10 +100,10 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
 
   return (
     <>
-      <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+      <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
         {HEADINGS.combat}
       </h3>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-detail tabular-nums">
         <Reading term="damage" value={bandLabel(minDamage, maxDamage)} />
         <Reading term="defence" value={`${def}`} />
         <Reading term="swing" value={formatDuration(swingMs)} />
@@ -132,7 +132,7 @@ function Effects({ statuses, tilesets }: { statuses: ActiveStatus[]; tilesets: T
 
   return (
     <>
-      <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+      <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
         {HEADINGS.effects}
       </h3>
       <ul className="flex flex-col gap-0.5">

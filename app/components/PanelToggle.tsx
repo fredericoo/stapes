@@ -7,12 +7,14 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
 import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./actionButton";
+import { NoticeIcon } from "./NoticeIcon";
+import type { PanelNotice } from "./panelNotice";
 import type { HeldItem, ItemDrag } from "./useItemDrag";
 import { useTap } from "./useTap";
 
 function toggleClass(on: boolean, size: ActionButtonSize): string {
   return [
-    "flex items-center justify-center border-2 shadow-hard",
+    "relative flex items-center justify-center border-2 shadow-hard",
     ACTION_BUTTON_SIZE_CLASS[size],
     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
     on ? "border-paper bg-paper text-ink" : "border-paper/40 bg-transparent text-paper",
@@ -22,10 +24,12 @@ function toggleClass(on: boolean, size: ActionButtonSize): string {
 export function StatsToggle({
   open,
   onChange,
+  notice = null,
   size = "touch",
 }: {
   open: boolean;
   onChange: (open: boolean) => void;
+  notice?: PanelNotice | null;
   size?: ActionButtonSize;
 }) {
   const tap = useTap(() => onChange(!open));
@@ -39,7 +43,9 @@ export function StatsToggle({
         {...tap}
         className={toggleClass(open, size)}
       >
-        <IconHeartbeat size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+        <NoticeIcon notice={notice}>
+          <IconHeartbeat size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+        </NoticeIcon>
       </button>
     </Tooltip>
   );
@@ -53,10 +59,12 @@ export function EquipmentToggle({
   equipment,
   tilesById,
   drag,
+  notice = null,
   size = "touch",
 }: {
   open: boolean;
   onChange: (open: boolean) => void;
+  notice?: PanelNotice | null;
   equipment: Equipment;
   tilesById: Record<string, TileDef>;
   drag: ItemDrag;
@@ -94,7 +102,9 @@ export function EquipmentToggle({
         ].join(" ")}
         style={{ touchAction: "none" }}
       >
-        <IconShirt size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+        <NoticeIcon notice={notice}>
+          <IconShirt size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+        </NoticeIcon>
       </button>
     </Tooltip>
   );
@@ -110,11 +120,13 @@ export function BagButton({
   onChange,
   tilesById,
   drag,
+  notice = null,
   size = "touch",
 }: {
   bag: ItemInstance | null;
   open: boolean;
   onChange: (open: boolean) => void;
+  notice?: PanelNotice | null;
   tilesById: Record<string, TileDef>;
   drag: ItemDrag;
   size?: ActionButtonSize;
@@ -146,19 +158,20 @@ export function BagButton({
         disabled={!bag}
         {...tap}
         className={[
-          "relative",
           toggleClass(open, size),
           bag ? "" : "opacity-40",
           isOver ? "border-accent bg-accent/30" : wouldTake ? "border-accent/60" : "",
         ].join(" ")}
         style={{ touchAction: "none" }}
       >
-        <IconBackpack size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+        <NoticeIcon notice={notice}>
+          <IconBackpack size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+        </NoticeIcon>
         {bag ? (
           <span
             aria-hidden="true"
             className={[
-              "pointer-events-none absolute -bottom-1 -right-1 border px-0.5 text-[9px] font-bold leading-tight tabular-nums",
+              "pointer-events-none absolute -bottom-1 -right-1 border px-0.5 text-2xs font-bold leading-tight tabular-nums",
               held >= capacity
                 ? "border-paper bg-paper text-ink"
                 : "border-paper/40 bg-ink text-paper/80",

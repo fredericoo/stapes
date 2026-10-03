@@ -71,7 +71,7 @@ function LevelsLost({ levels }: { levels: readonly LevelLost[] }) {
     <div className="flex flex-col gap-1">
       <h3
         id="death-screen-masteries"
-        className="text-[11px] font-bold uppercase tracking-wide text-paper/50"
+        className="text-detail font-bold uppercase tracking-wide text-paper/50"
       >
         Masteries lowered
       </h3>

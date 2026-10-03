@@ -71,7 +71,7 @@ export function CraftPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">{title}</h2>
+        <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">{title}</h2>
         <button
           type="button"
           onClick={onClose}
@@ -84,7 +84,7 @@ export function CraftPanel({
 
       <div className="relative flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
         {recipes.length === 0 ? (
-          <p className="px-1 py-2 text-center text-[11px] text-paper/60">{NO_RECIPES_TEXT}</p>
+          <p className="px-1 py-2 text-center text-detail text-paper/60">{NO_RECIPES_TEXT}</p>
         ) : null}
         {recipes.map(({ index, recipe }, position) => (
           <PanelButton key={index} onPress={() => onCraft(index)}>
@@ -118,7 +118,7 @@ function RecipeInput({
 }) {
   const label = `${input.count} ${def?.name ?? input.tileId}`;
   return (
-    <span className="flex items-center text-[10px] text-paper/70" title={label}>
+    <span className="flex items-center text-2xs text-paper/70" title={label}>
       <span className="sr-only">{label}</span>
       {input.count > 1 ? <span aria-hidden="true">{input.count}×</span> : null}
       {def ? (

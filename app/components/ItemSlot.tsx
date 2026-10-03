@@ -303,7 +303,7 @@ export function ItemSlot({
       {tally ? (
         <span
           aria-hidden
-          className="pointer-events-none absolute right-0 bottom-0 px-0.5 text-[10px] leading-none font-bold text-paper [text-shadow:1px_1px_0_var(--color-ink),-1px_1px_0_var(--color-ink),1px_-1px_0_var(--color-ink),-1px_-1px_0_var(--color-ink)]"
+          className="pointer-events-none absolute right-0 bottom-0 px-0.5 text-2xs leading-none font-bold text-paper [text-shadow:1px_1px_0_var(--color-ink),-1px_1px_0_var(--color-ink),1px_-1px_0_var(--color-ink),-1px_-1px_0_var(--color-ink)]"
         >
           {tally}
         </span>

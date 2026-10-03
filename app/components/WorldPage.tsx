@@ -48,6 +48,8 @@ import { GameRenderer } from "../render/GameRenderer";
 import { debugViewRequested } from "../render/debugView";
 import { installStapes, StapesEventLog } from "./stapes";
 
+const PIXEL_UI_CLASS = "pixel-ui";
+
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
 
@@ -227,6 +229,12 @@ export function WorldPage({
       }),
     [stapesLog],
   );
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add(PIXEL_UI_CLASS);
+    return () => root.classList.remove(PIXEL_UI_CLASS);
+  }, []);
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
