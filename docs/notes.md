@@ -1355,6 +1355,9 @@ cause of death.
   brain's transition list, with a rule that keeps the brain in its current
   state. Without that, a lower `any` rule (the crier's home leash or
   his night rest) would pull a fleeing body straight back to its attacker.
+  Most of them call the traits `townsfolk-flee` and `townsfolk-fight` for
+  these rules rather than writing them out; see *What the shipped creatures
+  call*.
 - **They heal by eating, not by regenerating.** Every townsperson casts the
   natural spell "Eat a snack" whenever it is not `fed` and nobody is talking
   to it. The spell grants `fed` for 5 minutes, and `fed` is what heals: a full
@@ -10084,6 +10087,41 @@ deploy copies — a file missing from that list never reaches production — and
 about every brain that does not expand, since its creature otherwise just
 stands there. A bot expands the tiles it fetches the same way (`takeSeat`),
 because it reads a creature's brain for how far off it notices a player.
+
+### What the shipped creatures call
+
+Fourteen of the twenty-five shipped brains call traits, and each expands to a
+table that runs exactly as the hand-written one it replaced: every state asks
+the same rows in the same order, apart from rows that could never be the first
+to hold.
+
+- **The townsfolk who run** — the potion salesman, tanner, pie maker, miner,
+  peat cutter, beggar and lamplighter — are one call to `townsfolk-flee` each.
+  The miner, peat cutter, beggar and lamplighter hand it the state they listen
+  in as `talk`; the shopkeepers serve only from their idle state, so they do
+  not.
+- **The blacksmith, armourer and bartender** are one call to `townsfolk-fight`.
+- **The cat** calls `fights-back`, **the snake** and **the bat** `predator`,
+  **the rabbit** `skittish`, and the bat and the rabbit `unsticks`. The bat's
+  `unsticks` fires at `roam`, so being stuck comes after its walk home and only
+  from `flitting`.
+
+Neither townsfolk trait leaves its routine to triggers alone. Their tables ask
+a state's own way out before the rows every other state shares — someone
+walking home after a fright reaches home before they snack — and a trigger
+always comes first. So the snack and the talk are triggers from the brain's
+own states, and rows after the walk home's own exits for the trait's states.
+
+The rest are still written out, and the training dummy has nothing to share.
+The town guard, the patrolling guard, the town crier, the torch salesman, the
+deer and the rat each ask a shared row after a state's own rows where the
+bands cannot put it: the guards' sight of a monster comes between being hit
+and the snack, the crier and the torch salesman ask a walk home (and the crier
+a bedtime) after the talk, and the deer and the rat ask being stuck last from
+states a trigger cannot reach in that position. The wolf, the troll, the bog
+imp and the cyclops would each change what they do; see *A wounded wolf breaks
+off* and *The wolf we ship sleeps through the day on the surface* for what
+their rows rely on.
 
 ## A status can stop its bearer acting, and damage can end one
 

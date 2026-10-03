@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
+import traitsJson from "../../data/traits.json";
 import type { Selector } from "../lib/brain";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { FRAME, tile } from "../lib/testTile";
+import { normalizeTiles } from "../lib/types";
 import {
+  brainExpansionIssues,
   checkBrain,
   checkTrait,
   expandBrain,
@@ -701,5 +705,18 @@ describe("checking traits", () => {
     expect(issues).toEqual([
       { severity: "error", message: "wolf › call 1 › stalks prey: bush cannot be a body" },
     ]);
+  });
+});
+
+describe("the catalogue we ship", () => {
+  const shipped = traitsById(traitsJson as unknown[]);
+
+  it("has no trait that fails its own check", () => {
+    const issues = Object.values(shipped).flatMap((def) => checkTrait(def, shipped));
+    expect(issues).toEqual([]);
+  });
+
+  it("expands every brain that calls it", () => {
+    expect(brainExpansionIssues(normalizeTiles(tilesJson as unknown[]), shipped)).toEqual([]);
   });
 });

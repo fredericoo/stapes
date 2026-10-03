@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import traitsJson from "../data/traits.json";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../app/lib/mapData";
 import type { MapFile } from "../app/lib/types";
 import { PLAYER_TILE_ID } from "../app/game/constants";
@@ -18,8 +19,6 @@ import { World, type PlayerEntry } from "./world";
 import type { CharacterSheet } from "./GameServer";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
-
-const SEEDED_TRAITS = [{ id: "yelps", name: "Yelps" }];
 
 let directory: string;
 let world: World;
@@ -39,7 +38,7 @@ beforeEach(async () => {
   await copyFile("data/tilesets.json", join(seed, "tilesets.json"));
   await copyFile("data/tiles.json", join(seed, "tiles.json"));
   await copyFile("data/statuses.json", join(seed, "statuses.json"));
-  await writeFile(join(seed, "traits.json"), JSON.stringify(SEEDED_TRAITS));
+  await copyFile("data/traits.json", join(seed, "traits.json"));
   await writeFile(join(seed, "map.json"), serializeMap(startableMap()));
 
   const config = readConfig({ DATA_DIR: join(directory, "data"), SEED_DIR: seed } as never);
@@ -515,6 +514,6 @@ describe("the trait catalogue", () => {
     const response = await saveTraits([{ id: "howls", name: "Howls" }], {});
 
     expect(response.status).toBe(404);
-    expect(await world.blobs.readTraits()).toEqual(SEEDED_TRAITS);
+    expect(await world.blobs.readTraits()).toEqual(traitsJson);
   });
 });

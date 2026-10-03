@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
+import traitsJson from "../data/traits.json";
 import { BRAIN_ROUND_TICKS, PLAYER_TILE_ID, TICK_MS } from "../app/game/constants";
 import { resolveRespawn } from "../app/lib/interactions";
 import { getStack } from "../app/lib/mapData";
@@ -47,6 +48,7 @@ async function steppedWorld(seed: number): Promise<Harness> {
   opened.push(harness);
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
+  await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
   await harness.blobs.put("map.json", JSON.stringify(field()), JSON_TYPE);
   await harness.server.step();
   return harness;
@@ -146,7 +148,7 @@ describe("a world with a trait catalogue in its store", () => {
     const harness = await Harness.create({}, { manualTicks: { startAtMs: NOON_MS }, seed: SEED });
     opened.push(harness);
     await harness.blobs.put("tiles.json", JSON.stringify([...tilesJson, yelper]), JSON_TYPE);
-    await harness.blobs.put("traits.json", JSON.stringify([yelps]), JSON_TYPE);
+    await harness.blobs.put("traits.json", JSON.stringify([...traitsJson, yelps]), JSON_TYPE);
     await harness.blobs.put("map.json", JSON.stringify(yard()), JSON_TYPE);
     await harness.server.step();
     await seatPlayer(harness);

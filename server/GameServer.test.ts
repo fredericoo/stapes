@@ -4,6 +4,7 @@ import { Harness, Pair, type TestSocket } from "./testHarness";
 import type { WorldStore } from "./WorldStore";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
+import traitsJson from "../data/traits.json";
 import {
   BRAIN_TICK_MS,
   PLAYER_TILE_ID,
@@ -211,6 +212,7 @@ beforeEach(async () => {
   harness = await Harness.create(NAMES);
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
+  await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
   await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
 });
 

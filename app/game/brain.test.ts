@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import statusesJson from "../../data/statuses.json";
-import tilesJson from "../../data/tiles.json";
 import {
   ANY_STATE,
   SPEAKER_SELECTOR,
@@ -21,9 +20,9 @@ import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE, type StatusDef, statusesById } from "../lib/status";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { normalizeTiles } from "../lib/types";
 import { initialMemory, stepBrain, type BrainContext, type WalkOrderState } from "./brainRuntime";
 import { brainContext } from "./testBrainContext";
+import { shippedTiles } from "./testShippedTiles";
 import { fightingStats, resolveBattler } from "../lib/battler";
 import { attackIntervalMs } from "./combat";
 import {
@@ -2809,7 +2808,7 @@ describe("holding a conversation", () => {
 });
 
 describe("the cat we ship", () => {
-  const authored = normalizeTiles(tilesJson as unknown[]);
+  const authored = shippedTiles();
 
   function yard(apart: number): GameSession {
     let map = emptyMap();
@@ -2879,7 +2878,7 @@ describe("the cat we ship", () => {
 });
 
 describe("the wolf we ship", () => {
-  const authored = normalizeTiles(tilesJson as unknown[]);
+  const authored = shippedTiles();
 
   const EARSHOT_CELLS = 20;
 
@@ -3046,7 +3045,7 @@ describe("the wolf we ship", () => {
 });
 
 describe("keeping to its weapon's range", () => {
-  const authored = normalizeTiles(tilesJson as unknown[]);
+  const authored = shippedTiles();
   const imp = authored.find((def) => def.id === "bog-imp")!;
 
   function keeper(weapon: string): TileDef {
@@ -3120,7 +3119,7 @@ describe("keeping to its weapon's range", () => {
 });
 
 describe("the bog imp and the cyclops we ship", () => {
-  const authored = normalizeTiles(tilesJson as unknown[]);
+  const authored = shippedTiles();
   const statuses = statusesById(statusesJson as unknown[]);
   const NOON = 12 * 60;
   const MIDNIGHT = 0;
@@ -3418,7 +3417,7 @@ describe("walking home", () => {
 });
 
 describe("the vermin we ship", () => {
-  const authored = normalizeTiles(tilesJson as unknown[]);
+  const authored = shippedTiles();
 
   const SIGHT_CELLS = 7;
 
