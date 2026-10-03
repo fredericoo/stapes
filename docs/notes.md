@@ -14075,6 +14075,13 @@ tutorial's rewards takes on the rat on the way. Prey must be in line of sight
 because a rat in the next cave room is one the bot cannot reach, and chasing
 each such rat in turn was a route search that failed every frame or so.
 
+**Prey must be catchable** (`catchable`): it walks no faster than the bot, or
+it can hurt and so comes to the bot, or it is already within the bot's reach.
+Deer and rabbits outwalk a player and run from it. In one overnight run of ten
+bots, a chase of a rabbit or deer was given up 935 times, each after up to
+`chaseGiveUpMs` of walking, and a fight ended with its foe out of sight ("the
+creature you fought is gone") 6910 times.
+
 `hunt` picks prey with `choosePrey`: a creature the bot expects to beat by
 its `courage` (about 1.6), judged together with every creature that can hurt
 within `GANG_CELLS` of it, and never one within `waryCells` of a threat. It
