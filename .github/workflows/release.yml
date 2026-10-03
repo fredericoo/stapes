@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       published: ${{ steps.changesets.outputs.published }}
+      version: ${{ fromJSON(steps.changesets.outputs['published-packages'] || '[]')[0].version }}
     permissions:
       contents: write
       pull-requests: write
@@ -46,3 +47,40 @@ jobs:
     with:
       environment: production
     secrets: inherit
+
+  announce:
+    name: announce on Discord
+    needs: [release, production]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v${{ needs.release.outputs.version }}
+      WEBHOOK_URL: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK_URL }}
+    steps:
+      # The headings are the ones changesets writes for a semver bump; players read them as these.
+      # Discord caps an embed's description at 4096 characters, so long notes end at a whole line.
+      - name: Post the release notes
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::warning::DISCORD_CHANGELOG_WEBHOOK_URL is not set, so ${TAG} was not announced"
+            exit 0
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body,url > release.json
+          jq --arg tag "$TAG" '{
+            embeds: [{
+              title: "The Last Stones \($tag)",
+              url: .url,
+              description: (.url as $url | .body
+                | gsub("### Major Changes"; "### Big changes")
+                | gsub("### Minor Changes"; "### New")
+                | gsub("### Patch Changes"; "### Fixes")
+                | if length > 3900
+                  then (.[0:3900] | .[0:rindex("\n")]) + "\n\n[The rest of this release](\($url))"
+                  else . end)
+            }]
+          }' release.json > message.json
+          curl --fail-with-body -sS --max-time 30 -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" --data @message.json
