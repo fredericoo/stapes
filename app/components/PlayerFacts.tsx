@@ -29,9 +29,7 @@ export function LastOnline({ entry, now }: { entry: PlayerEntry; now: number }) 
 }
 
 export function Badge({ children }: { children: ReactNode }) {
-  return (
-    <span className="border border-border px-1 text-[10px] font-bold uppercase">{children}</span>
-  );
+  return <span className="border border-border px-1 text-2xs font-bold uppercase">{children}</span>;
 }
 
 export function Moment({ at, now }: { at: number; now: number }) {

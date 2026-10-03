@@ -44,8 +44,8 @@ const ROW_CLASS =
 export const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
 export const CLOSE_BUTTON_CLASS =
   "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-export const LABEL_CLASS = "truncate text-[11px] leading-snug font-medium tracking-tight";
-const CHOICE_LABEL_CLASS = "text-[11px] leading-snug font-medium tracking-tight";
+export const LABEL_CLASS = "truncate text-detail leading-snug font-medium tracking-tight";
+const CHOICE_LABEL_CLASS = "text-detail leading-snug font-medium tracking-tight";
 const TURN_GAP_CLASS = "mt-1.5";
 
 type Props = {
@@ -119,7 +119,7 @@ export function ConversationPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">{title}</h2>
+        <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">{title}</h2>
         <button
           type="button"
           onClick={() => onTalk({ kind: "close" })}
@@ -191,7 +191,7 @@ function TranscriptLine({
   const gap = newTurn ? TURN_GAP_CLASS : "";
   if (entry.who === "npc") {
     return (
-      <li data-line={index} className={`text-[12px] leading-snug text-paper ${gap}`}>
+      <li data-line={index} className={`text-xs leading-snug text-paper ${gap}`}>
         <span className="sr-only">{speaker}: </span>
         {entry.text}
       </li>
@@ -201,14 +201,14 @@ function TranscriptLine({
     return (
       <li
         data-line={index}
-        className={`self-end text-right text-[11px] leading-snug text-paper/60 ${gap}`}
+        className={`self-end text-right text-detail leading-snug text-paper/60 ${gap}`}
       >
         <span className="sr-only">You: </span>› {entry.text}
       </li>
     );
   }
   return (
-    <li data-line={index} className={`text-[11px] italic leading-snug text-paper/50 ${gap}`}>
+    <li data-line={index} className={`text-detail italic leading-snug text-paper/50 ${gap}`}>
       {entry.text}
     </li>
   );
@@ -311,7 +311,7 @@ function TradeOffer({
           </button>
           <output
             aria-live="polite"
-            className="grid min-w-8 flex-1 place-items-center border border-paper/30 px-1 tabular-nums text-[12px] text-paper"
+            className="grid min-w-8 flex-1 place-items-center border border-paper/30 px-1 tabular-nums text-xs text-paper"
           >
             ×{amount}
           </output>
@@ -327,13 +327,13 @@ function TradeOffer({
         </div>
       ) : null}
       {short.map((side) => (
-        <p key={side.tileId} className="text-[11px] leading-snug text-paper/60">
+        <p key={side.tileId} className="text-detail leading-snug text-paper/60">
           You need {side.count} {nameOf(side.tileId)}, and have{" "}
           {carriedCount(tilesById, equipment, side.tileId)}.
         </p>
       ))}
       {short.length === 0 && !possible ? (
-        <p className="text-[11px] leading-snug text-paper/60">
+        <p className="text-detail leading-snug text-paper/60">
           There is nowhere on you to put what you would get.
         </p>
       ) : null}
@@ -374,8 +374,8 @@ function TradeSideRow({
   statusDefs: Record<string, StatusDef>;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1 text-[11px] text-paper">
-      <span className="w-14 shrink-0 text-[10px] uppercase text-paper/50">{label}</span>
+    <div className="flex flex-wrap items-center gap-1 text-detail text-paper">
+      <span className="w-14 shrink-0 text-2xs uppercase text-paper/50">{label}</span>
       {sides.length === 0 ? <span className="text-paper/50">nothing</span> : null}
       {sides.map((side) => (
         <TradeSideItem

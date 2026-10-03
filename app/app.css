@@ -13,6 +13,8 @@
 
 @theme {
   --font-sans: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --text-2xs: 10px;
+  --text-detail: 11px;
   /* Copied by the `theme-color` meta in `root.tsx`. */
   --color-ink: #1a1a1a;
   --color-paper: #f4f0e6;
@@ -132,6 +134,35 @@ body {
   textarea {
     font: inherit;
   }
+}
+
+/* The game's whole interface in the world-label face, set on `<html>` by
+   `WorldPage` so tooltips and toasts portalled to `<body>` get it too. Sizes
+   step in 5px, half of the face's 10-pixel em: crisp at 2x, uneven by a
+   fraction of a device pixel at 1x and 3x, which reads better than rounding
+   every label up to 20px. The face has one weight and only ASCII, so bold is
+   not synthesised and anything else falls back to the mono stack. */
+.pixel-ui {
+  --font-sans: "NF Pixels", "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --font-mono: var(--font-sans);
+  --text-2xs: 10px;
+  --text-2xs--line-height: 1.2;
+  --text-detail: 15px;
+  --text-detail--line-height: 1.2;
+  --text-xs: 15px;
+  --text-xs--line-height: 1.2;
+  --text-sm: 15px;
+  --text-sm--line-height: 1.2;
+  --text-base: 15px;
+  --text-base--line-height: 1.2;
+  --text-lg: 20px;
+  --text-lg--line-height: 1.2;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.2;
+  --text-2xl: 30px;
+  --text-2xl--line-height: 1.2;
+  font-size: 15px;
+  font-synthesis: none;
 }
 
 .pixelated {

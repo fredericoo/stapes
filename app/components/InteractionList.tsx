@@ -321,13 +321,13 @@ function ActionButton({
         <ProgressFill progress={option.wait} tone="fight" />
       ) : null}
       <Icon size={14} stroke={2} aria-hidden="true" className="relative shrink-0" />
-      <span className="relative min-w-0 truncate text-[11px] leading-snug font-medium tracking-tight">
+      <span className="relative min-w-0 truncate text-detail leading-snug font-medium tracking-tight">
         {option.label}
       </span>
       {blocked && drawnBlockReason(blocked) ? (
         <span
           aria-hidden="true"
-          className="relative ml-auto shrink-0 text-[10px] leading-snug tracking-tight"
+          className="relative ml-auto shrink-0 text-2xs leading-snug tracking-tight"
         >
           {drawnBlockReason(blocked)}
         </span>

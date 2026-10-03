@@ -171,7 +171,7 @@ export function BagButton({
           <span
             aria-hidden="true"
             className={[
-              "pointer-events-none absolute -bottom-1 -right-1 border px-0.5 text-[9px] font-bold leading-tight tabular-nums",
+              "pointer-events-none absolute -bottom-1 -right-1 border px-0.5 text-2xs font-bold leading-tight tabular-nums",
               held >= capacity
                 ? "border-paper bg-paper text-ink"
                 : "border-paper/40 bg-ink text-paper/80",
