@@ -159,7 +159,7 @@ body {
 
 @media (pointer: coarse) {
   .world-label-layer {
-    --world-label-size: 10px;
+    --world-label-size: 16px;
   }
 }
 
