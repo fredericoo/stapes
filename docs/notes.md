@@ -14131,7 +14131,25 @@ straight back into such a creature was a quarter of all deaths in one
 overnight run. Waiting out `DEATH_SCARE_MS` instead left a bot without its
 kit for minutes, and a second death in that time replaced the first bag's
 place, so the walk does not wait for the scare. A walk back that meets such
-a creature is dropped, and the bag is remembered for later. A goal that finishes is reported to the planner
+a creature is dropped, and the bag is remembered for later.
+
+**A bag is walked back for only when it is worth the walk.** One fleet run
+made 523 walks back, whatever the bag held, and 129 of them were dropped for
+danger on the way. At death the bot works out what its bag is worth in the
+currency (`Economy.kitWorth`): shards at face value, anything else it wants
+at what an NPC pays or charges for it, whichever is more, and
+`UNPRICED_WORTH` for a wanted thing nobody trades. Wanted is judged as the
+bot will be once reborn, with an empty bag, so food counts and spare gear
+counts only if it beats what is worn. A bag the bot is not reborn with, such
+as the leather backpack, adds its price. The planner is told where the bag
+is only while it is worth at least `KIT_MIN_WORTH` plus one for every
+`KIT_STEPS_PER_WORTH` steps between the bot and the bag, so an empty bag is
+left and a cheap one is fetched only when the bot is near it anyway. The
+first ask after rebirth can read the place of death as where the bot stands,
+so a walk that stops being worth it once the bot has moved is dropped the
+same way as one that meets danger.
+
+A goal that finishes is reported to the planner
 without the goal, so the planner remembers which goal it gave last: finishing
 the `go_to` must not move the opening on. A
 thing whose square is empty is taken with `equip`, because `pickUp` refuses

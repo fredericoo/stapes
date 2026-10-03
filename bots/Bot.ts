@@ -139,6 +139,15 @@ export const SCARE_MS = 120_000;
 export const DEATH_SCARE_MS = 300_000;
 
 /**
+ * A bag worth less than this, in the currency, is not walked back for from
+ * anywhere: an empty one, or a berry or two. The bot is reborn with a bag.
+ */
+export const KIT_MIN_WORTH = 3;
+
+/** A walk back for a bag asks one more of the currency in it for every this many steps. */
+export const KIT_STEPS_PER_WORTH = 10;
+
+/**
  * A threat this close that walks at least as fast as the bot cannot be
  * escaped, so the bot stands and fights it, and keeps fighting it once it
  * has turned on it: backing away from a wolf only gives it free bites, a bat
@@ -369,13 +378,15 @@ export class Bot {
   private feared: { key: string; tiles: ReadonlySet<string> } | null = null;
   /** Where the bot stood last decision, which is where its bag lies if it has just died. */
   private lastAt: Coord | null = null;
-  private hadBag = false;
+  /** What the bot wore last decision, which is the bag it left if it has just died. */
+  private lastKit: Pick<GameSnapshot, "equipment" | "masteryXp"> | null = null;
   /**
-   * Where the bot died and left its bag, until a walk back there ends. It is
-   * not cleared on seeing a bag worn: just after coming back, the client
-   * still shows what the bot wore before it died.
+   * Where the bot died and left its bag, and what the bag was worth then
+   * (`Economy.kitWorth`), until a walk back there ends. It is not cleared on
+   * seeing a bag worn: just after coming back, the client still shows what
+   * the bot wore before it died.
    */
-  private lostKitAt: Coord | null = null;
+  private lostKit: LostKit | null = null;
   /** Places the bot backed away from or died in, by `cellOf`, kept until `untilMs`. */
   private scares = new Map<string, Scare>();
   /** The creatures that could hurt in view last decision, which are what killed the bot if it has just died. */
@@ -448,7 +459,7 @@ export class Bot {
     this.lastHp = self.hp;
     this.checkRecovery(self);
     this.lastAt = { x: self.x, y: self.y, z: self.z };
-    this.hadBag = snapshot.equipment.bag !== null;
+    this.lastKit = { equipment: snapshot.equipment, masteryXp: snapshot.masteryXp };
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
     this.sizing = body
       ? {
@@ -477,7 +488,7 @@ export class Bot {
       this.flight = null;
       this.looting = null;
       this.recovering = false;
-      if (this.hadBag && this.lastAt) this.lostKitAt = this.lastAt;
+      this.rememberLostKit();
       if (this.lastAt) this.fearDeathPlace(this.lastAt, nowMs);
       this.happen("you died and will come back where you last set your respawn");
       this.ask("died", null);
@@ -1221,29 +1232,60 @@ export class Bot {
     this.scare(at, widest, untilMs);
   }
 
+  private rememberLostKit() {
+    const kit = this.lastKit;
+    const body = kit && bodyOf(this.tilesById, kit.masteryXp);
+    if (!kit?.equipment.bag || !body || !this.lastAt) return;
+    const worth = this.economy.kitWorth(kit.equipment, body);
+    this.lostKit = { at: this.lastAt, worth, told: false };
+  }
+
   /**
-   * Drops a walk back for the bag once something the bot would lose to is
-   * near the bag, keeping where it lies for later. `finish` would forget it.
+   * Drops a walk back for the bag once it is no longer worth it, keeping
+   * where it lies for later. `finish` would forget it. The first ask after
+   * rebirth can read where the bot died as where it stands, so a walk to a
+   * cheap bag far from the respawn is dropped here once the bot has moved.
    */
   private abandonKitWalk(snapshot: GameSnapshot) {
-    const kit = this.lostKitAt;
+    const kit = this.lostKit;
     const goal = this.goal;
-    if (!kit || goal?.goal !== "go_to" || !this.guarded(snapshot, kit)) return;
-    if (goal.x !== kit.x || goal.y !== kit.y || goal.z !== kit.z) return;
+    if (!kit || goal?.goal !== "go_to") return;
+    if (goal.x !== kit.at.x || goal.y !== kit.at.y || goal.z !== kit.at.z) return;
+    const why = this.kitRefusal(snapshot, kit);
+    if (!why) return;
     this.goal = null;
     this.course = { kind: "idle" };
-    this.happen("gave up walking back for your bag: something dangerous is there");
+    this.happen(`gave up walking back for your bag: ${why}`);
     this.ask("failed", null);
   }
 
   /**
-   * Where the bag the bot died with lies, unless something it would lose to
-   * is near the bag. Waiting out `DEATH_SCARE_MS` left the bot without its
-   * kit for minutes, and a second death in that time lost the first bag.
+   * Where the bag the bot died with lies, while it is worth the walk.
+   * Waiting out `DEATH_SCARE_MS` left the bot without its kit for minutes,
+   * and a second death in that time lost the first bag.
    */
   private kitToFetch(snapshot: GameSnapshot): Coord | null {
-    const kit = this.lostKitAt;
-    return kit && !this.guarded(snapshot, kit) ? kit : null;
+    const kit = this.lostKit;
+    if (!kit) return null;
+    const why = this.kitRefusal(snapshot, kit);
+    if (!why) return kit.at;
+    if (!kit.told) this.happen(`left your bag where you died for now: ${why}`);
+    this.lostKit = { ...kit, told: true };
+    return null;
+  }
+
+  /**
+   * Why the bag is not worth going back for, or null when it is: something
+   * the bot would lose to is near it, or what it holds is worth less than
+   * `KIT_MIN_WORTH` plus one for every `KIT_STEPS_PER_WORTH` steps of the
+   * walk. A walk back is a walk towards whatever killed the bot, so a cheap
+   * bag is not worth a long one.
+   */
+  private kitRefusal(snapshot: GameSnapshot, kit: LostKit): string | null {
+    if (this.guarded(snapshot, kit.at)) return "something dangerous is there";
+    const away = steps(snapshot.self, kit.at);
+    if (kit.worth >= KIT_MIN_WORTH + away / KIT_STEPS_PER_WORTH) return null;
+    return `what it holds is worth ${kit.worth} and it is ${away} steps away`;
   }
 
   /**
@@ -1880,7 +1922,7 @@ export class Bot {
 
   private finish(reason: "done" | "failed", outcome: string) {
     this.happen(outcome);
-    if (this.goal?.goal === "go_to") this.lostKitAt = null;
+    if (this.goal?.goal === "go_to") this.lostKit = null;
     this.course =
       reason === "failed"
         ? { kind: "pause", untilMs: this.nowMs + FAILED_PAUSE_MS }
@@ -2029,6 +2071,9 @@ function holdsSidearm(equipment: Equipment, tilesById: Record<string, TileDef>):
 }
 
 type Zone = { readonly at: Coord; readonly cells: number };
+
+/** `told` is set once the bot has said it is leaving the bag, so it says so once. */
+type LostKit = { readonly at: Coord; readonly worth: number; readonly told: boolean };
 
 type Scare = Zone & {
   readonly untilMs: number;
