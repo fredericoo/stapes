@@ -329,7 +329,7 @@ function kindOf(item: ItemDef): string {
   if (item.type === "shield") return "Either hand";
   if (item.type === "stone") return "Arcane stone";
   if (item.type === "charm") return "Charm";
-  if (item.type === "artifact") return "Carried";
+  if (item.type === "artifact") return "Object";
   if (item.type === "consumable") return consumeVerb(item);
   return "Container";
 }

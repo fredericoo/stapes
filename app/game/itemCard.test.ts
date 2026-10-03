@@ -503,7 +503,7 @@ describe("itemCard", () => {
 
     it("gives an artifact a name and nothing else", () => {
       const card = itemCard(tileWith({ type: "artifact" }), null, NOTHING_LEARNT)!;
-      expect(card.kind).toBe("Carried");
+      expect(card.kind).toBe("Object");
       expect(card.stats).toEqual([]);
     });
 
