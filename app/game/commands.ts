@@ -1,5 +1,6 @@
 import type { MinutesOfDay } from "../lib/clock";
 import { MAX_CONSUMABLE_HP_SHIFT } from "../lib/item";
+import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord } from "../lib/types";
 
@@ -22,6 +23,7 @@ export const MOVE_COMMAND = "move";
 export const TIME_COMMAND = "time";
 export const SPAWN_COMMAND = "spawn";
 export const DESPAWN_COMMAND = "despawn";
+export const GIVE_COMMAND = "give";
 
 export const STATUS_CLEAR_ARGUMENT = "clear";
 
@@ -34,7 +36,8 @@ export type CommandName =
   | typeof MOVE_COMMAND
   | typeof TIME_COMMAND
   | typeof SPAWN_COMMAND
-  | typeof DESPAWN_COMMAND;
+  | typeof DESPAWN_COMMAND
+  | typeof GIVE_COMMAND;
 
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_EARNED_MASTERY}-${MAX_MASTERY}> [player id]`,
@@ -46,6 +49,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   [TIME_COMMAND]: `${COMMAND_PREFIX}${TIME_COMMAND} <hh:mm>`,
   [SPAWN_COMMAND]: `${COMMAND_PREFIX}${SPAWN_COMMAND} <tile> <x> <y> [z]`,
   [DESPAWN_COMMAND]: `${COMMAND_PREFIX}${DESPAWN_COMMAND} <body>`,
+  [GIVE_COMMAND]: `${COMMAND_PREFIX}${GIVE_COMMAND} <item> [square] [body]`,
 };
 
 export type Coordinate = { kind: "absolute"; value: number } | { kind: "relative"; offset: number };
@@ -104,6 +108,12 @@ export type Command =
   | {
       name: typeof DESPAWN_COMMAND;
       target: string | null;
+    }
+  | {
+      name: typeof GIVE_COMMAND;
+      tileId: string;
+      square: EquipSlot | null;
+      target: string | null;
     };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
@@ -113,6 +123,10 @@ export type HealthCommand = Extract<Command, { name: typeof HEALTH_COMMAND }>;
 export type TimeCommand = Extract<Command, { name: typeof TIME_COMMAND }>;
 export type SpawnCommand = Extract<Command, { name: typeof SPAWN_COMMAND }>;
 export type DespawnCommand = Extract<Command, { name: typeof DESPAWN_COMMAND }>;
+export type GiveCommand = Extract<Command, { name: typeof GIVE_COMMAND }>;
+
+/** `contents` is inside the bag; `bag` is the square the bag itself is worn in. */
+export type GiveSlot = EquipSlot | "contents";
 
 export type HealthChange = { kind: "set"; hp: number } | { kind: "shift"; by: number };
 
@@ -136,7 +150,14 @@ export type CommandRefusal =
   | { kind: "unharmableTarget"; name: string }
   | { kind: "immuneTarget"; name: string; status: string }
   | { kind: "notABody"; typed: string }
-  | { kind: "playerBody"; name: string };
+  | { kind: "playerBody"; name: string }
+  | { kind: "notAnItem"; typed: string }
+  | { kind: "unknownSquare"; typed: string }
+  | { kind: "noEquipment"; name: string }
+  | { kind: "wrongSquare"; item: string; slot: GiveSlot }
+  | { kind: "squareTaken"; name: string; square: EquipSlot; holding: string }
+  | { kind: "noBag"; name: string }
+  | { kind: "bagFull"; name: string };
 
 export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
@@ -153,7 +174,14 @@ export type CommandData =
   | { command: typeof GOTO_COMMAND | typeof MOVE_COMMAND; target: string; at: Coord }
   | { command: typeof TIME_COMMAND; minutes: MinutesOfDay }
   | { command: typeof SPAWN_COMMAND; tileId: string; at: Coord }
-  | { command: typeof DESPAWN_COMMAND; target: string; at: Coord };
+  | { command: typeof DESPAWN_COMMAND; target: string; at: Coord }
+  | {
+      command: typeof GIVE_COMMAND;
+      target: string;
+      tileId: string;
+      itemId: string;
+      slot: GiveSlot;
+    };
 
 export type CommandOutcome =
   | { ok: true; data: CommandData; ids?: readonly string[] }
@@ -193,6 +221,8 @@ export function parseCommand(raw: string): CommandParse {
       return parseSpawnArguments(args);
     case DESPAWN_COMMAND:
       return parseDespawnArguments(args);
+    case GIVE_COMMAND:
+      return parseGiveArguments(args);
     default:
       return {
         ok: false,
@@ -428,6 +458,35 @@ function parseDespawnArguments(args: string[]): CommandParse {
     return { ok: false, refusal: { kind: "badArguments", command: DESPAWN_COMMAND } };
   }
   return { ok: true, command: { name: DESPAWN_COMMAND, target: targetOf(args[0]) } };
+}
+
+const MIN_GIVE_ARGUMENTS = 1;
+const MAX_GIVE_ARGUMENTS = 3;
+
+function parseGiveArguments(args: string[]): CommandParse {
+  if (args.length < MIN_GIVE_ARGUMENTS || args.length > MAX_GIVE_ARGUMENTS) {
+    return { ok: false, refusal: { kind: "badArguments", command: GIVE_COMMAND } };
+  }
+
+  const [itemToken = "", second, third] = args;
+  const square = second === undefined ? null : squareOf(second);
+  if (third !== undefined && square === null) {
+    return { ok: false, refusal: { kind: "unknownSquare", typed: second ?? "" } };
+  }
+
+  return {
+    ok: true,
+    command: {
+      name: GIVE_COMMAND,
+      tileId: itemToken.toLowerCase(),
+      square,
+      target: targetOf(third ?? (square === null ? second : undefined)),
+    },
+  };
+}
+
+function squareOf(token: string): EquipSlot | null {
+  return EQUIP_SLOTS.find((square) => square === token.toLowerCase()) ?? null;
 }
 
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;

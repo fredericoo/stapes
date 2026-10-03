@@ -1,6 +1,7 @@
 import { formatClock, type MinutesOfDay } from "../lib/clock";
 import type { CraftInteraction, ExtractInteraction, PlacedReward } from "../lib/interactions";
 import { DEFAULT_CRAFT_VERB, DEFAULT_EXTRACT_VERB } from "../lib/interactions";
+import { EQUIP_SLOTS } from "../lib/kit";
 import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
 import type { CastRefusal } from "./casting";
@@ -10,6 +11,7 @@ import {
   MAX_TILE_COUNT,
   TILE_COMMAND,
   type CommandRefusal,
+  type GiveSlot,
 } from "./commands";
 import type { PathRefusal } from "./pathfinding";
 
@@ -127,6 +129,22 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return `"${refusal.typed}" is not a body. Put it down with ${COMMAND_PREFIX}${TILE_COMMAND}`;
     case "playerBody":
       return `${refusal.name} is a player, and leaves the board only by leaving the world`;
+    case "notAnItem":
+      return `"${refusal.typed}" is not an item. Put it down with ${COMMAND_PREFIX}${TILE_COMMAND}`;
+    case "unknownSquare":
+      return `"${refusal.typed}" is not a square. Try ${EQUIP_SLOTS.join(", ")}`;
+    case "noEquipment":
+      return `${refusal.name} has no equipment`;
+    case "wrongSquare":
+      return refusal.slot === "contents"
+        ? `${refusal.item} does not go in a bag`
+        : `${refusal.item} does not go in the ${refusal.slot} square`;
+    case "squareTaken":
+      return `${refusal.name}'s ${refusal.square} square holds ${refusal.holding}`;
+    case "noBag":
+      return `${refusal.name} has no bag`;
+    case "bagFull":
+      return `${refusal.name}'s bag is full`;
   }
 }
 
@@ -141,6 +159,12 @@ export function tileNotice(name: string, at: Coord, count = 1): string {
 
 export function spawnNotice(name: string, at: Coord, id: string): string {
   return `${tileNotice(name, at)} as ${id}`;
+}
+
+export function giveNotice(item: string, slot: GiveSlot, owner: string | null): string {
+  const whose = owner === null ? "your" : `${owner}'s`;
+  const into = slot === "contents" ? "bag" : `${slot} square`;
+  return `${item} appears in ${whose} ${into}`;
 }
 
 export function otherArrivalNotice(name: string, at: Coord): string {
