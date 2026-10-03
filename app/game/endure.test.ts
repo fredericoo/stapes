@@ -603,16 +603,16 @@ describe("the content in data/", () => {
     return play;
   }
 
-  it("burns grass down to dirt under a flame", () => {
-    const play = burn([{ at: ORIGIN, stack: ["grass", "flame"] }], 30_000);
+  it("burns the grass off the dirt under a flame", () => {
+    const play = burn([{ at: ORIGIN, stack: ["dirt", "grass-2", "flame"] }], 30_000);
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
   });
 
   it("carries into the grass beside it", () => {
     const play = burn(
       [
-        { at: ORIGIN, stack: ["grass", "flame"] },
-        { at: { x: 1, y: 0, z: 0 }, stack: ["grass"] },
+        { at: ORIGIN, stack: ["dirt", "grass-2", "flame"] },
+        { at: { x: 1, y: 0, z: 0 }, stack: ["dirt", "grass-2"] },
       ],
       30_000,
     );

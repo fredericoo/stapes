@@ -160,6 +160,12 @@ export type TileDef = StateSprites & {
   footprint?: Footprint;
   attributes: Record<string, never>;
   connectsTo?: string[];
+  /**
+   * Keys an autotile's slices on the raw eight-neighbour mask (0–255) rather
+   * than the 47 blob slices, which drop a diagonal beside an open side. Grass
+   * needs that diagonal to curve into an inside corner.
+   */
+  rawMaskSlices?: boolean;
   scatterSeed?: number;
   lightPassing?: boolean;
   blocksLight?: boolean;

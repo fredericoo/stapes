@@ -732,6 +732,20 @@ function ForestForm({
       </div>
 
       <div className="flex flex-col gap-1">
+        <FieldLabel info="Laid on the ground everywhere except the paths and the water. Whatever burns it away leaves the ground showing.">
+          Cover
+        </FieldLabel>
+        <TileGridPicker
+          label="Cover tile"
+          value={draft.coverTileId}
+          onChange={(coverTileId) => patch({ coverTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+          allowNone
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
         <FieldLabel info="The species. One wood is usually one tree, and this is the one the paths run between.">
           Trees
         </FieldLabel>
@@ -745,7 +759,7 @@ function ForestForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <FieldLabel info="Each path runs edge to edge, so its two ends are the way into the wood, and the trees thin out towards it. None still cuts the route — it just leaves it as a clearing rather than flooring it.">
+        <FieldLabel info="Each path runs edge to edge, so its two ends are the way into the wood, and the trees thin out towards it. None still cuts the route — it just leaves the ground bare rather than flooring it.">
           Paths
         </FieldLabel>
         <div className="flex flex-wrap items-end gap-3">

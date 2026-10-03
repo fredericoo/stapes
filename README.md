@@ -123,6 +123,10 @@ an agent drives", lists every call.
 - `bun run generate:water` — rebuild the water autotile from two masks: the wave
   frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
   Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
+- `bun run generate:grass` — rebuild the grass autotile (`grass-2`): the ranch
+  sheet's grass cell, cut to a ragged rim with rounded corners inside and out
+  and shaded along its south and east edges. Writes `data/tilesets/grass.png`
+  and the tile's 256 slices together
 - `bun run generate:low-roofs` — draw the low-pitch roof into the free right-hand
   side of `data/tilesets/roofs.png` and write its six tiles: `low-roof-<colour>`,
   an eave rising two units across its cell, and `low-roof-<colour>-ridge`, a
