@@ -207,6 +207,17 @@ an agent drives", lists every call.
   An optional seventh argument stacks extra tiles first, as
   `x,y,z,tileId[,direction]` separated by `;`. It re-derives the renderer's
   placement rather than calling it, so the two can disagree
+- `bun run verify <command>` — run the game's own code on this checkout and
+  print what it did, as evidence that a change does what its PR says. It is not
+  a CI gate, and it needs no server, database or account. Every command prints
+  the commit it ran on, and `--json` prints one JSON object on stdout instead
+  of a table. `bun run verify --help` lists the commands; the `verify` skill in
+  `.agents/skills/` says which one goes with which kind of change
+  - `content` loads every tile, status, brain and dialog in `data/` with the
+    game's own resolvers, then checks every id they name and every sprite
+    against its sheet. It exits 1 on an error in tiles, statuses or tilesets;
+    what it finds in `data/map.json` is a warning. `--data <dir>` checks
+    another copy
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says
