@@ -8154,7 +8154,7 @@ A line beginning with `/` is an instruction rather than something to say.
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
 The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/give`, `/status`,
-`/health`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
+`/health`, `/brain`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
 `app/game/commands.ts` is the grammar of each, and is the line a player is shown
 when they get one wrong.
 
@@ -8214,6 +8214,13 @@ when they get one wrong.
   a dropped line), "Deer is Burned" when it landed on somebody else, and
   "Salamander cannot be Burned" for a body whose `immuneTo` list holds it. Every
   other caller discards the answer.
+- **`/status <status id> off [body]` takes one status off**, where `/status
+  clear` takes every one. It removes it through `clearStatus`, the same removal
+  a remove-status tile makes, so the reading is re-sent on the same terms.
+  `off` is read only directly after a status id, which is why it cannot be
+  mistaken for a body: no id is `off`. A body that does not have the status is
+  refused with both named, "Deer is not burned", since a quiet success would
+  hide a mistyped id or a status that had already run out.
 
 ### Every command is answered with data as well as a sentence
 
@@ -8439,6 +8446,40 @@ the body; with three words the middle one must be a square.
 - **A body with no battler block is refused by name.** That is every
   shopkeeper: `equipmentForBody` rolls a kit only from a battler block, and such
   a body never fights or dies, so what it held would never be swung or dropped.
+
+### `/brain` switches a creature's brain off and on, or puts it in a state
+
+`/brain <body> off|on|<state>` exists so a scene can hold still while a change
+is looked at: a wolf that would otherwise wander off, or a creature that has to
+be in one particular state for the thing being checked to happen.
+
+- **`off` stops the brain taking turns, and nothing else.** `tickOneBrain`
+  returns before `stepBrain`, on the same early return an incapacitated body
+  takes, so the body decides nothing: no step, no attack, no cast. Statuses,
+  damage and gravity still reach it, and a step already under way finishes.
+  Its walk order, attack order, cast and extraction are dropped the moment the
+  command runs, because the brain's next turn can be most of a round away and
+  `pressAttackOrders` would keep swinging until then.
+- **An `off` brain keeps its state.** Its time in the state stops counting, so
+  an `after` condition picks up where it stopped when the brain is switched
+  back `on`, and any signal the state `emit`s is still emitted.
+- **A state name puts the brain in that state and switches it on.**
+  `enterBrainState` resets what a transition resets (time in the state, `stuck`,
+  each action's scratch) and leaves `started` false, so the state's `onEnter`
+  runs on the brain's next turn, where the context its effects need exists.
+  The blackboard is left alone: a state that acts on a slot a transition would
+  have bound acts on whatever that slot last held, or on nothing.
+- **The brain's own transitions still run.** On its next turn a brain whose
+  transition out of the new state already holds leaves it at once. `/brain`
+  sets where a brain is, not what it does next.
+- **`on` and `off` are read before any state name**, so a state called either
+  cannot be reached this way. No brain in `data/tiles.json` has one.
+- **None of it is saved.** `brainOff` lives on the runtime, and a world that
+  loads adopts every creature from the board with a fresh one, so a restart
+  puts every brain back on, in its initial state.
+- A body with no brain is refused by name ("Deer is not driven by a brain"),
+  and a state the brain does not have is refused with the list of the states it
+  does, the way an unknown status lists the statuses.
 
 ### `/time` moves the world's clock, for everybody
 

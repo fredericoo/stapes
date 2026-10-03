@@ -110,6 +110,23 @@ export function initialMemory(brain: BrainDef): BrainMemory {
   };
 }
 
+/**
+ * Enters `state` as a transition does, except that `onEnter` is left for the
+ * next `stepBrain` to run: `started` is false, and its effects need a context.
+ */
+export function enterBrainState(memory: BrainMemory, state: string): void {
+  changeState(memory, state);
+  memory.started = false;
+}
+
+function changeState(memory: BrainMemory, state: string) {
+  memory.state = state;
+  memory.msInState = 0;
+  memory.patience = null;
+  memory.stuck = false;
+  memory.scratch = {};
+}
+
 const SLOT_PLACEHOLDER = /\{([A-Za-z0-9_]+)\}/g;
 
 export const NOBODY = "someone";
@@ -486,11 +503,7 @@ export function stepBrain(
   if (transition) {
     applyBind(transition, memory, ctx);
     if (transition.to !== memory.state) {
-      memory.state = transition.to;
-      memory.msInState = 0;
-      memory.patience = null;
-      memory.stuck = false;
-      memory.scratch = {};
+      changeState(memory, transition.to);
       runOnEnter(brain, memory, ctx);
     }
   }

@@ -108,6 +108,7 @@ import {
 import {
   castRefusalNotice,
   commandRefusalNotice,
+  brainNotice,
   craftNotice,
   extractNotice,
   giveNotice,
@@ -123,6 +124,8 @@ import {
   despawnNotice,
   statusAcquiredNotice,
   otherStatusNotice,
+  otherStatusRemovedNotice,
+  statusRemovedNotice,
   statusesClearedNotice,
   tileNotice,
   timeNotice,
@@ -133,6 +136,7 @@ import { type Blame, causeOfDeath, possessive } from "./blame";
 import { conjuredName, sparesStander } from "./conjured";
 import { type Combatant, mayHarm } from "./pvp";
 import {
+  BRAIN_COMMAND,
   DESPAWN_COMMAND,
   GIVE_COMMAND,
   GOTO_COMMAND,
@@ -145,6 +149,7 @@ import {
   STATUS_COMMAND,
   TILE_COMMAND,
   TIME_COMMAND,
+  type BrainCommand,
   type Command,
   type CommandOutcome,
   type CommandRefusal,
@@ -346,6 +351,7 @@ import {
 import { planTrade } from "./trade";
 import { bodyNameFor } from "./displayName";
 import {
+  enterBrainState,
   initialMemory,
   stepBrain,
   withinSightLevels,
@@ -676,6 +682,7 @@ type ActorRuntime = {
   defensiveDecay: Map<string, { payouts: number; idleMs: number }> | null;
   assailants: Map<string, number> | null;
   brain: BrainMemory | null;
+  brainOff: boolean;
   charmClock: { itemId: string; elapsedMs: number } | null;
   brainDeferredMs: number;
   walkOrder: {
@@ -949,6 +956,7 @@ export class GameSession implements PlaySession {
       defensiveDecay: null,
       assailants: null,
       brain: null,
+      brainOff: false,
       brainDeferredMs: 0,
       walkOrder: null,
       failedRoute: null,
@@ -1786,7 +1794,7 @@ export class GameSession implements PlaySession {
     actor.attackOrder = null;
     const loc = this.tryLocate(actor);
     if (!loc) return;
-    if (this.incapacitated(actor)) {
+    if (actor.brainOff || this.incapacitated(actor)) {
       actor.walkOrder = null;
       return;
     }
@@ -4690,6 +4698,8 @@ export class GameSession implements PlaySession {
         return this.runDespawnCommand(command, id);
       case GIVE_COMMAND:
         return this.runGiveCommand(command, id);
+      case BRAIN_COMMAND:
+        return this.runBrainCommand(command, id);
     }
   }
 
@@ -4924,6 +4934,53 @@ export class GameSession implements PlaySession {
     };
   }
 
+  private runBrainCommand(command: BrainCommand, id: string): CommandOutcome {
+    const targetId = command.target ?? id;
+    const actor = this.actors.get(targetId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
+    const name = this.bodyName(actor.id) ?? actor.id;
+    const def = this.tilesById[loc.placed.tileId];
+    const brain = def ? resolveBrain(def) : null;
+    if (!brain) return { ok: false, refusal: { kind: "brainless", name } };
+
+    const { change } = command;
+    if (change.kind === "state") {
+      if (!Object.hasOwn(brain.states, change.state)) {
+        return {
+          ok: false,
+          refusal: {
+            kind: "unknownState",
+            typed: change.state,
+            name,
+            known: Object.keys(brain.states),
+          },
+        };
+      }
+      actor.brain ??= initialMemory(brain);
+      enterBrainState(actor.brain, change.state);
+      /** A state can `emit` a signal, and wired tiles read it when the board settles. */
+      this.settleBoardNow();
+    }
+
+    actor.brainOff = change.kind === "off";
+    if (actor.brainOff) {
+      /**
+       * Dropped now rather than on the brain's next turn, which can be most of
+       * a round away: `pressAttackOrders` swings every tick until then.
+       */
+      actor.walkOrder = null;
+      actor.attackOrder = null;
+      this.cancelCasting(actor);
+      this.cancelExtraction(actor);
+    }
+
+    const on = !actor.brainOff;
+    const state = actor.brain?.state ?? brain.initial;
+    this.say(id, brainNotice(name, on, state));
+    return { ok: true, data: { command: BRAIN_COMMAND, target: actor.id, on, state } };
+  }
+
   private levelOf(id: string): number | null {
     const actor = this.actors.get(id);
     const loc = actor ? this.tryLocate(actor) : null;
@@ -5022,6 +5079,7 @@ export class GameSession implements PlaySession {
         refusal: { kind: "unknownStatus", typed: statusId, known: Object.keys(this.statusDefs) },
       };
     }
+    if (command.off) return this.takeStatusOff(actor, def, authorId);
 
     const outcome = this.grantStatus(actor, { id: def.id });
     if (outcome === "refused") {
@@ -5042,6 +5100,25 @@ export class GameSession implements PlaySession {
     return {
       ok: true,
       data: { command: STATUS_COMMAND, target: actor.id, statusId: def.id, outcome },
+    };
+  }
+
+  private takeStatusOff(actor: ActorRuntime, def: StatusDef, authorId: string): CommandOutcome {
+    const name = this.bodyName(actor.id) ?? actor.id;
+    if (!actor.statuses.some((instance) => instance.defId === def.id)) {
+      return { ok: false, refusal: { kind: "statusAbsent", name, status: def.name } };
+    }
+
+    this.clearStatus(actor, def.id);
+    this.say(
+      authorId,
+      actor.id === authorId
+        ? statusRemovedNotice(def.name)
+        : otherStatusRemovedNotice(name, def.name),
+    );
+    return {
+      ok: true,
+      data: { command: STATUS_COMMAND, target: actor.id, statusId: def.id, outcome: "removed" },
     };
   }
 
