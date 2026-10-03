@@ -2643,6 +2643,17 @@ out of either reads as no route at all, deliberately: a half-explored search has
 a best-so-far cell it could head for, and walking towards that is exactly how a
 creature ends up pressed against the nearest wall having made progress.
 
+**The walk home has larger caps: `HOME_PATH_MAX_NODES` (512) and
+`HOME_DETOUR_SLACK` (48).** A chase is given up when it gets long; a walk home
+is not, and a resident led or knocked a screen away from its spot has a route
+longer than anything a chase searches for. With the chase's caps a beggar beaten
+across the square stood where it was left, for good. `routeStep` uses the home
+caps when the cell it is asked for is the creature's `home`, whoever asked. A
+search costs about 55µs a node, so a failed walk home costs about 25ms against
+7ms for a chase — once a second at most, behind the failed-route memory below.
+A successful one costs about one node per cell of route in the open, and up to
+a few hundred where a building is in the way.
+
 **A leg costs the time it takes, and fast ground costs the same as ordinary
 ground.** `legCost` prices a leg by the `walkSpeedPercent` of the cell it is
 taken *from* — the cell the walk loop reads the pace from — as the reciprocal of

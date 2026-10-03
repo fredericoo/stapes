@@ -3557,6 +3557,26 @@ describe("walking home", () => {
     const body = session.actorSnapshots().find((actor) => actor.tileId === "homebody")!;
     expect(`${body.x},${body.y}`).toBe("0,0");
   });
+
+  it("finds its way home round a wall longer than a chase would go round", () => {
+    const WALL_X = 10;
+    const GAP_Y = 12;
+    let map = field(30);
+    for (let y = -30; y <= 30; y++) {
+      if (y === GAP_Y) continue;
+      map = replaceStack(map, WALL_X, y, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    }
+    map = replaceStack(map, 20, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "homebody", owner: "npc:0,0,0,1" },
+    ]);
+    const session = new GameSession(map, [...tiles, homebody], { actorIds: ["alice"] });
+
+    advance(session, BRAIN_TICK_MS * 400);
+
+    const body = session.actorSnapshots().find((actor) => actor.tileId === "homebody")!;
+    expect(`${body.x},${body.y}`).toBe("0,0");
+  });
 });
 
 describe("the vermin we ship", () => {
