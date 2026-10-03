@@ -1,6 +1,6 @@
 # Changesets
 
-Every pull request adds one file here, written for players: it becomes a line in `CHANGELOG.md`, on the GitHub Release and in the Discord post when the next release ships.
+Every pull request adds one file here, written for players: it becomes a line in `CHANGELOG.md`, on the GitHub Release, on `/changelog` and in the Discord post when the next release ships.
 
 ```bash
 bunx changeset add
@@ -15,6 +15,8 @@ Pick `minor` for something new a player can do or see, `patch` for a fix or a ch
 
 Wolves now hear you as well as see you, so breaking line of sight no longer shakes them off.
 ```
+
+Write plain text. `/changelog` shows it as written, so markdown there would show its asterisks and brackets.
 
 A pull request a player cannot notice — bots, tooling, tests, docs, a refactor — adds an empty changeset instead, which says so on purpose:
 

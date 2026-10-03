@@ -8,10 +8,10 @@ export const NAV_HEIGHT_PX = 52;
  * press off, and whenever something in it has focus, so a keyboard reaches
  * "Sign in" from the top of the page.
  */
-export function NavBar({ shown }: { shown: boolean }) {
+export function NavBar({ shown, nameHref = "#top" }: { shown: boolean; nameHref?: string }) {
   return (
     <nav aria-label="The Last Stones" className="home-nav" data-shown={shown}>
-      <a href="#top" className="home-pixel home-nav-name">
+      <a href={nameHref} className="home-pixel home-nav-name">
         The Last Stones
       </a>
       <div className="home-nav-actions">

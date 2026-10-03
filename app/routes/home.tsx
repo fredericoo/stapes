@@ -1,10 +1,11 @@
 import { type CSSProperties, type ReactNode, useRef } from "react";
+import { Link } from "react-router";
 import { SYSTEM_MONO } from "../components/door";
 import { Dangers } from "../components/home/Dangers";
 import { FeatureTour } from "../components/home/FeatureTour";
 import { FinalCall } from "../components/home/FinalCall";
 import { Gallery } from "../components/home/Gallery";
-import { DISCORD_INVITE, media } from "../components/home/content";
+import { CANONICAL_ORIGIN, DISCORD_INVITE, media } from "../components/home/content";
 import { Hero } from "../components/home/Hero";
 import { NAV_HEIGHT_PX, NavBar } from "../components/home/NavBar";
 import { PlaybackProvider, usePlayback } from "../components/home/playback";
@@ -16,12 +17,6 @@ const TITLE = "The Last Stones";
 const DESCRIPTION =
   "A small MMO that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.";
 
-/**
- * Link previews on Reddit, Instagram and the rest are fetched by crawlers that
- * need an absolute image URL, and this page is prerendered, so the origin is
- * written down rather than read. @see docs/deploy.md
- */
-const CANONICAL_ORIGIN = "https://thelaststones.com";
 /**
  * The share image is in `public/` under a name with a version in it, not
  * imported: a card keeps pointing at the URL it was scraped with, and a build's
@@ -106,6 +101,8 @@ export default function HomePage() {
             <a href={DISCORD_INVITE} rel="noreferrer" target="_blank">
               Discord
             </a>
+            {" · "}
+            <Link to="/changelog">What changed</Link>
           </p>
           <p>
             Made by {MAKER.name}
