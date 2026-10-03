@@ -38,6 +38,8 @@ const statuses = statusesById(statusesJson as unknown[]);
 const NOON_MS = 12 * 60 * 60 * 1000;
 const FRAME_MS = 50;
 const GIVE_UP_MS = 120_000;
+/** Well over `KIT_MIN_WORTH`, so a bag holding this many is fetched from anywhere in a test world. */
+const SHARDS_WORTH_THE_WALK = 20;
 
 function tutorialWorld(): FlatMapFile {
   const levels: Record<string, Record<string, PlacedTile[]>> = {};
@@ -236,8 +238,13 @@ class Recorder implements Planner {
 async function bagToldAfterDying(
   dread: number,
   before: (remote: RemoteSession, clock: { ms: number }, bot: Bot) => Promise<void>,
+  shards = SHARDS_WORTH_THE_WALK,
 ) {
-  await harness.blobs.put("map.json", JSON.stringify(armouryWorld()), JSON_TYPE);
+  const world = armouryWorld();
+  if (shards > 0) {
+    world.levels["0"]!["14,15"]!.push({ tileId: "arcane-shard", itemId: "shards", count: shards });
+  }
+  await harness.blobs.put("map.json", JSON.stringify(world), JSON_TYPE);
   const pair = new Pair();
   pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
   const clock = { ms: 0 };
@@ -249,7 +256,10 @@ async function bagToldAfterDying(
     temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread },
   });
   const askedAfterDying = () => planner.asked.find((ask) => ask.reason === "died");
-  await play(bot, remote, () => remote.getSnapshot().equipment.bag !== null, clock);
+  const packed = () =>
+    remote.getSnapshot().equipment.bag !== null &&
+    (shards === 0 || carried(remote).includes("arcane-shard"));
+  await play(bot, remote, packed, clock);
   await before(remote, clock, bot);
 
   void remote.command("/health 0");
@@ -271,6 +281,12 @@ it("leaves its bag while a creature it fears killed it beside it", async () => {
     const batSeen = () => remote.getSnapshot().actors.some((a) => a.tileId === "bat");
     await play(bot, remote, batSeen, clock);
   });
+
+  expect(situation?.lostKitAt).toBeNull();
+});
+
+it("leaves a bag that holds nothing worth the walk", async () => {
+  const situation = await bagToldAfterDying(DEFAULT_TEMPERAMENT.dread, async () => {}, 0);
 
   expect(situation?.lostKitAt).toBeNull();
 });
