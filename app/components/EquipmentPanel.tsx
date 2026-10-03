@@ -1,12 +1,14 @@
 import {
   IconBackpack,
+  IconBoot,
   IconDiamond,
-  IconHandStop,
-  IconMoodEmpty,
+  IconFace,
+  IconHand,
   IconShirt,
-  IconShoe,
-} from "@tabler/icons-react";
-import { useMemo, type ComponentType } from "react";
+  type PixelIcon,
+  type PixelIconProps,
+} from "./pixelIcons";
+import { useMemo } from "react";
 import { handClaimedByTwoHander, otherHand, type Equipment } from "../game/equipment";
 import type { BodySlotRef } from "../game/itemMoves";
 import type { MasteryXp } from "../lib/mastery";
@@ -27,17 +29,11 @@ const MIDDLE_COLUMN = 2;
 const RIGHT_COLUMN = 3;
 const COLUMN_COUNT = 3;
 
-type IconComponent = ComponentType<{
-  size?: number;
-  stroke?: number;
-  className?: string;
-}>;
-
 type Square = {
   slot: BodySlotRef;
   label: string;
   emptyHint: string;
-  icon: IconComponent;
+  icon: PixelIcon;
   column: number;
   row: number;
 };
@@ -47,7 +43,7 @@ const SQUARES: readonly Square[] = [
     slot: { kind: "head" },
     label: "Head",
     emptyHint: "Head — nothing worn",
-    icon: IconMoodEmpty,
+    icon: IconFace,
     column: MIDDLE_COLUMN,
     row: 1,
   },
@@ -87,7 +83,7 @@ const SQUARES: readonly Square[] = [
     slot: { kind: "footwear" },
     label: "Footwear",
     emptyHint: "Footwear — nothing on your feet",
-    icon: IconShoe,
+    icon: IconBoot,
     column: MIDDLE_COLUMN,
     row: 5,
   },
@@ -180,17 +176,10 @@ function isOpen(
   return slot.kind === handOpen;
 }
 
-function MainHandIcon(props: { size?: number; stroke?: number; className?: string }) {
-  return <IconHandStop {...props} />;
+function MainHandIcon(props: PixelIconProps) {
+  return <IconHand {...props} />;
 }
 
-function OffHandIcon({
-  className = "",
-  ...props
-}: {
-  size?: number;
-  stroke?: number;
-  className?: string;
-}) {
-  return <IconHandStop {...props} className={`-scale-x-100 ${className}`} />;
+function OffHandIcon({ className = "", ...props }: PixelIconProps) {
+  return <IconHand {...props} className={`-scale-x-100 ${className}`} />;
 }

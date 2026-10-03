@@ -1,4 +1,4 @@
-import { IconX } from "@tabler/icons-react";
+import { IconClose } from "./pixelIcons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Equipment } from "../game/equipment";
 import { slotIn, type ContainerRef } from "../game/itemMoves";
@@ -135,7 +135,7 @@ export function ContainerPanel({
           aria-label={`Close ${title}`}
           className="ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <IconX size={CLOSE_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
+          <IconClose size={CLOSE_ICON_SIZE_PX} aria-hidden="true" />
         </button>
       </div>
 

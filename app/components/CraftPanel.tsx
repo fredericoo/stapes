@@ -1,4 +1,4 @@
-import { IconX } from "@tabler/icons-react";
+import { IconClose } from "./pixelIcons";
 import { useEffect, useMemo, useRef } from "react";
 import type { CraftingWindow } from "../game/craft";
 import { bindNumberKeys, numberKeyLabel } from "../game/heldDirections";
@@ -78,7 +78,7 @@ export function CraftPanel({
           aria-label={`Close ${name}`}
           className={CLOSE_BUTTON_CLASS}
         >
-          <IconX size={CLOSE_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
+          <IconClose size={CLOSE_ICON_SIZE_PX} aria-hidden="true" />
         </button>
       </div>
 

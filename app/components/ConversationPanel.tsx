@@ -1,4 +1,4 @@
-import { IconMinus, IconPlus, IconX } from "@tabler/icons-react";
+import { IconClose, IconMinus, IconPlus } from "./pixelIcons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   scaledTrade,
@@ -126,7 +126,7 @@ export function ConversationPanel({
           aria-label={`Close ${title}`}
           className={CLOSE_BUTTON_CLASS}
         >
-          <IconX size={CLOSE_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
+          <IconClose size={CLOSE_ICON_SIZE_PX} aria-hidden="true" />
         </button>
       </div>
 
@@ -307,7 +307,7 @@ function TradeOffer({
             aria-disabled={amount <= trade.min}
             className={stepClass}
           >
-            <IconMinus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
+            <IconMinus size={STEP_ICON_SIZE_PX} aria-hidden="true" />
           </button>
           <output
             aria-live="polite"
@@ -322,7 +322,7 @@ function TradeOffer({
             aria-disabled={amount >= trade.max}
             className={stepClass}
           >
-            <IconPlus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
+            <IconPlus size={STEP_ICON_SIZE_PX} aria-hidden="true" />
           </button>
         </div>
       ) : null}

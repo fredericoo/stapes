@@ -1,4 +1,4 @@
-import { IconMessage2 } from "@tabler/icons-react";
+import { IconFeedback } from "./pixelIcons";
 import { useState } from "react";
 import { sendFeedback } from "../lib/auth";
 import { browserContext } from "../lib/browserContext";
@@ -38,7 +38,7 @@ export function FeedbackButton({ gameContext }: { gameContext: () => Record<stri
   return (
     <>
       <Button variant="ghost-inverse" size="sm" onClick={show}>
-        <IconMessage2 size={16} stroke={2} aria-hidden="true" />
+        <IconFeedback size={16} aria-hidden="true" />
         Send feedback
       </Button>
       <Dialog
