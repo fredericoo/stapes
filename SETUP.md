@@ -256,6 +256,7 @@ Secrets:
 ADMIN_SECRET                        same value as the production app's env
 PREVIEW_ADMIN_SECRET                same value as the preview app's env, step 6
 COOLIFY_TOKEN                       Coolify → Keys & Tokens → API tokens
+BUTLER_API_KEY                      itch.io → Settings → API keys, step 9
 ```
 
 Variables:
@@ -601,6 +602,40 @@ curl -X POST https://stapes.example.com/api/maintenance \
 An `ADMIN` account can do the same at `/admin/actions`: **Close world**, on the
 Maintenance card, which also changes the message while the world is closed. `GET /api/maintenance` says whether it is on, and
 `/api/health` still answers `ok` while it is, with `maintenance: true`.
+
+---
+
+## 9. The itch.io page
+
+[fredericoo.itch.io/the-last-stones](https://fredericoo.itch.io/the-last-stones)
+is a launch page, not the game: `itch/index.html` shows the logo and a **Play**
+button that opens thelaststones.com in a new tab. The game cannot run inside
+itch's frame, and `docs/deploy.md` says why. After every deploy, the `itch` job
+in `deploy.yml` pushes the page with butler, itch's upload tool, labelled with
+the commit that just went live. It costs nothing, and the game does not depend
+on it: a push that fails leaves the previous page on itch.
+
+Once, on itch:
+
+1. **Edit game → Kind of project: HTML.**
+2. **Settings → API keys**, at
+   [itch.io/user/settings/api-keys](https://itch.io/user/settings/api-keys):
+   generate a key and save it as the `BUTLER_API_KEY` secret (step 5). It can
+   push to every project on the account, so treat it like `ADMIN_SECRET`: if it
+   ever shows up in a build log, revoke it on the same page.
+3. **Push once.** Merge to `main`, or run the Deploy workflow by hand. The job
+   pushes to the `html5` channel of `fredericoo/the-last-stones`, which is
+   `ITCH_TARGET` in `deploy.yml`.
+4. **Edit game → Uploads.** Tick **This file will be played in the browser** on
+   the new `html5` upload. butler cannot set it, and it stays set for every push
+   after. Delete the upload made by hand, if there is one, so the page embeds
+   this one.
+5. **Embed options.** Make the viewport at least 300 pixels tall and the whole
+   page fits without scrolling; from 574×400 the logo is drawn at twice its
+   size. Tick **Mobile friendly** for the page to show on phones.
+
+If a deploy ran before the secret existed, only the `itch` job failed: add the
+secret and use **Re-run failed jobs** on that run rather than deploying again.
 
 ---
 

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Last Stones</title>
+    <style>
+      :root {
+        --ink: #1a1a1a;
+        --paper: #f4f0e6;
+        color-scheme: dark;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        display: flex;
+        background: var(--ink);
+        color: var(--paper);
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+
+      main {
+        margin: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding: 24px;
+      }
+
+      h1 {
+        margin: 0;
+      }
+
+      .logo {
+        display: block;
+        width: 263px;
+        max-width: 100%;
+        height: auto;
+        image-rendering: pixelated;
+      }
+
+      @media (min-width: 574px) and (min-height: 400px) {
+        .logo {
+          width: 526px;
+        }
+      }
+
+      .play {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 2px solid var(--paper);
+        padding: 12px 24px;
+        color: var(--paper);
+        font-size: 12px;
+        line-height: 16px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        text-decoration: none;
+        transition-property: scale;
+        transition-duration: 150ms;
+        transition-timing-function: ease-out;
+      }
+
+      .play:hover {
+        background: var(--paper);
+        color: var(--ink);
+      }
+
+      .play:active {
+        scale: 0.96;
+      }
+
+      .play:focus-visible {
+        outline: 2px solid var(--paper);
+        outline-offset: 2px;
+      }
+
+      .play svg {
+        flex-shrink: 0;
+      }
+
+      .note {
+        margin: 0;
+        max-width: 24rem;
+        color: rgb(244 240 230 / 0.6);
+        font-size: 12px;
+        line-height: 1.625;
+        text-align: center;
+        text-wrap: balance;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>
+        <img class="logo" src="logo.png" alt="The Last Stones" width="263" height="104" />
+      </h1>
+      <a
+        class="play"
+        href="https://thelaststones.com/"
+        target="_blank"
+        rel="noopener"
+        aria-describedby="where"
+      >
+        Play
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6" />
+          <path d="M11 13l9 -9" />
+          <path d="M15 4h5v5" />
+        </svg>
+      </a>
+      <p class="note" id="where">
+        The game opens in a new tab at thelaststones.com. Sign in there, or create an account.
+      </p>
+    </main>
+  </body>
+</html>
