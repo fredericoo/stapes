@@ -248,28 +248,43 @@ pushes a client — that is expected.
 
 ## 5. GitHub
 
-**Settings → Secrets and variables → Actions.**
+**Settings → Secrets and variables → Actions** holds what every workflow shares.
 
-Secrets:
+Repository secrets:
 
 ```
-ADMIN_SECRET                        same value as the production app's env
 PREVIEW_ADMIN_SECRET                same value as the preview app's env, step 6
 COOLIFY_TOKEN                       Coolify → Keys & Tokens → API tokens
 BUTLER_API_KEY                      itch.io → Settings → API keys, step 9
 ```
 
-Variables:
+Repository variables:
 
 ```
-PUBLIC_ORIGIN=https://stapes.example.com
 COOLIFY_URL=https://coolify.example.com
-COOLIFY_APP_UUID=<from the app's URL in Coolify>
 COOLIFY_PREVIEW_APP_UUID=<step 6>
 PREVIEW_DOMAIN=preview.example.com
 MAX_PREVIEWS=5
-ORIGIN_IP=<the box's address>
 ```
+
+**Settings → Environments** holds what differs between the two worlds `deploy.yml`
+deploys to. Create `production` and `staging`, and give each the same five names:
+
+```
+variable  DEPLOY_ENVIRONMENT=<the environment's own name>
+secret    ADMIN_SECRET              same value as that application's env
+variable  PUBLIC_ORIGIN=https://stapes.example.com
+variable  COOLIFY_APP_UUID=<from the app's URL in Coolify>
+variable  ORIGIN_IP=<the address of the box it runs on>
+```
+
+An environment's value wins over a repository one of the same name, and a
+missing one falls back to it. `deploy.yml` fails first unless
+`DEPLOY_ENVIRONMENT` names the environment it is deploying to, so keep these
+five off repository level entirely.
+
+Restrict `production`'s deployment branches and tags to `main` and `v*`, so a
+manual run cannot deploy an unmerged branch to players.
 
 `PUBLIC_ORIGIN` is where continuous integration posts the built client, so point
 it at a name that reaches the box **directly**. Behind Cloudflare the upload
@@ -282,9 +297,9 @@ and moving this one to match it would send every upload through Cloudflare.
 `ORIGIN_IP` is only read by that warning, which connects by address so it sees
 what the origin serves rather than what Cloudflare serves.
 
-Push to `main` and both halves deploy. There are no players yet, so a couple of
-seconds of downtime per merge costs nothing and buys a pipeline nobody has to
-think about.
+Push to `main` and both halves deploy to **staging** (step 6, "Staging"). Production
+deploys when a release does: merging the release PR that `release.yml` keeps open
+tags the version and calls `deploy.yml` with `environment: production`.
 
 The order in `deploy.yml` is the one thing worth knowing: it uploads the client
 *without activating it*, restarts the server, waits for health, and only then
@@ -292,8 +307,9 @@ activates. Uploading is inert and the files survive the restart on the volume,
 so this keeps a `PROTOCOL_VERSION` bump survivable — the other order puts a new
 client in front of an old server and every tab reload-loops until they match.
 
-`workflow_dispatch` is on the same workflow, so you can redeploy from GitHub's
-mobile app or with `gh workflow run deploy.yml` without an empty commit.
+`workflow_dispatch` is on the same workflow, so you can redeploy either world from
+GitHub's mobile app or with `gh workflow run deploy.yml -f environment=production`
+without an empty commit. Without `-f` it deploys staging.
 
 ---
 
@@ -491,6 +507,32 @@ it in the same sweep during a deploy.
 Worth re-checking after a Coolify upgrade — if upstream starts deleting preview
 volumes, this becomes a no-op rather than a conflict, but the note should go.
 
+### Staging
+
+Staging is `main` as it stands, running as its own world on the preview box, so
+production only changes on a release. It is a third application, in a `staging`
+environment of the same Coolify project, on the preview server's destination:
+
+- **Deploy key**, like production, not the GitHub App. Bound to the App, every
+  push to `main` would deploy it behind `deploy.yml`'s back, which is the race
+  production avoids the same way.
+- Same Dockerfile build, port, health check, persistent storage (`/data` and
+  `/backups`) and **consistent container name** as production (step 4). A rolling
+  update deadlocks on the database lock here as it does there.
+- `512m` and no `BOTS`. It shares the preview box's 4 GB with up to
+  `MAX_PREVIEWS` previews at 512m each and one build, and nobody plays it for
+  long enough to need more.
+- Its own `ADMIN_SECRET` and `AUTH_SECRET`, and `PUBLIC_ORIGIN` set to its own
+  name. Accounts, the map and every player are its own; nothing is shared with
+  production, and `/api/seed` replaces its map on every merge.
+- A grey DNS record for its name, pointed at the preview box, so Traefik there
+  issues its certificate. That name also serves as the `staging` environment's
+  `PUBLIC_ORIGIN` in step 5, and the preview box's address as its `ORIGIN_IP`.
+
+Deploy it once from Coolify before the first `deploy.yml` run. The workflow
+uploads the client to the running server before it deploys the server, so on an
+application that has never started the upload has nothing to post to.
+
 ---
 
 ## 7. Backups
@@ -610,9 +652,9 @@ Maintenance card, which also changes the message while the world is closed. `GET
 [fredericoo.itch.io/the-last-stones](https://fredericoo.itch.io/the-last-stones)
 is a launch page, not the game: `itch/index.html` shows the logo and a **Play**
 button that opens thelaststones.com in a new tab. The game cannot run inside
-itch's frame, and `docs/deploy.md` says why. After every deploy, the `itch` job
-in `deploy.yml` pushes the page with butler, itch's upload tool, labelled with
-the commit that just went live. It costs nothing, and the game does not depend
+itch's frame, and `docs/deploy.md` says why. After every production deploy,
+the `itch` job in `deploy.yml` pushes the page with butler, itch's upload tool,
+labelled with the commit that just went live. It costs nothing, and the game does not depend
 on it: a push that fails leaves the previous page on itch.
 
 Once, on itch:
@@ -623,7 +665,8 @@ Once, on itch:
    generate a key and save it as the `BUTLER_API_KEY` secret (step 5). It can
    push to every project on the account, so treat it like `ADMIN_SECRET`: if it
    ever shows up in a build log, revoke it on the same page.
-3. **Push once.** Merge to `main`, or run the Deploy workflow by hand. The job
+3. **Push once.** Release, or run the Deploy workflow by hand with
+   `environment: production`. A staging deploy skips the job. The job
    pushes to the `html5` channel of `fredericoo/the-last-stones`, which is
    `ITCH_TARGET` in `deploy.yml`.
 4. **Edit game → Uploads.** Tick **This file will be played in the browser** on

@@ -9,6 +9,8 @@ jobs:
     name: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
     permissions:
       contents: write
       pull-requests: write
@@ -29,8 +31,18 @@ jobs:
       # With changesets pending this opens or updates the release PR. With none, it tags a version
       # that has no tag yet and creates its GitHub Release from the CHANGELOG.md entry.
       - uses: changesets/action@v2.1.2
+        id: changesets
         with:
           publish-script: bun --bun x changeset git-tag
           pr-title: "chore(release): version the game and write its changelog"
           commit-message: "chore(release): version the game and write its changelog"
           pr-draft: create
+
+  production:
+    name: production
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+    secrets: inherit

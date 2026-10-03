@@ -160,8 +160,9 @@ somebody playing rather than somebody reading the diff, or
 
 Merging to `main` keeps a draft release PR up to date
 (`chore(release): …`, opened by `.github/workflows/release.yml`). Merging that
-PR bumps `package.json`, writes `CHANGELOG.md`, tags `v<version>` and creates
-the GitHub Release.
+PR bumps `package.json`, writes `CHANGELOG.md`, tags `v<version>`, creates
+the GitHub Release and deploys production. Every other merge to `main` deploys
+staging only.
 
 ### Commit messages
 
