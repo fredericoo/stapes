@@ -112,6 +112,9 @@ an agent drives", lists every call.
   CI asks. Markdown is not formatted, and neither are `data/map.json` or
   `data/tiles.json`, whose writers own their shape — `docs/tooling.md` has a
   paragraph on each
+- `bunx changeset add` — write the line this pull request adds to the
+  changelog, for players; `--empty` for one they cannot notice. CI fails a pull
+  request without one. `.changeset/README.md` has how to word it
 - `bun run generate` — overwrite `data/tilesets.json`, `data/tiles.json`,
   `data/map.json` and `data/tilesets/basic.png` with an eight-by-eight test
   world. It replaces the authored world rather than adding to it, so it is not a

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.1/schema.json",
+  "changelog": "./changelog.js",
+  "commit": false,
+  "format": false,
+  "access": "restricted",
+  "baseBranch": "main",
+  "privatePackages": { "version": true, "tag": true },
+  "ignore": []
+}
