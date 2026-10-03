@@ -5670,6 +5670,70 @@ animate a walk: a sign, a roof and an anvil all draw north and south from one
 rect and there is nothing to tell apart, while a body has a front. A repeated
 facing on a body is always a row somebody copied and forgot to move.
 
+### A townsperson is paper-doll parts cut from the player
+
+`app/lib/figure.ts` draws a character block in the layout of the player's in
+`people.png` — rows facing south, east, west and north; columns a step, standing,
+the other step; every frame 2×2 cells with its base at (1, 1). A tile that walks
+with the player's frames therefore wears a generated sheet by moving its anchor
+and nothing else, which is what `/admin/townsfolk`'s *Save as tileset* does to
+the tile picked there. The picker lists only tiles whose frames all fit that
+block, so a wolf or a deer is never offered.
+
+**A look is a stack of parts, each a whole 48×64 sheet.** `app/lib/figureParts.json`
+holds them as 64 strings of 48 cells: `.` empty, `#` outline, `1` to `3` the
+shadow, base and highlight of whatever colour the look gives that part. For
+each facing, the parts a look uses are laid down in the `z` order `PARTS` gives
+that facing, and each tone becomes that step of its colour's ramp.
+
+**The body, the short hair, the trim and the boots' positions were cut from
+`people.png`, and have been hand-edited since.** The naked human (the second
+block) is the body. The player's tunic, trim and boots came from diffing the
+player against it. The file is the source of truth now: the tunic was cut back
+to a shirt that stops at the belt, with trousers from there to the boots, and
+facing south the head's top-left outline pixel became skin so the head is 3×2
+like it is facing north. Cutting the parts again from `people.png` would undo
+that, so there is no command for it.
+
+**Boots always have an outline.** The original draws boots in the outline
+colour, so they needed none; in any other colour a boot at the tip of a foot
+ran straight into the background. `shoes` is `outlined`, and a transparent
+pixel beside a boot becomes outline, so on some frames a boot is a single
+pixel with a ring round it. The pixel between the legs facing south and north
+is outline, a dark gap, as the original draws it.
+
+**A cloak is three parts.** `cape` hangs behind the body facing south and
+east, where only its edges show past the body; facing west and north it covers
+the back, over the shirt and under the head. `cloak-front` covers both sides of
+the chest and leaves the middle open. `hood` covers the head except the face. A
+cape look draws the first, a cloak the first two, and a hooded cloak all three.
+
+**The drawn parts are one mask per facing** repeated across its three frames,
+because the head stays on the same pixels through the walk. Height goes up and
+to the left in this projection, so anything that hangs, like a ponytail or long
+hair, runs down or down-right on screen rather than out to the side. The drawn
+parts and the boots are marked `outlined`, and a transparent pixel beside one
+becomes outline. The body, shirt and trim are not, because the artist leaves
+some edges open on purpose — a hand's tip has no outline — and an automatic
+outline there changed 51 of the player's pixels.
+
+**Ramps step one palette entry either way**, the nearest darker and lighter
+entries in Oklab weighted towards the same hue. That is what the shirt and the
+trousers use. The skin skips an entry either side of `#cd683d`, so that ramp is
+written out in `HAND_RAMPS`.
+
+`bun run figure-parts export <dir>` writes every part as a PNG in the outline
+colour and three greys, to edit in a pixel editor, and `import <dir>` reads them
+back and refuses any other colour.
+
+`bun run generate:figure` renders a sheet with no page: it writes through
+`DataStore` over `DiskBlobs` on `data/`, the class the server writes through, so
+`tiles.json` and `tilesets.json` keep the server's formatting and an anchor move
+is a one-line diff. It checks every `--tile` before it writes anything, so a
+refused tile leaves no orphan sheet behind. The hand-drawn player and
+`bun run generate:npcs`'s recolours of it are untouched; a generated sheet is a
+separate tileset.
+
 ## Magic is a stone you carry, and there is nothing else to it
 
 There is no mana, no spell book and no spell slots. What a caster can do is
