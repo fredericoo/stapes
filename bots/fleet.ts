@@ -1,5 +1,6 @@
 import { randomCharacterName } from "../app/lib/randomCharacterName";
 import { MAX_USERNAME_LENGTH } from "../app/lib/account";
+import { RATING_GLYPH } from "../app/lib/mastery";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { RemoteSession } from "../app/net/RemoteSession";
 import { CLOSE_OUTDATED_CLIENT, CLOSE_REPLACED } from "../app/net/protocol";
@@ -83,7 +84,7 @@ async function play(
   fleet: FleetConfig,
   account: BotAccount,
   landmarks: Landmarks,
-  log: (line: string) => void,
+  logLine: (line: string) => void,
 ): Promise<"again" | "outdated" | "stop"> {
   const { base, origin } = fleet;
   const seat = await takeSeat(base, origin, account);
@@ -91,6 +92,7 @@ async function play(
     headers: { Cookie: seat.cookie, Origin: origin },
   });
   const remote = new RemoteSession(socket, seat.tiles, seat.statusDefs);
+  const log = (line: string) => logLine(`${standing(remote)} ${line}`);
   const temperament = drawTemperament(seededRandom(account.character));
   log(`plays ${temperament.style}`);
   const progress = new ProgressPlanner(OPENING);
@@ -133,6 +135,18 @@ function closing(code: number): "again" | "outdated" | "stop" {
 }
 
 /**
+ * The bot's health, rating and cell, put on every line it logs so that a
+ * night's log can be read for how hurt a bot was and where, not only what it
+ * did. A bot that is dead or not yet placed has no body to read.
+ */
+function standing(remote: RemoteSession): string {
+  const self = remote.selfSnapshot();
+  if (!self) return "-";
+  const rating = self.rating === null ? "" : ` ${RATING_GLYPH}${self.rating}`;
+  return `hp ${self.hp ?? "?"}/${self.maxHp ?? "?"}${rating} at ${self.x},${self.y},${self.z}`;
+}
+
+/**
  * Plays bot `index` until the server replaces it, signing in again after
  * every other disconnection.
  */
@@ -140,7 +154,8 @@ export async function runBot(fleet: FleetConfig, index: number, landmarks: Landm
   await new Promise((resolve) => setTimeout(resolve, between(Math.random, 0, START_JITTER_MS)));
   for (let attempt = 0; attempt < NAME_ATTEMPTS;) {
     const account = accountFor(index, attempt, fleet.password);
-    const log = (line: string) => console.log(`[${account.character}] ${line}`);
+    const log = (line: string) =>
+      console.log(`${new Date().toISOString()} [${account.character}] ${line}`);
     let waitMs = RECONNECT_MS;
     try {
       const ended = await play(fleet, account, landmarks, log);
