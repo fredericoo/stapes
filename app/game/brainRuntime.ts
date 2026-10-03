@@ -1,6 +1,6 @@
 import {
-  ANY_STATE,
   MAX_HEALTH_PERCENT,
+  leavesFrom,
   type BrainCondition,
   type BrainActionDef,
   type BrainConditionDef,
@@ -457,9 +457,7 @@ function firstMatch(
   ctx: BrainContext,
 ): BrainTransitionDef | null {
   for (const transition of brain.transitions) {
-    if (transition.from !== ANY_STATE && transition.from !== memory.state) {
-      continue;
-    }
+    if (!leavesFrom(transition.from, memory.state)) continue;
     if (holds(transition.if, memory, ctx)) return transition;
   }
   return null;

@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
+import traitsJson from "../data/traits.json";
 import { PLAYER_TILE_ID, TICK_MS } from "../app/game/constants";
 import { carriedInstances } from "../app/game/equipment";
 import { fixtureTutorial } from "../app/lib/fixtureTutorial";
 import { statusesById } from "../app/lib/status";
+import { traitsById, withTraits } from "../app/lib/traits";
 import {
   MAP_FILE_VERSION,
   normalizeTileDef,
@@ -26,7 +28,10 @@ import {
 import { DEFAULT_TEMPERAMENT } from "./temperament";
 
 const JSON_TYPE = "application/json";
-const tiles: TileDef[] = (tilesJson as TileDef[]).map(normalizeTileDef);
+const tiles: TileDef[] = withTraits(
+  (tilesJson as TileDef[]).map(normalizeTileDef),
+  traitsById(traitsJson as unknown[]),
+);
 const tilesById = tilesByIdFromList(tiles);
 const statuses = statusesById(statusesJson as unknown[]);
 
@@ -105,6 +110,7 @@ beforeEach(async () => {
   harness = await Harness.create({}, { manualTicks: { startAtMs: NOON_MS } });
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
+  await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
   await harness.blobs.put("map.json", JSON.stringify(tutorialWorld()), JSON_TYPE);
 });
 

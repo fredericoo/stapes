@@ -24,6 +24,7 @@ import {
   WALK_DURATION_MS,
 } from "./constants";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
+import { shippedTiles } from "./testShippedTiles";
 import type { TileTransitionNote, Transition } from "../lib/tileTransition";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
@@ -826,7 +827,7 @@ describe("a creature that fights back", () => {
 });
 
 describe("the authored creatures", () => {
-  const authored = normalizeTiles(tilesJson as unknown[]);
+  const authored = shippedTiles();
   const byId = Object.fromEntries(authored.map((t) => [t.id, t]));
 
   it.each(["player", "deer", "cat"])("gives %s hit points", (id) => {

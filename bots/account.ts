@@ -1,5 +1,6 @@
 import type { StatusDef } from "../app/lib/status";
 import { statusesById } from "../app/lib/status";
+import { traitsById, withTraits } from "../app/lib/traits";
 import { normalizeTileDef, type TileDef } from "../app/lib/types";
 import {
   CHARACTER_PARAM,
@@ -89,7 +90,8 @@ async function characterOf(
 
 /**
  * Signs in to the bot's account, creating it and its character the first
- * time, and fetches the catalogue a client needs to read the world. `base` is
+ * time, and fetches the catalogue a client needs to read the world, with each
+ * brain expanded from its traits so `noticeCells` can read it. `base` is
  * where the requests go and `origin` is what they claim to come from, which
  * differ for a bot beside the server: it reaches it on localhost, and a
  * deployed server accepts sign-ins only from its public origin.
@@ -101,6 +103,7 @@ export async function takeSeat(base: string, origin: string, account: BotAccount
     tiles: TileDef[];
     statuses: unknown[];
   };
+  const { traits } = (await (await fetch(`${base}/api/traits`)).json()) as { traits: unknown[] };
 
   const socketUrl = new URL(GAME_SOCKET_PATH, base);
   socketUrl.protocol = socketUrl.protocol === "https:" ? "wss:" : "ws:";
@@ -111,7 +114,7 @@ export async function takeSeat(base: string, origin: string, account: BotAccount
     cookie,
     characterId,
     socketUrl: socketUrl.toString(),
-    tiles: bootstrap.tiles.map(normalizeTileDef),
+    tiles: withTraits(bootstrap.tiles.map(normalizeTileDef), traitsById(traits)),
     statusDefs: statusesById(bootstrap.statuses),
   };
 }

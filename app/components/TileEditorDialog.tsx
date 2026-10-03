@@ -60,12 +60,12 @@ import { ItemTab } from "./ItemTab";
 import type { StatusDef } from "../lib/status";
 import { RespawnTab } from "./RespawnTab";
 import { EffectsTab } from "./EffectsTab";
-import { BrainEditor } from "./BrainEditor";
+import { BrainEditor, traitContext } from "./BrainEditor";
 import { SpellsTab } from "./SpellsTab";
 import { DialogEditor } from "./DialogEditor";
 import { availableStates, hasAnyInteraction, interactionsForSave } from "../lib/interactions";
 import { battlerIssues } from "../lib/battler";
-import { validateBrain, type BrainDef } from "../lib/brain";
+import { checkBrain, type AuthoredBrain, type TraitCatalogue } from "../lib/traits";
 import { validateDialog, type DialogDef } from "../lib/dialog";
 import { tilesByIdFromList } from "../lib/validation";
 import {
@@ -266,6 +266,7 @@ type Props = {
   tiles: TileDef[];
   tilesets: TilesetDef[];
   statusDefs?: Record<string, StatusDef>;
+  traits?: TraitCatalogue;
   isNew: boolean;
   onSave: (tile: TileDef) => void;
   onDelete?: () => void;
@@ -290,6 +291,7 @@ export function TileEditorDialog({
   tiles,
   tilesets,
   statusDefs = {},
+  traits = {},
   isNew,
   onSave,
   onDelete,
@@ -491,7 +493,7 @@ export function TileEditorDialog({
   const impliedByBrain = draft.interactions?.brain != null;
   const isActor = draft.actor === true || impliedByBrain;
 
-  const setBrain = (next: BrainDef | undefined) => {
+  const setBrain = (next: AuthoredBrain | undefined) => {
     const merged = { ...draft.interactions };
     if (next == null) delete merged.brain;
     else merged.brain = next;
@@ -543,7 +545,10 @@ export function TileEditorDialog({
 
     const brain = draft.interactions?.brain;
     if (brain) {
-      const fatal = validateBrain(brain).find((i) => i.severity === "error");
+      const context = traitContext(tiles, statusDefs, draft.interactions?.battler?.spells);
+      const fatal = checkBrain(brain, traits, context, draft.id).find(
+        (i) => i.severity === "error",
+      );
       if (fatal) {
         setError(`Brain: ${fatal.message}`);
         return null;
@@ -1422,6 +1427,7 @@ export function TileEditorDialog({
               tiles={tiles}
               statusDefs={statusDefs}
               spells={draft.interactions?.battler?.spells}
+              traits={traits}
               onChange={setBrain}
             />
           </TabPanel>

@@ -7,10 +7,12 @@ import {
   bodyTileIds,
   dropSelfAims,
   paramPatch,
+  renamedLet,
   renamedState,
   selectorVocabulary,
 } from "./BrainEditor";
 import { ACTIONS, CONDITIONS } from "../lib/brainCatalog";
+import { traitsById, type AuthoredBrain } from "../lib/traits";
 import { FRAME } from "../lib/testTile";
 
 function tile(partial: Record<string, unknown> & { id: string }): TileDef {
@@ -80,6 +82,74 @@ describe("renaming a state", () => {
       transitions: [{ from: "any", if: { cond: "stuck" }, to: "flee" }],
     };
     expect(renamedState(wild, "flee", "bolt").transitions[0]!.from).toBe("any");
+  });
+
+  it("renames a state inside a list of sources", () => {
+    const listed: BrainDef = {
+      ...brain,
+      transitions: [{ from: ["idle", "flee"], if: { cond: "stuck" }, to: "idle" }],
+    };
+    expect(renamedState(listed, "flee", "bolt").transitions[0]!.from).toEqual(["idle", "bolt"]);
+  });
+
+  describe("in a brain built from traits", () => {
+    const catalogue = traitsById([
+      {
+        id: "fights-back",
+        name: "Fights back",
+        params: { fight: { kind: "state" }, target: { kind: "slot" } },
+      },
+    ]);
+    const built: AuthoredBrain = {
+      initial: "idle",
+      states: { idle: { do: [{ action: "hold" }] }, prey: { do: [{ action: "hold" }] } },
+      transitions: [],
+      triggers: [{ if: { cond: "stuck" }, to: "prey" }],
+      traits: [{ trait: "fights-back", with: { fight: "prey", target: "prey" } }],
+      let: { chase: { kind: "state", value: "prey" } },
+    };
+
+    it("renames a state handed to a trait, and leaves a slot of the same name", () => {
+      const next = renamedState(built, "prey", "quarry", catalogue);
+
+      expect(next.traits).toEqual([
+        { trait: "fights-back", with: { fight: "quarry", target: "prey" } },
+      ]);
+      expect(next.triggers![0]!.to).toBe("quarry");
+      expect(next.let).toEqual({ chase: { kind: "state", value: "quarry" } });
+    });
+  });
+});
+
+describe("renaming a let", () => {
+  const awake = { cond: "time_of_day", fromHour: 19, toHour: 6 } as const;
+  const brain: AuthoredBrain = {
+    initial: "awake",
+    states: { awake: { do: [{ action: "hold" }] } },
+    transitions: [{ from: "awake", if: { arg: "awake" }, to: "awake" }],
+    traits: [
+      { trait: "sleeps", with: { while: { arg: "ready" } } },
+      { trait: "howls", with: { arg: "awake" } },
+    ],
+    let: {
+      awake: { kind: "condition", value: awake },
+      ready: { kind: "condition", value: { combinator: "and", rules: [{ arg: "awake" }] } },
+    },
+  };
+
+  it("renames every use of the let, in rows, calls and other lets", () => {
+    const next = renamedLet(brain, "awake", "alert");
+
+    expect(Object.keys(next.let!)).toEqual(["alert", "ready"]);
+    expect(next.transitions[0]!.if).toEqual({ arg: "alert" });
+    expect(next.let!.ready!.value).toEqual({ combinator: "and", rules: [{ arg: "alert" }] });
+  });
+
+  it("leaves a state or an argument that only shares its name", () => {
+    const next = renamedLet(brain, "awake", "alert");
+
+    expect(Object.keys(next.states)).toEqual(["awake"]);
+    expect(next.traits![1]!.with).toEqual({ arg: "awake" });
   });
 });
 

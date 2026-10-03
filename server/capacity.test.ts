@@ -20,6 +20,7 @@ beforeEach(async () => {
   await copyFile("data/tilesets.json", join(seed, "tilesets.json"));
   await copyFile("data/tiles.json", join(seed, "tiles.json"));
   await copyFile("data/statuses.json", join(seed, "statuses.json"));
+  await copyFile("data/traits.json", join(seed, "traits.json"));
   let map = emptyMap();
   map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
   map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);

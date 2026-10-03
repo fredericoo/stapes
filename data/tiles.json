@@ -13254,33 +13254,6 @@
         },
         "transitions": [
           {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "bind": {
-              "foe": {
-                "type": "attacker"
-              }
-            },
-            "to": "fighting"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "heard",
-              "text": "ps",
-              "cells": 5,
-              "los": true
-            },
-            "bind": {
-              "caller": {
-                "type": "speaker"
-              }
-            },
-            "to": "answering"
-          },
-          {
             "from": "idle",
             "if": {
               "cond": "after",
@@ -13316,20 +13289,34 @@
               "cells": 8
             },
             "to": "idle"
-          },
+          }
+        ],
+        "triggers": [
           {
-            "from": "fighting",
+            "band": "danger",
+            "retarget": true,
             "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "foe"
-                }
-              },
-              "cells": 10
+              "cond": "heard",
+              "text": "ps",
+              "cells": 5,
+              "los": true
             },
-            "to": "idle"
+            "bind": {
+              "caller": {
+                "type": "speaker"
+              }
+            },
+            "to": "answering"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "fights-back",
+            "with": {
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
           }
         ]
       },
@@ -13837,171 +13824,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "panicking": {
-            "onEnter": [
-              {
-                "effect": "say",
-                "text": "Please, don't hurt me!"
-              }
-            ],
-            "do": [
-              {
-                "action": "step_away_from",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "after",
-                      "ms": 12000
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "panicking"
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "idle"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "idle"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "idle"
-          },
           {
             "from": "idle",
             "if": {
@@ -14021,6 +13846,14 @@
               ]
             },
             "to": "idle"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "snack": 1
+            }
           }
         ]
       },
@@ -14605,258 +14438,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "fighting": {
-            "do": [
-              {
-                "action": "attack",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "healing": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "attack",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 2
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "healing",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "after",
-                  "ms": 2500
-                }
-              ]
-            },
-            "to": "healing"
-          },
-          {
-            "from": "healing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "threat"
-                }
-              },
-              "cells": 10
-            },
-            "to": "fighting"
-          },
-          {
-            "from": "healing",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "cond": "health",
-              "atMostPercent": 40
-            },
-            "to": "healing"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "health",
-              "atMostPercent": 40
-            },
-            "to": "healing"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "fighting",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 8
-                },
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                }
-              ]
-            },
-            "to": "fighting"
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "combinator": "or",
-              "rules": [
-                {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 8
-                },
-                {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                }
-              ]
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "idle"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "idle"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "idle"
-          },
           {
             "from": "idle",
             "if": {
@@ -14876,6 +14460,16 @@
               ]
             },
             "to": "idle"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-fight",
+            "with": {
+              "leash": 8,
+              "heal": 1,
+              "snack": 2
+            }
           }
         ]
       },
@@ -16243,258 +15837,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "fighting": {
-            "do": [
-              {
-                "action": "attack",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "healing": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "attack",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 2
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "healing",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "after",
-                  "ms": 2500
-                }
-              ]
-            },
-            "to": "healing"
-          },
-          {
-            "from": "healing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "threat"
-                }
-              },
-              "cells": 10
-            },
-            "to": "fighting"
-          },
-          {
-            "from": "healing",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "cond": "health",
-              "atMostPercent": 40
-            },
-            "to": "healing"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "health",
-              "atMostPercent": 40
-            },
-            "to": "healing"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "fighting",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 8
-                },
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                }
-              ]
-            },
-            "to": "fighting"
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "combinator": "or",
-              "rules": [
-                {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 8
-                },
-                {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                }
-              ]
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "idle"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "idle"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "idle"
-          },
           {
             "from": "idle",
             "if": {
@@ -16514,6 +15859,16 @@
               ]
             },
             "to": "idle"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-fight",
+            "with": {
+              "leash": 8,
+              "heal": 1,
+              "snack": 2
+            }
           }
         ]
       },
@@ -17657,171 +17012,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "panicking": {
-            "onEnter": [
-              {
-                "effect": "say",
-                "text": "Please, don't hurt me!"
-              }
-            ],
-            "do": [
-              {
-                "action": "step_away_from",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "after",
-                      "ms": 12000
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "panicking"
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "idle"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "idle"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "idle"
-          },
           {
             "from": "idle",
             "if": {
@@ -17841,6 +17034,14 @@
               ]
             },
             "to": "idle"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "snack": 1
+            }
           }
         ]
       },
@@ -28914,112 +28115,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "homing": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "step_random"
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "bind": {
-              "prey": {
-                "type": "attacker"
-              }
-            },
-            "to": "striking"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player",
-                    "rabbit"
-                  ]
-                }
-              },
-              "cells": 7
-            },
-            "bind": {
-              "prey": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player",
-                    "rabbit"
-                  ]
-                }
-              }
-            },
-            "to": "striking"
-          },
-          {
-            "from": "striking",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "prey"
-                }
-              },
-              "cells": 10
-            },
-            "to": "coiled"
-          },
-          {
-            "from": "coiled",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 10
-            },
-            "to": "homing"
-          },
-          {
-            "from": "slither",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 10
-            },
-            "to": "homing"
-          },
-          {
-            "from": "homing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 2
-            },
-            "to": "coiled"
-          },
           {
             "from": "coiled",
             "if": {
@@ -29034,6 +28132,22 @@
               "cond": "stuck"
             },
             "to": "coiled"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "predator",
+            "with": {
+              "fight": "striking",
+              "prey": [
+                "player",
+                "rabbit"
+              ],
+              "within": 7,
+              "calm": 10,
+              "leash": 10,
+              "target": "prey"
+            }
           }
         ]
       },
@@ -30703,14 +29817,6 @@
               }
             ]
           },
-          "roosting": {
-            "do": [
-              {
-                "action": "wait",
-                "ms": 2000
-              }
-            ]
-          },
           "diving": {
             "onEnter": [
               {
@@ -30744,6 +29850,7 @@
             ]
           },
           "veering": {
+            "band": "need",
             "do": [
               {
                 "action": "step_away_from",
@@ -30760,65 +29867,9 @@
                 "allowDrops": true
               }
             ]
-          },
-          "homing": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                },
-                "allowDrops": true
-              },
-              {
-                "action": "step_random",
-                "allowDrops": true
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "bind": {
-              "prey": {
-                "type": "attacker"
-              }
-            },
-            "to": "diving"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "prey": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "diving"
-          },
           {
             "from": "diving",
             "if": {
@@ -30848,68 +29899,35 @@
               "cells": 12
             },
             "to": "flitting"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "predator",
+            "with": {
+              "fight": "diving",
+              "prey": [
+                "player"
+              ],
+              "within": 8,
+              "calm": 12,
+              "leash": 14,
+              "drops": true,
+              "target": "prey"
+            }
           },
           {
-            "from": "diving",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "prey"
+            "trait": "unsticks",
+            "with": {
+              "pause": 2000,
+              "doing": [
+                {
+                  "action": "wait",
+                  "ms": 2000
                 }
-              },
-              "cells": 12
-            },
-            "to": "flitting"
-          },
-          {
-            "from": "flitting",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 14
-            },
-            "to": "homing"
-          },
-          {
-            "from": "roosting",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 14
-            },
-            "to": "homing"
-          },
-          {
-            "from": "homing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 2
-            },
-            "to": "flitting"
-          },
-          {
-            "from": "flitting",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "roosting"
-          },
-          {
-            "from": "roosting",
-            "if": {
-              "cond": "after",
-              "ms": 2000
-            },
-            "to": "flitting"
+              ],
+              "urge": "roam"
+            }
           }
         ]
       },
@@ -35229,171 +34247,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "panicking": {
-            "onEnter": [
-              {
-                "effect": "say",
-                "text": "Please, don't hurt me!"
-              }
-            ],
-            "do": [
-              {
-                "action": "step_away_from",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "after",
-                      "ms": 12000
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "panicking"
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "idle"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "idle"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "idle"
-          },
           {
             "from": "idle",
             "if": {
@@ -35413,6 +34269,14 @@
               ]
             },
             "to": "idle"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "snack": 1
+            }
           }
         ]
       },
@@ -36012,258 +34876,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "fighting": {
-            "do": [
-              {
-                "action": "attack",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "healing": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "attack",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 2
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "healing",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "after",
-                  "ms": 2500
-                }
-              ]
-            },
-            "to": "healing"
-          },
-          {
-            "from": "healing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "threat"
-                }
-              },
-              "cells": 10
-            },
-            "to": "fighting"
-          },
-          {
-            "from": "healing",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "cond": "health",
-              "atMostPercent": 40
-            },
-            "to": "healing"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "health",
-              "atMostPercent": 40
-            },
-            "to": "healing"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "fighting",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 8
-                },
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                }
-              ]
-            },
-            "to": "fighting"
-          },
-          {
-            "from": "fighting",
-            "if": {
-              "combinator": "or",
-              "rules": [
-                {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 8
-                },
-                {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                }
-              ]
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "idle"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "idle"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "idle"
-          },
           {
             "from": "idle",
             "if": {
@@ -36283,6 +34898,16 @@
               ]
             },
             "to": "idle"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-fight",
+            "with": {
+              "leash": 8,
+              "heal": 1,
+              "snack": 2
+            }
           }
         ]
       },
@@ -36915,178 +35540,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "panicking": {
-            "onEnter": [
-              {
-                "effect": "say",
-                "text": "Please, don't hurt me!"
-              }
-            ],
-            "do": [
-              {
-                "action": "step_away_from",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "after",
-                      "ms": 12000
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "panicking"
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "chatting"
-          },
           {
             "from": "chatting",
             "if": {
@@ -37190,6 +35646,15 @@
               "ms": 20000
             },
             "to": "sitting"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "snack": 1,
+              "talk": "chatting"
+            }
           }
         ]
       },
@@ -37841,178 +36306,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "panicking": {
-            "onEnter": [
-              {
-                "effect": "say",
-                "text": "Please, don't hurt me!"
-              }
-            ],
-            "do": [
-              {
-                "action": "step_away_from",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "after",
-                      "ms": 12000
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "panicking"
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "chatting"
-          },
           {
             "from": "chatting",
             "if": {
@@ -38116,6 +36412,15 @@
               "ms": 20000
             },
             "to": "sitting"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "snack": 1,
+              "talk": "chatting"
+            }
           }
         ]
       },
@@ -38759,134 +37064,29 @@
                 "steps": 4
               }
             ]
-          },
-          "looking": {
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "flee": {
-            "onEnter": [
-              {
-                "effect": "noise",
-                "text": "!"
-              }
-            ],
-            "emit": {
-              "channel": "alarm",
-              "value": "on"
-            },
-            "do": [
-              {
-                "action": "step_away_from",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "spooked"
-                  }
-                },
-                "allowDrops": true
-              }
-            ]
-          },
-          "cornered": {
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
-        "transitions": [
+        "transitions": [],
+        "traits": [
           {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "bind": {
-              "spooked": {
-                "type": "attacker"
-              }
-            },
-            "to": "flee"
+            "trait": "skittish",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 5
+            }
           },
           {
-            "from": "any",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
+            "trait": "unsticks",
+            "with": {
+              "pause": 2000,
+              "doing": [
+                {
+                  "action": "hold"
                 }
-              },
-              "cells": 5
-            },
-            "bind": {
-              "spooked": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "flee"
-          },
-          {
-            "from": "flee",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "cornered"
-          },
-          {
-            "from": "flee",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "spooked"
-                }
-              },
-              "cells": 8
-            },
-            "to": "graze"
-          },
-          {
-            "from": "cornered",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "spooked"
-                }
-              },
-              "cells": 8
-            },
-            "to": "graze"
-          },
-          {
-            "from": "graze",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "looking"
-          },
-          {
-            "from": "looking",
-            "if": {
-              "cond": "after",
-              "ms": 2000
-            },
-            "to": "graze"
+              ]
+            }
           }
         ]
       },
@@ -44853,178 +43053,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "panicking": {
-            "onEnter": [
-              {
-                "effect": "say",
-                "text": "Please! I've nothing worth taking!"
-              }
-            ],
-            "do": [
-              {
-                "action": "step_away_from",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "after",
-                      "ms": 12000
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "panicking"
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "sitting"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "listening"
-          },
           {
             "from": "listening",
             "if": {
@@ -45071,6 +43102,16 @@
               "ms": 2000
             },
             "to": "sitting"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "cry": "Please! I've nothing worth taking!",
+              "snack": 1,
+              "talk": "listening"
+            }
           }
         ]
       },
@@ -45728,178 +43769,9 @@
                 "action": "hold"
               }
             ]
-          },
-          "panicking": {
-            "onEnter": [
-              {
-                "effect": "say",
-                "text": "Please, don't hurt me!"
-              }
-            ],
-            "do": [
-              {
-                "action": "step_away_from",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "threat"
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "recovering": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "snacking": {
-            "do": [
-              {
-                "action": "cast",
-                "spell": 1
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
-                    }
-                  },
-                  "cells": 10
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "after",
-                      "ms": 12000
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "panicking"
-          },
-          {
-            "from": "panicking",
-            "if": {
-              "cond": "after",
-              "ms": 0
-            },
-            "to": "recovering"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "attacked"
-            },
-            "to": "panicking",
-            "bind": {
-              "threat": {
-                "type": "attacker"
-              }
-            }
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 1
-            },
-            "to": "home"
-          },
-          {
-            "from": "recovering",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "home"
-          },
-          {
-            "from": "any",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "status",
-                      "id": "fed"
-                    }
-                  ]
-                },
-                {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "talking"
-                    }
-                  ]
-                }
-              ]
-            },
-            "to": "snacking"
-          },
-          {
-            "from": "snacking",
-            "if": {
-              "cond": "status",
-              "id": "fed"
-            },
-            "to": "home"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "listening"
-          },
           {
             "from": "listening",
             "if": {
@@ -46034,6 +43906,15 @@
               "ms": 60000
             },
             "to": "home"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "snack": 1,
+              "talk": "listening"
+            }
           }
         ]
       },

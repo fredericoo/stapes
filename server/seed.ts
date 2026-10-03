@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Blobs } from "../app/lib/dataStore";
 
-const JSON_FILES = ["map.json", "tiles.json", "tilesets.json", "statuses.json"];
+const JSON_FILES = ["map.json", "tiles.json", "tilesets.json", "statuses.json", "traits.json"];
 const TILESET_DIRECTORY = "tilesets";
 
 export async function seedFromDirectory(blobs: Blobs, directory: string): Promise<void> {

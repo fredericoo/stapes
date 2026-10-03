@@ -48,6 +48,13 @@ describe("ApiBlobs", () => {
     expect(tiles.map((tile) => tile.id)).toEqual(["grass"]);
   });
 
+  it("hands the trait catalogue over too, so a world in the tab runs the same brains", async () => {
+    const traits = [{ id: "yelps", name: "Yelps" }];
+    serving({ "/api/traits": { traits } });
+
+    expect(await new DataStore(new ApiBlobs(ORIGIN)).readTraits()).toEqual(traits);
+  });
+
   it("answers nothing for a key it does not serve", async () => {
     serving({});
 

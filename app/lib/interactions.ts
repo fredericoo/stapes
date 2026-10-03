@@ -1,6 +1,6 @@
 import * as v from "valibot";
 import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
-import type { BrainDef } from "./brain";
+import type { AuthoredBrain } from "./traits";
 import type { DialogDef } from "./dialog";
 import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
@@ -214,7 +214,7 @@ export type ExtractInteraction = {
 };
 
 export type TileInteractions = {
-  brain?: BrainDef;
+  brain?: AuthoredBrain;
   dialog?: DialogDef;
   battler?: BattlerDef;
   item?: ItemDef;
