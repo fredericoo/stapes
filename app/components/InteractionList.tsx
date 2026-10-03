@@ -1,22 +1,22 @@
 import {
   IconApple,
-  IconBoxSeam,
-  IconDoorEnter,
+  IconBox,
+  IconDoor,
   IconDroplet,
-  IconFlame,
+  IconFire,
   IconGift,
-  IconHandGrab,
-  IconHandMove,
+  IconHand,
+  IconHuman,
   IconMapPin,
-  IconMessageCircle,
-  IconPick,
+  IconMove,
+  IconPickaxe,
   IconShirt,
   IconSwitch,
   IconSword,
+  IconTalk,
   IconTarget,
-  IconTransform,
-  IconWalk,
-} from "@tabler/icons-react";
+  IconTools,
+} from "./pixelIcons";
 import { useEffect, useMemo, useRef } from "react";
 import type { Progress } from "../game/progress";
 import type {
@@ -51,21 +51,21 @@ const FRONT = "s" as const;
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,
   attack: IconSword,
-  follow: IconWalk,
-  talk: IconMessageCircle,
-  open: IconBoxSeam,
-  pickUp: IconHandGrab,
+  follow: IconHuman,
+  talk: IconTalk,
+  open: IconBox,
+  pickUp: IconHand,
   equip: IconShirt,
-  push: IconHandMove,
+  push: IconMove,
   switch: IconSwitch,
-  teleport: IconDoorEnter,
-  addStatus: IconFlame,
+  teleport: IconDoor,
+  addStatus: IconFire,
   removeStatus: IconDroplet,
   setSpawn: IconMapPin,
   consume: IconApple,
   reward: IconGift,
-  craft: IconTransform,
-  extract: IconPick,
+  craft: IconTools,
+  extract: IconPickaxe,
 };
 
 const SPRITE_SIZE_PX = 32;
@@ -320,7 +320,7 @@ function ActionButton({
       ) : option.wait ? (
         <ProgressFill progress={option.wait} tone="fight" />
       ) : null}
-      <Icon size={14} stroke={2} aria-hidden="true" className="relative shrink-0" />
+      <Icon size={14} aria-hidden="true" className="relative shrink-0" />
       <span className="relative min-w-0 truncate text-detail leading-snug font-medium tracking-tight">
         {option.label}
       </span>
