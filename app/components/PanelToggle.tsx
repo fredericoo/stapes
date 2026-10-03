@@ -1,4 +1,4 @@
-import { IconBackpack, IconHeartbeat, IconShirt } from "@tabler/icons-react";
+import { IconBackpack, IconHeart, IconShirt } from "./pixelIcons";
 import { useCallback, useRef } from "react";
 import type { Equipment } from "../game/equipment";
 import { equipDestination, type SlotRef } from "../game/itemMoves";
@@ -44,7 +44,7 @@ export function StatsToggle({
         className={toggleClass(open, size)}
       >
         <NoticeIcon notice={notice}>
-          <IconHeartbeat size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+          <IconHeart size={size === "touch" ? 24 : 18} aria-hidden="true" />
         </NoticeIcon>
       </button>
     </Tooltip>
@@ -103,7 +103,7 @@ export function EquipmentToggle({
         style={{ touchAction: "none" }}
       >
         <NoticeIcon notice={notice}>
-          <IconShirt size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+          <IconShirt size={size === "touch" ? 24 : 18} aria-hidden="true" />
         </NoticeIcon>
       </button>
     </Tooltip>
@@ -165,7 +165,7 @@ export function BagButton({
         style={{ touchAction: "none" }}
       >
         <NoticeIcon notice={notice}>
-          <IconBackpack size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+          <IconBackpack size={size === "touch" ? 24 : 18} aria-hidden="true" />
         </NoticeIcon>
         {bag ? (
           <span

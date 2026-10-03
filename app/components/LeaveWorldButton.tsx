@@ -1,4 +1,4 @@
-import { IconDoorExit } from "@tabler/icons-react";
+import { IconExit } from "./pixelIcons";
 import { useState } from "react";
 import { Button, Dialog } from "../ui";
 
@@ -18,7 +18,7 @@ export function LeaveWorldButton({
         size="sm"
         onClick={() => (inCombat ? setAsking(true) : onLeave())}
       >
-        <IconDoorExit size={16} stroke={2} aria-hidden="true" />
+        <IconExit size={16} aria-hidden="true" />
         Leave world
       </Button>
       <Dialog

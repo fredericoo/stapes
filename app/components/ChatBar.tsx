@@ -1,5 +1,5 @@
 import { Popover } from "@base-ui/react/popover";
-import { IconMessage } from "@tabler/icons-react";
+import { IconChat } from "./pixelIcons";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { MAX_CHAT_LENGTH } from "../net/chat";
 import { isTypingTarget } from "../game/heldDirections";
@@ -175,7 +175,7 @@ export function ChatButton({
             if (open) close();
           }}
         >
-          <IconMessage size={24} stroke={2} aria-hidden="true" />
+          <IconChat size={24} aria-hidden="true" />
         </Popover.Trigger>
       </Tooltip>
       <Popover.Portal>

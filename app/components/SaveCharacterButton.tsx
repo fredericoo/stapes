@@ -1,4 +1,4 @@
-import { IconDeviceFloppy } from "@tabler/icons-react";
+import { IconSave } from "./pixelIcons";
 import { useState } from "react";
 import { MIN_PASSWORD_LENGTH } from "../lib/account";
 import { claimAccount } from "../lib/auth";
@@ -29,7 +29,7 @@ export function SaveCharacterButton({ onSaved }: { onSaved: () => void }) {
   return (
     <>
       <Button variant="ghost-inverse" size="sm" onClick={() => setOpen(true)}>
-        <IconDeviceFloppy size={16} stroke={2} aria-hidden="true" />
+        <IconSave size={16} aria-hidden="true" />
         Save your character
         <AttentionDot />
       </Button>
