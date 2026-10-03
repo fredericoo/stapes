@@ -993,12 +993,43 @@ export class Bot {
    * constriction, counts.
    */
   private outpaces(snapshot: GameSnapshot, foe: ActorSnapshot): boolean {
-    const foeDef = this.tilesById[foe.tileId];
-    const selfDef = this.tilesById[PLAYER_TILE_ID];
-    if (!foeDef || !selfDef) return false;
-    const pace = (def: TileDef, statuses: ActorSnapshot["statuses"]) =>
-      walkDurationMsFor(def, walkSpeedPercentFrom(statuses, this.statusDefs));
-    return pace(foeDef, foe.statuses) > pace(selfDef, snapshot.self.statuses);
+    const theirs = this.walkMsOf(foe);
+    const mine = this.walkMsOf(snapshot.self);
+    return theirs !== null && mine !== null && theirs > mine;
+  }
+
+  /** Whether `creature` walks faster than the bot as both are now, so walking after it never closes. */
+  private outwalkedBy(snapshot: GameSnapshot, creature: ActorSnapshot): boolean {
+    const theirs = this.walkMsOf(creature);
+    const mine = this.walkMsOf(snapshot.self);
+    return theirs !== null && mine !== null && theirs < mine;
+  }
+
+  private walkMsOf(actor: ActorSnapshot): number | null {
+    const def = this.tilesById[actor.tileId];
+    if (!def) return null;
+    return walkDurationMsFor(def, walkSpeedPercentFrom(actor.statuses, this.statusDefs));
+  }
+
+  /**
+   * Whether hunting `prey` can end in a fight: it walks no faster than the
+   * bot, or it can hurt and so comes to the bot, or it is already within the
+   * bot's reach. A deer or a rabbit further off outruns every chase.
+   */
+  private catchable(snapshot: GameSnapshot, prey: ActorSnapshot, strikeCells: number): boolean {
+    if (reach(snapshot.self, prey) <= strikeCells) return true;
+    if (canHurt(this.tilesById[prey.tileId])) return true;
+    return !this.outwalkedBy(snapshot, prey);
+  }
+
+  /** How far the bot strikes from: its bow's or bolt's reach, or a sword's. */
+  private strikeCells(snapshot: GameSnapshot): number {
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    const ranged =
+      body &&
+      (rangedReach(snapshot.equipment, this.tilesById, body.masteries) ??
+        castingReach(snapshot.equipment, this.tilesById, body.masteries));
+    return ranged ? ranged.cells : STRIKE_REACH_CELLS;
   }
 
   /**
@@ -1094,7 +1125,7 @@ export class Bot {
   /**
    * The prey in sight worth setting off after, judged with every creature
    * near it that could join in. A recovering bot starts nothing, whatever
-   * food it carries.
+   * food it carries, and prey it cannot catch (`catchable`) is passed over.
    */
   private preyIn(snapshot: GameSnapshot, nowMs: number): ActorSnapshot | null {
     if (this.recovering) return null;
@@ -1103,11 +1134,13 @@ export class Bot {
     const hostile = this.hostiles(snapshot);
     const threats = hostile.filter((a) => this.threatens(snapshot, [a]));
     const others = snapshot.actors.filter((a) => a.tileId === PLAYER_TILE_ID && a.id !== self.id);
+    const strikeCells = this.strikeCells(snapshot);
     const near = snapshot.actors.filter(
       (a) =>
         a.z === self.z &&
         steps(self, a) <= huntSightCells &&
         !this.isScared(a) &&
+        this.catchable(snapshot, a, strikeCells) &&
         threats.every((t) => t === a || steps(a, t) > this.waryOf(t)) &&
         hasLineOfSight(snapshot.map, this.tilesById, self, a),
     );
