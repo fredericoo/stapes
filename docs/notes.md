@@ -13826,6 +13826,23 @@ client: ten bots starting together are refused a few times. A refused sign-in
 about the account. The password defaults to one in the repository, so set
 `BOT_PASSWORD` on anything public.
 
+**Every log line says when, and how the bot stood.** A line reads
+`<ISO time> [Name] hp 14/20 *3 at 10,4,0 <what happened>`: health, rating
+and cell from `selfSnapshot`, or `-` while the bot is dead or not yet placed.
+Every `SUMMARY_EVERY_MS` (five minutes) each bot also logs
+`summary deaths= kills= gold= gear=`: its deaths and kills since it signed
+in, the currency it carries, and `wornWorth`, what everything it wears is
+worth on the scale `bestUpgrade` gains by. The counts start again when the
+bot signs in again, so a rate is the difference between two summaries of one
+session. A creature that dies is despawned in the tick of the killing blow,
+so the bot almost never sees its body: a foe that vanishes while a blow on it
+is still a damage number (`DAMAGE_NUMBER_LIFETIME_MS`) counts as a kill and
+logs `killed the creature you fought`. Before this, nearly every kill logged
+`the creature you fought is gone`, 6,910 times in that run, the same line as
+a creature that walked out of view. Without the time and the health, the second overnight run's 73,000
+lines could say what bots died to but not how fast, or how hurt they were when
+they chose to fight.
+
 **All the bots are one process over worker threads.** One process per bot
 cost about 150 MB each, mostly a runtime and a tile catalogue apiece. One
 thread for all of them could not keep up: ten bots kept one core at 100% and

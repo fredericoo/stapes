@@ -3,6 +3,7 @@ import { PLAYER_TILE_ID } from "../app/game/constants";
 import type { CastSlot, SpellButton } from "../app/game/casting";
 import { carriedInstances, type Equipment } from "../app/game/equipment";
 import { walkDurationMsFor } from "../app/game/movement";
+import { carriedCount } from "../app/game/trade";
 import { walkSpeedPercentFrom } from "../app/game/statuses";
 import { hasLineOfSight } from "../app/game/sight";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
@@ -58,7 +59,7 @@ import { ALLY_CELLS, alliesBeside, COMPANY_CELLS, companyGoal, leaderOf } from "
 import { nextDressing } from "./dress";
 import { fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
 import { Economy, FOOD_RESERVE, type Deal } from "./economy";
-import { bodyOf, rangedReach } from "./gear";
+import { bodyOf, rangedReach, wornWorth } from "./gear";
 import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
 import {
   describeGoal,
@@ -86,6 +87,12 @@ import {
 import { Recollection } from "./recollection";
 
 export const THINK_EVERY_MS = 30_000;
+
+/**
+ * How often a bot logs its running totals. The counts are since the bot
+ * signed in, so a rate is the difference between two summaries.
+ */
+export const SUMMARY_EVERY_MS = 5 * 60_000;
 
 export const STUCK_AFTER_MS = 4_000;
 
@@ -384,6 +391,9 @@ export class Bot {
   private turnedBack = new Map<string, number>();
   /** The player last walked over to, so joining the same one is told once. */
   private leaderId: string | null = null;
+  private deaths = 0;
+  private kills = 0;
+  private summarizedAtMs: number | null = null;
   private readonly log: (line: string) => void;
   private readonly random: () => number;
   private readonly temperament: Temperament;
@@ -457,6 +467,7 @@ export class Bot {
           margins: new Map(),
         }
       : null;
+    this.summarize(snapshot, body, nowMs);
     this.remember(snapshot);
     this.dress(snapshot, nowMs);
     this.eat(snapshot, nowMs);
@@ -479,6 +490,7 @@ export class Bot {
       this.recovering = false;
       if (this.hadBag && this.lastAt) this.lostKitAt = this.lastAt;
       if (this.lastAt) this.fearDeathPlace(this.lastAt, nowMs);
+      this.deaths++;
       this.happen("you died and will come back where you last set your respawn");
       this.ask("died", null);
     }
@@ -844,8 +856,18 @@ export class Bot {
 
     const foe = creatures.find((a) => a.id === this.foe!.id);
     if (!foe) {
-      const gone = snapshot.actors.find((a) => a.id === this.foe!.id);
-      this.happen(gone ? `killed ${nameOf(gone)}` : "the creature you fought is gone");
+      const foeId = this.foe!.id;
+      const gone = snapshot.actors.find((a) => a.id === foeId);
+      /**
+       * A creature that dies is despawned in the same tick as the blow, so it
+       * is usually not in `actors` at all. A blow on it still showing as a
+       * damage number is what tells a kill from a creature that walked away.
+       */
+      const struck = snapshot.damage.some((hit) => hit.targetId === foeId && hit.amount > 0);
+      if (gone || struck) this.kills++;
+      if (gone) this.happen(`killed ${nameOf(gone)}`);
+      else if (struck) this.happen("killed the creature you fought");
+      else this.happen("the creature you fought is gone");
       this.disengage();
       return false;
     }
@@ -1963,6 +1985,18 @@ export class Bot {
     this.saidAtMs.push(this.nowMs);
     this.body.say(line);
     this.happen(`you said: "${line}"`);
+  }
+
+  private summarize(snapshot: GameSnapshot, body: BattlerDef | null, nowMs: number) {
+    this.summarizedAtMs ??= nowMs;
+    if (nowMs - this.summarizedAtMs < SUMMARY_EVERY_MS) return;
+    this.summarizedAtMs = nowMs;
+    const { currency, taste } = this.economy;
+    const gold = currency ? carriedCount(this.tilesById, snapshot.equipment, currency) : 0;
+    const gear = body ? wornWorth(snapshot.equipment, this.tilesById, body, taste) : 0;
+    this.log(
+      `summary deaths=${this.deaths} kills=${this.kills} gold=${gold} gear=${gear.toFixed(1)}`,
+    );
   }
 
   private happen(line: string, heard = false) {
