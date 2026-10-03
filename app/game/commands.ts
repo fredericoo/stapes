@@ -25,6 +25,7 @@ export const SPAWN_COMMAND = "spawn";
 export const DESPAWN_COMMAND = "despawn";
 export const GIVE_COMMAND = "give";
 export const BRAIN_COMMAND = "brain";
+export const FIRE_COMMAND = "fire";
 
 export const STATUS_CLEAR_ARGUMENT = "clear";
 export const STATUS_OFF_ARGUMENT = "off";
@@ -42,7 +43,8 @@ export type CommandName =
   | typeof SPAWN_COMMAND
   | typeof DESPAWN_COMMAND
   | typeof GIVE_COMMAND
-  | typeof BRAIN_COMMAND;
+  | typeof BRAIN_COMMAND
+  | typeof FIRE_COMMAND;
 
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_EARNED_MASTERY}-${MAX_MASTERY}> [player id]`,
@@ -56,6 +58,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   [DESPAWN_COMMAND]: `${COMMAND_PREFIX}${DESPAWN_COMMAND} <body>`,
   [GIVE_COMMAND]: `${COMMAND_PREFIX}${GIVE_COMMAND} <item> [square] [body]`,
   [BRAIN_COMMAND]: `${COMMAND_PREFIX}${BRAIN_COMMAND} <body> <${BRAIN_OFF_ARGUMENT} | ${BRAIN_ON_ARGUMENT} | state>`,
+  [FIRE_COMMAND]: `${COMMAND_PREFIX}${FIRE_COMMAND} <projectile> <body | x,y[,z]> <body | x,y[,z]>`,
 };
 
 export type Coordinate = { kind: "absolute"; value: number } | { kind: "relative"; offset: number };
@@ -126,6 +129,12 @@ export type Command =
       name: typeof BRAIN_COMMAND;
       target: string | null;
       change: BrainChange;
+    }
+  | {
+      name: typeof FIRE_COMMAND;
+      tileId: string;
+      from: FlightEnd;
+      to: FlightEnd;
     };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
@@ -139,6 +148,10 @@ export type GiveCommand = Extract<Command, { name: typeof GIVE_COMMAND }>;
 export type BrainCommand = Extract<Command, { name: typeof BRAIN_COMMAND }>;
 
 export type BrainChange = { kind: "off" } | { kind: "on" } | { kind: "state"; state: string };
+
+export type FireCommand = Extract<Command, { name: typeof FIRE_COMMAND }>;
+
+export type FlightEnd = { kind: "body"; target: string | null } | { kind: "cell"; at: MapCell };
 
 /** `contents` is inside the bag; `bag` is the square the bag itself is worn in. */
 export type GiveSlot = EquipSlot | "contents";
@@ -175,7 +188,8 @@ export type CommandRefusal =
   | { kind: "bagFull"; name: string }
   | { kind: "statusAbsent"; name: string; status: string }
   | { kind: "brainless"; name: string }
-  | { kind: "unknownState"; typed: string; name: string; known: readonly string[] };
+  | { kind: "unknownState"; typed: string; name: string; known: readonly string[] }
+  | { kind: "notAProjectile"; typed: string; known: readonly string[] };
 
 export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
@@ -200,7 +214,15 @@ export type CommandData =
       itemId: string;
       slot: GiveSlot;
     }
-  | { command: typeof BRAIN_COMMAND; target: string; on: boolean; state: string };
+  | { command: typeof BRAIN_COMMAND; target: string; on: boolean; state: string }
+  | {
+      command: typeof FIRE_COMMAND;
+      tileId: string;
+      from: Coord;
+      to: Coord;
+      target: string | null;
+      flightMs: number;
+    };
 
 export type CommandOutcome =
   | { ok: true; data: CommandData; ids?: readonly string[] }
@@ -244,6 +266,8 @@ export function parseCommand(raw: string): CommandParse {
       return parseGiveArguments(args);
     case BRAIN_COMMAND:
       return parseBrainArguments(args);
+    case FIRE_COMMAND:
+      return parseFireArguments(args);
     default:
       return {
         ok: false,
@@ -529,6 +553,35 @@ function brainChangeOf(word: string): BrainChange {
   if (lower === BRAIN_OFF_ARGUMENT) return { kind: "off" };
   if (lower === BRAIN_ON_ARGUMENT) return { kind: "on" };
   return { kind: "state", state: word };
+}
+
+function parseFireArguments(args: string[]): CommandParse {
+  const [tileToken, fromToken, toToken] = args;
+  if (args.length !== 3 || !tileToken || !fromToken || !toToken) {
+    return { ok: false, refusal: { kind: "badArguments", command: FIRE_COMMAND } };
+  }
+
+  return {
+    ok: true,
+    command: {
+      name: FIRE_COMMAND,
+      tileId: tileToken.toLowerCase(),
+      from: flightEndOf(fromToken),
+      to: flightEndOf(toToken),
+    },
+  };
+}
+
+const CELL_PATTERN = /^([+-]?\d+),([+-]?\d+)(?:,([+-]?\d+))?$/;
+
+function flightEndOf(token: string): FlightEnd {
+  const match = CELL_PATTERN.exec(token);
+  if (!match) return { kind: "body", target: targetOf(token) };
+  const [, x = "", y = "", z] = match;
+  return {
+    kind: "cell",
+    at: { x: Number(x), y: Number(y), z: z === undefined ? null : Number(z) },
+  };
 }
 
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;

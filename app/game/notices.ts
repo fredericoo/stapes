@@ -151,6 +151,10 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return `${refusal.name} is not driven by a brain`;
     case "unknownState":
       return `No state called "${refusal.typed}" in ${refusal.name}'s brain. Try ${refusal.known.join(", ")}`;
+    case "notAProjectile":
+      return refusal.known.length === 0
+        ? `"${refusal.typed}" is not a projectile, and this world authored none`
+        : `"${refusal.typed}" is not a projectile. Try ${refusal.known.join(", ")}`;
   }
 }
 
@@ -175,6 +179,11 @@ export function giveNotice(item: string, slot: GiveSlot, owner: string | null): 
 
 export function brainNotice(name: string, on: boolean, state: string): string {
   return `${name}'s brain is ${on ? "on" : "off"}, in the ${state} state`;
+}
+
+export function fireNotice(projectile: string, from: string | Coord, to: string | Coord): string {
+  const named = (end: string | Coord) => (typeof end === "string" ? end : cellName(end));
+  return `${projectile} flies from ${named(from)} to ${named(to)}`;
 }
 
 export function otherArrivalNotice(name: string, at: Coord): string {

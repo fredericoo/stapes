@@ -8154,7 +8154,7 @@ A line beginning with `/` is an instruction rather than something to say.
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
 The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/give`, `/status`,
-`/health`, `/brain`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
+`/health`, `/brain`, `/fire`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
 `app/game/commands.ts` is the grammar of each, and is the line a player is shown
 when they get one wrong.
 
@@ -8480,6 +8480,34 @@ be in one particular state for the thing being checked to happen.
 - A body with no brain is refused by name ("Deer is not driven by a brain"),
   and a state the brain does not have is refused with the list of the states it
   does, the way an unknown status lists the statuses.
+
+### `/fire` sends a projectile's flight, and nothing that travels with one
+
+`/fire <projectile> <from> <to>` looses a projectile tile from one end to the
+other, to check how a flight looks without arranging a fight. Each end is a body
+id (`self` is the author) or a cell written `x,y,z`, where a left-off level is
+the author's. A word of numbers and commas is a cell and any other word is a
+body; a creature's id has `npc:` in front of its commas, so the two cannot be
+confused.
+
+- **It is the flight a blow's projectile takes.** It goes through
+  `fireProjectile`, the path a bow's shot and a stone's bolt take, which takes
+  a cell at either end as well as a body. The flight's time comes from
+  `flightDurationMs`, it plays `appear` where it is loosed and `disappear` where
+  it stops, and a body named as its far end is followed as a shot follows its
+  target. A cell is measured as a body put on top of its stack would be, at the
+  height `flightPointOf` gives a body whose tile it cannot find.
+- **A flight does nothing when it arrives, so neither does `/fire`.** Damage,
+  statuses, experience, the combat flag and the `hit` effect on the struck body
+  all belong to the blow a flight carries, which `queueBlow` holds for the
+  flight's duration and `landSwing` or `landBolt` lands. A projectile tile holds
+  only a speed and a hit transition. `/fire` carries no blow: it hurts nobody,
+  grants nothing, starts no fight and plays no `hit`, and the flight's `hit`
+  flag, which says whether a blow connected, is false.
+- **It does not turn the body at the near end toward the shot.** Turning is
+  part of attacking, in `tryAttack` and `castBolt`, not part of the flight.
+- The reply carries `flightMs`, the flight's duration, so a caller can wait for
+  it to land.
 
 ### `/time` moves the world's clock, for everybody
 
