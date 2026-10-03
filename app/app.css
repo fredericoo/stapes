@@ -157,6 +157,12 @@ body {
   overflow: hidden;
 }
 
+@media (pointer: coarse) {
+  .world-label-layer {
+    --world-label-size: 16px;
+  }
+}
+
 .world-label {
   /* Anchored at the layer's origin and moved entirely by the transform below,
      not by `left`/`top`: an absolutely positioned box only gets
