@@ -14050,9 +14050,19 @@ Every frame, before its goal, a bot checks three things in order:
    from something slower (`walkDurationMsFor`, with both bodies' statuses
    applied). A threat within `CORNERED_CELLS` that is at least as fast,
    such as a wolf, a bat, or anything while a snake's constriction slows the
-   bot, becomes the foe, and stays the foe however far it veers off. A bat
-   that veers off comes straight back, so a foe like that
-   standing where the bot cannot walk is waited for, not given up on.
+   bot, becomes the foe, and stays the foe however far it veers off. Further
+   off, one that has noticed the bot (`noticedBy`: within its `noticeCells`
+   and in sight) is waited for: the bot stands still until it is within
+   `CORNERED_CELLS`, for up to `HOLD_GROUND_MS`, and backs away after that.
+   Waiting with no limit held bots in place while a wolf stood in sight
+   without coming, and kills an hour fell by a third. One that has not
+   noticed the bot is still backed away from. In one overnight run of ten bots, 608 of 638 deaths came while
+   recovering, after backing away five to eight times from something faster:
+   the bot died with its back to a wolf. Turning on such a creature as soon
+   as it noticed the bot was worse: the bot walked into fights it expected to
+   lose, and the bench (`bun run bench:bots`) measured deaths an hour going
+   from 3.9 to 6.3. A bat that veers off comes straight back, so a foe like
+   that standing where the bot cannot walk is waited for, not given up on.
    Switching from backing away to fighting releases the held direction first;
    without that, the bot kept walking the way it had been fleeing.
 2. **It fights its foe.** It strikes from within `STRIKE_REACH_CELLS`, and

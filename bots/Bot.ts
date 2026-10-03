@@ -143,9 +143,19 @@ export const DEATH_SCARE_MS = 300_000;
  * escaped, so the bot stands and fights it, and keeps fighting it once it
  * has turned on it: backing away from a wolf only gives it free bites, a bat
  * that veers off comes straight back, and a snake's bolt slows its target to
- * a crawl.
+ * a crawl. Further off, one that has noticed the bot (`noticedBy`) is waited
+ * for where the bot stands for up to `HOLD_GROUND_MS`, neither backed away
+ * from nor walked at.
  */
 export const CORNERED_CELLS = 2.5;
+
+/**
+ * How long the bot stands still for a faster threat that has noticed it. A
+ * wolf nine cells off closes in under two seconds if it is coming; one that
+ * has not come by then is backed away from as before, rather than holding
+ * the bot in place for as long as it stays in sight.
+ */
+export const HOLD_GROUND_MS = 4_000;
 
 /** Remembered dangers further than this from the bot do not shape its routes. */
 export const DANGER_RECALL_CELLS = 60;
@@ -343,6 +353,8 @@ export class Bot {
   private chase: { pilot: Pilot; toward: string; plannedMs: number } | null = null;
   /** A flight backs away from `from`, the nearest danger, which a flame stone is cast at. */
   private flight: { pilot: Pilot; untilMs: number; from: string } | null = null;
+  /** The faster threat the bot last stood still for, and until when. */
+  private holding: { id: string; untilMs: number } | null = null;
   private preySkipped = new Map<string, number>();
   private lastEatMs = -Infinity;
   private recovering = false;
@@ -776,6 +788,23 @@ export class Bot {
       return false;
     }
 
+    const coming = threats.find(
+      (a) =>
+        this.noticedBy(snapshot, a) &&
+        !this.outpaces(snapshot, a) &&
+        (this.holding?.id !== a.id || nowMs < this.holding.untilMs),
+    );
+    if (coming) {
+      if (this.holding?.id !== coming.id) {
+        this.happen(`cannot outrun ${nameOf(coming)}; holding ground until it comes`);
+        this.holding = { id: coming.id, untilMs: nowMs + HOLD_GROUND_MS };
+      }
+      this.flight = null;
+      this.course = { kind: "idle" };
+      this.body.setInput({ directions: [] });
+      return true;
+    }
+
     const dangers = threats;
     if (dangers.length === 0) {
       if (this.flight) {
@@ -1027,6 +1056,16 @@ export class Bot {
    */
   private waryOf(creature: ActorSnapshot): number {
     return Math.max(this.temperament.waryCells, noticeCells(this.tilesById[creature.tileId]) + 1);
+  }
+
+  /**
+   * Whether `creature` can see the bot from where it would notice it, so it
+   * is already coming: backing away from one that walks faster only turns the
+   * bot's back to it.
+   */
+  private noticedBy(snapshot: GameSnapshot, creature: ActorSnapshot): boolean {
+    const notice = noticeCells(this.tilesById[creature.tileId]);
+    return reach(snapshot.self, creature) <= notice && sees(snapshot, this.tilesById, creature);
   }
 
   /** Creatures in view that can hurt anybody. */
