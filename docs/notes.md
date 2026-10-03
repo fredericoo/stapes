@@ -14333,6 +14333,16 @@ the next run starts already knowing. A bot that reaches a remembered place
 and finds nothing there deletes the entry. A seller nobody knows the place of
 is looked for by exploring.
 
+**The main thread opens the file before any worker does.** Putting a fresh
+file into WAL mode, or recovering one a crash left a `-wal` file beside, takes
+a lock SQLite does not wait for, `busy_timeout` or not. With every worker
+opening the file at once, the ones that lost failed with "database is locked"
+and took their bots down. `bots/index.ts` opens and closes `Landmarks` once
+before starting the workers, so each worker finds the file already in WAL
+mode. In a reproduction of eight workers opening a fresh file together, some
+failed on most runs whether or not `busy_timeout` was set before
+`journal_mode`, and none failed once the file had been prepared.
+
 **A bot picks up what is worth having.** Before following its goal, and after
 fighting, it looks every `LOOT_SCAN_MS` for a loose thing within `LOOT_CELLS`,
 in sight, that `wanted` says yes to. Then it walks beside it and picks it up.
