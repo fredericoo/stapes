@@ -13834,6 +13834,13 @@ deploy the proxy answers 503 "no available server"; when that counted as a
 refusal, one overnight run made about twenty level-0 characters under names
 the bots had drawn by accident.
 
+**A server on another protocol is waited for.** The server closes a socket
+whose `PROTOCOL_VERSION` differs with 4001. Production runs release tags and
+a bot may run from `main`, so either side may be the newer one. A bot turned
+away tries again every `OUTDATED_RETRY_MS` (a minute) rather than exiting,
+so a fleet outlives a deploy on either side. Only 4002, the character being
+played from somewhere else, stops a bot.
+
 **All the bots are one process over worker threads.** One process per bot
 cost about 150 MB each, mostly a runtime and a tile catalogue apiece. One
 thread for all of them could not keep up: ten bots kept one core at 100% and
