@@ -3,7 +3,7 @@ import { MAX_USERNAME_LENGTH } from "../app/lib/account";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { RemoteSession } from "../app/net/RemoteSession";
 import type { ClientSocket } from "../app/net/socket";
-import { takeSeat, type BotAccount } from "./account";
+import { Refused, takeSeat, type BotAccount } from "./account";
 import { openaiPlanner } from "./LlmPlanner";
 import { Bot } from "./Bot";
 import type { Goal } from "./goals";
@@ -74,11 +74,6 @@ function accountFor(index: number, attempt: number, password: string): BotAccoun
   return { username, password, character };
 }
 
-/** A refusal about the account or the name, rather than the world being down. */
-function refused(error: unknown): boolean {
-  return /could not (create|sign in or sign up)/.test(String(error));
-}
-
 async function play(
   fleet: FleetConfig,
   account: BotAccount,
@@ -139,7 +134,7 @@ export async function runBot(fleet: FleetConfig, index: number, landmarks: Landm
       if ((await play(fleet, account, landmarks, log)) === "stop") return;
     } catch (error) {
       log(String(error));
-      if (refused(error)) attempt++;
+      if (error instanceof Refused) attempt++;
     }
     await new Promise((resolve) => setTimeout(resolve, RECONNECT_MS));
   }
