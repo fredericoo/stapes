@@ -29,7 +29,7 @@ import {
   type SpawnPoint,
   withMigratedItemIds,
 } from "../app/game/respawn";
-import { NOTHING_LOST } from "../app/game/deathCost";
+import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../app/game/deathCost";
 import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
 import { DEFAULT_FACING, listActorOwners } from "../app/game/actors";
@@ -344,6 +344,8 @@ const PVP_KEY_PREFIX = "pvp:";
 
 const HIDDEN_KEY_PREFIX = "hidden:";
 
+const DIED_AWAY_KEY_PREFIX = "diedAway:";
+
 export const MAX_REMEMBERED_ACTORS = 1_000;
 
 export const MAX_ONLINE_PLAYERS = 250;
@@ -392,6 +394,8 @@ export type CharacterSheet = {
   pvp: boolean;
   hidden: boolean;
 };
+
+type SavedDiedAway = { cost: DeathCost; savedAt: number };
 
 const savedStatusSchema = v.object({
   defId: v.pipe(v.string(), v.minLength(1)),
@@ -754,7 +758,7 @@ export class GameServer {
   private storedVitals = new Map<string, StoredVitals>();
   private chatLogReady = false;
   private dead = new Set<string>();
-  private pendingDeathWrites = new Map<string, Death>();
+  private pendingDeathWrites = new Map<string, { death: Death; told: boolean }>();
   private silenced = new Set<string>();
   private justDied: Death[] = [];
   private readonly spawns = new Map<string, ActorPosition>();
@@ -1150,6 +1154,24 @@ export class GameServer {
     this.sendToEverySocketOf(actorId, { type: "hidden", on: session.hiddenOf(actorId) });
   }
 
+  private diedAwayKey(actorId: string): string {
+    return `${DIED_AWAY_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * Cleared as it is read rather than once the client has shown it: a tab that
+   * closes before drawing the screen loses the notice, where clearing later
+   * would show the same death again on every join until one got through.
+   */
+  private async takeDiedAway(actorId: string): Promise<DeathCost | undefined> {
+    const key = this.diedAwayKey(actorId);
+    const saved = await this.ctx.storage.get<SavedDiedAway>(key);
+    if (!saved) return undefined;
+    this.ctx.storage.delete(key).catch(GameServer.reportWriteFailure("died-away clear"));
+    const parsed = v.safeParse(deathCostSchema, saved.cost);
+    return parsed.success ? parsed.output : undefined;
+  }
+
   private masteriesKey(actorId: string): string {
     return `${MASTERIES_KEY_PREFIX}${actorId}`;
   }
@@ -1287,6 +1309,7 @@ export class GameServer {
       | SavedStatuses
       | SavedHp
       | SavedPvp
+      | SavedDiedAway
       | Checkpoint
       | ChunkCells
     > = {};
@@ -1355,7 +1378,7 @@ export class GameServer {
       });
     }
 
-    for (const [actorId, death] of this.pendingDeathWrites) {
+    for (const [actorId, { death, told }] of this.pendingDeathWrites) {
       const spawn = this.spawns.get(actorId);
       if (spawn) entries[this.positionKey(actorId)] = { ...spawn, savedAt };
       entries[this.equipmentKey(actorId)] = {
@@ -1374,6 +1397,9 @@ export class GameServer {
       entries[this.hpKey(actorId)] = { hp: null, savedAt };
       entries[this.statusesKey(actorId)] = { statuses: [], savedAt };
       this.storedVitals.set(actorId, { hp: null, statuses: null });
+      if (!told) {
+        entries[this.diedAwayKey(actorId)] = { cost: death.cost ?? NOTHING_LOST, savedAt };
+      }
     }
     this.pendingDeathWrites.clear();
 
@@ -1414,6 +1440,7 @@ export class GameServer {
     await this.pruneOldest(HP_KEY_PREFIX);
     await this.pruneOldest(MASTERIES_KEY_PREFIX);
     await this.pruneOldest(SPAWN_KEY_PREFIX);
+    await this.pruneOldest(DIED_AWAY_KEY_PREFIX);
   }
 
   private async pruneOldest(prefix: string) {
@@ -1471,7 +1498,7 @@ export class GameServer {
     await this.seatActor(actorId);
     if (!this.session!.hiddenOf(actorId)) this.events.push({ kind: "joined", actorId });
 
-    this.sendHello(socket, actorId);
+    this.sendHello(socket, actorId, await this.takeDiedAway(actorId));
     this.tellAdminsPlayerCount({ told: socket });
     this.wake();
   }
@@ -1547,7 +1574,7 @@ export class GameServer {
     }
   }
 
-  private sendHello(ws: GameSocket, actorId: string) {
+  private sendHello(ws: GameSocket, actorId: string, diedAway?: DeathCost) {
     const session = this.session!;
     const attachment = ws.deserializeAttachment() as Attachment | null;
     const chunks = this.subscriptionFor(actorId);
@@ -1573,6 +1600,7 @@ export class GameServer {
       statuses: session.statusPatchesOf(actorId) ?? [],
       ...(attachment?.admin ? { playerCount: this.playerCount() } : {}),
       minutesOfDay: this.minutesOfDay(),
+      ...(diedAway ? { diedAway } : {}),
     };
     const map = mapOfInterestJson(session.getMap(), chunks, held);
     ws.send(
@@ -2149,8 +2177,21 @@ export class GameServer {
     this.forgetDeathNotice(actorId);
   }
 
+  /**
+   * The death's rows were written as told when it was queued, so a `died` that
+   * will now never be sent leaves its cost as a `diedAway:` row for the next
+   * `hello` instead.
+   */
   private forgetDeathNotice(actorId: string) {
-    this.justDied = this.justDied.filter((death) => death.id !== actorId);
+    const untold = this.justDied.find((death) => death.id === actorId);
+    if (!untold) return;
+    this.justDied = this.justDied.filter((death) => death !== untold);
+    this.ctx.storage
+      .put(this.diedAwayKey(actorId), {
+        cost: untold.cost ?? NOTHING_LOST,
+        savedAt: this.now(),
+      } satisfies SavedDiedAway)
+      .catch(GameServer.reportWriteFailure("died-away write"));
   }
 
   private leaveWorld(actorId: string, closing?: GameSocket) {
@@ -2551,7 +2592,7 @@ export class GameServer {
       const character = connected || this.lingering.has(actorId);
       if (!character) continue;
       this.logDeath(death);
-      this.pendingDeathWrites.set(actorId, death);
+      this.pendingDeathWrites.set(actorId, { death, told: connected });
       if (connected) this.justDied.push(death);
     }
     if (this.pendingDeathWrites.size > 0) {

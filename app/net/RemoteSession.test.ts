@@ -1335,6 +1335,54 @@ describe("RemoteSession death", () => {
 
     expect(framesOfType(socket, "step")).toHaveLength(1);
   });
+
+  describe("a death while the tab was closed", () => {
+    const cost = { packLeft: true, levelsLost: [{ mastery: "sharp", from: 10, to: 9 }] };
+
+    it("is shown from the hello that reports it", () => {
+      const { socket, session } = connected();
+
+      socket.deliver({ ...helloAgain(), diedAway: cost });
+
+      expect(session.isDead()).toBe(true);
+      expect(session.wasAwayForDeath()).toBe(true);
+      expect(session.deathCost()).toEqual(cost);
+    });
+
+    it("holds input while it is shown", () => {
+      const { socket, session } = connected();
+      socket.deliver({ ...helloAgain(), diedAway: cost });
+
+      session.setInput({ directions: ["e"] });
+
+      expect(framesOfType(socket, "step")).toEqual([]);
+    });
+
+    it("comes down without asking the server, which has already seated the body", () => {
+      const { socket, session } = connected();
+      socket.deliver({ ...helloAgain(), diedAway: cost });
+
+      expect(session.rebirth()).toBe(false);
+
+      expect(framesOfType(socket, "rebirth")).toEqual([]);
+      expect(session.isDead()).toBe(false);
+      expect(session.deathCost()).toBeNull();
+      session.setInput({ directions: ["e"] });
+      expect(framesOfType(socket, "step")).toHaveLength(1);
+    });
+
+    it("asks the server again for a death seen live after it", () => {
+      const { socket, session } = connected();
+      socket.deliver({ ...helloAgain(), diedAway: cost });
+      session.rebirth();
+
+      socket.deliver(died());
+
+      expect(session.wasAwayForDeath()).toBe(false);
+      expect(session.rebirth()).toBe(true);
+      expect(framesOfType(socket, "rebirth")).toEqual([{ type: "rebirth" }]);
+    });
+  });
 });
 
 describe("RemoteSession teleports", () => {

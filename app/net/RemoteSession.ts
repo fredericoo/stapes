@@ -198,6 +198,7 @@ export class RemoteSession implements PlaySession {
   private onReady: (() => void) | null = null;
   private dead = false;
   private death: DeathCost | null = null;
+  private diedAway = false;
   private onDead: ((dead: boolean) => void) | null = null;
   private onRestarting: (() => void) | null = null;
   private onOutdated: ((serverVersion: number) => void) | null = null;
@@ -250,9 +251,23 @@ export class RemoteSession implements PlaySession {
     return this.death;
   }
 
-  rebirth() {
-    if (!this.dead) return;
+  wasAwayForDeath(): boolean {
+    return this.diedAway;
+  }
+
+  /**
+   * Returns whether the server was asked. A death the `hello` reported has
+   * already been reborn from, so there is nothing to wait for and the screen
+   * comes down here.
+   */
+  rebirth(): boolean {
+    if (!this.dead) return false;
+    if (this.diedAway) {
+      this.clearDeath();
+      return false;
+    }
     this.send({ type: "rebirth" });
+    return true;
   }
 
   setOnPlayers(cb: ((count: number | null) => void) | null) {
@@ -277,6 +292,12 @@ export class RemoteSession implements PlaySession {
     if (hidden === this.hidden) return;
     this.hidden = hidden;
     this.onHidden?.(hidden);
+  }
+
+  private clearDeath() {
+    this.death = null;
+    this.diedAway = false;
+    this.setDead(false);
   }
 
   private setDead(dead: boolean) {
@@ -395,8 +416,9 @@ export class RemoteSession implements PlaySession {
       this.applyCastings(message.castings);
       this.resetAfflicted(message.afflicted);
       this.setPlayers(message.playerCount ?? null);
-      this.death = null;
-      this.setDead(false);
+      this.death = message.diedAway ?? null;
+      this.diedAway = message.diedAway !== undefined;
+      this.setDead(this.diedAway);
       this.ready = true;
       this.onReady?.();
       return;
@@ -488,6 +510,7 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "died") {
       this.death = message.cost;
+      this.diedAway = false;
       this.equipment = message.equipment;
       if (message.masteryXp) this.masteryXp = message.masteryXp;
       this.spellCooldowns = {};

@@ -506,20 +506,39 @@ describe("joining and leaving", () => {
       expect(hello.statuses).toEqual([]);
     });
 
-    it("writes down the death of a body left standing in a fight", async () => {
-      const alice = await connect("alice");
-      await hurt(alice.ws);
-      await disconnect(alice.pair);
-
-      type Internals = {
-        session: {
-          actors: Map<string, unknown>;
-          actorIds(): Iterable<string>;
-          applyDamage(actor: unknown, amount: number): void;
-        };
-        saveActors(actorIds: Iterable<string>, force: boolean): void;
-        tick(): void;
+    type Internals = {
+      session: {
+        actors: Map<string, unknown>;
+        actorIds(): Iterable<string>;
+        applyDamage(actor: unknown, amount: number): void;
       };
+      saveActors(actorIds: Iterable<string>, force: boolean): void;
+      tick(): void;
+    };
+
+    async function leaveMidFight(actorId: string) {
+      const player = await connect(actorId);
+      await hurt(player.ws);
+      await disconnect(player.pair);
+    }
+
+    async function killInFight(actorId: string) {
+      await runInDurableObject(stub(), (instance: GameServer) => {
+        const internals = instance as unknown as Internals;
+        const body = internals.session.actors.get(actorId);
+        internals.session.applyDamage(body, LETHAL_DAMAGE);
+        internals.tick();
+      });
+    }
+
+    async function storedDiedAway(actorId: string) {
+      return await runInDurableObject(stub(), (_instance, state) =>
+        state.storage.get<{ cost: unknown }>(`diedAway:${actorId}`),
+      );
+    }
+
+    it("writes down the death of a body left standing in a fight", async () => {
+      await leaveMidFight("alice");
       await runInDurableObject(stub(), (instance: GameServer) => {
         const internals = instance as unknown as Internals;
         internals.saveActors(internals.session.actorIds(), true);
@@ -529,17 +548,58 @@ describe("joining and leaving", () => {
       );
       expect(hurtRow?.hp).toBeGreaterThan(0);
 
-      await runInDurableObject(stub(), (instance: GameServer) => {
-        const internals = instance as unknown as Internals;
-        const body = internals.session.actors.get("alice");
-        internals.session.applyDamage(body, LETHAL_DAMAGE);
-        internals.tick();
-      });
+      await killInFight("alice");
 
       const deadRow = await runInDurableObject(stub(), (_instance, state) =>
         state.storage.get<{ hp: number | null }>("hp:alice"),
       );
       expect(deadRow?.hp).toBeNull();
+    });
+
+    it("tells a player who died while away what it cost, on their next hello", async () => {
+      await leaveMidFight("alice");
+      await killInFight("alice");
+      const stored = await storedDiedAway("alice");
+      expect(stored?.cost).toMatchObject({ packLeft: true });
+
+      const { hello } = await connect("alice");
+
+      expect(hello.diedAway).toEqual(stored!.cost);
+    });
+
+    it("tells them only once", async () => {
+      await leaveMidFight("alice");
+      await killInFight("alice");
+      const first = await connect("alice");
+      expect(first.hello.diedAway).toBeDefined();
+      await disconnect(first.pair);
+
+      const { hello } = await connect("alice");
+
+      expect(hello.diedAway).toBeUndefined();
+      expect(await storedDiedAway("alice")).toBeUndefined();
+    });
+
+    it("still tells them after a restart", async () => {
+      await leaveMidFight("alice");
+      await killInFight("alice");
+      await simulateEviction();
+
+      const { hello } = await connect("alice");
+
+      expect(hello.diedAway).toMatchObject({ packLeft: true });
+    });
+
+    it("keeps nothing back for a death the player was connected for", async () => {
+      const alice = await connect("alice");
+      await hurt(alice.ws);
+      await killInFight("alice");
+      await disconnect(alice.pair);
+
+      const { hello } = await connect("alice");
+
+      expect(hello.diedAway).toBeUndefined();
+      expect(await storedDiedAway("alice")).toBeUndefined();
     });
 
     it("lets the body go at the cap, even while the fight is still on", async () => {
@@ -3051,6 +3111,26 @@ describe("dying and coming back", () => {
     expect(JSON.stringify(again.hello.equipment)).not.toContain(swordId);
     expect(seen.types()).not.toContain("died");
     expect(seen.types()).toContain("patch");
+  });
+
+  it("tells a player whose socket closed before the tick about a death from a message", async () => {
+    const alice = await armedAlice();
+
+    await killByCommand(alice.pair);
+    await disconnect(alice.pair);
+    await tickNow();
+    const { hello } = await connect("alice");
+
+    expect(hello.diedAway).toMatchObject({ packLeft: true });
+  });
+
+  it("tells a player who rejoined before the tick about a death from a message", async () => {
+    const alice = await armedAlice();
+
+    await killByCommand(alice.pair);
+    const again = await connect("alice");
+
+    expect(again.hello.diedAway).toMatchObject({ packLeft: true });
   });
 
   it("brings them back under nothing, on full health", async () => {
