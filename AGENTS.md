@@ -34,6 +34,8 @@ an oblique cabinet projection with Three.js.
   `bun run verify` command shows that a change works, and how to hand that
   evidence over). Claude Code reads skills only from `.claude/skills/`, so each
   one here is symlinked there; a new one needs its link too.
+- **`.agents/skills/bot-bench/`** — when bot code changes, bench the branch
+  against `origin/main` with `bun run bench:bots` and put the table in the PR.
 - **`.claude/skills/pull-request-standards/`** — how to write a PR description here.
 - **`.claude/skills/better-ui/` and `.claude/skills/ux-writing/`** — third-party
   skills for interface detail (radii, shadows, icons, motion) and for interface

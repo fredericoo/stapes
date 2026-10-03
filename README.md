@@ -199,6 +199,22 @@ an agent drives", lists every call.
   `BOT_MEMORY_DIR` (default `.dev/bots`), one SQLite file per world. A server started with `BOTS=n` (`bun dev`, `bun run
   start`) runs `n` of them itself. `docs/notes.md`, "A bot is a player in
   another process", has how it works
+- `bun run bench:bots --b <ref>` — compare how bots play under two versions
+  of the code, A (`--a`, default `origin/main`) and B (`--b`, default `HEAD`).
+  Each version is checked out into a temporary worktree and plays `--bots`
+  bots (6) for `--hours` game-hours (1) on a real `GameServer` with a virtual
+  clock, once per seed for `--seeds` seeds (8), the LLM off. Both versions
+  play the same map file, `--map` (`data/map.json` of the checkout you run
+  it from), on the same seeds, and the runs are measured by this checkout's
+  code. It prints a Markdown table of deaths and kills per bot-hour, the
+  gold, gear worth and top mastery a bot ends with, the share of time spent
+  recovering, and walks back to a death bag made and abandoned per bot-hour:
+  each side's mean with a 95% interval, and B−A over paired seeds, marked
+  significant when its interval leaves out zero. `--jobs` (one fewer than
+  the cores) runs that many at once. A run of six bots for a game-hour took
+  about 55 minutes with eleven at once on a 12-core Mac, so the defaults take
+  two hours there; each run prints its progress to stderr every ten
+  game-minutes. The `bot-bench` skill says when to run it
 - `node scripts/record-hero.ts <client url>` — record the landing page's hero
   video, a walk through town with no interface, into
   `app/components/home/media/` as WebM, MP4 and a poster. Needs `bun dev`
