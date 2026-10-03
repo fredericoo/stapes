@@ -6,6 +6,7 @@ import { walkDurationMsFor } from "../app/game/movement";
 import { walkSpeedPercentFrom } from "../app/game/statuses";
 import { hasLineOfSight } from "../app/game/sight";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
+import { capacityOf } from "../app/game/itemMoves";
 import {
   cellGoal,
   NAVIGATION_MAX_NODES,
@@ -24,10 +25,12 @@ import {
   type ArcaneStoneItem,
   type Reach,
 } from "../app/lib/item";
+import type { ItemInstance } from "../app/lib/itemInstance";
 import type { Masteries } from "../app/lib/mastery";
 import { getStack } from "../app/lib/mapData";
+import { stowFits } from "../app/lib/piles";
 import type { StatusDef } from "../app/lib/status";
-import type { Coord, TileDef } from "../app/lib/types";
+import type { Coord, PlacedTile, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
 import { MAX_CHAT_LENGTH } from "../app/net/chat";
 import {
@@ -314,9 +317,18 @@ type Course =
   | { readonly kind: "rest"; readonly untilMs: number }
   | { readonly kind: "pause"; readonly untilMs: number };
 
-type Looting = {
+/**
+ * A loose thing worth having. `index` is set when the thing lies inside a bag
+ * on the floor, such as one a dead player dropped, and is taken out of it
+ * rather than picking up the bag.
+ */
+type LootTarget = {
   readonly ref: ObjectRef;
   readonly tileId: string;
+  readonly index: number | null;
+};
+
+type Looting = LootTarget & {
   readonly pilot: Pilot | null;
   readonly sinceMs: number;
 };
@@ -1752,13 +1764,11 @@ export class Bot {
 
     if (this.looting) {
       const { ref, tileId, sinceMs } = this.looting;
-      const placed = getStack(snapshot.map, ref.x, ref.y, ref.z)[ref.stackIndex];
-      if (placed?.tileId !== tileId) {
+      if (!stillLies(snapshot, this.looting)) {
         this.looting = null;
         return false;
       }
-      if (this.body.pickUp(ref) || this.body.equip(ref)) {
-        this.happen(`picked up ${this.tilesById[tileId]?.name ?? tileId}`);
+      if (this.take(this.looting)) {
         this.looting = null;
         this.pendingAsk ??= { reason: "timer", outcome: null };
         return true;
@@ -1803,38 +1813,57 @@ export class Bot {
     return true;
   }
 
+  /**
+   * Picks up a loose thing, or moves one out of a bag on the floor into the
+   * bot's own. Returns whether the server was asked.
+   */
+  private take({ ref, tileId, index }: LootTarget): boolean {
+    const name = this.tilesById[tileId]?.name ?? tileId;
+    if (index === null) {
+      if (!this.body.pickUp(ref) && !this.body.equip(ref)) return false;
+      this.happen(`picked up ${name}`);
+      return true;
+    }
+    if (!this.body.moveItem({ kind: "ground", ref, index }, INTO_BAG)) return false;
+    this.happen(`took ${name} out of a bag on the floor`);
+    return true;
+  }
+
   /** The nearest loose thing in sight within `LOOT_CELLS` that is worth picking up. */
-  private lootIn(
-    snapshot: GameSnapshot,
-    body: BattlerDef,
-    nowMs: number,
-  ): { ref: ObjectRef; tileId: string } | null {
+  private lootIn(snapshot: GameSnapshot, body: BattlerDef, nowMs: number): LootTarget | null {
     const self = snapshot.self;
     const wanted = this.economy.wanted(snapshot.equipment, body);
-    let best: { ref: ObjectRef; tileId: string } | null = null;
-    let bestSteps = Infinity;
-    for (let dy = -LOOT_CELLS; dy <= LOOT_CELLS; dy++) {
-      for (let dx = -LOOT_CELLS; dx <= LOOT_CELLS; dx++) {
-        const away = Math.abs(dx) + Math.abs(dy);
-        if (away > LOOT_CELLS || away >= bestSteps) continue;
-        const cell = { x: self.x + dx, y: self.y + dy, z: self.z };
-        const stack = getStack(snapshot.map, cell.x, cell.y, cell.z);
-        for (let stackIndex = stack.length - 1; stackIndex >= 0; stackIndex--) {
-          const placed = stack[stackIndex]!;
-          if (placed.owner || !wanted(placed.tileId)) continue;
-          const def = this.tilesById[placed.tileId];
-          if (!def || !resolveItem(def)) continue;
-          if (coveredBySomething(stack, stackIndex, this.tilesById)) continue;
-          const ref = { ...cell, stackIndex };
-          if ((this.lootSkipped.get(lootKey(ref, placed.tileId)) ?? 0) > nowMs) continue;
-          if (!sees(snapshot, this.tilesById, cell)) continue;
-          best = { ref, tileId: placed.tileId };
-          bestSteps = away;
-          break;
-        }
-      }
+    const fits = bagFits(snapshot.equipment, this.tilesById);
+    for (const [dx, dy] of LOOT_OFFSETS) {
+      const cell = { x: self.x + dx, y: self.y + dy, z: self.z };
+      const found = this.lootInCell(snapshot, cell, wanted, fits, nowMs);
+      if (found) return found;
     }
-    return best;
+    return null;
+  }
+
+  /** The topmost thing in `cell` worth taking, or worth taking something out of, in sight. */
+  private lootInCell(
+    snapshot: GameSnapshot,
+    cell: Coord,
+    wanted: (tileId: string) => boolean,
+    fits: (instance: ItemInstance) => boolean,
+    nowMs: number,
+  ): LootTarget | null {
+    const stack = getStack(snapshot.map, cell.x, cell.y, cell.z);
+    for (let stackIndex = stack.length - 1; stackIndex >= 0; stackIndex--) {
+      const placed = stack[stackIndex]!;
+      const part = placed.owner ? null : worthTaking(placed, wanted, fits);
+      if (!part) continue;
+      const def = this.tilesById[placed.tileId];
+      if (!def || !resolveItem(def)) continue;
+      if (coveredBySomething(stack, stackIndex, this.tilesById)) continue;
+      const ref = { ...cell, stackIndex };
+      if ((this.lootSkipped.get(lootKey(ref, part.tileId)) ?? 0) > nowMs) continue;
+      if (!sees(snapshot, this.tilesById, cell)) return null;
+      return { ref, ...part };
+    }
+    return null;
   }
 
   /** What the planner is told: whether there is anything to buy, sell or gather. */
@@ -2042,6 +2071,52 @@ function inZone(zones: readonly Zone[], cell: Coord): boolean {
 
 function lootKey(ref: ObjectRef, tileId: string): string {
   return `${refKey(ref)}:${tileId}`;
+}
+
+/** The worn bag; the server stows the thing wherever it fits, whatever the index. */
+const INTO_BAG = { kind: "contents", index: 0 } as const;
+
+/** Every cell within `LOOT_CELLS` steps, as offsets from the bot, nearest first. */
+const LOOT_OFFSETS: ReadonlyArray<readonly [number, number]> = (() => {
+  const away = ([dx, dy]: readonly [number, number]) => Math.abs(dx) + Math.abs(dy);
+  const offsets: Array<[number, number]> = [];
+  for (let dy = -LOOT_CELLS; dy <= LOOT_CELLS; dy++) {
+    for (let dx = -LOOT_CELLS; dx <= LOOT_CELLS; dx++) offsets.push([dx, dy]);
+  }
+  return offsets.filter((offset) => away(offset) <= LOOT_CELLS).sort((a, b) => away(a) - away(b));
+})();
+
+/**
+ * What of `placed` is worth taking: the thing itself, or else the first thing
+ * inside it that is wanted and fits the bot's bag. A bot wearing a bag sees no
+ * upgrade in another one, so judging a dropped bag only as a bag left
+ * everything a dead player carried on the floor.
+ */
+function worthTaking(
+  placed: PlacedTile,
+  wanted: (tileId: string) => boolean,
+  fits: (instance: ItemInstance) => boolean,
+): { tileId: string; index: number | null } | null {
+  if (wanted(placed.tileId)) return { tileId: placed.tileId, index: null };
+  const contents = placed.contents ?? [];
+  const index = contents.findIndex((inside) => wanted(inside.tileId) && fits(inside));
+  return index === -1 ? null : { tileId: contents[index]!.tileId, index };
+}
+
+function bagFits(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+): (instance: ItemInstance) => boolean {
+  const bag = equipment.bag;
+  if (!bag) return () => false;
+  const capacity = capacityOf(bag, tilesById);
+  return (instance) => stowFits(bag.contents ?? [], instance, capacity, tilesById);
+}
+
+function stillLies(snapshot: GameSnapshot, { ref, tileId, index }: LootTarget): boolean {
+  const placed = getStack(snapshot.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  const there = index === null ? placed : placed?.contents?.[index];
+  return there?.tileId === tileId;
 }
 
 /** How far a kiting bot looks for somewhere to back away to. */
