@@ -1,5 +1,5 @@
 import { Popover } from "@base-ui/react/popover";
-import { IconMenu2, IconSettings } from "@tabler/icons-react";
+import { IconMenu, IconSettings } from "./pixelIcons";
 import { createContext, useContext, useState } from "react";
 import { NavLink } from "react-router";
 import { useMediaQuery } from "../lib/useMediaQuery";
@@ -113,7 +113,7 @@ export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
             "border-paper/40 bg-transparent text-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink",
           ].join(" ")}
         >
-          <IconSettings size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+          <IconSettings size={size === "touch" ? 24 : 18} aria-hidden="true" />
           {attention ? <AttentionDot className="absolute -top-1.5 -right-1.5" /> : null}
         </Popover.Trigger>
       </Tooltip>
@@ -178,7 +178,7 @@ export function AppShell({
                     className="flex items-center gap-1 border-2 border-paper/40 px-2 py-1 text-paper hover:border-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink"
                     aria-label="Menu"
                   >
-                    <IconMenu2 size={16} stroke={2} aria-hidden="true" />
+                    <IconMenu size={16} aria-hidden="true" />
                   </Popover.Trigger>
                   <Popover.Portal>
                     <Popover.Positioner sideOffset={8} align="start">

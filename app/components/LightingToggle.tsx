@@ -1,4 +1,4 @@
-import { IconBulb, IconBulbOff } from "@tabler/icons-react";
+import { IconBulb, IconBulbOff } from "./pixelIcons";
 import { Toggle, Tooltip } from "../ui";
 
 export function LightingToggle({
@@ -21,9 +21,9 @@ export function LightingToggle({
     >
       <Toggle pressed={enabled} onPressedChange={onChange} ariaLabel="Lighting">
         {enabled ? (
-          <IconBulb size={16} stroke={2} aria-hidden="true" />
+          <IconBulb size={16} aria-hidden="true" />
         ) : (
-          <IconBulbOff size={16} stroke={2} aria-hidden="true" />
+          <IconBulbOff size={16} aria-hidden="true" />
         )}
       </Toggle>
     </Tooltip>

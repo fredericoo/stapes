@@ -1,4 +1,4 @@
-import { IconEye, IconEyeOff } from "@tabler/icons-react";
+import { IconEye, IconEyeOff } from "./pixelIcons";
 import { Toggle, Tooltip } from "../ui";
 
 export function InvisibleToggle({
@@ -18,9 +18,9 @@ export function InvisibleToggle({
     >
       <Toggle pressed={hidden} onPressedChange={onChange} ariaLabel="Invisible">
         {hidden ? (
-          <IconEyeOff size={16} stroke={2} aria-hidden="true" />
+          <IconEyeOff size={16} aria-hidden="true" />
         ) : (
-          <IconEye size={16} stroke={2} aria-hidden="true" />
+          <IconEye size={16} aria-hidden="true" />
         )}
       </Toggle>
     </Tooltip>
