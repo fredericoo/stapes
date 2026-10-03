@@ -21,6 +21,7 @@
   --color-accent: #2d6a4f;
   --color-danger: #9b2226;
   --color-danger-on-ink: #ff6b6b;
+  --color-mend: #7fe08a;
   /* Must be the same value as the shared `outline` in
      `render/interactionColors.ts`: the outline drawn in the world when the
      pointer is over something actionable uses this colour too, and the two are
@@ -329,7 +330,7 @@ body {
 }
 
 .damage-number--mend {
-  color: #7fe08a;
+  color: var(--color-mend);
 }
 
 /* `--cast-line-px` is one world pixel in CSS pixels, written by the layer
