@@ -7,7 +7,14 @@ import { rating } from "../app/lib/mastery";
 import { statusesById } from "../app/lib/status";
 import { normalizeTileDef, type TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
-import { choosePrey, creaturesAround, healingFood, type PreyChoice, type Rated } from "./combat";
+import {
+  choosePrey,
+  creaturesAround,
+  healingFood,
+  healsAtOnce,
+  type PreyChoice,
+  type Rated,
+} from "./combat";
 import { bodyOf } from "./gear";
 import { fightOdds, swingsOf, type Fighter } from "./odds";
 import { DEFAULT_TEMPERAMENT } from "./temperament";
@@ -168,5 +175,13 @@ describe("healingFood", () => {
 
   it("counts a berry, which heals only through the status it gives", () => {
     expect(healingFood(bagOf("raw-meat", "berry"), tilesById, statusDefs)).toBe(1);
+  });
+
+  it("in a fight, eats only food that heals at once", () => {
+    const fighting = (...tileIds: string[]) =>
+      healingFood(bagOf(...tileIds), tilesById, statusDefs, healsAtOnce);
+
+    expect(fighting("berry", "bread")).toBeNull();
+    expect(fighting("berry", "cheese")).toBe(1);
   });
 });
