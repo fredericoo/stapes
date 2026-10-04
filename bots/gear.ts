@@ -252,6 +252,25 @@ export function bestUpgrade(
   return best;
 }
 
+/**
+ * What everything the bot wears is worth to it, on the scale `bestUpgrade`
+ * gains by, the charm square included.
+ */
+export function wornWorth(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  body: BattlerDef,
+  taste: Taste,
+): number {
+  const stoneHands = stoneHanded(equipment, tilesById, taste, body.masteries);
+  let total = 0;
+  for (const slot of [...GEAR_SLOTS, "charm"] as const) {
+    const def = tilesById[equipment[slot]?.tileId ?? ""];
+    if (def) total += gearWorth(def, slot, body, taste, stoneHands);
+  }
+  return total;
+}
+
 /** The reach of the ranged weapon the bot swings, or null when it fights up close. */
 export function rangedReach(
   equipment: Equipment,
