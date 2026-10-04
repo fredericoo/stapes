@@ -114,9 +114,11 @@ export function WorldPage({
   }, []);
   const act = useCallback((option: InteractionOption) => {
     const renderer = rendererRef.current;
-    const current = renderer ? renderer.listOption(option.id) : option;
-    if (!current) return;
-    applyInteraction(sessionRef.current, current, renderer);
+    if (renderer) {
+      renderer.pressListed(option.id);
+      return;
+    }
+    applyInteraction(sessionRef.current, option, renderer);
   }, []);
   const talk = useCallback((action: TalkAction) => sessionRef.current?.talk(action), []);
   const craft = useCallback(

@@ -1645,6 +1645,7 @@ describe("groupInteractionOptions", () => {
       actorId: null,
       blocked: null,
       wait: null,
+      far: false,
       tileId: "crate",
       name: "Crate",
       health: null,

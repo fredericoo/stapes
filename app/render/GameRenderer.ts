@@ -61,6 +61,7 @@ import {
   type HeldDirections,
 } from "../game/heldDirections";
 import { approachStand, WalkTo, type WalkView } from "../game/walkTo";
+import { listFarOptions } from "../game/farInteractions";
 import { resolveDialog } from "../lib/dialog";
 import type { EmitterOverride } from "../lib/lighting";
 import { DEFAULT_PLAY_MINUTES, clockAfter, wrapMinutes, type MinutesOfDay } from "../lib/clock";
@@ -117,6 +118,10 @@ function sameCell(a: Coord, b: Coord): boolean {
   return a.x === b.x && a.y === b.y && a.z === b.z;
 }
 
+function cellText(cell: Coord): string {
+  return `${cell.x},${cell.y},${cell.z}`;
+}
+
 function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
   return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight), spanPx);
 }
@@ -134,6 +139,8 @@ const LOOK_HOLD_SLOP_PX = 10;
 const PICK_LEVEL_SLACK = 1;
 
 const APPROACH_PATIENCE_MS = 1000;
+
+const FAR_REFRESH_MS = 250;
 
 /**
  * The most steps apart, on the grid, a cell can be from a thing it still acts
@@ -257,6 +264,10 @@ export class GameRenderer {
   private interactionsKey = "";
   private interactionsSent: InteractionOption[] = [];
   private interactionsActors: ActorSnapshot[] = [];
+  private farSent: InteractionOption[] = [];
+  private farFrom = "";
+  private farDirty = false;
+  private farAtMs = -Infinity;
   private afarSent: InteractionOption[] | null = null;
   private readonly afarByRef = new Map<string, InteractionOption[]>();
   private approaching: { id: string; label: string; stillSinceMs: number | null } | null = null;
@@ -594,6 +605,10 @@ export class GameRenderer {
     this.interactionsExtracting = null;
     this.interactionsNextBlow = null;
     this.interactionsSent = [];
+    this.farSent = [];
+    this.farFrom = "";
+    this.farDirty = false;
+    this.farAtMs = -Infinity;
   }
 
   setListHover(optionId: string | null) {
@@ -602,11 +617,26 @@ export class GameRenderer {
 
   private listHoverOption(): InteractionOption | null {
     if (this.listHoverId === null) return null;
-    return this.listOption(this.listHoverId);
+    return this.listOption(this.listHoverId) ?? this.farOption(this.listHoverId);
   }
 
   listOption(optionId: string): InteractionOption | null {
     return this.interactionsSent.find((o) => o.id === optionId) ?? null;
+  }
+
+  private farOption(optionId: string): InteractionOption | null {
+    return this.farSent.find((o) => o.id === optionId) ?? null;
+  }
+
+  /** Runs a listed row, walking there first when it was listed from afar. */
+  pressListed(optionId: string) {
+    const near = this.listOption(optionId);
+    if (near) {
+      this.runOption(near);
+      return;
+    }
+    const far = this.farOption(optionId);
+    if (far) this.approach(far);
   }
 
   start() {
@@ -1724,7 +1754,7 @@ export class GameRenderer {
 
     const cut = this.roofCutFor(snap);
 
-    this.pushInteractionOptions(snap, camera, cut);
+    this.pushInteractionOptions(snap, camera, cut, nowMs);
     this.repickPointer(snap, camera);
 
     const seen = this.withClaimedLooks(this.withoutHiddenBodies(snap));
@@ -1777,9 +1807,34 @@ export class GameRenderer {
     snap: GameSnapshot,
     camera: { x: number; y: number },
     cut: RoofCut | undefined,
+    nowMs: number,
   ) {
     if (!this.onInteractions) return;
+    const near = this.refreshNearOptions(snap, camera, cut);
+    const far = this.refreshFarOptions(snap, camera, nowMs, near !== "unchanged");
+    if (near === "unchanged" && !far) return;
 
+    const nearIds = new Set(this.interactionsSent.map((option) => option.id));
+    const options = [
+      ...this.interactionsSent,
+      ...this.farSent.filter((option) => !nearIds.has(option.id)),
+    ];
+    const key = options
+      .map(
+        (o) =>
+          `${o.id}/${o.label}/${o.active}/${o.far}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`,
+      )
+      .join("|");
+    if (key === this.interactionsKey && near !== "waitChanged") return;
+    this.interactionsKey = key;
+    this.onInteractions(options);
+  }
+
+  private refreshNearOptions(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+    cut: RoofCut | undefined,
+  ): "unchanged" | "changed" | "waitChanged" {
     const box = this.openedRef;
     const opened = box ? `${box.x},${box.y},${box.z},${box.stackIndex}` : "";
     const talking = snap.conversation?.npcId ?? "";
@@ -1802,7 +1857,7 @@ export class GameRenderer {
       snap.extracting === this.interactionsExtracting &&
       snap.nextBlow === this.interactionsNextBlow
     ) {
-      return;
+      return "unchanged";
     }
     const waitChanged = snap.nextBlow !== this.interactionsNextBlow;
     this.interactionsNextBlow = snap.nextBlow;
@@ -1820,12 +1875,43 @@ export class GameRenderer {
       (option) => !unlisted.some((a) => sameRef(option.ref, a)),
     );
     this.interactionsSent = options;
-    const key = options
-      .map((o) => `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`)
-      .join("|");
-    if (key === this.interactionsKey && !waitChanged) return;
-    this.interactionsKey = key;
-    this.onInteractions(options);
+    return waitChanged ? "waitChanged" : "changed";
+  }
+
+  /**
+   * A step always rescans, since what is a short walk away is exactly what a
+   * step changes. Anything else is held to `FAR_REFRESH_MS`: the map is a new
+   * object on any commit anywhere, so in a busy world it changes every frame.
+   */
+  private refreshFarOptions(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+    nowMs: number,
+    nearChanged: boolean,
+  ): boolean {
+    this.farDirty ||= nearChanged;
+    const view = this.walkView(snap, camera);
+    const from = view ? `${cellText(view.at)}>${view.stepping ? cellText(view.stepping) : ""}` : "";
+    const moved = from !== this.farFrom;
+    if (!moved && !(this.farDirty && nowMs - this.farAtMs >= FAR_REFRESH_MS)) return false;
+    this.farFrom = from;
+    this.farAtMs = nowMs;
+    this.farDirty = false;
+    this.farSent = view
+      ? listFarOptions({
+          map: snap.map,
+          tilesById: this.tilesById,
+          statusDefs: this.statusDefs,
+          self: snap.self,
+          from: view.stepping ?? view.at,
+          def: view.def,
+          actors: this.interactionsActors,
+          context: this.refContext(snap),
+          near: this.interactionsSent,
+          shown: (ref) => this.offersFromAfar(snap, ref),
+        })
+      : [];
+    return true;
   }
 
   private optionsFrom(

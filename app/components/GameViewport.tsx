@@ -271,7 +271,7 @@ export function GameViewport({
       tiles={tiles}
       tilesets={tilesets}
       onAct={(option) => {
-        if (option.action === "open") {
+        if (option.action === "open" && !option.far) {
           onOpenContainer?.(option.active ? null : option.ref);
           return;
         }

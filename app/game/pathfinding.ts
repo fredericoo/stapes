@@ -374,6 +374,53 @@ export function findRefuge(
   return { ok: true, route: unwind(refuge.node) };
 }
 
+export type ReachedCell = { at: Coord; cost: number };
+
+export type FloodOptions = { maxCost: number; maxNodes: number };
+
+/**
+ * Every cell a walk from `start` can end on for at most `maxCost`, with what
+ * the cheapest walk there costs. One search answers "can I get there" for all
+ * of them at once, where `findPath` would be asked once per cell. It never
+ * drops: a fall is only taken toward a goal, and a flood has none.
+ */
+export function reachableCells(
+  map: MapFile,
+  start: PathStart,
+  tileDef: TileDef,
+  tilesById: Record<string, TileDef>,
+  statusDefs: Record<string, StatusDef>,
+  opts: FloodOptions,
+): Map<string, ReachedCell> {
+  const board = removeTileAt(map, start.self.x, start.self.y, start.self.z, start.self.stackIndex);
+  const from = { x: start.at.x, y: start.at.y, z: start.at.z };
+  const avoid = avoidRule(board, tilesById, statusDefs, start.who, false, NOTHING_ASKED_FOR);
+
+  const frontier = new Frontier();
+  const reached = new Map<string, ReachedCell>();
+  frontier.push({ at: from, g: 0, f: 0, cameFrom: null, step: null });
+  reached.set(cellKey(from), { at: from, cost: 0 });
+
+  for (let expanded = 0; expanded < opts.maxNodes; expanded++) {
+    const node = frontier.pop();
+    if (!node) break;
+    if (node.g > (reached.get(cellKey(node.at))?.cost ?? Infinity)) continue;
+
+    const legs = neighbours(board, node.at, tileDef, tilesById, null, avoid);
+    if (legs.length === 0) continue;
+    const g = node.g + legCost(board, node.at, tilesById);
+    if (g > opts.maxCost) continue;
+    for (const step of legs) {
+      const key = cellKey(step.to);
+      if (g >= (reached.get(key)?.cost ?? Infinity)) continue;
+      reached.set(key, { at: step.to, cost: g });
+      frontier.push({ at: step.to, g, f: g, cameFrom: null, step });
+    }
+  }
+
+  return reached;
+}
+
 export function findPath(
   map: MapFile,
   start: PathStart,
