@@ -233,6 +233,31 @@ it("turns on a creature it fears but cannot outrun, rather than being chased dow
   expect(batGone()).toBe(true);
 });
 
+it("waits for a faster creature that has seen it, rather than backing away", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(armouryWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot(true);
+  const lines: string[] = [];
+  const bot = new Bot(
+    remote,
+    new ScriptedPlanner([{ goal: "rest", seconds: 300 }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread: 8 },
+      log: (line) => lines.push(line),
+    },
+  );
+  await play(bot, remote, () => !!remote.getSnapshot().equipment.weapon, clock);
+  const { self } = remote.getSnapshot();
+  void remote.command(`/spawn wolf ${self.x + 6} ${self.y} ${self.z}`);
+  const decided = () => lines.some((line) => /backing away|cannot outrun/.test(line));
+
+  await play(bot, remote, decided, clock);
+
+  expect(lines.find((line) => /backing away|cannot outrun/.test(line))).toContain("cannot outrun");
+});
+
 /** Answers every ask with `rest`, and keeps what it was asked. */
 class Recorder implements Planner {
   readonly asked: Observation[] = [];
