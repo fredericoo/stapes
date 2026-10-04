@@ -218,6 +218,33 @@ it("turns on a creature it fears but cannot outrun, rather than being chased dow
   expect(batGone()).toBe(true);
 });
 
+it("passes over prey that walks faster than it, which no chase would close on", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(armouryWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot(true);
+  const lines: string[] = [];
+  const bot = new Bot(
+    remote,
+    new ScriptedPlanner([{ goal: "rest", seconds: 300 }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 },
+      log: (line) => lines.push(line),
+    },
+  );
+  await play(bot, remote, () => !!remote.getSnapshot().equipment.weapon, clock);
+  const { self } = remote.getSnapshot();
+  void remote.command(`/spawn rabbit ${self.x + 6} ${self.y} ${self.z}`);
+  const lookedFor = clock.ms + DEFAULT_TEMPERAMENT.reactionMaxMs * 2;
+  const hunting = () => lines.some((line) => line.startsWith("hunting"));
+
+  await play(bot, remote, () => hunting() || clock.ms > lookedFor, clock);
+
+  expect(remote.getSnapshot().actors.some((a) => a.tileId === "rabbit")).toBe(true);
+  expect(hunting()).toBe(false);
+});
+
 /** Answers every ask with `rest`, and keeps what it was asked. */
 class Recorder implements Planner {
   readonly asked: Observation[] = [];
