@@ -2852,8 +2852,8 @@ version of a client making up where it is allowed to go.
 The interaction list only offers what is in reach, so a door across the room
 was neither outlined nor clickable: a click on it walked you beside it and did
 nothing more. Now a mouse over it shows "Open", and a left click walks there
-and opens it. This is the screen click only; the list still shows only what
-is in reach, because it is a list of what you can do from where you stand.
+and opens it. The list shows these too, a short walk out; see the next
+section.
 
 - **The walk stops on the first cell from which the verb is offered**, not
   beside the thing. `findPath` takes a third kind of arrival, `Reaching`: any
@@ -2901,6 +2901,41 @@ is in reach, because it is a list of what you can do from where you stand.
     refuses like the rest now, and the retry picks it up.
 - **Nothing reaches the wire.** The server sees ordinary steps and then an
   ordinary interact, and validates both as it already did.
+
+### The list shows what a short walk reaches
+
+The list used to be only what you can do from where you stand. On a phone it is
+the main input, and there is no hover, so a door across the room could be
+reached only by walking up to it first. Now the list ends with rows for things
+up to `FAR_MAX_STEPS` of walking away, nearest walk first, at most
+`FAR_SUBJECT_LIMIT` things. They are drawn dimmer, and pressing one runs the same
+`approach` a click on the thing does.
+
+- **One flood, not one search per thing.** Asking `findPath` per candidate, as
+  the hover does, costs two bounded searches each and grows with whatever is
+  on screen. `reachableCells` floods once from the player and returns every
+  cell a walk can end on and its cost. A thing is listed when a reached cell
+  around it offers it a verb, asked through `refOptionsFrom`, so the near list's
+  rules decide and there is no second copy of them. Candidates are filtered
+  with `isInteractive` before anything is asked; without that filter, asking
+  every floor and wall was 5ms at the median and 11ms at p95 on
+  `app/lib/fixtureTown.ts`. With it the scan is 1.0ms at the median and 1.7ms
+  at p95, about two thirds of that in the flood's `canWalk` calls (`bun` on an
+  M-series Mac, 948 standing cells sampled).
+- **The flood never drops.** `findPath` takes a fall only toward the cell it was
+  given, and a flood is not given one. A thing at the bottom of a hole is not
+  listed, though a click on it still walks down.
+- **A step rescans; anything else waits `FAR_REFRESH_MS`.** What a short walk
+  reaches is what a step changes, so a step always rescans. The near list also
+  rebuilds whenever the map is a new object, which in a busy world is every
+  frame, and the far scan is too expensive to follow it. Far rows whose id has
+  since come into reach are dropped when the list is sent, so a thing is never
+  listed twice.
+- **A body offers only Talk from afar**, as from the pointer. Its other rows are
+  already listed from anywhere in view.
+- **`InteractionOption.far` is what tells the two apart.** `listOption` stays
+  near-only, because `stepApproach` waits for the walked-for id to appear there.
+  `pressListed` runs a near row and approaches a far one.
 
 ## A step used to wait for a decision, which set the pace of every creature
 

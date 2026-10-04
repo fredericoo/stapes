@@ -160,6 +160,9 @@ function actionClass(option: InteractionOption): string {
     return "border-dashed border-paper/25 text-paper/40";
   }
   if (option.active) return litClass(option);
+  if (option.far) {
+    return "border-paper/15 text-paper/60 hover:border-paper hover:bg-paper/10 hover:text-paper";
+  }
   if (option.action === "reward") {
     return "border-reward/60 text-reward hover:border-reward hover:bg-reward/10";
   }
@@ -240,6 +243,15 @@ export function blockReason(blocked: OptionBlock): string | null {
   return "no room";
 }
 
+const FAR_HINT = "walks there first";
+
+function actionLabel(option: InteractionOption): string {
+  const reason = option.blocked ? blockReason(option.blocked) : null;
+  if (reason) return `${interactionText(option)}, ${reason}`;
+  if (option.far) return `${interactionText(option)}, ${FAR_HINT}`;
+  return interactionText(option);
+}
+
 export function drawnBlockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return null;
   return blockReason(blocked);
@@ -295,11 +307,7 @@ function ActionButton({
       onMouseLeave={() => onHover?.(subjectId)}
       onFocus={() => onHover?.(option.id)}
       onBlur={() => onHover?.(null)}
-      aria-label={
-        blocked && blockReason(blocked)
-          ? `${interactionText(option)}, ${blockReason(blocked)}`
-          : interactionText(option)
-      }
+      aria-label={actionLabel(option)}
       aria-disabled={blocked ? true : undefined}
       aria-pressed={
         option.action === "attack" ||

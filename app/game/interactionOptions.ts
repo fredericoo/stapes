@@ -72,6 +72,7 @@ export type InteractionOption = {
   name: string;
   health: { hp: number; maxHp: number } | null;
   active: boolean;
+  far: boolean;
   blocked: OptionBlock | null;
   wait: Progress | null;
 };
@@ -574,6 +575,7 @@ function slotOptions(
       actorId: body?.id ?? null,
       blocked,
       wait: null,
+      far: false,
       tileId: placed.tileId,
       name,
       health: body ? healthOf(body) : null,
@@ -719,6 +721,7 @@ function talkOptions(
       actorId: actor.id,
       blocked: null,
       wait: null,
+      far: false,
       tileId: actor.tileId,
       name: bodyNameFor(actor, tilesById),
       health: healthOf(actor),
@@ -763,6 +766,7 @@ function battlerOptions(
         actorId: actor.id,
         blocked: null,
         wait: fighting ? nextBlow : null,
+        far: false,
         tileId: actor.tileId,
         name,
         health,
@@ -777,6 +781,7 @@ function battlerOptions(
       actorId: actor.id,
       blocked: null,
       wait: null,
+      far: false,
       tileId: actor.tileId,
       name,
       health,
@@ -790,6 +795,7 @@ function battlerOptions(
       actorId: actor.id,
       blocked: null,
       wait: null,
+      far: false,
       tileId: actor.tileId,
       name,
       health,
