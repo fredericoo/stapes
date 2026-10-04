@@ -46,6 +46,20 @@ function request(origin: string, cookie: string | null, body?: unknown): Request
  */
 const RATE_LIMITED = 429;
 
+/** What `/api/account` and `/api/characters` answer when they turn a name down. */
+const REFUSED = 400;
+
+/** A failure at or above this is the server or its proxy, never the account. */
+const SERVER_ERROR_MIN = 500;
+
+/**
+ * The server said no to this account or character name, which is the only
+ * failure that makes a bot draw another name. Anything else, such as the
+ * proxy answering "no available server" during a deploy, is the world being
+ * away, and the same name is tried again later.
+ */
+export class Refused extends Error {}
+
 function cookieFrom(response: Response): string | null {
   const pairs = response.headers.getSetCookie().map((line) => line.split(";")[0]!);
   return pairs.length ? pairs.join("; ") : null;
@@ -58,16 +72,18 @@ async function signIn(base: string, origin: string, account: BotAccount): Promis
     request(origin, null, credentials),
   );
   if (signedIn.ok) return cookieFrom(signedIn) ?? fail("signing in set no cookie");
-  if (signedIn.status === RATE_LIMITED) fail("signing in was rate limited");
+  if (signedIn.status === RATE_LIMITED || signedIn.status >= SERVER_ERROR_MIN) {
+    fail(`signing in failed with ${signedIn.status}`);
+  }
 
   const signedUp = await fetch(
     `${base}/api/account`,
     request(origin, null, { ...credentials, email: `${account.username}@bots.invalid` }),
   );
-  if (signedUp.status === RATE_LIMITED) fail("signing up was rate limited");
-  if (!signedUp.ok) {
-    fail(`could not sign in or sign up as ${account.username}: ${await signedUp.text()}`);
+  if (signedUp.status === REFUSED) {
+    refuse(`could not sign in or sign up as ${account.username}: ${await signedUp.text()}`);
   }
+  if (!signedUp.ok) fail(`signing up failed with ${signedUp.status}`);
   return cookieFrom(signedUp) ?? fail("signing up set no cookie");
 }
 
@@ -84,7 +100,8 @@ async function characterOf(
   if (existing) return existing.id;
 
   const made = await fetch(`${base}/api/characters`, request(origin, cookie, { name }));
-  if (!made.ok) fail(`could not create ${name}: ${await made.text()}`);
+  if (made.status === REFUSED) refuse(`could not create ${name}: ${await made.text()}`);
+  if (!made.ok) fail(`creating ${name} failed with ${made.status}`);
   return ((await made.json()) as { character: { id: string } }).character.id;
 }
 
@@ -121,4 +138,8 @@ export async function takeSeat(base: string, origin: string, account: BotAccount
 
 function fail(message: string): never {
   throw new Error(message);
+}
+
+function refuse(message: string): never {
+  throw new Refused(message);
 }
