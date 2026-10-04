@@ -4527,7 +4527,7 @@ describe("patches scoped to a subscription", () => {
   function farApart(bobAt: number = BODY_OUT): { map: FlatMapFile; spawn: Record<string, number> } {
     const cells: Record<string, unknown[]> = {};
     for (let x = 0; x <= OUT_OF_REACH + 1; x++) {
-      cells[`${x},0`] = [{ tileId: "grass" }];
+      cells[`${x},0`] = [{ tileId: "dirt" }, { tileId: "grass" }];
     }
     cells[`${ALICE_CELL},0`] = [
       { tileId: "grass" },

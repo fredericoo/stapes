@@ -16,6 +16,7 @@
     "figure-parts": "bun scripts/figure-parts.ts",
     "generate:respawn": "bun scripts/generate-respawn-tileset.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
+    "generate:grass": "bun scripts/generate-grass-tileset.ts",
     "generate:low-roofs": "bun scripts/generate-low-roofs.ts",
     "generate:cave-wall": "bun scripts/generate-cave-wall-tileset.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",

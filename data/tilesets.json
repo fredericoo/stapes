@@ -131,5 +131,12 @@
     "file": "counter.png",
     "width": 80,
     "height": 48
+  },
+  {
+    "id": "grass",
+    "name": "Grass",
+    "file": "grass.png",
+    "width": 8,
+    "height": 2048
   }
 ]

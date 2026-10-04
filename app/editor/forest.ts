@@ -40,6 +40,7 @@ export type ForestConfig = {
   seed: number;
   density: number;
   groundTileId: string;
+  coverTileId: string | null;
   treeTileId: string;
   paths: number;
   pathWidth: number;
@@ -278,11 +279,13 @@ export function planForest(
   if (!treeDef) {
     return { ok: false, reason: `There is no tile called ${config.treeTileId}` };
   }
+  const coverDef = config.coverTileId ? tilesById[config.coverTileId] : undefined;
   const pathDef = config.pathTileId ? tilesById[config.pathTileId] : undefined;
 
   const groundHeight = physicalHeight(groundDef);
+  const coverHeight = coverDef ? physicalHeight(coverDef) : 0;
   const pathHeight = pathDef ? physicalHeight(pathDef) : 0;
-  const standing = groundHeight + pathHeight + physicalHeight(treeDef);
+  const standing = groundHeight + Math.max(coverHeight, pathHeight) + physicalHeight(treeDef);
   if (standing > HEIGHT_PER_LEVEL) {
     return {
       ok: false,
@@ -301,7 +304,7 @@ export function planForest(
     }
   }
 
-  const ourGround = [config.groundTileId, config.pathTileId].filter(
+  const ourGround = [config.groundTileId, config.coverTileId, config.pathTileId].filter(
     (id): id is string => id !== null,
   );
   const connections = connectionsAlongBorder(
@@ -328,7 +331,7 @@ export function planForest(
     plantable,
     config.scatter,
     config.seed ^ 0x5ca77e2,
-    groundHeight,
+    groundHeight + coverHeight,
     tilesById,
   );
 
@@ -337,10 +340,14 @@ export function planForest(
     for (let x = bounds.minX; x <= bounds.maxX; x++) {
       const i = gridIndex(grid, x, y);
       const stack: PlacedTile[] = [placed(config.groundTileId, tilesById)];
+      const wet = config.waterTileId !== null && water.has(i);
+      if (config.coverTileId && !path.has(i) && !wet) {
+        stack.push(placed(config.coverTileId, tilesById));
+      }
       if (config.pathTileId && path.has(i)) {
         stack.push(placed(config.pathTileId, tilesById));
       }
-      if (config.waterTileId && water.has(i)) {
+      if (config.waterTileId && wet) {
         stack.push(placed(config.waterTileId, tilesById));
       } else if (!isOpen(grid, x, y)) {
         stack.push(placed(config.treeTileId, tilesById));

@@ -13104,6 +13104,50 @@ the right along the bottom of the tile with nothing above it to explain itself.
 So the bank is measured from a shape carrying only the north-west and north-east
 nicks, while the tile is drawn from the shape carrying all four.
 
+### The ground is dirt, and grass is laid on it
+
+The surface used to be the other way up: `grass-2` was the bottom of every
+stack and `dirt` an autotile patch laid on it. A flame's `endure` turned the
+burning grass into `dirt`, which put an autotile at the bottom of the stack
+whose neighbours were all grass, so it drew its isolated slice: a small blob
+with transparent corners, and through them the black of nothing, or the level
+below. A burnt field was a field of holes.
+
+Now `dirt` is under every surface stack and `grass-2` is an autotile on top of
+it; burning removes the grass and leaves no tile in its place. The dirt beneath
+is joined to dirt on every side, so it always draws its full cell, and the edge
+is drawn by the grass instead, around whatever it no longer covers.
+
+- **The grass sheet is generated, like the water.** `bun run generate:grass`
+  draws each slice's shape from its neighbour mask rather than from a template:
+  the grass stops `INSET` pixels short of every open side, give or take a
+  ragged run per side (`RAGGED`, a different one on each so the bites do not
+  line up cell after cell), and the ranch sheet's grass cell is the fill. Only
+  the south and east rims are shaded, because those are the drops the camera
+  looks at.
+- **Grass has 256 slices, not 47.** `grass-2` sets `rawMaskSlices`, so its
+  slice is the raw eight-neighbour mask. The blob mapping drops a diagonal
+  beside an open side, and that diagonal is what says a straight edge turns an
+  inside corner: without it a cell cannot tell where to start curving.
+- **An inside corner is rounded entirely in the grass.** A tile draws only in
+  its own cell, and the dirt cell holds no grass, so the curve has to fit
+  between the dirt's corner and the cells around it. It does because the grass
+  stops `INSET` short: the dirt corner pushed that far into the grass, rounded
+  to `INNER_RADIUS`, never reaches back into the dirt cell while the radius is
+  under about 3.4 × `INSET`. The cost is that every dirt path and burnt patch
+  reads four pixels wider than its cells, and a lone cell of grass is a small
+  tuft.
+- **A dirt path is grass that is not there.** `scripts/lay-dirt-under-ground.ts`
+  relaid the map: `[grass-2, dirt]` became `[dirt]`, every other stack with
+  grass at the bottom got dirt underneath, and so did the wooden floors at L0,
+  so a dirt cell beside a house is still joined on that side. Grass under a road
+  or a pond was left where it was.
+- **It costs a quad a cell.** Nothing culls a flat tile hidden under a full one,
+  so the surface draws twice. The renderer budgets in `app/editor/perf.ts` did
+  not move, and they are ratios and frame times, not a quad count.
+- **The world's edge is a grass rim.** Past the last authored cell there is
+  nothing for either autotile to join, so both draw their edge there.
+
 ### Mobility is a property of the tile, not of the frame
 
 `isMobileTile` (in `app/lib/interactions.ts`) answers "can this ever change
