@@ -1895,15 +1895,14 @@ describe("RemoteSession talk", () => {
     return { socket, session };
   }
 
-  it("holds an opening line back until the server has the step it predicted", () => {
+  it("opens a conversation as soon as the predicted step lands, before the server confirms it", () => {
     const { socket, session } = besideKeeper();
     session.setInput({ directions: ["e"] });
     session.setInput({ directions: [] });
-    session.update(WALK_DURATION_MS);
 
     expect(session.talk({ kind: "open", ref: KEEPER })).toBe(false);
 
-    socket.deliver(patch(stepCommitted, [walkStarted]));
+    session.update(WALK_DURATION_MS);
 
     expect(session.talk({ kind: "open", ref: KEEPER })).toBe(true);
     expect(framesOfType(socket, "talk")).toEqual([

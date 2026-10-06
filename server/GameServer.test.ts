@@ -48,6 +48,9 @@ const AWAY_FROM_SPAWN = 2;
 
 const SPAWN_CELL = 0;
 
+/** Two cells east: past `REACH_CELLS` from spawn, within it one step east. */
+const OUT_OF_REACH_FROM_SPAWN = 2;
+
 const OUTLYING_CELL = CHUNK_SIZE * 2;
 
 const OUTLYING_CHUNK_KEY = `chunk:${levelKey(0)}:${chunkKeyFor(OUTLYING_CELL, 0)}`;
@@ -942,6 +945,26 @@ describe("replacing the world", () => {
     const equipment = armed.equipment as { weapon: { tileId: string } | null };
     expect(equipment.weapon?.tileId).toBe("rusty-sword");
     expect(contentsOf(armed)).toEqual([]);
+  });
+
+  it("picks up from where the step sent before it ends, not from where the body was", async () => {
+    const withSword = authoredMap();
+    withSword.levels["0"]![`${OUT_OF_REACH_FROM_SPAWN},0`] = [
+      { tileId: "grass" },
+      { tileId: "rusty-sword" },
+    ];
+    await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
+
+    const alice = await connect("alice");
+    step(alice.ws, 0, "e");
+    send(alice.ws, {
+      type: "pickUp",
+      ref: { x: OUT_OF_REACH_FROM_SPAWN, y: 0, z: 0, stackIndex: 1 },
+    });
+    const armed = (await equipmentWithin(alice.ws))!;
+
+    expect(contentsOf(armed).map((i) => i.tileId)).toEqual(["rusty-sword"]);
+    expect(await actorX("alice")).toBe(ONE_STEP_EAST);
   });
 
   it("puts the authored floor items back regardless", async () => {
