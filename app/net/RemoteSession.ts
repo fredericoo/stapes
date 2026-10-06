@@ -69,7 +69,16 @@ import { castRefusalNotice } from "../game/notices";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { type NaturalSpell, resolveBattler } from "../lib/battler";
 import type { StatusDef } from "../lib/status";
-import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
+import {
+  applyItemMove,
+  canMoveItem,
+  itemInSlot,
+  type ItemMoveResult,
+  type SlotRef,
+} from "../game/itemMoves";
+import { applyConsume, applyDrop, applyEquip, applyPickUp } from "../game/itemActs";
+import { mintItemId } from "../lib/itemInstance";
+import { applyCellEdit, cellEdit, type CellEdit } from "./cellEdits";
 import type { ConsumeSource } from "../game/itemUse";
 import { canCraftFrom } from "../game/craft";
 import { resolveConsumable } from "../lib/item";
@@ -99,7 +108,13 @@ import {
 } from "../lib/mapData";
 import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { CHAT_LIFETIME_MS, MAX_CHAT_LENGTH, MAX_CHATS_PER_CELL } from "./chat";
+import {
+  CHAT_ARRIVAL_JITTER_MS,
+  CHAT_LIFETIME_MS,
+  CHAT_MIN_INTERVAL_MS,
+  MAX_CHATS_PER_CELL,
+  sanitizeChatText,
+} from "./chat";
 import { MAX_COMMAND_LENGTH, isCommand, type CommandReply } from "../game/commands";
 import { SOCKET_OPEN, type ClientSocket } from "./socket";
 import {
@@ -120,6 +135,9 @@ import {
 } from "./protocol";
 
 type LiveChat = ChatBubble & { elapsedMs: number };
+
+/** A line already hung over our own head, waiting for the server's copy of it to swallow. */
+type Echo = { text: string; elapsedMs: number };
 
 type RemoteMotion = {
   walk: WalkState | null;
@@ -147,6 +165,31 @@ const MAX_PREDICTED_STEPS = MAX_STEPS_AHEAD;
 
 export const STEP_CONFIRM_GRACE_MS = 2_000;
 
+/**
+ * The server answers every numbered act at the end of the tick that ran it, so
+ * this only runs out when the socket lost the answer; it is the step grace's
+ * order of magnitude for the same reason.
+ */
+export const ACT_CONFIRM_TIMEOUT_MS = 3_000;
+
+/**
+ * An item act shown before the server ran it: the equipment it leaves and what
+ * it did to the cells it touched, laid over every board the server sends until
+ * the server answers its `seq`.
+ */
+type PredictedAct = {
+  seq: number;
+  edits: CellEdit[];
+  equipment: Equipment;
+  healedHp: number;
+  waitedMs: number;
+};
+
+type PredictableAct = Extract<
+  ClientMessage,
+  { type: "pickUp" | "equip" | "moveItem" | "drop" | "consume" }
+>;
+
 export const COMMAND_REPLY_TIMEOUT_MS = 10_000;
 
 type AwaitedReply = {
@@ -170,6 +213,8 @@ export class RemoteSession implements PlaySession {
   private serverSeen: ActorLocation | null = null;
   private chats: LiveChat[] = [];
   private nextChatId = 0;
+  private echoes: Echo[] = [];
+  private lastSaidAtMs: number | null = null;
   private noises: NoiseEmission[] = [];
   private readonly hps = new Map<string, { hp: number; maxHp: number; rating: number }>();
   private readonly names = new Map<string, string>();
@@ -179,6 +224,9 @@ export class RemoteSession implements PlaySession {
   private readonly pvpOn = new Set<string>();
   private readonly castingsById = new Map<string, CastProgress>();
   private equipment: Equipment = emptyEquipment();
+  private serverEquipment: Equipment = emptyEquipment();
+  private acts: PredictedAct[] = [];
+  private nextActSeq = 0;
   private spellCooldowns: Readonly<Record<string, number>> = {};
   private pendingNotices: string[] = [];
   private tags: readonly string[] = NO_TAGS;
@@ -380,6 +428,7 @@ export class RemoteSession implements PlaySession {
       this.lastSelf = null;
       this.motions.clear();
       this.chats = [];
+      this.echoes = [];
       this.damage = [];
       this.projectiles = [];
       this.flightEffects = [];
@@ -392,6 +441,8 @@ export class RemoteSession implements PlaySession {
       this.pvpOn.clear();
       this.extractionsById.clear();
       this.castingsById.clear();
+      this.acts = [];
+      this.serverEquipment = message.equipment;
       this.equipment = message.equipment;
       this.spellCooldowns = {};
       this.tags = message.tags;
@@ -425,19 +476,8 @@ export class RemoteSession implements PlaySession {
     }
 
     if (message.type === "chat") {
-      this.chats.push({
-        id: `chat-${this.nextChatId++}`,
-        actorId: message.actorId,
-        tileId: message.tileId,
-        name: message.name,
-        text: message.text,
-        x: message.x,
-        y: message.y,
-        z: message.z,
-        stackIndex: message.stackIndex,
-        elapsedMs: 0,
-      });
-      this.evictOldestAtCell(message);
+      if (this.swallowEcho(message)) return;
+      this.hangChat(message);
       return;
     }
 
@@ -511,6 +551,8 @@ export class RemoteSession implements PlaySession {
     if (message.type === "died") {
       this.death = message.cost;
       this.diedAway = false;
+      this.acts = [];
+      this.serverEquipment = message.equipment;
       this.equipment = message.equipment;
       if (message.masteryXp) this.masteryXp = message.masteryXp;
       this.spellCooldowns = {};
@@ -523,8 +565,14 @@ export class RemoteSession implements PlaySession {
     }
 
     if (message.type === "equipment") {
-      this.equipment = message.equipment;
+      this.serverEquipment = message.equipment;
       this.spellCooldowns = message.spellCooldowns;
+      if (this.acts.length === 0) this.equipment = message.equipment;
+      return;
+    }
+
+    if (message.type === "acted") {
+      this.confirmActs(message.seq);
       return;
     }
 
@@ -894,6 +942,7 @@ export class RemoteSession implements PlaySession {
     }
     this.windBars(dtMs);
     this.agePendingSteps(dtMs);
+    this.ageActs(dtMs);
     this.advancePrediction();
     this.expireChats(dtMs);
     this.expireNoises(dtMs);
@@ -1079,13 +1128,13 @@ export class RemoteSession implements PlaySession {
 
     if (!at) {
       this.pending = [];
-      this.map = this.serverMap;
+      this.map = this.withActs(this.serverMap);
       return;
     }
 
     this.dropConfirmedSteps(at);
 
-    let map = this.serverMap;
+    let map = this.withActs(this.serverMap);
     let loc: Coord & { stackIndex: number } = at;
     for (const step of this.pending) {
       if (!step.landed) break;
@@ -1130,7 +1179,94 @@ export class RemoteSession implements PlaySession {
     this.pending = [];
     const motion = this.motions.get(this.selfId);
     if (motion) motion.walk = null;
-    this.map = this.serverMap;
+    this.map = this.withActs(this.serverMap);
+  }
+
+  /**
+   * Healing is added to the server's hit points rather than held at a guess,
+   * because a fight goes on while the answer travels and the blows it lands
+   * must still show. Damage from eating is the server's to report.
+   */
+  private healthAfterActs() {
+    const health = this.hps.get(this.selfId);
+    if (!health) return undefined;
+    const healedHp = this.acts.reduce((sum, act) => sum + act.healedHp, 0);
+    if (healedHp === 0) return health;
+    return { ...health, hp: Math.min(health.maxHp, health.hp + healedHp) };
+  }
+
+  private withActs(map: MapFile): MapFile {
+    let laid = map;
+    for (const act of this.acts) {
+      for (const edit of act.edits) laid = applyCellEdit(laid, edit);
+    }
+    return laid;
+  }
+
+  /**
+   * The answer comes after the patch and the equipment that carry the act's
+   * result, so dropping the guess here hands over to the server's own board
+   * with nothing in between. A refused act just stops being shown.
+   */
+  private confirmActs(seq: number) {
+    if (!this.acts.some((act) => act.seq <= seq)) return;
+    this.acts = this.acts.filter((act) => act.seq > seq);
+    this.showLatestEquipment();
+    this.rebuildPredicted();
+  }
+
+  private showLatestEquipment() {
+    this.equipment = this.acts.at(-1)?.equipment ?? this.serverEquipment;
+  }
+
+  private ageActs(dtMs: number) {
+    const oldest = this.acts[0];
+    if (!oldest) return;
+    for (const act of this.acts) act.waitedMs += dtMs;
+    if (oldest.waitedMs < ACT_CONFIRM_TIMEOUT_MS) return;
+    this.acts = [];
+    this.showLatestEquipment();
+    this.rebuildPredicted();
+  }
+
+  /**
+   * `result` is the act worked out on what this side shows; with none, the act
+   * is still sent and the server's answer is waited for as before.
+   */
+  private predictAct(
+    message: PredictableAct,
+    result: ItemMoveResult | null,
+    cells: Coord[],
+    healedHp = 0,
+  ) {
+    const seq = this.nextActSeq++;
+    if (result) {
+      const edits = cells
+        .map((at) => cellEdit(this.map, result.map, at))
+        .filter((edit) => edit !== null);
+      this.acts.push({ seq, edits, equipment: result.equipment, healedHp, waitedMs: 0 });
+      for (const edit of edits) this.map = applyCellEdit(this.map, edit);
+      this.equipment = result.equipment;
+    }
+    this.send({ ...message, seq });
+  }
+
+  private hangChat(chat: Omit<ChatBubble, "id">) {
+    this.chats.push({ ...chat, id: `chat-${this.nextChatId++}`, elapsedMs: 0 });
+    this.evictOldestAtCell(chat);
+  }
+
+  /**
+   * Matched by text rather than by author alone, because the server also speaks
+   * in our own voice — a status taking hold, a mastery rising — and those lines
+   * were never echoed.
+   */
+  private swallowEcho(chat: { actorId: string; text: string }): boolean {
+    if (chat.actorId !== this.selfId) return false;
+    const at = this.echoes.findIndex((echo) => echo.text === chat.text);
+    if (at < 0) return false;
+    this.echoes.splice(at, 1);
+    return true;
   }
 
   private evictOldestAtCell(at: { x: number; y: number; z: number }) {
@@ -1141,6 +1277,7 @@ export class RemoteSession implements PlaySession {
   }
 
   private expireChats(dtMs: number) {
+    this.expireEchoes(dtMs);
     if (this.chats.length === 0) return;
     let expired = false;
     for (const chat of this.chats) {
@@ -1150,6 +1287,13 @@ export class RemoteSession implements PlaySession {
     if (expired) {
       this.chats = this.chats.filter((chat) => chat.elapsedMs < CHAT_LIFETIME_MS);
     }
+  }
+
+  /** An echo the server never answered was dropped on its side; it must not swallow a later line. */
+  private expireEchoes(dtMs: number) {
+    if (this.echoes.length === 0) return;
+    for (const echo of this.echoes) echo.elapsedMs += dtMs;
+    this.echoes = this.echoes.filter((echo) => echo.elapsedMs < CHAT_LIFETIME_MS);
   }
 
   private expireNoises(dtMs: number) {
@@ -1164,14 +1308,46 @@ export class RemoteSession implements PlaySession {
     }
   }
 
-  say(text: string) {
-    const trimmed = text.trim();
+  say(typed: string) {
+    const trimmed = typed.trim();
     if (trimmed.length === 0) return;
     if (isCommand(trimmed)) {
       this.command(trimmed).catch(ignoreUnanswered);
       return;
     }
-    this.send({ type: "say", text: trimmed.slice(0, MAX_CHAT_LENGTH) });
+    const text = sanitizeChatText(trimmed);
+    if (!text || this.saidTooRecently()) return;
+    if (this.socket.readyState !== SOCKET_OPEN) return;
+    this.lastSaidAtMs = this.now();
+    this.echoSaid(text);
+    this.send({ type: "say", text });
+  }
+
+  /**
+   * Stricter than the server by the jitter allowance: two lines sent just over
+   * the interval apart can arrive just under it, and the server would drop a
+   * line this side has already shown.
+   */
+  private saidTooRecently(): boolean {
+    if (this.lastSaidAtMs === null) return false;
+    return this.now() - this.lastSaidAtMs < CHAT_MIN_INTERVAL_MS + CHAT_ARRIVAL_JITTER_MS;
+  }
+
+  private echoSaid(text: string) {
+    const motion = this.motions.get(this.selfId);
+    const loc = motion && this.locate(this.selfId, motion);
+    if (!loc) return;
+    this.echoes.push({ text, elapsedMs: 0 });
+    this.hangChat({
+      actorId: this.selfId,
+      tileId: loc.placed.tileId,
+      name: this.names.get(this.selfId) ?? null,
+      text,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+    });
   }
 
   /**
@@ -1228,7 +1404,7 @@ export class RemoteSession implements PlaySession {
     const loc = this.locate(id, motion);
     if (!loc) return null;
 
-    const health = this.hps.get(id);
+    const health = id === this.selfId ? this.healthAfterActs() : this.hps.get(id);
 
     return {
       id,
@@ -1433,7 +1609,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     return (
@@ -1467,13 +1642,13 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
       return false;
     }
-    this.send({ type: "pickUp", ref });
+    const taken = applyPickUp(this.map, this.tilesById, loc, ref, this.equipment);
+    this.predictAct({ type: "pickUp", ref }, taken, [ref]);
     return true;
   }
 
@@ -1482,13 +1657,13 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
       return false;
     }
-    this.send({ type: "equip", ref });
+    const taken = applyEquip(this.map, this.tilesById, loc, ref, this.equipment);
+    this.predictAct({ type: "equip", ref }, taken, [ref]);
     return true;
   }
 
@@ -1501,7 +1676,6 @@ export class RemoteSession implements PlaySession {
 
     if (from.kind === "floor") {
       if (motion.walk || motion.fall || motion.slide) return false;
-      if (this.pending.length > 0) return false;
       if (!canConsumeFrom(this.map, this.tilesById, loc, from.ref)) return false;
     } else {
       const instance = itemInSlot(this.map, this.tilesById, loc, this.equipment, from.slot);
@@ -1509,20 +1683,24 @@ export class RemoteSession implements PlaySession {
       if (!def || !resolveConsumable(def)) return false;
     }
 
-    this.send({ type: "consume", from });
+    const outcome = applyConsume(this.map, this.tilesById, loc, this.equipment, from, mintItemId);
+    const eaten = outcome?.kind === "eaten" ? outcome : null;
+    const cells = from.kind === "floor" ? [from.ref] : groundCellsOf([from.slot]);
+    this.predictAct(
+      { type: "consume", from },
+      eaten,
+      cells,
+      Math.max(0, eaten?.consumable.hp ?? 0),
+    );
     return true;
   }
 
   talk(action: TalkAction): boolean {
     if (action.kind !== "close" && this.incapacitated()) return false;
     if (action.kind === "open") {
-      /**
-       * The server measures talking reach from where it has the body, which is
-       * a step behind while a predicted step is unacknowledged.
-       */
-      if (this.pending.length > 0) return false;
       const motion = this.motions.get(this.selfId);
-      const loc = motion && this.locate(this.selfId, motion);
+      if (!motion || motion.walk || motion.fall || motion.slide) return false;
+      const loc = this.locate(this.selfId, motion);
       if (!loc) return false;
       if (!canTalkFrom(this.map, this.tilesById, loc, action.ref)) return false;
     } else if (!this.conversation) {
@@ -1537,7 +1715,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canCraftFrom(this.map, this.tilesById, loc, this.equipment, ref, recipe)) {
@@ -1548,24 +1725,30 @@ export class RemoteSession implements PlaySession {
     return true;
   }
 
-  canMoveItem(from: SlotRef, to: SlotRef): boolean {
-    if (this.incapacitated()) return false;
+  private handlingLoc(): ActorLocation | null {
+    if (this.incapacitated()) return null;
     const motion = this.motions.get(this.selfId);
-    const loc = motion && this.locate(this.selfId, motion);
+    return (motion && this.locate(this.selfId, motion)) ?? null;
+  }
+
+  canMoveItem(from: SlotRef, to: SlotRef): boolean {
+    const loc = this.handlingLoc();
     if (!loc) return false;
     return canMoveItem(this.map, this.tilesById, loc, this.equipment, from, to);
   }
 
   moveItem(from: SlotRef, to: SlotRef): boolean {
-    if (!this.canMoveItem(from, to)) return false;
-    this.send({ type: "moveItem", from, to });
+    const loc = this.handlingLoc();
+    if (!loc || !canMoveItem(this.map, this.tilesById, loc, this.equipment, from, to)) {
+      return false;
+    }
+    const moved = applyItemMove(this.map, this.tilesById, loc, this.equipment, from, to);
+    this.predictAct({ type: "moveItem", from, to }, moved, groundCellsOf([from, to]));
     return true;
   }
 
   canDrop(from: SlotRef, to: Coord): boolean {
-    if (this.incapacitated()) return false;
-    const motion = this.motions.get(this.selfId);
-    const loc = motion && this.locate(this.selfId, motion);
+    const loc = this.handlingLoc();
     if (!loc) return false;
     const instance = itemInSlot(this.map, this.tilesById, loc, this.equipment, from);
     const def = instance && this.tilesById[instance.tileId];
@@ -1574,8 +1757,10 @@ export class RemoteSession implements PlaySession {
   }
 
   drop(from: SlotRef, to: Coord): boolean {
-    if (!this.canDrop(from, to)) return false;
-    this.send({ type: "drop", from, to });
+    const loc = this.handlingLoc();
+    if (!loc || !this.canDrop(from, to)) return false;
+    const dropped = applyDrop(this.map, this.tilesById, loc, this.equipment, from, to);
+    this.predictAct({ type: "drop", from, to }, dropped, [to, ...groundCellsOf([from])]);
     return true;
   }
 
@@ -1600,6 +1785,10 @@ export class RemoteSession implements PlaySession {
 }
 
 /** A command typed in the chat is answered there by its notice; its reply is for callers that await it. */
+function groundCellsOf(slots: SlotRef[]): Coord[] {
+  return slots.flatMap((slot) => (slot.kind === "ground" ? [slot.ref] : []));
+}
+
 function ignoreUnanswered() {}
 
 const NO_CARRIED_LIGHTS: string[] = [];

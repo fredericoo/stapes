@@ -73,6 +73,7 @@ import {
   CLOSE_WORLD_FULL,
   MAX_STEPS_AHEAD,
   parseClientMessage,
+  type ClientMessage,
   type CarriedLightsPatch,
   type AfflictedPatch,
   type CellAffliction,
@@ -432,12 +433,34 @@ type QueuedStep = {
   preferDescend: boolean;
 };
 
+type BoardAction = Extract<
+  ClientMessage,
+  { type: "interact" | "pickUp" | "equip" | "moveItem" | "drop" | "consume" | "talk" | "craft" }
+>;
+
+/**
+ * An `act` waits behind the steps queued before it and for the walk they start to
+ * commit, because the client sends it from where its prediction has the body,
+ * which is where those steps end.
+ */
 type QueuedIntent =
   | ({ kind: "step" } & QueuedStep)
   | { kind: "face"; direction: Direction }
-  | { kind: "cast"; slot: CastSlot };
+  | { kind: "cast"; slot: CastSlot }
+  | { kind: "act"; message: BoardAction };
 
 type QueuedAction = Exclude<QueuedIntent, { kind: "step" }>;
+
+function applyBoardAction(session: GameSession, actorId: string, message: BoardAction) {
+  if (message.type === "pickUp") session.pickUp(message.ref, actorId);
+  else if (message.type === "equip") session.equip(message.ref, actorId);
+  else if (message.type === "moveItem") session.moveItem(message.from, message.to, actorId);
+  else if (message.type === "consume") session.consume(message.from, actorId);
+  else if (message.type === "talk") session.talk(message.action, actorId);
+  else if (message.type === "craft") session.craft(message.ref, message.recipe, actorId);
+  else if (message.type === "drop") session.drop(message.from, message.to, actorId);
+  else session.interact(message.ref, actorId);
+}
 
 type Checkpoint = {
   map?: FlatMapFile;
@@ -742,6 +765,7 @@ export class GameServer {
   private events: MotionEvent[] = [];
   private commandReplies: Array<{ ws: GameSocket; requestId: number; reply: CommandReply }> = [];
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
+  private readonly actedSeqs = new Map<string, number>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private tickDueAt = 0;
   private consecutiveTickFailures = 0;
@@ -1678,27 +1702,13 @@ export class GameServer {
       if (admin) this.setHidden(actorId, message.enabled);
     } else if (message.type === "attackMode") {
       session.setAttackMode(message.enabled, actorId);
-    } else if (message.type === "pickUp") {
-      session.pickUp(message.ref, actorId);
-    } else if (message.type === "equip") {
-      session.equip(message.ref, actorId);
-    } else if (message.type === "moveItem") {
-      session.moveItem(message.from, message.to, actorId);
-    } else if (message.type === "consume") {
-      session.consume(message.from, actorId);
-    } else if (message.type === "talk") {
-      session.talk(message.action, actorId);
-    } else if (message.type === "craft") {
-      session.craft(message.ref, message.recipe, actorId);
     } else if (message.type === "command") {
       const reply = admin
         ? session.runCommand(message.text, actorId)
         : session.refuseCommand(actorId);
       this.commandReplies.push({ ws, requestId: message.requestId, reply });
-    } else if (message.type === "drop") {
-      session.drop(message.from, message.to, actorId);
     } else {
-      session.interact(message.ref, actorId);
+      this.queueAction(actorId, { kind: "act", message });
     }
 
     this.flushEquipment();
@@ -1945,19 +1955,47 @@ export class GameServer {
 
   private queueAction(actorId: string, action: QueuedAction) {
     const queue = this.queuedIntents.get(actorId);
-    if (!queue) {
+    if (!queue && !this.mustWait(actorId, action)) {
       this.applyAction(actorId, action);
       return;
     }
-    if (queue.length >= MAX_QUEUED_INTENTS) return;
-    queue.push(action);
+    const waiting = queue ?? [];
+    if (waiting.length >= MAX_QUEUED_INTENTS) {
+      this.noteActed(actorId, action);
+      return;
+    }
+    waiting.push(action);
+    this.queuedIntents.set(actorId, waiting);
+  }
+
+  private mustWait(actorId: string, action: QueuedAction): boolean {
+    return action.kind === "act" && this.session?.isMoving(actorId) === true;
   }
 
   private applyAction(actorId: string, action: QueuedAction) {
     const session = this.session;
     if (!session) return;
     if (action.kind === "face") session.faceActor(actorId, action.direction);
-    else session.cast(action.slot, actorId);
+    else if (action.kind === "cast") session.cast(action.slot, actorId);
+    else applyBoardAction(session, actorId, action.message);
+    this.noteActed(actorId, action);
+  }
+
+  /**
+   * Refused or not, an act the client numbered is answered, and only at the end
+   * of a tick, after the patch and the equipment that carry its result: the
+   * client stops showing its own guess when this arrives, and must by then hold
+   * the server's.
+   */
+  private noteActed(actorId: string, action: QueuedAction) {
+    if (action.kind !== "act" || !("seq" in action.message)) return;
+    const seq = action.message.seq;
+    if (seq !== undefined) this.actedSeqs.set(actorId, seq);
+  }
+
+  private flushActed() {
+    for (const [actorId, seq] of this.actedSeqs) this.sendTo(actorId, { type: "acted", seq });
+    this.actedSeqs.clear();
   }
 
   private applyQueuedSteps() {
@@ -1983,6 +2021,7 @@ export class GameServer {
     while (queue.length > 0) {
       const intent = queue[0]!;
       if (intent.kind !== "step") {
+        if (this.mustWait(actorId, intent)) return;
         queue.shift();
         this.applyAction(actorId, intent);
         continue;
@@ -2535,6 +2574,7 @@ export class GameServer {
     this.flushCommandReplies();
     this.flushMasteries();
     this.flushStatuses();
+    this.flushActed();
     this.saveActorsIfDue();
     this.sleepIfIdle();
   }

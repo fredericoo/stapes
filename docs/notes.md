@@ -2890,15 +2890,16 @@ section.
   the way is now "Close", and the walk stops without closing it.
 - **A session refuses to act mid-step.** `GameSession.readyToAct` and
   `RemoteSession`'s own checks turn down an interact while the body is
-  walking or has unacknowledged steps, and the snapshot does not say which.
+  walking, and the snapshot does not say so.
   So `applyInteraction` returns whether the session accepted the action, and
   `stepApproach` retries every frame once the walk has stopped, giving up
   after `APPROACH_PATIENCE_MS`. Firing once when the walk stopped was the first
   version, and it dropped a pie pickup every time.
-  - *Opening a conversation used to skip that check.* `RemoteSession.talk`
-    sent while a predicted step was unacknowledged, the server measured reach
-    from the cell before it, and the conversation silently never opened. It
-    refuses like the rest now, and the retry picks it up.
+  - *A landed but unacknowledged step does not count as walking.* The server
+    holds every item, talk, craft and interact message behind the steps queued
+    before it and the walk they start (`act` in `queuedIntents`), so it acts
+    from the cell the browser predicted. Refusing until the step was confirmed
+    cost a round trip on every walk-up-and-take.
 - **Nothing reaches the wire.** The server sees ordinary steps and then an
   ordinary interact, and validates both as it already did.
 
@@ -4130,6 +4131,58 @@ Note what this is *not*. `abandonPrediction` is unaffected, and the overshoot
 was never a re-sent step: the client minted a fresh `seq` for ground it had
 genuinely not been told about, from a cell it genuinely believed it was standing
 in. The fault was believing it.
+
+### The client shows an item act before the server runs it
+
+`pickUp`, `equip`, `moveItem`, `drop` and `consume` carry a `seq`. `RemoteSession`
+works the act out with the same pure functions `GameSession` uses
+(`app/game/itemActs.ts`, `applyItemMove`), shows the equipment it leaves, and
+lays what it did to each touched cell over every board the server sends
+(`app/net/cellEdits.ts`) until the server answers with `acted`.
+
+- **The answer comes last.** `GameServer` notes the `seq` when it runs the
+  act, refused or not, and sends `acted` at the end of a tick, after the patch
+  and the equipment. When the guess is dropped, the server's own result is
+  already on this side, so nothing flickers back and forth. `acted` sent from
+  the message handler would beat the patch and show the item on the floor for
+  a tick.
+- **Equipment is held, not replayed.** While an act is unanswered the client
+  shows the equipment its newest guess left and only stores what the server
+  sends. Replaying a pick up over server equipment that already has the sword
+  shows two.
+- **A cell edit names things, not stack indices.** An item is its `itemId`, a
+  chest or barrel its tile and how many of that tile sit under it, and bodies
+  are left alone. Laid over a stack the server has already changed the same
+  way it changes nothing, and laid over a stack a body has walked onto it
+  leaves the body where the server put it.
+- **Eating heals on top of the server, and only heals.** A predicted
+  `consume` adds the consumable's `hp` to the server's hit points, not a held
+  guess: a fight goes on while the answer travels, and a blow landing in that
+  window must still show. Damage from a poison, the statuses a food rolls and
+  its sound are the server's, since the rolls use its `rng`. The residue a
+  food leaves gets an id each side mints for itself (`applyConsume`'s
+  `mintId`), so for the moment between the patch and `acted` a floor can show
+  both.
+- **A refused act just stops being shown.** There is no rejection message: the
+  `acted` arrives and the server's board, which never changed, shows through.
+  `ACT_CONFIRM_TIMEOUT_MS` covers an answer lost with the socket.
+
+### The client shows its own speech before the server echoes it
+
+`RemoteSession.say` hangs the bubble over the predicted body the moment the line
+is sent, and swallows the server's `chat` carrying the same text from `selfId`.
+It matches on text, not on author alone, because the server also speaks in a
+player's own voice — `GameSession.say` for a status taking hold, a mastery
+rising, a residue with no room — and those lines were never echoed. An echo the
+server never answers is dropped after `CHAT_LIFETIME_MS`, so it cannot swallow a
+later line of the same words.
+
+The client runs `sanitizeChatText` itself, so the text it shows is the text the
+server will send back. It refuses a line sooner than the server would: the
+server measures `CHAT_MIN_INTERVAL_MS` between arrivals and the client between
+sends, and two lines sent just over the interval apart can arrive just under it.
+`CHAT_ARRIVAL_JITTER_MS` is that allowance. A line refused on this side is never
+shown; one the server drops anyway is shown here and nowhere else.
 
 ### A client's actor set is its `hello` plus what it is told afterwards
 
@@ -6112,7 +6165,10 @@ facing, and each is a way the server's idea of the caster lagged the browser's:
   tick; a cast was honoured on arrival, so a server one step behind cast from
   one cell back. `face` and `cast` now join the same per-actor queue
   (`queuedIntents` in `server/GameServer.ts`) and are honoured in the order they
-  were sent, immediately when nothing is waiting.
+  were sent, immediately when nothing is waiting. The item, talk, craft and
+  interact messages join it as `act`, which also waits for a walk already
+  under way to commit (`GameSession.isMoving`), since `readyToAct` refuses a
+  moving body.
 - **A turn made mid-step was undone by the step landing**, because `commitWalk`
   writes the walk's direction onto the body. A predicting browser has usually
   landed that step already, so the turn it sends arrives mid-walk on the
