@@ -400,7 +400,7 @@ export type ClientMessage =
     }
   | { type: "moveItem"; from: SlotRef; to: SlotRef; seq?: number }
   | { type: "drop"; from: SlotRef; to: { x: number; y: number; z: number }; seq?: number }
-  | { type: "consume"; from: ConsumeSource }
+  | { type: "consume"; from: ConsumeSource; seq?: number }
   | { type: "talk"; action: TalkAction }
   | {
       type: "craft";
@@ -493,6 +493,7 @@ const clientMessageSchema = v.variant("type", [
       v.object({ kind: v.literal("slot"), slot: inboundSlotRefSchema }),
       v.object({ kind: v.literal("floor"), ref: inboundRefSchema }),
     ]),
+    seq: v.optional(actSeqSchema),
   }),
   v.object({
     type: v.literal("talk"),

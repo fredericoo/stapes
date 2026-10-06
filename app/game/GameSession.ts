@@ -47,7 +47,7 @@ import {
   resolveConsumable,
   resolveCharm,
 } from "../lib/item";
-import { appendItem, peelOne, pourInto, stackWithItem } from "../lib/piles";
+import { appendItem, pourInto } from "../lib/piles";
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
@@ -79,7 +79,6 @@ import {
 import {
   canAddStatusFrom,
   canRemoveStatusFrom,
-  canConsumeFrom,
   canEquipFrom,
   canSetSpawnFrom,
   canTalkFrom,
@@ -130,7 +129,6 @@ import {
   timeNotice,
 } from "./notices";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
-import { leaveResidue } from "./residue";
 import { type Blame, causeOfDeath, possessive } from "./blame";
 import { conjuredName, sparesStander } from "./conjured";
 import { type Combatant, mayHarm } from "./pvp";
@@ -294,13 +292,12 @@ import {
   canMoveItem,
   isBodySlot,
   itemInSlot,
-  peelSlot,
   placeInSlot,
   slotTakes,
   type ItemMoveResult,
   type SlotRef,
 } from "./itemMoves";
-import { applyDrop, applyEquip, applyPickUp } from "./itemActs";
+import { applyConsume, applyDrop, applyEquip, applyPickUp } from "./itemActs";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId, placementFromInstance } from "../lib/itemInstance";
 import {
@@ -4172,10 +4169,7 @@ export class GameSession implements PlaySession {
     if (!actor || this.incapacitated(actor)) return false;
     if (this.hpOf(actor) === null) return false;
 
-    const eaten =
-      from.kind === "floor"
-        ? this.consumeFromFloor(actor, from.ref)
-        : this.consumeFromSlot(actor, from.slot);
+    const eaten = this.eat(actor, from);
     if (!eaten) return false;
     const { consumable } = eaten;
 
@@ -4205,84 +4199,22 @@ export class GameSession implements PlaySession {
     this.recordNoise(actor.id, loc, consumable.sound);
   }
 
-  private consumeFromFloor(actor: ActorRuntime, ref: ObjectRef): Eaten | null {
-    if (!this.readyToAct(actor)) return null;
-    const loc = this.tryLocate(actor);
-    if (!loc) return null;
-    if (!canConsumeFrom(this.map, this.tilesById, loc, ref)) return null;
-
-    const stack = getStack(this.map, ref.x, ref.y, ref.z);
-    const placed = stack[ref.stackIndex];
-    const def = placed && this.tilesById[placed.tileId];
-    const consumable = def ? resolveConsumable(def) : null;
-    if (!consumable || !placed || !def) return null;
-
-    const left = peelOne(placed);
-    const spent = left
-      ? stack.map((held, i) => (i === ref.stackIndex ? left : held))
-      : stack.filter((_, i) => i !== ref.stackIndex);
-    const next = this.cellAfterLeaving(actor, ref, spent, consumable);
-    if (!next) return null;
-    this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
-    this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
-    return { consumable, name: def.name };
-  }
-
-  private cellAfterLeaving(
-    actor: ActorRuntime,
-    ref: ObjectRef,
-    spent: PlacedTile[],
-    consumable: ConsumableItem,
-  ): PlacedTile[] | null {
-    const residue = this.residueOf(consumable);
-    if (!residue) return spent;
-    const next = stackWithItem(spent, placementFromInstance(residue), this.tilesById);
-    const room = canReplaceStack(this.map, ref.x, ref.y, ref.z, next, this.tilesById);
-    if (room.ok) return next;
-    this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
-    return null;
-  }
-
-  private leaveBehind(
-    actor: ActorRuntime,
-    loc: ActorLocation,
-    emptied: ItemMoveResult,
-    from: SlotRef,
-    consumable: ConsumableItem,
-  ): ItemMoveResult | null {
-    const residue = this.residueOf(consumable);
-    if (!residue) return emptied;
-    const landed = leaveResidue(emptied.map, this.tilesById, loc, emptied.equipment, from, residue);
-    if (landed) return landed;
-    this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
-    return null;
-  }
-
-  private residueOf(consumable: ConsumableItem): ItemInstance | null {
-    const tileId = consumable.leaves;
-    if (!tileId || !this.tilesById[tileId]) return null;
-    return { id: mintItemId(), tileId };
-  }
-
-  private consumeFromSlot(actor: ActorRuntime, slot: SlotRef): Eaten | null {
+  private eat(actor: ActorRuntime, from: ConsumeSource): Eaten | null {
+    if (from.kind === "floor" && !this.readyToAct(actor)) return null;
     const loc = this.tryLocate(actor);
     if (!loc) return null;
 
-    const instance = itemInSlot(this.map, this.tilesById, loc, actor.equipment, slot);
-    const def = instance && this.tilesById[instance.tileId];
-    const consumable = def ? resolveConsumable(def) : null;
-    if (!consumable || !def) return null;
-
-    const emptied = peelSlot(this.map, this.tilesById, loc, actor.equipment, slot);
-    if (!emptied) return null;
-    const landed = this.leaveBehind(actor, loc, emptied, slot, consumable);
-    if (!landed) return null;
-
-    this.map = landed.map;
-    if (landed.equipment !== actor.equipment) {
-      this.setEquipment(actor, landed.equipment);
+    const outcome = applyConsume(this.map, this.tilesById, loc, actor.equipment, from, mintItemId);
+    if (!outcome) return null;
+    if (outcome.kind === "noRoom") {
+      this.say(actor.id, noRoomToLeaveNotice(outcome.residue.name));
+      return null;
     }
-    return { consumable, name: def.name };
+
+    this.map = outcome.map;
+    if (from.kind === "floor") this.reindexCells([{ x: from.ref.x, y: from.ref.y, z: from.ref.z }]);
+    if (outcome.equipment !== actor.equipment) this.setEquipment(actor, outcome.equipment);
+    return { consumable: outcome.consumable, name: outcome.name };
   }
 
   canMoveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {

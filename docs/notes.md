@@ -4134,7 +4134,7 @@ in. The fault was believing it.
 
 ### The client shows an item act before the server runs it
 
-`pickUp`, `equip`, `moveItem` and `drop` carry a `seq`. `RemoteSession`
+`pickUp`, `equip`, `moveItem`, `drop` and `consume` carry a `seq`. `RemoteSession`
 works the act out with the same pure functions `GameSession` uses
 (`app/game/itemActs.ts`, `applyItemMove`), shows the equipment it leaves, and
 lays what it did to each touched cell over every board the server sends
@@ -4155,6 +4155,14 @@ lays what it did to each touched cell over every board the server sends
   are left alone. Laid over a stack the server has already changed the same
   way it changes nothing, and laid over a stack a body has walked onto it
   leaves the body where the server put it.
+- **Eating heals on top of the server, and only heals.** A predicted
+  `consume` adds the consumable's `hp` to the server's hit points, not a held
+  guess: a fight goes on while the answer travels, and a blow landing in that
+  window must still show. Damage from a poison, the statuses a food rolls and
+  its sound are the server's, since the rolls use its `rng`. The residue a
+  food leaves gets an id each side mints for itself (`applyConsume`'s
+  `mintId`), so for the moment between the patch and `acted` a floor can show
+  both.
 - **A refused act just stops being shown.** There is no rejection message: the
   `acted` arrives and the server's board, which never changed, shows through.
   `ACT_CONFIRM_TIMEOUT_MS` covers an answer lost with the socket.
