@@ -76,7 +76,8 @@ import {
   type ItemMoveResult,
   type SlotRef,
 } from "../game/itemMoves";
-import { applyDrop, applyEquip, applyPickUp } from "../game/itemActs";
+import { applyConsume, applyDrop, applyEquip, applyPickUp } from "../game/itemActs";
+import { mintItemId } from "../lib/itemInstance";
 import { applyCellEdit, cellEdit, type CellEdit } from "./cellEdits";
 import type { ConsumeSource } from "../game/itemUse";
 import { canCraftFrom } from "../game/craft";
@@ -171,10 +172,14 @@ type PredictedAct = {
   seq: number;
   edits: CellEdit[];
   equipment: Equipment;
+  healedHp: number;
   waitedMs: number;
 };
 
-type PredictableAct = Extract<ClientMessage, { type: "pickUp" | "equip" | "moveItem" | "drop" }>;
+type PredictableAct = Extract<
+  ClientMessage,
+  { type: "pickUp" | "equip" | "moveItem" | "drop" | "consume" }
+>;
 
 export const COMMAND_REPLY_TIMEOUT_MS = 10_000;
 
@@ -1176,6 +1181,19 @@ export class RemoteSession implements PlaySession {
     this.map = this.withActs(this.serverMap);
   }
 
+  /**
+   * Healing is added to the server's hit points rather than held at a guess,
+   * because a fight goes on while the answer travels and the blows it lands
+   * must still show. Damage from eating is the server's to report.
+   */
+  private healthAfterActs() {
+    const health = this.hps.get(this.selfId);
+    if (!health) return undefined;
+    const healedHp = this.acts.reduce((sum, act) => sum + act.healedHp, 0);
+    if (healedHp === 0) return health;
+    return { ...health, hp: Math.min(health.maxHp, health.hp + healedHp) };
+  }
+
   private withActs(map: MapFile): MapFile {
     let laid = map;
     for (const act of this.acts) {
@@ -1214,13 +1232,18 @@ export class RemoteSession implements PlaySession {
    * `result` is the act worked out on what this side shows; with none, the act
    * is still sent and the server's answer is waited for as before.
    */
-  private predictAct(message: PredictableAct, result: ItemMoveResult | null, cells: Coord[]) {
+  private predictAct(
+    message: PredictableAct,
+    result: ItemMoveResult | null,
+    cells: Coord[],
+    healedHp = 0,
+  ) {
     const seq = this.nextActSeq++;
     if (result) {
       const edits = cells
         .map((at) => cellEdit(this.map, result.map, at))
         .filter((edit) => edit !== null);
-      this.acts.push({ seq, edits, equipment: result.equipment, waitedMs: 0 });
+      this.acts.push({ seq, edits, equipment: result.equipment, healedHp, waitedMs: 0 });
       for (const edit of edits) this.map = applyCellEdit(this.map, edit);
       this.equipment = result.equipment;
     }
@@ -1322,7 +1345,7 @@ export class RemoteSession implements PlaySession {
     const loc = this.locate(id, motion);
     if (!loc) return null;
 
-    const health = this.hps.get(id);
+    const health = id === this.selfId ? this.healthAfterActs() : this.hps.get(id);
 
     return {
       id,
@@ -1601,7 +1624,15 @@ export class RemoteSession implements PlaySession {
       if (!def || !resolveConsumable(def)) return false;
     }
 
-    this.send({ type: "consume", from });
+    const outcome = applyConsume(this.map, this.tilesById, loc, this.equipment, from, mintItemId);
+    const eaten = outcome?.kind === "eaten" ? outcome : null;
+    const cells = from.kind === "floor" ? [from.ref] : groundCellsOf([from.slot]);
+    this.predictAct(
+      { type: "consume", from },
+      eaten,
+      cells,
+      Math.max(0, eaten?.consumable.hp ?? 0),
+    );
     return true;
   }
 

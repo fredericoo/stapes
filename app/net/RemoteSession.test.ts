@@ -20,9 +20,21 @@ import { FRAME, tile } from "../lib/testTile";
 import { DEFAULT_WEAPON } from "../lib/item";
 import { getStack } from "../lib/mapData";
 
+const BERRY_HEAL_HP = 5;
+
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
+  tile({
+    id: "berry",
+    kind: "item",
+    interactions: { item: { type: "consumable", hp: BERRY_HEAL_HP } },
+  }),
+  tile({
+    id: "nightshade",
+    kind: "item",
+    interactions: { item: { type: "consumable", hp: -BERRY_HEAL_HP } },
+  }),
   tile({ id: "wall", height: 4 }),
   tile({
     id: "ladder",
@@ -2017,5 +2029,73 @@ describe("RemoteSession item acts", () => {
     expect(weaponOf(session)).toBeNull();
     expect(floorAt(session, DROP_CELL)).toEqual(["grass", "sword"]);
     expect(framesOfType(socket, "drop").at(-1)).toMatchObject({ seq: 1 });
+  });
+});
+
+describe("RemoteSession eating", () => {
+  const MAX_HP = 20;
+  const WOUNDED_HP = 10;
+  const wounded = { actorId: SELF, hp: WOUNDED_HP, maxHp: MAX_HP, rating: 1 };
+  const fromHand = { kind: "slot", slot: { kind: "weapon" } } as const;
+
+  function holding(tileId: string): { socket: FakeSocket; session: RemoteSession } {
+    const socket = new FakeSocket();
+    const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: flatMap(),
+      actorIds: [SELF],
+      minutesOfDay: SERVER_MINUTES,
+      hps: [wounded],
+      carriedLights: [],
+      equipment: { ...emptyEquipment(), weapon: { id: "itm_held", tileId } },
+      tags: [],
+      statuses: [],
+    });
+    return { socket, session };
+  }
+
+  function self(session: RemoteSession) {
+    return session.getSnapshot().self;
+  }
+
+  it("eats the berry and heals before the server answers", () => {
+    const { socket, session } = holding("berry");
+
+    expect(session.consume(fromHand)).toBe(true);
+
+    expect(session.getSnapshot().equipment.weapon).toBeNull();
+    expect(self(session).hp).toBe(WOUNDED_HP + BERRY_HEAL_HP);
+    expect(framesOfType(socket, "consume")).toEqual([{ type: "consume", from: fromHand, seq: 0 }]);
+  });
+
+  it("heals once when the server answers with the hit points it healed to", () => {
+    const { socket, session } = holding("berry");
+    session.consume(fromHand);
+
+    const healed = { ...wounded, hp: WOUNDED_HP + BERRY_HEAL_HP };
+    socket.deliver(patch([], [], [healed]));
+    socket.deliver({ type: "acted", seq: 0 });
+
+    expect(self(session).hp).toBe(WOUNDED_HP + BERRY_HEAL_HP);
+  });
+
+  it("still shows a blow that lands while the answer travels", () => {
+    const { socket, session } = holding("berry");
+    const BLOW_HP = 3;
+    session.consume(fromHand);
+
+    socket.deliver(patch([], [], [{ ...wounded, hp: WOUNDED_HP - BLOW_HP }]));
+
+    expect(self(session).hp).toBe(WOUNDED_HP - BLOW_HP + BERRY_HEAL_HP);
+  });
+
+  it("leaves the hurt of a poison to the server", () => {
+    const { session } = holding("nightshade");
+    session.consume(fromHand);
+
+    expect(session.getSnapshot().equipment.weapon).toBeNull();
+    expect(self(session).hp).toBe(WOUNDED_HP);
   });
 });
