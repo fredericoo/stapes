@@ -4167,6 +4167,23 @@ lays what it did to each touched cell over every board the server sends
   `acted` arrives and the server's board, which never changed, shows through.
   `ACT_CONFIRM_TIMEOUT_MS` covers an answer lost with the socket.
 
+### The client shows its own speech before the server echoes it
+
+`RemoteSession.say` hangs the bubble over the predicted body the moment the line
+is sent, and swallows the server's `chat` carrying the same text from `selfId`.
+It matches on text, not on author alone, because the server also speaks in a
+player's own voice — `GameSession.say` for a status taking hold, a mastery
+rising, a residue with no room — and those lines were never echoed. An echo the
+server never answers is dropped after `CHAT_LIFETIME_MS`, so it cannot swallow a
+later line of the same words.
+
+The client runs `sanitizeChatText` itself, so the text it shows is the text the
+server will send back. It refuses a line sooner than the server would: the
+server measures `CHAT_MIN_INTERVAL_MS` between arrivals and the client between
+sends, and two lines sent just over the interval apart can arrive just under it.
+`CHAT_ARRIVAL_JITTER_MS` is that allowance. A line refused on this side is never
+shown; one the server drops anyway is shown here and nowhere else.
+
 ### A client's actor set is its `hello` plus what it is told afterwards
 
 **`RemoteSession` reads a body's *position* off the map, and it does not read

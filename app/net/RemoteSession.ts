@@ -108,7 +108,13 @@ import {
 } from "../lib/mapData";
 import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { CHAT_LIFETIME_MS, MAX_CHAT_LENGTH, MAX_CHATS_PER_CELL } from "./chat";
+import {
+  CHAT_ARRIVAL_JITTER_MS,
+  CHAT_LIFETIME_MS,
+  CHAT_MIN_INTERVAL_MS,
+  MAX_CHATS_PER_CELL,
+  sanitizeChatText,
+} from "./chat";
 import { MAX_COMMAND_LENGTH, isCommand, type CommandReply } from "../game/commands";
 import { SOCKET_OPEN, type ClientSocket } from "./socket";
 import {
@@ -129,6 +135,9 @@ import {
 } from "./protocol";
 
 type LiveChat = ChatBubble & { elapsedMs: number };
+
+/** A line already hung over our own head, waiting for the server's copy of it to swallow. */
+type Echo = { text: string; elapsedMs: number };
 
 type RemoteMotion = {
   walk: WalkState | null;
@@ -204,6 +213,8 @@ export class RemoteSession implements PlaySession {
   private serverSeen: ActorLocation | null = null;
   private chats: LiveChat[] = [];
   private nextChatId = 0;
+  private echoes: Echo[] = [];
+  private lastSaidAtMs: number | null = null;
   private noises: NoiseEmission[] = [];
   private readonly hps = new Map<string, { hp: number; maxHp: number; rating: number }>();
   private readonly names = new Map<string, string>();
@@ -417,6 +428,7 @@ export class RemoteSession implements PlaySession {
       this.lastSelf = null;
       this.motions.clear();
       this.chats = [];
+      this.echoes = [];
       this.damage = [];
       this.projectiles = [];
       this.flightEffects = [];
@@ -464,19 +476,8 @@ export class RemoteSession implements PlaySession {
     }
 
     if (message.type === "chat") {
-      this.chats.push({
-        id: `chat-${this.nextChatId++}`,
-        actorId: message.actorId,
-        tileId: message.tileId,
-        name: message.name,
-        text: message.text,
-        x: message.x,
-        y: message.y,
-        z: message.z,
-        stackIndex: message.stackIndex,
-        elapsedMs: 0,
-      });
-      this.evictOldestAtCell(message);
+      if (this.swallowEcho(message)) return;
+      this.hangChat(message);
       return;
     }
 
@@ -1250,6 +1251,24 @@ export class RemoteSession implements PlaySession {
     this.send({ ...message, seq });
   }
 
+  private hangChat(chat: Omit<ChatBubble, "id">) {
+    this.chats.push({ ...chat, id: `chat-${this.nextChatId++}`, elapsedMs: 0 });
+    this.evictOldestAtCell(chat);
+  }
+
+  /**
+   * Matched by text rather than by author alone, because the server also speaks
+   * in our own voice — a status taking hold, a mastery rising — and those lines
+   * were never echoed.
+   */
+  private swallowEcho(chat: { actorId: string; text: string }): boolean {
+    if (chat.actorId !== this.selfId) return false;
+    const at = this.echoes.findIndex((echo) => echo.text === chat.text);
+    if (at < 0) return false;
+    this.echoes.splice(at, 1);
+    return true;
+  }
+
   private evictOldestAtCell(at: { x: number; y: number; z: number }) {
     const here = this.chats.filter((chat) => chat.x === at.x && chat.y === at.y && chat.z === at.z);
     if (here.length <= MAX_CHATS_PER_CELL) return;
@@ -1258,6 +1277,7 @@ export class RemoteSession implements PlaySession {
   }
 
   private expireChats(dtMs: number) {
+    this.expireEchoes(dtMs);
     if (this.chats.length === 0) return;
     let expired = false;
     for (const chat of this.chats) {
@@ -1267,6 +1287,13 @@ export class RemoteSession implements PlaySession {
     if (expired) {
       this.chats = this.chats.filter((chat) => chat.elapsedMs < CHAT_LIFETIME_MS);
     }
+  }
+
+  /** An echo the server never answered was dropped on its side; it must not swallow a later line. */
+  private expireEchoes(dtMs: number) {
+    if (this.echoes.length === 0) return;
+    for (const echo of this.echoes) echo.elapsedMs += dtMs;
+    this.echoes = this.echoes.filter((echo) => echo.elapsedMs < CHAT_LIFETIME_MS);
   }
 
   private expireNoises(dtMs: number) {
@@ -1281,14 +1308,46 @@ export class RemoteSession implements PlaySession {
     }
   }
 
-  say(text: string) {
-    const trimmed = text.trim();
+  say(typed: string) {
+    const trimmed = typed.trim();
     if (trimmed.length === 0) return;
     if (isCommand(trimmed)) {
       this.command(trimmed).catch(ignoreUnanswered);
       return;
     }
-    this.send({ type: "say", text: trimmed.slice(0, MAX_CHAT_LENGTH) });
+    const text = sanitizeChatText(trimmed);
+    if (!text || this.saidTooRecently()) return;
+    if (this.socket.readyState !== SOCKET_OPEN) return;
+    this.lastSaidAtMs = this.now();
+    this.echoSaid(text);
+    this.send({ type: "say", text });
+  }
+
+  /**
+   * Stricter than the server by the jitter allowance: two lines sent just over
+   * the interval apart can arrive just under it, and the server would drop a
+   * line this side has already shown.
+   */
+  private saidTooRecently(): boolean {
+    if (this.lastSaidAtMs === null) return false;
+    return this.now() - this.lastSaidAtMs < CHAT_MIN_INTERVAL_MS + CHAT_ARRIVAL_JITTER_MS;
+  }
+
+  private echoSaid(text: string) {
+    const motion = this.motions.get(this.selfId);
+    const loc = motion && this.locate(this.selfId, motion);
+    if (!loc) return;
+    this.echoes.push({ text, elapsedMs: 0 });
+    this.hangChat({
+      actorId: this.selfId,
+      tileId: loc.placed.tileId,
+      name: this.names.get(this.selfId) ?? null,
+      text,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+    });
   }
 
   /**

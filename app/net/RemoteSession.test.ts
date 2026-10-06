@@ -10,7 +10,7 @@ import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { emptyEquipment } from "../game/equipment";
 import { xpForLevel } from "../lib/mastery";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
-import { CHAT_LIFETIME_MS } from "./chat";
+import { CHAT_ARRIVAL_JITTER_MS, CHAT_LIFETIME_MS, CHAT_MIN_INTERVAL_MS } from "./chat";
 import { ACT_CONFIRM_TIMEOUT_MS, RemoteSession, STEP_CONFIRM_GRACE_MS } from "./RemoteSession";
 import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
 import { UNKNOWN_REMAINING_MS } from "../game/statuses";
@@ -570,6 +570,63 @@ describe("RemoteSession chat", () => {
 
     await expect(first).resolves.toEqual(answered);
     await expect(second).resolves.toEqual(refused);
+  });
+
+  it("hangs our own line over our head before the server answers", () => {
+    const { session } = connected();
+    session.say("  hey   there!  ");
+
+    expect(session.getSnapshot().chats).toEqual([
+      expect.objectContaining({ actorId: SELF, text: "hey there!", x: 0, y: 0, z: 0 }),
+    ]);
+  });
+
+  it("swallows the server's copy of a line it already showed", () => {
+    const { socket, session } = connected();
+    session.say("hey there!");
+    socket.deliver(said);
+
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["hey there!"]);
+  });
+
+  it("still shows a line the server speaks in our voice", () => {
+    const { socket, session } = connected();
+    session.say("hello");
+    socket.deliver({ ...said, text: "You are burning." });
+
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["hello", "You are burning."]);
+  });
+
+  it("stops waiting for a copy the server never sent", () => {
+    const { socket, session } = connected();
+    session.say("hey there!");
+    session.update(CHAT_LIFETIME_MS);
+    socket.deliver(said);
+
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["hey there!"]);
+  });
+
+  it("holds back a line the server would drop for coming too soon", () => {
+    let nowMs = 0;
+    const { socket, session } = connected(() => nowMs);
+    session.say("one");
+    nowMs = CHAT_MIN_INTERVAL_MS;
+    session.say("two");
+    const sayings = () => socket.sent.filter((raw) => raw.includes('"say"'));
+    expect(sayings()).toHaveLength(1);
+
+    nowMs = CHAT_MIN_INTERVAL_MS + CHAT_ARRIVAL_JITTER_MS;
+    session.say("three");
+    expect(sayings()).toHaveLength(2);
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["one", "three"]);
+  });
+
+  it("neither shows nor sends a line while the socket is down", () => {
+    const { socket, session } = connected();
+    socket.readyState = 3;
+    session.say("anyone?");
+
+    expect(session.getSnapshot().chats).toHaveLength(0);
   });
 
   it("still says a sentence with a slash inside it", () => {
