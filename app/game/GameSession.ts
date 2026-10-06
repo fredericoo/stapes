@@ -47,7 +47,7 @@ import {
   resolveConsumable,
   resolveCharm,
 } from "../lib/item";
-import { appendItem, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
+import { appendItem, peelOne, pourInto, stackWithItem } from "../lib/piles";
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
@@ -85,12 +85,10 @@ import {
   canTalkFrom,
   dropDestinationAt,
   canPickUpFrom,
-  pickUpDestination,
   canPushFrom,
   canRewardFrom,
   canSwitchFrom,
   canTeleportFrom,
-  equipSlotFrom,
   equipSlotsFor,
   interactiveDefAt,
   reachableAddStatusAt,
@@ -294,19 +292,17 @@ import { isSpawnFilled, rollRespawnDelayMs, type RespawnOutcome, type SpawnPoint
 import {
   applyItemMove,
   canMoveItem,
-  capacityOf,
-  clearSlot,
   isBodySlot,
   itemInSlot,
   peelSlot,
   placeInSlot,
   slotTakes,
-  stashInContainer,
   type ItemMoveResult,
   type SlotRef,
 } from "./itemMoves";
+import { applyDrop, applyEquip, applyPickUp } from "./itemActs";
 import type { ItemInstance } from "../lib/itemInstance";
-import { instanceFromPlacement, mintItemId, placementFromInstance } from "../lib/itemInstance";
+import { mintItemId, placementFromInstance } from "../lib/itemInstance";
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
@@ -4143,41 +4139,9 @@ export class GameSession implements PlaySession {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
 
-    const destination = pickUpDestination(
-      this.map,
-      this.tilesById,
-      this.locate(actor),
-      ref,
-      actor.equipment,
-    );
-    if (!destination) return false;
-
-    if (destination.kind === "slot") {
-      const instance = this.takeFromBoard(ref);
-      if (!instance) return false;
-      this.setEquipment(actor, {
-        ...actor.equipment,
-        [destination.slot]: instance,
-      });
-      return true;
-    }
-
-    const bag = actor.equipment.bag;
-    if (!bag) return false;
-
-    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
-    const taking = placed && instanceFromPlacement(placed);
-    if (!taking) return false;
-    const contents = stow(
-      bag.contents ?? [],
-      taking,
-      capacityOf(bag, this.tilesById),
-      this.tilesById,
-    );
-    if (!contents) return false;
-
-    if (!this.takeFromBoard(ref)) return false;
-    this.setEquipment(actor, { ...actor.equipment, bag: { ...bag, contents } });
+    const taken = applyPickUp(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
+    if (!taken) return false;
+    this.takeOffBoard(actor, ref, taken);
     return true;
   }
 
@@ -4191,24 +4155,16 @@ export class GameSession implements PlaySession {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
 
-    const slot = equipSlotFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
-    if (!slot) return false;
-
-    const instance = this.takeFromBoard(ref);
-    if (!instance) return false;
-
-    this.setEquipment(actor, { ...actor.equipment, [slot]: instance });
+    const taken = applyEquip(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
+    if (!taken) return false;
+    this.takeOffBoard(actor, ref, taken);
     return true;
   }
 
-  private takeFromBoard(ref: ObjectRef): ItemInstance | null {
-    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
-    const instance = placed && instanceFromPlacement(placed);
-    if (!instance) return null;
-
-    this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
+  private takeOffBoard(actor: ActorRuntime, ref: ObjectRef, taken: ItemMoveResult) {
+    this.map = taken.map;
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
-    return instance;
+    this.setEquipment(actor, taken.equipment);
   }
 
   consume(from: ConsumeSource, id: string = LOCAL_ACTOR_ID): boolean {
@@ -4394,36 +4350,20 @@ export class GameSession implements PlaySession {
   }
 
   drop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
-    const thrower = this.actors.get(id);
-    const at = thrower ? this.tryLocate(thrower) : null;
-    if (thrower && at && this.noteCoolingRefusal(thrower, at, from)) return false;
+    const actor = this.actors.get(id);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return false;
+    if (this.noteCoolingRefusal(actor, loc, from)) return false;
+    if (this.incapacitated(actor)) return false;
 
-    const candidate = this.dropCandidate(from, to, id);
-    if (!candidate) return false;
-    const { actor, instance, destination } = candidate;
+    const dropped = applyDrop(this.map, this.tilesById, loc, actor.equipment, from, to);
+    if (!dropped) return false;
 
-    const emptied = clearSlot(this.map, this.tilesById, this.locate(actor), actor.equipment, from);
-    if (!emptied) return false;
-
-    const landed =
-      destination.kind === "contents"
-        ? stashInContainer(emptied.map, this.tilesById, destination.ref, instance)
-        : appendItem(
-            emptied.map,
-            to.x,
-            to.y,
-            to.z,
-            placementFromInstance(instance),
-            this.tilesById,
-          );
-    if (!landed) return false;
-
-    this.map = landed;
-    if (emptied.equipment !== actor.equipment) {
-      this.setEquipment(actor, emptied.equipment);
+    this.map = dropped.map;
+    if (dropped.equipment !== actor.equipment) {
+      this.setEquipment(actor, dropped.equipment);
     }
-
-    if (destination.kind === "contents") return true;
+    if (!dropped.onFloor) return true;
 
     this.reindexCells([to]);
     this.settleBoardNow();
