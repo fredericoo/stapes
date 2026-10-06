@@ -2890,15 +2890,16 @@ section.
   the way is now "Close", and the walk stops without closing it.
 - **A session refuses to act mid-step.** `GameSession.readyToAct` and
   `RemoteSession`'s own checks turn down an interact while the body is
-  walking or has unacknowledged steps, and the snapshot does not say which.
+  walking, and the snapshot does not say so.
   So `applyInteraction` returns whether the session accepted the action, and
   `stepApproach` retries every frame once the walk has stopped, giving up
   after `APPROACH_PATIENCE_MS`. Firing once when the walk stopped was the first
   version, and it dropped a pie pickup every time.
-  - *Opening a conversation used to skip that check.* `RemoteSession.talk`
-    sent while a predicted step was unacknowledged, the server measured reach
-    from the cell before it, and the conversation silently never opened. It
-    refuses like the rest now, and the retry picks it up.
+  - *A landed but unacknowledged step does not count as walking.* The server
+    holds every item, talk, craft and interact message behind the steps queued
+    before it and the walk they start (`act` in `queuedIntents`), so it acts
+    from the cell the browser predicted. Refusing until the step was confirmed
+    cost a round trip on every walk-up-and-take.
 - **Nothing reaches the wire.** The server sees ordinary steps and then an
   ordinary interact, and validates both as it already did.
 
@@ -6112,7 +6113,10 @@ facing, and each is a way the server's idea of the caster lagged the browser's:
   tick; a cast was honoured on arrival, so a server one step behind cast from
   one cell back. `face` and `cast` now join the same per-actor queue
   (`queuedIntents` in `server/GameServer.ts`) and are honoured in the order they
-  were sent, immediately when nothing is waiting.
+  were sent, immediately when nothing is waiting. The item, talk, craft and
+  interact messages join it as `act`, which also waits for a walk already
+  under way to commit (`GameSession.isMoving`), since `readyToAct` refuses a
+  moving body.
 - **A turn made mid-step was undone by the step landing**, because `commitWalk`
   writes the walk's direction onto the body. A predicting browser has usually
   landed that step already, so the turn it sends arrives mid-walk on the

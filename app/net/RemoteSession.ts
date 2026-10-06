@@ -1433,7 +1433,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     return (
@@ -1467,7 +1466,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
@@ -1482,7 +1480,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
@@ -1501,7 +1498,6 @@ export class RemoteSession implements PlaySession {
 
     if (from.kind === "floor") {
       if (motion.walk || motion.fall || motion.slide) return false;
-      if (this.pending.length > 0) return false;
       if (!canConsumeFrom(this.map, this.tilesById, loc, from.ref)) return false;
     } else {
       const instance = itemInSlot(this.map, this.tilesById, loc, this.equipment, from.slot);
@@ -1516,13 +1512,9 @@ export class RemoteSession implements PlaySession {
   talk(action: TalkAction): boolean {
     if (action.kind !== "close" && this.incapacitated()) return false;
     if (action.kind === "open") {
-      /**
-       * The server measures talking reach from where it has the body, which is
-       * a step behind while a predicted step is unacknowledged.
-       */
-      if (this.pending.length > 0) return false;
       const motion = this.motions.get(this.selfId);
-      const loc = motion && this.locate(this.selfId, motion);
+      if (!motion || motion.walk || motion.fall || motion.slide) return false;
+      const loc = this.locate(this.selfId, motion);
       if (!loc) return false;
       if (!canTalkFrom(this.map, this.tilesById, loc, action.ref)) return false;
     } else if (!this.conversation) {
@@ -1537,7 +1529,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canCraftFrom(this.map, this.tilesById, loc, this.equipment, ref, recipe)) {
