@@ -967,6 +967,37 @@ describe("replacing the world", () => {
     expect(await actorX("alice")).toBe(ONE_STEP_EAST);
   });
 
+  it("answers a numbered pick up after the patch and equipment that carry it", async () => {
+    const withSword = authoredMap();
+    withSword.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "rusty-sword" }];
+    await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
+
+    const alice = await connect("alice");
+    const seen = record(alice.ws);
+    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 }, seq: 7 });
+    expect(await messageWithin(alice.ws, "acted", 1000)).toEqual({ type: "acted", seq: 7 });
+
+    const order = seen.all();
+    const acted = order.findIndex((message) => message.type === "acted");
+    const equipped = order.findIndex((message) => message.type === "equipment");
+    const cleared = order.findIndex(
+      (message) =>
+        message.type === "patch" &&
+        (message.cells as Array<{ x: number }>).some((cell) => cell.x === 1),
+    );
+    expect(equipped).toBeGreaterThanOrEqual(0);
+    expect(cleared).toBeGreaterThanOrEqual(0);
+    expect(equipped).toBeLessThan(acted);
+    expect(cleared).toBeLessThan(acted);
+  });
+
+  it("answers a numbered act it refused", async () => {
+    const alice = await connect("alice");
+    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 }, seq: 3 });
+
+    expect(await messageWithin(alice.ws, "acted", 1000)).toEqual({ type: "acted", seq: 3 });
+  });
+
   it("puts the authored floor items back regardless", async () => {
     const withSword = authoredMap();
     withSword.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "rusty-sword" }];
@@ -1330,6 +1361,7 @@ function record(ws: TestSocket) {
     seen.push(JSON.parse(event.data) as Record<string, unknown>);
   });
   return {
+    all: () => seen,
     types: () => seen.map((message) => message.type as string),
     of: (type: string) => seen.filter((message) => message.type === type),
   };

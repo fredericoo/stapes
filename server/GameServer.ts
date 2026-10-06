@@ -765,6 +765,7 @@ export class GameServer {
   private events: MotionEvent[] = [];
   private commandReplies: Array<{ ws: GameSocket; requestId: number; reply: CommandReply }> = [];
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
+  private readonly actedSeqs = new Map<string, number>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private tickDueAt = 0;
   private consecutiveTickFailures = 0;
@@ -1959,7 +1960,10 @@ export class GameServer {
       return;
     }
     const waiting = queue ?? [];
-    if (waiting.length >= MAX_QUEUED_INTENTS) return;
+    if (waiting.length >= MAX_QUEUED_INTENTS) {
+      this.noteActed(actorId, action);
+      return;
+    }
     waiting.push(action);
     this.queuedIntents.set(actorId, waiting);
   }
@@ -1974,6 +1978,24 @@ export class GameServer {
     if (action.kind === "face") session.faceActor(actorId, action.direction);
     else if (action.kind === "cast") session.cast(action.slot, actorId);
     else applyBoardAction(session, actorId, action.message);
+    this.noteActed(actorId, action);
+  }
+
+  /**
+   * Refused or not, an act the client numbered is answered, and only at the end
+   * of a tick, after the patch and the equipment that carry its result: the
+   * client stops showing its own guess when this arrives, and must by then hold
+   * the server's.
+   */
+  private noteActed(actorId: string, action: QueuedAction) {
+    if (action.kind !== "act" || !("seq" in action.message)) return;
+    const seq = action.message.seq;
+    if (seq !== undefined) this.actedSeqs.set(actorId, seq);
+  }
+
+  private flushActed() {
+    for (const [actorId, seq] of this.actedSeqs) this.sendTo(actorId, { type: "acted", seq });
+    this.actedSeqs.clear();
   }
 
   private applyQueuedSteps() {
@@ -2552,6 +2574,7 @@ export class GameServer {
     this.flushCommandReplies();
     this.flushMasteries();
     this.flushStatuses();
+    this.flushActed();
     this.saveActorsIfDue();
     this.sleepIfIdle();
   }

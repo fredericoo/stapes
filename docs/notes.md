@@ -4132,6 +4132,33 @@ was never a re-sent step: the client minted a fresh `seq` for ground it had
 genuinely not been told about, from a cell it genuinely believed it was standing
 in. The fault was believing it.
 
+### The client shows an item act before the server runs it
+
+`pickUp`, `equip`, `moveItem` and `drop` carry a `seq`. `RemoteSession`
+works the act out with the same pure functions `GameSession` uses
+(`app/game/itemActs.ts`, `applyItemMove`), shows the equipment it leaves, and
+lays what it did to each touched cell over every board the server sends
+(`app/net/cellEdits.ts`) until the server answers with `acted`.
+
+- **The answer comes last.** `GameServer` notes the `seq` when it runs the
+  act, refused or not, and sends `acted` at the end of a tick, after the patch
+  and the equipment. When the guess is dropped, the server's own result is
+  already on this side, so nothing flickers back and forth. `acted` sent from
+  the message handler would beat the patch and show the item on the floor for
+  a tick.
+- **Equipment is held, not replayed.** While an act is unanswered the client
+  shows the equipment its newest guess left and only stores what the server
+  sends. Replaying a pick up over server equipment that already has the sword
+  shows two.
+- **A cell edit names things, not stack indices.** An item is its `itemId`, a
+  chest or barrel its tile and how many of that tile sit under it, and bodies
+  are left alone. Laid over a stack the server has already changed the same
+  way it changes nothing, and laid over a stack a body has walked onto it
+  leaves the body where the server put it.
+- **A refused act just stops being shown.** There is no rejection message: the
+  `acted` arrives and the server's board, which never changed, shows through.
+  `ACT_CONFIRM_TIMEOUT_MS` covers an answer lost with the socket.
+
 ### A client's actor set is its `hello` plus what it is told afterwards
 
 **`RemoteSession` reads a body's *position* off the map, and it does not read

@@ -373,6 +373,7 @@ export type ServerMessage =
       stackIndex: number;
     }
   | { type: "stepRejected"; seq: number }
+  | { type: "acted"; seq: number }
   | { type: "died"; equipment: Equipment; masteryXp: MasteryXp | null; cost: DeathCost }
   | { type: "keepalive" }
   | { type: "serverRestarting" }
@@ -387,10 +388,18 @@ export type ClientMessage =
     }
   | { type: "face"; direction: "n" | "e" | "s" | "w" }
   | { type: "interact"; ref: { x: number; y: number; z: number; stackIndex: number } }
-  | { type: "pickUp"; ref: { x: number; y: number; z: number; stackIndex: number } }
-  | { type: "equip"; ref: { x: number; y: number; z: number; stackIndex: number } }
-  | { type: "moveItem"; from: SlotRef; to: SlotRef }
-  | { type: "drop"; from: SlotRef; to: { x: number; y: number; z: number } }
+  | {
+      type: "pickUp";
+      ref: { x: number; y: number; z: number; stackIndex: number };
+      seq?: number;
+    }
+  | {
+      type: "equip";
+      ref: { x: number; y: number; z: number; stackIndex: number };
+      seq?: number;
+    }
+  | { type: "moveItem"; from: SlotRef; to: SlotRef; seq?: number }
+  | { type: "drop"; from: SlotRef; to: { x: number; y: number; z: number }; seq?: number }
   | { type: "consume"; from: ConsumeSource }
   | { type: "talk"; action: TalkAction }
   | {
@@ -435,6 +444,8 @@ const inboundSlotRefSchema = v.variant("kind", [
   }),
 ]);
 
+const actSeqSchema = v.pipe(v.number(), v.integer(), v.minValue(0));
+
 const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("step"),
@@ -453,15 +464,18 @@ const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("pickUp"),
     ref: inboundRefSchema,
+    seq: v.optional(actSeqSchema),
   }),
   v.object({
     type: v.literal("equip"),
     ref: inboundRefSchema,
+    seq: v.optional(actSeqSchema),
   }),
   v.object({
     type: v.literal("moveItem"),
     from: inboundSlotRefSchema,
     to: inboundSlotRefSchema,
+    seq: v.optional(actSeqSchema),
   }),
   v.object({
     type: v.literal("drop"),
@@ -471,6 +485,7 @@ const clientMessageSchema = v.variant("type", [
       y: v.pipe(v.number(), v.integer()),
       z: v.pipe(v.number(), v.integer()),
     }),
+    seq: v.optional(actSeqSchema),
   }),
   v.object({
     type: v.literal("consume"),
@@ -784,6 +799,10 @@ const serverMessageSchema = v.variant("type", [
     seq: v.number(),
   }),
   v.object({
+    type: v.literal("acted"),
+    seq: v.number(),
+  }),
+  v.object({
     type: v.literal("died"),
     equipment: tolerantEquipmentSchema,
     masteryXp: v.fallback(v.nullable(masteryXpBlockSchema), null),
@@ -817,7 +836,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 27;
+export const PROTOCOL_VERSION = 28;
 
 export const MAX_STEPS_AHEAD = 8;
 
