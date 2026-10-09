@@ -45,7 +45,6 @@ import {
   canSwitchFrom,
   canAddStatusFrom,
   canRemoveStatusFrom,
-  canSetSpawnFrom,
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
@@ -182,7 +181,6 @@ export class RemoteSession implements PlaySession {
   private spellCooldowns: Readonly<Record<string, number>> = {};
   private pendingNotices: string[] = [];
   private tags: readonly string[] = NO_TAGS;
-  private spawnAt: Coord | null = null;
   private conversation: Conversation | null = null;
   private extracting: Extraction | null = null;
   private nextBlow: Progress | null = null;
@@ -395,7 +393,6 @@ export class RemoteSession implements PlaySession {
       this.equipment = message.equipment;
       this.spellCooldowns = {};
       this.tags = message.tags;
-      this.spawnAt = message.spawnAt;
       this.setExtracting(message.extracting);
       this.nextBlow = message.nextBlow ? { ...message.nextBlow } : null;
       this.masteryXp = message.masteryXp;
@@ -461,11 +458,6 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "tags") {
       this.tags = message.tags;
-      return;
-    }
-
-    if (message.type === "spawnPoint") {
-      this.spawnAt = message.at;
       return;
     }
 
@@ -1285,7 +1277,6 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       tags: this.tags,
-      spawnAt: this.spawnAt,
       conversation: this.conversation,
       extracting: this.extracting,
       nextBlow: this.nextBlow,
@@ -1442,7 +1433,6 @@ export class RemoteSession implements PlaySession {
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
       canRemoveStatusFrom(this.map, this.tilesById, loc, ref) ||
-      canSetSpawnFrom(this.map, this.tilesById, loc, ref) ||
       canBeginExtract(this.map, this.tilesById, loc, this.equipment, ref, this.extracting) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||

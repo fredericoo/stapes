@@ -943,7 +943,6 @@ describe("the row it offers", () => {
       equipment ?? snap.equipment,
       null,
       snap.tags,
-      null,
       false,
       snap.extracting,
     );
@@ -1016,7 +1015,6 @@ describe("the row it offers", () => {
       snap.equipment,
       null,
       snap.tags,
-      null,
       false,
       null,
     ).filter((option) => option.action === "extract");

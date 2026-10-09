@@ -529,7 +529,6 @@ describe("the row a crafter offers", () => {
       equipment,
       null,
       [],
-      null,
       false,
       null,
       null,

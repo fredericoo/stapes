@@ -109,9 +109,6 @@ export default function PlayerPage() {
           <Fact label="Position">
             <Place at={sheet.position} />
           </Fact>
-          <Fact label="Respawns at">
-            <Place at={sheet.spawn} />
-          </Fact>
           <Fact label="Health">
             {sheet.hp === null ? "Full" : <span className="tabular-nums">{sheet.hp} HP</span>}
           </Fact>

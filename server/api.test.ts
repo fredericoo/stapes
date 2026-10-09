@@ -358,7 +358,6 @@ describe("players", () => {
     expect(playing.player.online).toBe(true);
     expect(playing.sheet.live).toBe(true);
     expect(playing.sheet.position).toMatchObject({ x: 0, y: 0, z: 0 });
-    expect(playing.sheet.spawn).toMatchObject({ x: 0, y: 0, z: 0 });
     expect(playing.sheet.equipment).not.toBeNull();
 
     await world.leave(socket);

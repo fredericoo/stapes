@@ -2828,115 +2828,10 @@ describe("dying and coming back", () => {
     expect(await actorX("alice")).toBe(AWAY_FROM_SPAWN);
 
     await killAndTick("alice");
-
-    const { position } = await storedRows("alice");
-    expect(position?.x).toBe(SPAWN_CELL);
-  });
-
-  function checkpointWithMarker() {
-    const checkpoint = checkpointWith(["alice"]);
-    const cell = `${AWAY_FROM_SPAWN},0`;
-    checkpoint.map.levels["0"]![cell] = [
-      { tileId: "grass" },
-      { tileId: MARKER },
-      ...checkpoint.map.levels["0"]![cell]!.slice(1),
-    ];
-    return checkpoint;
-  }
-
-  const MARKER = "respawn-point";
-  const MARKER_REF = { x: AWAY_FROM_SPAWN, y: 0, z: 0, stackIndex: 1 };
-
-  async function anchorHere(ws: TestSocket) {
-    send(ws, { type: "interact", ref: MARKER_REF });
-    return await nextMessageOfType(ws, "notice");
-  }
-
-  it("moves the stored spawn row when somebody anchors themselves", async () => {
-    await putCheckpoint(checkpointWithMarker());
-    const alice = await connect("alice");
-
-    const notice = await anchorHere(alice.ws);
-    expect(notice).toMatchObject({ text: "You will respawn here." });
-
-    const spawn = await runInDurableObject(stub(), async (_instance, state) =>
-      state.storage.get<Record<string, unknown>>("spawn:alice"),
-    );
-    expect(spawn).toMatchObject({ x: AWAY_FROM_SPAWN, y: 0, z: 0 });
-  });
-
-  it("tells that socket where it comes back now, so the row can go grey", async () => {
-    await putCheckpoint(checkpointWithMarker());
-    const alice = await connect("alice");
-    expect(alice.hello.spawnAt).toMatchObject({ x: SPAWN_CELL, y: 0, z: 0 });
-
-    send(alice.ws, { type: "interact", ref: MARKER_REF });
-    const moved = await nextMessageOfType(alice.ws, "spawnPoint");
-    expect(moved).toMatchObject({ at: { x: AWAY_FROM_SPAWN, y: 0, z: 0 } });
-  });
-
-  it("sends a death to the moved mark rather than to the authored one", async () => {
-    await putCheckpoint(checkpointWithMarker());
-    const alice = await connect("alice");
-    await anchorHere(alice.ws);
-
-    await killAndTick("alice");
-
-    const { position } = await storedRows("alice");
-    expect(position?.x).toBe(AWAY_FROM_SPAWN);
-  });
-
-  async function storedSpawnX(actorId: string) {
-    const spawn = await runInDurableObject(stub(), async (_instance, state) =>
-      state.storage.get<{ x: number }>(`spawn:${actorId}`),
-    );
-    return spawn?.x;
-  }
-
-  it("keeps a moved mark through a world save", async () => {
-    await putCheckpoint(checkpointWithMarker());
-    const alice = await connect("alice");
-    await anchorHere(alice.ws);
-
-    const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(authoredMap(), { keepPositions: true });
-    const hello = await fresh;
-    expect(hello.spawnAt).toMatchObject({ x: AWAY_FROM_SPAWN, y: 0, z: 0 });
-    expect(await storedSpawnX("alice")).toBe(AWAY_FROM_SPAWN);
-
-    await killAndTick("alice");
-
-    const { position } = await storedRows("alice");
-    expect(position?.x).toBe(AWAY_FROM_SPAWN);
-  });
-
-  it("moves an unchosen spawn to where a world save puts the marker", async () => {
-    const MOVED_SPAWN_CELL = 1;
-    await putCheckpoint(checkpointWith(["alice"]));
-    const alice = await connect("alice");
-    expect(await storedSpawnX("alice")).toBe(SPAWN_CELL);
-
-    const moved = authoredMap();
-    moved.levels["0"]!["0,0"] = [{ tileId: "grass" }];
-    moved.levels["0"]![`${MOVED_SPAWN_CELL},0`] = [
-      { tileId: "grass" },
-      { tileId: "player", direction: "s" },
-    ];
-    const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(moved, { keepPositions: true });
-    await fresh;
-
-    expect(await storedSpawnX("alice")).toBe(MOVED_SPAWN_CELL);
-  });
-
-  it("stores the spawn coordinates the first time it sees somebody", async () => {
-    await putCheckpoint(checkpointWithSword());
+    await simulateEviction();
     await connect("alice");
 
-    const spawn = await runInDurableObject(stub(), async (_instance, state) =>
-      state.storage.get<Record<string, unknown>>("spawn:alice"),
-    );
-    expect(spawn).toMatchObject({ x: SPAWN_CELL, y: 0, z: 0 });
+    expect(await actorX("alice")).toBe(SPAWN_CELL);
   });
 
   it("hands back a fresh empty bag", async () => {
@@ -3091,7 +2986,7 @@ describe("dying and coming back", () => {
     expect(await floorAtDeath()).toContain(swordId);
     const { position, equipment } = await storedRows("alice");
     expect(JSON.stringify(equipment)).not.toContain(swordId);
-    expect(position?.x).toBe(SPAWN_CELL);
+    expect(position).toBeUndefined();
     expect((await storedBody("alice")).hp?.hp).toBeNull();
     expect((await savedMasteries("alice"))?.fist).toBeCloseTo(
       before!.fist! * (1 - XP_SHARE_LOST_ON_DEATH),
