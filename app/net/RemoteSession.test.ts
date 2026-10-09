@@ -1261,6 +1261,26 @@ describe("RemoteSession death", () => {
     expect(session.deathCost()).toEqual(cost);
   });
 
+  it("takes the name the next life plays as off the death", () => {
+    const { socket, session } = connected();
+
+    socket.deliver({ ...died(), rebornAs: "Maren II" });
+
+    expect(session.rebornAs()).toBe("Maren II");
+  });
+
+  it("reads the next life's name off the hello that reports a death while away", () => {
+    const { socket, session } = connected();
+
+    socket.deliver({
+      ...helloAgain(),
+      names: [{ actorId: SELF, name: "Maren II" }],
+      diedAway: { levelsLost: [] },
+    });
+
+    expect(session.rebornAs()).toBe("Maren II");
+  });
+
   it("forgets what the death cost on the hello that answers it", () => {
     const { socket, session } = connected();
     socket.deliver({ ...died(), cost: { levelsLost: [] } });

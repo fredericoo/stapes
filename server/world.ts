@@ -70,9 +70,11 @@ export class World {
     const characters = new Characters(db);
     await seedAdmin(auth, db);
 
+    const deaths = new Deaths(db);
     const server = new GameServer(context, {
       dataStore: new DataStore(blobs),
       nameOf: (actorId) => characters.nameOf(actorId),
+      deathsOf: (actorId) => deaths.countOf(actorId),
     });
     const world = new World(
       server,
@@ -83,7 +85,7 @@ export class World {
       characters,
       await Maintenance.load(db),
       new Feedback(db),
-      new Deaths(db),
+      deaths,
       blobs,
       db,
       config,

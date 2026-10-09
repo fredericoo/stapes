@@ -3,7 +3,9 @@ import {
   MAX_CHARACTER_NAME_LENGTH,
   MIN_CHARACTER_NAME_LENGTH,
   characterNameProblem,
+  generationalName,
   normaliseCharacterName,
+  romanNumeral,
 } from "./characterName";
 
 describe("normalising a typed name", () => {
@@ -63,5 +65,31 @@ describe("refusing a typed name", () => {
   it("measures what would be stored, not what was typed", () => {
     expect(characterNameProblem(` ${"a".repeat(MAX_CHARACTER_NAME_LENGTH)} `)).toBeNull();
     expect(characterNameProblem(`${"a".repeat(9)}    ${"a".repeat(10)}`)).toBeNull();
+  });
+});
+
+describe("a character's generation", () => {
+  it("is written in Roman numerals after the name", () => {
+    expect(generationalName("Freddie", 1)).toBe("Freddie I");
+    expect(generationalName("Freddie", 2)).toBe("Freddie II");
+    expect(generationalName("Freddie", 17)).toBe("Freddie XVII");
+  });
+
+  it("uses the subtractive forms", () => {
+    expect([4, 9, 14, 40, 90, 400, 900, 1994].map(romanNumeral)).toEqual([
+      "IV",
+      "IX",
+      "XIV",
+      "XL",
+      "XC",
+      "CD",
+      "CM",
+      "MCMXCIV",
+    ]);
+  });
+
+  it("falls back to digits past what the numerals can write", () => {
+    expect(romanNumeral(3999)).toBe("MMMCMXCIX");
+    expect(romanNumeral(4000)).toBe("4000");
   });
 });

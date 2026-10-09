@@ -7,11 +7,13 @@ export function DeathScreen({
   onRebirth,
   pending,
   cost,
+  rebornAs,
   away,
 }: {
   onRebirth: () => void;
   pending: boolean;
   cost: DeathCost | null;
+  rebornAs: string | null;
   away: boolean;
 }) {
   if (pending) {
@@ -46,6 +48,11 @@ export function DeathScreen({
           <div className="flex flex-col gap-2 text-center text-sm text-pretty text-paper/80">
             <p>Everything you carried lies where you fell.</p>
             <p>Your masteries start over, and so do you: back in the tutorial, with nothing.</p>
+            {rebornAs ? (
+              <p className="text-paper">
+                {away ? `You are now ${rebornAs}.` : `You will be reborn as ${rebornAs}.`}
+              </p>
+            ) : null}
           </div>
           {cost && cost.levelsLost.length > 0 ? <LevelsLost levels={cost.levelsLost} /> : null}
         </div>

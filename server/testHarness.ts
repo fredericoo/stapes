@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DataStore } from "../app/lib/dataStore";
 import { openDatabase, type Database } from "./db";
+import { Deaths } from "./deaths";
 import { SqliteBlobs } from "./blobs";
 import { WorldStore } from "./WorldStore";
 import { GameServer } from "./GameServer";
@@ -151,7 +152,7 @@ export class Harness {
     const hub = new SocketHub();
 
     const harness = new Harness(
-      buildServer(store, hub, blobs, names, options),
+      buildServer(store, hub, blobs, db, names, options),
       store,
       hub,
       blobs,
@@ -196,7 +197,7 @@ export class Harness {
     const store = new WorldStore(this.db);
     const hub = new SocketHub();
     return new Harness(
-      buildServer(store, hub, blobs, this.names, this.options),
+      buildServer(store, hub, blobs, this.db, this.names, this.options),
       store,
       hub,
       blobs,
@@ -226,9 +227,11 @@ function buildServer(
   store: WorldStore,
   hub: SocketHub,
   blobs: SqliteBlobs,
+  db: Database,
   names: Readonly<Record<string, string>>,
   options: ServerOptions,
 ): GameServer {
+  const deaths = new Deaths(db);
   const context: WorldContext = {
     storage: store,
     getWebSockets: () => hub.all(),
@@ -237,6 +240,7 @@ function buildServer(
   return new GameServer(context, {
     dataStore: new DataStore(blobs),
     nameOf: async (actorId) => names[actorId] ?? null,
+    deathsOf: (actorId) => deaths.countOf(actorId),
     ...options,
   });
 }
