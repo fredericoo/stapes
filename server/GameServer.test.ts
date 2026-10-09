@@ -226,7 +226,7 @@ describe("joining and leaving", () => {
     expect(hello.type).toBe("hello");
     expect(hello.selfId).toBe("alice");
     expect(hello.actorIds).toEqual(["alice"]);
-    expect(hello.names).toEqual([{ actorId: "alice", name: "Alice" }]);
+    expect(hello.names).toEqual([{ actorId: "alice", name: "Alice I" }]);
     expect(playerOwners(hello.map as FlatMapFile)).toEqual(["alice"]);
   });
 
@@ -882,7 +882,7 @@ describe("replacing the world", () => {
     await stub().replaceWorld(authoredMap());
     const hello = await fresh;
 
-    expect(hello.names).toEqual([{ actorId: "alice", name: "Alice" }]);
+    expect(hello.names).toEqual([{ actorId: "alice", name: "Alice I" }]);
   });
 
   it("keeps a connected player where they stood when asked to", async () => {
@@ -3054,6 +3054,38 @@ describe("dying and coming back", () => {
     expect(mine!.hp).toBe(mine!.maxHp);
   });
 
+  function ownName(hello: Record<string, unknown>): string | undefined {
+    const names = hello.names as { actorId: string; name: string }[];
+    return names.find((entry) => entry.actorId === "alice")?.name;
+  }
+
+  it("brings them back as the next generation, and says so on the death", async () => {
+    const alice = await connect("alice");
+    expect(ownName(alice.hello)).toBe("Alice I");
+    const seen = record(alice.ws);
+
+    await killAndTick("alice");
+    expect(seen.of("died")[0]!.rebornAs).toBe("Alice II");
+
+    send(alice.ws, { type: "rebirth" });
+    const hello = await messageWithin(alice.ws, "hello", 1000);
+    expect(ownName(hello!)).toBe("Alice II");
+  });
+
+  it("counts the generation from the deaths it logged, after a restart", async () => {
+    await connect("alice");
+    await killAndTick("alice");
+    await harness.store.flush();
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      (instance as unknown as { lives: Map<string, unknown> }).lives.clear();
+    });
+    await simulateEviction();
+
+    const { hello } = await connect("alice");
+
+    expect(ownName(hello)).toBe("Alice II");
+  });
+
   it("brings them back on full hit points", async () => {
     await armedAlice();
     await killAndTick("alice");
@@ -4568,7 +4600,7 @@ describe("patches scoped to a subscription", () => {
     expect(await chatWithin(alice.ws, 1000)).toMatchObject({
       text: "hello",
       actorId: "bob",
-      name: "Bob",
+      name: "Bob I",
     });
   });
 
@@ -4588,7 +4620,7 @@ describe("patches scoped to a subscription", () => {
     const names = heard
       .of("patch")
       .flatMap((message) => message.names as { actorId: string; name: string }[]);
-    expect(names).toContainEqual({ actorId: "bob", name: "Bob" });
+    expect(names).toContainEqual({ actorId: "bob", name: "Bob I" });
     const walks = heard
       .of("patch")
       .flatMap((message) => message.events as { kind: string }[])

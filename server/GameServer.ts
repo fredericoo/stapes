@@ -7,6 +7,7 @@ import {
   type Death,
 } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
+import { generationalName } from "../app/lib/characterName";
 import {
   BodyGrid,
   INTEREST_REACH_CHUNKS,
@@ -358,6 +359,8 @@ const TICK_POLL_MS = 1;
 
 type SavedPosition = ActorPosition & { savedAt: number };
 
+type Life = { name: string; generation: number };
+
 type SavedEquipment = { equipment: Equipment; savedAt: number };
 
 type SavedTags = { tags: string[]; savedAt: number };
@@ -697,6 +700,7 @@ export class GameServer {
     protected readonly env: {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
+      deathsOf?: (actorId: string) => Promise<number>;
       maxOnlinePlayers?: number;
       manualTicks?: { startAtMs: number };
       seed?: number;
@@ -704,6 +708,12 @@ export class GameServer {
   ) {}
 
   private session: GameSession | null = null;
+  /**
+   * Each seated character's stored name and generation. The generation is
+   * counted from `death` once and then kept here, because a death's row is
+   * only committed with the next checkpoint and a rebirth can come first.
+   */
+  private readonly lives = new Map<string, Life>();
   private clockOffsetMinutes = 0;
   private tiles: TileDef[] = [];
   private statusDefs: Record<string, StatusDef> = {};
@@ -2249,7 +2259,7 @@ export class GameServer {
       this.session.spawn(
         actorId,
         {
-          name: (await this.env.nameOf?.(actorId)) ?? null,
+          name: await this.displayNameOf(actorId),
           at: standing.get(actorId),
           carrying: kit ? restoredEquipment(kit, tilesById) : await this.lastEquipmentOf(actorId),
           tagged: taken.get(actorId) ?? (await this.lastTagsOf(actorId)),
@@ -2301,6 +2311,7 @@ export class GameServer {
 
     this.ctx.storage.sql.exec("DROP TABLE IF EXISTS chat");
     this.ctx.storage.sql.exec("DELETE FROM death");
+    this.lives.clear();
     this.chatLogReady = false;
     await this.ctx.storage.deleteAlarm();
 
@@ -2532,6 +2543,8 @@ export class GameServer {
       const character = connected || this.lingering.has(actorId);
       if (!character) continue;
       this.logDeath(death);
+      const life = this.lives.get(actorId);
+      if (life) this.lives.set(actorId, { ...life, generation: life.generation + 1 });
       this.pendingDeathWrites.set(actorId, { death, told: connected });
       if (connected) this.justDied.push(death);
     }
@@ -2564,10 +2577,16 @@ export class GameServer {
         equipment: emptyEquipment(),
         masteryXp: null,
         cost: death.cost ?? NOTHING_LOST,
+        ...this.rebornAs(death.id),
       });
       this.silenced.add(death.id);
     }
     this.justDied = [];
+  }
+
+  private rebornAs(actorId: string): { rebornAs: string } | null {
+    const life = this.lives.get(actorId);
+    return life ? { rebornAs: generationalName(life.name, life.generation) } : null;
   }
 
   private async seatActor(actorId: string) {
@@ -2580,10 +2599,25 @@ export class GameServer {
       statuses: restored.statuses ?? null,
     });
     this.session!.spawn(actorId, {
-      name: (await this.env.nameOf?.(actorId)) ?? null,
+      name: await this.displayNameOf(actorId),
       ...restored,
     });
     this.collectTransitionEvents(this.session!);
+  }
+
+  private async displayNameOf(actorId: string): Promise<string | null> {
+    const life = await this.lifeOf(actorId);
+    return life && generationalName(life.name, life.generation);
+  }
+
+  private async lifeOf(actorId: string): Promise<Life | null> {
+    const known = this.lives.get(actorId);
+    if (known) return known;
+    const name = await this.env.nameOf?.(actorId);
+    if (!name) return null;
+    const life = { name, generation: 1 + ((await this.env.deathsOf?.(actorId)) ?? 0) };
+    this.lives.set(actorId, life);
+    return life;
   }
 
   private async rebirth(actorId: string) {

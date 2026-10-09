@@ -371,7 +371,13 @@ export type ServerMessage =
       stackIndex: number;
     }
   | { type: "stepRejected"; seq: number }
-  | { type: "died"; equipment: Equipment; masteryXp: MasteryXp | null; cost: DeathCost }
+  | {
+      type: "died";
+      equipment: Equipment;
+      masteryXp: MasteryXp | null;
+      cost: DeathCost;
+      rebornAs?: string;
+    }
   | { type: "keepalive" }
   | { type: "serverRestarting" }
   | { type: "outdated"; serverVersion: number };
@@ -781,6 +787,7 @@ const serverMessageSchema = v.variant("type", [
     equipment: tolerantEquipmentSchema,
     masteryXp: v.fallback(v.nullable(masteryXpBlockSchema), null),
     cost: v.fallback(deathCostSchema, NOTHING_LOST),
+    rebornAs: v.fallback(v.optional(v.string()), undefined),
   }),
   v.object({
     type: v.literal("keepalive"),
@@ -810,7 +817,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 29;
+export const PROTOCOL_VERSION = 30;
 
 export const MAX_STEPS_AHEAD = 8;
 

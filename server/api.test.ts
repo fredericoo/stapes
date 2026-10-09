@@ -483,7 +483,7 @@ describe("a player's deaths and kills", () => {
     ]);
     expect((await page(maren)).kills).toEqual([
       expect.objectContaining({
-        victim: { id: tobin, name: "Tobin Reed", character: true },
+        victim: { id: tobin, name: "Tobin Reed I", character: true },
       }),
     ]);
   });

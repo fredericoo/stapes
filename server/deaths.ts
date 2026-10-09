@@ -53,6 +53,12 @@ export class Deaths {
     return this.list("killer_id", characterId, limit);
   }
 
+  async countOf(characterId: string): Promise<number> {
+    const select = await this.db.prepare("SELECT COUNT(*) AS n FROM death WHERE victim_id = ?");
+    const row = (await select.get([characterId])) as { n: number } | undefined;
+    return row?.n ?? 0;
+  }
+
   async counts(): Promise<{ deaths: Map<string, number>; kills: Map<string, number> }> {
     const [deaths, kills] = await Promise.all([
       this.countBy("victim_id"),
