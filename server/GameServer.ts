@@ -1341,25 +1341,7 @@ export class GameServer {
     }
 
     for (const [actorId, { death, told }] of this.pendingDeathWrites) {
-      this.ctx.storage
-        .delete(this.positionKey(actorId))
-        .catch(GameServer.reportWriteFailure("position clear"));
-      entries[this.equipmentKey(actorId)] = {
-        equipment: session.rebirthKit(death.equipment),
-        savedAt,
-      };
-      if (death.tags.length > 0) {
-        entries[this.tagsKey(actorId)] = { tags: [...death.tags], savedAt };
-      }
-      if (death.masteryXp) {
-        entries[this.masteriesKey(actorId)] = {
-          masteries: { ...death.masteryXp },
-          savedAt,
-        };
-      }
-      entries[this.hpKey(actorId)] = { hp: null, savedAt };
-      entries[this.statusesKey(actorId)] = { statuses: [], savedAt };
-      this.storedVitals.set(actorId, { hp: null, statuses: null });
+      this.forgetLife(actorId);
       if (!told) {
         entries[this.diedAwayKey(actorId)] = { cost: death.cost ?? NOTHING_LOST, savedAt };
       }
@@ -1384,6 +1366,28 @@ export class GameServer {
     this.ctx.storage
       .put(entries, { allowUnconfirmed: true })
       .catch(GameServer.reportWriteFailure("checkpoint write"));
+  }
+
+  /**
+   * A death deletes every row the life wrote, so the next seat is a new
+   * character's: the world's spawn, the starting kit, the player tile's
+   * masteries, no tags and PvP off. `hidden:` is an admin setting and stays.
+   * The deletes are tombstones in the same `WorldStore` commit as the
+   * board that dropped the kit.
+   */
+  private forgetLife(actorId: string) {
+    this.ctx.storage
+      .delete([
+        this.positionKey(actorId),
+        this.equipmentKey(actorId),
+        this.tagsKey(actorId),
+        this.masteriesKey(actorId),
+        this.hpKey(actorId),
+        this.statusesKey(actorId),
+        this.pvpKey(actorId),
+      ])
+      .catch(GameServer.reportWriteFailure("death clear"));
+    this.storedVitals.set(actorId, { hp: null, statuses: null });
   }
 
   private saveActorsIfDue() {
@@ -2557,8 +2561,8 @@ export class GameServer {
     for (const death of this.justDied) {
       this.sendTo(death.id, {
         type: "died",
-        equipment: death.equipment,
-        masteryXp: death.masteryXp,
+        equipment: emptyEquipment(),
+        masteryXp: null,
         cost: death.cost ?? NOTHING_LOST,
       });
       this.silenced.add(death.id);

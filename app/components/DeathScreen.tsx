@@ -1,12 +1,7 @@
 import type { DeathCost, LevelLost } from "../game/deathCost";
-import { XP_SHARE_LOST_ON_DEATH } from "../game/experience";
 import { MASTERY_LABELS } from "../lib/mastery";
 import { LoadingScreen } from "./LoadingScreen";
 import { Button } from "../ui";
-
-const SHARE = new Intl.NumberFormat("en", { style: "percent", maximumFractionDigits: 1 });
-
-const EXPERIENCE_LOST = `Each mastery lost ${SHARE.format(XP_SHARE_LOST_ON_DEATH)} of its experience.`;
 
 export function DeathScreen({
   onRebirth,
@@ -49,12 +44,8 @@ export function DeathScreen({
         </h2>
         <div id="death-screen-cost" className="flex w-full flex-col gap-4">
           <div className="flex flex-col gap-2 text-center text-sm text-pretty text-paper/80">
-            <p>
-              {cost?.packLeft
-                ? "Your bag stayed where you fell, with everything in it. You kept everything else."
-                : "You kept everything you had."}
-            </p>
-            <p>{EXPERIENCE_LOST}</p>
+            <p>Everything you carried lies where you fell.</p>
+            <p>Your masteries start over, and so do you: back in the tutorial, with nothing.</p>
           </div>
           {cost && cost.levelsLost.length > 0 ? <LevelsLost levels={cost.levelsLost} /> : null}
         </div>
@@ -73,7 +64,7 @@ function LevelsLost({ levels }: { levels: readonly LevelLost[] }) {
         id="death-screen-masteries"
         className="text-detail font-bold uppercase tracking-wide text-paper/50"
       >
-        Masteries lowered
+        Masteries lost
       </h3>
       <ul
         role="list"
