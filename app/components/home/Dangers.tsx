@@ -27,8 +27,9 @@ export function Dangers() {
         ))}
       </ul>
       <p className="home-dangers-death">
-        When you die, your bag and everything in it falls where you died, and every skill loses 5%
-        of its experience, often enough to cost a level. You keep what you were wearing.
+        <strong>Death is final.</strong> Everything you carried and wore falls where you died, every
+        skill starts over, and you wake up in the tutorial as the next of your line: Wren I comes
+        back as Wren II. Only your name and your deaths carry over.
       </p>
     </section>
   );
