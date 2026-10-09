@@ -432,6 +432,5 @@ function costText(cost: DeathCost): string {
   const parts = cost.levelsLost.map(
     (level) => `${MASTERY_LABELS[level.mastery]} ${level.from} → ${level.to}`,
   );
-  if (cost.packLeft) parts.unshift("Pack left behind");
   return parts.length > 0 ? parts.join(" · ") : "Lost nothing";
 }

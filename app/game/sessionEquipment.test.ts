@@ -7,7 +7,6 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
 import { guardBand } from "./combat";
 import { TICK_MS } from "./constants";
-import { emptyEquipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { FRAME, tile } from "../lib/testTile";
 
@@ -307,27 +306,6 @@ describe("the starting kit", () => {
   it("has nothing to say about somebody who is not here", () => {
     const session = new GameSession(field(), tiles);
     expect(session.equipmentOf("nobody")).toBeNull();
-  });
-});
-
-describe("the kit a rebirth hands back", () => {
-  const SWORD = { id: "itm_sword", tileId: "light-sword" };
-
-  it("puts a fresh empty bag on a back the death left bare", () => {
-    const session = new GameSession(field(), tiles);
-    const kit = session.rebirthKit({ ...emptyEquipment(), weapon: SWORD });
-
-    expect(kit.weapon).toEqual(SWORD);
-    expect(kit.bag).toMatchObject({ tileId: BAG_TILE_ID, contents: [] });
-  });
-
-  it("hands back a kit that still has its pack, rather than giving a second one", () => {
-    const session = new GameSession(field(), tiles);
-    const kept = session.getSnapshot().equipment;
-    const inHand = { ...emptyEquipment(), offhand: kept.bag };
-
-    expect(session.rebirthKit(kept)).toBe(kept);
-    expect(session.rebirthKit(inHand)).toBe(inHand);
   });
 });
 
@@ -1153,13 +1131,13 @@ describe("dying with something on you", () => {
     return session;
   }
 
-  it("leaves a player's pack where the body fell, and nothing else", () => {
+  it("leaves a player's whole kit where the body fell", () => {
     const session = doomed();
 
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(session.actorIds()).not.toContain(LOCAL_ACTOR_ID);
-    expect(tilesAt(session, 0, 0)).toEqual(["grass", BAG_TILE_ID]);
+    expect(tilesAt(session, 0, 0)).toEqual(expect.arrayContaining(["grass", BAG_TILE_ID, SWORD]));
   });
 
   it("drops the pack whole, with what was in it still inside", () => {
@@ -1181,28 +1159,17 @@ describe("dying with something on you", () => {
     expect(packAt(session, 0, 0)?.itemId).toBe(packId);
   });
 
-  it("leaves a pack held in a hand too, so moving it there does not save it", () => {
+  it("names the masteries the life had above a new one's", () => {
     const session = doomed();
     const playerId = selfId(session);
-    const sword = session.getSnapshot().equipment.weapon;
-    expect(session.moveItem({ kind: "bag" }, { kind: "offhand" })).toBe(true);
-
-    advance(session, LONG_ENOUGH_TO_KILL_MS);
-
-    expect(tilesAt(session, 0, 0)).toEqual(["grass", BAG_TILE_ID]);
-    const death = session.drainDeaths().find((one) => one.id === playerId);
-    expect(death?.equipment).toEqual({ ...emptyEquipment(), weapon: sword });
-  });
-
-  it("hands the death over holding everything but the pack", () => {
-    const session = doomed();
-    const playerId = selfId(session);
-    const sword = session.getSnapshot().equipment.weapon;
+    session.runCommand("/mastery fist 20", playerId);
 
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     const death = session.drainDeaths().find((one) => one.id === playerId);
-    expect(death?.equipment).toEqual({ ...emptyEquipment(), weapon: sword });
+    expect(death?.cost?.levelsLost).toContainEqual(
+      expect.objectContaining({ mastery: "fist", from: 20 }),
+    );
   });
 
   it("still leaves a creature's whole kit on the floor", () => {

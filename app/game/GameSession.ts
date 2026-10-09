@@ -232,8 +232,8 @@ import {
   fightsWithAHand,
   handToSwing,
   otherHand,
-  packSlots,
   spilled,
+  wornInstances,
   stoneLocked,
   weaponInHand,
   weaponSwungBy,
@@ -268,7 +268,6 @@ import {
   defenderEarnings,
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
-  experienceAfterDeath,
   practiceEarnings,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
@@ -753,9 +752,6 @@ function cooledEquipment(equipment: Equipment, spentMs: number): Equipment {
 
 export type Death = {
   id: string;
-  equipment: Equipment;
-  masteryXp: MasteryXp | null;
-  tags: readonly string[];
   cost: DeathCost | null;
   at: Coord | null;
   name: string | null;
@@ -992,16 +988,6 @@ export class GameSession implements PlaySession {
 
   private rollKit(bodyTileId: string): Equipment {
     return equipmentForBody(bodyTileId, this.tilesById, () => this.rng.next());
-  }
-
-  rebirthKit(owned: Equipment): Equipment {
-    if (packSlots(owned, this.tilesById).length > 0) return owned;
-    const bag = this.rollKit(PLAYER_TILE_ID).bag;
-    /**
-     * Emptied because the player's kit may author a bag with things in it,
-     * and a death must not mint those again.
-     */
-    return { ...owned, bag: bag ? { ...bag, contents: [] } : null };
   }
 
   private forgetTileIndex() {
@@ -2684,34 +2670,28 @@ export class GameSession implements PlaySession {
       actor.assailants?.delete(target.id);
     }
 
-    const kept = loc ? this.dropBelongings(target, loc) : target.equipment;
+    if (loc) {
+      const carried = target.resident
+        ? spilled(target.equipment, this.tilesById)
+        : wornInstances(target.equipment);
+      this.dropKit(carried, loc);
+    }
 
     if (loc) this.dropRemains(target, loc, blame);
 
-    this.pendingDeaths.push(this.deathOf(target, kept, loc, blame));
+    this.pendingDeaths.push(this.deathOf(target, loc, blame));
 
     if (loc) this.reindexCells([{ x: loc.x, y: loc.y, z: loc.z }]);
   }
 
   private deathOf(
     target: ActorRuntime,
-    kept: Equipment,
     loc: ActorLocation | null,
     blame: Blame | undefined,
   ): Death {
-    const masteryXp = target.masteryXp && experienceAfterDeath(target.masteryXp);
     return {
       id: target.id,
-      equipment: kept,
-      masteryXp,
-      tags: target.tags,
-      cost: target.resident
-        ? null
-        : deathCost(
-            { equipment: target.equipment, masteryXp: target.masteryXp ?? {} },
-            { equipment: kept, masteryXp: masteryXp ?? {} },
-            this.tilesById,
-          ),
+      cost: target.resident ? null : deathCost(target.masteryXp ?? {}, this.newLifeXp()),
       at: loc && { x: loc.x, y: loc.y, z: loc.z },
       name: loc
         ? bodyNameFor({ tileId: loc.placed.tileId, name: target.name }, this.tilesById)
@@ -2720,31 +2700,19 @@ export class GameSession implements PlaySession {
     };
   }
 
-  private dropBelongings(target: ActorRuntime, at: Coord): Equipment {
-    return target.resident
-      ? this.dropKit(target.equipment, at)
-      : this.dropPacks(target.equipment, at);
+  private newLifeXp(): MasteryXp {
+    const def = this.tilesById[PLAYER_TILE_ID];
+    const authored = def ? resolveBattler(def) : null;
+    return authored ? xpFromMasteries(authored.masteries) : {};
   }
 
-  private dropKit(equipment: Equipment, at: Coord): Equipment {
-    const carried = spilled(equipment, this.tilesById);
-    if (carried.length === 0) return equipment;
-
-    const dropped = this.dropOnFloor(at, carried.map(placementFromInstance));
-    return dropped ? emptyEquipment() : equipment;
-  }
-
-  private dropPacks(equipment: Equipment, at: Coord): Equipment {
-    const slots = packSlots(equipment, this.tilesById);
-    const packs = slots.flatMap((slot) => {
-      const held = equipment[slot];
-      return held ? [placementFromInstance(held)] : [];
-    });
-    if (packs.length === 0 || !this.dropOnFloor(at, packs)) return equipment;
-
-    const kept = { ...equipment };
-    for (const slot of slots) kept[slot] = null;
-    return kept;
+  /**
+   * All or nothing: a floor without room for the whole kit takes none of it,
+   * and the kit is lost with the body rather than half of it left behind.
+   */
+  private dropKit(carried: readonly ItemInstance[], at: Coord) {
+    if (carried.length === 0) return;
+    this.dropOnFloor(at, carried.map(placementFromInstance));
   }
 
   private dropOnFloor(at: Coord, placements: PlacedTile[]): boolean {

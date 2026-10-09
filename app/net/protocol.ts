@@ -810,7 +810,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 28;
+export const PROTOCOL_VERSION = 29;
 
 export const MAX_STEPS_AHEAD = 8;
 
