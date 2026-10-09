@@ -952,30 +952,6 @@ storage would make the setting do nothing in that browser.
 everything in one side column and has no pad, so the row would change nothing
 there.
 
-## Known: a rebirth inherits the status that killed you
-
-**Not fixed, and deliberately left for a design decision.** Reported from the
-live server: an unarmoured player walks onto a `flame`, takes `burned`, dies —
-and on rebirth burns to death again, repeatedly.
-
-The mechanism, so nobody has to find it twice:
-
-- Hit points *are* restored. `lastHpOf` reads a stored value below 1 as
-  `undefined`, which `spawn` takes as "ask the tile", so the new body is at
-  full. That is why this reads as "health is not restored" and is not.
-- **Statuses are restored verbatim.** `burned` runs up to 24 seconds and stacks,
-  so a body reborn inside that window is already burning and goes down again
-  before anybody sees the full health bar.
-- The cause is that `restoredActor` serves two events that want opposite things.
-  A **reconnect** is the same body and should keep its statuses; a **rebirth**
-  is a new body and should not inherit what killed the old one. `seatActor` is
-  on both paths and cannot currently tell them apart.
-
-The small fix is to clear statuses when seating a body whose predecessor died,
-leaving kit, tags and masteries alone. It is left undone because "what a death
-costs you" is a game design question rather than a bug — see the same tension in
-`resetWorld`, which carries kit and masteries across on purpose.
-
 ## The wire has a version on it
 
 `PROTOCOL_VERSION` in `app/net/protocol.ts`. **Bump it in the same commit as any
@@ -1511,95 +1487,20 @@ their tile off the board, and at that moment the map stops being the record. So
 positions are kept a second time, per actor, under `pos:<id>` — and the two are
 not redundant.
 
-**A third row says where they come back.** `spawn:<id>` is minted the first
-time the world sees somebody: where you come back is a different fact from where
-you are, and it does not move when you do. A death overwrites `pos:` with it,
-which is the whole of respawning — asked for from the death screen's Rebirth
-button, or by reloading. Keeping it per player is what lets a death answer the
-question without asking a map that may since have been re-authored out of the
-marker. `replaceWorld` drops only the rows still on the old map's spawn: those
-were minted, not chosen, so they follow the `player` marker to wherever the save
-put it. Every other row is a `setSpawn` mark and survives, which matters because
-every deploy is a save — `/api/seed` calls `replaceWorld` — and dropping the
-rows wholesale sent everybody back to the authored spawn on each merge. A mark
-whose cell the save changed is still safe to keep, for the reason below.
+**Everybody comes back at the world's spawn.** There is no per-player row for
+it: a death deletes `pos:<id>`, and a body seated with no position row stands
+on the session's spawn, the cell the authored `player` marker gave it. That is
+the whole of respawning — asked for from the death screen's Rebirth button, or
+by reloading. Deleting the row rather than overwriting it with coordinates is
+what keeps a re-authored map honest: `replaceWorld` moves the spawn, and a row
+holding the old cell would put the dead back where the marker used to be.
 
-**The row moves, and a tile is what moves it.** It was write-once until the
-respawn point existed, on the grounds that every row held the same coordinates
-anyway — a map has one authored `player` marker. Now a `setSpawn` block on any
-tile is a place you can take as your own: press it and the row becomes the cell
-you are standing in. The block is deliberately the thinnest one in
-`interactions.ts` — an `ActivationTrigger` and an optional verb, and *no
-destination*. An author picks the gesture, and the cell is the placement's own.
-
-**The cell recorded is the marker's, never the presser's.** The marker *is* the
-place, which is the whole of what one is, so a marker two people press from two
-sides is one place and it is the place they can both point at. The presser's
-cell would make a respawn point mean something slightly different for everybody
-who used it. Whether a body can stand in that cell is deliberately not asked: a
-marker may be solid, and `findEntryCell` already bubbles outward from a
-remembered cell and takes the first with room. A mark has always been a *wish*
-rather than a promise, because the world keeps changing around it either way.
-
-For `respawn-point` the question does not arise — it is flat, walkable and
-`interactOver`, so the only body that can press it is one standing on it. The
-rule still has to be stated the general way, because an author can hang the
-block on a bed you press from beside. It is also the one tile in the catalogue
-that makes no pretence of being a thing in the world: it is called "Respawn
-Point" and its row says "Set respawn point", which is a label for the player
-rather than for the character. Its sheet is generated (`bun run
-generate:respawn`) rather than drawn, because eight by eight pixels of geometry
-is reviewable in a diff and a committed PNG is not.
-
-The chain is the status block's, one for one — `resolveSetSpawn`,
-`reachableSetSpawnAt`, `GameSession.activateSetSpawn`, and
-`spawnMarkOnArrival` for the `step` trigger, which is a temple doorway that
-claims you as you walk through it. Two things are its own:
-
-- **A mark that does not move costs nothing.** `markSpawn` refuses a cell that
-  is already the mark. Without that a `step` block would be a durable write and
-  a sentence per stride. The two callers want opposite things from the refusal
-  and both read it: a *press* says "You already respawn here" and spends the tap
-  anyway — nothing about the board refused it, so falling through to whatever
-  else the tile offers would make `canInteract` disagree with `interact` — while
-  an *arrival* says nothing at all.
-- **The list says it before the press does.** A row on the marker you are
-  already anchored to is drawn grey and *renamed*: "You respawn here" rather
-  than "Set respawn point". `spawnBlock` asks the same question `markSpawn`
-  asks before refusing — is this marker's cell the mark — so the grey and the
-  refusal agree by being one question in two places rather than two questions
-  that happen to line up. It is the one `OptionBlock` arm that replaces the
-  verb instead of putting a reason beside it, and the one label in
-  `interactionOptions` that is a state rather than a verb — both exceptions
-  earned by the same fact, that nothing lifts this block. Every other grey row
-  keeps its verb because the verb is still what pressing it will do once the
-  reason clears; this one says the press has already happened. The sentence
-  stays as the answer to a tap on the *world*, which the list never gated.
-- **The client is told the mark, and only so that row can go grey.**
-  `GameSnapshot.spawnAt` rides in on the `hello` and is moved by a `spawnPoint`
-  message, both addressed to the one socket they are about, on exactly the terms
-  a kit and a tag are: nobody else's respawn point is drawn anywhere. Sent after
-  the record has moved, never before. Null means "nothing has told us yet" and
-  leaves the row live — a grey button that would have worked is a worse lie than
-  a live one that turns out to be a no-op, and the no-op answers in words.
-- **The session holds a copy of the row, and only to answer that question.**
-  `ActorRuntime.spawnMark` is seeded by `GameServer.seatActor` and drained by
-  `flushSpawnMarks`; the record is still the storage row. Without the copy the
-  session would have to queue a write and a sentence on every press and let the
-  server discard both.
-
-`flushSpawnMarks` writes *through* `rememberSpawn`'s cache rather than behind
-it — that cache is read once per connection and trusted from then on, so a write
-that reached only storage would leave the instance putting people back at their
-first cell for the rest of the world's life. It runs before `noteDeaths` in the
-tick for the same kind of reason: a `step` block and the blow that kills you can
-land in one tick, and the death writes `pos:` by reading the cache. It is
-drained from the message chain too, because a press arrives between ticks. The
-facing never moves — a door is not a footprint, and somebody who anchored
-themselves walking north has said nothing about which way they want to be
-looking. A creature is refused outright: its return is a `SpawnPoint` the server
-owes it at its authored cell (`respawn.ts`), which is a different fact about a
-different kind of body, and `resident` is the test.
+There used to be a `spawn:<id>` row and a `setSpawn` interaction that moved it,
+so a player could anchor themselves to a `respawn-point` tile. Both went with
+permadeath (see *A death is the end of a life*): a new life starts in the
+tutorial, so nothing may choose where it starts. `GameServer.load` deletes any
+`spawn:` rows still in storage. The `respawn-point` tile is still in the
+catalogue, with no interaction, because the map has one placed.
 
 **The write must not gate the broadcast.** The platform used to hold outgoing
 messages until preceding writes were durable, which was right for anything the
@@ -4630,42 +4531,32 @@ people and one for everything else.
   That gate used to be "only a kit with something in it", which came to the same
   thing while every creature had an empty one and stopped the day a rat could be
   authored carrying meat.
-- **Dying drops it, and a player is the one exception.** `kill` → `dropKit`
-  never asked who the body belonged to, so wildlife dropping its kit needed no
-  new path. A player goes through `dropPack` instead, which leaves the pack and
-  nothing else — see *A dead player leaves their pack, whole, and keeps the rest*.
+- **Dying drops it.** `kill` → `dropKit` lays the kit on the corpse's cell. A
+  creature's bag spills its contents and the bag itself stays with the body; a
+  player's every slot drops whole, the bag with its contents still inside — see
+  *A death is the end of a life*.
 
 **A death is the moment the session stops being able to answer for somebody**,
 and everything a reload hands back is read from storage — so a death has to write
 itself down before it destroys the only copy of what it knew.
 
-- **What drops does not die with the body.** `kill` drops it onto the corpse's
-  cell first — a creature's whole kit, a player's pack — all of it or none of
-  it: a sword somebody picked up a moment ago is still a sword in the world,
-  findable and theirs again if they walk back for it.
-  The alternative is not "death costs you your things", it is the world quietly
-  being one sword lighter with nothing in it able to put that right. All-or-
-  nothing because the two halves — what is on the board and what the body still
-  owns — are written to different keys, and a half-dropped kit has no single true
-  answer to give either of them.
+- **What drops does not die with the body.** `kill` drops the whole kit onto
+  the corpse's cell first, all of it or none of it: a sword somebody picked up a
+  moment ago is still a sword in the world, findable by whoever walks past. A
+  cell that refuses the kit is one with no floor to stand on (the body died
+  falling, or in water); items take no height, so a floor never runs out of
+  room. The kit is then lost with the body.
 - **The `Death` carries what the runtime knew**, because `GameSession.kill`
-  deletes it: what is left of the kit, its tags, its experience less the share
-  a death takes, and for a player what the death cost (`DeathCost`). Nothing
-  downstream can re-derive any of it.
-- **A reload or a `rebirth` puts them back at the spawn point, with what they
-  kept and a bag on their back.** The position row is *overwritten* with
-  `spawn:<id>` rather than left alone — leaving it is what put people back
-  wherever the last flush caught them, up to a whole `ACTOR_FLUSH_INTERVAL_MS`
-  of walking ago. The kit row is `GameSession.rebirthKit`: what they still own,
-  and the starting kit's bag, emptied, when they own no pack at all. Nothing
-  sells a bag, so without it a player whose pack somebody else picked up would
-  never carry more than two things again. A player can still come back to a new
-  bag by dying with none, and the experience a death costs is what keeps that
-  from being a way to collect them. The row is written rather than deleted — a
-  missing row already means "give them the starting kit", but a delete cannot
-  ride in the batch, and a second call is a second moment at which the board and
-  the kit can disagree. A pack the floor refused was never dropped, so
-  `rebirthKit` hands that one back rather than a second.
+  deletes it: where, who did it, and for a player what the death cost
+  (`DeathCost`). Nothing downstream can re-derive any of it.
+- **A reload or a `rebirth` seats a new character.** `forgetLife` deletes the
+  `pos:`, `equip:`, `tags:`, `mast:`, `hp:`, `status:` and `pvp:` rows, so the
+  next seat reads what a character that never played reads: the world's spawn,
+  the starting kit the `player` tile rolls, the tile's masteries, no tags, full
+  health, nothing on them and PvP off. `hidden:` is an administrator's setting
+  rather than the life's, and stays. The deletes are tombstones in the
+  `WorldStore` commit that writes the board, so the board and the rows cannot
+  disagree about where the kit went.
 - **Hit points need nothing.** They are rebuilt from the tile on every load, so a
   respawned body is at full health by construction rather than by a reset.
 - **`noteDeaths` forces a flush**, rather than leaving it to the next one. This
@@ -6662,15 +6553,11 @@ something to practise Fire *with*.
 **Light is beside the ladder too, below its foot.** It asks Arcane 1, which is
 `MIN_EARNED_MASTERY` and so a level no death can take, and puts `luminous` on
 the caster at Spark's cooldown and cast time. It is what the quest chest just
-past the tutorial's portal gives, in place of Spark. The reason is what a death
-costs: 5% of the experience takes a new player from Arcane 5 to 4, where Spark
-is out of reach, and a stone that can always be pressed pays the flat fee on
-every press, so Light is the way back up to Spark. The chest's `rewardTag`
-changed with its stone (`tutorial-light-stone`), so every player who already
-took Spark from it can take Light once as well. The chest gives it once, so the
-stone forge makes it from a blank stone too, at Spark's weight: a Light lost
-with a looted pack can be replaced, and without that a player below Arcane 5
-who lost theirs could never cast again.
+past the tutorial's portal gives, in place of Spark: a stone that can always be
+pressed pays the flat fee on every press, so it is a way up to Spark that asks
+nothing. The chest's `rewardTag` is `tutorial-light-stone`, and a death clears
+tags, so each life takes it once. The stone forge makes it from a blank stone
+too, at Spark's weight, so a Light dropped or traded away can be replaced.
 
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
@@ -7153,13 +7040,13 @@ watched and wants to ask about has to be the same fight when they run it again.
 
 Being dead is the one state a client cannot infer. A body missing from the board
 is what an ordinary stale patch looks like, so `died` is a message: sent to the
-one socket, carrying the kit, the experience and what the death cost, and the
-last thing that socket hears.
+one socket, carrying what the death cost, and the last thing that socket
+hears.
 
 **Three things happen in an order, and the order is the whole design.**
 
 1. The tick that killed them broadcasts its patch *including* to them. That
-   frame is the honest one — their body gone from the cell, their pack lying in
+   frame is the honest one — their body gone from the cell, their kit lying in
    it — and it is what the death screen is drawn over.
 2. `announceDeaths` sends `died` and only then adds them to `silenced`, so the
    message is not the first casualty of the rule it announces.
@@ -7167,34 +7054,27 @@ last thing that socket hears.
    the world carry on is being shown a board they have no body in, and every
    patch of it is bandwidth spent on somebody who cannot act.
 
-**The kit rides on `died` rather than on an `equipment` message.** That message
-is read off a live runtime and a death is exactly what deletes it, so a dropped
-pack would never be announced and the panel would go on showing a bag that is
-on the floor. Normally everything but the pack; the whole kit when the cell
-refused the pack. The fresh bag a rebirth puts on is not in it: that is written
-to storage, and arrives with the `hello`. The experience rides with it for the
-same reason, already less the share a death takes, so the stats panel behind
-the screen agrees with what the screen says.
+**`died` says the kit is empty, and the server says it.** The `equipment`
+message is read off a live runtime and a death is exactly what deletes it, so
+the panel behind the screen would go on showing a kit that is on the floor.
+`died` carries an empty kit and no experience; the next life's kit and
+masteries arrive with the `hello` a rebirth answers with.
 
-**The screen says what the death cost, and the server says it.** `kill` builds
-a `DeathCost` (`app/game/deathCost.ts`) from the body as it was and as it is
-leaving: whether the pack went, and each mastery that dropped a level, with
-where from and where to. It rides on `died` as `cost`, and `DeathScreen` draws
-it beside one sentence of rule that reads `XP_SHARE_LOST_ON_DEATH`, so tuning
-the share changes the words too. The client could have worked the levels out
-by comparing the `died` block with the last `masteries` one, and that is the
-diff *One source, and the client infers nothing* already argued against: the
-client's copy can be a tick behind, and a blow that paid experience in the
-killing tick never reaches it. Only levels are listed. Every mastery loses
-experience on every death, so a row per mastery would say the same thing once
-per mastery, and a mastery that lost experience but kept its level has nothing
-to show. The list's heading says "Masteries lowered" rather than naming a level,
-by the rule on notices below: there are no levels in the game's own words.
+**The screen says what the life took with it.** `kill` builds a `DeathCost`
+(`app/game/deathCost.ts`) from the life's experience and the `player` tile's
+authored masteries: each mastery the life had above where a new one starts,
+with where from and where to. It rides on `died` as `cost`, and `DeathScreen`
+lists it under "Masteries lost". The client could have worked the levels out
+from its last `masteries` block, and that is the diff *One source, and the
+client infers nothing* already argued against: the client's copy can be a tick
+behind, and a blow that paid experience in the killing tick never reaches it.
+Only levels are listed; a mastery that never left its starting level has
+nothing to show.
 
 **A death nobody was connected for is told on the next `hello`.** A lingering
 body (see *Closing the tab does not end a fight*) can die with no socket to send
-`died` to, and the rows are written all the same: the player comes back at
-their spawn with a fresh bag and lower levels. So the death batch in
+`died` to, and the rows are deleted all the same: the player comes back as a
+new character in the tutorial. So the death batch in
 `saveActors` also writes a `diedAway:` row holding the `DeathCost`, only for a
 death that was not announced, and `seatJoiner` reads and deletes it and puts it
 on the `hello` as `diedAway`. It is deleted on the read, not once the screen has
@@ -7231,7 +7111,7 @@ arbitrarily stale and no diff would catch it up. Reloading still works and still
 
 **Pressing Rebirth puts the loading screen back up**, and the wait is a state of
 the death screen rather than a state of the button. What the press costs is a
-round trip, a seating that reads the player's remembered spawn out of storage,
+round trip, a seating that reads the player's rows out of storage,
 and then a whole map to rebuild — a rebirth somewhere else dirties every chunk
 on screen, and `syncChunks` rebuilds them inside one frame. For all of that the
 old screen sat there unchanged with the world frozen behind it, which reads as a
@@ -10526,8 +10406,9 @@ controls to learn, where what has to be read at a glance is whether it is on.
 Storage keeps a `pvp:` row per player, written the moment the switch moves
 rather than on the periodic flush: a switch somebody turned off and a crash a
 second later must not add up to a player who comes back fightable. Off is written
-as well as on, or turning it off would last exactly until the next reconnect. It
-also rides across a world replacement on the tags' argument — it records a
+as well as on, or turning it off would last exactly until the next reconnect. A death deletes
+it with the rest of the life, so every new life starts unfightable (see *A
+death is the end of a life*). It rides across a world replacement on the tags' argument — it records a
 decision the player made, and nothing an author writes into a map has any bearing
 on it.
 
@@ -10635,49 +10516,47 @@ is a thing you are holding on exactly the terms a crate is. Nothing nests, so
 one level of spilling is the whole of it. A deer that had picked a bush leaves
 the berries it was carrying.
 
-### A dead player leaves their pack, whole, and keeps the rest
+### A death is the end of a life
 
-A player used to die on exactly those terms. That did not make people quit,
-but it made it hard for anybody to build up, since every death sent them back
-to the starting kit. So a player's death now costs the pack and nothing else.
-`dropPack` lays the bag down as it is, contents and all, the same placement a
-drop from the bag slot makes; the hands, the armour, the accessory square and
-the rest stay on the body and ride out on the `Death`.
+A player who dies drops everything and starts again from nothing, back in the
+tutorial. `kill` lays every slot on the corpse's cell; the bag goes down whole,
+contents and all, so whoever reaches it first takes the bag in one pickup. The
+masteries go back to what the `player` tile authors, the tags go, and with them
+every reward the tutorial gave, so the tutorial's chests can be opened again.
 
-It brings back, for players only, the single pickup the rule above removed: the
-pack is one thing, and whoever reaches it first takes all of it at once. That is
-accepted, because what is at stake is the contents of one bag rather than
-everything the player owned.
+What carries over is the name and the count of deaths: the `death` table keeps
+a row per death, and the next life is the character's next generation (see
+*A character's generation is its deaths plus one*).
 
-A pack held in a hand drops too. `packSlots` counts an equippable bag in either
-hand as a pack, on the back's terms rather than a crate's, because otherwise
-moving the pack into a hand before a fight would keep it, and the rebirth would
-still put a new one on the bare back. Anything else held, a chest included,
-stays with the player.
+This is the design rather than a cost to tune. A death that took a share of
+experience and the pack let a player build up across lives, and the rest of
+the game was then balanced against a character who never really started over.
+With nothing kept, a fight is a decision about the whole of what you have.
 
-The other half of what a death costs is experience, below.
+### A character's generation is its deaths plus one
 
-### A death takes a share of every mastery's experience
+Every life of a character plays under the same stored name with a Roman
+numeral after it: Maren I until the first death, then Maren II. The numeral is
+never in `character.name`. `GameServer.displayNameOf` builds it with
+`generationalName` (`app/lib/characterName.ts`) when it seats the body, and the
+session carries the result as the body's name, so everything that already
+shows a name shows the generation: name tags, chat, a look, the skull's
+engraving and `victim_name` in `death`, which records which life died.
 
-`kill` hands the `Death` the player's experience after `experienceAfterDeath`,
-which takes `XP_SHARE_LOST_ON_DEATH` (5%) off every mastery's total, and
-`GameServer` writes that to the `mast:` row in the batch that drops the body.
-It is a share of the whole total rather than of the progress into the current
-level, so it costs more the further a mastery has come. The curve is squared,
-so 5% of the experience is about 2.5% of the level: a player exactly at 10
-drops to 9, at 40 to 38, and at 100 to 97. One far enough into a level can
-lose the same share and keep the level.
+The generation is counted from `death` (`Deaths.countOf`), the rows already
+written for the admin pages, and then kept per seated character in
+`GameServer.lives`, because a death row is committed with the next checkpoint
+and a Rebirth press can arrive before it. `noteDeaths` adds one there when it
+logs the death; `resetWorld` empties `death` and the cache together, so a
+reset sends every character back to I.
 
-There is no floor of its own. `levelForXp` never reads below
-`MIN_EARNED_MASTERY`, which is what stops a death taking the last point of an
-element (see *Experience never reads below level 1*), so this rule does not
-have to know about elements. A new player at Arcane 5 drops to 4 on their first
-death.
+`died` carries `rebornAs`, the next life's name, for the death screen. A death
+told on a `hello` needs no field: the player is already seated as the next
+life, and the screen reads their own entry in `names`.
 
-The share is taken off the `Death` rather than off the runtime, because the
-runtime is deleted in the same call. So no live body ever holds the reduced
-figure, and `grantExperience`, which is where a level-up is said, is never
-asked about a level going down.
+A name is at most `MAX_CHARACTER_NAME_LENGTH` characters, and the numeral adds
+a space and a few letters more: LXXXVIII, the 88th life, is eight. Name tags
+have not been measured against the longest.
 
 ## A sign is read to you; everything else waits to be asked
 
@@ -14201,8 +14080,8 @@ apart and met again. The leader may be a person, and a bot following a person
 who stands still in town stands with them until `ProgressPlanner` gives it
 another goal.
 
-**A bot goes back for the bag it died with.** A dead player drops its bag
-where it fell (`dropPacks`), with the money and food in it. The bot remembers
+**A bot goes back for the bag it died with.** A dead player drops its whole kit
+where it fell (`dropKit`), the bag whole with the money and food in it. The bot remembers
 where it last stood. `ProgressPlanner` gives it a `go_to` there before
 anything else, the opening goals included, and the loot reflex takes what
 it wants out of the bag. The planner is not told where the bag is while a creature the bot would

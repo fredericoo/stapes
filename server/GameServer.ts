@@ -7,6 +7,7 @@ import {
   type Death,
 } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
+import { generationalName } from "../app/lib/characterName";
 import {
   BodyGrid,
   INTEREST_REACH_CHUNKS,
@@ -32,7 +33,7 @@ import {
 import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../app/game/deathCost";
 import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
-import { DEFAULT_FACING, listActorOwners } from "../app/game/actors";
+import { listActorOwners } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import type { CommandReply } from "../app/game/commands";
@@ -66,7 +67,7 @@ import type {
   PlacedTile,
   TileDef,
 } from "../app/lib/types";
-import { MAX_LEVEL, MIN_LEVEL, parseCoordKey, type Coord } from "../app/lib/types";
+import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   CLOSE_REPLACED,
@@ -107,10 +108,6 @@ const [GROUND_ONLY_HEAD, GROUND_ONLY_TAIL] = (() => {
   const [head, tail] = JSON.stringify(empty).split('"cells":[]');
   return [`${head}"cells":[`, `]${tail}`];
 })();
-
-function sameCell(a: Coord, b: Coord): boolean {
-  return a.x === b.x && a.y === b.y && a.z === b.z;
-}
 
 function cellAfflictionKey(x: number, y: number, z: number): string {
   return `${x},${y},${z}`;
@@ -335,7 +332,8 @@ const TAGS_KEY_PREFIX = "tags:";
 
 const MASTERIES_KEY_PREFIX = "mast:";
 
-const SPAWN_KEY_PREFIX = "spawn:";
+/** Where a `setSpawn` mark used to send a player. Nothing reads these rows; load deletes them. */
+const RETIRED_SPAWN_KEY_PREFIX = "spawn:";
 
 const STATUSES_KEY_PREFIX = "status:";
 
@@ -361,13 +359,13 @@ const TICK_POLL_MS = 1;
 
 type SavedPosition = ActorPosition & { savedAt: number };
 
+type Life = { name: string; generation: number };
+
 type SavedEquipment = { equipment: Equipment; savedAt: number };
 
 type SavedTags = { tags: string[]; savedAt: number };
 
 type SavedMasteries = { masteries: MasteryXp; savedAt: number };
-
-type SavedSpawn = ActorPosition & { savedAt: number };
 
 type SavedStatuses = { statuses: StatusInstance[]; savedAt: number };
 
@@ -386,7 +384,6 @@ export type CharacterSheet = {
   live: boolean;
   dead: boolean;
   position: ActorPosition | null;
-  spawn: ActorPosition | null;
   equipment: Equipment | null;
   masteryXp: MasteryXp;
   statuses: StatusInstance[];
@@ -703,6 +700,7 @@ export class GameServer {
     protected readonly env: {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
+      deathsOf?: (actorId: string) => Promise<number>;
       maxOnlinePlayers?: number;
       manualTicks?: { startAtMs: number };
       seed?: number;
@@ -710,6 +708,12 @@ export class GameServer {
   ) {}
 
   private session: GameSession | null = null;
+  /**
+   * Each seated character's stored name and generation. The generation is
+   * counted from `death` once and then kept here, because a death's row is
+   * only committed with the next checkpoint and a rebirth can come first.
+   */
+  private readonly lives = new Map<string, Life>();
   private clockOffsetMinutes = 0;
   private tiles: TileDef[] = [];
   private statusDefs: Record<string, StatusDef> = {};
@@ -763,7 +767,6 @@ export class GameServer {
   private pendingDeathWrites = new Map<string, { death: Death; told: boolean }>();
   private silenced = new Set<string>();
   private justDied: Death[] = [];
-  private readonly spawns = new Map<string, ActorPosition>();
   private readonly subscribed = new Map<string, Set<string>>();
   private readonly subscriptionCentre = new WeakMap<Set<string>, string>();
   private readonly lingering = new Map<string, number>();
@@ -1047,51 +1050,10 @@ export class GameServer {
     return { at, carrying, tagged, earned, statuses, hp, pvp, hidden };
   }
 
-  /**
-   * A row still on the old map's spawn was minted, not chosen, so it is dropped
-   * and re-minted from the new map. Any other row is a `setSpawn` mark and
-   * survives the save, which every deploy makes through `/api/seed`.
-   */
-  private async forgetMintedSpawns(previousSpawn: Coord | null) {
-    const stored = await this.ctx.storage.list<SavedSpawn>({ prefix: SPAWN_KEY_PREFIX });
-    const minted = [...stored]
-      .filter(([, spawn]) => !previousSpawn || sameCell(spawn, previousSpawn))
-      .map(([key]) => key);
-    for (const key of minted) this.spawns.delete(key.slice(SPAWN_KEY_PREFIX.length));
-    if (minted.length === 0) return;
-    await this.ctx.storage.delete(minted);
-  }
-
   private async deleteCheckpointedBoard() {
     const stored = await this.ctx.storage.list({ prefix: CHUNK_KEY_PREFIX });
     if (stored.size === 0) return;
     await this.ctx.storage.delete([...stored.keys()]);
-  }
-
-  private spawnKey(actorId: string): string {
-    return `${SPAWN_KEY_PREFIX}${actorId}`;
-  }
-
-  private async rememberSpawn(actorId: string): Promise<void> {
-    if (this.spawns.has(actorId)) return;
-
-    const saved = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
-    if (saved) {
-      this.spawns.set(actorId, {
-        x: saved.x,
-        y: saved.y,
-        z: saved.z,
-        direction: saved.direction,
-      });
-      return;
-    }
-
-    const { x, y, z } = this.session!.getSpawnPoint();
-    const spawn: ActorPosition = { x, y, z, direction: DEFAULT_FACING };
-    this.spawns.set(actorId, spawn);
-    this.ctx.storage
-      .put(this.spawnKey(actorId), { ...spawn, savedAt: this.now() })
-      .catch(GameServer.reportWriteFailure("spawn write"));
   }
 
   private positionKey(actorId: string): string {
@@ -1218,11 +1180,7 @@ export class GameServer {
   }
 
   async characterSheet(actorId: string): Promise<CharacterSheet> {
-    const spawn = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
-    const common = {
-      dead: this.dead.has(actorId),
-      spawn: spawn ? { x: spawn.x, y: spawn.y, z: spawn.z, direction: spawn.direction } : null,
-    };
+    const common = { dead: this.dead.has(actorId) };
     const session = this.session;
     const at = session?.actorPosition(actorId);
     if (!session || !at) return { ...common, ...(await this.savedSheetOf(actorId)) };
@@ -1245,7 +1203,7 @@ export class GameServer {
    * `restoredEquipment`, which needs the tile catalogue of a loaded world and
    * would hide an item it no longer accepts.
    */
-  private async savedSheetOf(actorId: string): Promise<Omit<CharacterSheet, "dead" | "spawn">> {
+  private async savedSheetOf(actorId: string): Promise<Omit<CharacterSheet, "dead">> {
     const [position, equipment, tags, masteryXp, statuses, hp, pvp, hidden] = await Promise.all([
       this.lastPositionOf(actorId),
       this.ctx.storage.get<SavedEquipment>(this.equipmentKey(actorId)),
@@ -1393,24 +1351,7 @@ export class GameServer {
     }
 
     for (const [actorId, { death, told }] of this.pendingDeathWrites) {
-      const spawn = this.spawns.get(actorId);
-      if (spawn) entries[this.positionKey(actorId)] = { ...spawn, savedAt };
-      entries[this.equipmentKey(actorId)] = {
-        equipment: session.rebirthKit(death.equipment),
-        savedAt,
-      };
-      if (death.tags.length > 0) {
-        entries[this.tagsKey(actorId)] = { tags: [...death.tags], savedAt };
-      }
-      if (death.masteryXp) {
-        entries[this.masteriesKey(actorId)] = {
-          masteries: { ...death.masteryXp },
-          savedAt,
-        };
-      }
-      entries[this.hpKey(actorId)] = { hp: null, savedAt };
-      entries[this.statusesKey(actorId)] = { statuses: [], savedAt };
-      this.storedVitals.set(actorId, { hp: null, statuses: null });
+      this.forgetLife(actorId);
       if (!told) {
         entries[this.diedAwayKey(actorId)] = { cost: death.cost ?? NOTHING_LOST, savedAt };
       }
@@ -1437,6 +1378,28 @@ export class GameServer {
       .catch(GameServer.reportWriteFailure("checkpoint write"));
   }
 
+  /**
+   * A death deletes every row the life wrote, so the next seat is a new
+   * character's: the world's spawn, the starting kit, the player tile's
+   * masteries, no tags and PvP off. `hidden:` is an admin setting and stays.
+   * The deletes are tombstones in the same `WorldStore` commit as the
+   * board that dropped the kit.
+   */
+  private forgetLife(actorId: string) {
+    this.ctx.storage
+      .delete([
+        this.positionKey(actorId),
+        this.equipmentKey(actorId),
+        this.tagsKey(actorId),
+        this.masteriesKey(actorId),
+        this.hpKey(actorId),
+        this.statusesKey(actorId),
+        this.pvpKey(actorId),
+      ])
+      .catch(GameServer.reportWriteFailure("death clear"));
+    this.storedVitals.set(actorId, { hp: null, statuses: null });
+  }
+
   private saveActorsIfDue() {
     const session = this.session;
     if (!session) return;
@@ -1453,8 +1416,14 @@ export class GameServer {
     await this.pruneOldest(STATUSES_KEY_PREFIX);
     await this.pruneOldest(HP_KEY_PREFIX);
     await this.pruneOldest(MASTERIES_KEY_PREFIX);
-    await this.pruneOldest(SPAWN_KEY_PREFIX);
     await this.pruneOldest(DIED_AWAY_KEY_PREFIX);
+    await this.deleteRetiredSpawns();
+  }
+
+  private async deleteRetiredSpawns() {
+    const stored = await this.ctx.storage.list({ prefix: RETIRED_SPAWN_KEY_PREFIX });
+    if (stored.size === 0) return;
+    await this.ctx.storage.delete([...stored.keys()]);
   }
 
   private async pruneOldest(prefix: string) {
@@ -1607,7 +1576,6 @@ export class GameServer {
       afflicted: session.afflictedPlacements().filter((one) => covers(chunks, one.x, one.y)),
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
       tags: [...(session.tagsOf(actorId) ?? [])],
-      spawnAt: this.spawnCellOf(actorId),
       extracting: session.extractionOf(actorId),
       nextBlow: this.rememberNextBlow(actorId),
       masteryXp: { ...session.masteryXpOf(actorId) },
@@ -1707,12 +1675,10 @@ export class GameServer {
     this.flushTags();
     this.flushConversations();
     this.flushExtracting();
-    this.flushSpawnMarks();
     /**
      * A message can kill on the spot (a consume, `/health 0`). Left for the tick,
      * a close before it skips the death's rows and a rejoin seats the body from
-     * the rows the death was about to overwrite. After `flushSpawnMarks`, as in
-     * `tick`.
+     * the rows the death was about to overwrite.
      */
     this.noteDeaths(session);
     this.flushNextBlow();
@@ -1868,30 +1834,6 @@ export class GameServer {
     for (const { ws, requestId, reply } of replies) {
       ws.send(JSON.stringify({ type: "commandReply", requestId, reply } satisfies ServerMessage));
     }
-  }
-
-  private flushSpawnMarks() {
-    const session = this.session;
-    if (!session) return;
-
-    for (const { actorId, at } of session.drainSpawnMarks()) {
-      const spawn: ActorPosition = {
-        x: at.x,
-        y: at.y,
-        z: at.z,
-        direction: this.spawns.get(actorId)?.direction ?? DEFAULT_FACING,
-      };
-      this.spawns.set(actorId, spawn);
-      this.ctx.storage
-        .put(this.spawnKey(actorId), { ...spawn, savedAt: this.now() })
-        .catch(GameServer.reportWriteFailure("spawn write"));
-      this.sendTo(actorId, { type: "spawnPoint", at: { ...at } });
-    }
-  }
-
-  private spawnCellOf(actorId: string): { x: number; y: number; z: number } | null {
-    const spawn = this.spawns.get(actorId);
-    return spawn ? { x: spawn.x, y: spawn.y, z: spawn.z } : null;
   }
 
   private minutesOfDay(): MinutesOfDay {
@@ -2250,10 +2192,6 @@ export class GameServer {
     const tilesById = tilesByIdFromList(tiles);
     const statusDefs = statusesById(await store.readStatuses());
     const traits = traitsById(await store.readTraits());
-    const previousSpawn =
-      this.session?.getSpawnPoint() ??
-      (await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY))?.spawn ??
-      null;
 
     const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
     const session = new GameSession(map, tiles, {
@@ -2312,18 +2250,16 @@ export class GameServer {
     this.writtenActors.clear();
     this.dead.clear();
     this.silenced.clear();
-    await this.forgetMintedSpawns(previousSpawn);
     this.lastSaidAt.clear();
     this.queuedIntents.clear();
     this.events = [];
 
     for (const actorId of present) {
       const kit = carried.get(actorId);
-      await this.rememberSpawn(actorId);
       this.session.spawn(
         actorId,
         {
-          name: (await this.env.nameOf?.(actorId)) ?? null,
+          name: await this.displayNameOf(actorId),
           at: standing.get(actorId),
           carrying: kit ? restoredEquipment(kit, tilesById) : await this.lastEquipmentOf(actorId),
           tagged: taken.get(actorId) ?? (await this.lastTagsOf(actorId)),
@@ -2332,7 +2268,6 @@ export class GameServer {
           hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
           pvp: fighting.has(actorId) || (await this.lastPvpOf(actorId)),
           hidden: await this.lastHiddenOf(actorId),
-          spawnAt: this.spawnCellOf(actorId) ?? undefined,
         },
         { announce: false },
       );
@@ -2376,6 +2311,7 @@ export class GameServer {
 
     this.ctx.storage.sql.exec("DROP TABLE IF EXISTS chat");
     this.ctx.storage.sql.exec("DELETE FROM death");
+    this.lives.clear();
     this.chatLogReady = false;
     await this.ctx.storage.deleteAlarm();
 
@@ -2485,11 +2421,9 @@ export class GameServer {
     this.collectTeleportEvents(session);
     this.collectSwingEvents(session);
     /**
-     * In this order: `noteDeaths` reads `spawns`, which `flushSpawnMarks`
-     * updates, and `releaseLingerers` must not drop a lingering body before
+     * In this order: `releaseLingerers` must not drop a lingering body before
      * `noteDeaths` has recorded its death.
      */
-    this.flushSpawnMarks();
     this.noteDeaths(session);
     this.releaseLingerers();
     this.broadcastSpeech(session, actors);
@@ -2609,6 +2543,8 @@ export class GameServer {
       const character = connected || this.lingering.has(actorId);
       if (!character) continue;
       this.logDeath(death);
+      const life = this.lives.get(actorId);
+      if (life) this.lives.set(actorId, { ...life, generation: life.generation + 1 });
       this.pendingDeathWrites.set(actorId, { death, told: connected });
       if (connected) this.justDied.push(death);
     }
@@ -2638,32 +2574,50 @@ export class GameServer {
     for (const death of this.justDied) {
       this.sendTo(death.id, {
         type: "died",
-        equipment: death.equipment,
-        masteryXp: death.masteryXp,
+        equipment: emptyEquipment(),
+        masteryXp: null,
         cost: death.cost ?? NOTHING_LOST,
+        ...this.rebornAs(death.id),
       });
       this.silenced.add(death.id);
     }
     this.justDied = [];
   }
 
+  private rebornAs(actorId: string): { rebornAs: string } | null {
+    const life = this.lives.get(actorId);
+    return life ? { rebornAs: generationalName(life.name, life.generation) } : null;
+  }
+
   private async seatActor(actorId: string) {
     this.dead.delete(actorId);
     this.silenced.delete(actorId);
     this.forgetDeathNotice(actorId);
-    await this.rememberSpawn(actorId);
-    const spawn = this.spawns.get(actorId);
     const restored = await this.restoredActor(actorId);
     this.storedVitals.set(actorId, {
       hp: restored.hp ?? null,
       statuses: restored.statuses ?? null,
     });
     this.session!.spawn(actorId, {
-      name: (await this.env.nameOf?.(actorId)) ?? null,
+      name: await this.displayNameOf(actorId),
       ...restored,
-      ...(spawn ? { spawnAt: { x: spawn.x, y: spawn.y, z: spawn.z } } : {}),
     });
     this.collectTransitionEvents(this.session!);
+  }
+
+  private async displayNameOf(actorId: string): Promise<string | null> {
+    const life = await this.lifeOf(actorId);
+    return life && generationalName(life.name, life.generation);
+  }
+
+  private async lifeOf(actorId: string): Promise<Life | null> {
+    const known = this.lives.get(actorId);
+    if (known) return known;
+    const name = await this.env.nameOf?.(actorId);
+    if (!name) return null;
+    const life = { name, generation: 1 + ((await this.env.deathsOf?.(actorId)) ?? 0) };
+    this.lives.set(actorId, life);
+    return life;
   }
 
   private async rebirth(actorId: string) {

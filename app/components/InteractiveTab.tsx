@@ -12,7 +12,6 @@ import type {
   ReceiveInteraction,
   RemoveStatusInteraction,
   RewardInteraction,
-  SetSpawnInteraction,
   SignalMode,
   SignalValue,
   SwitchInteraction,
@@ -32,7 +31,6 @@ import {
   DEFAULT_RECEIVE,
   DEFAULT_REMOVE_STATUS,
   DEFAULT_REWARD,
-  DEFAULT_SET_SPAWN,
   DEFAULT_SWITCH,
   DEFAULT_TELEPORT,
   DEFAULT_CRAFT,
@@ -171,7 +169,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const teleport = draft.interactions?.teleport;
   const addStatus = draft.interactions?.addStatus;
   const removeStatus = draft.interactions?.removeStatus;
-  const setSpawn = draft.interactions?.setSpawn;
   const decay = draft.interactions?.decay;
   const plate = draft.interactions?.pressurePlate;
   const emit = draft.interactions?.emit;
@@ -270,13 +267,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
 
   const setAddStatus = (next: AddStatusInteraction | undefined) => {
     patchKind("addStatus", next ?? null);
-  };
-  const setSetSpawn = (next: SetSpawnInteraction | undefined) => {
-    patchKind("setSpawn", next ?? null);
-  };
-  const patchSetSpawn = (patch: Partial<SetSpawnInteraction>) => {
-    if (!setSpawn) return;
-    setSetSpawn({ ...setSpawn, ...patch });
   };
 
   const patchAddStatus = (patch: Partial<AddStatusInteraction>) => {
@@ -807,38 +797,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
                 value={removeStatus.actionName}
                 fallback="Touch"
                 onChange={(actionName) => patchRemoveStatus({ actionName })}
-              />
-            )}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <SectionSwitch
-          on={Boolean(setSpawn)}
-          onToggle={(on) => setSetSpawn(on ? { ...DEFAULT_SET_SPAWN } : undefined)}
-          label="Set respawn"
-          info="Whoever triggers it comes back to this placement's cell when they die, instead of to the world's spawn. Solid is fine — a rebirth bubbles outward to the nearest cell with room, the same way a remembered position does. Players only; a creature comes back where it was authored. Repeatable, and the row reads 'You respawn here' and goes grey on the marker somebody is already anchored to."
-        />
-
-        {setSpawn ? (
-          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            <div className="flex flex-col gap-1 text-xs">
-              <FieldLabel info={TRIGGER_INFO}>Trigger</FieldLabel>
-              <Segmented<ActivationTrigger>
-                value={setSpawn.trigger}
-                onChange={(trigger) => patchSetSpawn({ trigger })}
-                options={TRIGGER_OPTIONS}
-                size="sm"
-                ariaLabel="Respawn trigger"
-              />
-            </div>
-
-            {setSpawn.trigger === "step" ? null : (
-              <ActionLabelField
-                value={setSpawn.actionName}
-                fallback="Mark"
-                onChange={(actionName) => patchSetSpawn({ actionName })}
               />
             )}
           </div>

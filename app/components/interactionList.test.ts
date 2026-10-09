@@ -68,9 +68,4 @@ describe("why a blocked row is grey", () => {
     expect(drawnBlockReason(WORKING)).toBeNull();
     expect(blockReason(WORKING)).toBe("working");
   });
-
-  it("says nothing either way on the respawn point you are anchored to", () => {
-    expect(drawnBlockReason({ kind: "here" })).toBeNull();
-    expect(blockReason({ kind: "here" })).toBeNull();
-  });
 });

@@ -109,9 +109,6 @@ export default function PlayerPage() {
           <Fact label="Position">
             <Place at={sheet.position} />
           </Fact>
-          <Fact label="Respawns at">
-            <Place at={sheet.spawn} />
-          </Fact>
           <Fact label="Health">
             {sheet.hp === null ? "Full" : <span className="tabular-nums">{sheet.hp} HP</span>}
           </Fact>
@@ -435,6 +432,5 @@ function costText(cost: DeathCost): string {
   const parts = cost.levelsLost.map(
     (level) => `${MASTERY_LABELS[level.mastery]} ${level.from} → ${level.to}`,
   );
-  if (cost.packLeft) parts.unshift("Pack left behind");
   return parts.length > 0 ? parts.join(" · ") : "Lost nothing";
 }

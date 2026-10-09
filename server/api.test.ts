@@ -358,7 +358,6 @@ describe("players", () => {
     expect(playing.player.online).toBe(true);
     expect(playing.sheet.live).toBe(true);
     expect(playing.sheet.position).toMatchObject({ x: 0, y: 0, z: 0 });
-    expect(playing.sheet.spawn).toMatchObject({ x: 0, y: 0, z: 0 });
     expect(playing.sheet.equipment).not.toBeNull();
 
     await world.leave(socket);
@@ -484,7 +483,7 @@ describe("a player's deaths and kills", () => {
     ]);
     expect((await page(maren)).kills).toEqual([
       expect.objectContaining({
-        victim: { id: tobin, name: "Tobin Reed", character: true },
+        victim: { id: tobin, name: "Tobin Reed I", character: true },
       }),
     ]);
   });

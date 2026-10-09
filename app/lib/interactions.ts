@@ -130,11 +130,6 @@ export type RemoveStatusInteraction = {
   statusId: string;
 };
 
-export type SetSpawnInteraction = {
-  actionName?: string;
-  trigger: ActivationTrigger;
-};
-
 export type RewardInteraction = {
   actionName?: string;
   claimedTileId?: string;
@@ -227,7 +222,6 @@ export type TileInteractions = {
   teleport?: TeleportInteraction;
   addStatus?: AddStatusInteraction;
   removeStatus?: RemoveStatusInteraction;
-  setSpawn?: SetSpawnInteraction;
   endure?: EndureInteraction;
   decay?: DecayInteraction;
   respawn?: RespawnInteraction;
@@ -300,11 +294,6 @@ export const MAX_AFFLICTIONS = 4;
 
 const DEFAULT_DECAY_FROM_MS = 20_000;
 const DEFAULT_DECAY_TO_MS = 40_000;
-
-export const DEFAULT_SET_SPAWN: SetSpawnInteraction = {
-  trigger: "interact",
-  actionName: "",
-};
 
 export const DEFAULT_DECAY: DecayInteraction = {
   tileId: "",
@@ -707,24 +696,6 @@ export function resolveRemoveStatus(def: TileDef): RemoveStatusInteraction | nul
   return removeStatus;
 }
 
-const setSpawnSchema = v.object({
-  actionName: v.optional(v.string()),
-  trigger: v.picklist(ACTIVATION_TRIGGERS),
-});
-
-const setSpawnCache = new WeakMap<TileDef, SetSpawnInteraction | null>();
-
-export function resolveSetSpawn(def: TileDef): SetSpawnInteraction | null {
-  const cached = setSpawnCache.get(def);
-  if (cached !== undefined) return cached;
-
-  const raw = def.interactions?.setSpawn;
-  const parsed = raw == null ? null : v.safeParse(setSpawnSchema, raw);
-  const setSpawn = parsed?.success ? parsed.output : null;
-  setSpawnCache.set(def, setSpawn);
-  return setSpawn;
-}
-
 const afflictionSchema = v.object({
   statusId: v.pipe(v.string(), v.minLength(1)),
   tileId: v.string(),
@@ -860,7 +831,6 @@ export type InteractionKind =
   | "switch"
   | "addStatus"
   | "removeStatus"
-  | "setSpawn"
   | "craft"
   | "extract"
   | "pickUp"
@@ -873,7 +843,6 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   if (resolveSwitch(def)) kinds.push("switch");
   if (pressable(resolveAddStatus(def))) kinds.push("addStatus");
   if (pressable(resolveRemoveStatus(def))) kinds.push("removeStatus");
-  if (pressable(resolveSetSpawn(def))) kinds.push("setSpawn");
   if (resolveCraft(def)) kinds.push("craft");
   if (resolveExtract(def)) kinds.push("extract");
   if (resolveItem(def)) kinds.push("pickUp");
@@ -1013,14 +982,6 @@ export function interactionsForSave(
         statusId: removeStatus.statusId.trim(),
       }
     : undefined;
-  const setSpawn = interactions?.setSpawn;
-  const setSpawnActionName = setSpawn?.actionName?.trim();
-  const savedSetSpawn = setSpawn
-    ? {
-        ...(setSpawnActionName ? { actionName: setSpawnActionName } : {}),
-        trigger: setSpawn.trigger,
-      }
-    : undefined;
   const endure = interactions?.endure;
   const endureDurability = endure ? Math.round(endure.durability) : 0;
   const savedSuffers = (endure?.suffers ?? [])
@@ -1126,7 +1087,6 @@ export function interactionsForSave(
     !savedTeleport &&
     !savedAddStatus &&
     !savedRemoveStatus &&
-    !savedSetSpawn &&
     !savedEndure &&
     !savedDecay &&
     !savedRespawn &&
@@ -1150,7 +1110,6 @@ export function interactionsForSave(
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
     ...(savedRemoveStatus ? { removeStatus: savedRemoveStatus } : {}),
-    ...(savedSetSpawn ? { setSpawn: savedSetSpawn } : {}),
     ...(savedEndure ? { endure: savedEndure } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),

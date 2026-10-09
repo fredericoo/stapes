@@ -11,7 +11,7 @@ import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
-import type { Coord, PlacedTile } from "../lib/types";
+import type { PlacedTile } from "../lib/types";
 import { CRAFT_OUTCOMES, TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH, type CommandReply } from "../game/commands";
@@ -319,7 +319,6 @@ export type ServerMessage =
       afflicted: AfflictedPatch[];
       equipment: Equipment;
       tags: string[];
-      spawnAt: Coord | null;
       extracting: Extraction | null;
       nextBlow: Progress | null;
       masteryXp: MasteryXp;
@@ -332,7 +331,6 @@ export type ServerMessage =
       spellCooldowns: Record<string, number>;
     }
   | { type: "tags"; tags: string[] }
-  | { type: "spawnPoint"; at: Coord }
   | { type: "conversation"; conversation: Conversation | null }
   | { type: "extracting"; extracting: Extraction | null }
   | { type: "nextBlow"; nextBlow: Progress | null }
@@ -373,7 +371,13 @@ export type ServerMessage =
       stackIndex: number;
     }
   | { type: "stepRejected"; seq: number }
-  | { type: "died"; equipment: Equipment; masteryXp: MasteryXp | null; cost: DeathCost }
+  | {
+      type: "died";
+      equipment: Equipment;
+      masteryXp: MasteryXp | null;
+      cost: DeathCost;
+      rebornAs?: string;
+    }
   | { type: "keepalive" }
   | { type: "serverRestarting" }
   | { type: "outdated"; serverVersion: number };
@@ -566,7 +570,6 @@ const serverMessageSchema = v.variant("type", [
     afflicted: v.optional(v.array(afflictedPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
-    spawnAt: v.optional(v.nullable(coordSchema), () => null),
     extracting: v.optional(v.nullable(extractionSchema), () => null),
     nextBlow: v.optional(v.nullable(nextBlowSchema), () => null),
     masteryXp: tolerantMasteryXpSchema,
@@ -581,10 +584,6 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
-  }),
-  v.object({
-    type: v.literal("spawnPoint"),
-    at: coordSchema,
   }),
   v.object({
     type: v.literal("conversation"),
@@ -788,6 +787,7 @@ const serverMessageSchema = v.variant("type", [
     equipment: tolerantEquipmentSchema,
     masteryXp: v.fallback(v.nullable(masteryXpBlockSchema), null),
     cost: v.fallback(deathCostSchema, NOTHING_LOST),
+    rebornAs: v.fallback(v.optional(v.string()), undefined),
   }),
   v.object({
     type: v.literal("keepalive"),
@@ -817,7 +817,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 27;
+export const PROTOCOL_VERSION = 30;
 
 export const MAX_STEPS_AHEAD = 8;
 

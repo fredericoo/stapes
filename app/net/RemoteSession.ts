@@ -45,7 +45,6 @@ import {
   canSwitchFrom,
   canAddStatusFrom,
   canRemoveStatusFrom,
-  canSetSpawnFrom,
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
@@ -182,7 +181,6 @@ export class RemoteSession implements PlaySession {
   private spellCooldowns: Readonly<Record<string, number>> = {};
   private pendingNotices: string[] = [];
   private tags: readonly string[] = NO_TAGS;
-  private spawnAt: Coord | null = null;
   private conversation: Conversation | null = null;
   private extracting: Extraction | null = null;
   private nextBlow: Progress | null = null;
@@ -198,6 +196,7 @@ export class RemoteSession implements PlaySession {
   private onReady: (() => void) | null = null;
   private dead = false;
   private death: DeathCost | null = null;
+  private rebornAsName: string | null = null;
   private diedAway = false;
   private onDead: ((dead: boolean) => void) | null = null;
   private onRestarting: (() => void) | null = null;
@@ -251,6 +250,11 @@ export class RemoteSession implements PlaySession {
     return this.death;
   }
 
+  /** The name, generation included, the next life plays as. */
+  rebornAs(): string | null {
+    return this.rebornAsName;
+  }
+
   wasAwayForDeath(): boolean {
     return this.diedAway;
   }
@@ -296,6 +300,7 @@ export class RemoteSession implements PlaySession {
 
   private clearDeath() {
     this.death = null;
+    this.rebornAsName = null;
     this.diedAway = false;
     this.setDead(false);
   }
@@ -395,7 +400,6 @@ export class RemoteSession implements PlaySession {
       this.equipment = message.equipment;
       this.spellCooldowns = {};
       this.tags = message.tags;
-      this.spawnAt = message.spawnAt;
       this.setExtracting(message.extracting);
       this.nextBlow = message.nextBlow ? { ...message.nextBlow } : null;
       this.masteryXp = message.masteryXp;
@@ -417,6 +421,7 @@ export class RemoteSession implements PlaySession {
       this.resetAfflicted(message.afflicted);
       this.setPlayers(message.playerCount ?? null);
       this.death = message.diedAway ?? null;
+      this.rebornAsName = message.diedAway ? (this.names.get(message.selfId) ?? null) : null;
       this.diedAway = message.diedAway !== undefined;
       this.setDead(this.diedAway);
       this.ready = true;
@@ -464,11 +469,6 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
-    if (message.type === "spawnPoint") {
-      this.spawnAt = message.at;
-      return;
-    }
-
     if (message.type === "conversation") {
       this.conversation = message.conversation;
       return;
@@ -510,6 +510,7 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "died") {
       this.death = message.cost;
+      this.rebornAsName = message.rebornAs ?? null;
       this.diedAway = false;
       this.equipment = message.equipment;
       if (message.masteryXp) this.masteryXp = message.masteryXp;
@@ -1285,7 +1286,6 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       tags: this.tags,
-      spawnAt: this.spawnAt,
       conversation: this.conversation,
       extracting: this.extracting,
       nextBlow: this.nextBlow,
@@ -1442,7 +1442,6 @@ export class RemoteSession implements PlaySession {
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
       canRemoveStatusFrom(this.map, this.tilesById, loc, ref) ||
-      canSetSpawnFrom(this.map, this.tilesById, loc, ref) ||
       canBeginExtract(this.map, this.tilesById, loc, this.equipment, ref, this.extracting) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
