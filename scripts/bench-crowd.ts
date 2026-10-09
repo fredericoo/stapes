@@ -70,7 +70,6 @@ const SERVER_PHASES = [
   "applyQueuedSteps",
   "processDueRespawns",
   "collectMotionEvents",
-  "flushSpawnMarks",
   "noteDeaths",
   "saveActors",
   "releaseLingerers",

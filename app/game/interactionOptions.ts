@@ -6,14 +6,13 @@ import {
   resolveRemoveStatus,
   resolveExtract,
   resolveRewardDef,
-  resolveSetSpawn,
   resolveSwitch,
   resolveTeleportDef,
   craftVerb,
   DEFAULT_CRAFT_VERB,
 } from "../lib/interactions";
 import { consumeVerb, EQUIP_FALLBACK_VERB, equipVerb, resolveConsumable } from "../lib/item";
-import type { Coord, MapFile, TileDef } from "../lib/types";
+import type { MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Progress } from "./progress";
 import {
@@ -25,7 +24,6 @@ import {
   canPickUpFrom,
   canPushFrom,
   canRewardFrom,
-  canSetSpawnFrom,
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
@@ -80,8 +78,7 @@ export type InteractionOption = {
 export type OptionBlock =
   | { kind: "working"; extraction: Extraction }
   | { kind: "noRoom" }
-  | { kind: "taken" }
-  | { kind: "here" };
+  | { kind: "taken" };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
@@ -98,7 +95,6 @@ const LABELS: Record<InteractionAction, string> = {
   teleport: "Enter",
   addStatus: "Touch",
   removeStatus: "Touch",
-  setSpawn: "Mark",
   extract: DEFAULT_EXTRACT_VERB,
   craft: DEFAULT_CRAFT_VERB,
 };
@@ -121,13 +117,12 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   switch: 6,
   addStatus: 7,
   removeStatus: 8,
-  setSpawn: 9,
-  craft: 10,
-  extract: 11,
-  equip: 12,
-  open: 13,
-  pickUp: 14,
-  consume: 15,
+  craft: 9,
+  extract: 10,
+  equip: 11,
+  open: 12,
+  pickUp: 13,
+  consume: 14,
   push: 16,
 };
 
@@ -169,7 +164,6 @@ export function listInteractionOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null = null,
   tags: readonly string[] = [],
-  spawnAt: Coord | null = null,
   attacking: boolean = false,
   extracting: Extraction | null = NOTHING_EXTRACTING,
   conversation: Conversation | null = null,
@@ -193,7 +187,6 @@ export function listInteractionOptions(
       equipment,
       openedRef,
       tags,
-      spawnAt,
       extracting,
       craftingRef,
     ),
@@ -228,7 +221,6 @@ export type RefContext = {
   equipment: Equipment;
   openedRef: ObjectRef | null;
   tags: readonly string[];
-  spawnAt: Coord | null;
   extracting: Extraction | null;
   conversation: Conversation | null;
   craftingRef: ObjectRef | null;
@@ -266,7 +258,6 @@ export function refOptionsFrom(
       ref,
       context.openedRef,
       context.tags,
-      context.spawnAt,
       context.extracting,
       context.craftingRef,
     ),
@@ -487,7 +478,6 @@ function objectOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null,
   tags: readonly string[],
-  spawnAt: Coord | null,
   extracting: Extraction | null,
   craftingRef: ObjectRef | null,
 ): InteractionOption[] {
@@ -514,7 +504,6 @@ function objectOptions(
               { x, y, z, stackIndex },
               openedRef,
               tags,
-              spawnAt,
               extracting,
               craftingRef,
             ),
@@ -537,7 +526,6 @@ function slotOptions(
   ref: ObjectRef,
   openedRef: ObjectRef | null,
   tags: readonly string[],
-  spawnAt: Coord | null,
   extracting: Extraction | null,
   craftingRef: ObjectRef | null,
 ): InteractionOption[] {
@@ -588,19 +576,8 @@ function slotOptions(
   const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
   if (action) {
     const blocked =
-      action === "extract"
-        ? extractBlock(map, tilesById, self, equipment, ref, extracting)
-        : action === "setSpawn"
-          ? spawnBlock(ref, spawnAt)
-          : null;
-    add(
-      action,
-      blocked?.kind === "here"
-        ? SPAWN_HERE_LABEL
-        : objectActionLabel(action, tilesById[placed.tileId]),
-      false,
-      blocked,
-    );
+      action === "extract" ? extractBlock(map, tilesById, self, equipment, ref, extracting) : null;
+    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, blocked);
   }
 
   if (action === "equip" && stow) add("pickUp", LABELS.pickUp);
@@ -659,7 +636,6 @@ function objectAction(
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
   if (canRemoveStatusFrom(map, tilesById, self, ref)) return "removeStatus";
-  if (canSetSpawnFrom(map, tilesById, self, ref)) return "setSpawn";
   if (extractOfferedAt(map, tilesById, self, ref)) return "extract";
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
@@ -685,21 +661,10 @@ function objectActionLabel(action: InteractionAction, def: TileDef | undefined):
   if (action === "removeStatus") {
     return resolveRemoveStatus(def)?.actionName?.trim() || LABELS.removeStatus;
   }
-  if (action === "setSpawn") {
-    return resolveSetSpawn(def)?.actionName?.trim() || LABELS.setSpawn;
-  }
   if (action === "extract") {
     return resolveExtract(def)?.actionName?.trim() || LABELS.extract;
   }
   return LABELS[action];
-}
-
-const SPAWN_HERE_LABEL = "You respawn here";
-
-function spawnBlock(ref: ObjectRef, spawnAt: Coord | null): OptionBlock | null {
-  if (!spawnAt) return null;
-  const here = ref.x === spawnAt.x && ref.y === spawnAt.y && ref.z === spawnAt.z;
-  return here ? { kind: "here" } : null;
 }
 
 function talkOptions(

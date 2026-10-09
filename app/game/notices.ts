@@ -233,14 +233,6 @@ export function otherStatusRemovedNotice(name: string, status: string): string {
   return `${name} is no longer ${statusInSentence(status)}`;
 }
 
-export function spawnMarkNotice(): string {
-  return "You will respawn here.";
-}
-
-export function spawnMarkUnchangedNotice(): string {
-  return "You already respawn here.";
-}
-
 export function statusesClearedNotice(): string {
   return "Nothing is on you now.";
 }

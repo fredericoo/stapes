@@ -496,7 +496,6 @@ describe("listInteractionOptions — battlers", () => {
       KIT,
       null,
       [],
-      null,
       false,
     );
     const armed = listInteractionOptions(
@@ -508,7 +507,6 @@ describe("listInteractionOptions — battlers", () => {
       KIT,
       null,
       [],
-      null,
       true,
     );
 
@@ -558,7 +556,6 @@ describe("listInteractionOptions — battlers", () => {
         KIT,
         null,
         [],
-        null,
         attacking,
         undefined,
         null,
@@ -795,7 +792,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       { key: bushKey, remainingMs: 500, durationMs: 1_000 },
       null,
@@ -811,7 +807,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -869,7 +864,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -897,7 +891,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -945,7 +938,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -981,7 +973,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -1474,7 +1465,6 @@ describe("topInteractionAt", () => {
         KIT,
         null,
         [],
-        null,
         attacking,
       );
 
@@ -1502,7 +1492,6 @@ describe("refOptionsFrom", () => {
     equipment: NO_BAG,
     openedRef: null,
     tags: [],
-    spawnAt: null,
     extracting: null,
     conversation: null,
     craftingRef: null,
@@ -1792,7 +1781,7 @@ describe("listedActionRows and rowPress", () => {
   it("runs nothing for a line that is greyed", () => {
     const [, , , crate] = listedActionRows(bodyAndCrate());
 
-    expect(rowPress([{ ...crate![0]!, blocked: { kind: "here" } }])).toBeNull();
+    expect(rowPress([{ ...crate![0]!, blocked: { kind: "taken" } }])).toBeNull();
   });
 
   it("has no lines and nothing to press for an empty list", () => {
@@ -1851,7 +1840,6 @@ describe("listInteractionOptions — somebody you cannot fight", () => {
       KIT,
       null,
       [],
-      null,
       true,
     );
 
@@ -1883,7 +1871,6 @@ describe("applyInteraction — the fight and the watch", () => {
       KIT,
       null,
       [],
-      null,
       attacking,
     );
   }
