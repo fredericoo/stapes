@@ -108,7 +108,6 @@ import {
   type LevelCutUniforms,
   type LevelLightUniforms,
   type Quad,
-  type SpriteNormalUniforms,
   worldShaderCacheKey,
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
@@ -121,6 +120,7 @@ import {
   writeWadeAttr,
 } from "./worldQuads";
 import { AnimationTable, tableCanHold } from "./animTable";
+import type { SpriteNormalUniforms } from "./spriteNormals";
 import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,

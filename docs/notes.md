@@ -13028,25 +13028,66 @@ Measured on the shipped map: **131 world meshes and 205 draw calls became 23 and
   The clock moves every frame; the picture only changes when it crosses a frame
   boundary.
 
-### A sheet's normal map is found by its name, and the light grid gives it a direction
+### A sheet's normal map is found by its name, and relights the art rather than lighting it
 
 `foo_normal.png` beside `foo.png` in `data/tilesets/` is that sheet's normal
-map, laid out pixel for pixel like it, in the y-up (OpenGL) convention. Nothing
-lists it: `WorldRenderer` asks for `<file>_normal.png` for every sheet and
-draws the sheet unshaded when that 404s. Only the world renderer reads it; the
-editor and the particle layer do not.
+map, laid out pixel for pixel like it. Nothing lists it: `WorldRenderer` asks
+for `<file>_normal.png` for every sheet and draws the sheet unshaded when that
+404s. Only the world renderer reads it; the editor and the particle layer do
+not.
 
-The light grid holds brightness per cell and no direction, so the shader takes
-the block light's direction from how it brightens across the four neighbouring
-cells, relative to the cell's own brightness. Sky light uses a fixed sun from
-the north-west. A pixel's shade is `1 + relief × (n·L − L.z)`, which is exactly
-1 for a flat normal, so a normal map changes nothing where its normals are
-flat. The shaded colour still goes through the palette pass, so the relief
-shows as steps between palette colours rather than a gradient.
+**A normal is a world direction, not a screen one.** RGB is east, north and
+up, each mapped from −1…1 to 0…255. Open ground is `(128, 128, 255)`; a wall
+facing south is `(128, 0, 128)`. The camera looks down from the south-east at
+45° in both (a point `(x, y, z)` px draws at `(x − z, y − z)`), so the faces a
+sprite can show are the top, the south face and the east face, and a surface
+facing the camera is `normalize(1, −1, 1)`.
 
-`bun run generate:normals` bakes a placeholder from the art itself — a bevel at
-the alpha edge plus a little of the brightness. Hand-painted maps replace those
-files under the same names.
+**The art is already lit, so the shader relights it.** Every sheet is painted
+lit from the north-west and above (`BAKED_LIGHT` in
+`app/render/spriteNormals.ts`). A pixel's shade is how much more a light reaches
+its normal than the painted light did, divided by the same ratio for open
+ground — so the ground never changes, a sheet with a normal map sits beside one
+without, and sky light, which is the light the art was painted under, changes
+nothing. Only block light (fires, torches, lamps) is relit, from the direction
+its brightness rises across the four neighbouring cells of the light grid, and
+in proportion to its share of the pixel's light. The relight is applied after
+the light is capped at 1: beside a fire the light is already at the cap, and
+relighting before it left nothing to brighten. The result still goes through
+the palette pass, so relief shows as steps between palette colours.
+
+**The maps are generated from `data/normals/*.json`** by
+`bun run generate:normals`; do not paint them by hand, the next run overwrites
+them. Each file names a `sheet` and gives every tile on it, by its id in
+`data/tiles.json`, a `shape`: what its opaque pixels are. A sheet may be split
+over several files; one tile id may appear in only one. `--check` lists tiles
+on a covered sheet that have no entry. A shape is one of:
+
+- a face: `top`, `south`, `east`, `west`, `north`, `camera`;
+- a slope, `{ "slope": "s", "pitch": 40 }`: running downhill to the south,
+  40° from level — a roof's pitch;
+- an explicit `{ "normal": [east, north, up] }`;
+- `box`: the face of the tile's own box (its `height` and `footprint` from
+  `tiles.json`) that the pixel's ray meets first. Right only for art that fills
+  its cell;
+- `inflate`: rounded in from the silhouette, for bodies, foliage and items;
+- `cylinder`: rounded across each row only, for posts and barrels.
+
+`rules` give some pixels another shape, matched by exact colour, by a pixel
+region measured from the sprite rect's top-left (the same in every frame and
+slice), or both; the first match wins. `facings` replaces the shape and adds
+rules for one facing of a directional tile, which is how a roof's slope turns
+with it. `detail` (default 1.5, 0 for none) adds brightness as bumps, compared
+only with pixels of the same shape. **`seamless: true` is required for
+anything that repeats across cells** — ground, water, autotiles, roofs: the
+bumps then read across the cell's opposite edge, which is the pixel its repeat
+puts there, so neighbouring cells meet without a seam. Never give a seamless
+tile `inflate`; it rounds every cell edge.
+
+`bun run generate:normals --preview <tile id>` writes one sprite of each
+facing as albedo, normal and relit from east, west, north, south and overhead,
+and prints the tile's colours and the shape each resolved to. That is the
+loop: read the art, write the entry, preview, adjust.
 
 ### A phase is a vector on the sprite, and it is for art whose light does not vary
 

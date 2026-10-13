@@ -12,6 +12,11 @@ import {
 } from "../lib/geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import { ANIM_MAX_FRAMES, NO_ANIMATION } from "./animTable";
+import {
+  SPRITE_NORMAL_GLSL_COMMON,
+  SPRITE_NORMAL_GLSL_FRAGMENT,
+  type SpriteNormalUniforms,
+} from "./spriteNormals";
 import { TINT_GLSL_COMMON, TINT_GLSL_FRAGMENT, type TintUniforms } from "./spriteTint";
 import {
   NO_TRANSITION_UNIFORMS,
@@ -99,33 +104,11 @@ const WADE_ALPHA = 0.5;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v14";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v16";
 
 export function worldShaderCacheKey(normals: SpriteNormalUniforms | null): string {
   return normals ? `${WORLD_SHADER_CACHE_KEY}-normals` : WORLD_SHADER_CACHE_KEY;
 }
-
-export type SpriteNormalUniforms = {
-  uSpriteNormal: { value: THREE.Texture };
-};
-
-/**
- * How far a pixel's shade moves for a normal pointing straight at the light,
- * against one facing the camera. A flat normal is never changed, so a sheet
- * with a normal map draws as it did wherever its normals are flat.
- */
-const NORMAL_RELIEF = 0.9;
-const NORMAL_SHADE_MIN = 0.35;
-const NORMAL_SHADE_MAX = 1.5;
-/**
- * The light grid has no direction in it, only brightness per cell. The way it
- * brightens across neighbouring cells points at the source; this scales that
- * relative slope into a tilt of the light away from the camera axis.
- */
-const BLOCK_LIGHT_TILT = 2.0;
-const MIN_BLOCK_BRIGHTNESS = 0.05;
-/** Sky light falls from the north-west, in the sprite's own x-right, y-up frame. */
-const SUN_DIRECTION: [number, number, number] = [-0.45, 0.55, 0.7];
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -346,31 +329,6 @@ export function writeBoxAttr(geo: THREE.BufferGeometry, box: DepthBox, stackBias
   spanAttr.needsUpdate = true;
 }
 
-const SPRITE_NORMAL_GLSL_COMMON = `
-uniform sampler2D uSpriteNormal;
-float lightBrightness(vec3 c) {
-  return max(c.r, max(c.g, c.b));
-}
-float normalShade(vec3 n, vec3 toLight) {
-  return clamp(
-    1.0 + ${glsl(NORMAL_RELIEF)} * (dot(normalize(n), toLight) - toLight.z),
-    ${glsl(NORMAL_SHADE_MIN)},
-    ${glsl(NORMAL_SHADE_MAX)}
-  );
-}
-// The light map's v grows southward, which is down the sprite, so the slope's
-// y is negated into the normal map's y-up frame.
-vec3 blockLightDirection(vec2 lightUv, vec3 centre) {
-  vec2 cell = 1.0 / uLightSize;
-  float east = lightBrightness(texture2D(uLightMap, lightUv + vec2(cell.x, 0.0)).rgb);
-  float west = lightBrightness(texture2D(uLightMap, lightUv - vec2(cell.x, 0.0)).rgb);
-  float south = lightBrightness(texture2D(uLightMap, lightUv + vec2(0.0, cell.y)).rgb);
-  float north = lightBrightness(texture2D(uLightMap, lightUv - vec2(0.0, cell.y)).rgb);
-  vec2 slope = vec2(east - west, north - south) /
-    max(lightBrightness(centre), ${glsl(MIN_BLOCK_BRIGHTNESS)});
-  return normalize(vec3(slope * ${glsl(BLOCK_LIGHT_TILT)}, 1.0));
-}`;
-
 /**
  * The animated-frame offset is added straight onto `vMapUv`, which is correct only
  * while the world material has no texture transform. If one is set, the offset
@@ -386,7 +344,6 @@ export function injectWorldShader(
   normals: SpriteNormalUniforms | null = null,
 ) {
   Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, transition, normals ?? {});
-  const [sunX, sunY, sunZ] = SUN_DIRECTION;
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -501,14 +458,8 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   // applied here rather than baked into the map.
   vec3 sky = lightTexel.a * uAmbient;
   vec3 block = lightTexel.rgb;
-${
-  normals
-    ? `  vec3 spriteNormal = texture2D(uSpriteNormal, vMapUv).rgb * 2.0 - 1.0;
-  sky *= normalShade(spriteNormal, normalize(vec3(${glsl(sunX)}, ${glsl(sunY)}, ${glsl(sunZ)})));
-  block *= normalShade(spriteNormal, blockLightDirection(lightUv, block));`
-    : ""
-}
   vec3 light = min(vec3(1.0), sky + block);
+${normals ? SPRITE_NORMAL_GLSL_FRAGMENT : ""}
   diffuseColor.rgb *= light;
 }
 ${TRANSITION_GLSL_EDGE}

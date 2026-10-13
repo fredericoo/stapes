@@ -134,9 +134,10 @@ an agent drives", lists every call.
 - `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
   shape and its palette entries live in the script where a diff can read them
-- `bun run generate:normals <sheet.png> [...]` — write `<sheet>_normal.png`
-  beside each named sheet in `data/tilesets/`, from its alpha edges and
-  brightness. The renderer finds a normal map by that name.
+- `bun run generate:normals` — write every `data/tilesets/<sheet>_normal.png`
+  from `data/normals/*.json`. `--check` lists tiles without an entry;
+  `--preview <tile id>` renders that tile relit from four sides. See
+  `docs/notes.md` for what an entry says.
 - `bun run generate:cave-wall` — redraw `data/tilesets/cave-wall.png` and the
   slices of the cave walls on it: `cave-wall`, rock whose face stands on the half
   line of its cell wherever it meets open ground, so a passage one cell wide
