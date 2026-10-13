@@ -1,0 +1,174 @@
+{
+  "sheet": "animals",
+  "tiles": {
+    "deer": {
+      "note": "A standing deer. Its coat leans up toward the camera, as a back and flank seen from above do; the outline rounds the silhouette, and the legs below the belly are upright posts.",
+      "shape": {
+        "normal": [0.25, -0.25, 1]
+      },
+      "rules": [
+        {
+          "colors": ["#2e222f"],
+          "shape": "inflate"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 11,
+            "w": 16,
+            "h": 5
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "rat": {
+      "note": "A rat seen from above: a low body leaning up toward the camera, rounded at its outline and dark flank, with a tail and feet lying flat on the ground.",
+      "shape": {
+        "normal": [0.25, -0.25, 1]
+      },
+      "rules": [
+        {
+          "colors": ["#2e222f", "#45293f"],
+          "shape": "inflate"
+        },
+        {
+          "colors": ["#e83b3b"],
+          "shape": "top"
+        }
+      ]
+    },
+    "snake": {
+      "note": "A snake lying in coils on the ground: a tube whose top faces up, rounded down its dark outline and shaded underside.",
+      "shape": {
+        "normal": [0.15, -0.15, 1]
+      },
+      "rules": [
+        {
+          "colors": ["#323353", "#2e222f", "#165a4c"],
+          "shape": "inflate"
+        }
+      ]
+    },
+    "wolf": {
+      "note": "A standing wolf. Its coat leans up toward the camera, as a back and flank seen from above do; the outline rounds the silhouette, and in profile the legs below the belly are upright posts.",
+      "shape": {
+        "normal": [0.25, -0.25, 1]
+      },
+      "rules": [
+        {
+          "colors": ["#2e222f"],
+          "shape": "inflate"
+        }
+      ],
+      "facings": {
+        "e": {
+          "rules": [
+            {
+              "region": {
+                "x": 0,
+                "y": 12,
+                "w": 24,
+                "h": 4
+              },
+              "shape": "cylinder"
+            }
+          ]
+        },
+        "w": {
+          "rules": [
+            {
+              "region": {
+                "x": 0,
+                "y": 12,
+                "w": 24,
+                "h": 4
+              },
+              "shape": "cylinder"
+            }
+          ]
+        }
+      }
+    },
+    "bat": {
+      "note": "A bat in flight with its wings spread level: a rounded three-pixel body down the middle, and each wing a membrane drooping from the shoulder to its tip, so it faces up and out to its own side.",
+      "shape": "inflate",
+      "rules": [
+        {
+          "colors": ["#3e3546"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 7,
+            "h": 16
+          },
+          "shape": {
+            "slope": "w",
+            "pitch": 25
+          }
+        },
+        {
+          "colors": ["#3e3546"],
+          "region": {
+            "x": 10,
+            "y": 0,
+            "w": 6,
+            "h": 16
+          },
+          "shape": {
+            "slope": "e",
+            "pitch": 25
+          }
+        }
+      ]
+    },
+    "cave-troll": {
+      "note": "A hunched, round-bodied troll. Its hide leans up toward the camera, as a back seen from above does; the outline and its dark maw are rounded from the silhouette.",
+      "shape": {
+        "normal": [0.25, -0.25, 1]
+      },
+      "rules": [
+        {
+          "colors": ["#2e222f"],
+          "shape": "inflate"
+        }
+      ]
+    },
+    "rabbit": {
+      "note": "A crouched rabbit: a small round body whose fur leans up toward the camera, rounded at its outline.",
+      "shape": {
+        "normal": [0.25, -0.25, 1]
+      },
+      "rules": [
+        {
+          "colors": ["#2e222f"],
+          "shape": "inflate"
+        }
+      ]
+    },
+    "bog-imp": {
+      "note": "A lanky, crouching imp. Its hide leans up toward the camera, as a back and shoulders seen from above do; the outline rounds the silhouette and its thin limbs.",
+      "shape": {
+        "normal": [0.25, -0.25, 1]
+      },
+      "rules": [
+        {
+          "colors": ["#2e222f"],
+          "shape": "inflate"
+        }
+      ]
+    },
+    "cyclops": {
+      "note": "A huge muscled cyclops. Its skin leans up toward the camera, as shoulders and a back seen from above do, and the outline rounds the silhouette; the grey muscle lines stay with the skin, since rounding them would light them as edges.",
+      "shape": {
+        "normal": [0.25, -0.25, 1]
+      },
+      "rules": [
+        {
+          "colors": ["#2e222f"],
+          "shape": "inflate"
+        }
+      ]
+    }
+  }
+}

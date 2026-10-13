@@ -1,0 +1,10 @@
+{
+  "sheet": "respawn",
+  "tiles": {
+    "respawn-point": {
+      "note": "A glowing ring inlaid flush with the ground. It is painted with no light direction in it, so it stays level and without relief.",
+      "shape": "top",
+      "detail": 0
+    }
+  }
+}

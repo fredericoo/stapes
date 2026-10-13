@@ -1,0 +1,237 @@
+{
+  "sheet": "floors",
+  "tiles": {
+    "dirt": {
+      "note": "A sandy path sunk slightly into the ground around it. The brown band along the north and west edges is the bank, so it slopes down to the south and to the east; the orange flecks are pebbles left to detail.",
+      "shape": "top",
+      "seamless": true,
+      "detail": 1,
+      "rules": [
+        {
+          "colors": ["#94643c"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 8,
+            "h": 1
+          },
+          "shape": {
+            "slope": "s",
+            "pitch": 40
+          }
+        },
+        {
+          "colors": ["#94643c"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 8
+          },
+          "shape": {
+            "slope": "e",
+            "pitch": 40
+          }
+        },
+        {
+          "colors": ["#94643c"],
+          "region": {
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.5, -0.5, 1]
+          }
+        },
+        {
+          "colors": ["#94643c"],
+          "region": {
+            "x": 6,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "slope": "s",
+            "pitch": 40
+          }
+        }
+      ]
+    },
+    "mud": {
+      "note": "The same sunken patch as dirt, in mud. Its bank and its ruts share #580400, so only the band on the north and west edges is sloped; the ruts inside and the dark wet pits are left to detail.",
+      "shape": "top",
+      "seamless": true,
+      "detail": 1,
+      "rules": [
+        {
+          "colors": ["#580400"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 8,
+            "h": 1
+          },
+          "shape": {
+            "slope": "s",
+            "pitch": 40
+          }
+        },
+        {
+          "colors": ["#580400"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 8
+          },
+          "shape": {
+            "slope": "e",
+            "pitch": 40
+          }
+        },
+        {
+          "colors": ["#580400"],
+          "region": {
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.5, -0.5, 1]
+          }
+        },
+        {
+          "colors": ["#580400"],
+          "region": {
+            "x": 6,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "slope": "s",
+            "pitch": 40
+          }
+        }
+      ]
+    },
+    "wooden-floor": {
+      "note": "Boards laid east to west. The dark rows between the light ones are each board's bevelled south edge, so they face south; the light rows are the flat board tops.",
+      "shape": "top",
+      "seamless": true,
+      "detail": 0,
+      "rules": [
+        {
+          "colors": ["#9e4539"],
+          "shape": {
+            "slope": "s",
+            "pitch": 25
+          }
+        }
+      ]
+    },
+    "wooden-floor-inner": {
+      "note": "The inside of the same boarded floor: flat board tops with the dark rows as their bevelled south edges.",
+      "shape": "top",
+      "seamless": true,
+      "detail": 0,
+      "rules": [
+        {
+          "colors": ["#9e4539"],
+          "shape": {
+            "slope": "s",
+            "pitch": 25
+          }
+        }
+      ]
+    },
+    "hole": {
+      "note": "A pit cut into the ground around it. Only its north and west inner walls are visible from the camera, so they face south and east: the first dark ring is the lip, rounding over, and #2e222f below it is the steep wall. The ground ring and the black floor stay level.",
+      "shape": "top",
+      "seamless": true,
+      "detail": 0,
+      "rules": [
+        {
+          "colors": ["#2e222f"],
+          "region": {
+            "x": 2,
+            "y": 2,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 0.5]
+          }
+        },
+        {
+          "colors": ["#2e222f"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 8,
+            "h": 2
+          },
+          "shape": {
+            "slope": "s",
+            "pitch": 65
+          }
+        },
+        {
+          "colors": ["#2e222f"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 8
+          },
+          "shape": {
+            "slope": "e",
+            "pitch": 65
+          }
+        },
+        {
+          "colors": ["#580400", "#94643c"],
+          "region": {
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.5, -0.5, 1]
+          }
+        },
+        {
+          "colors": ["#580400", "#94643c"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 8,
+            "h": 1
+          },
+          "shape": {
+            "slope": "s",
+            "pitch": 40
+          }
+        },
+        {
+          "colors": ["#580400", "#94643c"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 8
+          },
+          "shape": {
+            "slope": "e",
+            "pitch": 40
+          }
+        }
+      ]
+    }
+  }
+}

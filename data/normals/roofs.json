@@ -1,0 +1,1076 @@
+{
+  "sheet": "roofs",
+  "tiles": {
+    "roof-1": {
+      "note": "Steep red eave, rising 8px over its cell (45°). The facing is uphill, toward the ridge: n slopes down to the south and faces the camera, w down to the east. e and s show the north or west slope edge-on as a 1px line, plus the gable and the vertical face under the high edge. #c7dcd0 is always an east-facing gable or wall, #ffffff a south-facing one.",
+      "shape": {
+        "slope": "s",
+        "pitch": 45
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          }
+        },
+        "e": {
+          "shape": {
+            "slope": "w",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "n",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          }
+        }
+      }
+    },
+    "roof-3": {
+      "note": "Steep red ridge cap, 4px high with a 45° slope either side. n/s run the ridge north-south and show the east slope (the west one is edge-on in column 0, its dark pixels at the gable); e/w run it east-west and show the south slope (the north one edge-on along row 0, its darkest pixels above the gable).",
+      "shape": {
+        "slope": "e",
+        "pitch": 45
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#981c00"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#981c00"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "e": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#6e2727"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#6e2727"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        }
+      }
+    },
+    "roof-2": {
+      "note": "Steep yellow eave, rising 8px over its cell (45°). The facing is uphill, toward the ridge: n slopes down to the south and faces the camera, w down to the east. e and s show the north or west slope edge-on as a 1px line, plus the gable and the vertical face under the high edge. #c7dcd0 is always an east-facing gable or wall, #ffffff a south-facing one.",
+      "shape": {
+        "slope": "s",
+        "pitch": 45
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          }
+        },
+        "e": {
+          "shape": {
+            "slope": "w",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "n",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          }
+        }
+      }
+    },
+    "roof-5": {
+      "note": "Steep yellow ridge cap, 4px high with a 45° slope either side. n/s run the ridge north-south and show the east slope (the west one is edge-on in column 0, its dark pixels at the gable); e/w run it east-west and show the south slope (the north one edge-on along row 0, its darkest pixels above the gable).",
+      "shape": {
+        "slope": "e",
+        "pitch": 45
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#94643c"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#94643c"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "e": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#684824"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#684824"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        }
+      }
+    },
+    "roof-4": {
+      "note": "Steep blue eave, rising 8px over its cell (45°). The facing is uphill, toward the ridge: n slopes down to the south and faces the camera, w down to the east. e and s show the north or west slope edge-on as a 1px line, plus the gable and the vertical face under the high edge. #c7dcd0 is always an east-facing gable or wall, #ffffff a south-facing one (this sheet's blue eave paints its south face #fcfcfc, a near-white that is the same face).",
+      "shape": {
+        "slope": "s",
+        "pitch": 45
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff", "#fcfcfc"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          }
+        },
+        "e": {
+          "shape": {
+            "slope": "w",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "n",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          }
+        }
+      }
+    },
+    "roof-6": {
+      "note": "Steep blue ridge cap, 4px high with a 45° slope either side. n/s run the ridge north-south and show the east slope (the west one is edge-on in column 0, its dark pixels at the gable); e/w run it east-west and show the south slope (the north one edge-on along row 0, its darkest pixels above the gable).",
+      "shape": {
+        "slope": "e",
+        "pitch": 45
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#484a77"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "e",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#484a77"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "e": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#2e222f"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          },
+          "rules": [
+            {
+              "colors": ["#2e222f"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 1
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 45
+              }
+            }
+          ]
+        }
+      }
+    },
+    "low-roof-red": {
+      "note": "Low red eave from generate:low-roofs, rising 4px over its cell (26.57°, a one-in-two slope). The facing is uphill: n slopes down to the south, e down to the west, s down to the north, w down to the east; e and s show that slope as a shaded strip. Gables are #c7dcd0 east and #ffffff south.",
+      "shape": {
+        "slope": "s",
+        "pitch": 26.57
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          }
+        },
+        "e": {
+          "shape": {
+            "slope": "w",
+            "pitch": 26.57
+          }
+        },
+        "s": {
+          "shape": {
+            "slope": "n",
+            "pitch": 26.57
+          }
+        },
+        "w": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          }
+        }
+      }
+    },
+    "low-roof-red-ridge": {
+      "note": "Low red ridge from generate:low-roofs, 2px high at the middle of the cell on the same 26.57° pitch. n/s run the ridge north-south: columns left of the ridge line are the west slope, the rest the east one. e/w run it east-west: rows above the ridge line are the north slope, the rest the south one.",
+      "shape": {
+        "slope": "e",
+        "pitch": 26.57
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 10,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 10,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "e": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 10
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 10
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 26.57
+              }
+            }
+          ]
+        }
+      }
+    },
+    "low-roof-yellow": {
+      "note": "Low yellow eave from generate:low-roofs, rising 4px over its cell (26.57°, a one-in-two slope). The facing is uphill: n slopes down to the south, e down to the west, s down to the north, w down to the east; e and s show that slope as a shaded strip. Gables are #c7dcd0 east and #ffffff south.",
+      "shape": {
+        "slope": "s",
+        "pitch": 26.57
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          }
+        },
+        "e": {
+          "shape": {
+            "slope": "w",
+            "pitch": 26.57
+          }
+        },
+        "s": {
+          "shape": {
+            "slope": "n",
+            "pitch": 26.57
+          }
+        },
+        "w": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          }
+        }
+      }
+    },
+    "low-roof-yellow-ridge": {
+      "note": "Low yellow ridge from generate:low-roofs, 2px high at the middle of the cell on the same 26.57° pitch. n/s run the ridge north-south: columns left of the ridge line are the west slope, the rest the east one. e/w run it east-west: rows above the ridge line are the north slope, the rest the south one.",
+      "shape": {
+        "slope": "e",
+        "pitch": 26.57
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 10,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 10,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "e": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 10
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 10
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 26.57
+              }
+            }
+          ]
+        }
+      }
+    },
+    "low-roof-blue": {
+      "note": "Low blue eave from generate:low-roofs, rising 4px over its cell (26.57°, a one-in-two slope). The facing is uphill: n slopes down to the south, e down to the west, s down to the north, w down to the east; e and s show that slope as a shaded strip. Gables are #c7dcd0 east and #ffffff south.",
+      "shape": {
+        "slope": "s",
+        "pitch": 26.57
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          }
+        },
+        "e": {
+          "shape": {
+            "slope": "w",
+            "pitch": 26.57
+          }
+        },
+        "s": {
+          "shape": {
+            "slope": "n",
+            "pitch": 26.57
+          }
+        },
+        "w": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          }
+        }
+      }
+    },
+    "low-roof-blue-ridge": {
+      "note": "Low blue ridge from generate:low-roofs, 2px high at the middle of the cell on the same 26.57° pitch. n/s run the ridge north-south: columns left of the ridge line are the west slope, the rest the east one. e/w run it east-west: rows above the ridge line are the north slope, the rest the south one.",
+      "shape": {
+        "slope": "e",
+        "pitch": 26.57
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ],
+      "facings": {
+        "n": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 10,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "s": {
+          "shape": {
+            "slope": "e",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 10,
+                "h": 16
+              },
+              "shape": {
+                "slope": "w",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "e": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 10
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 26.57
+              }
+            }
+          ]
+        },
+        "w": {
+          "shape": {
+            "slope": "s",
+            "pitch": 26.57
+          },
+          "rules": [
+            {
+              "colors": ["#c7dcd0"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#ffffff"],
+              "shape": "south"
+            },
+            {
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 10
+              },
+              "shape": {
+                "slope": "n",
+                "pitch": 26.57
+              }
+            }
+          ]
+        }
+      }
+    },
+    "plaster": {
+      "note": "Two-unit plaster block that carries a roof up a level: #9babb2 top, #c7dcd0 east face, #ffffff south face.",
+      "shape": "top",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#ffffff"],
+          "shape": "south"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "sheet": "tiny-ranch-tiles",
+  "tiles": {
+    "cat": {
+      "note": "A small cat curled on its feet: a furry body, rounded in from its outline like the other animals.",
+      "shape": "inflate"
+    },
+    "hand-lantern": {
+      "note": "A torch held at an angle: the wooden handle is rounded, and the flame at its head gives its own light, so it faces the camera and is never relit.",
+      "shape": "inflate",
+      "rules": [
+        {
+          "colors": ["#ffffff", "#fbb954", "#fb6b1d", "#981c00"],
+          "shape": "camera"
+        }
+      ]
+    },
+    "arcane-stone": {
+      "note": "A polished blank grey stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-flame": {
+      "note": "A polished orange-red stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-ember": {
+      "note": "A polished orange-red stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-frost": {
+      "note": "A polished cyan stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-rime": {
+      "note": "A polished cyan stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-thorns": {
+      "note": "A polished green stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-bramble": {
+      "note": "A polished green stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-barbs": {
+      "note": "A polished green stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-pyre": {
+      "note": "A polished red stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-cinder": {
+      "note": "A polished red stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-sleet": {
+      "note": "A polished blue stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-verdance": {
+      "note": "A polished yellow-green stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-bloom": {
+      "note": "A polished yellow-green stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-light": {
+      "note": "A polished orange stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-spark": {
+      "note": "A polished orange stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-bolt": {
+      "note": "A polished orange stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-stone-of-lance": {
+      "note": "A polished orange stone seen from above: a round orb with a painted highlight, rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "basic-bag": {
+      "note": "A cloth pouch tied at the neck: soft and rounded.",
+      "shape": "inflate"
+    },
+    "leather-backpack": {
+      "note": "A leather backpack lying on the ground: a stiff body, rounded at its edges.",
+      "shape": "inflate"
+    },
+    "berry": {
+      "note": "Two berries on a stem: small spheres.",
+      "shape": "inflate"
+    },
+    "stale-berry": {
+      "note": "Two shrivelled berries on a stem: small spheres.",
+      "shape": "inflate"
+    },
+    "red-potion": {
+      "note": "A round glass bottle of red liquid with a cork: rounded like a flask.",
+      "shape": "inflate"
+    },
+    "green-potion": {
+      "note": "A round glass bottle of green liquid with a cork: rounded like a flask.",
+      "shape": "inflate"
+    },
+    "luminous-potion": {
+      "note": "A round glass bottle of blue liquid with a cork: rounded like a flask.",
+      "shape": "inflate"
+    },
+    "empty-bottle": {
+      "note": "An empty glass bottle with a cork: only its outline and cork are drawn, rounded like a flask.",
+      "shape": "inflate"
+    },
+    "ale": {
+      "note": "A tankard of ale with a head of foam: a cylinder standing upright.",
+      "shape": "cylinder"
+    },
+    "bread": {
+      "note": "A loaf of bread: rounded crust.",
+      "shape": "inflate"
+    },
+    "raw-meat": {
+      "note": "A raw joint of meat on the bone: a rounded lump.",
+      "shape": "inflate"
+    },
+    "cooked-meat": {
+      "note": "A cooked joint of meat on the bone: a rounded lump.",
+      "shape": "inflate"
+    },
+    "rotten-meat": {
+      "note": "A rotten joint of meat on the bone: a rounded lump.",
+      "shape": "inflate"
+    },
+    "cheese": {
+      "note": "A wedge of cheese: rounded in from its outline, which is close enough for a wedge this small.",
+      "shape": "inflate"
+    },
+    "stale-cheese": {
+      "note": "A mouldy wedge of cheese: rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "apple": {
+      "note": "An apple with a leaf: a sphere.",
+      "shape": "inflate"
+    },
+    "apple-pie": {
+      "note": "A slice of apple pie: a rounded crust.",
+      "shape": "inflate"
+    },
+    "arcane-shard": {
+      "note": "A cut crystal lying on the ground: its facets are too small to draw separately, so it is rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "arcane-bolt": {
+      "note": "A projectile drawn with arcane-shard's sprite, so it shares the shard's normals: rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "verdant-light": {
+      "note": "A projectile drawn with arcane-shard's sprite, so it shares the shard's normals: rounded in from its outline.",
+      "shape": "inflate"
+    },
+    "sack": {
+      "note": "A tied sack of grain, two cells across: soft and rounded.",
+      "shape": "inflate"
+    },
+    "skull-troll": {
+      "note": "A skull lying on the ground: a rounded dome.",
+      "shape": "inflate"
+    },
+    "skull-player": {
+      "note": "A skull lying on the ground: a rounded dome.",
+      "shape": "inflate"
+    },
+    "fireball": {
+      "note": "A fireball in flight: it is all flame and gives its own light, so it faces the camera and is never relit.",
+      "shape": "camera",
+      "detail": 0
+    },
+    "thrown-stone": {
+      "note": "A thrown stone: a rounded lump.",
+      "shape": "inflate"
+    },
+    "bubble": {
+      "note": "A water bubble in flight: a sphere with painted highlights. It gives no light, so it is relit like any rounded body.",
+      "shape": "inflate",
+      "detail": 0
+    },
+    "skin": {
+      "note": "An animal hide lying flat on the ground.",
+      "shape": "top"
+    }
+  }
+}

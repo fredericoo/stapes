@@ -1,0 +1,33 @@
+{
+  "sheet": "armourer",
+  "tiles": {
+    "armourer": {
+      "note": "The armourer: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    }
+  }
+}

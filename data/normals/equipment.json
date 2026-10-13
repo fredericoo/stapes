@@ -1,0 +1,2118 @@
+{
+  "sheet": "equipment",
+  "tiles": {
+    "rusty-sword": {
+      "note": "Blade lying SW–NE with a ridge: the #83769c edge bevels north-west, the #c2c3c7 crest is level, the #5f574f edge bevels south-east. Hilt is flat.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#83769c"],
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "colors": ["#c2c3c7"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#5f574f"],
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        }
+      ]
+    },
+    "knights-sword": {
+      "note": "Ridged blade as on rusty-sword: #ffa300 north-west bevel, #ffccaa crest, #ab5236 south-east bevel.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#ffa300"],
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "colors": ["#ffccaa"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#ab5236"],
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        }
+      ]
+    },
+    "greatsword": {
+      "note": "Ridged blade: #ffa300 north-west bevel, #ffccaa crest, #ab5236 south-east bevel.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#ffa300"],
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "colors": ["#ffccaa"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#ab5236"],
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        }
+      ]
+    },
+    "iron-sword": {
+      "note": "Ridged blade: #c2c3c7 north-west bevel, #fff1e8 crest, #83769c south-east bevel.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#c2c3c7"],
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "colors": ["#fff1e8"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#83769c"],
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        }
+      ]
+    },
+    "tempered-longsword": {
+      "note": "Ridged blade whose two bevels share #1d2b53, so the south-east one is picked out by pixel along its diagonal; #83769c is the crest.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#1d2b53"],
+          "region": {
+            "x": 7,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "colors": ["#1d2b53"],
+          "region": {
+            "x": 6,
+            "y": 2,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "colors": ["#1d2b53"],
+          "region": {
+            "x": 5,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "colors": ["#1d2b53"],
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "colors": ["#1d2b53"],
+          "region": {
+            "x": 3,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "colors": ["#1d2b53"],
+          "region": {
+            "x": 2,
+            "y": 0,
+            "w": 6,
+            "h": 5
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "colors": ["#83769c"],
+          "shape": "top"
+        }
+      ]
+    },
+    "simple-axe": {
+      "note": "Flat iron head; the #c2c3c7 cutting edge on its east side is bevelled east. Haft is flat.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#c2c3c7"],
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "broad-axe": {
+      "note": "Flat #1d2b53 head; the #83769c cutting edge on its east side is bevelled east.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#83769c"],
+          "region": {
+            "x": 5,
+            "y": 0,
+            "w": 3,
+            "h": 5
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "battleaxe": {
+      "note": "Double head: the #ffa300 cutting edges bevel west on the left blade and east on the right; the #ab5236 body and the haft are flat.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#ffa300"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 5
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "colors": ["#ffa300"],
+          "region": {
+            "x": 5,
+            "y": 0,
+            "w": 3,
+            "h": 5
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "simple-hammer": {
+      "note": "Block head painted lit from the north-west: #c2c3c7 faces north-west, #83769c is the level top, #5f574f faces south-east.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#c2c3c7"],
+          "region": {
+            "x": 3,
+            "y": 0,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "colors": ["#5f574f"],
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        }
+      ]
+    },
+    "iron-mace": {
+      "note": "Spiked ball at the head is a dome; spikes and haft are flat.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 4,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 4,
+            "y": 2,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 2,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 2,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        }
+      ]
+    },
+    "war-maul": {
+      "note": "Studded head is a dome; the haft is flat.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 3,
+            "y": 2,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 2,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 4,
+            "y": 2,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 4,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        }
+      ]
+    },
+    "simple-bow": {
+      "note": "One-pixel limbs and string; nothing to round.",
+      "shape": "top"
+    },
+    "hunting-bow": {
+      "note": "One-pixel limbs and string; nothing to round.",
+      "shape": "top"
+    },
+    "war-bow": {
+      "note": "One-pixel limbs and string; nothing to round.",
+      "shape": "top"
+    },
+    "basic-staff": {
+      "note": "One-pixel shaft; nothing to round.",
+      "shape": "top"
+    },
+    "cloth-tunic": {
+      "note": "Cloth laid flat: level, with the painted folds read as soft bumps.",
+      "shape": "top",
+      "detail": 2.5
+    },
+    "padded-gambeson": {
+      "note": "Quilted cloth laid flat: level, folds read as soft bumps.",
+      "shape": "top",
+      "detail": 2.5
+    },
+    "warded-robe": {
+      "note": "Cloth laid flat: level, folds read as soft bumps.",
+      "shape": "top",
+      "detail": 2.5
+    },
+    "tunic-of-flames": {
+      "note": "Cloth laid flat: level, folds read as soft bumps.",
+      "shape": "top",
+      "detail": 2.5
+    },
+    "mantle-of-brambles": {
+      "note": "Cloth laid flat: level, folds read as soft bumps.",
+      "shape": "top",
+      "detail": 2.5
+    },
+    "leather-jerkin": {
+      "note": "Leather laid flat, a little rounded at its edges.",
+      "shape": "top",
+      "detail": 2,
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 0,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 6,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 6,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 0,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 6,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 1,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 1,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "chain-mail": {
+      "note": "Mail laid flat, rounded at its edges, the rings read as strong bumps.",
+      "shape": "top",
+      "detail": 3,
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 0,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 6,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 6,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 0,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 6,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 1,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 1,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "steel-plate": {
+      "note": "Breastplate: a dome over the torso.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 5,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 5,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 0,
+            "w": 4,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 5,
+            "w": 4,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 3
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 2,
+            "w": 2,
+            "h": 3
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "amulet-of-tides": {
+      "note": "Chain is flat; the pendant is a domed bead.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 2,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 4,
+            "w": 2,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 7,
+            "w": 2,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 5,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 5,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "jade-amulet": {
+      "note": "Chain is flat; the pendant is a domed bead.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 2,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 4,
+            "w": 2,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 7,
+            "w": 2,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 5,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 5,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "bone-charm": {
+      "note": "Chain is flat; the charm is a domed bead.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 2,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 4,
+            "w": 2,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 7,
+            "w": 2,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 5,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 5,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "arcane-necklace-of-life": {
+      "note": "Chain is flat; the pendant is a domed bead.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 2,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 4,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 4,
+            "w": 2,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 7,
+            "w": 2,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 5,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 5,
+            "w": 1,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "copper-ring": {
+      "note": "Band seen from above: domed outer edge, level middle.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 6,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 6,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 0,
+            "w": 4,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 6,
+            "w": 4,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 4
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 2,
+            "w": 2,
+            "h": 4
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "leather-cap": {
+      "note": "Rounded cap: a dome; the #000000 opening is level.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#000000"],
+          "shape": "top"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 4,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 4,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 0,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 4,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 2,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "iron-helm": {
+      "note": "Rounded helm: a dome; the #000000 eye slit is level.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#000000"],
+          "shape": "top"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 4,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 4,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 0,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 4,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 2,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "knights-helm": {
+      "note": "Rounded great helm: a dome; the #000000 visor slit is level.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#000000"],
+          "shape": "top"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 6,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 6,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 0,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 6,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 4
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 2,
+            "w": 2,
+            "h": 4
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "worn-boots": {
+      "note": "Boots lying down: level, rounded at their edges.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 1,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 7,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 2,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "hobnailed-boots": {
+      "note": "Boots lying down: level, rounded at their edges.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 1,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 7,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 2,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "steel-sabatons": {
+      "note": "Steel boots lying down: level, rounded at their edges.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 1,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 7,
+            "w": 6,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 7,
+            "y": 2,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "buckler": {
+      "note": "Small round shield: a dome.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 1,
+            "y": 1,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 1,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 5,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 5,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 1,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 3,
+            "y": 5,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 3,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 3,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "wooden-shield": {
+      "note": "Plank shield: level face, rounded rim.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 0,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 6,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 6,
+            "w": 1,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 0,
+            "w": 5,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 1,
+            "y": 6,
+            "w": 5,
+            "h": 1
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 1,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 6,
+            "y": 1,
+            "w": 1,
+            "h": 5
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    },
+    "iron-shield": {
+      "note": "Iron shield: a dome.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 0,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, 0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 5,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [-0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 5,
+            "w": 2,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0.6, -0.6, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 0,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, 0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 2,
+            "y": 5,
+            "w": 3,
+            "h": 2
+          },
+          "shape": {
+            "normal": [0, -0.8, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 3
+          },
+          "shape": {
+            "normal": [-0.8, 0, 1]
+          }
+        },
+        {
+          "region": {
+            "x": 5,
+            "y": 2,
+            "w": 2,
+            "h": 3
+          },
+          "shape": {
+            "normal": [0.8, 0, 1]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,319 @@
+{
+  "sheet": "cave-wall",
+  "tiles": {
+    "cave-wall": {
+      "note": "Red rock autotile, vertical sides: top #6e2727, south #e6904e, east #9e4539, #cd683d the south-east bevel between them. #9e4539 is also the top's and south's speck and #6e2727 the east's, so the top's specks are matched by their fixed pixels and #6e2727 is the top only inside the top cell.",
+      "seamless": true,
+      "detail": 0.5,
+      "shape": "east",
+      "rules": [
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 4,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 1,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 3,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 4,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 5,
+            "y": 6,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 1,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#6e2727"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 8,
+            "h": 8
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#6e2727", "#9e4539"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#cd683d"],
+          "shape": {
+            "normal": [1, -1, 0]
+          }
+        },
+        {
+          "colors": ["#e6904e"],
+          "shape": "south"
+        }
+      ]
+    },
+    "cave-wall-sloped": {
+      "note": "As cave-wall, but every side leans back 60° from level: the outline widens 4px over the 7px below the ceiling.",
+      "seamless": true,
+      "detail": 0.5,
+      "shape": {
+        "slope": "e",
+        "pitch": 60
+      },
+      "rules": [
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 4,
+            "y": 1,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 1,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 3,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 4,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 5,
+            "y": 6,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 1,
+            "y": 7,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#6e2727"],
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 8,
+            "h": 8
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#6e2727", "#9e4539"],
+          "shape": {
+            "slope": "e",
+            "pitch": 60
+          }
+        },
+        {
+          "colors": ["#cd683d"],
+          "shape": {
+            "normal": [0.612, -0.612, 0.5]
+          }
+        },
+        {
+          "colors": ["#e6904e"],
+          "shape": {
+            "slope": "s",
+            "pitch": 60
+          }
+        }
+      ]
+    },
+    "cave-wall-grey": {
+      "note": "Grey rock autotile, vertical sides: top #313638 (#2e222f specks), south #9babb2 (#c7dcd0 glints), east #694f62 (#3e3546 streaks), #7f708a the south-east bevel. #694f62 is also a top speck, matched by its fixed pixels.",
+      "seamless": true,
+      "detail": 0.5,
+      "shape": "east",
+      "rules": [
+        {
+          "colors": ["#694f62"],
+          "region": {
+            "x": 5,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#694f62"],
+          "region": {
+            "x": 2,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#694f62"],
+          "region": {
+            "x": 6,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#313638", "#2e222f"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#694f62", "#3e3546"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#7f708a"],
+          "shape": {
+            "normal": [1, -1, 0]
+          }
+        },
+        {
+          "colors": ["#9babb2", "#c7dcd0"],
+          "shape": "south"
+        }
+      ]
+    },
+    "cave-wall-sloped-grey": {
+      "note": "As cave-wall-grey, but every side leans back 60° from level, as cave-wall-sloped.",
+      "seamless": true,
+      "detail": 0.5,
+      "shape": {
+        "slope": "e",
+        "pitch": 60
+      },
+      "rules": [
+        {
+          "colors": ["#694f62"],
+          "region": {
+            "x": 5,
+            "y": 3,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#694f62"],
+          "region": {
+            "x": 2,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#694f62"],
+          "region": {
+            "x": 6,
+            "y": 5,
+            "w": 1,
+            "h": 1
+          },
+          "shape": "top"
+        },
+        {
+          "colors": ["#313638", "#2e222f"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#694f62", "#3e3546"],
+          "shape": {
+            "slope": "e",
+            "pitch": 60
+          }
+        },
+        {
+          "colors": ["#7f708a"],
+          "shape": {
+            "normal": [0.612, -0.612, 0.5]
+          }
+        },
+        {
+          "colors": ["#9babb2", "#c7dcd0"],
+          "shape": {
+            "slope": "s",
+            "pitch": 60
+          }
+        }
+      ]
+    }
+  }
+}

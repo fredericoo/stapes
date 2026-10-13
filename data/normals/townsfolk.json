@@ -1,0 +1,285 @@
+{
+  "sheet": "townsfolk",
+  "tiles": {
+    "potion-salesman": {
+      "note": "Potion salesman: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "tanner": {
+      "note": "Tanner: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "pie-maker": {
+      "note": "Pie maker: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "bartender": {
+      "note": "Bartender: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "miner": {
+      "note": "Miner: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "peat-cutter": {
+      "note": "Peat cutter: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "torch-salesman": {
+      "note": "Torch salesman: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "town-crier": {
+      "note": "Town crier: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "beggar": {
+      "note": "Beggar: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    },
+    "lamplighter": {
+      "note": "Lamplighter: a figure on the player's paper-doll frames, so the same geometry as every other figure sheet. Body rounded from the silhouette; the top two rows of the head (hair, hat, helmet) face up and a little north; from row 10 down the legs and feet round across the row only, so they stand vertical rather than curling under like the end of a blob. Every townsfolk tile draws these same pixels, so their entries must stay identical.",
+      "shape": "inflate",
+      "detail": 0.75,
+      "rules": [
+        {
+          "region": {
+            "x": 4,
+            "y": 4,
+            "w": 5,
+            "h": 2
+          },
+          "shape": {
+            "slope": "n",
+            "pitch": 30
+          }
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "cylinder"
+        }
+      ]
+    }
+  }
+}

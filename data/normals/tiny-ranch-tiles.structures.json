@@ -1,0 +1,591 @@
+{
+  "sheet": "tiny-ranch-tiles",
+  "tiles": {
+    "grass": {
+      "note": "Grass tufts lying on the ground.",
+      "shape": "top",
+      "seamless": true
+    },
+    "grass-2": {
+      "note": "Flat ground.",
+      "shape": "top",
+      "seamless": true
+    },
+    "cobblestone": {
+      "note": "Flat ground with pebbles: the dark lower edge of each stone faces south.",
+      "shape": "top",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#694f62"],
+          "shape": "south"
+        }
+      ]
+    },
+    "half-stone": {
+      "note": "A half-height block that fills its cell.",
+      "shape": "box",
+      "seamless": true
+    },
+    "stone-wall": {
+      "note": "A full-height block that fills its cell.",
+      "shape": "box",
+      "seamless": true
+    },
+    "brick-slab": {
+      "note": "A half-height block that fills its cell.",
+      "shape": "box",
+      "seamless": true
+    },
+    "obsidian": {
+      "note": "A half-height block that fills its cell.",
+      "shape": "box"
+    },
+    "ramp": {
+      "note": "Every facing draws the same sprite, which rises 4px to the north over 8px: a 27\u00b0 slope downhill to the south, with its east side face down the right edge.",
+      "shape": {
+        "slope": "s",
+        "pitch": 27
+      },
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#9e4539"],
+          "region": {
+            "x": 12,
+            "y": 0,
+            "w": 4,
+            "h": 16
+          },
+          "shape": "east"
+        }
+      ]
+    },
+    "stone-stairs": {
+      "note": "Every facing draws the same sprite, rising to the north: pale treads on top, a dark riser facing south under each, the side face east.",
+      "shape": "top",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#45293f"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#694f62"],
+          "shape": "east"
+        }
+      ]
+    },
+    "tree": {
+      "note": "Foliage: rounded in from the silhouette.",
+      "shape": "inflate"
+    },
+    "bush": {
+      "note": "Foliage: rounded in from the silhouette.",
+      "shape": "inflate"
+    },
+    "picked-bush": {
+      "note": "Foliage: rounded in from the silhouette.",
+      "shape": "inflate"
+    },
+    "small-bush": {
+      "note": "Foliage: rounded in from the silhouette.",
+      "shape": "inflate"
+    },
+    "bush-3": {
+      "note": "Foliage: rounded in from the silhouette.",
+      "shape": "inflate"
+    },
+    "torch": {
+      "note": "A wall torch: the wooden handle is rounded and the flame faces the camera. It shares pixels with hand-lantern, so the two entries match.",
+      "shape": "inflate",
+      "rules": [
+        {
+          "colors": ["#ffffff", "#fbb954", "#fb6b1d", "#981c00"],
+          "shape": "camera"
+        }
+      ]
+    },
+    "flame": {
+      "note": "Emissive fire: faces the camera, no relief, so block light does not shade it.",
+      "shape": "camera",
+      "detail": 0
+    },
+    "arcane-flame": {
+      "note": "Emissive fire: faces the camera, no relief, so block light does not shade it.",
+      "shape": "camera",
+      "detail": 0
+    },
+    "campfire": {
+      "note": "Emissive fire: faces the camera, no relief, so block light does not shade it.",
+      "shape": "camera",
+      "detail": 0
+    },
+    "portal": {
+      "note": "Emissive swirl.",
+      "shape": "camera",
+      "detail": 0
+    },
+    "pressure-plate": {
+      "note": "A square plate on the floor: the pale rim is the bevel facing north-west, the dark rim the bevel facing south-east, whether raised or sunk.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": {
+            "normal": [-0.5, 0.5, 1]
+          }
+        },
+        {
+          "colors": ["#694f62"],
+          "shape": {
+            "normal": [0.5, -0.5, 1]
+          }
+        }
+      ]
+    },
+    "pressure-plate-pressed": {
+      "note": "A square plate on the floor: the pale rim is the bevel facing north-west, the dark rim the bevel facing south-east, whether raised or sunk.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": {
+            "normal": [-0.5, 0.5, 1]
+          }
+        },
+        {
+          "colors": ["#694f62"],
+          "shape": {
+            "normal": [0.5, -0.5, 1]
+          }
+        }
+      ]
+    },
+    "wooden-box": {
+      "note": "A wooden crate that fills its cell: the faces of its own box.",
+      "shape": "box"
+    },
+    "quest-crate": {
+      "note": "A wooden crate that fills its cell: the faces of its own box.",
+      "shape": "box"
+    },
+    "quest-crate-claimed": {
+      "note": "A wooden crate that fills its cell: the faces of its own box.",
+      "shape": "box"
+    },
+    "barrel": {
+      "note": "Barrel and training dummy share this sprite: a rounded body.",
+      "shape": "inflate"
+    },
+    "training-dummy": {
+      "note": "Barrel and training dummy share this sprite: a rounded body.",
+      "shape": "inflate"
+    },
+    "sign": {
+      "note": "Wood painted in the furniture convention: lightest is the top edge, mid the south face, darkest the east face.",
+      "shape": "south",
+      "rules": [
+        {
+          "colors": ["#e6904e"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#cd683d"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#9e4539", "#2e222f", "#45293f"],
+          "shape": "east"
+        }
+      ]
+    },
+    "crate-chest": {
+      "note": "A chest taller than its box: lid top, the lid's rounded front edge, front face south, side east.",
+      "shape": "south",
+      "rules": [
+        {
+          "region": {
+            "x": 12,
+            "y": 4,
+            "w": 4,
+            "h": 12
+          },
+          "shape": "east"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 16,
+            "h": 7
+          },
+          "shape": "top"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 7,
+            "w": 16,
+            "h": 2
+          },
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          }
+        }
+      ]
+    },
+    "quest-chest": {
+      "note": "A chest taller than its box: lid top, the lid's rounded front edge, front face south, side east.",
+      "shape": "south",
+      "rules": [
+        {
+          "region": {
+            "x": 12,
+            "y": 4,
+            "w": 4,
+            "h": 12
+          },
+          "shape": "east"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 16,
+            "h": 7
+          },
+          "shape": "top"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 7,
+            "w": 16,
+            "h": 2
+          },
+          "shape": {
+            "slope": "s",
+            "pitch": 45
+          }
+        }
+      ]
+    },
+    "quest-chest-claimed": {
+      "note": "An open chest: the lid stands upright at the back showing its inside to the south, the dark opening is the top, the front faces south, the side east.",
+      "shape": "south",
+      "rules": [
+        {
+          "region": {
+            "x": 13,
+            "y": 6,
+            "w": 3,
+            "h": 10
+          },
+          "shape": "east"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 16,
+            "h": 6
+          },
+          "shape": "top"
+        },
+        {
+          "region": {
+            "x": 0,
+            "y": 9,
+            "w": 16,
+            "h": 3
+          },
+          "shape": "top"
+        }
+      ]
+    },
+    "ladder-top": {
+      "note": "A hatch in the floor with the ladder standing up out of it: the hatch is the top, the ladder faces south.",
+      "shape": "top",
+      "rules": [
+        {
+          "region": {
+            "x": 0,
+            "y": 0,
+            "w": 14,
+            "h": 10
+          },
+          "shape": "south"
+        }
+      ]
+    },
+    "ladder-up": {
+      "note": "A ladder standing against a north wall, facing south.",
+      "shape": "south"
+    },
+    "wooden-shelf": {
+      "note": "A board at the top of the cell: the board's top, its front edge south, its end east.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#cd683d", "#981c00", "#e6904e"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#45293f"],
+          "shape": "east"
+        }
+      ]
+    },
+    "table": {
+      "note": "Wood in the furniture convention: lightest is the top, mid the south face, darkest the east face and legs.",
+      "shape": "box",
+      "rules": [
+        {
+          "colors": ["#e6904e"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#cd683d"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#9e4539", "#2e222f", "#45293f"],
+          "shape": "east"
+        }
+      ]
+    },
+    "chair": {
+      "note": "Wood in the furniture convention: lightest is the seat and the backrest's top edge, mid the south faces, darkest the east faces and legs.",
+      "shape": "camera",
+      "rules": [
+        {
+          "colors": ["#e6904e"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#cd683d"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#9e4539", "#2e222f", "#45293f"],
+          "shape": "east"
+        }
+      ]
+    },
+    "stool": {
+      "note": "Wood in the furniture convention: lightest is the seat, mid the south face, darkest the east side and legs.",
+      "shape": "top",
+      "rules": [
+        {
+          "colors": ["#e6904e"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#cd683d"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#9e4539", "#2e222f", "#45293f"],
+          "shape": "east"
+        }
+      ]
+    },
+    "bed": {
+      "note": "A low bed that fills its two-cell footprint.",
+      "shape": "box"
+    },
+    "bed-2": {
+      "note": "A low bed that fills its two-cell footprint.",
+      "shape": "box"
+    },
+    "lamppost": {
+      "note": "A lantern on a post: the post's lower side faces south and its upper side east, the lantern is rounded, its glow emissive.",
+      "shape": "inflate",
+      "rules": [
+        {
+          "colors": ["#fb6b1d", "#d5e04b", "#ffffff"],
+          "shape": "camera"
+        },
+        {
+          "colors": ["#484a77"],
+          "region": {
+            "x": 6,
+            "y": 7,
+            "w": 10,
+            "h": 9
+          },
+          "shape": "south"
+        },
+        {
+          "colors": ["#7f708a"],
+          "region": {
+            "x": 6,
+            "y": 7,
+            "w": 10,
+            "h": 9
+          },
+          "shape": "east"
+        }
+      ]
+    },
+    "lamppost-off": {
+      "note": "A lantern on a post: the post's lower side faces south and its upper side east, the lantern is rounded.",
+      "shape": "inflate",
+      "rules": [
+        {
+          "colors": ["#fb6b1d", "#d5e04b", "#ffffff"],
+          "shape": "camera"
+        },
+        {
+          "colors": ["#484a77"],
+          "region": {
+            "x": 6,
+            "y": 7,
+            "w": 10,
+            "h": 9
+          },
+          "shape": "south"
+        },
+        {
+          "colors": ["#7f708a"],
+          "region": {
+            "x": 6,
+            "y": 7,
+            "w": 10,
+            "h": 9
+          },
+          "shape": "east"
+        }
+      ]
+    },
+    "anvil": {
+      "note": "A metal block that fills most of its cell.",
+      "shape": "box"
+    },
+    "stone-forge": {
+      "note": "A stone basin on a pedestal: the rim rounded, the glowing pool emissive.",
+      "shape": "inflate",
+      "rules": [
+        {
+          "colors": ["#362281", "#53d5cf", "#affcdb", "#225ac0"],
+          "shape": "camera"
+        }
+      ]
+    },
+    "rock-pillar": {
+      "note": "An irregular rock: rounded.",
+      "shape": "inflate"
+    },
+    "arcane-crystal-1": {
+      "note": "Faceted crystal: each shade is one facet, palest facing up, darkest facing east.",
+      "shape": "camera",
+      "detail": 0,
+      "rules": [
+        {
+          "colors": ["#affcdb"],
+          "shape": {
+            "normal": [-0.3, -0.5, 1]
+          }
+        },
+        {
+          "colors": ["#53d5cf"],
+          "shape": {
+            "normal": [-0.2, -1, 0.6]
+          }
+        },
+        {
+          "colors": ["#225ac0"],
+          "shape": {
+            "normal": [0.2, -1, 0.3]
+          }
+        },
+        {
+          "colors": ["#362281"],
+          "shape": {
+            "normal": [1, -0.5, 0.3]
+          }
+        },
+        {
+          "colors": ["#2e222f"],
+          "shape": "east"
+        }
+      ]
+    },
+    "arcane-crystal-2": {
+      "note": "Faceted crystal: each shade is one facet, palest facing up, darkest facing east.",
+      "shape": "camera",
+      "detail": 0,
+      "rules": [
+        {
+          "colors": ["#affcdb"],
+          "shape": {
+            "normal": [-0.3, -0.5, 1]
+          }
+        },
+        {
+          "colors": ["#53d5cf"],
+          "shape": {
+            "normal": [-0.2, -1, 0.6]
+          }
+        },
+        {
+          "colors": ["#225ac0"],
+          "shape": {
+            "normal": [0.2, -1, 0.3]
+          }
+        },
+        {
+          "colors": ["#362281"],
+          "shape": {
+            "normal": [1, -0.5, 0.3]
+          }
+        },
+        {
+          "colors": ["#2e222f"],
+          "shape": "east"
+        }
+      ]
+    },
+    "arcane-crystal-3": {
+      "note": "Faceted crystal: each shade is one facet, palest facing up, darkest facing east.",
+      "shape": "camera",
+      "detail": 0,
+      "rules": [
+        {
+          "colors": ["#affcdb"],
+          "shape": {
+            "normal": [-0.3, -0.5, 1]
+          }
+        },
+        {
+          "colors": ["#53d5cf"],
+          "shape": {
+            "normal": [-0.2, -1, 0.6]
+          }
+        },
+        {
+          "colors": ["#225ac0"],
+          "shape": {
+            "normal": [0.2, -1, 0.3]
+          }
+        },
+        {
+          "colors": ["#362281"],
+          "shape": {
+            "normal": [1, -0.5, 0.3]
+          }
+        },
+        {
+          "colors": ["#2e222f"],
+          "shape": "east"
+        }
+      ]
+    },
+    "lilypad": {
+      "note": "A leaf floating flat on water.",
+      "shape": "top"
+    }
+  }
+}

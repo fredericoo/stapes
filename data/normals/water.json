@@ -1,0 +1,15 @@
+{
+  "sheet": "water",
+  "tiles": {
+    "water": {
+      "note": "Open water with ripples. #5b8fbf is a crest's face turned to the north-west, #24436b is the far side of a crest and the bank's shade, turned to the south-east, and #335c8c is the level surface between them.",
+      "shape": "top",
+      "seamless": true,
+      "detail": 0,
+      "rules": [
+        { "colors": ["#5b8fbf"], "shape": { "normal": [-0.3, 0.3, 1] } },
+        { "colors": ["#24436b"], "shape": { "normal": [0.3, -0.3, 1] } }
+      ]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "sheet": "counter",
+  "tiles": {
+    "counter-top": {
+      "note": "Wooden counter autotile, height 2, on legs. Red is the top. The light orange rim runs along both the south and the east edge of the top and is on the leg fronts, so it faces the camera. Aubergine is the outline, the shadowed front under the top and the east end, so it gets the south-east diagonal. On the legs, the deep red is the east side and the mid red the south side.",
+      "shape": "top",
+      "seamless": true,
+      "rules": [
+        { "colors": ["#bc3400"], "shape": "top" },
+        { "colors": ["#cd683d", "#e6904e"], "shape": "camera" },
+        { "colors": ["#45293f"], "shape": { "normal": [1, -1, 0] } },
+        { "colors": ["#580400"], "shape": "east" },
+        { "colors": ["#981c00"], "shape": "south" }
+      ]
+    }
+  }
+}

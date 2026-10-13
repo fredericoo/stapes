@@ -1,0 +1,889 @@
+{
+  "sheet": "walls",
+  "tiles": {
+    "sw2": {
+      "note": "Thin plaster wall autotile, 2px thick. White is the top strip, pale green the south face, grey the east face, mauve the inner-corner crease where a south and an east face meet. Orange/rust/oxblood is a timber post: top, south, east.",
+      "shape": "south",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#ffffff"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#9babb2"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#7f708a"],
+          "shape": {
+            "normal": [1, -1, 0]
+          }
+        },
+        {
+          "colors": ["#e6904e"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#6e2727"],
+          "shape": "east"
+        }
+      ]
+    },
+    "half-wall": {
+      "note": "The plaster wall at half height; same colours, same faces.",
+      "shape": "south",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#ffffff"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#9babb2"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#7f708a"],
+          "shape": {
+            "normal": [1, -1, 0]
+          }
+        },
+        {
+          "colors": ["#e6904e"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#6e2727"],
+          "shape": "east"
+        }
+      ]
+    },
+    "brick-wall": {
+      "note": "Thin stone wall autotile. Pale green is the top strip (and a few highlights on the faces), grey the stones of the south face, aubergine the deep mortar of the east face. Plum and mauve are mortar on both faces: plum is mostly on the east face, so it is east; mauve is split evenly, so it gets the south-east diagonal between the two.",
+      "shape": "south",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#9babb2"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#45293f"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#694f62"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#7f708a"],
+          "shape": {
+            "normal": [1, -1, 0]
+          }
+        }
+      ]
+    },
+    "fence": {
+      "note": "Timber fence autotile: orange rail and post tops, rust south faces, oxblood east faces.",
+      "shape": "south",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#e6904e"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#6e2727"],
+          "shape": "east"
+        }
+      ]
+    },
+    "window-1": {
+      "note": "Plaster wall with a window hole. Beside the wall's own faces: the sill's top (oxblood), the near jamb's inner face seen through the hole (2px rust, faces east in an east-west wall, south in a north-south one), and the frame trim on the wall face (orange head, 1px rust jamb).",
+      "shape": "south",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#ffffff"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#9babb2"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#7f708a"],
+          "shape": {
+            "normal": [1, -1, 0]
+          }
+        },
+        {
+          "colors": ["#e6904e"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#9e4539"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#6e2727"],
+          "shape": "east"
+        }
+      ],
+      "facings": {
+        "n": {
+          "rules": [
+            {
+              "colors": ["#9e4539"],
+              "region": {
+                "x": 0,
+                "y": 8,
+                "w": 8,
+                "h": 3
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#9e4539"],
+              "shape": "south"
+            },
+            {
+              "colors": ["#6e2727"],
+              "shape": "top"
+            },
+            {
+              "colors": ["#e6904e"],
+              "shape": "south"
+            }
+          ]
+        },
+        "s": {
+          "rules": [
+            {
+              "colors": ["#9e4539"],
+              "region": {
+                "x": 0,
+                "y": 8,
+                "w": 8,
+                "h": 3
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#9e4539"],
+              "shape": "south"
+            },
+            {
+              "colors": ["#6e2727"],
+              "shape": "top"
+            },
+            {
+              "colors": ["#e6904e"],
+              "shape": "south"
+            }
+          ]
+        },
+        "e": {
+          "rules": [
+            {
+              "colors": ["#9e4539"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 8
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#9e4539"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#6e2727"],
+              "shape": "top"
+            },
+            {
+              "colors": ["#e6904e"],
+              "shape": "east"
+            }
+          ]
+        },
+        "w": {
+          "rules": [
+            {
+              "colors": ["#9e4539"],
+              "region": {
+                "x": 0,
+                "y": 0,
+                "w": 16,
+                "h": 8
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#9e4539"],
+              "shape": "east"
+            },
+            {
+              "colors": ["#6e2727"],
+              "shape": "top"
+            },
+            {
+              "colors": ["#e6904e"],
+              "shape": "east"
+            }
+          ]
+        }
+      }
+    },
+    "window-2": {
+      "note": "Stone wall with a window hole, the same layout as window-1 with the frame in aubergine: head and far jamb are trim on the face, the near jamb's 2px inner face and the sill top are inside the hole.",
+      "shape": "south",
+      "seamless": true,
+      "rules": [
+        {
+          "colors": ["#c7dcd0"],
+          "shape": "top"
+        },
+        {
+          "colors": ["#9babb2"],
+          "shape": "south"
+        },
+        {
+          "colors": ["#45293f"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#694f62"],
+          "shape": "east"
+        },
+        {
+          "colors": ["#7f708a"],
+          "shape": {
+            "normal": [1, -1, 0]
+          }
+        }
+      ],
+      "facings": {
+        "n": {
+          "rules": [
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 0,
+                "y": 7,
+                "w": 16,
+                "h": 1
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 0,
+                "y": 8,
+                "w": 8,
+                "h": 3
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 8,
+                "y": 10,
+                "w": 3,
+                "h": 1
+              },
+              "shape": "top"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 8,
+                "y": 11,
+                "w": 4,
+                "h": 1
+              },
+              "shape": "top"
+            },
+            {
+              "colors": ["#45293f"],
+              "shape": "south"
+            }
+          ]
+        },
+        "s": {
+          "rules": [
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 0,
+                "y": 7,
+                "w": 16,
+                "h": 1
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 0,
+                "y": 8,
+                "w": 8,
+                "h": 3
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 8,
+                "y": 10,
+                "w": 3,
+                "h": 1
+              },
+              "shape": "top"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 8,
+                "y": 11,
+                "w": 4,
+                "h": 1
+              },
+              "shape": "top"
+            },
+            {
+              "colors": ["#45293f"],
+              "shape": "south"
+            }
+          ]
+        },
+        "e": {
+          "rules": [
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 7,
+                "y": 0,
+                "w": 1,
+                "h": 9
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 8,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 9,
+                "y": 6,
+                "w": 2,
+                "h": 1
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 10,
+                "y": 7,
+                "w": 2,
+                "h": 3
+              },
+              "shape": "top"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 11,
+                "y": 10,
+                "w": 1,
+                "h": 2
+              },
+              "shape": "top"
+            },
+            {
+              "colors": ["#45293f"],
+              "shape": "east"
+            }
+          ]
+        },
+        "w": {
+          "rules": [
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 7,
+                "y": 0,
+                "w": 1,
+                "h": 9
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 8,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 9,
+                "y": 6,
+                "w": 2,
+                "h": 1
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "south"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 10,
+                "y": 7,
+                "w": 2,
+                "h": 3
+              },
+              "shape": "top"
+            },
+            {
+              "colors": ["#45293f"],
+              "region": {
+                "x": 11,
+                "y": 10,
+                "w": 1,
+                "h": 2
+              },
+              "shape": "top"
+            },
+            {
+              "colors": ["#45293f"],
+              "shape": "east"
+            }
+          ]
+        }
+      }
+    },
+    "door-closed": {
+      "note": "A 1px plank door. North/south: the planks face south, orange is the top edge and a batten's top, the last pixel of each row is the door's east edge. East/west: the planks face east, the orange column is the top edge, the rust diagonal is the south edge and the rust column is the batten.",
+      "shape": "south",
+      "facings": {
+        "n": {
+          "shape": "south",
+          "rules": [
+            {
+              "colors": ["#e6904e"],
+              "shape": "top"
+            },
+            {
+              "region": {
+                "x": 10,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 12,
+                "y": 8,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 13,
+                "y": 9,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 14,
+                "y": 10,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 15,
+                "y": 11,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            }
+          ]
+        },
+        "s": {
+          "shape": "south",
+          "rules": [
+            {
+              "colors": ["#e6904e"],
+              "shape": "top"
+            },
+            {
+              "region": {
+                "x": 10,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 12,
+                "y": 8,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 13,
+                "y": 9,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 14,
+                "y": 10,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 15,
+                "y": 11,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            }
+          ]
+        },
+        "e": {
+          "shape": "east",
+          "rules": [
+            {
+              "colors": ["#e6904e"],
+              "shape": "top"
+            },
+            {
+              "colors": ["#9e4539"],
+              "region": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 6
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#9e4539"],
+              "shape": "south"
+            }
+          ]
+        },
+        "w": {
+          "shape": "east",
+          "rules": [
+            {
+              "colors": ["#e6904e"],
+              "shape": "top"
+            },
+            {
+              "colors": ["#9e4539"],
+              "region": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 6
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#9e4539"],
+              "shape": "south"
+            }
+          ]
+        }
+      }
+    },
+    "door-open": {
+      "note": "The closed door's art swung 90 degrees: north/south shows it edge-on as an east-facing leaf, east/west as a south-facing leaf.",
+      "shape": "south",
+      "facings": {
+        "n": {
+          "shape": "east",
+          "rules": [
+            {
+              "colors": ["#e6904e"],
+              "shape": "top"
+            },
+            {
+              "colors": ["#9e4539"],
+              "region": {
+                "x": 7,
+                "y": 12,
+                "w": 1,
+                "h": 6
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#9e4539"],
+              "shape": "south"
+            }
+          ]
+        },
+        "s": {
+          "shape": "east",
+          "rules": [
+            {
+              "colors": ["#e6904e"],
+              "shape": "top"
+            },
+            {
+              "colors": ["#9e4539"],
+              "region": {
+                "x": 7,
+                "y": 12,
+                "w": 1,
+                "h": 6
+              },
+              "shape": "east"
+            },
+            {
+              "colors": ["#9e4539"],
+              "shape": "south"
+            }
+          ]
+        },
+        "e": {
+          "shape": "south",
+          "rules": [
+            {
+              "colors": ["#e6904e"],
+              "shape": "top"
+            },
+            {
+              "region": {
+                "x": 15,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 16,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 17,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 18,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 19,
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 20,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            }
+          ]
+        },
+        "w": {
+          "shape": "south",
+          "rules": [
+            {
+              "colors": ["#e6904e"],
+              "shape": "top"
+            },
+            {
+              "region": {
+                "x": 15,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 16,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 17,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 18,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 19,
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            },
+            {
+              "region": {
+                "x": 20,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "shape": "east"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

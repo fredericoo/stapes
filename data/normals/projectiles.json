@@ -1,0 +1,10 @@
+{
+  "sheet": "projectiles",
+  "tiles": {
+    "arrow": {
+      "note": "An arrow seen from above in flight: a one-pixel shaft and fletching too thin to round, so it lies flat like the ground.",
+      "shape": "top",
+      "detail": 0
+    }
+  }
+}
