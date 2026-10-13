@@ -18,6 +18,7 @@
     "generate:water": "bun scripts/generate-water-tileset.ts",
     "generate:low-roofs": "bun scripts/generate-low-roofs.ts",
     "generate:cave-wall": "bun scripts/generate-cave-wall-tileset.ts",
+    "generate:normals": "bun scripts/generate-normal-map.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
     "bench:server": "bun scripts/bench-server.ts",

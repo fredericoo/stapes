@@ -53,6 +53,7 @@ import {
   transitionAddress,
   transitionForNote,
   transitionPose,
+  NO_TRANSITION_UNIFORMS,
   noTransitionUniforms,
   transitionUniforms,
   writeTransitionUniforms,
@@ -107,7 +108,8 @@ import {
   type LevelCutUniforms,
   type LevelLightUniforms,
   type Quad,
-  WORLD_SHADER_CACHE_KEY,
+  type SpriteNormalUniforms,
+  worldShaderCacheKey,
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
   injectWorldShader,
@@ -226,6 +228,26 @@ type TransitionMesh = {
   moves: boolean;
   tileKey?: string;
 };
+
+const NORMAL_MAP_SUFFIX = "_normal.png";
+
+/**
+ * A sheet's normal map is found by name rather than listed in `tilesets.json`,
+ * so most sheets answer 404 here and draw unshaded.
+ */
+async function loadNormalMap(file: string): Promise<THREE.Texture | null> {
+  if (file.endsWith(NORMAL_MAP_SUFFIX)) return null;
+  const url = tilesetUrl(file.replace(/\.png$/, NORMAL_MAP_SUFFIX));
+  const tex = await new THREE.TextureLoader().loadAsync(url).catch(() => null);
+  if (!tex) return null;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.flipY = true;
+  tex.needsUpdate = true;
+  return tex;
+}
 
 function poseTransitionMesh(
   held: TransitionMesh,
@@ -523,6 +545,7 @@ export class WorldRenderer {
   private disposed = false;
   private magentaTex: THREE.DataTexture;
   private whiteTex: THREE.DataTexture;
+  private normalsByTexture = new Map<string, SpriteNormalUniforms>();
   private lightTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightingKey = "";
@@ -1115,6 +1138,7 @@ export class WorldRenderer {
     this.lightBaker?.dispose();
     this.lightBaker = null;
     for (const tex of this.textures.values()) tex.dispose();
+    for (const n of this.normalsByTexture.values()) n.uSpriteNormal.value.dispose();
     for (const mat of this.materials.values()) mat.dispose();
     for (const tex of this.lightTextures.values()) tex.dispose();
     for (const tex of this.cutTextures.values()) tex.dispose();
@@ -1443,6 +1467,8 @@ export class WorldRenderer {
           tex.flipY = true;
           tex.needsUpdate = true;
           this.textures.set(ts.id, tex);
+          const normal = await loadNormalMap(ts.file);
+          if (normal) this.normalsByTexture.set(tex.uuid, { uSpriteNormal: { value: normal } });
         } catch (err) {
           console.warn(`tileset failed to load: ${ts.file}`, err);
         }
@@ -1534,10 +1560,19 @@ export class WorldRenderer {
         map: texture,
         side: THREE.DoubleSide,
       });
+      const normals = this.normalsByTexture.get(texture.uuid) ?? null;
       mat.onBeforeCompile = (shader) => {
-        injectWorldShader(shader, lightUniforms, tintU, cutUniforms, this.ensureAnimUniforms(z));
+        injectWorldShader(
+          shader,
+          lightUniforms,
+          tintU,
+          cutUniforms,
+          this.ensureAnimUniforms(z),
+          NO_TRANSITION_UNIFORMS,
+          normals,
+        );
       };
-      mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
+      mat.customProgramCacheKey = () => worldShaderCacheKey(normals);
       this.materials.set(key, mat);
     }
     mat.alphaTest = 0.5;
@@ -2285,6 +2320,7 @@ export class WorldRenderer {
     const lightUniforms = this.ensureLightUniforms(z);
     const cutUniforms = this.ensureCutUniforms(z);
     const mat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    const normals = this.normalsByTexture.get(texture.uuid) ?? null;
     mat.onBeforeCompile = (shader) => {
       injectWorldShader(
         shader,
@@ -2293,9 +2329,10 @@ export class WorldRenderer {
         cutUniforms,
         this.ensureAnimUniforms(z),
         uniforms,
+        normals,
       );
     };
-    mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
+    mat.customProgramCacheKey = () => worldShaderCacheKey(normals);
     mat.alphaTest = 0.5;
     mat.transparent = true;
     mat.depthTest = true;

@@ -13028,6 +13028,26 @@ Measured on the shipped map: **131 world meshes and 205 draw calls became 23 and
   The clock moves every frame; the picture only changes when it crosses a frame
   boundary.
 
+### A sheet's normal map is found by its name, and the light grid gives it a direction
+
+`foo_normal.png` beside `foo.png` in `data/tilesets/` is that sheet's normal
+map, laid out pixel for pixel like it, in the y-up (OpenGL) convention. Nothing
+lists it: `WorldRenderer` asks for `<file>_normal.png` for every sheet and
+draws the sheet unshaded when that 404s. Only the world renderer reads it; the
+editor and the particle layer do not.
+
+The light grid holds brightness per cell and no direction, so the shader takes
+the block light's direction from how it brightens across the four neighbouring
+cells, relative to the cell's own brightness. Sky light uses a fixed sun from
+the north-west. A pixel's shade is `1 + relief × (n·L − L.z)`, which is exactly
+1 for a flat normal, so a normal map changes nothing where its normals are
+flat. The shaded colour still goes through the palette pass, so the relief
+shows as steps between palette colours rather than a gradient.
+
+`bun run generate:normals` bakes a placeholder from the art itself — a bevel at
+the alpha edge plus a little of the brightness. Hand-painted maps replace those
+files under the same names.
+
 ### A phase is a vector on the sprite, and it is for art whose light does not vary
 
 `TileSprite.phase` — `{ x: 3, y: -1 }` on water — advances the cycle by that
