@@ -22,6 +22,7 @@ import {
   setStacks,
   stackHeight,
   type StackEdit,
+  presentLevels,
 } from "./mapData";
 
 export type PlaceResult = { ok: true } | { ok: false; reason: string };
@@ -182,7 +183,7 @@ export function removeUnfitPlacements(
   const edits: StackEdit[] = [];
   const removed: RemovedPlacement[] = [];
 
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const kept: PlacedTile[] = [];
       let beneath = 0;
@@ -302,7 +303,7 @@ export function fitsHeightAtElevation(
     return { ok: false, reason: "Out of vertical range" };
   }
 
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     const stack = getStack(map, x, y, z);
     if (stack.length === 0) continue;
 

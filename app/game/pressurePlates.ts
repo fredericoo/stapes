@@ -1,8 +1,8 @@
-import { getStack, listCoords, replaceStack } from "../lib/mapData";
+import { getStack, listCoords, presentLevels, replaceStack } from "../lib/mapData";
 import type { PressurePlateInteraction } from "../lib/interactions";
 import { plateTriggers, resolvePressurePlate } from "../lib/interactions";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL, coordKey, physicalHeight } from "../lib/types";
+import { coordKey, physicalHeight } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 
 export function cellKey(cell: Coord): string {
@@ -35,7 +35,7 @@ export function cellHasPlate(
 
 export function findPlateCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y } of listCoords(map, z)) {
       const cell = { x, y, z };
       if (cellHasPlate(map, cell, tilesById)) out.push(cell);

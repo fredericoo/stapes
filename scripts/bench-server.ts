@@ -3,12 +3,18 @@ import { GameSession } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import { Rng } from "../app/game/rng";
-import { changedCellsOnLevel, getStack, parseMap, setStacks } from "../app/lib/mapData";
+import {
+  changedCellsOnLevel,
+  getStack,
+  parseMap,
+  presentInEither,
+  setStacks,
+} from "../app/lib/mapData";
 import type { StackEdit } from "../app/lib/mapData";
 import { statusesById } from "../app/lib/status";
 import { traitsById, type TraitCatalogue } from "../app/lib/traits";
 import { canPlace, tilesByIdFromList } from "../app/lib/validation";
-import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../app/lib/types";
+import { normalizeTileDef, parseCoordKey } from "../app/lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../app/lib/types";
 import type { CellPatch } from "../app/net/protocol";
 
@@ -53,7 +59,7 @@ function percentile(sorted: readonly number[], p: number): number {
 function diffCells(prev: MapFile, next: MapFile): CellPatch[] {
   if (prev === next) return [];
   const out: CellPatch[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentInEither(prev, next)) {
     for (const key of changedCellsOnLevel(prev, next, z)) {
       const { x, y } = parseCoordKey(key);
       out.push({ x, y, z, stack: getStack(next, x, y, z) });

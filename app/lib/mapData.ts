@@ -232,6 +232,43 @@ export function presentLevels(map: MapFile): readonly number[] {
   return out;
 }
 
+const withAboveByLevels = new WeakMap<MapFile["levels"], readonly number[]>();
+
+/**
+ * {@link presentLevels} and the level above each, lowest first: the levels a
+ * stack can put a floor under, which is what a column walk that reads the
+ * level below has to visit.
+ */
+export function presentLevelsAndAbove(map: MapFile): readonly number[] {
+  const cached = withAboveByLevels.get(map.levels);
+  if (cached) return cached;
+  const out: number[] = [];
+  for (const z of presentLevels(map)) {
+    if (out[out.length - 1] !== z) out.push(z);
+    if (z < MAX_LEVEL) out.push(z + 1);
+  }
+  withAboveByLevels.set(map.levels, out);
+  return out;
+}
+
+/** The levels either map holds anything on, lowest first: every level a diff of the two can find. */
+export function presentInEither(a: MapFile, b: MapFile): readonly number[] {
+  const left = presentLevels(a);
+  if (a.levels === b.levels) return left;
+  const right = presentLevels(b);
+  const out: number[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < left.length || j < right.length) {
+    const z =
+      j >= right.length || (i < left.length && left[i]! <= right[j]!) ? left[i]! : right[j]!;
+    if (out[out.length - 1] !== z) out.push(z);
+    if (left[i] === z) i++;
+    if (right[j] === z) j++;
+  }
+  return out;
+}
+
 export function listChunkKeys(map: MapFile, z: number): string[] {
   const level = map.levels[levelKey(z)];
   return level ? Object.keys(level) : [];
@@ -405,7 +442,9 @@ export function surfaceTileAt(
   tilesById: Record<string, TileDef>,
   exclude?: { z: number; stackIndex: number },
 ): PlacedTile | null {
-  for (let z = MAX_LEVEL; z >= MIN_LEVEL; z--) {
+  const levels = presentLevels(map);
+  for (let i = levels.length - 1; i >= 0; i--) {
+    const z = levels[i]!;
     let stack = getStack(map, x, y, z);
     if (exclude && exclude.z === z) {
       stack = stack.filter((_, i) => i !== exclude.stackIndex);
@@ -452,7 +491,9 @@ export function climbFromSourceAt(
   tilesById: Record<string, TileDef>,
   exclude?: { z: number; stackIndex: number },
 ): { def: TileDef; direction: Direction } | null {
-  for (let z = MAX_LEVEL; z >= MIN_LEVEL; z--) {
+  const levels = presentLevels(map);
+  for (let i = levels.length - 1; i >= 0; i--) {
+    const z = levels[i]!;
     let stack = getStack(map, x, y, z);
     if (exclude && exclude.z === z) {
       stack = stack.filter((_, i) => i !== exclude.stackIndex);
@@ -660,7 +701,7 @@ export function updatePlacedVariant(
 
 export function listChannels(map: MapFile): string[] {
   const seen = new Set<string>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { stack } of listCoords(map, z)) {
       for (const placed of stack) {
         if (placed.channel) seen.add(placed.channel);

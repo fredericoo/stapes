@@ -7,7 +7,7 @@ import {
   levelKey,
   resolveLightPassing,
 } from "./types";
-import { elevationAt, footElevation, getStack, terrainHeight } from "./mapData";
+import { elevationAt, footElevation, getStack, presentLevels, terrainHeight } from "./mapData";
 import { computeLightingFlood, MAX_LIGHT_LEVEL, parseHexColor } from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
 
@@ -541,8 +541,9 @@ function denseOcclusionIn(
 function fillDenseVoids(dense: DenseOcclusion, map: MapFile, lowestTileZ: Int32Array) {
   const { reach, w, h } = dense;
   const levelsBelow: number[] = [];
-  for (let z = reach.z0 - 1; z >= MIN_LEVEL; z--) {
-    if (map.levels[levelKey(z)]) levelsBelow.push(z);
+  const present = presentLevels(map);
+  for (let i = present.length - 1; i >= 0; i--) {
+    if (present[i]! < reach.z0) levelsBelow.push(present[i]!);
   }
   for (let ly = 0; ly < h; ly++) {
     for (let lx = 0; lx < w; lx++) {
