@@ -544,6 +544,34 @@ describe("itemCard", () => {
       expect(statAt(card.stats, "subject").value).toBe("You");
     });
 
+    it("says where an area lands, who it is for and what it does there", () => {
+      const card = itemCard(
+        tileWith({
+          type: "stone",
+          cooldownMs: 12_000,
+          effect: {
+            kind: "bolt",
+            on: "caster",
+            area: {
+              shape: "circle",
+              radius: 5,
+              height: 2,
+              affects: "others",
+              throughWalls: true,
+              damage: 30,
+              variance: 20,
+            },
+          },
+        }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      const stomp = damageBandOf(30, 20);
+      expect(statAt(card.stats, "area").value).toBe("Circle of 5 around you, on everyone else");
+      expect(statAt(card.stats, "areaDamage").value).toBe(bandLabel(stomp.min, stomp.max));
+      expect(card.stats.some((stat) => stat.term === "damage")).toBe(false);
+    });
+
     it("heads the list with the act that causes it", () => {
       expect(itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!.effectsTitle).toBe("On hit");
       expect(

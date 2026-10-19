@@ -21,6 +21,9 @@ export const TERMS = {
   subject: { label: "Hits" },
   conjure: { label: "Puts" },
   cures: { label: "Cures" },
+  area: { label: "Area" },
+  areaDamage: { label: "Area damage" },
+  areaHeal: { label: "Area heal" },
 } as const satisfies Record<string, Term>;
 
 export type TermKey = keyof typeof TERMS;

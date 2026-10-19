@@ -16,9 +16,12 @@ import {
   type ItemDef,
   type Reach,
   type ShieldItem,
+  type SpellArea,
   type StatusGrant,
+  type StoneSubject,
   type WeaponItem,
 } from "../lib/item";
+import type { AreaShape, AreaSubject } from "../lib/area";
 import type { Element } from "../lib/element";
 import { engravedName } from "../lib/engraving";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -357,7 +360,9 @@ function demandsOf(item: ItemDef): Masteries | undefined {
 function grantsOn(item: ItemDef): readonly (StatusGrant & { chance?: number })[] | undefined {
   if (item.type === "weapon" || item.type === "consumable") return item.statuses;
   if (item.type === "charm") return item.statuses;
-  if (item.type === "stone" && item.effect.kind === "bolt") return item.effect.statuses;
+  if (item.type === "stone" && item.effect.kind === "bolt") {
+    return [...(item.effect.statuses ?? []), ...(item.effect.area?.statuses ?? [])];
+  }
   return undefined;
 }
 
@@ -408,7 +413,10 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
       value: on === "caster" ? "You" : "Your target",
       tone: "plain",
     });
-    const cures = (stone.effect.cures ?? []).map((id) => statusDefs[id]?.name ?? id);
+    const area = stone.effect.area;
+    if (area) stats.push(...areaStats(area, on));
+    const cureIds = new Set([...(stone.effect.cures ?? []), ...(area?.cures ?? [])]);
+    const cures = [...cureIds].map((id) => statusDefs[id]?.name ?? id);
     if (cures.length > 0) {
       stats.push({ term: "cures", value: cures.join(", "), tone: "good" });
     }
@@ -429,6 +437,40 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
     term: "range",
     value: reachLine(stone),
     tone: "plain",
+  });
+  return stats;
+}
+
+const AREA_SHAPE_LABELS: Record<AreaShape, string> = {
+  circle: "Circle",
+  square: "Square",
+  cross: "Cross",
+  "diagonal-cross": "Diagonal cross",
+};
+
+const AREA_AFFECTS_LABELS: Record<AreaSubject, string> = {
+  others: "everyone else",
+  self: "you alone",
+  both: "everyone",
+};
+
+function areaStats(area: SpellArea, on: StoneSubject): ItemCardStat[] {
+  const around = on === "caster" ? "you" : "your target";
+  const stats: ItemCardStat[] = [
+    {
+      term: "area",
+      value: `${AREA_SHAPE_LABELS[area.shape]} of ${area.radius} around ${around}, on ${AREA_AFFECTS_LABELS[area.affects]}`,
+      tone: "plain",
+    },
+  ];
+  const damage = area.damage ?? 0;
+  if (damage === 0) return stats;
+  const band = damageBandOf(Math.abs(damage), area.variance ?? 0);
+  const mending = damage < 0;
+  stats.push({
+    term: mending ? "areaHeal" : "areaDamage",
+    value: bandLabel(band.min, band.max),
+    tone: mending ? "good" : "plain",
   });
   return stats;
 }
