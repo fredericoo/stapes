@@ -9,7 +9,7 @@ import {
   terrainHeight,
 } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL } from "../lib/types";
+import { HEIGHT_PER_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack, fitsTile, tilesByIdFromList } from "../lib/validation";
 import { FALL_MS_PER_HEIGHT, PUSH_STEP_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { resolveStatus } from "../lib/status";
@@ -1305,6 +1305,31 @@ describe("canWalk onto a fall", () => {
     const session = new GameSession(ledge({ z: 0, stack: ["grass", "fence"] }), tiles);
     expect(session.requestStep(LOCAL_ACTOR_ID, "e")).toBe("refused");
     expect(session.getSnapshot().self).toMatchObject({ x: 0, y: 0, z: 1 });
+  });
+});
+
+describe("GameSession at the bottom of the world", () => {
+  it("walks along the lowest level", () => {
+    let map = mapWithPlayer({ x: 0, y: 0, z: MIN_LEVEL });
+    map = replaceStack(map, 1, 0, MIN_LEVEL, [{ tileId: "grass" }]);
+    const session = new GameSession(map, tiles);
+    session.setInput({ directions: ["e"] });
+
+    advance(session, WALK_DURATION_MS + 100);
+
+    expect(session.getSnapshot().self).toMatchObject({ x: 1, y: 0, z: MIN_LEVEL });
+  });
+
+  it("falls from the surface all the way down a shaft to it", () => {
+    let map = replaceStack(emptyMap(), 0, 0, MIN_LEVEL, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "player", direction: "s" }]);
+    const session = new GameSession(map, tiles);
+
+    advance(session, FALL_MS_PER_HEIGHT * HEIGHT_PER_LEVEL * -MIN_LEVEL + WALK_DURATION_MS);
+
+    const self = session.getSnapshot().self;
+    expect(self.fall).toBeNull();
+    expect(self).toMatchObject({ x: 0, y: 0, z: MIN_LEVEL });
   });
 });
 

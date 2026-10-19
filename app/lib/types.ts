@@ -323,8 +323,8 @@ export type Coord = {
   z: number;
 };
 
-export const MIN_LEVEL = -8;
-export const MAX_LEVEL = 8;
+export const MIN_LEVEL = -64;
+export const MAX_LEVEL = 64;
 export const CELL_SIZE = 8;
 export const CHUNK_SIZE = 16;
 

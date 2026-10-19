@@ -14,6 +14,7 @@ import {
   type WorldRect,
 } from "./lightingChunks";
 import { PLAYER_TILE_ID } from "../game/constants";
+import { lightLevels } from "./view";
 import type { FlatMapFile, MapFile, TileDef } from "./types";
 import {
   MAX_LEVEL,
@@ -790,5 +791,37 @@ describe("a flicker's reach", () => {
 
   it("spares a chunk exactly its radius away, where it is already black", () => {
     expect(chargedTo(CHUNK_LAST_ROW + RADIUS)).toEqual([]);
+  });
+});
+
+describe("a town built deep underground", () => {
+  const DEPTH = -56;
+
+  function sunk(map: MapFile): MapFile {
+    const levels: MapFile["levels"] = {};
+    for (const [key, level] of Object.entries(map.levels)) {
+      levels[levelKey(Number(key) + DEPTH)] = level;
+    }
+    return { version: MAP_FILE_VERSION, levels };
+  }
+
+  it("is lit cell for cell as it is on the surface, seen from its own level", () => {
+    const b = mapBounds(mapFile);
+    const bounds = { x0: b.x0, y0: b.y0, x1: b.x0 + LIGHT_CHUNK_SIZE, y1: b.y0 + LIGHT_CHUNK_SIZE };
+    const surface = new ChunkedLighting(tilesById, omit).packedGridFor(mapFile, {
+      ...bounds,
+      levels: lightLevels(0),
+    });
+    const deep = new ChunkedLighting(tilesById, omit).packedGridFor(sunk(mapFile), {
+      ...bounds,
+      levels: lightLevels(DEPTH),
+    });
+
+    expect([...deep.levels.keys()].sort((a, b) => a - b)).toEqual(
+      [...surface.levels.keys()].map((z) => z + DEPTH).sort((a, b) => a - b),
+    );
+    for (const [z, level] of surface.levels) {
+      expect(deep.levels.get(z + DEPTH)!.rgba).toEqual(level.rgba);
+    }
   });
 });

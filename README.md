@@ -312,7 +312,7 @@ Authored content is `data/`:
 - `tilesets/*.png` + `tilesets.json`
 - `tiles.json` — tile definitions
 - `statuses.json` — status definitions
-- `map.json` — sparse stacked map (levels -8..+8)
+- `map.json` — sparse stacked map (levels -64..+64, `MIN_LEVEL` and `MAX_LEVEL`)
 
 It has two homes behind one interface (`app/lib/dataStore.ts`):
 
