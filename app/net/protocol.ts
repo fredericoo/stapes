@@ -716,6 +716,14 @@ const serverMessageSchema = v.variant("type", [
           struckBy: v.optional(v.string()),
           pulled: v.optional(v.literal(true)),
           crafted: v.optional(v.picklist(CRAFT_OUTCOMES)),
+          tossedFrom: v.optional(
+            v.object({
+              x: v.pipe(v.number(), v.integer()),
+              y: v.pipe(v.number(), v.integer()),
+              elev: v.number(),
+              order: v.pipe(v.number(), v.integer(), v.minValue(0)),
+            }),
+          ),
           x: v.pipe(v.number(), v.integer()),
           y: v.pipe(v.number(), v.integer()),
           z: v.pipe(v.number(), v.integer()),
@@ -817,7 +825,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 27;
+export const PROTOCOL_VERSION = 28;
 
 export const MAX_STEPS_AHEAD = 8;
 

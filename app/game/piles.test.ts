@@ -236,6 +236,36 @@ describe("putting a pile down", () => {
   });
 });
 
+describe("a thing put down on the floor", () => {
+  function tosses(session: GameSession) {
+    return session.drainTransitions().filter((note) => note.tossedFrom);
+  }
+
+  it("is tossed from halfway up whoever put it down", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "berry" }]));
+
+    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(tosses(session)).toMatchObject([
+      {
+        side: "appear",
+        tileId: "berry",
+        ...ASIDE,
+        tossedFrom: { x: HERE.x, y: HERE.y, elev: 2, order: 0 },
+      },
+    ]);
+  });
+
+  it("is not tossed when it pours into a pile already lying there", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "berry" }]), {
+      tileId: "berry",
+      itemId: "itm_b",
+    });
+
+    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(tosses(session)).toEqual([]);
+  });
+});
+
 describe("summoning one with /tile", () => {
   it("pours into a pile already in that cell, like a drop", () => {
     const session = world(carrying([]), {

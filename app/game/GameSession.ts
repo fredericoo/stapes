@@ -6,12 +6,14 @@ import {
   type TileTransitionNote,
   type TransitionSide,
 } from "../lib/tileTransition";
+import { absoluteElevation } from "../lib/geometry";
 import {
   absoluteStandingElevation,
   appendTile,
   chunkIndexOf,
   chunkKeyAt,
   chunkKeyFor,
+  elevationAt,
   getStack,
   isPlayerBody,
   removeTileAt,
@@ -618,6 +620,8 @@ type SlideState = {
 };
 
 type Eaten = { consumable: ConsumableItem; name: string };
+
+type TossOrigin = { x: number; y: number; elevAbs: number };
 
 type ExtractionRun = {
   progress: Extraction;
@@ -1978,6 +1982,39 @@ export class GameSession implements PlaySession {
     this.raiseTransition({ side, tileId, x: cell.x, y: cell.y, z: cell.z, stackIndex });
   }
 
+  /**
+   * Only a thing that lands as its own placement is tossed: one poured into a
+   * pile already there would fly the whole pile. A thing that fell after
+   * landing is no longer at `at` and is not tossed either.
+   */
+  private noteToss(placed: PlacedTile, at: ObjectRef, from: TossOrigin, order = 0): boolean {
+    const stack = getStack(this.map, at.x, at.y, at.z);
+    const landed = stack[at.stackIndex];
+    if (landed?.itemId !== placed.itemId || landed?.tileId !== placed.tileId) return false;
+    const restsAt = absoluteElevation(at.z, elevationAt(stack, at.stackIndex, this.tilesById));
+    this.raiseTransition({
+      side: "appear",
+      tileId: placed.tileId,
+      x: at.x,
+      y: at.y,
+      z: at.z,
+      stackIndex: at.stackIndex,
+      tossedFrom: { x: from.x, y: from.y, elev: from.elevAbs - restsAt, order },
+    });
+    return true;
+  }
+
+  /**
+   * Halfway up the body, from wherever it stands. Read off the cells below the
+   * body, which a dead body's removal leaves where they were.
+   */
+  private tossOrigin(loc: ActorLocation): TossOrigin {
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+    const foot = elevationAt(stack, loc.stackIndex, this.tilesById);
+    const body = this.tilesById[loc.placed.tileId]?.height ?? 0;
+    return { x: loc.x, y: loc.y, elevAbs: absoluteElevation(loc.z, foot + body / 2) };
+  }
+
   private strikeBody(targetId: string, projectileTileId: string | null | undefined) {
     if (!projectileTileId) return;
     if (!projectileEffect(this.tilesById[projectileTileId], "hit")) return;
@@ -2737,34 +2774,35 @@ export class GameSession implements PlaySession {
     };
   }
 
-  private dropBelongings(target: ActorRuntime, at: Coord): Equipment {
+  private dropBelongings(target: ActorRuntime, at: ActorLocation): Equipment {
+    const origin = this.tossOrigin(at);
     return target.resident
-      ? this.dropKit(target.equipment, at)
-      : this.dropPacks(target.equipment, at);
+      ? this.dropKit(target.equipment, at, origin)
+      : this.dropPacks(target.equipment, at, origin);
   }
 
-  private dropKit(equipment: Equipment, at: Coord): Equipment {
+  private dropKit(equipment: Equipment, at: Coord, origin: TossOrigin): Equipment {
     const carried = spilled(equipment, this.tilesById);
     if (carried.length === 0) return equipment;
 
-    const dropped = this.dropOnFloor(at, carried.map(placementFromInstance));
+    const dropped = this.dropOnFloor(at, carried.map(placementFromInstance), origin);
     return dropped ? emptyEquipment() : equipment;
   }
 
-  private dropPacks(equipment: Equipment, at: Coord): Equipment {
+  private dropPacks(equipment: Equipment, at: Coord, origin: TossOrigin): Equipment {
     const slots = packSlots(equipment, this.tilesById);
     const packs = slots.flatMap((slot) => {
       const held = equipment[slot];
       return held ? [placementFromInstance(held)] : [];
     });
-    if (packs.length === 0 || !this.dropOnFloor(at, packs)) return equipment;
+    if (packs.length === 0 || !this.dropOnFloor(at, packs, origin)) return equipment;
 
     const kept = { ...equipment };
     for (const slot of slots) kept[slot] = null;
     return kept;
   }
 
-  private dropOnFloor(at: Coord, placements: PlacedTile[]): boolean {
+  private dropOnFloor(at: Coord, placements: PlacedTile[], tossedFrom?: TossOrigin): boolean {
     const stack = getStack(this.map, at.x, at.y, at.z);
     if (walkableElevInStack(stack, this.tilesById) == null) return false;
     const room = canReplaceStack(
@@ -2777,8 +2815,13 @@ export class GameSession implements PlaySession {
     );
     if (!room.ok) return false;
 
+    let tossed = 0;
     for (const placed of placements) {
+      const stackIndex = getStack(this.map, at.x, at.y, at.z).length;
       this.map = appendItem(this.map, at.x, at.y, at.z, placed, this.tilesById);
+      if (tossedFrom && this.noteToss(placed, { ...at, stackIndex }, tossedFrom, tossed)) {
+        tossed++;
+      }
     }
     return true;
   }
@@ -4396,8 +4439,10 @@ export class GameSession implements PlaySession {
     const candidate = this.dropCandidate(from, to, id);
     if (!candidate) return false;
     const { actor, instance, destination } = candidate;
+    const thrownFrom = this.locate(actor);
+    const origin = this.tossOrigin(thrownFrom);
 
-    const emptied = clearSlot(this.map, this.tilesById, this.locate(actor), actor.equipment, from);
+    const emptied = clearSlot(this.map, this.tilesById, thrownFrom, actor.equipment, from);
     if (!emptied) return false;
 
     const landed =
@@ -4420,8 +4465,10 @@ export class GameSession implements PlaySession {
 
     if (destination.kind === "contents") return true;
 
+    const stackIndex = getStack(emptied.map, to.x, to.y, to.z).length;
     this.reindexCells([to]);
     this.settleBoardNow();
+    this.noteToss(placementFromInstance(instance), { ...to, stackIndex }, origin);
     return true;
   }
 

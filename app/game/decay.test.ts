@@ -543,7 +543,7 @@ describe("GameSession transitions", () => {
     ]);
   });
 
-  it("announces nothing when an authored thing is merely picked up", () => {
+  it("plays nothing of its own when an authored thing is picked up or tossed down", () => {
     const glowcap = tile({
       id: "glowcap",
       height: 0,
@@ -572,8 +572,9 @@ describe("GameSession transitions", () => {
     expect(runHearing(session, TICK_MS)).toEqual([]);
 
     expect(session.drop({ kind: "contents", index: 0 }, { x: 9, y: 10, z: 0 })).toBe(true);
-    expect(session.drainTransitions()).toEqual([]);
-    expect(session.takeTransitions()).toEqual([]);
+    expect(session.drainTransitions()).toEqual([
+      expect.objectContaining({ tileId: "glowcap", tossedFrom: expect.any(Object) }),
+    ]);
   });
 
   it("plays each one out of the slot a viewer last saw it in", () => {
