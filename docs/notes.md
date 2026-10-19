@@ -2285,6 +2285,21 @@ definition, so the `dropOnFloor` check only fires for a death somewhere a body
 arrived by falling — into water, most likely — and the body keeps what would
 have dropped.
 
+### What does not fit on a full square goes onto the level above
+
+A stack that reaches exactly one level with a walkable top is the floor of the
+level above (`walkableFloorAbove`), which is how a body stands on it. A drop
+follows the same rule. `landingFor` in `app/game/affordances.ts` tries the
+square that was aimed at, and if the things no longer fit there and its top is
+such a floor, tries the square on the level above, and so on up to
+`MAX_LEVEL`. Both `dropDestinationAt` and `dropOnFloor` use it, so a thrown
+item and a death behave the same. A pile of skulls on one square therefore
+keeps growing past four, and stepped piles make a ladder players can climb.
+This is deliberate: the world is a sandbox, and building upward with whatever
+you are carrying is allowed. The aim is still checked against the square that
+was aimed at, so a player on the ground can keep adding to a tall column, but
+a player at the top cannot drop onto an empty square below their level.
+
 ### A body in a `wade` tile is drawn wading, and nothing else changes
 
 `wade` changes nothing the simulation reads. A wading body stands where it
