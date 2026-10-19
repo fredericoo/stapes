@@ -6,7 +6,7 @@ import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
 import { itemForSave, stoneForSave, MAX_CONTAINER_SIZE, resolveItem, weaponForSave } from "./item";
-import { MASTERIES } from "./mastery";
+import { MASTERIES, type Mastery } from "./mastery";
 import { MAX_PROJECTILE_SPEED, MIN_PROJECTILE_SPEED, type ProjectileBlock } from "./projectile";
 import { type CraftOutcome, resolveTransition, type Transition } from "./tileTransition";
 import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
@@ -210,6 +210,8 @@ export type ExtractInteraction = {
   tileId: string;
   durationMs: number;
   slots: ExtractSlot[];
+  mastery?: Mastery;
+  xp?: number;
   pulled?: Transition;
 };
 
@@ -537,6 +539,8 @@ const extractSchema = v.object({
       slots.filter((slot): slot is ExtractSlot => slot != null).slice(0, MAX_EXTRACT_SLOTS),
     ),
   ),
+  mastery: v.fallback(v.optional(v.picklist(MASTERIES)), undefined),
+  xp: v.fallback(v.optional(v.pipe(v.number(), v.finite(), v.minValue(0))), undefined),
   pulled: v.optional(v.unknown()),
 });
 
@@ -972,6 +976,8 @@ export function interactionsForSave(
           tileId: extract.tileId.trim(),
           durationMs: Math.max(0, Math.round(extract.durationMs)),
           slots: savedSlots.slice(0, MAX_EXTRACT_SLOTS),
+          ...(extract.mastery ? { mastery: extract.mastery } : {}),
+          ...(extract.mastery && extract.xp && extract.xp > 0 ? { xp: extract.xp } : {}),
           ...(extract.pulled ? { pulled: extract.pulled } : {}),
         }
       : undefined;
