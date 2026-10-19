@@ -5,6 +5,7 @@ import {
   absoluteElevation,
   baseCellWorldOrigin,
   depthBox,
+  depthOriginAt,
   depthStackBias,
   drawOrder,
   screenToCoord,
@@ -49,10 +50,12 @@ import { activeConfig, planProcedural } from "./procedural";
 import {
   type LevelAnimUniforms,
   type LevelLightUniforms,
+  depthOriginUniforms,
   noAnimUniforms,
   noCutUniforms,
   noSunUniforms,
   type Quad,
+  setDepthOrigin,
   WORLD_SHADER_CACHE_KEY,
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
@@ -211,6 +214,7 @@ export class EditorRenderer {
   private whiteTex: THREE.DataTexture;
   private lightTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
+  private readonly depthUniforms = depthOriginUniforms();
   private lightGrid: LightGrid | null = null;
   private lightingKey = "";
   private lightingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -532,6 +536,7 @@ export class EditorRenderer {
           noTintUniforms(),
           noCutUniforms(this.whiteTex),
           this.ensureAnimUniforms(z),
+          this.depthUniforms,
         );
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
@@ -699,6 +704,8 @@ export class EditorRenderer {
     this.updateCanvasSize();
     const viewW = this.canvasW / zoom;
     const viewH = this.canvasH / zoom;
+    const level = useEditorStore.getState().currentLevel;
+    setDepthOrigin(this.depthUniforms, depthOriginAt(camX + viewW / 2, camY + viewH / 2, level));
     this.camera.left = camX;
     this.camera.right = camX + viewW;
     this.camera.top = camY;
