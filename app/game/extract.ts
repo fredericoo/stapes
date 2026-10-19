@@ -8,6 +8,7 @@ import {
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { getStack, listCoords, replaceStack } from "../lib/mapData";
+import { MIN_EARNED_MASTERY, masteryLevel, type Masteries } from "../lib/mastery";
 import { stow } from "../lib/piles";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -145,6 +146,19 @@ export function canBeginExtract(
 ): boolean {
   if (!canExtractFrom(map, tilesById, actor, equipment, ref)) return false;
   return extractionAt(map, extracting, ref) === null;
+}
+
+/**
+ * Each level past the first adds this share of the authored pace, so level 51
+ * works twice as fast and level 100 nearly three times; the clock shrinks but
+ * never reaches zero.
+ */
+export const EXTRACT_SPEEDUP_PER_LEVEL = 0.02;
+
+export function extractDurationMs(extract: ExtractInteraction, masteries: Masteries): number {
+  if (extract.durationMs <= 0 || !extract.mastery) return extract.durationMs;
+  const levels = Math.max(0, masteryLevel(masteries, extract.mastery) - MIN_EARNED_MASTERY);
+  return Math.round(extract.durationMs / (1 + EXTRACT_SPEEDUP_PER_LEVEL * levels));
 }
 
 export type Extraction = Progress & {

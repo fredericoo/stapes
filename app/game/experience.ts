@@ -1,4 +1,5 @@
 import type { Element } from "../lib/element";
+import type { ExtractInteraction } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
 import { MASTERIES, type Mastery, type MasteryXp } from "../lib/mastery";
 import type { AttackOutcome } from "./combat";
@@ -85,6 +86,12 @@ export function casterEarnings(
   const earnings: MasteryXp = { arcane: earned * multiplierFor("arcane") };
   for (const element of elements) earnings[element] = earned * multiplierFor(element);
   return earnings;
+}
+
+export function extractEarnings(extract: ExtractInteraction): MasteryXp {
+  const { mastery, xp = 0 } = extract;
+  if (!mastery || xp <= 0) return {};
+  return { [mastery]: xp };
 }
 
 export const XP_SHARE_LOST_ON_DEATH = 0.05;

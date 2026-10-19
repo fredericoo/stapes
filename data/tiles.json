@@ -31100,7 +31100,8 @@
             "tileId": "berry",
             "chance": 25
           }
-        ]
+        ],
+        "mastery": "agility"
       },
       "endure": {
         "durability": 16,
@@ -32877,6 +32878,8 @@
             "chance": 40
           }
         ],
+        "mastery": "mining",
+        "xp": 3,
         "pulled": {
           "durationMs": 120,
           "particles": {
@@ -33209,6 +33212,8 @@
             "chance": 50
           }
         ],
+        "mastery": "mining",
+        "xp": 6,
         "pulled": {
           "durationMs": 150,
           "particles": {
@@ -33343,6 +33348,8 @@
             "chance": 40
           }
         ],
+        "mastery": "mining",
+        "xp": 14,
         "pulled": {
           "durationMs": 180,
           "particles": {

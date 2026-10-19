@@ -43,6 +43,8 @@ import {
   hasAnyInteraction,
 } from "../lib/interactions";
 import { DEFAULT_BATTLER } from "../lib/battler";
+import { EXTRACT_SPEEDUP_PER_LEVEL } from "../game/extract";
+import { MASTERIES, MASTERY_LABELS } from "../lib/mastery";
 import { CraftFields } from "./CraftFields";
 import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
 import { DEFAULT_PROJECTILE_SPEED } from "../lib/projectile";
@@ -100,6 +102,19 @@ const MAX_DECAY_SECONDS = 3600;
 const MAX_DURABILITY = 99;
 
 const MAX_EXTRACT_SECONDS = MAX_DECAY_SECONDS;
+
+const NO_EXTRACT_MASTERY = "none";
+
+const PERCENT = 100;
+
+const EXTRACT_MASTERY_INFO = `Every level of this mastery past the first adds ${EXTRACT_SPEEDUP_PER_LEVEL * PERCENT}% of the authored pace. None: the time never changes and no experience is paid.`;
+
+const MAX_EXTRACT_XP = 999;
+
+const EXTRACT_MASTERY_OPTIONS = [
+  { value: NO_EXTRACT_MASTERY, label: "None" },
+  ...MASTERIES.map((value) => ({ value, label: MASTERY_LABELS[value] })),
+];
 
 const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "prop", label: "Prop" },
@@ -562,6 +577,35 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
                   aria-label="Time to extract in seconds"
                 />
               </label>
+
+              <label className="flex flex-col gap-1 text-xs">
+                <FieldLabel info={EXTRACT_MASTERY_INFO}>Mastery</FieldLabel>
+                <Select
+                  value={extract.mastery ?? NO_EXTRACT_MASTERY}
+                  onValueChange={(value) =>
+                    patchExtract({ mastery: MASTERIES.find((mastery) => mastery === value) })
+                  }
+                  options={EXTRACT_MASTERY_OPTIONS}
+                  ariaLabel="Extract mastery"
+                />
+              </label>
+
+              {extract.mastery ? (
+                <label className="flex flex-col gap-1 text-xs">
+                  <FieldLabel info="Experience in the mastery paid for each finished use, whatever its time. A use that is broken off pays nothing. 0 pays nothing.">
+                    Experience
+                  </FieldLabel>
+                  <NumberInput
+                    min={0}
+                    max={MAX_EXTRACT_XP}
+                    step={1}
+                    value={extract.xp ?? 0}
+                    onChange={(xp) => patchExtract({ xp })}
+                    className="w-20"
+                    aria-label="Experience per extract"
+                  />
+                </label>
+              ) : null}
             </div>
 
             <TileIdMultiSelect

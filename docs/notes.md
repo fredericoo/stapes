@@ -9008,6 +9008,25 @@ contrast.
   with that precedence about what a tap does. A crafter needs its own verb
   because one placement offers several recipes; a bush offers one thing, which is
   the bush.
+- **An extract may name the mastery it trains** (`extract.mastery`): the crystals
+  train `mining`, the bush trains `agility`. `extractDurationMs` divides the
+  authored time by `1 + EXTRACT_SPEEDUP_PER_LEVEL × (level − 1)`, so level 51 is
+  half the time and level 100 about a third. A division rather than
+  `castDurationMs`'s subtraction because an extract has no requirement to measure
+  a surplus against, and a subtraction off the level alone would reach zero. The
+  clock is fixed when the pull starts, so a level gained part-way through counts
+  from the next pull.
+- **Experience is authored per extract** (`extract.xp`), a flat amount paid
+  to `extract.mastery` when a pull lands, whatever it took. It is not derived
+  from the time because the time is the cost and the experience is the reward,
+  and an author tuning one should not move the other. One broken off pays
+  nothing, on the same terms that it hands nothing over. 0, or no field, pays
+  nothing: the bush names `agility` so an agile picker is quicker, but picking
+  teaches nothing, because a no-risk way to raise a stat that feeds dodge and
+  `rating` would be the cheap way to level a fighter. There is no rating
+  multiplier: nothing is on the other side of a pull to be beneath you.
+- **`mining` is in neither dodge nor `rating`**, so mining changes nothing in a
+  fight.
 
 ### What the arcane caves are tuned to
 
@@ -9016,11 +9035,11 @@ what tell them apart: **every crystal on -1 is small, every one on -2 medium,
 every one on -3 large.** Deeper is richer and slower, and a player can tell
 which is which by which floor they are standing on rather than by looking.
 
-| tile               | uses | one pull | yield slots           | shards per pull |
-| ------------------ | ---- | -------- | --------------------- | --------------- |
-| `arcane-crystal-1` | 2    | 2.5s     | 40%                   | 0–1             |
-| `arcane-crystal-2` | 3    | 6s       | 70, 50                | 0–2             |
-| `arcane-crystal-3` | 4    | 14s      | 100, 100, 60, 40      | 2–4             |
+| tile               | uses | one pull | yield slots      | shards per pull | mining xp |
+| ------------------ | ---- | -------- | ---------------- | --------------- | --------- |
+| `arcane-crystal-1` | 2    | 2.5s     | 40%              | 0–1             | 3         |
+| `arcane-crystal-2` | 3    | 6s       | 70, 50           | 0–2             | 6         |
+| `arcane-crystal-3` | 4    | 14s      | 100, 100, 60, 40 | 2–4             | 14        |
 
 The small one is quick and swingy — something to chip at while you are passing.
 The large one is the point of the mechanic: fourteen seconds of standing still

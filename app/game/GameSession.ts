@@ -276,6 +276,7 @@ import {
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
   experienceAfterDeath,
+  extractEarnings,
   practiceEarnings,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
@@ -376,6 +377,7 @@ import type { Extraction, ExtractionProgress } from "./extract";
 import {
   canBeginExtract,
   clearExtractReservations,
+  extractDurationMs,
   extractKey,
   placementAfterPull,
   reachableExtractAt,
@@ -4618,18 +4620,19 @@ export class GameSession implements PlaySession {
     this.cancelExtraction(actor);
     this.cancelCasting(actor);
 
+    const durationMs = extractDurationMs(extract, this.bodyOf(actor)?.masteries ?? {});
     const run: ExtractionRun = {
       ref,
       tileId: placed.tileId,
       from: at,
       progress: {
         key: extractKey(ref, placed.tileId),
-        remainingMs: extract.durationMs,
-        durationMs: extract.durationMs,
+        remainingMs: durationMs,
+        durationMs,
       },
     };
 
-    if (extract.durationMs <= 0) return this.finishExtraction(actor, run);
+    if (durationMs <= 0) return this.finishExtraction(actor, run);
 
     this.reserve(run);
     this.setExtraction(actor, run);
@@ -4658,6 +4661,7 @@ export class GameSession implements PlaySession {
     this.notePull(placed.tileId, run.ref);
     if (yielded.length > 0) this.giveExtracted(actor, yielded);
     if (actor.extraction === run) this.setExtraction(actor, null);
+    this.grantExperience(actor, extractEarnings(extract));
 
     this.say(actor.id, extractNotice(extract, def, yielded, this.tilesById));
     return true;
