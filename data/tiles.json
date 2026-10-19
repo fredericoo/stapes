@@ -36958,7 +36958,7 @@
   {
     "id": "skull-troll",
     "name": "Troll skull",
-    "height": 0,
+    "height": 1,
     "type": "simple",
     "kind": "item",
     "attributes": {},
@@ -36997,7 +36997,7 @@
   {
     "id": "skull-player",
     "name": "%s's skull",
-    "height": 0,
+    "height": 1,
     "type": "simple",
     "kind": "item",
     "attributes": {},
