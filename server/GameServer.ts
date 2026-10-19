@@ -315,6 +315,7 @@ function castProgressOf(casting: CastProgress): CastProgress {
     durationMs: casting.durationMs,
     slot: casting.slot,
     ...(casting.targetId ? { targetId: casting.targetId } : {}),
+    ...(casting.area ? { area: casting.area } : {}),
   };
 }
 
@@ -2667,6 +2668,9 @@ export class GameServer {
   private collectTransitionEvents(session: GameSession) {
     for (const note of session.drainTransitions()) {
       this.events.push({ kind: "tileTransition", ...note });
+    }
+    for (const burst of session.drainAreaBursts()) {
+      this.events.push({ kind: "areaBurst", ...burst });
     }
   }
 

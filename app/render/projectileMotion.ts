@@ -139,7 +139,8 @@ const FLIGHT_STACK_BIAS = 32;
 export function flightEmitter(effect: FlightEffect): ParticleEmitterSpec | null {
   const particles = effect.transition.particles;
   if (!particles) return null;
-  return emitterAt(effect.id, particles, effect.at);
+  const spec = emitterAt(effect.id, particles, effect.at);
+  return effect.startDebt ? { ...spec, startDebt: effect.startDebt } : spec;
 }
 
 /**

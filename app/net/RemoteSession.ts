@@ -1,3 +1,4 @@
+import { areaBurstEffects } from "../game/area";
 import {
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
@@ -814,6 +815,11 @@ export class RemoteSession implements PlaySession {
     if (event.kind === "tileTransition") {
       const { kind: _kind, ...note } = event;
       this.holdTransition(note);
+      return;
+    }
+
+    if (event.kind === "areaBurst") {
+      this.flightEffects.push(...areaBurstEffects(event.id, event.cells, event.burst));
       return;
     }
 

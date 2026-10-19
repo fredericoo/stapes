@@ -1,5 +1,6 @@
 import type { NaturalSpell } from "../lib/battler";
-import type { ArcaneStoneItem } from "../lib/item";
+import type { AreaShape } from "../lib/area";
+import type { ArcaneStoneItem, StoneSubject } from "../lib/item";
 import { reachOf, resolveStone } from "../lib/item";
 import {
   type Masteries,
@@ -76,7 +77,23 @@ export type CasterPoint = CastPoint & {
 export type CastProgress = Progress & {
   slot: CastSlot;
   targetId?: string;
+  area?: CastArea;
 };
+
+/** The shape a cast will cover, shown while it winds up; `on` names its centre. */
+export type CastArea = {
+  shape: AreaShape;
+  radius: number;
+  height: number;
+  on: StoneSubject;
+};
+
+export function castAreaOf(stone: ArcaneStoneItem): CastArea | undefined {
+  const effect = stone.effect;
+  if (effect.kind !== "bolt" || !effect.area) return undefined;
+  const { shape, radius, height } = effect.area;
+  return { shape, radius, height, on: effect.on };
+}
 
 export type CastContext = {
   map: MapFile;

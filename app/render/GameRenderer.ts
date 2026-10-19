@@ -104,7 +104,8 @@ import { taperAt, taperedGlow, taperedTint, type StatusTint } from "../lib/statu
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
 import { type Reach, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
-import { rangedWeaponReaches } from "../game/combat";
+import { areaFloorCells } from "../game/area";
+import { rangedWeaponReaches, reachPointAt } from "../game/combat";
 import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
@@ -137,6 +138,8 @@ const DROP_GHOST_ALPHA = 0.55;
 const TARGET_COLOR = 0xffffff;
 
 const LOOK_COLOR = 0x3fa9ff;
+
+const AREA_WINDUP_COLOR = 0xe83b3b;
 
 const LOOK_HOLD_MS = DWELL_MS;
 
@@ -1119,7 +1122,7 @@ export class GameRenderer {
       return specs;
     }
 
-    const specs: OverlaySpec[] = [];
+    const specs: OverlaySpec[] = this.areaWindupsFor(snap);
     const ghost = this.dropGhostSpec(snap);
     if (ghost) specs.push(ghost);
     const target = this.targetOutline(snap);
@@ -1136,6 +1139,22 @@ export class GameRenderer {
       specs.push(outline(listed.ref, interactionColor(listed)));
     }
     return specs;
+  }
+
+  /** The windup shows the whole shape and leaves walls out: the burst on landing shows what it reached. */
+  private areaWindupsFor(snap: GameSnapshot): OverlaySpec[] {
+    const out: OverlaySpec[] = [];
+    for (const caster of snap.actors) {
+      const area = caster.casting?.area;
+      if (!area) continue;
+      const centredOn =
+        area.on === "caster" ? caster : snap.actors.find((a) => a.id === caster.casting?.targetId);
+      if (!centredOn) continue;
+      const centre = reachPointAt(snap.map, this.tilesById, centredOn);
+      const cells = areaFloorCells(snap.map, this.tilesById, centre, area);
+      out.push({ kind: "areaCells", cells, color: AREA_WINDUP_COLOR });
+    }
+    return out;
   }
 
   private isVisibleCell(

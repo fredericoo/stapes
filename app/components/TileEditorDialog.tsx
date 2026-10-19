@@ -1464,7 +1464,13 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_ITEM}>
-            <ItemTab draft={draft} onChange={setDraft} statusDefs={statusDefs} tiles={tiles} />
+            <ItemTab
+              draft={draft}
+              onChange={setDraft}
+              statusDefs={statusDefs}
+              tiles={tiles}
+              tilesets={tilesets}
+            />
           </TabPanel>
 
           <TabPanel value={TAB_PROJECTILE}>

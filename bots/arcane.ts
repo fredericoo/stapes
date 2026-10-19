@@ -2,6 +2,7 @@ import { castDurationMs, type CastSlot, type SpellButton } from "../app/game/cas
 import { affordsRecipe } from "../app/game/craft";
 import { carriedLightTileIds, magicDormant, type Equipment } from "../app/game/equipment";
 import { spellPower, type BattlerDef } from "../app/lib/battler";
+import { affectsBody } from "../app/lib/area";
 import { effectiveness, type Element } from "../app/lib/element";
 import type { CraftOutput, CraftRecipe } from "../app/lib/interactions";
 import { MAX_CRAFT_CHANCE, resolveAddStatus, resolveCraft } from "../app/lib/interactions";
@@ -45,11 +46,16 @@ export function usableStone(
   return meetsRequirements(masteries, stone.requirements) ? stone : null;
 }
 
-/** Health a bolt takes off somebody it is aimed at, on average, before the wheel; 0 for any other stone. */
+/**
+ * Health a bolt takes off somebody it is aimed at, on average, before the
+ * wheel, counting its area's share when that reaches others; 0 for any other stone.
+ */
 export function boltDamage(stone: ArcaneStoneItem, masteries: Masteries): number {
   const { effect } = stone;
-  if (effect.kind !== "bolt" || effect.on !== "target" || (effect.damage ?? 0) <= 0) return 0;
-  return spellPower(effect.damage!, stone.requirements, masteries);
+  if (effect.kind !== "bolt" || effect.on !== "target") return 0;
+  const area = effect.area && affectsBody(effect.area.affects, false) ? effect.area : undefined;
+  const damage = Math.max(0, effect.damage ?? 0) + Math.max(0, area?.damage ?? 0);
+  return damage > 0 ? spellPower(damage, stone.requirements, masteries) : 0;
 }
 
 /** Health a stone puts back into its own caster, on average; 0 for any other stone. */

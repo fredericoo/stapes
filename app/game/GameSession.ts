@@ -39,6 +39,7 @@ import {
   isRanged,
   NO_ELEMENTS,
   resolveContainer,
+  type SpellArea,
   type StatusGrant,
   type StoneEffect,
   UNNAMED_SPELL,
@@ -48,6 +49,7 @@ import {
   resolveConsumable,
   resolveCharm,
 } from "../lib/item";
+import { affectsBody } from "../lib/area";
 import { appendItem, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
@@ -249,6 +251,7 @@ import {
   type CastContext,
   type CasterPoint,
   type CastPoint,
+  castAreaOf,
   type CastProgress,
   type CastSlot,
   conjureLanding,
@@ -381,6 +384,13 @@ import {
   withoutReservations,
 } from "./extract";
 import { hasLineOfSight, openColumn } from "./sight";
+import {
+  type AreaBurstNote,
+  type AreaCentre,
+  areaBurstEffects,
+  areaFloorCells,
+  reachesInArea,
+} from "./area";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressurePlates";
@@ -625,6 +635,12 @@ type ExtractionRun = {
   from: Coord;
 };
 
+type AreaCast = {
+  area: SpellArea;
+  requirements: Masteries | undefined;
+  masteries: Masteries;
+};
+
 type CastingRun = {
   progress: CastProgress;
   itemId: string | null;
@@ -815,6 +831,8 @@ export class GameSession implements PlaySession {
   private liveDamage: DamageNumber[] = [];
   private pendingProjectiles: ProjectileFlight[] = [];
   private pendingTransitions: TileTransitionNote[] = [];
+  private pendingAreaBursts: AreaBurstNote[] = [];
+  private nextAreaId = 0;
   private nextTransitionId = 0;
   private heldForViewer: TileTransitionNote[] = [];
   private liveProjectiles: ProjectileFlight[] = [];
@@ -1301,6 +1319,7 @@ export class GameSession implements PlaySession {
     this.pendingNoise = [];
     this.pendingProjectiles = [];
     this.pendingTransitions = [];
+    this.pendingAreaBursts = [];
     this.pendingTeleports = [];
     this.pendingSwings = [];
     this.ageDamageNumbers(tickMs);
@@ -1940,6 +1959,12 @@ export class GameSession implements PlaySession {
     const loosed = this.pendingProjectiles;
     this.pendingProjectiles = [];
     return loosed;
+  }
+
+  drainAreaBursts(): AreaBurstNote[] {
+    const burst = this.pendingAreaBursts;
+    this.pendingAreaBursts = [];
+    return burst;
   }
 
   drainTransitions(): TileTransitionNote[] {
@@ -3093,11 +3118,18 @@ export class GameSession implements PlaySession {
     this.cancelExtraction(actor);
     const aimed = needsTarget(stone);
     const targetId = castTargetOf(actor, aimed);
+    const area = castAreaOf(stone);
     actor.casting = {
       itemId: held?.id ?? null,
       uninterruptible: stone.uninterruptible === true,
       aimed,
-      progress: { remainingMs: durationMs, durationMs, slot, ...(targetId ? { targetId } : {}) },
+      progress: {
+        remainingMs: durationMs,
+        durationMs,
+        slot,
+        ...(targetId ? { targetId } : {}),
+        ...(area ? { area } : {}),
+      },
     };
     return true;
   }
@@ -3258,7 +3290,7 @@ export class GameSession implements PlaySession {
     const spell = this.spellName(actor, slot);
     const caster = this.bodyName(actor.id);
 
-    const move = this.rollHealthMove(subject, stone, effect, elements, {
+    const move = this.rollHealthMove(subject, effect, stone.requirements, elements, {
       stats,
       masteries: body.masteries,
     });
@@ -3285,6 +3317,15 @@ export class GameSession implements PlaySession {
         spell,
         caster,
         blame: { source: spell, ...(caster ? { by: caster } : {}), byId: casterId },
+        ...(effect.area
+          ? {
+              area: {
+                area: effect.area,
+                requirements: stone.requirements,
+                masteries: body.masteries,
+              },
+            }
+          : {}),
       }),
     );
   }
@@ -3301,6 +3342,7 @@ export class GameSession implements PlaySession {
     spell: string;
     caster: string | null;
     blame: Blame;
+    area?: AreaCast;
   }): void {
     const subject = this.actors.get(bolt.subjectId);
     if (!subject) return;
@@ -3310,32 +3352,137 @@ export class GameSession implements PlaySession {
 
     this.strikeBody(bolt.subjectId, bolt.projectile);
 
+    /** Read before the hit: a hit that kills takes the subject off the board, and its area still lands. */
+    const centre = bolt.area ? this.areaCentreOf(subject) : null;
+
     const harmless = bolt.move?.kind === "harm" && actor && !this.mayHarm(actor, subject);
     if (bolt.move && !harmless) {
       this.applyHealthMove(bolt.move, subject, actor, bolt);
     }
 
-    if ((this.hpOf(subject) ?? 0) <= 0) return;
-    for (const statusId of bolt.cures) this.clearStatus(subject, statusId);
-    for (const grant of bolt.grants) {
-      this.grantStatus(subject, grant, bolt.casterId, bolt.elements, {
+    if ((this.hpOf(subject) ?? 0) > 0) this.afflict(subject, bolt.grants, bolt.cures, bolt);
+    if (bolt.area && centre) this.landArea(centre, bolt.area, bolt);
+  }
+
+  private areaCentreOf(actor: ActorRuntime): AreaCentre | null {
+    const loc = this.tryLocate(actor);
+    return loc ? reachPointAt(this.map, this.tilesById, loc) : null;
+  }
+
+  private afflict(
+    subject: ActorRuntime,
+    grants: readonly StatusGrant[],
+    cures: readonly string[],
+    from: { casterId: string; caster: string | null; spell: string; elements: readonly Element[] },
+  ) {
+    for (const statusId of cures) this.clearStatus(subject, statusId);
+    for (const grant of grants) {
+      this.grantStatus(subject, grant, from.casterId, from.elements, {
         source: this.statusName(grant.id),
-        by: possessive(bolt.caster, bolt.spell),
-        byId: bolt.casterId,
+        by: possessive(from.caster, from.spell),
+        byId: from.casterId,
       });
     }
   }
 
+  /**
+   * Centred on where the bolt landed, so the subject is inside its own area
+   * and takes both the single hit and the area's share when `affects` lets it.
+   * A harmful area whose caster has gone hurts nobody else, because nothing is
+   * left to ask whether it may.
+   */
+  private landArea(
+    centre: AreaCentre,
+    cast: AreaCast,
+    from: {
+      casterId: string;
+      caster: string | null;
+      spell: string;
+      elements: readonly Element[];
+      blame: Blame;
+    },
+  ) {
+    const { area } = cast;
+    const actor = this.actors.get(from.casterId);
+    const harmful = this.areaHarms(area);
+
+    for (const body of this.actors.values()) {
+      const isCaster = body.id === from.casterId;
+      if (!affectsBody(area.affects, isCaster)) continue;
+      if (harmful && !isCaster && !(actor && this.mayHarm(actor, body))) continue;
+      const at = this.tryLocate(body);
+      if (!at) continue;
+      const point = reachPointAt(this.map, this.tilesById, at);
+      if (!reachesInArea(this.map, this.tilesById, centre, point, area)) continue;
+      this.strikeInArea(body, actor, isCaster, cast, from);
+    }
+
+    this.raiseAreaBurst(centre, area);
+  }
+
+  private areaHarms(area: SpellArea): boolean {
+    if ((area.damage ?? 0) > 0) return true;
+    return (area.statuses ?? []).some((grant) => this.statusDefs[grant.id]?.tone === "bad");
+  }
+
+  private strikeInArea(
+    body: ActorRuntime,
+    actor: ActorRuntime | undefined,
+    isCaster: boolean,
+    cast: AreaCast,
+    from: {
+      casterId: string;
+      caster: string | null;
+      spell: string;
+      elements: readonly Element[];
+      blame: Blame;
+    },
+  ) {
+    const stats = this.battlerOf(body);
+    if (!stats || (this.hpOf(body) ?? 0) <= 0) return;
+
+    const move = this.rollHealthMove(body, cast.area, cast.requirements, from.elements, {
+      stats,
+      masteries: cast.masteries,
+    });
+    if (move) {
+      if (move.kind === "harm" && !isCaster && actor) {
+        this.notePendingHurt(body.id, actor.id);
+        this.flagCombat(actor);
+        this.flagCombat(body);
+      }
+      this.applyHealthMove(move, body, actor, { ...from, atSomebodyElse: !isCaster });
+    }
+
+    if ((this.hpOf(body) ?? 0) <= 0) return;
+    this.afflict(body, this.boltInflicts(cast.area.statuses), cast.area.cures ?? [], from);
+  }
+
+  private raiseAreaBurst(centre: AreaCentre, area: SpellArea) {
+    if (!area.burst) return;
+    const cells = areaFloorCells(this.map, this.tilesById, centre, area);
+    if (cells.length === 0) return;
+    const burst: AreaBurstNote = {
+      id: `area-${this.nextAreaId++}`,
+      x: centre.x,
+      y: centre.y,
+      cells,
+      burst: area.burst,
+    };
+    this.pendingAreaBursts.push(burst);
+    this.liveFlightEffects.push(...areaBurstEffects(burst.id, cells, area.burst));
+  }
+
   private rollHealthMove(
     subject: ActorRuntime,
-    stone: ArcaneStoneItem,
-    effect: Extract<StoneEffect, { kind: "bolt" }>,
+    effect: { damage?: number; variance?: number },
+    requirements: Masteries | undefined,
     elements: readonly Element[],
     context: { stats: FightingStats; masteries: Masteries },
   ): HealthMove | null {
     if (!effect.damage) return null;
 
-    const power = spellPower(effect.damage, stone.requirements, context.masteries);
+    const power = spellPower(effect.damage, requirements, context.masteries);
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));

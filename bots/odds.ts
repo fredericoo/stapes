@@ -17,7 +17,13 @@ import {
 import { resolveBrain, tilesNamedBy, type BrainCondition } from "../app/lib/brain";
 import { isConditionGroup } from "../app/lib/conditions";
 import { resolveBattler, type BattlerDef, type FightingStats } from "../app/lib/battler";
-import { MAX_PERCENT_STAT, type WeaponStatus } from "../app/lib/item";
+import { affectsBody } from "../app/lib/area";
+import {
+  MAX_PERCENT_STAT,
+  type SpellArea,
+  type StoneEffect,
+  type WeaponStatus,
+} from "../app/lib/item";
 import type { StatusDef } from "../app/lib/status";
 import type { TileDef } from "../app/lib/types";
 
@@ -78,11 +84,31 @@ export function spellDamagePerSecond(def: TileDef | undefined): number {
   const battler = def ? resolveBattler(def) : null;
   let total = 0;
   for (const spell of battler?.spells ?? []) {
-    const effect = spell.effect;
-    if (effect.kind !== "bolt" || effect.on !== "target" || !effect.damage) continue;
-    total += effect.damage * castsPerSecond(spell.cooldownMs);
+    total += damageAtFoe(spell.effect) * castsPerSecond(spell.cooldownMs);
   }
   return total;
+}
+
+/**
+ * What one cast does to whoever the caster is fighting: the bolt's hit when it
+ * is aimed at them, plus its area's when the area reaches others. An area
+ * around the caster counts as landing, since a creature casts it beside you.
+ */
+function damageAtFoe(effect: StoneEffect): number {
+  if (effect.kind !== "bolt") return 0;
+  const bolt = effect.on === "target" ? Math.max(0, effect.damage ?? 0) : 0;
+  return bolt + Math.max(0, areaAtFoe(effect)?.damage ?? 0);
+}
+
+function statusesAtFoe(effect: StoneEffect): readonly WeaponStatus[] {
+  if (effect.kind !== "bolt") return [];
+  const bolt = effect.on === "target" ? (effect.statuses ?? []) : [];
+  return [...bolt, ...(areaAtFoe(effect)?.statuses ?? [])];
+}
+
+function areaAtFoe(effect: Extract<StoneEffect, { kind: "bolt" }>): SpellArea | undefined {
+  const area = effect.area;
+  return area && affectsBody(area.affects, false) ? area : undefined;
 }
 
 /** How often a creature looses a spell: once a cooldown, and at most once a second. */
@@ -129,7 +155,7 @@ export function afflictionsFrom(
   theirs.statuses.forEach((grant, index) => {
     add(grant, ((blow.statuses[index]?.perSwing ?? 0) * 1000) / blow.intervalMs);
   });
-  for (const spell of targetBolts(tilesById[foe.tileId])) {
+  for (const spell of afflictingSpells(tilesById[foe.tileId])) {
     for (const grant of spell.statuses) {
       add(grant, (grant.chance / MAX_PERCENT_STAT) * castsPerSecond(spell.cooldownMs));
     }
@@ -141,15 +167,14 @@ export function afflictionsFrom(
   }));
 }
 
-function targetBolts(
+function afflictingSpells(
   def: TileDef | undefined,
 ): { cooldownMs: number; statuses: readonly WeaponStatus[] }[] {
   const battler = def ? resolveBattler(def) : null;
-  return (battler?.spells ?? []).flatMap((spell) =>
-    spell.effect.kind === "bolt" && spell.effect.on === "target"
-      ? [{ cooldownMs: spell.cooldownMs, statuses: spell.effect.statuses ?? [] }]
-      : [],
-  );
+  return (battler?.spells ?? []).flatMap((spell) => {
+    const statuses = statusesAtFoe(spell.effect);
+    return statuses.length > 0 ? [{ cooldownMs: spell.cooldownMs, statuses }] : [];
+  });
 }
 
 /**
@@ -328,12 +353,7 @@ export function slowsItsTarget(
   statusDefs: Record<string, StatusDef>,
 ): boolean {
   const battler = def ? resolveBattler(def) : null;
-  return (battler?.spells ?? []).some(
-    (spell) =>
-      spell.effect.kind === "bolt" &&
-      spell.effect.on === "target" &&
-      (spell.effect.statuses ?? []).some(
-        (grant) => (statusDefs[grant.id]?.walkSpeedPercent ?? 0) < 0,
-      ),
+  return (battler?.spells ?? []).some((spell) =>
+    statusesAtFoe(spell.effect).some((grant) => (statusDefs[grant.id]?.walkSpeedPercent ?? 0) < 0),
   );
 }
