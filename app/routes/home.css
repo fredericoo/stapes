@@ -307,6 +307,13 @@
   outline-offset: 2px;
 }
 
+.home-hero-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
 .home-dangers,
 .home-permadeath {
   scroll-margin-top: var(--home-nav-h);

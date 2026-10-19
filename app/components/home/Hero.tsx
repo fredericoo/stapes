@@ -12,7 +12,7 @@ const HERO_SOURCES = [
 ];
 
 /** The order the hero's parts rise into place in, a tenth of a second apart. */
-const RISE_ORDER = { logo: 0, stage: 1, tagline: 2, lede: 3, buttons: 4, cue: 5 } as const;
+const RISE_ORDER = { stage: 0, logo: 1, tagline: 2, lede: 3, buttons: 4, cue: 5 } as const;
 
 function rise(part: keyof typeof RISE_ORDER): CSSProperties {
   return { "--rise-order": RISE_ORDER[part] };
@@ -33,15 +33,17 @@ export function Hero({ heroRef }: { heroRef: RefObject<HTMLElement | null> }) {
       <div className="home-hero-shade" aria-hidden="true" />
 
       <div className="home-hero-lift">
-        <h1 className="home-rise" style={rise("logo")}>
-          <DoorLogo />
-        </h1>
         <p className="home-rise home-pixel home-alpha-badge" style={rise("stage")}>
           Alpha
         </p>
-        <p className="home-rise home-pixel home-tagline home-outline" style={rise("tagline")}>
-          A small MMO that runs in your browser.
-        </p>
+        <h1 className="home-hero-title">
+          <span className="home-rise" style={rise("logo")}>
+            <DoorLogo />
+          </span>
+          <span className="home-rise home-pixel home-tagline home-outline" style={rise("tagline")}>
+            A hardcore retro MMORPG that runs in your browser
+          </span>
+        </h1>
         <p className="home-rise home-hero-lede" style={rise("lede")}>
           Walk around, fight, cast, trade and explore with other people. On your phone or your
           computer, in the same world. Be warned: it is hard, most things can kill you, and there is{" "}

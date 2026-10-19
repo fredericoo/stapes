@@ -16,7 +16,7 @@ import "./home.css";
 
 const TITLE = "The Last Stones";
 const DESCRIPTION =
-  "A small MMO that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.";
+  "A hardcore retro MMORPG that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.";
 
 /**
  * The share image is in `public/` under a name with a version in it, not
