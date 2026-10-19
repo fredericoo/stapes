@@ -195,19 +195,27 @@ describe("reachableTeleportAt", () => {
   it("offers an `interact` portal from the next square over", () => {
     const map = doorway("interact");
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
-    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)?.to).toEqual({
+    expect(
+      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0, stackIndex: 0 }, ref)?.to,
+    ).toEqual({
       x: 5,
       y: 5,
       z: 0,
     });
-    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 1, z: 0 }, ref)).toBeNull();
+    expect(
+      reachableTeleportAt(map, tilesById, { x: 0, y: 1, z: 0, stackIndex: 0 }, ref),
+    ).toBeNull();
   });
 
   it("offers an `interactOver` ladder only from its own cell", () => {
     const map = doorway("interactOver");
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
-    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)).toBeNull();
-    expect(reachableTeleportAt(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).not.toBeNull();
+    expect(
+      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0, stackIndex: 0 }, ref),
+    ).toBeNull();
+    expect(
+      reachableTeleportAt(map, tilesById, { x: 1, y: 0, z: 0, stackIndex: 0 }, ref),
+    ).not.toBeNull();
   });
 
   it("refuses an `interact` portal a floor down under solid ground", () => {
@@ -221,24 +229,9 @@ describe("reachableTeleportAt", () => {
       { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } },
     ]);
     const ref = { x: 1, y: 0, z: -1, stackIndex: 1 };
-    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)).toBeNull();
-  });
-
-  it("offers one a floor down where that ground is missing", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "e" },
-    ]);
-    map = replaceStack(map, 1, 0, -1, [
-      { tileId: "grass" },
-      { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } },
-    ]);
-    const ref = { x: 1, y: 0, z: -1, stackIndex: 1 };
-    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)?.to).toEqual({
-      x: 5,
-      y: 5,
-      z: 0,
-    });
+    expect(
+      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0, stackIndex: 0 }, ref),
+    ).toBeNull();
   });
 
   it("never offers a `step` pad, which answers to no press", () => {
@@ -251,7 +244,7 @@ describe("reachableTeleportAt", () => {
       reachableTeleportAt(
         map,
         tilesById,
-        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 0, z: 0, stackIndex: 0 },
         {
           x: 1,
           y: 0,
@@ -273,7 +266,7 @@ describe("reachableTeleportAt", () => {
     ]);
     map = replaceStack(map, 5, 5, 0, [{ tileId: "wall" }]);
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
-    const actor = { x: 0, y: 0, z: 0 };
+    const actor = { x: 0, y: 0, z: 0, stackIndex: 0 };
     expect(reachableTeleportAt(map, tilesById, actor, ref)).not.toBeNull();
     expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.player!)).toBe(false);
   });
@@ -292,7 +285,7 @@ describe("reachableTeleportAt", () => {
       { tileId: "player", direction: "s", owner: "a" },
     ]);
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
-    const actor = { x: 0, y: 0, z: 0 };
+    const actor = { x: 0, y: 0, z: 0, stackIndex: 0 };
     expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.player!)).toBe(true);
     expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.deer!)).toBe(false);
   });

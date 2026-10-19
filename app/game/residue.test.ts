@@ -44,7 +44,7 @@ const tilesById: Record<string, TileDef> = Object.fromEntries(
   [bottle, sword, bag, chest, grass].map((def) => [def.id, def]),
 );
 
-const actor = { x: 0, y: 0, z: 0 };
+const actor = { x: 0, y: 0, z: 0, stackIndex: 0 };
 
 function board(chestContents: ItemInstance[] = []): MapFile {
   let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);

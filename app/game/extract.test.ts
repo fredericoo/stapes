@@ -229,7 +229,7 @@ const minersTiles = tiles.map((def) =>
   def.id === "player" ? playerTile({ mining: TWICE_AS_QUICK_MINING }) : def,
 );
 
-const ME = { x: 0, y: 0, z: 0 };
+const ME = { x: 0, y: 0, z: 0, stackIndex: 0 };
 const BUSH: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const NOTHING_EXTRACTING: Extraction | null = null;
 

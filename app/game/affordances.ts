@@ -24,7 +24,7 @@ import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from ".
 import type { EquipSlot } from "../lib/kit";
 import { stowFits } from "../lib/piles";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { footprintOf, physicalHeight } from "../lib/types";
+import { footprintOf, HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
 import { handAccepts, handHasRoomFor, wornAccepts, type Equipment } from "./equipment";
@@ -32,17 +32,26 @@ import { pushDestination } from "./push";
 
 export type ObjectRef = Coord & { stackIndex: number };
 
-export type Actor = Coord;
+export type Actor = ObjectRef;
 
 export const INTERACT_LEVEL_SLACK = 1;
+
+/**
+ * In height units, from the feet of the one reaching to the floor under the
+ * thing reached. Anything short of a whole level, so the top of a barrel is in
+ * reach and the rim of a hole you have fallen into is not.
+ */
+export const INTERACT_HEIGHT_SLACK = HEIGHT_PER_LEVEL - 1;
 
 function reachesAcrossFloors(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   actor: Actor,
-  to: Coord,
+  to: ObjectRef,
 ): boolean {
-  if (Math.abs(to.z - actor.z) > INTERACT_LEVEL_SLACK) return false;
+  const rise =
+    standingElevationUnder(map, tilesById, to) - standingElevationUnder(map, tilesById, actor);
+  if (Math.abs(rise) > INTERACT_HEIGHT_SLACK) return false;
   return hasLineOfSight(map, tilesById, actor, to);
 }
 

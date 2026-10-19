@@ -1,7 +1,7 @@
 import { getStack } from "../lib/mapData";
 import { instanceFromPlacement } from "../lib/itemInstance";
-import type { Coord, MapFile, TileDef } from "../lib/types";
-import { canOpenFrom, type ObjectRef } from "./affordances";
+import type { MapFile, TileDef } from "../lib/types";
+import { canOpenFrom, type Actor, type ObjectRef } from "./affordances";
 import type { OpenedContainer } from "./itemMoves";
 
 export type OpenedContainerRead =
@@ -11,7 +11,7 @@ export type OpenedContainerRead =
 export function readOpenedContainer(
   map: MapFile,
   tilesById: Record<string, TileDef>,
-  self: Coord,
+  self: Actor,
   ref: ObjectRef,
   openedItemId: string | null,
 ): OpenedContainerRead {

@@ -87,7 +87,7 @@ const tiles = [
 ];
 const tilesById = tilesByIdFromList(tiles);
 
-const ME = { x: 0, y: 0, z: 0 };
+const ME = { x: 0, y: 0, z: 0, stackIndex: 0 };
 
 function sword(id: string): ItemInstance {
   return { id, tileId: "sword" };

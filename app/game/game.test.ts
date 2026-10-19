@@ -1334,11 +1334,11 @@ describe("GameSession canInteract", () => {
     expect(session.canInteract({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
   });
 
-  it("hovers an interactive object one floor above", () => {
+  it("ignores an interactive object a whole floor above", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
     const session = new GameSession(map, tiles);
-    expect(session.canInteract({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(true);
+    expect(session.canInteract({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(false);
   });
 
   it("ignores a switch a floor below the ground it is standing on", () => {
@@ -1463,19 +1463,14 @@ describe("GameSession push", () => {
     expect(session.push({ x: 1, y: 1, z: 0, stackIndex: 1 })).toBe(false);
   });
 
-  it("pushes an object standing one floor below", () => {
+  it("refuses an object a whole floor below, down a hole", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 0, []);
     map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 2, 0, -1, [{ tileId: "grass" }]);
     map = replaceStack(map, 2, 0, 0, []);
     const session = new GameSession(map, tiles);
-    expect(session.push({ x: 1, y: 0, z: -1, stackIndex: 1 })).toBe(true);
-    runSlide(session);
-    expect(getStack(session.getSnapshot().map, 2, 0, -1).map((p) => p.tileId)).toEqual([
-      "grass",
-      "crate",
-    ]);
+    expect(session.push({ x: 1, y: 0, z: -1, stackIndex: 1 })).toBe(false);
   });
 
   it("refuses an object two floors away", () => {
