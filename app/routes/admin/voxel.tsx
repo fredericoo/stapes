@@ -668,6 +668,8 @@ const TILE_HEIGHT_OPTIONS: { value: string; label: string }[] = [
   { value: "2", label: "2 — half level" },
   { value: "3", label: "3 — a body, as tall as the player" },
   { value: "4", label: "4 — full level" },
+  { value: "6", label: "6 — taller than a level, stopped by any ceiling" },
+  { value: "8", label: "8 — two full levels" },
 ];
 
 function ExportDialog({
