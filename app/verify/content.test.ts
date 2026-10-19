@@ -5,7 +5,7 @@ import { checkContent, type Finding } from "./content";
 
 type Json = Record<string, any>;
 
-type Content = { tiles: Json[]; statuses: Json[]; tilesets: Json[]; map: MapFile };
+type Content = { tiles: Json[]; statuses: Json[]; traits: Json[]; tilesets: Json[]; map: MapFile };
 
 function tile(id: string, fields: Json = {}): Json {
   return {
@@ -63,6 +63,15 @@ function content(): Content {
         effects: { hp: "0 - 1" },
       },
     ],
+    traits: [
+      {
+        id: "naps",
+        name: "Naps",
+        states: { napping: { do: [{ action: "hold" }] } },
+        triggers: [{ if: { cond: "stuck" }, to: "napping" }],
+        transitions: [],
+      },
+    ],
     tilesets: [{ id: "sheet", name: "Sheet", file: "sheet.png", width: 16, height: 16 }],
     map: replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "player" }]),
   };
@@ -72,6 +81,7 @@ function check(c: Content) {
   return checkContent({
     tiles: { value: c.tiles },
     statuses: { value: c.statuses },
+    traits: { value: c.traits },
     tilesets: { value: c.tilesets },
     sheetSizes: { "sheet.png": { width: 16, height: 16 } },
     map: { value: c.map },
@@ -136,6 +146,18 @@ const FAULTS: {
     },
   },
   {
+    fault: "a brain calling a trait nobody defines",
+    seed: (c) => {
+      c.tiles.find((t) => t.id === "rat")!.interactions.brain = {
+        initial: "idle",
+        states: { idle: { do: [{ action: "hold" }] } },
+        transitions: [],
+        traits: [{ trait: "sleepwalks" }],
+      };
+    },
+    found: { severity: "error", file: "tiles.json", id: "rat", path: "interactions.brain" },
+  },
+  {
     fault: "a status formula asking about a status nobody defines",
     seed: (c) => {
       c.statuses[0]!.everyMs = "1000 * (2 - has_status('fighting'))";
@@ -161,6 +183,18 @@ const FAULTS: {
 describe("checkContent", () => {
   it("finds nothing in content that loads and names only what exists", () => {
     expect(check(content()).findings).toEqual([]);
+  });
+
+  it("loads a brain built from a trait the way the game expands it", () => {
+    const c = content();
+    c.tiles.find((t) => t.id === "rat")!.interactions.brain = {
+      initial: "idle",
+      states: { idle: { do: [{ action: "hold" }] } },
+      transitions: [],
+      traits: [{ trait: "naps" }],
+    };
+
+    expect(check(c).findings).toEqual([]);
   });
 
   it.each(FAULTS)("reports $fault", ({ seed, found }) => {
