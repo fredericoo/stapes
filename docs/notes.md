@@ -10352,6 +10352,85 @@ conjured sword in a bag is a sword. That is the same line `engraved` sits on the
 other side of, and it is fine: ownership here is a fact about a thing standing
 in the world, not about a thing in somebody's hand.
 
+## A bolt can reach an area
+
+`SpellArea` (`app/lib/item.ts`) is an optional block on a bolt: a shape, a
+radius, a height, who it is for, whether walls stop it, and its own damage,
+statuses, cures and burst. It is separate from the bolt's single hit, so one
+stone can strike its target for one amount and splash everybody round it for
+another. The geometry is `app/lib/area.ts`; the parts that read the board are
+`app/game/area.ts`.
+
+**It is centred where the bolt lands.** A bolt on the caster goes off around
+the caster; a bolt on a target goes off around the target once the projectile
+arrives. `landBolt` reads the centre before the single hit and lands the area
+after it, because a hit that kills takes the target off the board and its
+splash still has to land where it stood. The target stands
+inside its own area, so with `affects` letting it, it takes the bolt and the
+area both. That is one rule with no exception for the body that was aimed at,
+and it pays for a direct hit.
+
+**A self-centred area needs no target.** `needsTarget` is false for a bolt on
+the caster, so the cast is never refused or cancelled for reach. It goes off
+wherever the caster is standing when the windup ends, whoever has walked out.
+That is what makes a long windup on an area a thing to step out of rather than
+a thing to interrupt.
+
+**Shapes.** On offsets from the centre, each bounded by the radius on both
+axes: a square is the whole box, a cross the two lines through the centre, a
+diagonal cross the two diagonals, and a circle `dx² + dy² ≤ r(r+1)`. `r²`
+alone gives a diamond with flat sides at small radii; `r(r+1)` is halfway to
+the next square and takes in the cells the rim grazes, for the same reason
+`MELEE_REACH` is 1.5 and not 1.
+
+**Who it reaches.** Every located body whose foot cell is in the shape, whose
+standing elevation is within `height` of the centre's, and, unless
+`throughWalls`, which `hasLineOfSight` can see from the centre. Each body gets
+its own damage roll, defence, element and experience as a bolt would, and its
+own status rolls. A creature it hurts is told who attacked it
+(`notePendingHurt`), so a fireball into a pack wakes the whole pack, not
+only the body it was aimed at.
+
+**An area that harms skips anybody the caster may not harm.** "Harms" means
+positive damage or any status whose `tone` is `bad`. A single bolt never needs
+this rule, because `castability` refuses a harmful bolt at a peaceful target
+before it is cast; an area cannot be refused by everybody standing in it, so
+it filters at landing instead. A mending area reaches anybody. A harmful area
+whose caster has died or left while it was in flight hurts nobody but the
+caster, because there is nobody left to ask `mayHarm` on behalf of.
+
+**The burst is shared, not repeated.** `burst.particles.ratePerSecond` is for
+the whole area, and `areaBurstEffects` divides it between the cells covered.
+A burst repeated on every cell would put 289 emitters' worth of particles on
+the screen for a radius-8 square, and `MAX_BURST_PARTICLES` can only be checked
+against a figure that does not grow with the radius. Each cell's share is a
+`FlightEffect`, the free-standing emitter a projectile's impact already uses,
+so nothing about drawing a burst at a cell with no tile in it is new. Each
+cell's emitter is born owing `i / cells` of a particle (`startDebt`): with a
+small rate split over ninety cells, every cell would otherwise wait for a whole
+particle of its own, and a burst of fewer particles than cells drew nothing.
+
+**The windup is marked, the landing is not traced.** While an area spell winds
+up, `CastProgress.area` carries its shape and which body it is centred on, and
+`GameRenderer.areaWindupsFor` fills those cells with a pulsing red overlay
+(`makeCellFill`, one mesh for every cell). The marking leaves walls out: it
+shows the shape, and line of sight from a moving centre would have to be
+recomputed on the client every frame. The burst on landing comes from the
+server's `areaBurst` event and covers the cells it really reached. Both mark,
+in each cell, the footing nearest the centre's on its level or one either side,
+so an area authored taller than a level still only draws a level up or down.
+The fill is
+drawn without a depth test, so it lies over bodies standing in it as well as
+the ground.
+
+**Bots count an area that reaches them.** `damageAtFoe` and `statusesAtFoe`
+in `bots/odds.ts` add an area's damage and statuses to a creature's spells when
+its `affects` reaches others, and count an area around the caster as landing,
+because a creature casts it beside whoever it is fighting. A creature whose
+stomp slows its target is therefore one `slowsItsTarget` says cannot be kited.
+A bot's own self-centred area is not valued yet: `boltDamage` counts an area
+only on a bolt aimed at a target.
+
 ## Two players do not hurt each other until both have asked to
 
 Everybody carries a switch — `ActorRuntime.pvp`, off until they move it — and
