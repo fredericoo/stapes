@@ -3,6 +3,7 @@ import { MAX_PILE_SPRITES } from "./pileLayout";
 import type { SpriteQuad } from "./spriteQuad";
 
 export const OVERLAY_RENDER_ORDER = {
+  cellFill: 1_000_000_005,
   spriteFill: 1_000_000_010,
   spriteLift: 1_000_000_011,
   spriteOutline: 1_000_000_015,
@@ -363,6 +364,48 @@ export function disposeGroupChildren(group: THREE.Group, outlines?: OutlineMater
     if (Array.isArray(mat)) mat.forEach(release);
     else if (mat) release(mat);
   }
+}
+
+const CELL_FILL_VERTICES = [
+  [0, 0],
+  [1, 0],
+  [1, 1],
+  [0, 0],
+  [1, 1],
+  [0, 1],
+] as const;
+
+/** One mesh for every cell, so a radius-8 area costs one draw call rather than 289. */
+export function makeCellFill(
+  origins: readonly { x: number; y: number }[],
+  sizePx: number,
+  color: number,
+  opacity: number,
+): THREE.Mesh {
+  const positions = new Float32Array(origins.length * CELL_FILL_VERTICES.length * 3);
+  let i = 0;
+  for (const origin of origins) {
+    for (const [u, v] of CELL_FILL_VERTICES) {
+      positions[i++] = origin.x + u * sizePx;
+      positions[i++] = origin.y + v * sizePx;
+      positions[i++] = 0;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    depthTest: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = OVERLAY_RENDER_ORDER.cellFill;
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  return mesh;
 }
 
 export function makeSpriteGhost(quad: SpriteQuad, alpha: number): THREE.Mesh {

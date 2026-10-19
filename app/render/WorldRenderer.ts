@@ -8,6 +8,7 @@ import {
   DEPTH_LEAST_BODY,
   depthBox,
   depthStackBias,
+  PX_PER_HEIGHT,
   spriteWorldOrigin,
   WADE_EDGE_PX,
   WADE_SINK_PX,
@@ -125,6 +126,7 @@ import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,
   makeRectOutline,
+  makeCellFill,
   makeSpriteGhost,
   makeSpriteOutline,
   OutlineMaterials,
@@ -172,6 +174,8 @@ type AnimatedInstance = {
 const PROJECTILE_STACK_BIAS = 32;
 
 const WADING_RENDER_ORDER = 0.5;
+
+const AREA_CELL_OPACITY = 0.35;
 
 type ProjectileMesh = {
   mesh: THREE.Mesh;
@@ -352,9 +356,19 @@ export type TileGhostOverlay = {
   alpha: number;
 };
 
-export type OverlaySpec = ObjectOutlineOverlay | TileGhostOverlay;
+/** Ground cells marked with a pulsing fill, such as the area a spell is winding up to cover. */
+export type AreaCellsOverlay = {
+  kind: "areaCells";
+  cells: readonly { x: number; y: number; elevAbs: number }[];
+  color: number;
+};
+
+export type OverlaySpec = ObjectOutlineOverlay | TileGhostOverlay | AreaCellsOverlay;
 
 function overlaySpecKey(spec: OverlaySpec): string {
+  if (spec.kind === "areaCells") {
+    return `a:${spec.color}:${spec.cells.map((c) => `${c.x},${c.y},${c.elevAbs}`).join(";")}`;
+  }
   if (spec.kind === "ghost") {
     return `g:${spec.tileId}@${spec.x},${spec.y},${spec.z}:${spec.alpha}`;
   }
@@ -490,6 +504,7 @@ export class WorldRenderer {
   private debugFrameCalls = 0;
   private debugFrameTriangles = 0;
   private pulsingOutlines: THREE.ShaderMaterial[] = [];
+  private pulsingFills: THREE.MeshBasicMaterial[] = [];
   private outlineMaterials = new OutlineMaterials();
   private followingOutlines: { outline: THREE.Mesh; source: THREE.Mesh }[] = [];
   private pulseElapsedMs = 0;
@@ -742,6 +757,7 @@ export class WorldRenderer {
 
     disposeGroupChildren(this.overlays, this.outlineMaterials);
     this.pulsingOutlines = [];
+    this.pulsingFills = [];
     this.followingOutlines = [];
     for (const spec of specs) this.addOverlay(spec);
     this.applyPulse();
@@ -873,16 +889,23 @@ export class WorldRenderer {
   }
 
   private applyPulse() {
-    if (this.pulsingOutlines.length === 0) return;
+    if (!this.pulses()) return;
     const alpha = pulseAlphaAt(this.pulseElapsedMs);
     for (const material of this.pulsingOutlines) {
       material.uniforms[OUTLINE_ALPHA_UNIFORM]!.value = alpha;
     }
+    for (const material of this.pulsingFills) {
+      material.opacity = AREA_CELL_OPACITY * alpha;
+    }
+  }
+
+  private pulses(): boolean {
+    return this.pulsingOutlines.length > 0 || this.pulsingFills.length > 0;
   }
 
   private overlayKey(spec: OverlaySpec): string {
     const key = overlaySpecKey(spec);
-    if (spec.kind === "ghost") return key;
+    if (spec.kind !== "objectOutline") return key;
     const map = this.view?.map;
     const placed = map && getStack(map, spec.x, spec.y, spec.z)[spec.stackIndex];
     const count = placed ? countOf(placed) : 1;
@@ -907,6 +930,10 @@ export class WorldRenderer {
   private addOverlay(spec: OverlaySpec) {
     if (spec.kind === "ghost") {
       this.addGhost(spec);
+      return;
+    }
+    if (spec.kind === "areaCells") {
+      this.addAreaCells(spec);
       return;
     }
     for (const outline of this.outlinesFor(spec)) {
@@ -945,6 +972,18 @@ export class WorldRenderer {
         peers,
       ),
     );
+  }
+
+  /** A floor at `elevAbs` is drawn shifted up and left by its height, as cabinet projection draws everything. */
+  private addAreaCells(spec: AreaCellsOverlay) {
+    if (spec.cells.length === 0) return;
+    const origins = spec.cells.map((cell) => ({
+      x: cell.x * CELL_SIZE - cell.elevAbs * PX_PER_HEIGHT,
+      y: cell.y * CELL_SIZE - cell.elevAbs * PX_PER_HEIGHT,
+    }));
+    const fill = makeCellFill(origins, CELL_SIZE, spec.color, AREA_CELL_OPACITY);
+    this.pulsingFills.push(fill.material as THREE.MeshBasicMaterial);
+    this.overlays.add(fill);
   }
 
   private addGhost(spec: TileGhostOverlay) {
@@ -1008,7 +1047,7 @@ export class WorldRenderer {
   }
 
   tick(dt: number) {
-    if (this.pulsingOutlines.length > 0) {
+    if (this.pulses()) {
       this.pulseElapsedMs += dt;
       this.applyPulse();
       this.needsRender = true;
@@ -1118,6 +1157,7 @@ export class WorldRenderer {
      * on a stray tick is a use-after-free as far as WebGL is concerned.
      */
     this.pulsingOutlines = [];
+    this.pulsingFills = [];
     this.followingOutlines = [];
     this.renderer.dispose();
     this.lightBaker?.dispose();

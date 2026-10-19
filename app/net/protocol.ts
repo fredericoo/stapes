@@ -13,6 +13,9 @@ import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
 import type { PlacedTile } from "../lib/types";
 import { CRAFT_OUTCOMES, TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
+import { AREA_SHAPES, MAX_AREA_RADIUS, MIN_AREA_RADIUS } from "../lib/area";
+import { MAX_REACH_HEIGHT, STONE_SUBJECTS, type AreaBurst } from "../lib/item";
+import { particleEmitterSchema } from "../lib/particleVfx";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH, type CommandReply } from "../game/commands";
 
@@ -104,6 +107,19 @@ const castingPatchSchema = v.object({
       durationMs: v.number(),
       slot: castSlotSchema,
       targetId: v.optional(v.string()),
+      area: v.optional(
+        v.object({
+          shape: v.picklist(AREA_SHAPES),
+          radius: v.pipe(
+            v.number(),
+            v.integer(),
+            v.minValue(MIN_AREA_RADIUS),
+            v.maxValue(MAX_AREA_RADIUS),
+          ),
+          height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
+          on: v.picklist(STONE_SUBJECTS),
+        }),
+      ),
     }),
   ),
 });
@@ -277,6 +293,14 @@ export type MotionEvent =
       hit: boolean;
     }
   | ({ kind: "tileTransition" } & TileTransitionNote)
+  | {
+      kind: "areaBurst";
+      id: string;
+      x: number;
+      y: number;
+      cells: { x: number; y: number; elevAbs: number }[];
+      burst: AreaBurst;
+    }
   | {
       kind: "damage";
       id: string;
@@ -708,6 +732,14 @@ const serverMessageSchema = v.variant("type", [
           hit: v.boolean(),
         }),
         v.object({
+          kind: v.literal("areaBurst"),
+          id: v.string(),
+          x: v.pipe(v.number(), v.integer()),
+          y: v.pipe(v.number(), v.integer()),
+          cells: v.array(flightPointSchema),
+          burst: v.object({ durationMs: v.number(), particles: particleEmitterSchema }),
+        }),
+        v.object({
           kind: v.literal("tileTransition"),
           id: v.string(),
           side: v.picklist(TRANSITION_SIDES),
@@ -825,7 +857,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 30;
+export const PROTOCOL_VERSION = 31;
 
 export const MAX_STEPS_AHEAD = 8;
 
