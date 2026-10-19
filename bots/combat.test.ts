@@ -115,6 +115,44 @@ describe("fightOdds", () => {
     expect(odds("snake")).toBeLessThan(odds("harmless-snake") * 0.8);
   });
 
+  it("weighs a spell's area that reaches the bot, even one centred on its caster", () => {
+    const wolf = tilesById.wolf!;
+    const battler = wolf.interactions!.battler!;
+    const stomping: TileDef = {
+      ...wolf,
+      id: "stomping-wolf",
+      interactions: {
+        ...wolf.interactions,
+        battler: {
+          ...battler,
+          spells: [
+            {
+              type: "stone",
+              name: "Stomp",
+              cooldownMs: 5_000,
+              effect: {
+                kind: "bolt",
+                on: "caster",
+                area: {
+                  shape: "circle",
+                  radius: 2,
+                  height: 2,
+                  affects: "others",
+                  throughWalls: true,
+                  damage: 10,
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+    const withStomping = { ...tilesById, [stomping.id]: stomping };
+    const odds = (tileId: string) =>
+      fightOdds(newcomerSwings, fresh, [foe(tileId)], withStomping, statusDefs)!.margin;
+    expect(odds("stomping-wolf")).toBeLessThan(odds("wolf"));
+  });
+
   it("counts the poison already in the bot against the fight ahead", () => {
     const poisoned = {
       ...fresh,
