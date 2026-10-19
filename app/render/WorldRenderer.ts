@@ -8,6 +8,7 @@ import {
   type DepthBox,
   DEPTH_LEAST_BODY,
   depthBox,
+  depthOriginAt,
   depthStackBias,
   PX_PER_HEIGHT,
   spriteWorldOrigin,
@@ -136,9 +137,11 @@ import {
   buildSingleQuadGeometry,
   injectWorldShader,
   type LevelAnimUniforms,
+  depthOriginUniforms,
   noAnimUniforms,
   noCutUniforms,
   noSunUniforms,
+  setDepthOrigin,
   writeBoxAttr,
   writeLightUvAttr,
   writeWadeAttr,
@@ -412,6 +415,11 @@ export type WorldView = {
   playSquare?: { x: number; y: number; sizePx: number };
 };
 
+/** A view with no viewer, such as a preview, is centred on the ground level. */
+export function viewCentreZ(view: Pick<WorldView, "viewerZ">): number {
+  return view.viewerZ ?? 0;
+}
+
 export type ObjectOutlineOverlay = TileInstanceKey & {
   kind: "objectOutline";
   color: number;
@@ -630,6 +638,7 @@ export class WorldRenderer {
   private lightTextures = new Map<number, THREE.DataTexture>();
   private sunTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
+  private readonly depthUniforms = depthOriginUniforms();
   private lightingKey = "";
   private staticLightGrid: PackedLightGrid | null = null;
   private shownLightGrid: PackedLightGrid | null = null;
@@ -720,7 +729,7 @@ export class WorldRenderer {
     this.whiteTex.generateMipmaps = false;
     this.whiteTex.needsUpdate = true;
 
-    this.particles = new ParticleLayer((z) => this.ensureLightUniforms(z));
+    this.particles = new ParticleLayer((z) => this.ensureLightUniforms(z), this.depthUniforms);
     this.world.add(this.particles.mesh);
     this.particles.mesh.updateMatrixWorld(true);
 
@@ -760,7 +769,7 @@ export class WorldRenderer {
     this.tilesById = this.humans.dress(view.tilesById);
     this.spriteStates = view.spriteStates;
     this.ingestTransitions(view);
-    this.applyCamera(view.camera.x, view.camera.y, view.zoom);
+    this.applyCamera(view.camera.x, view.camera.y, view.zoom, viewCentreZ(view));
 
     if (this.lightingEnabled) {
       this.time("sync", () => this.lighting.syncTo(this.prevMap, view.map));
@@ -1197,7 +1206,12 @@ export class WorldRenderer {
     if (!this.assetsReady) return;
     this.updateCanvasSize();
     if (this.view) {
-      this.applyCamera(this.view.camera.x, this.view.camera.y, this.view.zoom);
+      this.applyCamera(
+        this.view.camera.x,
+        this.view.camera.y,
+        this.view.zoom,
+        viewCentreZ(this.view),
+      );
     }
     const r = this.renderer;
     if (this.debugOn) r.info.reset();
@@ -1604,10 +1618,11 @@ export class WorldRenderer {
     );
   }
 
-  private applyCamera(camX: number, camY: number, zoom: number) {
+  private applyCamera(camX: number, camY: number, zoom: number, viewerZ: number) {
     this.updateCanvasSize();
     const viewW = this.canvasW / zoom;
     const viewH = this.canvasH / zoom;
+    setDepthOrigin(this.depthUniforms, depthOriginAt(camX + viewW / 2, camY + viewH / 2, viewerZ));
     this.camera.left = camX;
     this.camera.right = camX + viewW;
     this.camera.top = camY;
@@ -1696,6 +1711,7 @@ export class WorldRenderer {
           tintU,
           cutUniforms,
           this.ensureAnimUniforms(z),
+          this.depthUniforms,
           undefined,
           this.reflectionUniforms,
         );
@@ -2508,6 +2524,7 @@ export class WorldRenderer {
         noTintUniforms(),
         cutUniforms,
         this.ensureAnimUniforms(z),
+        this.depthUniforms,
         uniforms,
       );
     };
