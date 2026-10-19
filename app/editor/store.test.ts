@@ -5,6 +5,7 @@ import { getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { useEditorStore } from "./store";
+import { tile } from "../lib/testTile";
 
 const tiles: TileDef[] = [
   normalizeTileDef({
@@ -240,6 +241,41 @@ describe("editor store paint", () => {
     expect(useEditorStore.getState().selected).toBeNull();
     expect(getStack(useEditorStore.getState().map, 0, 0, 0)).toEqual([{ tileId: "rock" }]);
     expect(getStack(useEditorStore.getState().map, 1, 0, 0)).toEqual([{ tileId: "rock" }]);
+  });
+});
+
+describe("a tile gravity would move", () => {
+  const box = tile({ id: "box", height: 2, affectedByGravity: true });
+  const openOver = (stack: { tileId: string }[]) =>
+    replaceStack(structuredClone(seedMap), 5, 5, -1, stack);
+
+  beforeEach(() => {
+    useEditorStore.getState().setSelected(null);
+    useEditorStore.getState().setLevel(0);
+  });
+
+  it("lands where the world will put it when placed over an opening", () => {
+    useEditorStore.getState().hydrate(openOver([{ tileId: "grass" }]), [...tiles, box]);
+    const store = useEditorStore.getState();
+    store.setArmedTileId("box");
+    store.stampAt(5, 5);
+
+    const map = useEditorStore.getState().map;
+    expect(getStack(map, 5, 5, 0)).toEqual([]);
+    expect(getStack(map, 5, 5, -1)).toEqual([{ tileId: "grass" }, { tileId: "box" }]);
+  });
+
+  it("stays where it was placed when something holds it up", () => {
+    useEditorStore.getState().hydrate(openOver([{ tileId: "grass" }]), [...tiles, box]);
+    const store = useEditorStore.getState();
+    store.setArmedTileId("box");
+    store.stampAt(1, 2);
+
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "rock" },
+      { tileId: "box" },
+    ]);
   });
 });
 

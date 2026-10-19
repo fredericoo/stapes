@@ -1699,6 +1699,15 @@ went through the floor into the cellar. `landingBelow` searches from one unit
 above the feet, so that floor is the landing and its own refusal stands. A
 real drop — a ledge with open air beyond it — still falls.
 
+**The editor drops a gravity tile as it is placed** (`placeArmed` in
+`app/editor/store.ts`). The world settles every loose gravity body when it
+loads, so a box painted over a lone `hole` or into the empty cell over a ramp
+used to hover in the editor and be somewhere else in play. Only a placement is
+settled. Erasing or reordering the floor under something leaves it where it
+is, because a floor being swapped mid-edit would otherwise send everything on
+it down a level. A `hole` painted *onto* a floor is decoration on that floor:
+the floor under it is still solid, and a box on it rests on the floor.
+
 **Where a thing belongs and where it will *go* are two questions**, and keeping
 them apart is what makes the kit both permissive and legible.
 
