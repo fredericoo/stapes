@@ -7,6 +7,7 @@ import {
   removeTileAt,
   replaceStack,
   serializeMap,
+  presentLevels,
 } from "../app/lib/mapData";
 import { canWalk, listStandingSurfaces } from "../app/game/movement";
 import { findPlayers } from "../app/game/player";
@@ -15,14 +16,7 @@ import { mulberry32 } from "../app/editor/generator";
 import { isSkyExposed, stackOcclusion } from "../app/lib/lighting";
 import { computeLightingFlood } from "../app/lib/lightingFlood";
 import { fitsHeightAtElevation, tilesByIdFromList } from "../app/lib/validation";
-import {
-  HEIGHT_PER_LEVEL,
-  MAX_LEVEL,
-  MAX_LIGHT_LEVEL,
-  MIN_LEVEL,
-  coordKey,
-  normalizeTileDef,
-} from "../app/lib/types";
+import { HEIGHT_PER_LEVEL, MAX_LIGHT_LEVEL, coordKey, normalizeTileDef } from "../app/lib/types";
 import type { Direction, PlacedTile, TileDef } from "../app/lib/types";
 
 type Placed = { tileId: string; direction?: Direction; description?: string };
@@ -870,7 +864,7 @@ function checkWritten(carved?: Carved): string[] {
   }
 
   const occlusion = new Map<string, ReturnType<typeof stackOcclusion>>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(live)) {
     for (const { x, y, stack } of listCoords(live, z)) {
       occlusion.set(`${z}:${coordKey(x, y)}`, stackOcclusion(stack, tilesById));
     }

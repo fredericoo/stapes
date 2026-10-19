@@ -1,4 +1,4 @@
-import { chunkKeyAt, chunkKeyFor, getChunk, getStack } from "./mapData";
+import { chunkKeyAt, chunkKeyFor, getChunk, getStack, presentLevels } from "./mapData";
 import { type CellOcclusion, rayTransmission, stackOcclusion } from "./lighting";
 import type { ChunkCells, LevelChunks, MapFile, TileDef } from "./types";
 import { CHUNK_SIZE, HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, coordKey, levelKey } from "./types";
@@ -147,7 +147,8 @@ function cutSeeds(
    * content hides the viewer even when nothing is straight above them and a
    * wall on their own storey stops the probe from seeing under it.
    */
-  for (let z = view.z + 1; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
+    if (z <= view.z) continue;
     const step = z - view.z;
     const x = view.x + step;
     const y = view.y + step;

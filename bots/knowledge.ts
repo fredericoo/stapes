@@ -14,12 +14,13 @@ import {
   listCoords,
   removeTileAt,
   tileIdsInChunk,
+  presentLevels,
 } from "../app/lib/mapData";
 import { pullsFreeAt } from "../app/game/extract";
 import { hasLineOfSight } from "../app/game/sight";
 import { resolveExtract, resolveReward } from "../app/lib/interactions";
 import type { StatusDef } from "../app/lib/status";
-import { levelKey, MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
+import { levelKey, parseCoordKey } from "../app/lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../app/lib/types";
 
 /**
@@ -39,7 +40,7 @@ export class Knowledge {
   ) {
     this.board = withoutBodies(map, bodies);
     const seen = new Set<string>();
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const z of presentLevels(map)) {
       for (const key of listChunkKeys(map, z)) seen.add(key);
     }
     this.seenChunks = seen;
@@ -183,7 +184,7 @@ export class Knowledge {
   frontierCells(): Coord[] {
     const out: Coord[] = [];
     const columns = new Set<string>();
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const z of presentLevels(this.board)) {
       for (const { x, y } of listCoords(this.board, z)) {
         const key = `${x},${y}`;
         if (columns.has(key)) continue;
@@ -207,7 +208,7 @@ export class Knowledge {
     tileIds: ReadonlySet<string>,
     visit: (ref: ObjectRef, def: TileDef, placed: PlacedTile) => void,
   ) {
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const z of presentLevels(this.board)) {
       const level = this.board.levels[levelKey(z)];
       if (!level) continue;
       for (const chunkKey in level) {

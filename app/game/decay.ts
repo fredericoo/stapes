@@ -4,9 +4,8 @@ import { isItem, resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { countOf, peelOne, stackWithItem, stow, withCount } from "../lib/piles";
 import type { StackEdit } from "../lib/mapData";
-import { getStack, listCoords, replaceStack, setStacks } from "../lib/mapData";
+import { getStack, listCoords, presentLevels, replaceStack, setStacks } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 import { carriedInstances, EQUIPMENT_SLOTS, type Equipment } from "./equipment";
 import { type SlotKind, slotAccepts } from "./itemMoves";
@@ -55,7 +54,7 @@ function decayOf(tileId: string, tilesById: Record<string, TileDef>): DecayInter
 
 export function findDecayCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y } of listCoords(map, z)) {
       const cell = { x, y, z };
       if (cellHasDecay(map, cell, tilesById)) out.push(cell);
@@ -498,7 +497,7 @@ function decayedBoard(
 ): DecayResult {
   const edits: StackEdit[] = [];
   const changed: Coord[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const next = decayedItemsInStack(stack, due, tilesById, mintId);
       if (!next) continue;
