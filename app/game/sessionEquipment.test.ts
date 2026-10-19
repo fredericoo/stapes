@@ -1172,6 +1172,51 @@ describe("dying with something on you", () => {
     expect(packAt(session, 0, 0)?.contents).toEqual([cherry]);
   });
 
+  function tossesAsItDies(session: GameSession, id: string) {
+    for (let elapsed = 0; elapsed < LONG_ENOUGH_TO_KILL_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      if (!session.actorIds().includes(id)) break;
+    }
+    return session.drainTransitions().filter((note) => note.tossedFrom);
+  }
+
+  it("tosses the pack from halfway up the body, where it fell", () => {
+    const session = doomed();
+
+    expect(tossesAsItDies(session, LOCAL_ACTOR_ID)).toMatchObject([
+      {
+        side: "appear",
+        tileId: BAG_TILE_ID,
+        x: 0,
+        y: 0,
+        z: 0,
+        tossedFrom: { x: 0, y: 0, elev: 2, order: 0 },
+      },
+    ]);
+  });
+
+  it("tosses a shorter creature's kit from lower down", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "packrat"), tiles);
+    const rat = session.actorSnapshots().find((actor) => actor.tileId === "packrat")!;
+    session.setTarget(rat.id);
+    session.setAttackMode(true);
+
+    expect(tossesAsItDies(session, rat.id)).toMatchObject([
+      { tileId: SWORD, x: 1, y: 0, tossedFrom: { x: 1, y: 0, elev: 1 } },
+    ]);
+  });
+
+  it("numbers each thing a death tosses, so they can leave one after another", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "packrat"), tiles);
+    const rat = session.actorSnapshots().find((actor) => actor.tileId === "packrat")!;
+    session.runCommand(`/give cherry offhand ${rat.id}`);
+    session.setTarget(rat.id);
+    session.setAttackMode(true);
+
+    const orders = tossesAsItDies(session, rat.id).map((note) => note.tossedFrom?.order);
+    expect(orders).toEqual([0, 1]);
+  });
+
   it("keeps the identity of the pack it drops", () => {
     const session = doomed();
     const packId = session.getSnapshot().equipment.bag!.id;

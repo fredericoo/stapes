@@ -6,7 +6,7 @@ import {
   type Transition,
 } from "../lib/tileTransition";
 import { DEFAULT_PARTICLES } from "../lib/particleVfx";
-import { CELL_SIZE, normalizeTileDef } from "../lib/types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
 import {
   LIGHT_FADE_STEP_MS,
   MAX_LIVE_TRANSITIONS,
@@ -26,6 +26,13 @@ import {
   transitionAddress,
   transitionForNote,
   transitionPose,
+  tossPose,
+  TOSS_BOUNCE_LEVELS,
+  TOSS_FIRST_LANDING,
+  TOSS_MS,
+  TOSS_STAGGER_MS,
+  livePose,
+  tossTransition,
   transitionUniforms,
   type LiveTransition,
   type TransitionIntake,
@@ -282,6 +289,13 @@ describe("transitionForNote", () => {
     expect(transitionForNote(arrived, { crystal })).toEqual(sweep);
   });
 
+  it("tosses a dropped thing, whatever the tile would play on appearing", () => {
+    const tossed = { ...arrived, tossedFrom: { x: 0, y: 0, elev: 2, order: 2 } };
+    expect(transitionForNote(tossed, { crystal })).toEqual({
+      durationMs: TOSS_MS + 2 * TOSS_STAGGER_MS,
+    });
+  });
+
   it("plays whichever outcome a craft came to, off the craft block", () => {
     const rise = sideOf({ durationMs: 900, scale: {} });
     const spit = sideOf({ durationMs: 300, scale: {} });
@@ -370,6 +384,7 @@ describe("pixelSnappedQuad", () => {
       x: 100,
       y: 200,
       dropLevels: 0,
+      travelPx: { x: 0, y: 0 },
     });
   });
 
@@ -401,6 +416,83 @@ describe("pixelSnappedQuad's drop", () => {
       expect(Number.isInteger(liftPx)).toBe(true);
       expect(at.dropLevels * CELL_SIZE).toBeCloseTo(liftPx, 9);
     }
+  });
+});
+
+describe("tossPose", () => {
+  const landing = { x: 5, y: 5 };
+  const RELEASE_ELEV = 2;
+  const RELEASE_LEVELS = RELEASE_ELEV / HEIGHT_PER_LEVEL;
+
+  it("starts at the release height over the cell it was tossed from", () => {
+    expect(tossPose(landing, { x: 3, y: 6, elev: RELEASE_ELEV }, 0)).toEqual({
+      scale: 1,
+      dropLevels: RELEASE_LEVELS,
+      travel: { x: -2, y: 1 },
+    });
+  });
+
+  it("rests exactly where it landed", () => {
+    const rest = tossPose(landing, { x: 3, y: 6, elev: RELEASE_ELEV }, 1);
+    expect(rest.dropLevels).toBe(0);
+    expect(Math.abs(rest.travel?.x ?? NaN)).toBe(0);
+    expect(Math.abs(rest.travel?.y ?? NaN)).toBe(0);
+  });
+
+  it("rises above its release height on the way, even straight up and down", () => {
+    const hop = tossPose(landing, { ...landing, elev: RELEASE_ELEV }, TOSS_FIRST_LANDING / 2);
+    expect(hop.travel).toEqual({ x: 0, y: 0 });
+    expect(hop.dropLevels).toBeGreaterThan(RELEASE_LEVELS);
+  });
+
+  it("touches the floor short of its cell, then bounces the rest of the way", () => {
+    const from = { x: 3, y: 5, elev: RELEASE_ELEV };
+    const touch = tossPose(landing, from, TOSS_FIRST_LANDING);
+    expect(touch.dropLevels).toBe(0);
+    expect(touch.travel!.x).toBeLessThan(0);
+
+    const bounce = tossPose(landing, from, (TOSS_FIRST_LANDING + 1) / 2);
+    expect(bounce.dropLevels).toBeCloseTo(TOSS_BOUNCE_LEVELS, 9);
+    expect(bounce.travel!.x).toBeGreaterThan(touch.travel!.x);
+    expect(bounce.travel!.x).toBeLessThan(0);
+  });
+});
+
+describe("livePose for a staggered toss", () => {
+  function third(): LiveTransition {
+    const tossedFrom = { x: 3, y: 5, elev: 2, order: 2 };
+    return {
+      note: { ...note("t3"), x: 5, y: 5, tossedFrom },
+      transition: tossTransition(tossedFrom.order),
+      startMs: 0,
+    };
+  }
+  const at = (live: LiveTransition, elapsedMs: number) =>
+    livePose(live, elapsedMs / live.transition.durationMs);
+
+  it("keeps a later thing out of sight until its turn", () => {
+    expect(at(third(), 2 * TOSS_STAGGER_MS - 1).scale).toBe(0);
+  });
+
+  it("then gives it the whole toss, from the start", () => {
+    const live = third();
+    const from = live.note.tossedFrom!;
+    expect(at(live, 2 * TOSS_STAGGER_MS)).toEqual(tossPose(live.note, from, 0));
+    expect(at(live, live.transition.durationMs)).toEqual(tossPose(live.note, from, 1));
+  });
+});
+
+describe("pixelSnappedQuad's travel", () => {
+  const quad = { centreX: 100, centreY: 200, pivotX: 100, pivotY: 200, w: 8, h: 8 };
+
+  it("moves the quad by whole pixels and reports how far it drew it", () => {
+    const at = pixelSnappedQuad(quad, { scale: 1, dropLevels: 0, travel: { x: -1.3, y: 0.6 } });
+    expect(at.travelPx).toEqual({
+      x: Math.round(-1.3 * CELL_SIZE),
+      y: Math.round(0.6 * CELL_SIZE),
+    });
+    expect(at.x - quad.centreX).toBe(at.travelPx.x);
+    expect(at.y - quad.centreY).toBe(at.travelPx.y);
   });
 });
 

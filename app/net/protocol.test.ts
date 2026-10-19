@@ -592,6 +592,11 @@ describe("nothing is quietly dropped in transit", () => {
     { what: "a struck body's borrowed effect", tileId: "rat", struckBy: "arrow" },
     { what: "a worked resource's pull effect", tileId: "crystal", pulled: true as const },
     { what: "a crafter's failed craft", tileId: "forge", crafted: "failed" as const },
+    {
+      what: "a dropped thing's toss",
+      tileId: "iron-sword",
+      tossedFrom: { x: 3, y: -1, elev: 1.5, order: 2 },
+    },
   ])("carries $what through whole", ({ what: _what, ...cause }) => {
     const event = {
       kind: "tileTransition" as const,

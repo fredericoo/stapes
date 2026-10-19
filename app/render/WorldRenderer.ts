@@ -52,7 +52,9 @@ import {
   formerSlot,
   transitionAddress,
   transitionForNote,
-  transitionPose,
+  livePose,
+  movesBox,
+  movesQuad,
   noTransitionUniforms,
   transitionUniforms,
   writeTransitionUniforms,
@@ -230,7 +232,7 @@ type TransitionMesh = {
 function poseTransitionMesh(
   held: TransitionMesh,
   pose: TransitionPose,
-  dropping: boolean,
+  movesBox: boolean,
   motion: TileMotion | undefined,
 ) {
   const ox = motion?.ox ?? 0;
@@ -250,14 +252,20 @@ function poseTransitionMesh(
   held.mesh.position.set(at.x, at.y, 0);
   held.mesh.updateMatrix();
   held.mesh.updateMatrixWorld(true);
-  if (dropping) {
+  if (movesBox) {
     const up = at.dropLevels * HEIGHT_PER_LEVEL;
     const box = motion
       ? depthBox(motion.box.x, motion.box.y, motion.box.foot, motion.box.top)
       : held.box;
     writeBoxAttr(
       held.mesh.geometry,
-      { ...box, foot: box.foot + up, top: box.top + up },
+      {
+        ...box,
+        eastPx: box.eastPx + at.travelPx.x,
+        southPx: box.southPx + at.travelPx.y,
+        foot: box.foot + up,
+        top: box.top + up,
+      },
       motion ? motion.box.stackBias : held.stackBias,
     );
   }
@@ -2266,12 +2274,11 @@ export class WorldRenderer {
     };
     state.meshes.push(held);
     if (!copy) this.transitioningMeshes.add(mesh);
-    const { scale, drop } = state.live.transition;
-    if (scale || drop) {
+    if (movesQuad(state.live)) {
       poseTransitionMesh(
         held,
-        transitionPose(state.live.transition, liveShown(state.live, this.animClock)),
-        Boolean(drop),
+        livePose(state.live, liveShown(state.live, this.animClock)),
+        movesBox(state.live),
         this.motionOf(held),
       );
     }
@@ -2312,11 +2319,10 @@ export class WorldRenderer {
       state.meshes = state.meshes.filter((held) => this.stillDrawn(held));
       const shown = liveShown(state.live, this.animClock);
       if (state.uniforms) state.uniforms.uFxShown.value = shown;
-      const { scale, drop } = state.live.transition;
-      const pose = transitionPose(state.live.transition, shown);
+      const pose = livePose(state.live, shown);
       for (const held of state.meshes) {
-        if (scale || drop) {
-          poseTransitionMesh(held, pose, Boolean(drop), this.motionOf(held));
+        if (movesQuad(state.live)) {
+          poseTransitionMesh(held, pose, movesBox(state.live), this.motionOf(held));
         }
         if (held.copy) held.mesh.visible = !cutHidesWholeLevel(this.roofCut, held.z);
       }
@@ -2355,9 +2361,8 @@ export class WorldRenderer {
       return;
     }
     if (rejoinsBatch(held) || !held.mesh.parent) return;
-    const { scale, drop } = state.live.transition;
-    if (scale || drop) {
-      poseTransitionMesh(held, WHOLE_POSE, Boolean(drop), this.motionOf(held));
+    if (movesQuad(state.live)) {
+      poseTransitionMesh(held, WHOLE_POSE, movesBox(state.live), this.motionOf(held));
     }
     held.mesh.material = this.materialFor(held.texture, held.z);
   }

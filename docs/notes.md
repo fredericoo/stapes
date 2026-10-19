@@ -724,8 +724,8 @@ it and `WorldPage` installs it.
 
 - `command(text)` sends a chat command and resolves to its `CommandReply`.
 - `act(input)` sends what a player sends: a step, held directions, a facing, a
-  target, attack mode, a cast, using or picking up a thing, eating, talking,
-  saying something, rebirth.
+  target, attack mode, a cast, using, picking up or putting down a thing,
+  eating, talking, saying something, rebirth.
 - `snapshot()` is the world as this client holds it: every body it knows with
   its cell, health and statuses, the hour, and the player's own kit and target.
   `stack(x, y, z)` reads one cell.
@@ -9230,6 +9230,57 @@ and `craft.test.ts` asks each authored one to resolve.
 missed. Only an `all` recipe with a chance below 100 can fail. A recipe that
 makes some of its outputs has succeeded.
 
+### A thing put on the floor is tossed from whoever let go of it
+
+A dropped item, or a dead creature's loot, is tossed onto its cell, so that
+in a crowd you can tell who let go of it. `GameSession.noteToss` raises an
+`appear` on the new placement carrying `tossedFrom`: the cell it left (the
+thrower's for `drop`, the body's own for `dropKit` and `dropPacks` on a death)
+and `elev`, how far above its resting place it leaves the body, in height
+units, and `order`. `transitionForNote` answers every such note with
+`tossTransition`, which is code and not authored, because the toss says who let go of the thing
+and every item needs it, not only the ones somebody gave an effect.
+
+- **It leaves from halfway up the body.** `tossOrigin` takes the foot the body
+  stands on (`elevationAt` its slot, so a table or a ledge counts) plus half
+  the body's `height`: a player's 3 releases at 1.5, a rat's 1 at 0.5, so a rat
+  does not throw from where a person's chest would be. `elev` is that minus
+  where the thing comes to rest, so a level between the two is already in it.
+  It is worked out on the server because a dead body is gone from the board by
+  the time any client hears of the toss; the cells under it are not, and are
+  what `tossOrigin` reads.
+- **`tossPose` is a straight line plus two parabolas.** The quad travels from
+  the thrower's cell to its resting place at a constant speed for the whole
+  toss, so the bounce carries on in the direction of the throw. Its height
+  starts at `elev` and is lifted by a parabola peaking at `TOSS_PEAK_LEVELS`
+  (it climbs above its start first for any body under four levels tall,
+  which is every body there is), reaches the floor at `TOSS_FIRST_LANDING` of
+  the way through, then
+  bounces once by `TOSS_BOUNCE_LEVELS`. Height goes through `dropLevels`, which
+  moves the quad up the screen diagonal (x and y alike, as the oblique
+  projection draws a level) and raises the depth box, so a bounce is a rise and
+  not a slide. A death's toss starts over the cell it lands on, so the same
+  pose is a hop and a bounce in place where the body fell.
+- **The things one death drops leave one after another.** `dropOnFloor`
+  numbers each toss it raises in `tossedFrom.order`, and `tossTransition`
+  gives the note `TOSS_MS + order · TOSS_STAGGER_MS`, so each later thing
+  still gets the whole toss. Until its turn, `livePose` draws it at scale 0:
+  a thing not yet thrown is still with the body. A single drop is order 0 and
+  plays at once.
+- **The depth box travels with the quad.** `poseTransitionMesh` shifts the
+  box's `eastPx`/`southPx` by the same whole pixels `pixelSnappedQuad` moved
+  the quad, and raises `foot`/`top` by the lift, as an authored `drop` does.
+  The item is depth-sorted against the cells it passes over rather than
+  against the cell it lands on.
+- **A thing poured into a pile already lying there is not tossed.** The note
+  names a placement, and the placement is the whole pile; flying it in from
+  the thrower would move things they never held. `noteToss` also skips a
+  thing that fell out of the cell when the board settled, since the note would
+  name a cell it is no longer in.
+- **The corpse is not tossed.** `dropRemains` passes no `tossedFrom`: the
+  remains stand in for the body, and the body did not jump.
+- `tossedFrom` is in `serverMessageSchema` (protocol 28).
+
 ## A brain can name a place, work it, and eat what came out
 
 Everything a brain could name used to be a *body* — `nearest` walks the actor
@@ -11047,9 +11098,10 @@ a wake whose body was reaped — not the re-seat after an editor save, which
 passes `announce: false`), and what a decay or a resource's last pull turns
 into. A disappear is a decay, a resource's last pull (`spendPull`), a death
 (`kill`, where the body fell) or a player leaving (`despawn`). A thing that
-moved — a drop, a pickup, loot out of a kit, gravity — existed all along and
-plays nothing, and neither does a tile swapped in place by a switch or a
-plate. Every finished pull also plays the resource's own pull effect (see "A
+moved — a pickup, gravity — existed all along and plays nothing, and neither
+does a tile swapped in place by a switch or a plate. A drop and loot out of a
+kit are tossed instead, whatever the tile authored (see "A thing put on the
+floor is tossed from whoever let go of it"). Every finished pull also plays the resource's own pull effect (see "A
 finished pull plays the resource's pull effect"). All of it only when the tile
 has that side authored; everything else changes instantly, which is what
 every tile did before this existed, and costs the wire nothing.
