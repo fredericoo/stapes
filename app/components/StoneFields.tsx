@@ -30,8 +30,9 @@ import {
 import { beats, EFFECTIVENESS_EDGE, type Element, ELEMENTS } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import { projectileTiles, resolveProjectile } from "../lib/projectile";
-import type { TileDef } from "../lib/types";
+import type { TileDef, TilesetDef } from "../lib/types";
 import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
+import { AreaFields } from "./AreaFields";
 import { StatusCures } from "./StatusCures";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
@@ -75,11 +76,13 @@ export function StoneFields({
   stone,
   onChange,
   tiles,
+  tilesets,
   statusDefs = {},
 }: {
   stone: ArcaneStoneItem;
   onChange: (fields: Partial<ArcaneStoneItem>) => void;
   tiles: TileDef[];
+  tilesets?: TilesetDef[];
   statusDefs?: Record<string, StatusDef>;
 }) {
   const effect = stone.effect;
@@ -206,7 +209,7 @@ export function StoneFields({
               })
             }
             blank={(id) => ({ id, chance: DEFAULT_STONE_STATUS_CHANCE })}
-            info="Rolled once per entry per cast, on whoever it landed on. Armour eating the damage does not stop it; only a body that is not there, or one the cast killed, escapes. No mastery moves the chance. A bolt needs damage, a status or a cure — with none it will not save."
+            info="Rolled once per entry per cast, on whoever it landed on. Armour eating the damage does not stop it; only a body that is not there, or one the cast killed, escapes. No mastery moves the chance. A bolt needs damage, a status, a cure or an area — with none it will not save."
           />
 
           <StatusCures
@@ -215,6 +218,14 @@ export function StoneFields({
             onChange={(cures) =>
               onChange({ effect: { ...effect, cures: cures.length ? cures : undefined } })
             }
+          />
+
+          <AreaFields
+            area={effect.area}
+            onChange={(area) => onChange({ effect: { ...effect, area } })}
+            statusDefs={statusDefs}
+            tiles={tiles}
+            tilesets={tilesets}
           />
         </div>
       ) : (
@@ -322,7 +333,11 @@ export function StoneFields({
         </FieldLabel>
         <ElementReading
           elements={spellElements(stone.requirements)}
-          harms={stone.effect.kind !== "bolt" || (stone.effect.damage ?? 0) > 0}
+          harms={
+            stone.effect.kind !== "bolt" ||
+            (stone.effect.damage ?? 0) > 0 ||
+            (stone.effect.area?.damage ?? 0) > 0
+          }
         />
         <div className="flex flex-wrap gap-4">
           {MASTERIES.map((mastery) => (

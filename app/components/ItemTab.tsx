@@ -43,7 +43,7 @@ import {
   WEAPON_MASTERIES,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
-import type { TileDef } from "../lib/types";
+import type { TileDef, TilesetDef } from "../lib/types";
 import { FieldLabel, Input, SectionTitle, Segmented, Select, SwitchField } from "../ui";
 import { StatField } from "./StatField";
 import { CharmFields } from "./CharmFields";
@@ -57,6 +57,7 @@ type Props = {
   onChange: (next: TileDef) => void;
   statusDefs?: Record<string, StatusDef>;
   tiles: TileDef[];
+  tilesets?: TilesetDef[];
 };
 
 const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> = ARMOR_SLOTS.map((slot) => ({
@@ -119,7 +120,7 @@ const TYPE_INFO: Record<ItemType, string> = {
     "Worn on the accessory square, never held and never pressed. Does its thing on its own clock for as long as it is worn.",
 };
 
-export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
+export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: Props) {
   const item = draft.interactions?.item ?? DEFAULT_WEAPON;
 
   const setItem = (next: ItemDef) => {
@@ -391,7 +392,13 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             }
           />
         ) : item.type === "stone" ? (
-          <StoneFields stone={item} onChange={patchStone} tiles={tiles} statusDefs={statusDefs} />
+          <StoneFields
+            stone={item}
+            onChange={patchStone}
+            tiles={tiles}
+            tilesets={tilesets}
+            statusDefs={statusDefs}
+          />
         ) : item.type === "charm" ? (
           <div className="flex flex-col gap-3">
             <CharmFields charm={item} onChange={patchCharm} statusDefs={statusDefs} />
