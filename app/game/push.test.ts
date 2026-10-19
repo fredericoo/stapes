@@ -242,6 +242,21 @@ describe("pushDestination move-on-tiles", () => {
     expect(check.ok).toBe(false);
   });
 
+  it("refuses an unlisted floor instead of dropping through it to the level below", () => {
+    let map = grassStrip(2);
+    map = place(map, 1, 0, 0, ["sand"]);
+    map = place(map, 1, 0, -1, ["grass"]);
+    const check = pushDestination(
+      map,
+      at(map, 0, 0, 0),
+      "e",
+      tilesById.crate!,
+      push({ moveOnTileIds: ["grass"] }),
+      tilesById,
+    );
+    expect(check.ok).toBe(false);
+  });
+
   it("allows a surface whose tile is listed", () => {
     const map = grassStrip(2);
     const check = pushDestination(

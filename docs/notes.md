@@ -1689,6 +1689,16 @@ somebody standing on a crate has their own motion and their own idea of where
 they are walking to, and `commitWalk` would land that step from a cell they are
 no longer standing in. A body is not a lid, but it is not cargo either.
 
+**A shove that a floor refuses is refused, not a fall through it.** When no
+surface in the climb band takes the column — the floor ahead is not in
+`moveOnTileIds`, or has no headroom — `pushDestination` asks gravity where it
+would land. `findLandingAbs` counts only tops strictly *below* the feet it is
+given, so asked from the column's own feet it skipped the floor level with them
+and answered with the level below: a wooden box shoved onto `wooden-floor`
+went through the floor into the cellar. `landingBelow` searches from one unit
+above the feet, so that floor is the landing and its own refusal stands. A
+real drop — a ledge with open air beyond it — still falls.
+
 **Where a thing belongs and where it will *go* are two questions**, and keeping
 them apart is what makes the kit both permissive and legible.
 
