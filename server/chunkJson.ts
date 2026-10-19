@@ -1,8 +1,8 @@
-import { chunkCopiedFrom, getChunk, listChunkKeys } from "../app/lib/mapData";
+import { chunkCopiedFrom, getChunk, listChunkKeys, presentLevels } from "../app/lib/mapData";
 import { visibleStack } from "../app/net/interest";
 import type { CellAffliction, CellPatch } from "../app/net/protocol";
 import type { ChunkCells, MapFile, PlacedTile } from "../app/lib/types";
-import { MAP_FILE_VERSION, MAX_LEVEL, MIN_LEVEL, levelKey } from "../app/lib/types";
+import { MAP_FILE_VERSION, levelKey } from "../app/lib/types";
 
 type ChunkText = {
   z: number;
@@ -162,7 +162,7 @@ export function handoverCellsJson(
 ): string {
   const parts: string[] = [];
   for (const chunkKey of chunks) {
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const z of presentLevels(map)) {
       const chunk = getChunk(map, z, chunkKey);
       if (!chunk) continue;
       const text = textOf(chunk, z);
@@ -198,7 +198,7 @@ export function mapOfInterestJson(
   held: ReadonlySet<string>,
 ): string {
   const levels = new Map<string, string[]>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     const present = listChunkKeys(map, z);
     const walk = present.length < chunks.size ? present : [...chunks];
     let parts: string[] | null = null;

@@ -7,6 +7,7 @@ import {
   isSolidPlacement,
   isWalkableSurfaceAt,
   planeCoveredBy,
+  presentLevelsAndAbove,
   stackHeight,
   stackOnLevel,
   surfaceTileAt,
@@ -137,19 +138,18 @@ export function listStandingSurfaces(
 
   const chunkKey = chunkKeyFor(x, y);
   const cellKey = coordKey(x, y);
-  let below: PlacedTile[] | undefined;
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevelsAndAbove(map)) {
     const stack = stackOnLevel(map, z, chunkKey, cellKey);
     if (stack !== undefined && stack.length > 0) {
       const footing = footingOfStack(stack, tilesById);
       if (planeCoveredBy(footing)) (closed ??= []).push(z * HEIGHT_PER_LEVEL);
       if (footing?.walkable) add(z * HEIGHT_PER_LEVEL + footing.elev, z);
     }
+    const below = z > MIN_LEVEL ? stackOnLevel(map, z - 1, chunkKey, cellKey) : undefined;
     if (below !== undefined) {
       const floorAbs = walkableFloorAbove(z - 1, below, tilesById);
       if (floorAbs != null) add(floorAbs, z);
     }
-    below = stack;
   }
   if (!closed) return out;
   return out.filter((surface) => !closed.includes(surface.abs));
@@ -215,7 +215,7 @@ export function findLandingAbs(
 ): number | null {
   let best: number | null = null;
 
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevelsAndAbove(map)) {
     let stack = getStack(map, x, y, z);
     if (exclude && exclude.z === z) {
       stack = sceneryStack(map, x, y, z, exclude.stackIndex);
