@@ -276,6 +276,21 @@ describe("a player who dies", () => {
 
     expect(skullAt(session, 0, 0)).toBeNull();
   });
+
+  it("leaves the skull on the level above when its square is already full", () => {
+    const heavy = tiles.map((def): TileDef => (def.id === SKULL ? { ...def, height: 1 } : def));
+    const full = [{ tileId: "grass" }, ...Array.from({ length: 4 }, () => ({ tileId: SKULL }))];
+    let map = field(full);
+    map = withBody(map, 1, 0, "wolf", full);
+    const session = new GameSession(map, heavy);
+    const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
+    fight(session, wolf.id);
+
+    advanceUntilDead(session);
+
+    const above = getStack(session.getMap(), 0, 0, 1);
+    expect(above.map((placed) => placed.tileId)).toEqual([SKULL]);
+  });
 });
 
 describe("a creature that dies", () => {

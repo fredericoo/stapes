@@ -21,7 +21,6 @@ import {
   removeTileAt,
   replaceStack,
   tileIdsInChunk,
-  walkableElevInStack,
 } from "../lib/mapData";
 import type { ExtractInteraction, RespawnInteraction } from "../lib/interactions";
 import {
@@ -53,15 +52,7 @@ import {
   resolveCharm,
 } from "../lib/item";
 import { affectsBody } from "../lib/area";
-import {
-  appendItem,
-  landingIndex,
-  peelOne,
-  pourInto,
-  stackWithItem,
-  stackWithLanding,
-  stow,
-} from "../lib/piles";
+import { appendItem, landingIndex, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
@@ -97,6 +88,7 @@ import {
   canEquipFrom,
   canTalkFrom,
   dropDestinationAt,
+  landingFor,
   canPickUpFrom,
   pickUpDestination,
   canPushFrom,
@@ -2923,18 +2915,9 @@ export class GameSession implements PlaySession {
     this.dropOnFloor(at, carried.map(placementFromInstance), this.midBody(at));
   }
 
-  private dropOnFloor(at: Coord, placements: PlacedTile[], tossedFrom?: MidBody): boolean {
-    const stack = getStack(this.map, at.x, at.y, at.z);
-    if (walkableElevInStack(stack, this.tilesById) == null) return false;
-    const room = canReplaceStack(
-      this.map,
-      at.x,
-      at.y,
-      at.z,
-      placements.reduce(stackWithLanding, stack),
-      this.tilesById,
-    );
-    if (!room.ok) return false;
+  private dropOnFloor(where: Coord, placements: PlacedTile[], tossedFrom?: MidBody): boolean {
+    const at = landingFor(this.map, where, placements, this.tilesById);
+    if (!at) return false;
 
     let tossed = 0;
     for (const placed of placements) {
@@ -4707,9 +4690,9 @@ export class GameSession implements PlaySession {
         ? stashInContainer(emptied.map, this.tilesById, destination.ref, instance)
         : appendItem(
             emptied.map,
-            to.x,
-            to.y,
-            to.z,
+            destination.at.x,
+            destination.at.y,
+            destination.at.z,
             placementFromInstance(instance),
             this.tilesById,
           );
@@ -4722,10 +4705,11 @@ export class GameSession implements PlaySession {
 
     if (destination.kind === "contents") return true;
 
-    const stackIndex = landingIndex(getStack(emptied.map, to.x, to.y, to.z));
-    this.reindexCells([to]);
+    const rest = destination.at;
+    const stackIndex = landingIndex(getStack(emptied.map, rest.x, rest.y, rest.z));
+    this.reindexCells([rest]);
     this.settleBoardNow();
-    this.noteToss(placementFromInstance(instance), { ...to, stackIndex }, origin);
+    this.noteToss(placementFromInstance(instance), { ...rest, stackIndex }, origin);
     return true;
   }
 
