@@ -437,5 +437,60 @@
       "light": null,
       "taperMs": 1500
     }
+  },
+  {
+    "id": "dazed",
+    "name": "Dazed",
+    "description": "The ground went out from under you: slow, off-aim and in no state to dodge.",
+    "tone": "bad",
+    "fromMs": 6000,
+    "toMs": 7000,
+    "stacks": false,
+    "maxMs": 7000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {
+      "accuracy": "-15",
+      "flee": "-40"
+    },
+    "walkSpeedPercent": -50,
+    "vfx": {
+      "tint": {
+        "color": "#c2a878",
+        "strength": 0.45,
+        "keepLuma": 0.85
+      },
+      "particles": null,
+      "light": null,
+      "taperMs": 1000
+    }
+  },
+  {
+    "id": "enraged",
+    "name": "Enraged",
+    "description": "Blind with fury: faster and harder-hitting, but careless.",
+    "tone": "good",
+    "fromMs": 30000,
+    "toMs": 30000,
+    "stacks": false,
+    "maxMs": 30000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {
+      "damage": "5",
+      "spd": "10",
+      "def": "-5"
+    },
+    "walkSpeedPercent": 25,
+    "vfx": {
+      "tint": {
+        "color": "#e83b3b",
+        "strength": 0.55,
+        "keepLuma": 0.8
+      },
+      "particles": null,
+      "light": null,
+      "taperMs": 2000
+    }
   }
 ]
