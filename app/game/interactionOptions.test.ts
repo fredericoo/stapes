@@ -325,16 +325,14 @@ describe("listInteractionOptions — objects", () => {
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
-  it("offers a push on a crate a floor down where that ground is missing", () => {
+  it("offers nothing a whole floor down, even where the ground is missing", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, []);
     map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 2, 0, -1, [{ tileId: "grass" }]);
     const me = playerAt(map);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
-
-    expect(actionsIn(targets)).toEqual(["push"]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("says nothing about a door a floor down under solid ground", () => {
@@ -343,17 +341,6 @@ describe("listInteractionOptions — objects", () => {
     const me = playerAt(map);
 
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
-  });
-
-  it("offers a door a floor down where that ground is missing", () => {
-    let map = field();
-    map = replaceStack(map, 1, 0, 0, []);
-    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "door_shut" }]);
-    const me = playerAt(map);
-
-    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
-
-    expect(actionsIn(targets)).toEqual(["switch"]);
   });
 
   it("drops a push with nowhere to go", () => {

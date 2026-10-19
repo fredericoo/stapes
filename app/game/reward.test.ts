@@ -65,7 +65,7 @@ const tiles = [
 ];
 const tilesById = tilesByIdFromList(tiles);
 
-const ME = { x: 0, y: 0, z: 0 };
+const ME = { x: 0, y: 0, z: 0, stackIndex: 0 };
 const CHEST: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const OTHER: ObjectRef = { x: 1, y: 1, z: 0, stackIndex: 1 };
 
@@ -302,7 +302,7 @@ describe("taking a reward", () => {
 describe("a reward the actor cannot reach", () => {
   it("is not offered from two cells away", () => {
     const map = board();
-    const far = { x: 3, y: 3, z: 0 };
+    const far = { x: 3, y: 3, z: 0, stackIndex: 0 };
 
     expect(canRewardFrom(map, tilesById, far, CHEST, bagWith(0), [])).toBe(false);
   });

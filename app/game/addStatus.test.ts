@@ -221,7 +221,7 @@ describe("resolveAddStatus", () => {
 });
 
 describe("reachableAddStatusAt", () => {
-  const actor = { x: 0, y: 0, z: 0 };
+  const actor = { x: 0, y: 0, z: 0, stackIndex: 0 };
   const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
   it("offers a brazier from the next square over", () => {
@@ -234,7 +234,9 @@ describe("reachableAddStatusAt", () => {
   it("offers coals only from their own cell", () => {
     const map = world("coals");
     expect(reachableAddStatusAt(map, tilesById, actor, ref)).toBeNull();
-    expect(reachableAddStatusAt(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).toMatchObject({
+    expect(
+      reachableAddStatusAt(map, tilesById, { x: 1, y: 0, z: 0, stackIndex: 0 }, ref),
+    ).toMatchObject({
       trigger: "interactOver",
     });
   });
@@ -242,7 +244,7 @@ describe("reachableAddStatusAt", () => {
   it("never offers a fire you walk into, which answers to no press", () => {
     const map = world("fire");
     expect(canAddStatusFrom(map, tilesById, actor, ref)).toBe(false);
-    expect(canAddStatusFrom(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).toBe(false);
+    expect(canAddStatusFrom(map, tilesById, { x: 1, y: 0, z: 0, stackIndex: 0 }, ref)).toBe(false);
   });
 });
 

@@ -34,7 +34,7 @@ const tiles = [
 ];
 const tilesById = tilesByIdFromList(tiles);
 
-const ME = { x: 0, y: 0, z: 0 };
+const ME = { x: 0, y: 0, z: 0, stackIndex: 0 };
 const REF: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const CHEST_ID = "itm_chest";
 
@@ -68,14 +68,14 @@ describe("a box in reach", () => {
 });
 
 describe("walking away", () => {
-  const FAR = { x: 4, y: 0, z: 0 };
+  const FAR = { x: 4, y: 0, z: 0, stackIndex: 0 };
 
   it("closes the panel", () => {
     expect(readOpenedContainer(board(), tilesById, FAR, REF, CHEST_ID).kind).toBe("closed");
   });
 
   it("closes on the floor below as readily as across the room", () => {
-    const below = { x: 1, y: 0, z: -2 };
+    const below = { x: 1, y: 0, z: -2, stackIndex: 0 };
     expect(readOpenedContainer(board(), tilesById, below, REF, CHEST_ID).kind).toBe("closed");
   });
 });

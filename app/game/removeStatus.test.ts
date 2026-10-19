@@ -163,15 +163,21 @@ describe("reachableRemoveStatusAt", () => {
 
   it("offers a basin from the next square over", () => {
     const map = world(["basin"]);
-    expect(reachableRemoveStatusAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)).toMatchObject({
+    expect(
+      reachableRemoveStatusAt(map, tilesById, { x: 0, y: 0, z: 0, stackIndex: 0 }, ref),
+    ).toMatchObject({
       trigger: "interact",
     });
   });
 
   it("never offers water you walk into", () => {
     const map = world(["water"]);
-    expect(canRemoveStatusFrom(map, tilesById, { x: 0, y: 0, z: 0 }, ref)).toBe(false);
-    expect(canRemoveStatusFrom(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).toBe(false);
+    expect(canRemoveStatusFrom(map, tilesById, { x: 0, y: 0, z: 0, stackIndex: 0 }, ref)).toBe(
+      false,
+    );
+    expect(canRemoveStatusFrom(map, tilesById, { x: 1, y: 0, z: 0, stackIndex: 0 }, ref)).toBe(
+      false,
+    );
   });
 });
 

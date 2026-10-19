@@ -160,7 +160,7 @@ function bagTiles(equipment: Equipment | null | undefined): string[] {
   return equipment?.bag?.contents?.map((item) => item.tileId) ?? [];
 }
 
-const ACTOR = { x: 0, y: 1, z: 0 };
+const ACTOR = { x: 0, y: 1, z: 0, stackIndex: 0 };
 
 describe("resolving a crafter", () => {
   it("is nothing on a tile with no block", () => {

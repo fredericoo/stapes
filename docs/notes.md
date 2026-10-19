@@ -5311,9 +5311,17 @@ No weighting fixes it — a weighting decides where the sphere bulges, never tha
 the shape has a flat lid.
 
 The pair is also what the rest of the game was already doing in private:
-`affordances` measures what you can touch as a disc plus a level slack, and a
-brain's `in_range` measures plan steps plus its sight's up and down. Neither
-could be written against the sphere, so neither was.
+`affordances` measures what you can touch as a disc plus a height either side,
+and a brain's `in_range` measures plan steps plus its sight's up and down.
+Neither could be written against the sphere, so neither was.
+
+`affordances`' height is `INTERACT_HEIGHT_SLACK`, from the floor under your
+feet to the floor under the thing, and it stops short of a whole level. It was
+a whole level once, counted in `z`, and that let a player who fell into a hole
+mine the crystal on its rim, or push a crate at the bottom of one from beside
+it. A barrel's top is three units up, which is why the slack is not half a
+level. `INTERACT_LEVEL_SLACK` is still a level: it bounds which storeys the
+interaction list scans, not what is in reach.
 
 Height is in **height units** (four to a level) and absolute, never in floors:
 a body on a crate is half a level above the floor it shares with you, and half a

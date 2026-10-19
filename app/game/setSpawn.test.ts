@@ -101,7 +101,7 @@ describe("resolveSetSpawn", () => {
 });
 
 describe("reachableSetSpawnAt", () => {
-  const actor = { x: 0, y: 0, z: 0 };
+  const actor = { x: 0, y: 0, z: 0, stackIndex: 0 };
 
   it("offers a bed from the next square over", () => {
     expect(reachableSetSpawnAt(world("bed"), tilesById, actor, BED)).toMatchObject({
@@ -112,7 +112,9 @@ describe("reachableSetSpawnAt", () => {
   it("offers a mat only from its own cell", () => {
     const map = world("mat");
     expect(reachableSetSpawnAt(map, tilesById, actor, BED)).toBeNull();
-    expect(reachableSetSpawnAt(map, tilesById, { x: 1, y: 0, z: 0 }, BED)).toMatchObject({
+    expect(
+      reachableSetSpawnAt(map, tilesById, { x: 1, y: 0, z: 0, stackIndex: 0 }, BED),
+    ).toMatchObject({
       trigger: "interactOver",
     });
   });
@@ -120,7 +122,7 @@ describe("reachableSetSpawnAt", () => {
   it("never offers a threshold you walk over, which answers to no press", () => {
     const map = world("threshold");
     expect(canSetSpawnFrom(map, tilesById, actor, BED)).toBe(false);
-    expect(canSetSpawnFrom(map, tilesById, { x: 1, y: 0, z: 0 }, BED)).toBe(false);
+    expect(canSetSpawnFrom(map, tilesById, { x: 1, y: 0, z: 0, stackIndex: 0 }, BED)).toBe(false);
   });
 });
 

@@ -2,7 +2,7 @@ import { canRewardFrom, reachableCraftAt, type ObjectRef } from "../app/game/aff
 import type { Equipment } from "../app/game/equipment";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import { listStandingSurfaces } from "../app/game/movement";
-import type { NavGoal, NavWorld } from "../app/game/navigation";
+import { standingIn, type NavGoal, type NavWorld } from "../app/game/navigation";
 import {
   chunkKeyFor,
   listChunkKeys,
@@ -77,7 +77,15 @@ export class Knowledge {
 
   rewardGoal(ref: ObjectRef, equipment: Equipment, tags: readonly string[]): NavGoal {
     return {
-      reached: (cell) => canRewardFrom(this.board, this.tilesById, cell, ref, equipment, tags),
+      reached: (cell) =>
+        canRewardFrom(
+          this.board,
+          this.tilesById,
+          standingIn(this.board, cell),
+          ref,
+          equipment,
+          tags,
+        ),
       estimate: (cell) => Math.max(0, Math.abs(cell.x - ref.x) + Math.abs(cell.y - ref.y) - 1),
     };
   }
@@ -85,7 +93,8 @@ export class Knowledge {
   /** Anywhere the crafter at `ref` can be worked from. */
   craftGoal(ref: ObjectRef): NavGoal {
     return {
-      reached: (cell) => reachableCraftAt(this.board, this.tilesById, cell, ref) !== null,
+      reached: (cell) =>
+        reachableCraftAt(this.board, this.tilesById, standingIn(this.board, cell), ref) !== null,
       estimate: (cell) => Math.max(0, Math.abs(cell.x - ref.x) + Math.abs(cell.y - ref.y) - 1),
     };
   }

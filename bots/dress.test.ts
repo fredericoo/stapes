@@ -35,7 +35,7 @@ function kit(worn: Partial<Equipment>, bag: string[]): Equipment {
 /** Applies dressings the way the server would until the bot has nothing left to change. */
 function dressed(equipment: Equipment, style: Style): { equipment: Equipment; dropped: string[] } {
   const dropped: string[] = [];
-  const at = { x: 0, y: 0, z: 0 };
+  const at = { x: 0, y: 0, z: 0, stackIndex: 0 };
   for (let moves = 0; moves < 8; moves++) {
     const dressing = nextDressing(equipment, tilesById, judge(style));
     if (!dressing) return { equipment, dropped };
