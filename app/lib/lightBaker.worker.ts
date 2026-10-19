@@ -44,7 +44,7 @@ self.onmessage = (event: MessageEvent<BakerRequest>) => {
   }
 
   try {
-    const baked = bakeRegion(map, tilesById, omit, msg.rect, msg.timeMs);
+    const baked = bakeRegion(map, tilesById, omit, msg.rect, msg.levels, msg.timeMs);
     const chunks: Array<[string, WireChunk]> = [];
     /**
      * Every plane here is freshly allocated by the bake and read by nobody

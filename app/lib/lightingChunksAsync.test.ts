@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { inBand } from "./testLightWindow";
 import tilesJson from "../../data/tiles.json";
 import { getStack, replaceStack } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
@@ -11,6 +12,7 @@ import {
 } from "./lightingChunks";
 import { PLAYER_TILE_ID } from "../game/constants";
 import type { MapFile, TileDef } from "./types";
+import type { LevelRange } from "./view";
 
 const tilesById = Object.fromEntries((tilesJson as TileDef[]).map((t) => [t.id, t])) as Record<
   string,
@@ -28,10 +30,10 @@ class ManualBaker implements ChunkBaker {
   private queue: Array<() => void> = [];
   map: MapFile = base;
 
-  bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>> {
+  bake(rect: WorldRect, levels: LevelRange, timeMs: number): Promise<Map<string, BakedChunk>> {
     this.asked.push(rect);
     return new Promise((resolve) => {
-      this.queue.push(() => resolve(bakeRegion(this.map, tilesById, omit, rect, timeMs)));
+      this.queue.push(() => resolve(bakeRegion(this.map, tilesById, omit, rect, levels, timeMs)));
     });
   }
 
@@ -72,7 +74,7 @@ describe("off-thread chunk refresh", () => {
     lighting.setBaker(baker);
 
     lighting.syncTo(null, base);
-    const cold = planeOf(lighting.packedGridFor(base, WINDOW));
+    const cold = planeOf(lighting.packedGridFor(base, inBand(WINDOW)));
     baker.asked.length = 0;
     await baker.flush();
 
@@ -81,14 +83,14 @@ describe("off-thread chunk refresh", () => {
     lighting.syncTo(base, lit);
     expect(lighting.staleChunks).toBeGreaterThan(0);
 
-    const during = lighting.packedGridFor(lit, WINDOW);
+    const during = lighting.packedGridFor(lit, inBand(WINDOW));
     expect(lighting.bakedLastCall).toBe(0);
     expect(planeOf(during)).toEqual(cold);
     expect(baker.asked.length).toBe(1);
 
     await baker.flush();
 
-    const after = planeOf(lighting.packedGridFor(lit, WINDOW));
+    const after = planeOf(lighting.packedGridFor(lit, inBand(WINDOW)));
     expect(after).not.toEqual(cold);
     expect(lighting.staleChunks).toBe(0);
   });
@@ -100,23 +102,23 @@ describe("off-thread chunk refresh", () => {
     const sync = new ChunkedLighting(tilesById, omit);
 
     async_.syncTo(null, base);
-    async_.packedGridFor(base, WINDOW);
+    async_.packedGridFor(base, inBand(WINDOW));
     sync.syncTo(null, base);
-    sync.packedGridFor(base, WINDOW);
+    sync.packedGridFor(base, inBand(WINDOW));
     await baker.flush();
 
     const lit = putTorch(base);
     baker.map = lit;
     async_.syncTo(base, lit);
-    async_.packedGridFor(lit, WINDOW);
+    async_.packedGridFor(lit, inBand(WINDOW));
     await baker.flush();
-    async_.packedGridFor(lit, WINDOW);
+    async_.packedGridFor(lit, inBand(WINDOW));
     await baker.flush();
 
     sync.syncTo(base, lit);
 
-    expect(planeOf(async_.packedGridFor(lit, WINDOW))).toEqual(
-      planeOf(sync.packedGridFor(lit, WINDOW)),
+    expect(planeOf(async_.packedGridFor(lit, inBand(WINDOW)))).toEqual(
+      planeOf(sync.packedGridFor(lit, inBand(WINDOW))),
     );
   });
 
@@ -126,12 +128,12 @@ describe("off-thread chunk refresh", () => {
     lighting.setBaker(baker);
 
     lighting.syncTo(null, base);
-    lighting.packedGridFor(base, WINDOW);
+    lighting.packedGridFor(base, inBand(WINDOW));
     await baker.flush();
 
     const lit = putTorch(base);
     lighting.syncTo(base, lit);
-    lighting.packedGridFor(lit, WINDOW);
+    lighting.packedGridFor(lit, inBand(WINDOW));
     expect(baker.inFlight).toBe(1);
 
     const relit = replaceStack(lit, EDIT.x, EDIT.y, EDIT.z, [
@@ -143,7 +145,7 @@ describe("off-thread chunk refresh", () => {
     await baker.flush();
 
     expect(lighting.staleChunks).toBeGreaterThan(0);
-    lighting.packedGridFor(relit, WINDOW);
+    lighting.packedGridFor(relit, inBand(WINDOW));
     await baker.flush();
     expect(lighting.staleChunks).toBe(0);
   });
@@ -154,7 +156,7 @@ describe("off-thread chunk refresh", () => {
     lighting.setBaker(baker);
 
     lighting.syncTo(null, base);
-    lighting.packedGridFor(base, WINDOW);
+    lighting.packedGridFor(base, inBand(WINDOW));
     expect(lighting.bakedLastCall).toBeGreaterThan(0);
   });
 
@@ -166,26 +168,26 @@ describe("off-thread chunk refresh", () => {
     lighting.setBaker(refusing);
 
     lighting.syncTo(null, base);
-    const cold = planeOf(lighting.packedGridFor(base, WINDOW));
+    const cold = planeOf(lighting.packedGridFor(base, inBand(WINDOW)));
 
     const lit = putTorch(base);
     lighting.syncTo(base, lit);
-    lighting.packedGridFor(lit, WINDOW);
+    lighting.packedGridFor(lit, inBand(WINDOW));
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(planeOf(lighting.packedGridFor(lit, WINDOW))).toEqual(cold);
+    expect(planeOf(lighting.packedGridFor(lit, inBand(WINDOW)))).toEqual(cold);
     expect(lighting.staleChunks).toBeGreaterThan(0);
   });
 
   it("drops chunks outright when nothing is there to refresh them", () => {
     const lighting = new ChunkedLighting(tilesById, omit);
     lighting.syncTo(null, base);
-    lighting.packedGridFor(base, WINDOW);
+    lighting.packedGridFor(base, inBand(WINDOW));
 
     const lit = putTorch(base);
     lighting.syncTo(base, lit);
-    lighting.packedGridFor(lit, WINDOW);
+    lighting.packedGridFor(lit, inBand(WINDOW));
 
     expect(lighting.bakedLastCall).toBeGreaterThan(0);
     expect(lighting.staleChunks).toBe(0);
@@ -201,18 +203,18 @@ describe("off-thread refresh and the animation clock", () => {
     baker.map = lit;
 
     lighting.syncTo(null, lit);
-    const bright = planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS));
+    const bright = planeOf(lighting.packedGridFor(lit, inBand(WINDOW), BRIGHT_MS));
     await baker.flush();
 
-    const first = lighting.packedGridFor(lit, WINDOW, DIM_MS);
+    const first = lighting.packedGridFor(lit, inBand(WINDOW), DIM_MS);
     expect(lighting.bakedLastCall).toBe(0);
     expect(planeOf(first)).toEqual(bright);
 
     await baker.flush();
 
-    const settled = planeOf(lighting.packedGridFor(lit, WINDOW, DIM_MS));
+    const settled = planeOf(lighting.packedGridFor(lit, inBand(WINDOW), DIM_MS));
     expect(settled).not.toEqual(bright);
-    expect(planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS))).toEqual(bright);
+    expect(planeOf(lighting.packedGridFor(lit, inBand(WINDOW), BRIGHT_MS))).toEqual(bright);
   });
 
   it("settles on the same light the synchronous cache bakes", async () => {
@@ -228,15 +230,16 @@ describe("off-thread refresh and the animation clock", () => {
 
     for (let turn = 0; turn < 3; turn++) {
       for (const timeMs of [BRIGHT_MS, DIM_MS]) {
-        async_.packedGridFor(lit, WINDOW, timeMs);
+        async_.packedGridFor(lit, inBand(WINDOW), timeMs);
         await baker.flush();
       }
     }
 
     for (const timeMs of [BRIGHT_MS, DIM_MS]) {
-      expect(planeOf(async_.packedGridFor(lit, WINDOW, timeMs)), `phase at ${timeMs}ms`).toEqual(
-        planeOf(sync.packedGridFor(lit, WINDOW, timeMs)),
-      );
+      expect(
+        planeOf(async_.packedGridFor(lit, inBand(WINDOW), timeMs)),
+        `phase at ${timeMs}ms`,
+      ).toEqual(planeOf(sync.packedGridFor(lit, inBand(WINDOW), timeMs)));
     }
   });
 
@@ -250,19 +253,21 @@ describe("off-thread refresh and the animation clock", () => {
     lighting.syncTo(null, lit);
     for (let turn = 0; turn < 3; turn++) {
       for (const timeMs of [BRIGHT_MS, DIM_MS]) {
-        lighting.packedGridFor(lit, WINDOW, timeMs);
+        lighting.packedGridFor(lit, inBand(WINDOW), timeMs);
         await baker.flush();
       }
     }
-    const beforeEdit = planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS));
+    const beforeEdit = planeOf(lighting.packedGridFor(lit, inBand(WINDOW), BRIGHT_MS));
     await baker.flush();
 
     const brighter = replaceStack(lit, EDIT.x + 2, EDIT.y, EDIT.z, [{ tileId: "torch" }]);
     baker.map = brighter;
     lighting.syncTo(lit, brighter);
-    lighting.packedGridFor(brighter, WINDOW, DIM_MS);
+    lighting.packedGridFor(brighter, inBand(WINDOW), DIM_MS);
     await baker.flush();
 
-    expect(planeOf(lighting.packedGridFor(brighter, WINDOW, BRIGHT_MS))).not.toEqual(beforeEdit);
+    expect(planeOf(lighting.packedGridFor(brighter, inBand(WINDOW), BRIGHT_MS))).not.toEqual(
+      beforeEdit,
+    );
   });
 });

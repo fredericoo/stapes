@@ -1,6 +1,7 @@
 import type { BakedChunk, ChunkBaker, WorldRect } from "./lightingChunks";
 import { type BakerRequest, type BakerResponse, diffMapChunks } from "./lightBakerProtocol";
 import type { MapFile, TileDef } from "./types";
+import type { LevelRange } from "./view";
 
 /**
  * False under SSR and under the test runner, and both are load-bearing
@@ -48,12 +49,12 @@ export class WorkerChunkBaker implements ChunkBaker {
     if (patch) this.post({ type: "patch", patch });
   }
 
-  bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>> {
+  bake(rect: WorldRect, levels: LevelRange, timeMs: number): Promise<Map<string, BakedChunk>> {
     if (this.disposed) return Promise.reject(new Error("baker disposed"));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.post({ type: "bake", id, rect, timeMs });
+      this.post({ type: "bake", id, rect, levels, timeMs });
     });
   }
 

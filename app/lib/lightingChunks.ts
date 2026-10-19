@@ -11,9 +11,8 @@ import { composeAmbientRgb } from "./lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
 import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO, SUN_SPAN_STRIDE, SUN_REACH } from "./sunSpan";
 import type { ChunkCells, LevelChunks, MapFile, PlacedTile, TileDef } from "./types";
+import type { LevelRange } from "./view";
 import {
-  MAX_LEVEL,
-  MIN_LEVEL,
   maxLightRadius,
   parseCoordKey,
   physicalHeight,
@@ -38,6 +37,9 @@ export const LIGHT_WINDOW_MARGIN = 4;
 
 export type WorldRect = { x0: number; y0: number; x1: number; y1: number };
 
+/** A window to light and the levels to light in it. */
+export type LightWindow = WorldRect & { levels: LevelRange };
+
 export const PREFETCH_RING_CHUNKS = 1;
 
 export const PREFETCH_CHUNKS_PER_CALL = 1;
@@ -60,7 +62,7 @@ export type BakedChunk = {
 };
 
 export type ChunkBaker = {
-  bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>>;
+  bake(rect: WorldRect, levels: LevelRange, timeMs: number): Promise<Map<string, BakedChunk>>;
 };
 
 const MAX_INFLIGHT_BAKES = 1;
@@ -110,12 +112,31 @@ function chunkOf(v: number): number {
   return Math.floor(v / LIGHT_CHUNK_SIZE);
 }
 
-function chunkCacheKey(cx: number, cy: number): string {
+function columnKey(cx: number, cy: number): string {
   return `${cx},${cy}`;
 }
 
-function chunkSpanKey(rect: WorldRect): string {
-  return [chunkOf(rect.x0), chunkOf(rect.y0), chunkOf(rect.x1), chunkOf(rect.y1)].join(",");
+function levelsKey(levels: LevelRange): string {
+  return `${levels.z0},${levels.z1}`;
+}
+
+/**
+ * A chunk lit for one range of levels is a different bake from the same chunk
+ * lit for another: the sky reaching its top level depends on where the range
+ * starts.
+ */
+function chunkCacheKey(cx: number, cy: number, levels: LevelRange): string {
+  return `${columnKey(cx, cy)}@${levelsKey(levels)}`;
+}
+
+function chunkSpanKey(rect: WorldRect, levels: LevelRange): string {
+  return [
+    chunkOf(rect.x0),
+    chunkOf(rect.y0),
+    chunkOf(rect.x1),
+    chunkOf(rect.y1),
+    levelsKey(levels),
+  ].join(",");
 }
 
 function chunkRect(cx: number, cy: number): WorldRect {
@@ -180,7 +201,7 @@ function animatedByChunk(emitters: readonly AnimatedEmitter[]): Map<string, Set<
     const reach = litReach(e.radius);
     for (let cy = chunkOf(e.y - reach); cy <= chunkOf(e.y + reach); cy++) {
       for (let cx = chunkOf(e.x - reach); cx <= chunkOf(e.x + reach); cx++) {
-        const key = chunkCacheKey(cx, cy);
+        const key = columnKey(cx, cy);
         let ids = out.get(key);
         if (!ids) {
           ids = new Set();
@@ -198,6 +219,7 @@ export function bakeRegion(
   tilesById: Record<string, TileDef>,
   omitLightTileIds: ReadonlySet<string> | undefined,
   rect: WorldRect,
+  levels: LevelRange,
   timeMs: number,
 ): Map<string, BakedChunk> {
   const padded: WorldRect = {
@@ -211,7 +233,7 @@ export function bakeRegion(
     tilesById,
     undefined,
     omitLightTileIds,
-    { ...padded, z0: MIN_LEVEL, z1: MAX_LEVEL },
+    { ...padded, z0: levels.z0, z1: levels.z1 },
     timeMs,
   );
   const animated = animatedByChunk(grid.animated);
@@ -222,10 +244,9 @@ export function bakeRegion(
       const cr = chunkRect(cx, cy);
       const planes: ChunkLight = new Map();
       for (const [z, level] of grid.levels) planes.set(z, sliceChunk(level, cr));
-      const key = chunkCacheKey(cx, cy);
-      out.set(key, {
+      out.set(chunkCacheKey(cx, cy, levels), {
         planes,
-        animated: [...(animated.get(key) ?? [])].sort(),
+        animated: [...(animated.get(columnKey(cx, cy)) ?? [])].sort(),
       });
     }
   }
@@ -245,6 +266,8 @@ export class ChunkedLighting {
   private inFlight = 0;
   private baker: ChunkBaker | null = null;
   private refreshWanted = false;
+  private levels: LevelRange = { z0: 0, z1: 0 };
+  private readonly levelsSeen = new Map<string, LevelRange>();
 
   constructor(
     private readonly tilesById: Record<string, TileDef>,
@@ -270,6 +293,15 @@ export class ChunkedLighting {
     return this.cache.size;
   }
 
+  private key(cx: number, cy: number): string {
+    return chunkCacheKey(cx, cy, this.levels);
+  }
+
+  private useLevels(window: LightWindow) {
+    this.levels = window.levels;
+    this.levelsSeen.set(levelsKey(this.levels), this.levels);
+  }
+
   private phaseOf(animated: readonly string[], timeMs: number): string {
     if (!animated.length) return "";
     let phase = "";
@@ -290,7 +322,7 @@ export class ChunkedLighting {
   }
 
   private cachedPlanes(cx: number, cy: number, timeMs: number): ChunkLight | undefined {
-    const entry = this.cache.get(chunkCacheKey(cx, cy));
+    const entry = this.cache.get(this.key(cx, cy));
     if (!entry) return undefined;
     return entry.byPhase.get(this.phaseOf(entry.animated, timeMs));
   }
@@ -300,7 +332,7 @@ export class ChunkedLighting {
     cy: number,
     timeMs: number,
   ): { phase: string; planes: ChunkLight } | undefined {
-    const entry = this.cache.get(chunkCacheKey(cx, cy));
+    const entry = this.cache.get(this.key(cx, cy));
     if (!entry) return undefined;
     const want = this.phaseOf(entry.animated, timeMs);
     const exact = entry.byPhase.get(want);
@@ -336,9 +368,19 @@ export class ChunkedLighting {
   invalidateAt(x: number, y: number, reach: number = LIGHT_APRON) {
     const lo = { cx: chunkOf(x - reach), cy: chunkOf(y - reach) };
     const hi = { cx: chunkOf(x + reach), cy: chunkOf(y + reach) };
+    for (const levels of this.levelsSeen.values()) {
+      this.invalidateChunks(lo, hi, levels);
+    }
+  }
+
+  private invalidateChunks(
+    lo: { cx: number; cy: number },
+    hi: { cx: number; cy: number },
+    levels: LevelRange,
+  ) {
     for (let cy = lo.cy; cy <= hi.cy; cy++) {
       for (let cx = lo.cx; cx <= hi.cx; cx++) {
-        const key = chunkCacheKey(cx, cy);
+        const key = chunkCacheKey(cx, cy, levels);
         if (!this.baker) {
           if (this.cache.delete(key)) this.version++;
           continue;
@@ -461,7 +503,13 @@ export class ChunkedLighting {
     return Boolean(def && resolveLightPassing(def));
   }
 
-  gridFor(map: MapFile, ambient: [number, number, number], rect: WorldRect, timeMs = 0): LightGrid {
+  gridFor(
+    map: MapFile,
+    ambient: [number, number, number],
+    rect: LightWindow,
+    timeMs = 0,
+  ): LightGrid {
+    this.useLevels(rect);
     this.tick++;
     this.fillMissing(map, rect, timeMs);
     if (this.lastBakedChunks === 0 && !this.refreshWanted) {
@@ -470,7 +518,7 @@ export class ChunkedLighting {
 
     const ambientKey = ambient.map((c) => c.toFixed(4)).join(",");
     const key = [
-      chunkSpanKey(rect),
+      chunkSpanKey(rect, this.levels),
       this.version,
       ambientKey,
       this.windowPhaseKey(rect, timeMs),
@@ -490,7 +538,7 @@ export class ChunkedLighting {
     let key = "";
     for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
       for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
-        const entry = this.cache.get(chunkCacheKey(cx, cy));
+        const entry = this.cache.get(this.key(cx, cy));
         if (!entry?.animated.length) continue;
         key += this.drawable(cx, cy, timeMs)?.phase ?? "";
       }
@@ -517,7 +565,7 @@ export class ChunkedLighting {
         const at = this.dirtySeq;
         this.inFlight++;
         void this.baker
-          .bake(rect, timeMs)
+          .bake(rect, this.levels, timeMs)
           .then((baked) => this.storeAll(baked, timeMs, at))
           .catch(() => {})
           .finally(() => {
@@ -526,7 +574,7 @@ export class ChunkedLighting {
         continue;
       }
       this.storeAll(
-        bakeRegion(map, this.tilesById, this.omitLightTileIds, rect, timeMs),
+        bakeRegion(map, this.tilesById, this.omitLightTileIds, rect, this.levels, timeMs),
         timeMs,
         this.dirtySeq,
       );
@@ -548,7 +596,7 @@ export class ChunkedLighting {
   private touchWindow(rect: WorldRect) {
     for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
       for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
-        const entry = this.cache.get(chunkCacheKey(cx, cy));
+        const entry = this.cache.get(this.key(cx, cy));
         if (entry) entry.usedAt = this.tick;
       }
     }
@@ -601,6 +649,7 @@ export class ChunkedLighting {
       this.tilesById,
       this.omitLightTileIds,
       { x0, y0, x1, y1 },
+      this.levels,
       timeMs,
     );
     this.storeAll(baked, timeMs, this.dirtySeq);
@@ -618,7 +667,7 @@ export class ChunkedLighting {
     let y1 = -Infinity;
     for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
       for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
-        const entry = this.cache.get(chunkCacheKey(cx, cy));
+        const entry = this.cache.get(this.key(cx, cy));
         if (!entry) continue;
         const wanted = this.phaseOf(entry.animated, timeMs);
         if (!entry.stale && entry.byPhase.has(wanted)) continue;
@@ -636,7 +685,7 @@ export class ChunkedLighting {
     const at = this.dirtySeq;
     this.inFlight++;
     void baker
-      .bake({ x0, y0, x1, y1 }, timeMs)
+      .bake({ x0, y0, x1, y1 }, this.levels, timeMs)
       .then((baked) => {
         this.storeAll(baked, timeMs, at);
         this.version++;
@@ -647,7 +696,8 @@ export class ChunkedLighting {
       });
   }
 
-  packedGridFor(map: MapFile, rect: WorldRect, timeMs = 0): PackedLightGrid {
+  packedGridFor(map: MapFile, rect: LightWindow, timeMs = 0): PackedLightGrid {
+    this.useLevels(rect);
     this.tick++;
     this.fillMissing(map, rect, timeMs);
     if (this.lastBakedChunks === 0 && !this.refreshWanted) {
@@ -656,7 +706,7 @@ export class ChunkedLighting {
 
     const key = [
       "packed",
-      chunkSpanKey(rect),
+      chunkSpanKey(rect, this.levels),
       this.version,
       this.windowPhaseKey(rect, timeMs),
     ].join("|");
@@ -686,7 +736,7 @@ export class ChunkedLighting {
       for (let cx = cx0; cx <= cx1; cx++) {
         const held = this.drawable(cx, cy, timeMs);
         if (!held) continue;
-        this.cache.get(chunkCacheKey(cx, cy))!.usedAt = this.tick;
+        this.cache.get(this.key(cx, cy))!.usedAt = this.tick;
         blitPacked(planesByZ, held.planes, cx - cx0, cy - cy0, w, h);
       }
     }
@@ -711,7 +761,7 @@ export class ChunkedLighting {
       for (let cx = cx0; cx <= cx1; cx++) {
         const held = this.drawable(cx, cy, timeMs);
         if (!held) continue;
-        this.cache.get(chunkCacheKey(cx, cy))!.usedAt = this.tick;
+        this.cache.get(this.key(cx, cy))!.usedAt = this.tick;
         this.blitChunk(rawByZ, held.planes, cx - cx0, cy - cy0, w, h);
       }
     }

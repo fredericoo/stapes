@@ -1,8 +1,11 @@
 import { chunkKeyAt } from "../lib/mapData";
-import { CHUNK_SIZE, MAX_LEVEL, MIN_LEVEL, levelKey } from "../lib/types";
+import { CHUNK_SIZE, levelKey } from "../lib/types";
 import type { MapFile } from "../lib/types";
 import type { WorldRect } from "../lib/lightingChunks";
-import { MESH_WINDOW_MARGIN } from "../lib/view";
+import { type LevelRange, MESH_WINDOW_MARGIN } from "../lib/view";
+
+/** The camera's rect on level 0, and the levels drawn through it. */
+export type MeshWindow = WorldRect & { levels: LevelRange };
 
 export { MESH_WINDOW_MARGIN } from "../lib/view";
 
@@ -21,14 +24,15 @@ function levelRect(window: WorldRect, z: number): WorldRect {
   };
 }
 
-export function cellInMeshWindow(window: WorldRect, x: number, y: number, z: number): boolean {
+export function cellInMeshWindow(window: MeshWindow, x: number, y: number, z: number): boolean {
+  if (z < window.levels.z0 || z > window.levels.z1) return false;
   const rect = levelRect(window, z);
   return x >= rect.x0 && x <= rect.x1 && y >= rect.y0 && y <= rect.y1;
 }
 
-export function visibleChunkKeys(map: MapFile, window: WorldRect): Set<string> {
+export function visibleChunkKeys(map: MapFile, window: MeshWindow): Set<string> {
   const wanted = new Set<string>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (let z = window.levels.z0; z <= window.levels.z1; z++) {
     const level = map.levels[levelKey(z)];
     if (level === undefined) continue;
 
