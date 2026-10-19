@@ -1,14 +1,22 @@
 import type { LightDef, MapFile, PlacedTile, TileDef } from "./types";
 import {
+  CHUNK_SIZE,
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
   levelKey,
+  parseCoordKey,
   resolveLightPassing,
 } from "./types";
 import { elevationAt, footElevation, getStack, presentLevels, terrainHeight } from "./mapData";
-import { computeLightingFlood, MAX_LIGHT_LEVEL, parseHexColor } from "./lightingFlood";
+import {
+  computeLightingFlood,
+  type FloodDomain,
+  MAX_LIGHT_LEVEL,
+  parseHexColor,
+} from "./lightingFlood";
+import type { LevelRange } from "./view";
 import { resolveLight } from "./tileResolve";
 
 export { MAX_LIGHT_LEVEL };
@@ -388,15 +396,50 @@ function castEmitter(
   if (selfIndex >= 0) occlusion.opacity[selfIndex] = savedSelfOpacity;
 }
 
+/**
+ * Every chunk on `levels` that holds anything, widened by the furthest a
+ * light can reach, so nothing lit from inside it is cropped.
+ */
+function floodDomainOn(map: MapFile, levels: LevelRange): FloodDomain | undefined {
+  let cx0 = Infinity;
+  let cy0 = Infinity;
+  let cx1 = -Infinity;
+  let cy1 = -Infinity;
+  for (const z of presentLevels(map)) {
+    if (z < levels.z0 || z > levels.z1) continue;
+    for (const key in map.levels[levelKey(z)]) {
+      const { x: cx, y: cy } = parseCoordKey(key);
+      if (cx < cx0) cx0 = cx;
+      if (cy < cy0) cy0 = cy;
+      if (cx > cx1) cx1 = cx;
+      if (cy > cy1) cy1 = cy;
+    }
+  }
+  if (!Number.isFinite(cx0)) return undefined;
+  const firstCell = (c: number) => c * CHUNK_SIZE;
+  return {
+    x0: firstCell(cx0) - MAX_LIGHT_LEVEL,
+    y0: firstCell(cy0) - MAX_LIGHT_LEVEL,
+    x1: firstCell(cx1 + 1) - 1 + MAX_LIGHT_LEVEL,
+    y1: firstCell(cy1 + 1) - 1 + MAX_LIGHT_LEVEL,
+    z0: levels.z0,
+    z1: levels.z1,
+  };
+}
+
+/** With `levels`, lights only those, over whatever they hold. */
 export function computeLighting(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   ambient: [number, number, number],
   overrides?: ReadonlyArray<EmitterOverride>,
   omitLightTileIds?: ReadonlySet<string>,
+  levels?: LevelRange,
 ): LightGrid {
+  const domain = levels ? floodDomainOn(map, levels) : undefined;
+  if (levels && !domain) return { levels: new Map() };
   return composeLightGrid(
-    computeLightingFlood(map, tilesById, overrides, omitLightTileIds),
+    computeLightingFlood(map, tilesById, overrides, omitLightTileIds, domain),
     ambient,
   );
 }
