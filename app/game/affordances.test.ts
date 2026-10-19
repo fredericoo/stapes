@@ -40,6 +40,7 @@ const tiles = [
   tile({ id: "wall", height: 4 }),
   tile({ id: "bed", height: 1, footprint: { w: 2, d: 1 } }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
+  tile({ id: "skull", kind: "item", height: 1, interactions: { item: { type: "artifact" } } }),
   tile({
     id: "shield",
     kind: "item",
@@ -496,6 +497,44 @@ describe("canDropAt", () => {
     expect(canDropAt(crate, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(true);
   });
 
+  describe("on a square that has filled its level", () => {
+    const skull = tilesById.skull!;
+    const pillar = [{ tileId: "grass" }, { tileId: "rock" }, { tileId: "rock" }];
+    const TO = { x: 1, y: 0, z: 0 };
+
+    it("carries a thing that no longer fits up onto the level above", () => {
+      const map = replaceStack(field(), 1, 0, 0, pillar);
+      expect(dropDestinationAt(map, tilesById, ME, TO, skull)).toEqual({
+        kind: "stack",
+        at: { ...TO, z: 1 },
+      });
+    });
+
+    it("keeps climbing while each level above is full as well", () => {
+      let map = replaceStack(field(), 1, 0, 0, pillar);
+      map = replaceStack(
+        map,
+        1,
+        0,
+        1,
+        Array.from({ length: 4 }, () => ({ tileId: "skull" })),
+      );
+      expect(dropDestinationAt(map, tilesById, ME, TO, skull)).toEqual({
+        kind: "stack",
+        at: { ...TO, z: 2 },
+      });
+    });
+
+    it("refuses when the top of the square cannot be stood on", () => {
+      const map = replaceStack(field(), 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "rock" },
+        { tileId: "bush" },
+      ]);
+      expect(dropDestinationAt(map, tilesById, ME, TO, skull)).toBeNull();
+    });
+  });
+
   describe("what catches it", () => {
     const bag = tilesById.bag!;
 
@@ -520,12 +559,14 @@ describe("canDropAt", () => {
       ]);
       expect(dropDestinationAt(full, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toEqual({
         kind: "stack",
+        at: { x: 1, y: 0, z: 0 },
       });
     });
 
     it("lands on top when the thing thrown is itself a container", () => {
       expect(dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, bag)).toEqual({
         kind: "stack",
+        at: { x: 1, y: 0, z: 0 },
       });
     });
 
@@ -537,6 +578,7 @@ describe("canDropAt", () => {
       ]);
       expect(dropDestinationAt(covered, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toEqual({
         kind: "stack",
+        at: { x: 1, y: 0, z: 0 },
       });
     });
 

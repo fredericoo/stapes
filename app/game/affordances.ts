@@ -1,5 +1,10 @@
 import { resolveDialog } from "../lib/dialog";
-import { absoluteStandingElevation, getStack, walkableElevInStack } from "../lib/mapData";
+import {
+  absoluteStandingElevation,
+  footingOfStack,
+  getStack,
+  walkableFloorAbove,
+} from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
 import type {
   AddStatusInteraction,
@@ -24,7 +29,7 @@ import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from ".
 import type { EquipSlot } from "../lib/kit";
 import { stowFits } from "../lib/piles";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { footprintOf, HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
+import { footprintOf, HEIGHT_PER_LEVEL, MAX_LEVEL, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
 import { handAccepts, handHasRoomFor, wornAccepts, type Equipment } from "./equipment";
@@ -370,7 +375,35 @@ export const DROP_CELLS = 5;
 
 const DROP_CELLS_SQUARED = DROP_CELLS * DROP_CELLS;
 
-export type DropDestination = { kind: "stack" } | { kind: "contents"; ref: ObjectRef };
+export type DropDestination = { kind: "stack"; at: Coord } | { kind: "contents"; ref: ObjectRef };
+
+function hasFloor(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>): boolean {
+  const footing = footingOfStack(getStack(map, cell.x, cell.y, cell.z), tilesById);
+  if (footing) return footing.walkable;
+  const below = getStack(map, cell.x, cell.y, cell.z - 1);
+  return walkableFloorAbove(cell.z - 1, below, tilesById) != null;
+}
+
+/**
+ * Where things put down on `cell` come to rest. A stack that has filled its
+ * level is the floor of the level above, so whatever no longer fits carries on
+ * up onto it, which is what lets a pile of skulls grow past one level.
+ */
+export function landingFor(
+  map: MapFile,
+  cell: Coord,
+  placements: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): Coord | null {
+  for (let z = cell.z; z <= MAX_LEVEL; z++) {
+    const at = { x: cell.x, y: cell.y, z };
+    if (!hasFloor(map, at, tilesById)) return null;
+    const stack = getStack(map, at.x, at.y, at.z);
+    if (canReplaceStack(map, at.x, at.y, at.z, [...stack, ...placements], tilesById).ok) return at;
+    if (walkableFloorAbove(z, stack, tilesById) == null) return null;
+  }
+  return null;
+}
 
 export function dropDestinationAt(
   map: MapFile,
@@ -401,11 +434,8 @@ export function dropDestinationAt(
     return { kind: "contents", ref: { ...to, stackIndex } };
   }
 
-  if (walkableElevInStack(stack, tilesById) == null) return null;
-
-  const next = [...stack, { tileId: def.id }];
-  if (!canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok) return null;
-  return { kind: "stack" };
+  const at = landingFor(map, to, [{ tileId: def.id }], tilesById);
+  return at ? { kind: "stack", at } : null;
 }
 
 export function canDropAt(
