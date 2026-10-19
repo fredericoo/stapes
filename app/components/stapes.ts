@@ -5,10 +5,11 @@ import type { TalkAction } from "../game/dialogRuntime";
 import type { Equipment } from "../game/equipment";
 import type { ActorSnapshot } from "../game/GameSession";
 import type { ConsumeSource } from "../game/itemUse";
+import type { SlotRef } from "../game/itemMoves";
 import type { MinutesOfDay } from "../lib/clock";
 import { getStack } from "../lib/mapData";
 import type { MasteryXp } from "../lib/mastery";
-import type { Direction, PlacedTile } from "../lib/types";
+import type { Coord, Direction, PlacedTile } from "../lib/types";
 import type { ServerMessage } from "../net/protocol";
 import type { RemoteSession } from "../net/RemoteSession";
 import type { FrameStats } from "../render/frameProfile";
@@ -66,6 +67,7 @@ export type StapesAct =
   | { cancelCast: true }
   | { interact: ObjectRef }
   | { pickUp: ObjectRef }
+  | { drop: { from: SlotRef; to: Coord } }
   | { equip: ObjectRef }
   | { consume: ConsumeSource }
   | { talk: TalkAction }
@@ -316,6 +318,7 @@ function actOn(session: RemoteSession, input: StapesAct): boolean {
   if ("cancelCast" in input) return session.cancelCast();
   if ("interact" in input) return session.interact(input.interact);
   if ("pickUp" in input) return session.pickUp(input.pickUp);
+  if ("drop" in input) return session.drop(input.drop.from, input.drop.to);
   if ("equip" in input) return session.equip(input.equip);
   if ("consume" in input) return session.consume(input.consume);
   if ("talk" in input) return session.talk(input.talk);

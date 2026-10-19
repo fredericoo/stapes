@@ -724,8 +724,8 @@ it and `WorldPage` installs it.
 
 - `command(text)` sends a chat command and resolves to its `CommandReply`.
 - `act(input)` sends what a player sends: a step, held directions, a facing, a
-  target, attack mode, a cast, using or picking up a thing, eating, talking,
-  saying something, rebirth.
+  target, attack mode, a cast, using, picking up or putting down a thing,
+  eating, talking, saying something, rebirth.
 - `snapshot()` is the world as this client holds it: every body it knows with
   its cell, health and statuses, the hour, and the player's own kit and target.
   `stack(x, y, z)` reads one cell.
