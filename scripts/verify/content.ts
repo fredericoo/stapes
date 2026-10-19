@@ -78,6 +78,7 @@ export const content: Command = {
     const report = checkContent({
       tiles: await load(join(dir, "tiles.json"), JSON.parse),
       statuses: await load(join(dir, "statuses.json"), JSON.parse),
+      traits: await load(join(dir, "traits.json"), JSON.parse),
       tilesets,
       sheetSizes: await sheetSizes(dir, tilesets),
       map: await load(join(dir, "map.json"), parseMap),

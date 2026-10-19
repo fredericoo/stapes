@@ -1,6 +1,6 @@
 import { findPlayers } from "../game/player";
 import { battlerIssues, resolveBattler } from "../lib/battler";
-import { resolveBrain, validateBrain } from "../lib/brain";
+import { needsExpansion, resolveBrain, validateBrain } from "../lib/brain";
 import { resolveDialog, validateDialog } from "../lib/dialog";
 import { parseFormula, statusesNamedIn } from "../lib/formula";
 import {
@@ -35,6 +35,13 @@ import {
 } from "../lib/status";
 import { tileArtError, tileIdentityError } from "../lib/tileSave";
 import {
+  type AuthoredBrain,
+  expandBrain,
+  type TraitCatalogue,
+  traitsById,
+  withTraits,
+} from "../lib/traits";
+import {
   type MapFile,
   MAX_LEVEL,
   MAX_LIGHT_LEVEL,
@@ -51,7 +58,12 @@ import { checkReferences, type Catalogue, iconProblem } from "./references";
 
 export type Severity = "error" | "warn";
 
-export type ContentFile = "tiles.json" | "statuses.json" | "tilesets.json" | "map.json";
+export type ContentFile =
+  | "tiles.json"
+  | "statuses.json"
+  | "traits.json"
+  | "tilesets.json"
+  | "map.json";
 
 export type Finding = {
   severity: Severity;
@@ -68,6 +80,7 @@ export type Loaded<T> = { value: T } | { error: string };
 export type ContentInput = {
   tiles: Loaded<unknown>;
   statuses: Loaded<unknown>;
+  traits: Loaded<unknown>;
   tilesets: Loaded<unknown>;
   sheetSizes: Record<string, SheetSize | null>;
   map: Loaded<MapFile>;
@@ -130,6 +143,8 @@ const KIND_OF_BLOCK: Partial<Record<keyof TileInteractions, TileDef["kind"]>> = 
   projectile: "projectile",
 };
 
+type ContentCatalogue = Catalogue & { traits: TraitCatalogue };
+
 type Entry = Record<string, unknown>;
 
 function isEntry(value: unknown): value is Entry {
@@ -151,19 +166,25 @@ function list(value: unknown): unknown[] {
 export function checkContent(input: ContentInput): ContentReport {
   const tileFindings = new Findings("tiles.json");
   const statusFindings = new Findings("statuses.json");
+  const traitFindings = new Findings("traits.json");
   const tilesetFindings = new Findings("tilesets.json");
   const mapFindings = new Findings("map.json");
 
   const rawTiles = parsed(input.tiles, tileFindings);
   const rawStatuses = parsed(input.statuses, statusFindings);
+  const rawTraits = parsed(input.traits, traitFindings);
   const rawTilesets = parsed(input.tilesets, tilesetFindings);
 
   const sheets = loadSheets(rawTilesets, input.sheetSizes, tilesetFindings);
-  const tiles = loadTiles(rawTiles, tileFindings);
+  if (!Array.isArray(rawTraits) && rawTraits !== UNREAD) {
+    traitFindings.error("", "", "traits.json is not a list of traits.");
+  }
+  const traits = traitsById(list(rawTraits));
+  const tiles = loadTiles(rawTiles, tileFindings, traits);
   const tilesById: Record<string, TileDef> = {};
   for (const { def } of tiles) tilesById[def.id] = def;
   const statusDefs = loadStatuses(rawStatuses, statusFindings);
-  const catalogue: Catalogue = { tilesById, statusDefs, sheets };
+  const catalogue: ContentCatalogue = { tilesById, statusDefs, sheets, traits };
 
   for (const { raw, def } of tiles) checkTile(raw, def, catalogue, tileFindings);
   checkStatuses(rawStatuses, catalogue, statusFindings);
@@ -174,6 +195,7 @@ export function checkContent(input: ContentInput): ContentReport {
   const findings = [
     ...tileFindings.list,
     ...statusFindings.list,
+    ...traitFindings.list,
     ...tilesetFindings.list,
     ...mapFindings.list,
   ].sort(
@@ -255,7 +277,11 @@ function loadSheets(
   return sheets;
 }
 
-function loadTiles(raw: unknown, findings: Findings): { raw: Entry; def: TileDef }[] {
+function loadTiles(
+  raw: unknown,
+  findings: Findings,
+  traits: TraitCatalogue,
+): { raw: Entry; def: TileDef }[] {
   if (!Array.isArray(raw)) {
     if (raw !== UNREAD) findings.error("", "", "tiles.json is not a list of tiles.");
     return [];
@@ -277,7 +303,8 @@ function loadTiles(raw: unknown, findings: Findings): { raw: Entry; def: TileDef
     }
     seen.add(entry.id);
     try {
-      loaded.push({ raw: entry, def: normalizeTileDef(entry) });
+      const [def] = withTraits([normalizeTileDef(entry)], traits);
+      loaded.push({ raw: entry, def: def! });
     } catch (error) {
       findings.error(id, "", `normalizeTileDef throws on this tile: ${messageOf(error)}.`);
     }
@@ -292,7 +319,7 @@ function loadStatuses(raw: unknown, findings: Findings): Record<string, StatusDe
   return statusesById(list(raw));
 }
 
-function checkTile(raw: Entry, def: TileDef, catalogue: Catalogue, findings: Findings) {
+function checkTile(raw: Entry, def: TileDef, catalogue: ContentCatalogue, findings: Findings) {
   const id = def.id;
   try {
     checkNormalised(raw, def, findings);
@@ -360,7 +387,7 @@ function checkNormalised(raw: Entry, def: TileDef, findings: Findings) {
   }
 }
 
-function checkBlocks(raw: Entry, def: TileDef, catalogue: Catalogue, findings: Findings) {
+function checkBlocks(raw: Entry, def: TileDef, catalogue: ContentCatalogue, findings: Findings) {
   const id = def.id;
   const blocks = isEntry(raw.interactions) ? raw.interactions : {};
   if (raw.interactions != null && !isEntry(raw.interactions)) {
@@ -402,7 +429,7 @@ function checkBlocks(raw: Entry, def: TileDef, catalogue: Catalogue, findings: F
     }
     if (key === "battler" || resolve(def) !== null) continue;
     if (key === "brain") {
-      const reasons = brainErrors(block);
+      const reasons = brainErrors(block, catalogue.traits, id);
       findings.error(
         id,
         path,
@@ -423,8 +450,13 @@ function checkBlocks(raw: Entry, def: TileDef, catalogue: Catalogue, findings: F
   checkBrainAndDialog(def, catalogue, findings);
 }
 
-function brainErrors(block: unknown): string[] {
+function brainErrors(block: unknown, traits: TraitCatalogue, id: string): string[] {
   try {
+    if (needsExpansion(block)) {
+      return expandBrain(block as AuthoredBrain, traits, id)
+        .issues.filter((issue) => issue.severity === "error")
+        .map((issue) => issue.message);
+    }
     return validateBrain(block as Parameters<typeof validateBrain>[0])
       .filter((issue) => issue.severity === "error")
       .map((issue) => issue.message);
@@ -480,7 +512,7 @@ function checkDroppedParts(raw: Entry, def: TileDef, findings: Findings) {
   }
 }
 
-function checkBrainAndDialog(def: TileDef, catalogue: Catalogue, findings: Findings) {
+function checkBrainAndDialog(def: TileDef, catalogue: ContentCatalogue, findings: Findings) {
   const brain = resolveBrain(def);
   if (brain) {
     for (const issue of validateBrain(brain)) {
