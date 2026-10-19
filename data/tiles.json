@@ -30588,7 +30588,7 @@
               "on": "target",
               "damage": 15,
               "variance": 40,
-              "projectile": "arcane-bolt",
+              "projectile": "ember-breath",
               "statuses": [
                 {
                   "id": "burned",
@@ -38685,6 +38685,288 @@
           "edgeColor": "#ff9e40",
           "edgeWidth": 0.15
         }
+      }
+    }
+  },
+  {
+    "id": "ember-breath",
+    "name": "Ember Breath",
+    "height": 0,
+    "type": "simple",
+    "kind": "projectile",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 70,
+          "light": {
+            "radius": 3,
+            "intensity": 0.9,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 70,
+          "light": {
+            "radius": 3,
+            "intensity": 0.9,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 70,
+          "light": {
+            "radius": 3,
+            "intensity": 0.9,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 9,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 70,
+          "light": {
+            "radius": 3,
+            "intensity": 0.9,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 70,
+          "light": {
+            "radius": 3,
+            "intensity": 0.9,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 15,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 70,
+          "light": {
+            "radius": 3,
+            "intensity": 0.9,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 110,
+      "ttlFromMs": 220,
+      "ttlToMs": 520,
+      "spawnRadiusCells": 0.3,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 2,
+      "riseFrom": 1,
+      "riseTo": 4,
+      "driftCellsPerSecond": 0.6,
+      "lit": false,
+      "gravity": 3,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "radiusFromPx": 2,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffe0a0"
+        },
+        {
+          "at": 0.2,
+          "color": "#fbb954"
+        },
+        {
+          "at": 0.5,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.75,
+          "color": "#e83b3b"
+        },
+        {
+          "at": 1,
+          "color": "#313638"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 8,
+        "hit": {
+          "durationMs": 300,
+          "particles": {
+            "ratePerSecond": 200,
+            "ttlFromMs": 250,
+            "ttlToMs": 650,
+            "spawnRadiusCells": 0.45,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 7,
+            "driftCellsPerSecond": 1.6,
+            "lit": false,
+            "gravity": -6,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "radiusFromPx": 1,
+            "radiusToPx": 3,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffe0a0"
+              },
+              {
+                "at": 0.2,
+                "color": "#fbb954"
+              },
+              {
+                "at": 0.5,
+                "color": "#fb6b1d"
+              },
+              {
+                "at": 0.75,
+                "color": "#e83b3b"
+              },
+              {
+                "at": 1,
+                "color": "#313638"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 200,
+        "scale": {},
+        "particles": {
+          "ratePerSecond": 160,
+          "ttlFromMs": 200,
+          "ttlToMs": 450,
+          "spawnRadiusCells": 0.3,
+          "spawnElevFrom": 0,
+          "spawnElevTo": 2,
+          "riseFrom": 2,
+          "riseTo": 6,
+          "driftCellsPerSecond": 1.4,
+          "lit": false,
+          "gravity": 4,
+          "offsetX": "",
+          "offsetY": "",
+          "offsetElev": "",
+          "radiusFromPx": 1,
+          "radiusToPx": 2,
+          "alphaFrom": 1,
+          "alphaTo": 0,
+          "ramp": [
+            {
+              "at": 0,
+              "color": "#ffe0a0"
+            },
+            {
+              "at": 0.2,
+              "color": "#fbb954"
+            },
+            {
+              "at": 0.5,
+              "color": "#fb6b1d"
+            },
+            {
+              "at": 0.75,
+              "color": "#e83b3b"
+            },
+            {
+              "at": 1,
+              "color": "#313638"
+            }
+          ]
+        }
+      },
+      "disappear": {
+        "durationMs": 150,
+        "scale": {}
       }
     }
   },
