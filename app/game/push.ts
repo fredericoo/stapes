@@ -74,7 +74,13 @@ function landingBelow(
   push: PushInteraction,
   tilesById: Record<string, TileDef>,
 ): PushCheck {
-  const landingAbs = findLandingAbs(map, x, y, fromAbs, tilesById);
+  /**
+   * `findLandingAbs` counts only tops strictly below the feet it is given. A
+   * floor level with the shoved feet is what the column would rest on, so it
+   * has to answer here; searching from `fromAbs` alone skipped it, and a push
+   * refused by that floor dropped through it to the level below.
+   */
+  const landingAbs = findLandingAbs(map, x, y, fromAbs + 1, tilesById);
   if (landingAbs == null) {
     return { ok: false, reason: "Nothing below to land on" };
   }
