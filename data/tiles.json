@@ -24325,11 +24325,6 @@
             "chance": 33
           },
           {
-            "slot": "armor",
-            "tileId": "raw-meat",
-            "chance": 12
-          },
-          {
             "slot": "bag",
             "tileId": "basic-bag",
             "chance": 100,
@@ -24337,6 +24332,10 @@
               {
                 "tileId": "skin",
                 "chance": 80
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 12
               }
             ]
           }
@@ -37133,8 +37132,14 @@
           },
           {
             "slot": "bag",
-            "tileId": "skin",
-            "chance": 25
+            "tileId": "basic-bag",
+            "chance": 25,
+            "contents": [
+              {
+                "tileId": "skin",
+                "chance": 100
+              }
+            ]
           }
         ]
       },
