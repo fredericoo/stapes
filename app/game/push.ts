@@ -5,7 +5,12 @@ import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/type
 import { HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { fitsHeightAtElevation } from "../lib/validation";
 import { FALL_MS_PER_HEIGHT, MAX_CLIMB_HEIGHT, PUSH_STEP_MS } from "./constants";
-import { DIR_DELTA, findLandingAbs, listStandingSurfaces } from "./movement";
+import {
+  DIR_DELTA,
+  findLandingAbs,
+  listStandingSurfaces,
+  standingSurfacesBetween,
+} from "./movement";
 
 /** `restsAt` is the absolute elevation the shoved column's feet end up at. */
 export type PushCheck = { ok: true; to: Coord; restsAt: number } | { ok: false; reason: string };
@@ -90,7 +95,7 @@ function landingBelow(
     return { ok: false, reason: "Nothing below to land on" };
   }
 
-  const surface = listStandingSurfaces(map, x, y, tilesById).find((s) => s.abs === landingAbs);
+  const [surface] = standingSurfacesBetween(map, x, y, landingAbs, landingAbs, tilesById);
   if (!surface) {
     return { ok: false, reason: "Landing surface is not walkable" };
   }
