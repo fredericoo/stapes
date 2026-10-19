@@ -48973,7 +48973,7 @@
       "64,-39": [{"tileId":"grass-2"}],
       "64,-38": [{"tileId":"grass-2"}],
       "64,-37": [{"tileId":"grass-2"},{"tileId":"wooden-floor"},{"tileId":"sw2"}],
-      "64,-36": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
+      "64,-36": [{"tileId":"grass-2"},{"tileId":"wooden-floor"},{"tileId":"dirt"}],
       "64,-35": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
       "64,-34": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
       "64,-33": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
