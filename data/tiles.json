@@ -30599,7 +30599,8 @@
               ]
             },
             "cooldownMs": 12000,
-            "castTimeMs": 1500,
+            "castTimeMs": 3000,
+            "uninterruptible": true,
             "sound": "*hhhaaa*",
             "requirements": {
               "arcane": 20,
