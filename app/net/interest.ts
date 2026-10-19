@@ -1,14 +1,19 @@
-import { chunkKeyAt, chunkKeyFor, getChunk, listChunkKeys } from "../lib/mapData";
+import { chunkKeyAt, chunkKeyFor, getChunk, listChunkKeys, presentLevels } from "../lib/mapData";
 import { LIGHT_APRON, LIGHT_CHUNK_SIZE, LIGHT_WINDOW_MARGIN } from "../lib/lightingChunks";
 import { MAX_LIGHT_LEVEL } from "../lib/types";
-import { CHUNK_SIZE, MAX_LEVEL, MIN_LEVEL, levelKey } from "../lib/types";
+import { CHUNK_SIZE, levelKey } from "../lib/types";
 import { MAP_FILE_VERSION } from "../lib/types";
 import type { FlatMapFile, MapFile, PlacedTile } from "../lib/types";
-import { MESH_WINDOW_MARGIN, VIEW_CELLS } from "../lib/view";
+import { MESH_WINDOW_MARGIN, VIEW_CELLS, VIEW_LEVEL_REACH } from "../lib/view";
 
+/**
+ * The client's light window is the union of the drawn levels' rects, and
+ * those levels are measured from the viewer, so the projection's shift adds
+ * `VIEW_LEVEL_REACH` cells a side here however deep the world goes.
+ */
 export const INTEREST_REACH_CELLS =
   Math.ceil(VIEW_CELLS / 2) +
-  (MAX_LEVEL - MIN_LEVEL) +
+  VIEW_LEVEL_REACH +
   LIGHT_WINDOW_MARGIN +
   LIGHT_CHUNK_SIZE +
   LIGHT_APRON;
@@ -17,7 +22,7 @@ export const INTEREST_REACH_CHUNKS = Math.ceil(INTEREST_REACH_CELLS / CHUNK_SIZE
 
 export const BODY_REACH_ON_LEVEL = Math.ceil(VIEW_CELLS / 2) + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL;
 
-export const BODY_REACH_CELLS = BODY_REACH_ON_LEVEL + (MAX_LEVEL - MIN_LEVEL);
+export const BODY_REACH_CELLS = BODY_REACH_ON_LEVEL + VIEW_LEVEL_REACH;
 
 export function withinBodyReach(
   at: { x: number; y: number; z: number },
@@ -36,7 +41,9 @@ export function withinBodyReachOf(
   y: number,
   z: number,
 ): boolean {
-  const reach = BODY_REACH_ON_LEVEL + Math.abs(z - atZ);
+  const levels = Math.abs(z - atZ);
+  if (levels > VIEW_LEVEL_REACH) return false;
+  const reach = BODY_REACH_ON_LEVEL + levels;
   return Math.abs(x - atX) <= reach && Math.abs(y - atY) <= reach;
 }
 
@@ -147,7 +154,7 @@ export function cellsOfChunks(
 ): Array<{ x: number; y: number; z: number; stack: PlacedTile[] }> {
   const out: Array<{ x: number; y: number; z: number; stack: PlacedTile[] }> = [];
   for (const chunk of chunks) {
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const z of presentLevels(map)) {
       const cells = getChunk(map, z, chunk);
       if (!cells) continue;
       for (const key in cells) {
@@ -170,7 +177,7 @@ export function mapOfInterest(
   held: ReadonlySet<string>,
 ): FlatMapFile {
   const levels: FlatMapFile["levels"] = {};
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     const present = listChunkKeys(map, z);
     const walk = present.length < chunks.size ? present : [...chunks];
     for (const chunk of walk) {
