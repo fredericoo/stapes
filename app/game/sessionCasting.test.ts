@@ -663,17 +663,12 @@ describe("a cooling stone is locked in its square", () => {
     expect(play.equipmentOf("local")?.weapon?.tileId).toBe("mend-stone");
   });
 
-  it("stays in its square when its owner dies, still cooling", () => {
+  it("drops with the rest of the kit when its owner dies", () => {
     const play = armed();
     play.runCommand("/health 0");
-    const deaths = play.drainDeaths();
-    expect(deaths).toHaveLength(1);
+    expect(play.drainDeaths()).toHaveLength(1);
 
-    expect(deaths[0]!.equipment.charm).toMatchObject({
-      tileId: "mend-stone",
-      cooldownMs: expect.any(Number),
-    });
-    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).not.toContain("mend-stone");
+    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain("mend-stone");
   });
 
   it("leaves the rest of the kit alone", () => {

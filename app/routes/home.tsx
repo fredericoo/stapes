@@ -8,6 +8,7 @@ import { Gallery } from "../components/home/Gallery";
 import { CANONICAL_ORIGIN, DISCORD_INVITE, media } from "../components/home/content";
 import { Hero } from "../components/home/Hero";
 import { NAV_HEIGHT_PX, NavBar } from "../components/home/NavBar";
+import { Permadeath } from "../components/home/Permadeath";
 import { PlaybackProvider, usePlayback } from "../components/home/playback";
 import { useOnScreen } from "../components/home/useOnScreen";
 import type { Route } from "./+types/home";
@@ -15,7 +16,7 @@ import "./home.css";
 
 const TITLE = "The Last Stones";
 const DESCRIPTION =
-  "A small MMO that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.";
+  "A hardcore retro MMORPG that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.";
 
 /**
  * The share image is in `public/` under a name with a version in it, not
@@ -92,6 +93,7 @@ export default function HomePage() {
         <main>
           <FeatureTour />
           <Dangers />
+          <Permadeath />
           <Gallery />
           <FinalCall />
         </main>

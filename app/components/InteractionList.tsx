@@ -7,7 +7,6 @@ import {
   IconGift,
   IconHand,
   IconHuman,
-  IconMapPin,
   IconMove,
   IconPickaxe,
   IconShirt,
@@ -61,7 +60,6 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   teleport: IconDoor,
   addStatus: IconFire,
   removeStatus: IconDroplet,
-  setSpawn: IconMapPin,
   consume: IconApple,
   reward: IconGift,
   craft: IconTools,
@@ -239,7 +237,6 @@ function InteractionBox({
 export function blockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return "working";
   if (blocked.kind === "taken") return "in use";
-  if (blocked.kind === "here") return null;
   return "no room";
 }
 

@@ -93,7 +93,6 @@ const CONTEXT: RefContext = {
   equipment: emptyEquipment(),
   openedRef: null,
   tags: [],
-  spawnAt: null,
   extracting: null,
   conversation: null,
   craftingRef: null,
