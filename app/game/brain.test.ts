@@ -3128,6 +3128,7 @@ describe("the bog imp and the cyclops we ship", () => {
     creature: string,
     minutes: number,
     extras: { flameX?: number; aliceX?: number; twinX?: number } = {},
+    tiles: TileDef[] = authored,
   ): GameSession {
     let map = emptyMap();
     for (let x = -20; x <= 20; x++) {
@@ -3148,7 +3149,7 @@ describe("the bog imp and the cyclops we ship", () => {
         { tileId: "player", direction: "w", owner: "alice" },
       ]);
     }
-    return new GameSession(map, authored, {
+    return new GameSession(map, tiles, {
       actorIds: ["alice"],
       spawnAt: { x: 20, y: 20, z: 0, stackIndex: 1 },
       seed: 20260925,
@@ -3242,6 +3243,80 @@ describe("the bog imp and the cyclops we ship", () => {
     expect(noisesOver(field("cyclops", NOON, { aliceX: 3 }), BRAIN_TICK_MS * 2)).toContain(
       "*BELLOW*",
     );
+  });
+
+  /** Long enough for the cyclops to close in, wait out its stomp's wind-in and land one. */
+  const STOMP_WATCH_MS = 16_000;
+  const FULL_HEALTH = "999";
+  const STURDY_BASE_HP = 500;
+
+  function hasStatus(session: GameSession, id: string, statusId: string): boolean {
+    return (session.statusesOf(id) ?? []).some((status) => status.defId === statusId);
+  }
+
+  /**
+   * The shipped cyclops with its fists and its maul taken away, against a
+   * player with health to spare: either alone kills a fresh player before the
+   * first stomp has left anything on them, and a brain with no player left
+   * stops thinking.
+   */
+  function pullingItsPunches(tiles: TileDef[]): TileDef[] {
+    return tiles.map((tile) => {
+      if (tile.id === "player") return withBaseHp(tile, STURDY_BASE_HP);
+      if (tile.id !== "cyclops") return tile;
+      const battler = tile.interactions!.battler!;
+      return {
+        ...tile,
+        interactions: {
+          ...tile.interactions,
+          battler: {
+            ...battler,
+            naturalWeapon: { ...battler.naturalWeapon, damage: 0 },
+            kit: (battler.kit ?? []).filter((entry) => entry.slot !== "weapon"),
+          },
+        },
+      };
+    });
+  }
+
+  function withBaseHp(tile: TileDef, baseHp: number): TileDef {
+    const battler = tile.interactions!.battler!;
+    return { ...tile, interactions: { ...tile.interactions, battler: { ...battler, baseHp } } };
+  }
+
+  it("has the cyclops stomp somebody who stays beside it, and leaves them dazed", () => {
+    const session = field("cyclops", NOON, { aliceX: 2 }, pullingItsPunches(authored));
+    const noises: string[] = [];
+    let dazed = false;
+    for (let elapsed = 0; elapsed < STOMP_WATCH_MS; elapsed += TICK_MS) {
+      session.runCommand(`/health ${FULL_HEALTH}`, "alice");
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) noises.push(noise.text);
+      dazed ||= hasStatus(session, "alice", "dazed");
+    }
+
+    expect(noises).toContain("*lifts a foot*");
+    expect(noises).toContain("*BOOM*");
+    expect(dazed).toBe(true);
+  });
+
+  it("enrages the cyclops once it is down to a third of its health", () => {
+    const session = field("cyclops", NOON, { aliceX: 3 });
+    const cyclops = body(session, "cyclops").id;
+    const maxHp = body(session, "cyclops").maxHp!;
+    session.runCommand(`/health ${Math.floor(maxHp / 4)} ${cyclops}`, "alice");
+
+    const noises = noisesOver(session, BRAIN_TICK_MS * 4);
+
+    expect(noises).toContain("*ROAR*");
+    expect(hasStatus(session, cyclops, "enraged")).toBe(true);
+  });
+
+  it("does not enrage a cyclops that is still mostly whole", () => {
+    const session = field("cyclops", NOON, { aliceX: 3 });
+    noisesOver(session, BRAIN_TICK_MS * 4);
+
+    expect(hasStatus(session, body(session, "cyclops").id, "enraged")).toBe(false);
   });
 });
 

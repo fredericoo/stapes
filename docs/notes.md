@@ -9992,6 +9992,52 @@ tunic, leather cap, worn boots, 50% each.
 It hunts the player on sight inside five cells and rats, rabbits, snakes, bats
 and deer inside six, all by day, and eats raw meat when it is hungry.
 
+### Stomp and rage
+
+Without a spell the cyclops could be kited: it walks a cell in 240ms against a
+player's 200ms, so anybody who kept stepping away could shoot it forever. Two
+spells change that.
+
+- **Stomp** (spell 2) is an area around the cyclops: a circle of radius 5,
+  through walls, reaching a whole level up or down (height 4), 30 damage at 20%
+  variance and **Dazed** (half walking speed, −15 accuracy, −40 dodge, 6–7
+  seconds) on everybody else in it. It winds up for 1.5 seconds,
+  uninterruptible, with `*lifts a foot*` over its head and the cells marked on
+  the ground, and lands with `*BOOM*`. A player who reacts at once walks about
+  seven cells in that time, so stepping out of the circle is the answer, not
+  hitting it harder. The −40 to `flee` takes a rung-33 veteran's dodge (53)
+  below a fresh character's (21), so the cyclops's next blows land. It lasts
+  longer than the cyclops's slowest swing (5.8 seconds with its fists, 5.7 with
+  the maul, from `swingIntervalMs`) so that at least one blow falls inside it,
+  with a second spare for the cyclops to step back into reach. The height is a
+  level rather than the half level a reach usually has: measured from the
+  cyclops's feet, half a level missed everybody when it stood on a forge, and
+  its tower is not flat.
+- It is cast from a `stomping` state, entered from `hunting` or `raging` when
+  the prey is within 3 cells and the cyclops has been in that state for 9
+  seconds. `after` is the only clock a brain has, and 9 seconds plus the 1.8
+  seconds `stomping` holds is longer than the 10-second cooldown, so it never
+  stands in `stomping` with the spell still cooling. The first row of
+  `stomping` holds it there for 1.8 seconds whatever else is true. The same
+  pattern as the town guard's `healing` keeps the `any` rows below from
+  pulling it out mid-stomp.
+- **Rage** (spell 3) puts **Enraged** on the cyclops: +25% walking speed
+  (192ms a cell, faster than a player), +10 attack speed, +5 damage, −5
+  defence, a red tint, for 30 seconds, recast on its 30-second cooldown with
+  `*ROAR*`. It is cast from `raging`, which `hunting` enters at 30% health or
+  less. `raging`'s last row holds it there, so it fights to the end. It leaves
+  only when its prey is 12 cells away or gone.
+- The stomp, the transitions into `stomping` and `raging`, and the rows that
+  hold those states all sit at the top of the transition list. A row further
+  down would never be read while the prey is in sight, because the
+  `any`-to-`hunting` row on sight matches first.
+
+The Arena's `Duel` has no spells and no statuses, so neither spell shows in
+`runDuel` or `verify battle`, and the solo figures above are unchanged by them.
+`brain.test.ts` shows the stomp landing and the rage starting in a session.
+The damage and the status numbers are a first guess and have not been tuned
+against a group.
+
 ### The facings are a guess
 
 The goblin and the cyclops blocks are laid out in the troll's order, so the

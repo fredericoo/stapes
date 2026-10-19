@@ -46611,9 +46611,165 @@
                 "action": "hold"
               }
             ]
+          },
+          "stomping": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*lifts a foot*"
+              }
+            ],
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "raging": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 3
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "stomping",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 1800
+                }
+              ]
+            },
+            "to": "stomping"
+          },
+          {
+            "from": "stomping",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
+          },
+          {
+            "from": "hunting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 30
+            },
+            "to": "raging"
+          },
+          {
+            "from": "hunting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 3
+                },
+                {
+                  "cond": "after",
+                  "ms": 9000
+                }
+              ]
+            },
+            "to": "stomping"
+          },
+          {
+            "from": "raging",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 3
+                },
+                {
+                  "cond": "after",
+                  "ms": 9000
+                }
+              ]
+            },
+            "to": "stomping"
+          },
+          {
+            "from": "raging",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 12
+            },
+            "to": "wandering"
+          },
+          {
+            "from": "raging",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "raging"
+          },
+          {
+            "from": "raging",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "raging"
+          },
           {
             "from": "any",
             "if": {
@@ -47017,6 +47173,86 @@
               ]
             },
             "cooldownMs": 1000
+          },
+          {
+            "type": "stone",
+            "name": "Stomp",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "area": {
+                "shape": "circle",
+                "radius": 5,
+                "height": 4,
+                "affects": "others",
+                "throughWalls": true,
+                "damage": 30,
+                "variance": 20,
+                "statuses": [
+                  {
+                    "id": "dazed",
+                    "chance": 100
+                  }
+                ],
+                "burst": {
+                  "durationMs": 800,
+                  "particles": {
+                    "ratePerSecond": 200,
+                    "ttlFromMs": 300,
+                    "ttlToMs": 700,
+                    "spawnRadiusCells": 0.5,
+                    "spawnElevFrom": 0,
+                    "spawnElevTo": 0.5,
+                    "riseFrom": 1,
+                    "riseTo": 3,
+                    "driftCellsPerSecond": 0.4,
+                    "lit": true,
+                    "ownDepth": false,
+                    "gravity": -4,
+                    "offsetX": "",
+                    "offsetY": "",
+                    "offsetElev": "",
+                    "shape": null,
+                    "sizeFromPx": 5,
+                    "sizeToPx": null,
+                    "radiusFromPx": 1,
+                    "radiusToPx": 1,
+                    "alphaFrom": 0.9,
+                    "alphaTo": 0,
+                    "ramp": [
+                      {
+                        "at": 0,
+                        "color": "#c2a878"
+                      },
+                      {
+                        "at": 1,
+                        "color": "#5a4630"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "cooldownMs": 10000,
+            "castTimeMs": 1500,
+            "uninterruptible": true,
+            "sound": "*BOOM*"
+          },
+          {
+            "type": "stone",
+            "name": "Rage",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "enraged",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 30000,
+            "sound": "*ROAR*"
           }
         ]
       },
