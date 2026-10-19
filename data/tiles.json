@@ -35012,6 +35012,10 @@
                             "text": "It takes a lot of killing, and it hits like a falling wall."
                           },
                           {
+                            "kind": "say",
+                            "text": "When it lifts a foot, get well clear. And don't think you can outrun it once it's bleeding."
+                          },
+                          {
                             "kind": "goto",
                             "name": "cyclops"
                           }
