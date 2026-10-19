@@ -9416,7 +9416,9 @@ not do before.
 
 **The cave troll breathes.** `Ember breath` is a bolt with a cast time, so the
 fight opens with a bar over its head that a player can walk out of the way of.
-It is a fire spell because its *requirements* name Fire, which is the only place
+The bar is three seconds and `uninterruptible`: hitting the troll does not stop
+it, so the answer to the breath is to leave its reach, and the long bar is what
+leaves time to. It is a fire spell because its *requirements* name Fire, which is the only place
 a spell's element is written down — and the troll was given the Arcane and Fire
 to meet them, since an unmet requirement refuses the cast outright.
 

@@ -48,7 +48,13 @@ import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
-import { type AimAt, flightEmitter, flightLight, projectileViews } from "./projectileMotion";
+import {
+  type AimAt,
+  flightEmitter,
+  flightLight,
+  flightTrail,
+  projectileViews,
+} from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
 import { wadingFor } from "./wadeDepth";
 import { isCellVisible } from "./cameraSight";
@@ -2170,10 +2176,15 @@ export class GameRenderer {
     snap: GameSnapshot,
     emitters: ParticleEmitterSpec[] | undefined,
   ): ParticleEmitterSpec[] | undefined {
-    if (snap.flightEffects.length === 0) return emitters;
+    if (snap.flightEffects.length === 0 && snap.projectiles.length === 0) return emitters;
     let out = emitters;
     for (const effect of snap.flightEffects) {
       const spec = flightEmitter(effect);
+      if (spec) (out ??= []).push(spec);
+    }
+    const aimAt = this.aimAt(snap);
+    for (const flight of snap.projectiles) {
+      const spec = flightTrail(flight, this.tilesById[flight.tileId], aimAt);
       if (spec) (out ??= []).push(spec);
     }
     return out;

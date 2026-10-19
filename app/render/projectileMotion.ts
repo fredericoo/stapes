@@ -14,6 +14,7 @@ import { LIGHT_FADE_STEP_MS } from "./tileTransitions";
 import { CELL_CENTRE, depthBox, depthStackBias } from "../lib/geometry";
 import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import type { ParticleEmitterSpec } from "./particles";
+import type { ParticleEmitterDef } from "../lib/particleVfx";
 import {
   HEIGHT_PER_LEVEL,
   OCTANTS,
@@ -138,11 +139,32 @@ const FLIGHT_STACK_BIAS = 32;
 export function flightEmitter(effect: FlightEffect): ParticleEmitterSpec | null {
   const particles = effect.transition.particles;
   if (!particles) return null;
-  const { x, y, elevAbs } = effect.at;
-  const z = flightLevel(effect.at);
+  return emitterAt(effect.id, particles, effect.at);
+}
+
+/**
+ * The tile's own `particles`, given off from wherever the shot is while it
+ * flies. Each particle is born at an absolute position, so an emitter that
+ * moves every frame leaves a trail behind it, and the trail fades on its own
+ * once the shot lands and the emitter is dropped.
+ */
+export function flightTrail(
+  flight: ProjectileFlight,
+  def: TileDef | undefined,
+  aimAt?: AimAt,
+): ParticleEmitterSpec | null {
+  if (!def?.particles || !resolveProjectile(def)) return null;
+  if (flight.elapsedMs >= flight.durationMs) return null;
+  const at = flightPosition(flight, flight.elapsedMs / flight.durationMs, aimedAt(flight, aimAt));
+  return emitterAt(`${flight.id}:trail`, def.particles, at);
+}
+
+function emitterAt(id: string, config: ParticleEmitterDef, at: FlightPoint): ParticleEmitterSpec {
+  const { x, y, elevAbs } = at;
+  const z = flightLevel(at);
   return {
-    id: effect.id,
-    config: particles,
+    id,
+    config,
     cx: x + CELL_CENTRE,
     cy: y + CELL_CENTRE,
     footElev: elevAbs,
