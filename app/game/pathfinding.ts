@@ -3,7 +3,7 @@ import {
   DIR_DELTA,
   findLandingAbs,
   groundWalkSpeedPercent,
-  listStandingSurfaces,
+  standingSurfacesBetween,
   standingAbs,
   surfacesInClimbBand,
   wadesAt,
@@ -96,7 +96,7 @@ export function dropLanding(
 ): Coord | null {
   const landingAbs = findLandingAbs(map, x, y, fromAbs + 1, tilesById);
   if (landingAbs == null) return null;
-  const surface = listStandingSurfaces(map, x, y, tilesById).find((s) => s.abs === landingAbs);
+  const [surface] = standingSurfacesBetween(map, x, y, landingAbs, landingAbs, tilesById);
   if (!surface) return null;
   if (!fitsAtElevation(map, x, y, surface.abs, tileDef, tilesById).ok) return null;
   return { x, y, z: surface.z };

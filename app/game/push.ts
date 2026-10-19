@@ -4,7 +4,12 @@ import { CLIMB_HEIGHT_UNITS } from "../lib/interactions";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { fitsHeightAtElevation } from "../lib/validation";
-import { DIR_DELTA, findLandingAbs, listStandingSurfaces } from "./movement";
+import {
+  DIR_DELTA,
+  findLandingAbs,
+  listStandingSurfaces,
+  standingSurfacesBetween,
+} from "./movement";
 
 export type PushCheck = { ok: true; to: Coord } | { ok: false; reason: string };
 
@@ -85,7 +90,7 @@ function landingBelow(
     return { ok: false, reason: "Nothing below to land on" };
   }
 
-  const surface = listStandingSurfaces(map, x, y, tilesById).find((s) => s.abs === landingAbs);
+  const [surface] = standingSurfacesBetween(map, x, y, landingAbs, landingAbs, tilesById);
   if (!surface) {
     return { ok: false, reason: "Landing surface is not walkable" };
   }

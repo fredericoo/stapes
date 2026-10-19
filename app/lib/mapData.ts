@@ -16,6 +16,7 @@ import {
   HEIGHT_PER_LEVEL,
   MAP_FILE_VERSION,
   MAX_LEVEL,
+  MAX_STACK_HEIGHT,
   MIN_LEVEL,
   coordKey,
   levelKey,
@@ -232,6 +233,19 @@ export function presentLevels(map: MapFile): readonly number[] {
   return out;
 }
 
+/**
+ * The levels, lowest first, whose content can reach the heights `loAbs` to
+ * `hiAbs`, given that nothing rises more than `reach` units above its own
+ * level's floor.
+ */
+export function levelsReaching(loAbs: number, hiAbs: number, reach: number): number[] {
+  const z0 = Math.max(MIN_LEVEL, Math.floor((loAbs - reach) / HEIGHT_PER_LEVEL));
+  const z1 = Math.min(MAX_LEVEL, Math.floor(hiAbs / HEIGHT_PER_LEVEL));
+  const out: number[] = [];
+  for (let z = z0; z <= z1; z++) out.push(z);
+  return out;
+}
+
 const withAboveByLevels = new WeakMap<MapFile["levels"], readonly number[]>();
 
 /**
@@ -442,7 +456,7 @@ export function surfaceTileAt(
   tilesById: Record<string, TileDef>,
   exclude?: { z: number; stackIndex: number },
 ): PlacedTile | null {
-  const levels = presentLevels(map);
+  const levels = levelsReaching(abs, abs, MAX_STACK_HEIGHT);
   for (let i = levels.length - 1; i >= 0; i--) {
     const z = levels[i]!;
     let stack = getStack(map, x, y, z);
@@ -491,7 +505,7 @@ export function climbFromSourceAt(
   tilesById: Record<string, TileDef>,
   exclude?: { z: number; stackIndex: number },
 ): { def: TileDef; direction: Direction } | null {
-  const levels = presentLevels(map);
+  const levels = levelsReaching(fromAbs, fromAbs, MAX_STACK_HEIGHT);
   for (let i = levels.length - 1; i >= 0; i--) {
     const z = levels[i]!;
     let stack = getStack(map, x, y, z);
