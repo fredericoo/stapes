@@ -2,6 +2,8 @@ import { PLAYER_TILE_ID } from "../game/constants";
 import type { Direction, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
+  MAX_STACK_HEIGHT,
+  MAX_TILE_HEIGHT,
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
@@ -23,6 +25,7 @@ import {
   stackHeight,
   type StackEdit,
   presentLevels,
+  levelsReaching,
 } from "./mapData";
 
 export type PlaceResult = { ok: true } | { ok: false; reason: string };
@@ -139,7 +142,7 @@ function fitsInColumn(
     return { ok: true };
   }
 
-  if (top <= HEIGHT_PER_LEVEL * 2) {
+  if (top <= MAX_STACK_HEIGHT) {
     if (z >= MAX_LEVEL) {
       return { ok: false, reason: "Cannot overflow past the top level" };
     }
@@ -154,7 +157,7 @@ function fitsInColumn(
 
   return {
     ok: false,
-    reason: `Stack would exceed ${HEIGHT_PER_LEVEL * 2} height units`,
+    reason: `Stack would exceed ${MAX_STACK_HEIGHT} height units`,
   };
 }
 
@@ -303,7 +306,9 @@ export function fitsHeightAtElevation(
     return { ok: false, reason: "Out of vertical range" };
   }
 
-  for (const z of presentLevels(map)) {
+  /** A body can stand on the top of a stack and be as tall as any tile. */
+  const reach = MAX_STACK_HEIGHT + MAX_TILE_HEIGHT;
+  for (const z of levelsReaching(feetAbs, headAbs, reach)) {
     const stack = getStack(map, x, y, z);
     if (stack.length === 0) continue;
 
@@ -382,7 +387,7 @@ export function canReplaceStack(
     return { ok: true };
   }
 
-  if (e <= HEIGHT_PER_LEVEL * 2) {
+  if (e <= MAX_STACK_HEIGHT) {
     if (z >= MAX_LEVEL) {
       return { ok: false, reason: "Cannot overflow past the top level" };
     }
@@ -398,7 +403,7 @@ export function canReplaceStack(
 
   return {
     ok: false,
-    reason: `Stack would exceed ${HEIGHT_PER_LEVEL * 2} height units`,
+    reason: `Stack would exceed ${MAX_STACK_HEIGHT} height units`,
   };
 }
 
