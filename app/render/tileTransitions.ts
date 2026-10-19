@@ -19,7 +19,7 @@ export const MAX_LIVE_TRANSITIONS = 32;
 export const LIGHT_FADE_STEP_MS = 150;
 
 export const TOSS_MS = 300;
-export const TOSS_STAGGER_MS = 25;
+export const TOSS_STAGGER_MS = 100;
 
 export const TOSS_PEAK_LEVELS = 0.5;
 export const TOSS_BOUNCE_LEVELS = 0.2;
