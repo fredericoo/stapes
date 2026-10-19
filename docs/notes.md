@@ -14622,3 +14622,21 @@ Measured against the live model on eight chat situations, a few runs each:
   a request.
 - **Peaceful** stops the bot hunting and drops a hunt in progress; it still
   fights back against whatever attacks it.
+
+## A body taller than a level
+
+`TileHeight` runs to `HEIGHT_PER_LEVEL * 2`, and the cyclops is 8. Nothing new
+holds a tall body up: it is the same overflow a stack of barrels uses.
+`fitsInColumn` lets a stack reach into the level above when that level's cell
+holds nothing, and `fitsTile` refuses the cell above while something overflows
+into it. A walk asks `fitsHeightAtElevation`, which measures the walker's whole
+volume against every level, so any ceiling — a floor tile on the level above,
+a lintel over a doorway — stops an 8-tall creature that a 4-tall one walks
+under. The cyclops tower is open to the sky and its gate has nothing over it,
+which is why the cyclops still leaves by the gate.
+
+Two things follow that are wanted rather than accidental. `hasLineOfSight`
+measures from the top of the body, so a tall creature sees over a wall a
+person cannot. And a tall creature put somewhere roofed is taken out by
+`removeUnfitPlacements` on the next save, the same as any overflow into an
+occupied level.

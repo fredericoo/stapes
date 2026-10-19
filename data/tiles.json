@@ -46491,7 +46491,7 @@
   {
     "id": "cyclops",
     "name": "Cyclops",
-    "height": 4,
+    "height": 8,
     "type": "directional",
     "kind": "battler",
     "attributes": {},

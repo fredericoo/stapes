@@ -104,7 +104,8 @@ export type TileSprite = {
   phase?: SpritePhase;
 };
 
-export type TileHeight = 0 | 1 | 2 | 3 | 4;
+/** Past `HEIGHT_PER_LEVEL` a tile overflows into the level above, up to two levels; see `fitsInColumn`. */
+export type TileHeight = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export type TileType =
   | "simple"

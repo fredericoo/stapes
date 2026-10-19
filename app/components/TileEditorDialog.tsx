@@ -1520,6 +1520,8 @@ export function TileEditorDialog({
                     { value: 2, label: "2 half" },
                     { value: 3, label: "3 body" },
                     { value: 4, label: "4 full" },
+                    { value: 6, label: "6 tall" },
+                    { value: 8, label: "8 two levels" },
                   ]}
                   size="sm"
                 />
