@@ -31,7 +31,8 @@ import { beats, EFFECTIVENESS_EDGE, type Element, ELEMENTS } from "../lib/elemen
 import type { StatusDef } from "../lib/status";
 import { projectileTiles, resolveProjectile } from "../lib/projectile";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Input, Segmented, Select, SwitchField, Toggle } from "../ui";
+import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
+import { StatusCures } from "./StatusCures";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -395,45 +396,5 @@ function ElementReading({ elements, harms }: { elements: Element[]; harms: boole
       A <strong>{named(elements)}</strong> spell: {edge}% harder on {named(strong)} bodies
       {weak.length > 0 ? <>, softer on {named(weak)}</> : null}.
     </p>
-  );
-}
-
-function StatusCures({
-  cures,
-  statusDefs,
-  onChange,
-}: {
-  cures: string[];
-  statusDefs: Record<string, StatusDef>;
-  onChange: (cures: string[]) => void;
-}) {
-  const catalogue = Object.values(statusDefs);
-  const toggle = (id: string, on: boolean) =>
-    onChange(
-      catalogue
-        .map((def) => def.id)
-        .filter((candidate) => (candidate === id ? on : cures.includes(candidate))),
-    );
-
-  return (
-    <div className="flex flex-col gap-1.5 border-t-2 border-border pt-3">
-      <FieldLabel info="Taken off whoever it landed on, after the health moves and before any status above is rolled. A body the cast killed keeps nothing to cure.">
-        Cures
-      </FieldLabel>
-      <div className="flex flex-wrap gap-2">
-        {catalogue.map((def) => (
-          <Toggle
-            key={def.id}
-            size="sm"
-            variant="secondary"
-            pressed={cures.includes(def.id)}
-            onPressedChange={(on) => toggle(def.id, on)}
-            ariaLabel={`Cures ${def.name}`}
-          >
-            {def.name}
-          </Toggle>
-        ))}
-      </div>
-    </div>
   );
 }
