@@ -1678,7 +1678,7 @@ export function TileEditorDialog({
 
             <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
               <div className="flex items-center gap-2">
-                <FieldLabel info="Given off by every placement on the board, measured from the tile's own foot — a plume starting at height 4 leaves the top of a full-height tile. Nothing in a bag emits.">
+                <FieldLabel info="Given off by every placement on the board, measured from the tile's own foot — a plume starting at height 4 leaves the top of a full-height tile. A projectile gives them off all along its flight, which leaves a trail. Nothing in a bag emits.">
                   Particles
                 </FieldLabel>
                 <Switch
