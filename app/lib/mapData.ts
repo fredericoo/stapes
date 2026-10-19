@@ -211,6 +211,27 @@ export function getChunk(map: MapFile, z: number, chunk: string): ChunkCells | u
   return map.levels[levelKey(z)]?.[chunk];
 }
 
+const presentLevelsByLevels = new WeakMap<MapFile["levels"], readonly number[]>();
+
+/**
+ * The levels that hold anything, lowest first. A loop over these instead of
+ * `MIN_LEVEL..MAX_LEVEL` costs what the world contains rather than how deep it
+ * is allowed to go. Cached on the `levels` record, which `setStacks` replaces
+ * on every edit.
+ */
+export function presentLevels(map: MapFile): readonly number[] {
+  const cached = presentLevelsByLevels.get(map.levels);
+  if (cached) return cached;
+  const out: number[] = [];
+  for (const key in map.levels) {
+    const z = Number(key);
+    if (Number.isInteger(z) && z >= MIN_LEVEL && z <= MAX_LEVEL) out.push(z);
+  }
+  out.sort((a, b) => a - b);
+  presentLevelsByLevels.set(map.levels, out);
+  return out;
+}
+
 export function listChunkKeys(map: MapFile, z: number): string[] {
   const level = map.levels[levelKey(z)];
   return level ? Object.keys(level) : [];

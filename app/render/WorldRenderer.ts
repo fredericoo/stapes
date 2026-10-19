@@ -37,6 +37,7 @@ import {
 import {
   cellInMeshWindow,
   chunkAddressKey,
+  type MeshWindow,
   parseChunkAddress,
   visibleChunkKeys,
 } from "./meshWindow";
@@ -83,8 +84,6 @@ import { isSpanPart } from "../lib/footprint";
 import {
   CELL_SIZE,
   HEIGHT_PER_LEVEL,
-  MAX_LEVEL,
-  MIN_LEVEL,
   coordKey,
   cellPhaseMs,
   footprintOf,
@@ -101,7 +100,13 @@ import {
 import { hasSpriteStates, isMobileTile } from "../lib/interactions";
 import { clumpExtents } from "./depthClump";
 import { getFrames, resolveLight, resolveTileSprite } from "../lib/tileResolve";
-import { ChunkedLighting, LIGHT_WINDOW_MARGIN, type WorldRect } from "../lib/lightingChunks";
+import {
+  ChunkedLighting,
+  LIGHT_WINDOW_MARGIN,
+  type LightWindow,
+  type WorldRect,
+} from "../lib/lightingChunks";
+import { type LevelRange, lightLevels, viewLevels } from "../lib/view";
 import { canBakeOffThread, WorkerChunkBaker } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { wearsFlightTransition, type ProjectileView } from "./projectileMotion";
@@ -480,8 +485,16 @@ function rectSignature(rect: WorldRect | null): string {
   return rect ? `${rect.x0},${rect.y0},${rect.x1},${rect.y1}` : "-";
 }
 
-function sameRect(a: WorldRect | null, b: WorldRect): boolean {
-  return a !== null && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1;
+function sameWindow(a: MeshWindow | null, b: MeshWindow): boolean {
+  return (
+    a !== null &&
+    a.x0 === b.x0 &&
+    a.y0 === b.y0 &&
+    a.x1 === b.x1 &&
+    a.y1 === b.y1 &&
+    a.levels.z0 === b.levels.z0 &&
+    a.levels.z1 === b.levels.z1
+  );
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
@@ -523,7 +536,7 @@ export class WorldRenderer {
   private tilesById: Record<string, TileDef> = {};
   private levelGroups = new Map<number, THREE.Group>();
   private chunkGeometry = new Map<string, ChunkGeometry>();
-  private meshedWindow: WorldRect | null = null;
+  private meshedWindow: MeshWindow | null = null;
   private tileEmittersByLevel = new Map<number, ParticleEmitterSpec[]>();
   private tileEmittersStale = false;
   private readonly visibleEmitters: ParticleEmitterSpec[] = [];
@@ -655,7 +668,7 @@ export class WorldRenderer {
       this.lightingKey = "";
       this.staticLightGrid = null;
       if (this.view) {
-        this.applyMap(this.view.map, this.cameraWindow(this.view), true);
+        this.applyMap(this.view.map, this.meshWindow(this.view), true);
         if (this.lightingEnabled) this.updateLighting(this.view);
       }
       this.assetsReady = true;
@@ -683,7 +696,7 @@ export class WorldRenderer {
     }
 
     this.time("map", () => {
-      this.applyMap(view.map, this.cameraWindow(view), false);
+      this.applyMap(view.map, this.meshWindow(view), false);
       this.applyRoofCut(view.roofCut);
       this.flushChunkRebuilds();
     });
@@ -726,6 +739,8 @@ export class WorldRenderer {
 
   private readonly plumeCellHidden: CellHidden = (x, y, z) => {
     const view = this.view;
+    const drawn = this.meshedWindow?.levels;
+    if (drawn && (z < drawn.z0 || z > drawn.z1)) return true;
     if (!view || view.viewerZ === undefined) return cutHides(this.roofCut, x, y, z);
     return !isCellVisible(view.map, view.tilesById, { x, y, z }, view.viewerZ, this.roofCut);
   };
@@ -1459,9 +1474,9 @@ export class WorldRenderer {
     }
   }
 
-  private applyMap(map: MapFile, window: WorldRect, force: boolean) {
+  private applyMap(map: MapFile, window: MeshWindow, force: boolean) {
     const mapMoved = force || map !== this.prevMap;
-    if (!mapMoved && sameRect(this.meshedWindow, window)) return;
+    if (!mapMoved && sameWindow(this.meshedWindow, window)) return;
     if (mapMoved) this.overlaySig = null;
     if (force || !this.prevMap) this.discardGeometry();
     this.syncChunks(map, window);
@@ -1619,14 +1634,26 @@ export class WorldRenderer {
     return mat;
   }
 
-  private lightWindow(view: WorldView): WorldRect {
+  /**
+   * The rect is the union of the drawn levels' own rects; the levels lit are
+   * {@link lightLevels}, a wider band that moves in steps so the cache
+   * survives a short climb.
+   */
+  private lightWindow(view: WorldView): LightWindow {
     const base = this.cameraWindow(view);
+    const viewerZ = viewCentreZ(view);
+    const drawn = viewLevels(viewerZ);
     return {
-      x0: base.x0 + MIN_LEVEL - LIGHT_WINDOW_MARGIN,
-      y0: base.y0 + MIN_LEVEL - LIGHT_WINDOW_MARGIN,
-      x1: base.x1 + MAX_LEVEL + LIGHT_WINDOW_MARGIN,
-      y1: base.y1 + MAX_LEVEL + LIGHT_WINDOW_MARGIN,
+      x0: base.x0 + drawn.z0 - LIGHT_WINDOW_MARGIN,
+      y0: base.y0 + drawn.z0 - LIGHT_WINDOW_MARGIN,
+      x1: base.x1 + drawn.z1 + LIGHT_WINDOW_MARGIN,
+      y1: base.y1 + drawn.z1 + LIGHT_WINDOW_MARGIN,
+      levels: lightLevels(viewerZ),
     };
+  }
+
+  private meshWindow(view: WorldView): MeshWindow {
+    return { ...this.cameraWindow(view), levels: viewLevels(viewCentreZ(view)) };
   }
 
   private cameraWindow(view: WorldView): WorldRect {
@@ -1793,10 +1820,10 @@ export class WorldRenderer {
     this.movableBaseBox.clear();
   }
 
-  private syncChunks(next: MapFile, window: WorldRect) {
+  private syncChunks(next: MapFile, window: MeshWindow) {
     const prev = this.prevMap;
     const wanted = visibleChunkKeys(next, window);
-    const dirty = prev ? this.dirtyChunks(prev, next, wanted) : wanted;
+    const dirty = prev ? this.dirtyChunks(prev, next, wanted, window.levels) : wanted;
 
     for (const key of [...this.chunkGeometry.keys()]) {
       if (!wanted.has(key)) this.dropChunk(key);
@@ -1828,11 +1855,16 @@ export class WorldRenderer {
     this.meshedWindow = window;
   }
 
-  private dirtyChunks(prev: MapFile, next: MapFile, wanted: ReadonlySet<string>): Set<string> {
+  private dirtyChunks(
+    prev: MapFile,
+    next: MapFile,
+    wanted: ReadonlySet<string>,
+    levels: LevelRange,
+  ): Set<string> {
     const dirty = new Set<string>();
     if (prev === next) return dirty;
 
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (let z = levels.z0; z <= levels.z1; z++) {
       if (prev.levels[levelKey(z)] === next.levels[levelKey(z)]) continue;
       const changed = changedCellsOnLevel(prev, next, z);
       if (changed.size === 0) continue;

@@ -2,7 +2,7 @@ import { stackOcclusion } from "../lib/lighting";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { getStack } from "../lib/mapData";
 import type { Coord, MapFile, TileDef } from "../lib/types";
-import { MAX_LEVEL } from "../lib/types";
+import { viewLevels } from "../lib/view";
 
 function covers(
   map: MapFile,
@@ -21,7 +21,8 @@ export function isHiddenFromCamera(
   viewerZ: number,
   cut: RoofCut | undefined,
 ): boolean {
-  for (let z = at.z + 1; z <= MAX_LEVEL; z++) {
+  const top = viewLevels(viewerZ).z1;
+  for (let z = at.z + 1; z <= top; z++) {
     const step = z - at.z;
     const x = at.x + step;
     const y = at.y + step;

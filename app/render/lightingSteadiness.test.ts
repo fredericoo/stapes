@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { inBand } from "../lib/testLightWindow";
 import tilesJson from "../../data/tiles.json";
 import { fixtureTown } from "../lib/fixtureTown";
 import { ChunkedLighting } from "../lib/lightingChunks";
@@ -36,7 +37,7 @@ function drive(session: GameSession, walk: boolean) {
   const frame = () => {
     const map = session.getMap();
     lighting.syncTo(prev, map);
-    lighting.packedGridFor(map, window);
+    lighting.packedGridFor(map, inBand(window));
     prev = map;
     return lighting.bakedLastCall;
   };
