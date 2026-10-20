@@ -113,8 +113,8 @@ export function ItemCard({
       {card.effects.length > 0 ? (
         <Section title={card.effectsTitle}>
           <ul className="flex flex-col gap-1">
-            {card.effects.map((effect) => (
-              <EffectRow key={effect.id} effect={effect} tilesets={tilesets} />
+            {card.effects.map((effect, index) => (
+              <EffectRow key={`${effect.id}:${index}`} effect={effect} tilesets={tilesets} />
             ))}
           </ul>
         </Section>
