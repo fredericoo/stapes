@@ -2930,7 +2930,7 @@ describe("dying and coming back", () => {
         session: { actors: Map<string, { tags: readonly string[] }> };
         saveActors(actorIds: Iterable<string>, force: boolean): void;
       };
-      internals.session.actors.get("alice")!.tags = ["tutorial-light-stone"];
+      internals.session.actors.get("alice")!.tags = ["tutorial-spark-stone"];
       internals.saveActors(["alice"], true);
     });
     expect(await savedMasteries("alice")).toBeDefined();
