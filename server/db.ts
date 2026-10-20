@@ -136,6 +136,13 @@ const MIGRATIONS: readonly string[] = [
    )`,
   `CREATE INDEX IF NOT EXISTS death_victim_at ON death(victim_id, at)`,
   `CREATE INDEX IF NOT EXISTS death_killer_at ON death(killer_id, at)`,
+  `CREATE TABLE IF NOT EXISTS reign (
+     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+     character_id TEXT NOT NULL,
+     name         TEXT NOT NULL,
+     started_at   INTEGER NOT NULL,
+     ended_at     INTEGER
+   )`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

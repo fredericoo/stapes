@@ -857,6 +857,90 @@
 
 /* The sprites are drawn at `--cell` per game cell, so a rat and a piece of
    meat keep the sizes they have beside each other in the world. */
+.home-realm {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 112px 16px 0;
+  scroll-margin-top: var(--home-nav-h);
+}
+
+.home-realm-lede {
+  max-width: 38rem;
+  margin-top: 16px;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--home-text);
+}
+
+.home-realm-list {
+  display: grid;
+  gap: 12px;
+  max-width: 38rem;
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-realm-entry {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 2px solid var(--home-rule-faint);
+  background: var(--home-deep);
+}
+
+.home-realm-entry[data-king="true"] {
+  border-color: var(--color-label);
+}
+
+.home-realm-rank {
+  width: 1ch;
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--home-text-faint);
+}
+
+.home-realm-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.home-realm-name {
+  overflow: hidden;
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--color-paper);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-realm-entry[data-king="true"] .home-realm-name {
+  color: var(--color-label);
+}
+
+.home-realm-title {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--home-text-quiet);
+}
+
+.home-realm-rating {
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--home-text);
+}
+
+@media (min-width: 1024px) {
+  .home-realm {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+}
+
 .home-dangers {
   --cell: 40px;
   max-width: 76rem;

@@ -1591,7 +1591,7 @@ export class GameRenderer {
         kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y - labelHeadroomPx(height),
-        lines: [{ id: actor.id, text: sized }],
+        lines: [{ id: actor.id, text: sized, ...(actor.king ? { crown: true } : {}) }],
         order: drawOrder(
           actor.x,
           actor.y,

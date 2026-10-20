@@ -541,6 +541,40 @@ rather than add a query of its own.
   masteries back to nothing, and a death history from the old timeline beside a
   rating from the new one would describe two different characters.
 
+### The king is the highest-rated character alive, and every reign is a row
+
+`World.refreshRealm` ranks every character with a rating, at open and every
+`REALM_REFRESH_MS`, and `Realm.settle` crowns the first. `GET /api/realm` is
+public and returns the last ranking from memory, so a home page polled by
+many visitors never reads the database.
+
+- **Being dead is having no rating.** A death deletes the character's `mast:`
+  row and takes its body out of the session, so `GameServer.ratings()` no
+  longer has it. A reborn character comes back at the player tile's
+  masteries, which is the bottom of the table.
+- **A tie keeps the crown with its holder**, so two characters level on
+  rating do not trade it on every refresh. Between two who do not hold it,
+  the older character ranks first.
+- **A reign row is written through `ctx.storage.sql`, like a death**, so a
+  crown changes hands in the same checkpoint as the ratings that decided it.
+  The reign in progress is also kept on `Realm`, because the table does not
+  show it until that checkpoint. A process that dies before the checkpoint
+  loses the change of crown along with the ratings, and the next refresh
+  decides it again.
+- **`name` is a snapshot** of the generational name on the day of the
+  coronation, counted from `death`, so it can be a life behind for a death not
+  yet checkpointed. Neither id is a foreign key, for the same reason as in
+  `death`.
+- **`/api/reset` empties the table** through `World.resetWorld`, for the same
+  reason it empties `death`. `GameServer.resetWorld` does not, because the
+  in-tab world under `/admin/play` has no `reign` table.
+- **Bots are characters**, so a bot can be king.
+- **The game draws a crown before the king's name tag.** `World.refreshRealm`
+  hands the holder to `GameServer.crown`, which broadcasts `king` when it
+  changes, and every `hello` carries `kingId`. So a new king's crown appears
+  up to `REALM_REFRESH_MS` after their rating passes the old king's. The world
+  in the tab has no realm and never crowns anybody.
+
 ## A name is typed once and never again
 
 `app/lib/characterName.ts` holds the rules and both halves run them: the form so

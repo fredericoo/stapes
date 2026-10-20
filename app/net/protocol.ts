@@ -323,6 +323,10 @@ export type ServerMessage =
       minutesOfDay: number;
     }
   | {
+      type: "king";
+      actorId: string | null;
+    }
+  | {
       type: "hidden";
       on: boolean;
     }
@@ -333,6 +337,7 @@ export type ServerMessage =
       actorIds: string[];
       playerCount?: number;
       minutesOfDay: number;
+      kingId: string | null;
       hps: HpPatch[];
       names: NamePatch[];
       carriedLights: CarriedLightsPatch[];
@@ -584,6 +589,7 @@ const serverMessageSchema = v.variant("type", [
     actorIds: v.array(v.string()),
     playerCount: v.optional(v.number()),
     minutesOfDay: v.number(),
+    kingId: v.optional(v.nullable(v.string()), () => null),
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
     carriedLights: v.array(carriedLightsPatchSchema),
@@ -662,6 +668,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("players"),
     playerCount: v.number(),
+  }),
+  v.object({
+    type: v.literal("king"),
+    actorId: v.nullable(v.string()),
   }),
   v.object({
     type: v.literal("statuses"),
@@ -857,7 +867,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 31;
+export const PROTOCOL_VERSION = 32;
 
 export const MAX_STEPS_AHEAD = 8;
 

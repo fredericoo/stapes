@@ -325,6 +325,22 @@ body {
     drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
 }
 
+.world-label__line--crowned {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--world-label-brick) * 3);
+}
+
+.world-label__crown {
+  flex-shrink: 0;
+  width: calc(var(--world-label-brick) * 7);
+  height: calc(var(--world-label-brick) * 4);
+  color: var(--color-interact);
+  filter: drop-shadow(var(--o1) 0 0 #000) drop-shadow(var(--o1n) 0 0 #000)
+    drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
+}
+
 .world-label--name {
   color: var(--color-label);
   z-index: 0;

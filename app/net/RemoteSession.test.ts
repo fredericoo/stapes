@@ -1209,6 +1209,19 @@ describe("RemoteSession headcount", () => {
   });
 });
 
+describe("RemoteSession king", () => {
+  it("crowns the body the server names, and nobody once it names none", () => {
+    const { socket, session } = connected();
+    expect(session.selfSnapshot()?.king).toBe(false);
+
+    socket.deliver({ type: "king", actorId: SELF });
+    expect(session.selfSnapshot()?.king).toBe(true);
+
+    socket.deliver({ type: "king", actorId: null });
+    expect(session.selfSnapshot()?.king).toBe(false);
+  });
+});
+
 describe("RemoteSession attack mode", () => {
   it("puts the stance on the wire, once per change", () => {
     const { socket, session } = connected();

@@ -15,10 +15,14 @@ import type { Config } from "./config";
 import type { Database } from "./db";
 import { Feedback } from "./feedback";
 import { Deaths, type DeathRecord } from "./deaths";
+import { Realm, type Contender, type RealmState } from "./realm";
+import { generationalName } from "../app/lib/characterName";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 const DEATH_LIST_LIMIT = 500;
+
+const REALM_REFRESH_MS = 30_000;
 
 export type PlayerEntry = RosterEntry & {
   online: boolean;
@@ -31,6 +35,7 @@ export class World {
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private alarmTimer: ReturnType<typeof setTimeout> | null = null;
+  private realmTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly adminSockets = new WeakSet<GameSocket>();
   private readonly characterOf = new WeakMap<GameSocket, string>();
@@ -45,6 +50,7 @@ export class World {
     readonly maintenance: Maintenance,
     readonly feedback: Feedback,
     readonly deaths: Deaths,
+    private readonly realm: Realm,
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
@@ -86,6 +92,7 @@ export class World {
       await Maintenance.load(db),
       new Feedback(db),
       deaths,
+      await Realm.load(db, store),
       blobs,
       db,
       config,
@@ -96,6 +103,8 @@ export class World {
     store.onAlarmChange = (atMs) => world.rearmAlarm(atMs);
     world.startCheckpointing();
     world.startKeepalive();
+    await world.refreshRealm();
+    world.startRealmRefresh();
     return world;
   }
 
@@ -118,6 +127,50 @@ export class World {
       if (this.draining) return;
       for (const socket of this.hub.all()) socket.send(frame);
     }, KEEPALIVE_INTERVAL_MS);
+  }
+
+  private startRealmRefresh() {
+    this.realmTimer = setInterval(() => {
+      void this.refreshRealm().catch((error: unknown) => {
+        console.error("[world] realm refresh failed", error);
+      });
+    }, REALM_REFRESH_MS);
+  }
+
+  get realmState(): RealmState {
+    return this.realm.state;
+  }
+
+  /**
+   * A dead character is left out by having no rating: a death deletes its
+   * `mast:` row and takes its body out of the session.
+   */
+  async refreshRealm(): Promise<void> {
+    const [roster, ratings, { deaths }] = await Promise.all([
+      this.characters.roster(),
+      this.server.ratings(),
+      this.deaths.counts(),
+    ]);
+    const contenders: Contender[] = [];
+    for (const { character } of roster) {
+      if (!character) continue;
+      const rating = ratings.get(character.id);
+      if (rating === undefined) continue;
+      contenders.push({
+        characterId: character.id,
+        name: generationalName(character.name, 1 + (deaths.get(character.id) ?? 0)),
+        rating,
+        createdAt: character.createdAt,
+      });
+    }
+    this.realm.settle(contenders, Date.now());
+    this.server.crown(this.realm.kingId);
+  }
+
+  async resetWorld(): Promise<void> {
+    await this.server.resetWorld();
+    this.realm.forget();
+    await this.refreshRealm();
   }
 
   private rearmAlarm(atMs: number | null) {
@@ -262,7 +315,9 @@ export class World {
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     if (this.alarmTimer) clearTimeout(this.alarmTimer);
     if (this.keepaliveTimer) clearInterval(this.keepaliveTimer);
+    if (this.realmTimer) clearInterval(this.realmTimer);
     this.checkpointTimer = null;
+    this.realmTimer = null;
     this.alarmTimer = null;
     this.keepaliveTimer = null;
 

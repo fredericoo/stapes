@@ -244,6 +244,7 @@ function actor(
     casting: null,
     pvp,
     hidden: false,
+    king: false,
   };
 }
 

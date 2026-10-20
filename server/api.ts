@@ -289,6 +289,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       maintenance: world.maintenance.state !== null,
     }))
     .get("/maintenance", () => ({ maintenance: world.maintenance.state }))
+    .get("/realm", () => world.realmState)
     .guard({ headers: t.Object({ authorization: t.Optional(t.String()) }) })
     .post(
       "/reset",
@@ -296,7 +297,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         if (!(await authorized(headers.authorization, config))) {
           return status(404, "Not found");
         }
-        await world.server.resetWorld();
+        await world.resetWorld();
         return { ok: true as const };
       },
       { detail: { summary: "Destroy every position, kit, reward and mastery" } },

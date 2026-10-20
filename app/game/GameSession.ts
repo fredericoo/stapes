@@ -491,6 +491,7 @@ export type ActorSnapshot = {
   casting: CastProgress | null;
   pvp: boolean;
   hidden: boolean;
+  king: boolean;
 };
 
 export type NoiseEmission = {
@@ -5737,6 +5738,7 @@ export class GameSession implements PlaySession {
       casting: actor.casting?.progress ?? null,
       pvp: actor.pvp,
       hidden: actor.hidden,
+      king: false,
     };
   }
 

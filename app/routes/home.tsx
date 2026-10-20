@@ -10,6 +10,7 @@ import { Hero } from "../components/home/Hero";
 import { NAV_HEIGHT_PX, NavBar } from "../components/home/NavBar";
 import { Permadeath } from "../components/home/Permadeath";
 import { PlaybackProvider, usePlayback } from "../components/home/playback";
+import { Realm } from "../components/home/Realm";
 import { useOnScreen } from "../components/home/useOnScreen";
 import type { Route } from "./+types/home";
 import "./home.css";
@@ -91,6 +92,7 @@ export default function HomePage() {
         <NavBar shown={!heroInBand} />
         <Hero heroRef={heroRef} />
         <main>
+          <Realm />
           <FeatureTour />
           <Dangers />
           <Permadeath />

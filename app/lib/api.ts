@@ -4,6 +4,7 @@ import type { DeathRecord } from "../../server/deaths";
 import type { FeedbackEntry } from "../../server/feedback";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { PlayerEntry } from "../../server/world";
+import type { RealmState } from "../../server/realm";
 import type { CharacterSheet } from "../../server/GameServer";
 import type { TileDef, TilesetDef } from "./types";
 import type { RemovedPlacement } from "./validation";
@@ -87,6 +88,10 @@ export async function uploadTilesetBytes(name: string, bytes: Uint8Array): Promi
 
 export async function fetchMaintenance(): Promise<MaintenanceState | null> {
   return unwrap(await client.api.maintenance.get()).maintenance;
+}
+
+export async function fetchRealm(): Promise<RealmState> {
+  return unwrap(await client.api.realm.get());
 }
 
 export async function saveMaintenance(
