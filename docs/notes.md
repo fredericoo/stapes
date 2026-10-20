@@ -10936,6 +10936,12 @@ is the one thing two people's skulls must never be. An authored `remains` that
 *does* pile is not a trap: `PILE_FIELDS` is an allow-list and knows nothing
 about `engraved`, so two of them differ and never fuse.
 
+Both skull tiles have a height of 1, so one skull holds down a pressure plate
+(a plate's load is the summed height above it) and a player on their own can
+open the cyclops door. The cost is that skulls dying on one cell stack up one
+unit each. Piling them would fix that only by keeping one cause of death for
+the whole pile, so they stay separate.
+
 ### What killed you, in words written at the time
 
 `Blame` is `{ source, by? }` — "Fangs by Wolf", "Burned by Hearth", "Burning by

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
+import tilesRaw from "../../data/tiles.json";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Direction, MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { findPlateCells, loadAbove, settlePlates } from "./pressurePlates";
+import { plateTriggers, resolvePressurePlate } from "../lib/interactions";
 import { tile } from "../lib/testTile";
 
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
@@ -120,6 +122,16 @@ describe("loadAbove", () => {
   it("ignores flat and intangible tiles", () => {
     const stack = [{ tileId: "plate" }, { tileId: "rug" }, { tileId: "ghost" }];
     expect(loadAbove(stack, 0, tilesById)).toBe(0);
+  });
+});
+
+describe("the shipped pressure plate", () => {
+  const catalogue = tilesByIdFromList(normalizeTiles(tilesRaw as unknown[]));
+  const plate = resolvePressurePlate(catalogue["pressure-plate"]!)!;
+
+  it.each(["skull-troll", "skull-player"])("is pressed by one %s", (tileId) => {
+    const stack = [{ tileId: "grass-2" }, { tileId: "pressure-plate" }, { tileId }];
+    expect(plateTriggers(plate, loadAbove(stack, 1, catalogue))).toBe(true);
   });
 });
 
