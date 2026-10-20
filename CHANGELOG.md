@@ -1,5 +1,24 @@
 # the-last-stones
 
+## 0.3.0
+
+### Minor Changes
+
+- A skull is now heavy enough to hold down a pressure plate, so you can open the cyclops door on your own by leaving a skull on the plate.
+- There is now an Items page, linked from the front page, listing every item in the game with what it does and where to get it: which shop sells it and for how much, what crafts it, and which creatures drop it. You can search it and filter by type, element and where an item comes from.
+- The home page now shows the three highest-rated characters alive. The first of them is king, until they die or somebody passes them, and wears a crown beside their name in the game.
+- A silver chest in the town square is now your own depot: what you put in it is yours alone, shared by every character on your account, and still there after you die. On a phone, opening it opens your bag beside it so you can drag between the two.
+
+### Patch Changes
+
+- Picking things up, equipping, eating, talking and using things now work the moment you arrive, instead of waiting for the server to catch up with your last step.
+- Something you drop or throw onto a tile where somebody is standing, yourself included, now lands at their feet instead of on top of their head.
+- On an iPhone, tapping the chat box, the feedback box or the save-character form no longer zooms the game in and leaves it stuck that way.
+- On an iPhone, the last choice in a conversation or crafting panel no longer sits under Safari's tab bar, so you can reach the Trade and Cancel buttons again.
+- On an iPhone, the last thing in your reach list no longer sits under Safari's tab bar.
+- What you say now appears over your head the moment you send it, instead of after a trip to the server and back.
+- The chest past the tutorial portal now gives you Spark instead of Light, so you start with a stone that does damage and levels Arcane far faster.
+
 ## 0.2.0
 
 ### Minor Changes
