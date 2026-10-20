@@ -80,6 +80,10 @@ export class Realm {
     };
   }
 
+  get kingId(): string | null {
+    return this.reign?.characterId ?? null;
+  }
+
   forget(): void {
     this.store.sql.exec("DELETE FROM reign");
     this.reign = null;

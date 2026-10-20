@@ -734,6 +734,7 @@ export class GameServer {
   private sentCarriedLights = new Map<string, string>();
   private sentStatusIds = new Map<string, { defIds: string[]; key: string }>();
   private sentPvp = new Map<string, boolean>();
+  private kingId: string | null = null;
   /**
    * These three are compared by identity: the runtime mutates one object in
    * place for a whole pull, wait or cast and replaces it only when one starts
@@ -1533,6 +1534,12 @@ export class GameServer {
     }
   }
 
+  crown(actorId: string | null) {
+    if (actorId === this.kingId) return;
+    this.kingId = actorId;
+    this.broadcast({ type: "king", actorId });
+  }
+
   private playerCount(excluding?: GameSocket): number {
     let count = 0;
     for (const [actorId, sockets] of this.socketsByActor) {
@@ -1583,6 +1590,7 @@ export class GameServer {
       statuses: session.statusPatchesOf(actorId) ?? [],
       ...(attachment?.admin ? { playerCount: this.playerCount() } : {}),
       minutesOfDay: this.minutesOfDay(),
+      kingId: this.kingId,
       ...(diedAway ? { diedAway } : {}),
     };
     const map = mapOfInterestJson(session.getMap(), chunks, held);

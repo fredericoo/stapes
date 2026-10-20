@@ -164,6 +164,7 @@ export class World {
       });
     }
     this.realm.settle(contenders, Date.now());
+    this.server.crown(this.realm.kingId);
   }
 
   async resetWorld(): Promise<void> {

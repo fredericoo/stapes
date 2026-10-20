@@ -569,6 +569,11 @@ many visitors never reads the database.
   reason it empties `death`. `GameServer.resetWorld` does not, because the
   in-tab world under `/admin/play` has no `reign` table.
 - **Bots are characters**, so a bot can be king.
+- **The game draws a crown before the king's name tag.** `World.refreshRealm`
+  hands the holder to `GameServer.crown`, which broadcasts `king` when it
+  changes, and every `hello` carries `kingId`. So a new king's crown appears
+  up to `REALM_REFRESH_MS` after their rating passes the old king's. The world
+  in the tab has no realm and never crowns anybody.
 
 ## A name is typed once and never again
 

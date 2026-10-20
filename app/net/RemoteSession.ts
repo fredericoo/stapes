@@ -177,6 +177,7 @@ export class RemoteSession implements PlaySession {
   private readonly statusesById = new Map<string, StatusInstance[]>();
   private readonly extractionsById = new Map<string, ExtractionProgress>();
   private readonly pvpOn = new Set<string>();
+  private kingId: string | null = null;
   private readonly castingsById = new Map<string, CastProgress>();
   private equipment: Equipment = emptyEquipment();
   private spellCooldowns: Readonly<Record<string, number>> = {};
@@ -374,9 +375,15 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (message.type === "king") {
+      this.kingId = message.actorId;
+      return;
+    }
+
     if (message.type === "hello") {
       this.selfId = message.selfId;
       this.setClock(message.minutesOfDay);
+      this.kingId = message.kingId;
       this.serverMap = chunkifyMap(message.map as FlatMapFile);
       this.map = this.serverMap;
       this.pending = [];
@@ -1263,6 +1270,7 @@ export class RemoteSession implements PlaySession {
       casting: this.castingsById.get(id) ?? null,
       pvp: this.pvpOn.has(id),
       hidden: id === this.selfId && this.hidden,
+      king: id === this.kingId,
     };
   }
 
@@ -1648,5 +1656,6 @@ function offscreenActor(id: string): ActorSnapshot {
     casting: null,
     pvp: false,
     hidden: false,
+    king: false,
   };
 }

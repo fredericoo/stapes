@@ -538,6 +538,22 @@ describe("the realm", () => {
     expect(king).toEqual({ ...leaders[0], since: expect.any(Number) });
   });
 
+  it("tells everybody in the world who the king is", async () => {
+    const maren = await character("Maren Ormstead", 30);
+    const tobin = await character("Tobin Reed", 20);
+    const heard: unknown[] = [];
+    const socket = new GameSocket({
+      send: (data: string) => heard.push(JSON.parse(data)),
+      close: () => {},
+      closed: false,
+    });
+    await world.join(socket, tobin, { admin: false });
+
+    await realm();
+
+    expect(heard).toContainEqual({ type: "king", actorId: maren });
+  });
+
   it("passes the crown to the next in line when the king dies, and keeps the old reign", async () => {
     const maren = await character("Maren Ormstead", 30);
     const tobin = await character("Tobin Reed", 20);
