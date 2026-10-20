@@ -19,13 +19,15 @@ export function ItemCard({
   card,
   tile,
   tilesets,
+  className = "w-64",
 }: {
   card: ItemCardData;
   tile: TileDef;
   tilesets: TilesetDef[];
+  className?: string;
 }) {
   return (
-    <div aria-hidden className="flex w-64 max-w-full flex-col gap-1.5 py-0.5">
+    <div aria-hidden className={`flex max-w-full flex-col gap-1.5 py-0.5 ${className}`}>
       <header className="flex items-start gap-2">
         <span
           className="grid shrink-0 place-items-center border-2 border-ink/20 bg-ink/5"
@@ -152,6 +154,15 @@ const TONE_TEXT = {
 } as const;
 
 function RequirementRow({ row }: { row: ItemCardRequirement }) {
+  if (row.have === null) {
+    return (
+      <li className="flex items-baseline gap-2 text-detail leading-tight">
+        <span className="shrink-0 text-ink/80">{MASTERY_LABELS[row.mastery]}</span>
+        <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
+        <span className="shrink-0 font-bold tabular-nums">{row.required}</span>
+      </li>
+    );
+  }
   return (
     <li className="flex items-baseline gap-2 text-detail leading-tight">
       <span className={`shrink-0 font-bold ${row.met ? "text-accent" : "text-danger"}`}>

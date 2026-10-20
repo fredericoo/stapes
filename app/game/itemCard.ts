@@ -40,6 +40,7 @@ import {
   physicalShortfall,
   WEAPON_MASTERIES,
   type WeaponMastery,
+  xpFromMasteries,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import { bandLabel, HEADINGS, termSpoken, type TermKey } from "../lib/terms";
@@ -56,10 +57,11 @@ export type ItemCardStat = {
   tone: ItemCardTone;
 };
 
+/** `have` is null on a card that is not read by anybody in particular. */
 export type ItemCardRequirement = {
   mastery: Mastery;
   required: number;
-  have: number;
+  have: number | null;
   met: boolean;
 };
 
@@ -158,7 +160,7 @@ function requirementsFrom(
     const have = masteryLevel(masteries, mastery);
     rows.push({ mastery, required, have, met: have >= required });
   }
-  const missing = (row: ItemCardRequirement) => Math.max(0, row.required - row.have);
+  const missing = (row: ItemCardRequirement) => Math.max(0, row.required - (row.have ?? 0));
   return rows.sort((a, b) => missing(b) - missing(a));
 }
 
@@ -508,6 +510,26 @@ export function itemCard(
   return { ...card, speech: speak(card) };
 }
 
+/**
+ * The card read by somebody who has exactly met the item's requirements, so
+ * every figure is the item's own and nothing is dormant, with no level of the
+ * reader's beside a requirement.
+ */
+export function catalogueCard(
+  def: TileDef,
+  statusDefs: Record<string, StatusDef> = {},
+): ItemCard | null {
+  const item = resolveItem(def);
+  if (!item) return null;
+  const card = itemCard(def, null, xpFromMasteries(asEarned(demandsOf(item) ?? {})), statusDefs);
+  if (!card) return null;
+  const anonymous: ItemCard = {
+    ...card,
+    requirements: card.requirements.map((row) => ({ ...row, have: null, met: true })),
+  };
+  return { ...anonymous, speech: speak(anonymous) };
+}
+
 function clause(line: string): string {
   return line.replace(/[.\s]+$/, "");
 }
@@ -539,7 +561,11 @@ function speak(card: ItemCard): string {
     );
   }
   for (const row of card.requirements) {
-    lines.push(`Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`);
+    lines.push(
+      row.have === null
+        ? `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}`
+        : `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
+    );
   }
   for (const effect of card.effects) {
     lines.push(
