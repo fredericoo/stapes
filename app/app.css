@@ -63,12 +63,26 @@
     }
   }
 
+  /* Safari 26's tab bar floats over the page, and the home-indicator inset
+     alone is far shorter than it. `100lvh - 100dvh` is the height of whatever
+     browser chrome is showing at the bottom, and zero once it has collapsed. */
+  :root {
+    --toolbar-clearance: max(env(safe-area-inset-bottom), calc(100lvh - 100dvh));
+  }
+
   /* Padding rather than `scroll-padding`: the latter moves where a
      programmatic scroll comes to rest and adds no room at all, so a row at
      the very bottom would stay under the toolbar however you asked to be
-     taken to it. This is what makes that band scrollable space instead. */
+     taken to it. This is what makes that band scrollable space instead. It
+     only works on the element that scrolls. */
   .scrolls-past-toolbar {
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--toolbar-clearance);
+  }
+
+  /* For a box whose scroller is inside a border: padding there would leave
+     the border, and the last row, running under the toolbar. */
+  .clears-toolbar {
+    margin-bottom: var(--toolbar-clearance);
   }
 
   /* Naming a `scrollbar-color` is what opts a Chromium scroller out of
