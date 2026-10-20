@@ -50,7 +50,15 @@ import {
   resolveCharm,
 } from "../lib/item";
 import { affectsBody } from "../lib/area";
-import { appendItem, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
+import {
+  appendItem,
+  landingIndex,
+  peelOne,
+  pourInto,
+  stackWithItem,
+  stackWithLanding,
+  stow,
+} from "../lib/piles";
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
@@ -2792,14 +2800,14 @@ export class GameSession implements PlaySession {
       at.x,
       at.y,
       at.z,
-      [...stack, ...placements],
+      placements.reduce(stackWithLanding, stack),
       this.tilesById,
     );
     if (!room.ok) return false;
 
     let tossed = 0;
     for (const placed of placements) {
-      const stackIndex = getStack(this.map, at.x, at.y, at.z).length;
+      const stackIndex = landingIndex(getStack(this.map, at.x, at.y, at.z));
       this.map = appendItem(this.map, at.x, at.y, at.z, placed, this.tilesById);
       if (tossedFrom && this.noteToss(placed, { ...at, stackIndex }, tossedFrom, tossed)) {
         tossed++;
@@ -4569,7 +4577,7 @@ export class GameSession implements PlaySession {
 
     if (destination.kind === "contents") return true;
 
-    const stackIndex = getStack(emptied.map, to.x, to.y, to.z).length;
+    const stackIndex = landingIndex(getStack(emptied.map, to.x, to.y, to.z));
     this.reindexCells([to]);
     this.settleBoardNow();
     this.noteToss(placementFromInstance(instance), { ...to, stackIndex }, origin);

@@ -20,7 +20,7 @@ import {
 } from "../lib/interactions";
 import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
-import { stowFits } from "../lib/piles";
+import { stackWithLanding, stowFits } from "../lib/piles";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { footprintOf, HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
@@ -401,7 +401,7 @@ export function dropDestinationAt(
 
   if (walkableElevInStack(stack, tilesById) == null) return null;
 
-  const next = [...stack, { tileId: def.id }];
+  const next = stackWithLanding(stack, { tileId: def.id });
   if (!canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok) return null;
   return { kind: "stack" };
 }
