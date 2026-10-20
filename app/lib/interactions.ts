@@ -135,6 +135,16 @@ export type RewardInteraction = {
   claimedTileId?: string;
 };
 
+/**
+ * A container whose contents belong to whoever opens it. The tag is set per
+ * placement, so every placement sharing a tag opens the same stash.
+ */
+export type DepotInteraction = {
+  size: number;
+};
+
+export type PlacedDepot = DepotInteraction & { tag: string };
+
 export type PlacedReward = {
   actionName?: string;
   tag: string;
@@ -219,6 +229,7 @@ export type TileInteractions = {
   push?: PushInteraction;
   switch?: SwitchInteraction;
   reward?: RewardInteraction;
+  depot?: DepotInteraction;
   craft?: CraftInteraction;
   extract?: ExtractInteraction;
   teleport?: TeleportInteraction;
@@ -239,6 +250,10 @@ export const DEFAULT_SWITCH: SwitchInteraction = {
 
 export const DEFAULT_REWARD: RewardInteraction = {
   actionName: "",
+};
+
+export const DEFAULT_DEPOT: DepotInteraction = {
+  size: MAX_CONTAINER_SIZE,
 };
 
 export const DEFAULT_CRAFT_RECIPE: CraftRecipe = {
@@ -416,6 +431,40 @@ function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null
     tag: parsed.output.rewardTag,
     itemTileIds: parsed.output.rewardTileIds,
   };
+}
+
+const depotSchema = v.object({
+  size: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CONTAINER_SIZE)),
+});
+
+const depotCache = new WeakMap<TileDef, DepotInteraction | null>();
+
+export function resolveDepotDef(def: TileDef): DepotInteraction | null {
+  const cached = depotCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.depot;
+  const parsed = raw == null ? null : v.safeParse(depotSchema, raw);
+  const depot = parsed?.success ? parsed.output : null;
+  depotCache.set(def, depot);
+  return depot;
+}
+
+const placedDepotSchema = v.object({
+  depotTag: v.pipe(v.string(), v.trim(), v.minLength(1)),
+});
+
+const placedDepotCache = new WeakMap<PlacedTile, PlacedDepot | null>();
+
+export function resolveDepot(placed: PlacedTile, def: TileDef | undefined): PlacedDepot | null {
+  const cached = placedDepotCache.get(placed);
+  if (cached !== undefined) return cached;
+
+  const gesture = def ? resolveDepotDef(def) : null;
+  const parsed = gesture ? v.safeParse(placedDepotSchema, placed) : null;
+  const depot = gesture && parsed?.success ? { ...gesture, tag: parsed.output.depotTag } : null;
+  placedDepotCache.set(placed, depot);
+  return depot;
 }
 
 const craftTileIdSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
@@ -875,7 +924,7 @@ export function hasSpriteStates(def: TileDef): boolean {
 }
 
 export function isInteractive(def: TileDef): boolean {
-  return interactionKinds(def).length > 0;
+  return interactionKinds(def).length > 0 || resolveDepotDef(def) != null;
 }
 
 export function hasAnyInteraction(interactions: TileInteractions | undefined): boolean {
@@ -888,6 +937,7 @@ export function hasAnyInteraction(interactions: TileInteractions | undefined): b
     interactions?.push ||
     interactions?.switch ||
     interactions?.reward ||
+    interactions?.depot ||
     interactions?.craft ||
     interactions?.extract ||
     interactions?.teleport ||
@@ -929,6 +979,7 @@ export function interactionsForSave(
   const savedReward = reward
     ? { ...(rewardActionName ? { actionName: rewardActionName } : {}) }
     : undefined;
+  const savedDepot = interactions?.depot ? { size: interactions.depot.size } : undefined;
   const savedCraft = interactions?.craft ? craftForSave(interactions.craft) : undefined;
   const extract = interactions?.extract;
   const savedSlots = (extract?.slots ?? []).flatMap((slot) => {
@@ -1088,6 +1139,7 @@ export function interactionsForSave(
     !savedPush &&
     !savedSwitch &&
     !savedReward &&
+    !savedDepot &&
     !savedCraft &&
     !savedExtract &&
     !savedTeleport &&
@@ -1111,6 +1163,7 @@ export function interactionsForSave(
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedReward ? { reward: savedReward } : {}),
+    ...(savedDepot ? { depot: savedDepot } : {}),
     ...(savedCraft ? { craft: savedCraft } : {}),
     ...(savedExtract ? { extract: savedExtract } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),

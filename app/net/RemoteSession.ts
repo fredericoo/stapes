@@ -69,7 +69,8 @@ import { castRefusalNotice } from "../game/notices";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { type NaturalSpell, resolveBattler } from "../lib/battler";
 import type { StatusDef } from "../lib/status";
-import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
+import { itemInSlot, type SlotRef } from "../game/itemMoves";
+import { applyDepotMove, NO_DEPOTS, type Depots } from "../game/depot";
 import type { ConsumeSource } from "../game/itemUse";
 import { canCraftFrom } from "../game/craft";
 import { resolveConsumable } from "../lib/item";
@@ -190,6 +191,7 @@ export class RemoteSession implements PlaySession {
   private readonly pvpOn = new Set<string>();
   private readonly castingsById = new Map<string, CastProgress>();
   private equipment: Equipment = emptyEquipment();
+  private depots: Depots = NO_DEPOTS;
   private spellCooldowns: Readonly<Record<string, number>> = {};
   private pendingNotices: string[] = [];
   private tags: readonly string[] = NO_TAGS;
@@ -411,6 +413,7 @@ export class RemoteSession implements PlaySession {
       this.extractionsById.clear();
       this.castingsById.clear();
       this.equipment = message.equipment;
+      this.depots = message.depots;
       this.spellCooldowns = {};
       this.tags = message.tags;
       this.setExtracting(message.extracting);
@@ -528,6 +531,11 @@ export class RemoteSession implements PlaySession {
     if (message.type === "equipment") {
       this.equipment = message.equipment;
       this.spellCooldowns = message.spellCooldowns;
+      return;
+    }
+
+    if (message.type === "depots") {
+      this.depots = message.depots;
       return;
     }
 
@@ -1360,6 +1368,7 @@ export class RemoteSession implements PlaySession {
       chats: this.chats,
       noises: this.noises,
       afflicted: this.afflicted,
+      depots: this.depots,
       damage: this.damage,
       projectiles: this.projectiles,
       flightEffects: this.flightEffects,
@@ -1608,7 +1617,8 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     const loc = motion && this.locate(this.selfId, motion);
     if (!loc) return false;
-    return canMoveItem(this.map, this.tilesById, loc, this.equipment, from, to);
+    const { map, tilesById, equipment, depots } = this;
+    return applyDepotMove(map, tilesById, loc, equipment, depots, from, to) != null;
   }
 
   moveItem(from: SlotRef, to: SlotRef): boolean {

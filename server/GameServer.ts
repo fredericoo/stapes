@@ -33,6 +33,7 @@ import {
 import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../app/game/deathCost";
 import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
+import { DepotLedger, restoredDepots, type Depots } from "../app/game/depot";
 import { listActorOwners } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
@@ -347,6 +348,12 @@ const HIDDEN_KEY_PREFIX = "hidden:";
 
 const DIED_AWAY_KEY_PREFIX = "diedAway:";
 
+/**
+ * Keyed by account, not character. Never pruned and never cleared by a death:
+ * a depot is the one thing a player keeps across lives.
+ */
+const DEPOT_KEY_PREFIX = "depot:";
+
 export const MAX_REMEMBERED_ACTORS = 1_000;
 
 export const MAX_ONLINE_PLAYERS = 250;
@@ -396,6 +403,7 @@ export type CharacterSheet = {
 };
 
 type SavedDiedAway = { cost: DeathCost; savedAt: number };
+type SavedDepots = { depots: Depots; savedAt: number };
 
 const savedStatusSchema = v.object({
   defId: v.pipe(v.string(), v.minLength(1)),
@@ -406,7 +414,7 @@ const savedStatusSchema = v.object({
 
 const savedStatusesSchema = v.array(savedStatusSchema);
 
-type Attachment = { actorId: string; admin: boolean };
+type Attachment = { actorId: string; admin: boolean; accountId: string };
 
 type WrittenActor = {
   position: ActorPosition | null;
@@ -732,6 +740,8 @@ export class GameServer {
   ) {}
 
   private session: GameSession | null = null;
+  private readonly depots = new DepotLedger();
+  private readonly accountOf = new Map<string, string>();
   /**
    * Each seated character's stored name and generation. The generation is
    * counted from `death` once and then kept here, because a death's row is
@@ -831,6 +841,7 @@ export class GameServer {
           statuses: this.statusDefs,
           traits: this.traits,
           clock: () => this.minutesOfDay(),
+          depots: this.depots,
         })
       : new GameSession(await store.readMap(), this.tiles, {
           actorIds: [],
@@ -838,6 +849,7 @@ export class GameServer {
           statuses: this.statusDefs,
           traits: this.traits,
           clock: () => this.minutesOfDay(),
+          depots: this.depots,
         });
     this.dead = new Set(board ? (checkpoint!.dead ?? []) : []);
     this.broadcastMap = this.session.getMap();
@@ -1084,6 +1096,10 @@ export class GameServer {
     return `${POSITION_KEY_PREFIX}${actorId}`;
   }
 
+  private depotKey(accountId: string): string {
+    return `${DEPOT_KEY_PREFIX}${accountId}`;
+  }
+
   private equipmentKey(actorId: string): string {
     return `${EQUIPMENT_KEY_PREFIX}${actorId}`;
   }
@@ -1306,10 +1322,12 @@ export class GameServer {
       | SavedHp
       | SavedPvp
       | SavedDiedAway
+      | SavedDepots
       | Checkpoint
       | ChunkCells
     > = {};
-    for (const actorId of actorIds) {
+    const saving = new Set(actorIds);
+    for (const actorId of saving) {
       const written = force ? undefined : this.writtenActors.get(actorId);
       const equipment = session.equipmentOf(actorId);
       const tags = session.tagsOf(actorId);
@@ -1372,6 +1390,10 @@ export class GameServer {
         masteries,
         pvp,
       });
+    }
+
+    for (const [owner, depots] of this.depots.drainUnsaved(saving)) {
+      entries[this.depotKey(owner)] = { depots, savedAt };
     }
 
     for (const [actorId, { death, told }] of this.pendingDeathWrites) {
@@ -1459,7 +1481,12 @@ export class GameServer {
     await this.ctx.storage.delete(doomed);
   }
 
-  async join(socket: GameSocket, actorId: string, { admin }: { admin: boolean }): Promise<void> {
+  /** Without an `accountId` the character is its own account, as in a test. */
+  async join(
+    socket: GameSocket,
+    actorId: string,
+    { admin, accountId = actorId }: { admin: boolean; accountId?: string },
+  ): Promise<void> {
     const done = await this.joinTurn();
     try {
       if (socket.closed) return;
@@ -1467,7 +1494,7 @@ export class GameServer {
         socket.close(CLOSE_WORLD_FULL, "world full");
         return;
       }
-      await this.seatJoiner(socket, actorId, { admin });
+      await this.seatJoiner(socket, actorId, { admin, accountId });
     } finally {
       done();
     }
@@ -1490,11 +1517,11 @@ export class GameServer {
   private async seatJoiner(
     socket: GameSocket,
     actorId: string,
-    { admin }: { admin: boolean },
+    { admin, accountId }: { admin: boolean; accountId: string },
   ): Promise<void> {
     this.displaceSockets(actorId);
     this.ctx.acceptWebSocket(socket);
-    this.seat(socket, { actorId, admin });
+    this.seat(socket, { actorId, admin, accountId });
 
     /**
      * Seated before loading, because loading reaps every checkpointed body with
@@ -1526,6 +1553,7 @@ export class GameServer {
 
   private seat(ws: GameSocket, attachment: Attachment) {
     ws.serializeAttachment(attachment satisfies Attachment);
+    this.accountOf.set(attachment.actorId, attachment.accountId);
     let sockets = this.socketsByActor.get(attachment.actorId);
     if (!sockets) this.socketsByActor.set(attachment.actorId, (sockets = new Set()));
     sockets.add(ws);
@@ -1599,6 +1627,7 @@ export class GameServer {
       castings: currentCastings(actors),
       afflicted: session.afflictedPlacements().filter((one) => covers(chunks, one.x, one.y)),
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
+      depots: this.depots.of(actorId),
       tags: [...(session.tagsOf(actorId) ?? [])],
       extracting: session.extractionOf(actorId),
       nextBlow: this.rememberNextBlow(actorId),
@@ -1680,6 +1709,7 @@ export class GameServer {
     }
 
     this.flushEquipment();
+    this.flushDepots();
     this.flushSounds();
     this.flushBlows();
     this.flushTags();
@@ -1758,6 +1788,13 @@ export class GameServer {
           spellCooldowns: session.spellCooldownsOf(actorId) ?? {},
         };
       },
+    );
+  }
+
+  private flushDepots() {
+    this.flushPerActor(
+      () => this.depots.drainChangedActors(),
+      (_session, actorId) => ({ type: "depots", depots: this.depots.of(actorId) }),
     );
   }
 
@@ -2170,6 +2207,8 @@ export class GameServer {
 
   private leaveWorld(actorId: string, closing?: GameSocket) {
     this.saveActors([actorId], true);
+    this.depots.unseat(actorId);
+    this.accountOf.delete(actorId);
     const wasHidden = this.session?.hiddenOf(actorId) ?? false;
     this.session?.despawn(actorId);
     if (this.session) this.collectTransitionEvents(this.session);
@@ -2218,6 +2257,7 @@ export class GameServer {
       statuses: statusDefs,
       traits,
       clock: () => this.minutesOfDay(),
+      depots: this.depots,
     });
 
     await store.writeMap(map);
@@ -2479,6 +2519,7 @@ export class GameServer {
     this.announceDeaths();
 
     this.flushEquipment();
+    this.flushDepots();
     this.flushTags();
     this.flushConversations();
     this.flushExtracting();
@@ -2616,11 +2657,23 @@ export class GameServer {
       hp: restored.hp ?? null,
       statuses: restored.statuses ?? null,
     });
+    await this.seatDepots(actorId);
     this.session!.spawn(actorId, {
       name: await this.displayNameOf(actorId),
       ...restored,
     });
     this.collectTransitionEvents(this.session!);
+  }
+
+  private async seatDepots(actorId: string) {
+    const owner = this.accountOf.get(actorId) ?? actorId;
+    const stored = this.depots.holds(owner) ? undefined : await this.lastDepotsOf(owner);
+    this.depots.seat(actorId, owner, stored);
+  }
+
+  private async lastDepotsOf(owner: string): Promise<Depots> {
+    const saved = await this.ctx.storage.get<SavedDepots>(this.depotKey(owner));
+    return restoredDepots(saved?.depots, tilesByIdFromList(this.tiles));
   }
 
   private async displayNameOf(actorId: string): Promise<string | null> {

@@ -281,6 +281,7 @@ export type PlacedTile = {
   engraved?: string;
   rewardTag?: string;
   rewardTileIds?: string[];
+  depotTag?: string;
   teleportTo?: Coord;
   owner?: string;
   castBy?: string;

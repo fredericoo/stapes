@@ -24,21 +24,31 @@ export type SlotRef =
   | { kind: "footwear" }
   | { kind: "bag" }
   | { kind: "contents"; index: number; of?: "weapon" | "offhand" }
-  | { kind: "ground"; ref: ObjectRef; index: number };
+  | { kind: "ground"; ref: ObjectRef; index: number }
+  | { kind: "depot"; ref: ObjectRef; index: number };
 
 export type ContainerRef =
   | { kind: "bag" }
   | { kind: "hand"; hand: "weapon" | "offhand" }
-  | { kind: "ground"; ref: ObjectRef };
+  | { kind: "ground"; ref: ObjectRef }
+  | { kind: "depot"; ref: ObjectRef };
 
-export type OpenedContainer = { instance: ItemInstance; ref: ObjectRef };
+export type ContainerView = {
+  tileId: string;
+  size: number;
+  contents: readonly ItemInstance[];
+};
+
+export type OpenedContainer = ContainerView & {
+  location: Extract<ContainerRef, { kind: "ground" | "depot" }>;
+};
 
 export function slotIn(container: ContainerRef, index: number): SlotRef {
   if (container.kind === "bag") return { kind: "contents", index };
   if (container.kind === "hand") {
     return { kind: "contents", index, of: container.hand };
   }
-  return { kind: "ground", ref: container.ref, index };
+  return { kind: container.kind, ref: container.ref, index };
 }
 
 function contentsHolder(slot: { of?: "weapon" | "offhand" }): "bag" | "weapon" | "offhand" {
@@ -59,7 +69,7 @@ export function slotKey(slot: SlotRef): string {
     return `contents:${contentsHolder(slot)}:${slot.index}`;
   }
   const { x, y, z, stackIndex } = slot.ref;
-  return `ground:${x},${y},${z},${stackIndex}:${slot.index}`;
+  return `${slot.kind}:${x},${y},${z},${stackIndex}:${slot.index}`;
 }
 
 function sameContainer(a: SlotRef, b: SlotRef): boolean {
@@ -67,13 +77,24 @@ function sameContainer(a: SlotRef, b: SlotRef): boolean {
   if (a.kind === "contents" && b.kind === "contents") {
     return contentsHolder(a) === contentsHolder(b);
   }
-  if (a.kind !== "ground" || b.kind !== "ground") return true;
+  if (!("ref" in a) || !("ref" in b)) return true;
   return (
     a.ref.x === b.ref.x &&
     a.ref.y === b.ref.y &&
     a.ref.z === b.ref.z &&
     a.ref.stackIndex === b.ref.stackIndex
   );
+}
+
+export function containerViewOf(
+  instance: ItemInstance,
+  tilesById: Record<string, TileDef>,
+): ContainerView {
+  return {
+    tileId: instance.tileId,
+    size: capacityOf(instance, tilesById),
+    contents: instance.contents ?? [],
+  };
 }
 
 export function capacityOf(instance: ItemInstance, tilesById: Record<string, TileDef>): number {
@@ -106,7 +127,7 @@ export function slotAccepts(
 export function slotTakes(kind: SlotKind, def: TileDef): boolean {
   if (kind === "weapon" || kind === "offhand") return handAccepts(def);
   if (kind === "bag") return resolveContainer(def)?.equippable === true;
-  if (kind === "contents" || kind === "ground") {
+  if (kind === "contents" || kind === "ground" || kind === "depot") {
     return resolveContainer(def) == null;
   }
   return wornAccepts(kind, def);
@@ -116,6 +137,11 @@ function isHand(kind: SlotKind): kind is Hand {
   return kind === "weapon" || kind === "offhand";
 }
 
+/**
+ * Every slot function here treats a depot slot as empty and closed. Its
+ * contents belong to the player rather than the map, so `applyDepotMove` in
+ * depot.ts is the only way in or out.
+ */
 export function itemInSlot(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -127,6 +153,7 @@ export function itemInSlot(
   if (slot.kind === "contents") {
     return equipment[contentsHolder(slot)]?.contents?.[slot.index] ?? null;
   }
+  if (slot.kind === "depot") return null;
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   return placed?.contents?.[slot.index] ?? null;
 }
@@ -147,6 +174,7 @@ function slotHasRoom(
     if (!holder) return false;
     return stowFits(holder.contents ?? [], instance, capacityOf(holder, tilesById), tilesById);
   }
+  if (slot.kind === "depot") return false;
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   if (!placed) return false;
   const def = tilesById[placed.tileId];
@@ -361,6 +389,7 @@ export function clearSlot(
       },
     };
   }
+  if (slot.kind === "depot") return null;
 
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   const contents = placed?.contents;
@@ -399,6 +428,7 @@ export function peelSlot(
       },
     };
   }
+  if (slot.kind === "depot") return null;
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   const contents = placed?.contents;
   if (!contents) return null;
@@ -455,6 +485,7 @@ function fillSlot(
       equipment: { ...equipment, [where]: { ...holder, contents } },
     };
   }
+  if (slot.kind === "depot") return null;
 
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   if (!placed) return null;

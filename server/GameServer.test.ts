@@ -151,7 +151,10 @@ function nextMessageOfType(ws: TestSocket, type: string): Promise<Record<string,
   });
 }
 
-async function connect(actorId: string, { admin = true } = {}) {
+async function connect(
+  actorId: string,
+  { admin = true, accountId }: { admin?: boolean; accountId?: string } = {},
+) {
   const pair = new Pair();
   const ws = pair.client();
   pair.onClientMessage = (data) => {
@@ -161,7 +164,7 @@ async function connect(actorId: string, { admin = true } = {}) {
     harness.hub.drop(pair.server);
     void stub().webSocketClose(pair.server);
   };
-  const joined = stub().join(pair.server, actorId, { admin });
+  const joined = stub().join(pair.server, actorId, { admin, accountId });
   const hello = await nextMessageOfType(ws, "hello");
   await joined;
   return { ws, hello, pair };
@@ -2303,6 +2306,91 @@ async function killAndTick(actorId: string, blame?: Blame) {
     internals.tick();
   });
 }
+
+describe("depots", () => {
+  const DEPOT: { x: number; y: number; z: number; stackIndex: number } = {
+    x: 1,
+    y: 0,
+    z: 0,
+    stackIndex: 1,
+  };
+  const SWORD_AT = { x: 0, y: 1, z: 0, stackIndex: 1 };
+
+  beforeEach(async () => {
+    const map = authoredMap();
+    map.levels["0"]![`${DEPOT.x},${DEPOT.y}`] = [
+      { tileId: "grass" },
+      { tileId: "silver-chest", depotTag: "town" },
+    ];
+    map.levels["0"]![`${SWORD_AT.x},${SWORD_AT.y}`] = [
+      { tileId: "grass" },
+      { tileId: "rusty-sword" },
+    ];
+    await harness.blobs.put("map.json", JSON.stringify(map), JSON_TYPE);
+  });
+
+  function stashOf(message: Record<string, unknown>): string[] {
+    const depots = message.depots as Record<string, Array<{ tileId: string }>>;
+    return (depots.town ?? []).map((one) => one.tileId);
+  }
+
+  async function stashSword(ws: TestSocket) {
+    send(ws, { type: "pickUp", ref: SWORD_AT });
+    await equipmentWithin(ws);
+    const stashed = nextMessageOfType(ws, "depots");
+    const kit = nextMessageOfType(ws, "equipment");
+    send(ws, {
+      type: "moveItem",
+      from: { kind: "contents", index: 0 },
+      to: { kind: "depot", ref: DEPOT, index: 0 },
+    });
+    return { depots: await stashed, equipment: await kit };
+  }
+
+  it("moves an item out of the bag and into the player's stash", async () => {
+    const alice = await connect("alice", { accountId: "account-a" });
+    const { depots, equipment } = await stashSword(alice.ws);
+
+    expect(stashOf(depots)).toEqual(["rusty-sword"]);
+    expect(contentsOf(equipment)).toEqual([]);
+  });
+
+  it("opens to the same stash for another character on the account, and not for anybody else", async () => {
+    const alice = await connect("alice", { accountId: "account-a" });
+    await stashSword(alice.ws);
+
+    const alfred = await connect("alfred", { accountId: "account-a" });
+    const bob = await connect("bob", { accountId: "account-b" });
+
+    expect(stashOf(alfred.hello)).toEqual(["rusty-sword"]);
+    expect(stashOf(bob.hello)).toEqual([]);
+  });
+
+  it("keeps the stash across leaving and an eviction", async () => {
+    const alice = await connect("alice", { accountId: "account-a" });
+    await stashSword(alice.ws);
+    await leave(alice.ws);
+    await simulateEviction();
+
+    const again = await connect("alice", { accountId: "account-a" });
+
+    expect(stashOf(again.hello)).toEqual(["rusty-sword"]);
+  });
+
+  it("keeps the stash through a death, which takes everything else", async () => {
+    const alice = await connect("alice", { accountId: "account-a" });
+    await stashSword(alice.ws);
+
+    await killAndTick("alice");
+    send(alice.ws, { type: "rebirth" });
+    await messageWithin(alice.ws, "hello", MESSAGE_TIMEOUT_MS);
+    await leave(alice.ws);
+    await simulateEviction();
+    const again = await connect("alice", { accountId: "account-a" });
+
+    expect(stashOf(again.hello)).toEqual(["rusty-sword"]);
+  });
+});
 
 describe("resetting the world", () => {
   it("forgets what a player had learnt, which a save carries forward", async () => {

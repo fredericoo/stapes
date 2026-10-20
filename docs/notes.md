@@ -10830,9 +10830,11 @@ contents and all, so whoever reaches it first takes the bag in one pickup. The
 masteries go back to what the `player` tile authors, the tags go, and with them
 every reward the tutorial gave, so the tutorial's chests can be opened again.
 
-What carries over is the name and the count of deaths: the `death` table keeps
-a row per death, and the next life is the character's next generation (see
-*A character's generation is its deaths plus one*).
+What carries over is the name, the count of deaths and whatever was left in a
+depot: the `death` table keeps a row per death, the next life is the
+character's next generation (see *A character's generation is its deaths plus
+one*), and a depot belongs to the account rather than the life (see *A depot
+is a stash per account, opened from a placement*).
 
 This is the design rather than a cost to tune. A death that took a share of
 experience and the pack let a player build up across lives, and the rest of
@@ -10863,6 +10865,47 @@ life, and the screen reads their own entry in `names`.
 A name is at most `MAX_CHARACTER_NAME_LENGTH` characters, and the numeral adds
 a space and a few letters more: LXXXVIII, the 88th life, is eight. Name tags
 have not been measured against the longest.
+
+## A depot is a stash per account, opened from a placement
+
+A tile with `interactions.depot = { size }` is a container whose contents
+belong to whoever opens it. The placement carries `depotTag`, and every
+placement with the same tag opens the same stash, so a second chest elsewhere
+with the tag `town` is a second door onto the same contents, and one tagged
+`harbour` is a different stash. A depot placed without a tag does not open;
+`verify content` warns about one.
+
+- **Kept by account, not by character.** `DepotLedger` (`app/game/depot.ts`)
+  maps each seated actor to an owner, and the server seats it with the
+  signed-in user's id. Two characters of one account online at once share one
+  stash in memory, so neither can move a copy of an item the other already
+  took out. The stash is stored under `depot:<userId>`, which `forgetLife`
+  does not delete and `pruneRemembered` does not prune: death takes the pack
+  and leaves the depot.
+- **Not on the map.** The contents are never in a `PlacedTile`, because the
+  map is shared and a depot is not. They reach the client in `hello.depots`
+  and the `depots` message, and a move names them with the `depot` slot kind.
+  Every function in `itemMoves.ts` treats a depot slot as closed;
+  `applyDepotMove` is the only way in or out, and `GameSession`,
+  `RemoteSession` and the drag rules all go through it.
+- **Saved with the kits it traded with.** `drainUnsaved` hands a stash to
+  `saveActors` only when every seated character of its owner is in the same
+  save, so the `depot:` row and the `equip:` rows it took from or gave to land
+  in one storage batch. Written alone, a crash between the two writes would
+  leave an item in both places or in neither.
+- **Outlives the session.** `GameServer` owns the ledger and hands it to every
+  `GameSession` it builds, so `replaceWorld` keeps what was stashed. An owner's
+  stash is dropped from memory only after its last character leaves and the
+  stash has been saved.
+- **Containers never go in**, as with every other container. What the
+  catalogue no longer has as a storable item is dropped from a stash on load;
+  a tag no placement uses any more is kept.
+- **On a phone** only one panel shows at a time, so opening a depot opens the
+  bag beside it, and closing the depot shuts the bag again if the depot opened
+  it.
+
+Time stops for what is in a depot: `DecayIndex` is armed only from the map and
+from kits, so nothing in a stash rots or burns out.
 
 ## A sign is read to you; everything else waits to be asked
 

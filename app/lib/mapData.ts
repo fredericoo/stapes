@@ -775,6 +775,29 @@ export function updatePlacedReward(
   return setStack(map, x, y, z, stack);
 }
 
+export function updatePlacedDepotTag(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  tag: string,
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const placed = current[stackIndex];
+  if (!placed) return map;
+
+  const next = tag.trim() || undefined;
+  if (placed.depotTag === next) return map;
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { depotTag: _tag, ...rest } = p;
+    return next ? { ...rest, depotTag: next } : rest;
+  });
+  return setStack(map, x, y, z, stack);
+}
+
 export function updatePlacedContents(
   map: MapFile,
   x: number,

@@ -33,6 +33,7 @@ import {
   type ObjectRef,
 } from "./affordances";
 import { conjuredName } from "./conjured";
+import { depotAt } from "./depot";
 import { combatantOf, mayHarm } from "./pvp";
 import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
@@ -582,7 +583,7 @@ function slotOptions(
 
   if (action === "equip" && stow) add("pickUp", LABELS.pickUp);
 
-  if (canOpenFrom(map, tilesById, self, ref)) {
+  if (canOpenFrom(map, tilesById, self, ref) || depotAt(map, tilesById, self, ref)) {
     const isOpen = openedRef != null && refKey(openedRef) === refKey(ref);
     add("open", isOpen ? CLOSE_LABEL : LABELS.open, isOpen);
   }
