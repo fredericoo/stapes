@@ -17,6 +17,9 @@ import {
   walkableElevInStack,
   chunkKeyFor,
   emptyMap,
+  presentInEither,
+  presentLevels,
+  presentLevelsAndAbove,
   listChannels,
   parseMap,
   updatePlacedChannel,
@@ -43,6 +46,30 @@ import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 import { tile } from "./testTile";
 
 const fixtureMap: MapFile = fixtureTown();
+
+describe("the levels a map holds", () => {
+  const grass = [{ tileId: "grass" }];
+
+  it("lists them lowest first, and none that are empty", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 5, grass);
+    map = replaceStack(map, 0, 0, -6, grass);
+    map = replaceStack(map, 0, 0, 0, grass);
+    expect(presentLevels(map)).toEqual([-6, 0, 5]);
+    expect(presentLevels(clearStack(map, 0, 0, 0))).toEqual([-6, 5]);
+  });
+
+  it("adds the level above each, where a stack can make a floor", () => {
+    let map = replaceStack(emptyMap(), 0, 0, -3, grass);
+    map = replaceStack(map, 0, 0, -2, grass);
+    expect(presentLevelsAndAbove(map)).toEqual([-3, -2, -1]);
+  });
+
+  it("finds a level either map holds, so a diff sees a level that was emptied", () => {
+    const before = replaceStack(emptyMap(), 0, 0, -7, grass);
+    const after = replaceStack(clearStack(before, 0, 0, -7), 1, 1, 2, grass);
+    expect(presentInEither(before, after)).toEqual([-7, 2]);
+  });
+});
 
 describe("mapData copy-on-write", () => {
   it("keeps untouched levels, chunks and cells by reference", () => {

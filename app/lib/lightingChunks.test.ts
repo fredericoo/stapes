@@ -1,5 +1,6 @@
 import { MAP_FILE_VERSION } from "./types";
 import { describe, expect, it } from "vitest";
+import { inBand } from "./testLightWindow";
 import { chunkifyMap, getStack, listCoords, replaceStack } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
 import tiles from "../../data/tiles.json";
@@ -13,6 +14,7 @@ import {
   type WorldRect,
 } from "./lightingChunks";
 import { PLAYER_TILE_ID } from "../game/constants";
+import { lightLevels } from "./view";
 import type { FlatMapFile, MapFile, TileDef } from "./types";
 import {
   MAX_LEVEL,
@@ -60,10 +62,10 @@ describe("chunked lighting", () => {
       for (let cx = chunkOf(bounds.x0); cx <= chunkOf(bounds.x1); cx++) {
         const x = cx * LIGHT_CHUNK_SIZE;
         const y = cy * LIGHT_CHUNK_SIZE;
-        chunked.gridFor(mapFile, ambient, { x0: x, y0: y, x1: x, y1: y });
+        chunked.gridFor(mapFile, ambient, inBand({ x0: x, y0: y, x1: x, y1: y }));
       }
     }
-    const grid = chunked.gridFor(mapFile, ambient, bounds);
+    const grid = chunked.gridFor(mapFile, ambient, inBand(bounds));
     expect(
       chunked.bakedLastCall,
       "assembly should have been fully cached by the per-chunk fills",
@@ -223,7 +225,7 @@ describe("chunked lighting", () => {
 
       const mono = computeLighting(lit, defs, ambient, undefined, omit);
       const chunked = new ChunkedLighting(defs, omit);
-      const grid = chunked.gridFor(lit, ambient, target);
+      const grid = chunked.gridFor(lit, ambient, inBand(target));
 
       const monoLevel = mono.levels.get(0);
       const chunkLevel = grid.levels.get(0);
@@ -256,11 +258,11 @@ describe("chunked lighting", () => {
   it("serves a second identical request entirely from cache", () => {
     const chunked = new ChunkedLighting(tilesById, omit);
     const rect: WorldRect = { x0: 0, y0: 0, x1: 40, y1: 40 };
-    chunked.gridFor(mapFile, ambient, rect);
+    chunked.gridFor(mapFile, ambient, inBand(rect));
     const filled = chunked.bakedLastCall;
     expect(filled).toBeGreaterThan(0);
 
-    chunked.gridFor(mapFile, ambient, rect);
+    chunked.gridFor(mapFile, ambient, inBand(rect));
     expect(chunked.bakedLastCall).toBe(0);
   });
 
@@ -269,12 +271,16 @@ describe("chunked lighting", () => {
     const width = 40;
     let baked = 0;
     for (let step = 0; step < LIGHT_CHUNK_SIZE; step++) {
-      chunked.gridFor(mapFile, ambient, {
-        x0: step,
-        y0: 0,
-        x1: step + width,
-        y1: width,
-      });
+      chunked.gridFor(
+        mapFile,
+        ambient,
+        inBand({
+          x0: step,
+          y0: 0,
+          x1: step + width,
+          y1: width,
+        }),
+      );
       baked += chunked.bakedLastCall;
     }
     expect(baked).toBeLessThanOrEqual(20);
@@ -287,18 +293,21 @@ describe("chunked lighting", () => {
     expect(width + steps).toBeLessThan(LIGHT_CHUNK_SIZE);
 
     for (let i = 0; i < 40; i++) {
-      chunked.packedGridFor(mapFile, { x0: 0, y0: 0, x1: width, y1: width });
+      chunked.packedGridFor(mapFile, inBand({ x0: 0, y0: 0, x1: width, y1: width }));
     }
 
     const seen = new Set<unknown>();
     for (let step = 0; step < steps; step++) {
       seen.add(
-        chunked.packedGridFor(mapFile, {
-          x0: step,
-          y0: 0,
-          x1: step + width,
-          y1: width,
-        }),
+        chunked.packedGridFor(
+          mapFile,
+          inBand({
+            x0: step,
+            y0: 0,
+            x1: step + width,
+            y1: width,
+          }),
+        ),
       );
       expect(chunked.bakedLastCall, `step ${step} baked`).toBe(0);
     }
@@ -308,7 +317,7 @@ describe("chunked lighting", () => {
   it("an edit dirties only chunks within light reach", () => {
     const chunked = new ChunkedLighting(tilesById, omit);
     const rect: WorldRect = { x0: -64, y0: -64, x1: 64, y1: 64 };
-    chunked.gridFor(mapFile, ambient, rect);
+    chunked.gridFor(mapFile, ambient, inBand(rect));
     const before = chunked.cachedChunks;
 
     chunked.invalidateAt(0, 0);
@@ -336,12 +345,12 @@ describe("chunked lighting", () => {
 
     function expectMatchesColdBake(edited: MapFile) {
       const incremental = new ChunkedLighting(tilesById, omit);
-      incremental.gridFor(mapFile, ambient, rect);
+      incremental.gridFor(mapFile, ambient, inBand(rect));
       incremental.syncTo(mapFile, edited);
-      const got = incremental.gridFor(edited, ambient, rect);
+      const got = incremental.gridFor(edited, ambient, inBand(rect));
 
       const cold = new ChunkedLighting(tilesById, omit);
-      const want = cold.gridFor(edited, ambient, rect);
+      const want = cold.gridFor(edited, ambient, inBand(rect));
 
       expect([...got.levels.keys()].sort()).toEqual([...want.levels.keys()].sort());
       for (const [z, wantLevel] of want.levels) {
@@ -370,12 +379,12 @@ describe("chunked lighting", () => {
         { tileId: "torch", direction: "n" },
       ]);
       const incremental = new ChunkedLighting(tilesById, omit);
-      incremental.gridFor(lit, ambient, rect);
+      incremental.gridFor(lit, ambient, inBand(rect));
       incremental.syncTo(lit, mapFile);
-      const got = incremental.gridFor(mapFile, ambient, rect);
+      const got = incremental.gridFor(mapFile, ambient, inBand(rect));
 
       const cold = new ChunkedLighting(tilesById, omit);
-      const want = cold.gridFor(mapFile, ambient, rect);
+      const want = cold.gridFor(mapFile, ambient, inBand(rect));
       for (const [z, wantLevel] of want.levels) {
         expect([...got.levels.get(z)!.rgb]).toEqual([...wantLevel.rgb]);
       }
@@ -437,12 +446,12 @@ describe("chunked lighting", () => {
       ]);
 
       const incremental = new ChunkedLighting(defs, omit);
-      incremental.gridFor(dark, ambient, rect);
+      incremental.gridFor(dark, ambient, inBand(rect));
       incremental.syncTo(dark, lit);
-      const got = incremental.gridFor(lit, ambient, rect);
+      const got = incremental.gridFor(lit, ambient, inBand(rect));
 
       const cold = new ChunkedLighting(defs, omit);
-      const want = cold.gridFor(lit, ambient, rect);
+      const want = cold.gridFor(lit, ambient, inBand(rect));
       for (const [z, wantLevel] of want.levels) {
         expect({ z, rgb: [...got.levels.get(z)!.rgb] }).toEqual({
           z,
@@ -463,14 +472,14 @@ describe("chunked lighting", () => {
       ]);
 
       const chunked = new ChunkedLighting(tilesById, omit);
-      chunked.gridFor(up, ambient, rect);
+      chunked.gridFor(up, ambient, inBand(rect));
       const cached = chunked.cachedChunks;
       expect(cached).toBeGreaterThan(0);
 
       chunked.syncTo(up, pressed);
       expect(chunked.cachedChunks).toBe(cached);
 
-      chunked.gridFor(pressed, ambient, rect);
+      chunked.gridFor(pressed, ambient, inBand(rect));
       expect(chunked.bakedLastCall).toBe(0);
     });
 
@@ -486,14 +495,14 @@ describe("chunked lighting", () => {
       ]);
 
       const incremental = new ChunkedLighting(tilesById, omit);
-      incremental.gridFor(closed, ambient, rect);
+      incremental.gridFor(closed, ambient, inBand(rect));
       const cached = incremental.cachedChunks;
       incremental.syncTo(closed, opened);
       expect(incremental.cachedChunks).toBeLessThan(cached);
-      const got = incremental.gridFor(opened, ambient, rect);
+      const got = incremental.gridFor(opened, ambient, inBand(rect));
 
       const cold = new ChunkedLighting(tilesById, omit);
-      const want = cold.gridFor(opened, ambient, rect);
+      const want = cold.gridFor(opened, ambient, inBand(rect));
       for (const [z, wantLevel] of want.levels) {
         expect({ z, rgb: [...got.levels.get(z)!.rgb] }).toEqual({
           z,
@@ -525,14 +534,14 @@ describe("chunked lighting", () => {
   it("keeps window chunks cached when ambient changes", () => {
     const chunked = new ChunkedLighting(tilesById, omit);
     const rect: WorldRect = { x0: 0, y0: 0, x1: 40, y1: 40 };
-    chunked.gridFor(mapFile, ambient, rect);
+    chunked.gridFor(mapFile, ambient, inBand(rect));
     const cached = chunked.cachedChunks;
     expect(cached).toBeGreaterThan(0);
 
-    const dayGrid = chunked.gridFor(mapFile, [...AMBIENT_PRESETS.day], rect);
+    const dayGrid = chunked.gridFor(mapFile, [...AMBIENT_PRESETS.day], inBand(rect));
     expect(chunked.bakedLastCall).toBe(0);
     expect(chunked.cachedChunks).toBeGreaterThanOrEqual(cached);
-    const nightGrid = chunked.gridFor(mapFile, ambient, rect);
+    const nightGrid = chunked.gridFor(mapFile, ambient, inBand(rect));
     expect(dayGrid).not.toBe(nightGrid);
   });
 });
@@ -542,12 +551,12 @@ describe("chunked lighting prefetch and eviction", () => {
   const window40 = (x: number): WorldRect => ({ x0: x, y0: 0, x1: x + 40, y1: 40 });
 
   function idle(c: ChunkedLighting, rect: WorldRect, calls: number) {
-    for (let i = 0; i < calls; i++) c.gridFor(mapFile, ambient, rect);
+    for (let i = 0; i < calls; i++) c.gridFor(mapFile, ambient, inBand(rect));
   }
 
   it("warms the ring so crossing a chunk edge bakes nothing", () => {
     const chunked = new ChunkedLighting(tilesById, omit);
-    chunked.gridFor(mapFile, ambient, window40(0));
+    chunked.gridFor(mapFile, ambient, inBand(window40(0)));
     idle(chunked, window40(0), 40);
 
     const chunkOf = (v: number) => Math.floor(v / LIGHT_CHUNK_SIZE);
@@ -555,7 +564,7 @@ describe("chunked lighting prefetch and eviction", () => {
     let crossed = 0;
     let bakedOnCrossing = 0;
     for (let x = 1; x <= LIGHT_CHUNK_SIZE * 2; x++) {
-      chunked.gridFor(mapFile, ambient, window40(x));
+      chunked.gridFor(mapFile, ambient, inBand(window40(x)));
       if (chunkOf(x + 40) === startEdge + crossed) continue;
       crossed++;
       bakedOnCrossing += chunked.bakedLastCall;
@@ -569,12 +578,12 @@ describe("chunked lighting prefetch and eviction", () => {
 
   it("does not prefetch on a call that already had to bake", () => {
     const chunked = new ChunkedLighting(tilesById, omit);
-    chunked.gridFor(mapFile, ambient, window40(0));
+    chunked.gridFor(mapFile, ambient, inBand(window40(0)));
     const afterCold = chunked.cachedChunks;
 
     expect(chunked.bakedLastCall).toBeGreaterThan(0);
 
-    chunked.gridFor(mapFile, ambient, window40(0));
+    chunked.gridFor(mapFile, ambient, inBand(window40(0)));
     expect(chunked.cachedChunks).toBeGreaterThan(afterCold);
   });
 
@@ -582,21 +591,21 @@ describe("chunked lighting prefetch and eviction", () => {
     const cap = 12;
     const chunked = new ChunkedLighting(tilesById, omit, cap);
     for (let x = 0; x < 600; x += 8) {
-      chunked.gridFor(mapFile, ambient, window40(x));
+      chunked.gridFor(mapFile, ambient, inBand(window40(x)));
     }
     expect(chunked.cachedChunks).toBeLessThanOrEqual(cap);
 
-    chunked.gridFor(mapFile, ambient, window40(592));
+    chunked.gridFor(mapFile, ambient, inBand(window40(592)));
     expect(chunked.bakedLastCall).toBe(0);
   });
 
   it("never evicts a chunk the current window is drawing", () => {
     const chunked = new ChunkedLighting(tilesById, omit, 1);
-    chunked.gridFor(mapFile, ambient, window40(0));
+    chunked.gridFor(mapFile, ambient, inBand(window40(0)));
     const resident = chunked.cachedChunks;
     expect(resident).toBeGreaterThan(1);
 
-    chunked.gridFor(mapFile, ambient, window40(0));
+    chunked.gridFor(mapFile, ambient, inBand(window40(0)));
     expect(chunked.bakedLastCall).toBe(0);
   });
 });
@@ -618,8 +627,8 @@ describe("packed grid matches CPU-composed output", () => {
   for (const [name, ambient] of Object.entries(AMBIENT_PRESETS)) {
     it(`is identical to the composed grid at ${name}`, () => {
       const amb = [...ambient] as [number, number, number];
-      const composed = new ChunkedLighting(tilesById, omit).gridFor(mapFile, amb, rect);
-      const packed = new ChunkedLighting(tilesById, omit).packedGridFor(mapFile, rect);
+      const composed = new ChunkedLighting(tilesById, omit).gridFor(mapFile, amb, inBand(rect));
+      const packed = new ChunkedLighting(tilesById, omit).packedGridFor(mapFile, inBand(rect));
 
       expect([...packed.levels.keys()].sort()).toEqual([...composed.levels.keys()].sort());
 
@@ -641,8 +650,8 @@ describe("packed grid matches CPU-composed output", () => {
 
   it("stays put when only the clock moves", () => {
     const c = new ChunkedLighting(tilesById, omit);
-    const first = c.packedGridFor(mapFile, rect);
-    const again = c.packedGridFor(mapFile, rect);
+    const first = c.packedGridFor(mapFile, inBand(rect));
+    const again = c.packedGridFor(mapFile, inBand(rect));
 
     expect(again).toBe(first);
     expect(c.bakedLastCall).toBe(0);
@@ -665,10 +674,10 @@ describe("a flickering emitter", () => {
     const dim = new ChunkedLighting(tilesById, omit).gridFor(
       mapFile,
       ambient,
-      lit,
+      inBand(lit),
       FLICKER_FRAME_MS,
     );
-    const bright = new ChunkedLighting(tilesById, omit).gridFor(mapFile, ambient, lit, 0);
+    const bright = new ChunkedLighting(tilesById, omit).gridFor(mapFile, ambient, inBand(lit), 0);
     expect(rgbOf(dim)).not.toEqual(rgbOf(bright));
   });
 
@@ -680,7 +689,7 @@ describe("a flickering emitter", () => {
     const chunked = new ChunkedLighting(tilesById, omit).gridFor(
       mapFile,
       ambient,
-      lit,
+      inBand(lit),
       FLICKER_FRAME_MS,
     );
 
@@ -706,26 +715,26 @@ describe("a flickering emitter", () => {
 
   it("costs one bake per phase, not one per flicker", () => {
     const chunked = new ChunkedLighting(tilesById, omit);
-    chunked.gridFor(mapFile, ambient, lit, 0);
-    chunked.gridFor(mapFile, ambient, lit, FLICKER_FRAME_MS);
+    chunked.gridFor(mapFile, ambient, inBand(lit), 0);
+    chunked.gridFor(mapFile, ambient, inBand(lit), FLICKER_FRAME_MS);
     expect(
       chunked.bakedLastCall,
       "the other half of the cycle has never been baked",
     ).toBeGreaterThan(0);
 
-    chunked.gridFor(mapFile, ambient, lit, FLICKER_FRAME_MS * 2);
+    chunked.gridFor(mapFile, ambient, inBand(lit), FLICKER_FRAME_MS * 2);
     expect(chunked.bakedLastCall).toBe(0);
-    chunked.gridFor(mapFile, ambient, lit, FLICKER_FRAME_MS * 3);
+    chunked.gridFor(mapFile, ambient, inBand(lit), FLICKER_FRAME_MS * 3);
     expect(chunked.bakedLastCall).toBe(0);
   });
 
   it("leaves light no flicker reaches untouched", () => {
     const far: WorldRect = { x0: 200, y0: 200, x1: 230, y1: 230 };
     const chunked = new ChunkedLighting(tilesById, omit);
-    const first = chunked.packedGridFor(mapFile, far, 0);
+    const first = chunked.packedGridFor(mapFile, inBand(far), 0);
     expect(chunked.bakedLastCall).toBeGreaterThan(0);
 
-    const later = chunked.packedGridFor(mapFile, far, FLICKER_FRAME_MS);
+    const later = chunked.packedGridFor(mapFile, inBand(far), FLICKER_FRAME_MS);
     expect(chunked.bakedLastCall).toBe(0);
     expect(later).toBe(first);
   });
@@ -769,6 +778,7 @@ describe("a flicker's reach", () => {
       byId,
       undefined,
       { x0: 0, y0: 0, x1: CHUNK_LAST_ROW, y1: CHUNK_LAST_ROW },
+      { z0: -1, z1: 1 },
       0,
     );
     expect(baked.size, "expected a single chunk to have been baked").toBe(1);
@@ -781,5 +791,37 @@ describe("a flicker's reach", () => {
 
   it("spares a chunk exactly its radius away, where it is already black", () => {
     expect(chargedTo(CHUNK_LAST_ROW + RADIUS)).toEqual([]);
+  });
+});
+
+describe("a town built deep underground", () => {
+  const DEPTH = -56;
+
+  function sunk(map: MapFile): MapFile {
+    const levels: MapFile["levels"] = {};
+    for (const [key, level] of Object.entries(map.levels)) {
+      levels[levelKey(Number(key) + DEPTH)] = level;
+    }
+    return { version: MAP_FILE_VERSION, levels };
+  }
+
+  it("is lit cell for cell as it is on the surface, seen from its own level", () => {
+    const b = mapBounds(mapFile);
+    const bounds = { x0: b.x0, y0: b.y0, x1: b.x0 + LIGHT_CHUNK_SIZE, y1: b.y0 + LIGHT_CHUNK_SIZE };
+    const surface = new ChunkedLighting(tilesById, omit).packedGridFor(mapFile, {
+      ...bounds,
+      levels: lightLevels(0),
+    });
+    const deep = new ChunkedLighting(tilesById, omit).packedGridFor(sunk(mapFile), {
+      ...bounds,
+      levels: lightLevels(DEPTH),
+    });
+
+    expect([...deep.levels.keys()].sort((a, b) => a - b)).toEqual(
+      [...surface.levels.keys()].map((z) => z + DEPTH).sort((a, b) => a - b),
+    );
+    for (const [z, level] of surface.levels) {
+      expect(deep.levels.get(z + DEPTH)!.rgba).toEqual(level.rgba);
+    }
   });
 });

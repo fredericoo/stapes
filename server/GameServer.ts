@@ -49,6 +49,7 @@ import {
   chunkifyMap,
   getStack,
   mapFromChunks,
+  presentInEither,
 } from "../app/lib/mapData";
 import type { DataStore } from "../app/lib/dataStore";
 import {
@@ -67,7 +68,7 @@ import type {
   PlacedTile,
   TileDef,
 } from "../app/lib/types";
-import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
+import { parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   CLOSE_REPLACED,
@@ -2810,7 +2811,7 @@ export class GameServer {
 
     const out: ScopedCell[] = [];
     if (prev !== next) {
-      for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+      for (const z of presentInEither(prev, next)) {
         for (const key of changedCellsOnLevel(prev, next, z)) {
           const { x, y } = parseCoordKey(key);
           const before = getStack(prev, x, y, z);

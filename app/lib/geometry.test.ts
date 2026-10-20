@@ -5,12 +5,13 @@ import {
   DEPTH_LEAST_BODY,
   boxSurfaceElevation,
   depthBox,
+  depthOriginAt,
   depthStackBias,
   drawOrder,
   fragDepth,
   PX_PER_HEIGHT,
 } from "./geometry";
-import { CELL_SIZE, HEIGHT_PER_LEVEL } from "./types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL, MIN_LEVEL } from "./types";
 
 function expectInFront(near: number, far: number) {
   expect(near).toBeLessThan(far);
@@ -128,6 +129,22 @@ describe("boxSurfaceElevation", () => {
 });
 
 describe("fragDepth", () => {
+  it("keeps a rug in front of its floor on the deepest level, far from the world's origin", () => {
+    const FAR_CELL = 4000;
+    const z = MIN_LEVEL;
+    const elev = absoluteElevation(z, 0);
+    const floor = depthBox(FAR_CELL, FAR_CELL, elev, elev);
+    const rug = depthBox(FAR_CELL, FAR_CELL, elev, elev);
+    const sx = FAR_CELL * CELL_SIZE - z * CELL_SIZE + 4;
+    const sy = sx;
+    const origin = depthOriginAt(sx, sy, z);
+    const rugDepth = fragDepth(rug, sx, sy, depthStackBias(z, 1), origin);
+    const floorDepth = fragDepth(floor, sx, sy, depthStackBias(z, 0), origin);
+    expectInFront(rugDepth, floorDepth);
+    expect(rugDepth).toBeGreaterThan(0);
+    expect(floorDepth).toBeLessThan(1);
+  });
+
   it("puts a raised south-east tile in front of the ground tile it covers", () => {
     const ground = depthBox(5, 9, 0, 0);
     const roof = depthBox(6, 10, HEIGHT_PER_LEVEL, HEIGHT_PER_LEVEL);

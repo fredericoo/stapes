@@ -4,6 +4,7 @@ import {
   absoluteElevation,
   baseCellWorldOrigin,
   depthBox,
+  depthOriginAt,
   depthStackBias,
   drawOrder,
   screenToCoord,
@@ -23,7 +24,9 @@ import {
   setStacks,
   stackHeight,
   terrainHeight,
+  presentLevels,
 } from "../lib/mapData";
+import { lightLevels, VIEW_LEVEL_REACH } from "../lib/view";
 import type { Frame, MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import {
   CELL_SIZE,
@@ -48,9 +51,11 @@ import { activeConfig, planProcedural } from "./procedural";
 import {
   type LevelAnimUniforms,
   type LevelLightUniforms,
+  depthOriginUniforms,
   noAnimUniforms,
   noCutUniforms,
   type Quad,
+  setDepthOrigin,
   WORLD_SHADER_CACHE_KEY,
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
@@ -112,6 +117,7 @@ function levelVisibility(
   preview: boolean,
 ): LevelVisibility {
   if (z < MIN_LEVEL || z > MAX_LEVEL) return "hidden";
+  if (Math.abs(z - current) > VIEW_LEVEL_REACH) return "hidden";
   if (current < 0 && z >= 0) return "hidden";
   if (preview) return "solid";
   if (z <= current) return "solid";
@@ -200,6 +206,7 @@ export class EditorRenderer {
   private whiteTex: THREE.DataTexture;
   private lightTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
+  private readonly depthUniforms = depthOriginUniforms();
   private lightGrid: LightGrid | null = null;
   private lightingKey = "";
   private lightingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -518,6 +525,7 @@ export class EditorRenderer {
           noTintUniforms(),
           noCutUniforms(this.whiteTex),
           this.ensureAnimUniforms(z),
+          this.depthUniforms,
         );
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
@@ -550,7 +558,8 @@ export class EditorRenderer {
     this.lightingKey = key;
 
     const ambient = sampleIllumination(s.lighting.minutesOfDay).ambient;
-    const grid = computeLighting(s.map, s.tilesById, ambient);
+    const levels = lightLevels(s.currentLevel);
+    const grid = computeLighting(s.map, s.tilesById, ambient, undefined, undefined, levels);
     this.lightGrid = grid;
     this.uploadLightGrid(grid);
     this.requestRender();
@@ -669,7 +678,8 @@ export class EditorRenderer {
       }
     }
     const { minutesOfDay } = s.lighting;
-    return `${Math.floor(minutesOfDay)}|${s.mapVersion}|${lightDefsSig}|${Object.keys(s.tilesById).length}`;
+    const levels = lightLevels(s.currentLevel);
+    return `${Math.floor(minutesOfDay)}|${s.mapVersion}|${lightDefsSig}|${Object.keys(s.tilesById).length}|${levels.z0},${levels.z1}`;
   }
 
   private maybeScheduleLighting() {
@@ -682,6 +692,8 @@ export class EditorRenderer {
     this.updateCanvasSize();
     const viewW = this.canvasW / zoom;
     const viewH = this.canvasH / zoom;
+    const level = useEditorStore.getState().currentLevel;
+    setDepthOrigin(this.depthUniforms, depthOriginAt(camX + viewW / 2, camY + viewH / 2, level));
     this.camera.left = camX;
     this.camera.right = camX + viewW;
     this.camera.top = camY;
@@ -1095,7 +1107,7 @@ export class EditorRenderer {
     this.animatedByKey.clear();
 
     const s = useEditorStore.getState();
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const z of presentLevels(s.map)) {
       this.buildLevel(s.map, z);
     }
     this.rebuildAnimatedIndex();

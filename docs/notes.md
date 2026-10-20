@@ -1914,8 +1914,8 @@ The plate is what a body's feet are on, so the **highest** level that surfaces
 at an elevation is the one that answers. `listStandingSurfaces`
 (`../app/game/movement.ts`) has always said so; `surfaceTileAt` and
 `climbFromSourceAt` (`../app/lib/mapData.ts`) walked levels upward from
-`MIN_LEVEL` and answered with the lower one, and now walk downward from
-`MAX_LEVEL`.
+`MIN_LEVEL` and answered with the lower one, and now walk downward through
+the levels the map holds.
 
 Answering with the buried tile read the wrong tile's flags. `isWalkableSurfaceAt`
 is the landing check, so a `height: 4`, non-walkable `arcane-crystal-1` in a
@@ -2275,6 +2275,98 @@ applies again from the first leg that lands on the bank.
 A non-swimmer with water between it and its target reads the river as a wall:
 it walks to a crossing inside `PATH_DETOUR_SLACK`, or the search fails and the
 brain's `stuck` fires.
+
+## The world is 129 levels deep, and drawing pays for the 17 near the viewer
+
+`MIN_LEVEL` and `MAX_LEVEL` are -64 and 64. They were -8 and 8, and moving them
+was not the work; what had to change was everything that paid for the whole
+span whether anything was built there or not.
+
+**The projection is why the span cost area, not just depth.** Level `z` is
+drawn `z` cells up and left of level 0, so a window that unions every level is
+the camera's rect grown by a cell a side per level. The mesh window, the light
+window and the interest reach were all that union, measured from level 0 across
+`MIN_LEVEL..MAX_LEVEL`. At ±64 the light window alone would have been 23 + 128
+cells across instead of 23 + 16, and the bake's dense arrays a slice deeper per
+level as well. Measured on four light chunks of the fixture town, a bake across
+all 129 levels is 206ms against 28ms for the viewer's band.
+
+**`VIEW_LEVEL_REACH` (`app/lib/view.ts`) is the band, and it is measured from
+the viewer.** `viewLevels(z)` is the 17 levels from `z - 8` to `z + 8`: what is
+meshed, sight-tested, roof-cut and sent as bodies. `lightLevels(z)` is a wider
+band that moves in steps of four, so a ladder rebakes the light window once
+every few levels rather than on every rung; the light cache keys each chunk on
+its range, so climbing back reuses the bake. On level 0 both bands are the old
+world, which is why nothing about the surface looks different.
+
+**Depth is measured from the camera, not the world's origin.** Ray depth has to
+fit `DEPTH_MIN..DEPTH_MAX`, which holds about twelve levels of elevation and 256
+cells either side of zero. Every world material now subtracts a per-frame
+`uDepthOrigin` — the camera's centre, the viewer's elevation and the viewer's
+level's stack bias — from each term before summing them. Every fragment moves
+by the same amount, so the order between them is unchanged, and only what is
+drawn has to fit. The stack bias per level (`DEPTH_BIAS_PER_LEVEL`) is likewise
+budgeted for the drawn band and not the world.
+
+**A bake that stops short of the world has to know what is outside it.**
+`computeLightingFlood` with a domain marks, per column of its rect, whether
+anything above the domain seals the column (so the shaft starts dark) and
+whether anything below holds it up (so it is not the void under the world).
+That makes the sky exact for a column; what it does not see is light spreading
+sideways above the band and then down, and emitters outside the band, which
+are dropped. Both only reach the band's edge levels, eight storeys from the
+viewer. Because `lightLevels` pads one side by 0 to 3 levels depending on
+where in its step the viewer is, a lamp just past the drawn band lights the
+edge level from some floors and not others, so that level can change
+brightness when the band steps.
+
+The pass outside the band walks outward from it and stops in each direction
+once every column has its answer, and it reads each chunk through a cached
+per-cell mask (`occupiedCellsOf`, `sealedCellsOf`), so a level outside costs a
+few hundred byte reads per chunk rather than a key parse per cell. Measured
+under load, 53 floors of the fixture town's ground stacked under the town add
+about 11ms to a four-chunk bake, where reading every cell added about 75ms.
+
+**Whole-world loops walk what exists.** `presentLevels(map)` is the sorted
+levels that hold anything, cached on the `levels` record. About forty loops
+went through it, and the two cell diffs walk `presentInEither`, so an emptied
+level still reports what left it.
+
+**A column walk reads only the levels that can reach the height it asks
+about.** That is still too many for a question asked once per route step, so
+the ones pathfinding and landing ask are bounded by `MAX_STACK_HEIGHT`: no
+stack stands more than two levels above its own floor, because `fitsInColumn`
+refuses one and `removeUnfitPlacements` holds every loaded map to it.
+`standingSurfacesBetween`, `findLandingAbs`, `fitsHeightAtElevation`,
+`surfaceTileAt` and `climbFromSourceAt` all lean on that. On a column with a
+floor on every one of 65 levels, the climb-band check per neighbour went from
+12.5µs to 1.9µs. If that bound is ever loosened, these walks miss the top of a
+taller stack.
+
+What this leaves for later:
+
+- **A pit deeper than eight levels looks bottomless from its rim**, and a tower
+  more than eight levels up is cut off. Nothing past the band is drawn.
+- **A subscribed chunk still carries every level it holds, and this is the
+  next limit a deep dungeon hits.** The client's bake reads the levels outside
+  its band to know whether a column is roofed, and having them means changing
+  level never waits on the server. The cost is that everything under the town
+  is sent to everybody standing on it. With the fixture town's fully covered
+  ground copied onto levels below it, the uncompressed join was 873KB with
+  none, 7.0MB with ten and 33MB with 53. Real floors are sparser than a full
+  copy of the ground, so a dungeon several floors deep is affordable and one
+  dozens of dense floors deep is not. The lever is a subscription per level:
+  cells for the client's light band, and for the levels outside it only the two
+  per-column answers the bake needs (sealed above, held up below), which is
+  what `markOutside` in `app/lib/lightingFlood.ts` computes today from cells.
+- **A body more than eight levels away is not sent at all**, and a creature
+  brain counts as unobserved by a player that far above or below it.
+- **The editor still builds a mesh for every level the map holds** and only
+  draws the band, so its memory and its rebuild on load grow with content
+  depth. It is admin-only.
+- **An edit on any level invalidates that chunk column for every light band
+  the client has cached**, including bands it cannot affect. Before this
+  change there was one band and the same edit invalidated it too.
 
 ## A tile can cover more than one cell
 
@@ -3622,7 +3714,7 @@ seeds daylight at its own boundary — a cave with a lit edge that moves as you
 walk. The terms are all somebody else's constants:
 
 ```
-half the view + the level span + LIGHT_WINDOW_MARGIN + LIGHT_CHUNK_SIZE + LIGHT_APRON
+half the view + VIEW_LEVEL_REACH + LIGHT_WINDOW_MARGIN + LIGHT_CHUNK_SIZE + LIGHT_APRON
 ```
 
 so widening any of them widens this in the same edit. The prefetch ring is
@@ -3633,13 +3725,13 @@ telling the bake to read absence as *solid* — trades the leak for the opposite
 error, an outdoor cell shadowed by a wall that is not there.
 
 **What it is worth on the join is almost nothing, and that is expected.** The
-reach is 79 cells, five chunks, a square 176 cells across; `data/map.json` is
+reach is 71 cells, five chunks, a square 176 cells across; `data/map.json` is
 118 by 142. Measured over the map, a client holds 84% of it on average and 49%
 at best. The value is the shape rather than the number: the subscription is a
 function of where the body is, so at ten times the map it is still about 37,000
 cells while the world is 440,000. If it ever needs to be *smaller* than this,
 the lever is the light cache — `LIGHT_CHUNK_SIZE` and `LIGHT_APRON` are 47 of
-the 79 — and not the subscription, which is only as wide as what it must cover.
+the 71 — and not the subscription, which is only as wide as what it must cover.
 
 ## The tick stream is scoped, and terrain and bodies are scoped differently
 
@@ -12000,10 +12092,11 @@ Four things about the machinery are worth knowing before touching it:
   `particles.ts` is separate from `particleLayer.ts`: it is arithmetic, so it can
   be asserted rather than eyeballed.
 - **The window is the camera's reach on that emitter's own level, and it must
-  not be the light bake's.** `lightWindow` is the union across every level —
-  right for a light, since one on any storey can reach the cells you are looking
-  at, and the projection shifts level `z` by exactly `z` cells so unioning
-  seventeen of them grows the rect by eight cells a side before its own margin.
+  not be the light bake's.** `lightWindow` is the union across every drawn
+  level — right for a light, since one on any storey can reach the cells you are
+  looking at, and the projection shifts level `z` by exactly `z` cells so
+  unioning the seventeen levels within `VIEW_LEVEL_REACH` of the viewer grows the
+  rect by eight cells a side before its own margin.
   Against a 23-cell viewport that is a window over **four times** the visible
   area, and every emitter inside it spends the shared pool and has quads written
   for sparks nobody can see. A plume is on one known level, so it takes that
@@ -12011,7 +12104,7 @@ Four things about the machinery are worth knowing before touching it:
   emitter, and 45% fewer emitters admitted.
 
   Both windows are now built on `WorldRenderer.cameraWindow`, the level-0 rect
-  with no slack of its own. `lightWindow` adds the level span and its margin back
+  with no slack of its own. `lightWindow` adds the drawn levels and its margin back
   and is **byte-identical** to what it replaces: `floor((px + 8z) / 8)` is
   `floor(px / 8) + z` for every camera position, which is checked rather than
   asserted from the algebra.
@@ -12970,7 +13063,7 @@ one-chunk bake from 8.3ms to 4.7ms with byte-identical output. When you scope a
 computation, scope how its inputs are collected in the same breath.
 
 The cost is invisible on today's ~5k-cell fixture map and fatal at the intended
-size. The map is headed for thousands of cells square across 17 levels; anything
+size. The map is headed for thousands of cells square across up to 129 levels; anything
 O(map) per frame is already broken, it just has not shown up yet.
 
 ### Exploit the persistent map
@@ -13801,8 +13894,8 @@ What is drawn, and what each colour means (`app/render/debugColors.ts`):
 | blue | chunk columns this client holds at all — its subscription |
 
 The grids are chunk *columns*, level 0, deduplicated across storeys: a level is
-drawn one cell up-left of the one below, so seventeen rectangles per column
-would be a hatch rather than a reading.
+drawn one cell up-left of the one below, so a rectangle per drawn level per
+column would be a hatch rather than a reading.
 
 The panel beside them (`app/render/debugPanel.ts`) is the legend — each row is
 written in the colour its rectangle is drawn in, so there is no separate key to
@@ -13983,8 +14076,8 @@ Not yet fixed, and worth knowing before you profile something else:
   is what buys the warning, and a budget that built one chunk per frame out of a
   queue is the structural answer if it is ever felt.
 - **A route search costs about 50µs a node.** Every neighbour it looks at asks
-  `listStandingSurfaces`, which reads all seventeen levels of the column through
-  `stackOnLevel`, and `canWalk`, which asks it again; each read builds a level,
+  `listStandingSurfaces`, which reads every level the map holds in the column
+  (and the one above each) through `stackOnLevel`, and `canWalk`, which asks it again; each read builds a level,
   a chunk and a cell key. At sixteen times the shipped residents, with at most
   `BRAIN_ATTENTIVE_MAX` creatures awake, searching is about a third of an
   average tick and most of the slowest ones, and it decides how many chasing

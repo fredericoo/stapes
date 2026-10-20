@@ -25,7 +25,7 @@ import {
   levelKey,
 } from "../lib/types";
 import type { MapFile, PlacedTile } from "../lib/types";
-import { MESH_WINDOW_MARGIN, VIEW_CELLS } from "../lib/view";
+import { MESH_WINDOW_MARGIN, VIEW_CELLS, VIEW_LEVEL_REACH } from "../lib/view";
 
 const NOBODY: ReadonlySet<string> = new Set();
 
@@ -41,7 +41,7 @@ describe("how far a client is told about", () => {
   it("covers everything the client's own light bake can read", () => {
     expect(INTEREST_REACH_CELLS).toBe(
       Math.ceil(VIEW_CELLS / 2) +
-        (MAX_LEVEL - MIN_LEVEL) +
+        VIEW_LEVEL_REACH +
         LIGHT_WINDOW_MARGIN +
         LIGHT_CHUNK_SIZE +
         LIGHT_APRON,
@@ -133,14 +133,14 @@ describe("the body reach", () => {
 
   it("is what the client could draw or be lit by, and not the light bake's apron", () => {
     expect(BODY_REACH_CELLS).toBe(
-      Math.ceil(VIEW_CELLS / 2) + (MAX_LEVEL - MIN_LEVEL) + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL,
+      Math.ceil(VIEW_CELLS / 2) + VIEW_LEVEL_REACH + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL,
     );
     expect(BODY_REACH_CELLS).toBeLessThan(INTEREST_REACH_CELLS);
   });
 
   it("is a square in cells around the viewer", () => {
     const at = { x: 100, y: 100, z: 0 };
-    const onLevel = BODY_REACH_CELLS - (MAX_LEVEL - MIN_LEVEL);
+    const onLevel = BODY_REACH_CELLS - VIEW_LEVEL_REACH;
 
     expect(withinBodyReach(at, 100 + onLevel, 100, 0)).toBe(true);
     expect(withinBodyReach(at, 100, 100 - onLevel, 0)).toBe(true);
@@ -150,12 +150,18 @@ describe("the body reach", () => {
 
   it("widens by the storeys between the two, and no further", () => {
     const at = { x: 100, y: 100, z: 0 };
-    const onLevel = BODY_REACH_CELLS - (MAX_LEVEL - MIN_LEVEL);
+    const onLevel = BODY_REACH_CELLS - VIEW_LEVEL_REACH;
 
     expect(withinBodyReach(at, 100 + onLevel + 3, 100, 3)).toBe(true);
     expect(withinBodyReach(at, 100 + onLevel + 3, 100, -3)).toBe(true);
     expect(withinBodyReach(at, 100 + onLevel + 4, 100, 3)).toBe(false);
-    expect(withinBodyReach(at, 100 + BODY_REACH_CELLS + 1, 100, MAX_LEVEL)).toBe(false);
+    expect(withinBodyReach(at, 100 + BODY_REACH_CELLS + 1, 100, VIEW_LEVEL_REACH)).toBe(false);
+  });
+
+  it("leaves out a body on a level the viewer does not draw, however close", () => {
+    const at = { x: 100, y: 100, z: 0 };
+    expect(withinBodyReach(at, 100, 100, VIEW_LEVEL_REACH)).toBe(true);
+    expect(withinBodyReach(at, 100, 100, -VIEW_LEVEL_REACH - 1)).toBe(false);
   });
 });
 
@@ -187,12 +193,12 @@ describe("the bodies near a viewer", () => {
 
   it("reaches the body at the very edge of the worst case, in every direction", () => {
     for (let offset = 0; offset < CHUNK_SIZE; offset += 5) {
-      const at = { x: offset, y: -offset, z: MIN_LEVEL };
+      const at = { x: offset, y: -offset, z: 0 };
       const corners = [
-        { x: at.x + BODY_REACH_CELLS, y: at.y + BODY_REACH_CELLS, z: MAX_LEVEL },
-        { x: at.x - BODY_REACH_CELLS, y: at.y + BODY_REACH_CELLS, z: MAX_LEVEL },
-        { x: at.x + BODY_REACH_CELLS, y: at.y - BODY_REACH_CELLS, z: MAX_LEVEL },
-        { x: at.x - BODY_REACH_CELLS, y: at.y - BODY_REACH_CELLS, z: MAX_LEVEL },
+        { x: at.x + BODY_REACH_CELLS, y: at.y + BODY_REACH_CELLS, z: VIEW_LEVEL_REACH },
+        { x: at.x - BODY_REACH_CELLS, y: at.y + BODY_REACH_CELLS, z: VIEW_LEVEL_REACH },
+        { x: at.x + BODY_REACH_CELLS, y: at.y - BODY_REACH_CELLS, z: VIEW_LEVEL_REACH },
+        { x: at.x - BODY_REACH_CELLS, y: at.y - BODY_REACH_CELLS, z: VIEW_LEVEL_REACH },
       ];
       for (const corner of corners)
         expect(withinBodyReach(at, corner.x, corner.y, corner.z)).toBe(true);

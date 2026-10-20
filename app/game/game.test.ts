@@ -9,13 +9,20 @@ import {
   terrainHeight,
 } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL } from "../lib/types";
+import { HEIGHT_PER_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack, fitsTile, tilesByIdFromList } from "../lib/validation";
 import { FALL_MS_PER_HEIGHT, PUSH_STEP_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { resolveStatus } from "../lib/status";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { isSupported } from "./gravity";
-import { canWalk, findLandingAbs, groundWalkSpeedPercent, standingAbs } from "./movement";
+import {
+  canWalk,
+  findLandingAbs,
+  groundWalkSpeedPercent,
+  listStandingSurfaces,
+  standingAbs,
+  standingSurfacesBetween,
+} from "./movement";
 import { findPlayers, requireSinglePlayer } from "./player";
 import { tile } from "../lib/testTile";
 
@@ -1305,6 +1312,51 @@ describe("canWalk onto a fall", () => {
     const session = new GameSession(ledge({ z: 0, stack: ["grass", "fence"] }), tiles);
     expect(session.requestStep(LOCAL_ACTOR_ID, "e")).toBe("refused");
     expect(session.getSnapshot().self).toMatchObject({ x: 0, y: 0, z: 1 });
+  });
+});
+
+describe("the standing surfaces between two heights", () => {
+  function tower(): MapFile {
+    let map = emptyMap();
+    for (let z = MIN_LEVEL; z <= 0; z += 3) map = replaceStack(map, 0, 0, z, [{ tileId: "grass" }]);
+    for (let z = MIN_LEVEL + 1; z <= 0; z += 5)
+      map = replaceStack(map, 0, 0, z, [{ tileId: "wall" }]);
+    return replaceStack(map, 0, 0, -20, [{ tileId: "slab" }, { tileId: "slab" }]);
+  }
+
+  it("are the column's surfaces in that span, read from the levels that reach it", () => {
+    const map = tower();
+    const all = listStandingSurfaces(map, 0, 0, tilesById);
+    for (let lo = MIN_LEVEL * HEIGHT_PER_LEVEL; lo <= 0; lo += 3) {
+      const hi = lo + 2 * HEIGHT_PER_LEVEL;
+      const within = all.filter((surface) => surface.abs >= lo && surface.abs <= hi);
+      expect(standingSurfacesBetween(map, 0, 0, lo, hi, tilesById)).toEqual(within);
+    }
+  });
+});
+
+describe("GameSession at the bottom of the world", () => {
+  it("walks along the lowest level", () => {
+    let map = mapWithPlayer({ x: 0, y: 0, z: MIN_LEVEL });
+    map = replaceStack(map, 1, 0, MIN_LEVEL, [{ tileId: "grass" }]);
+    const session = new GameSession(map, tiles);
+    session.setInput({ directions: ["e"] });
+
+    advance(session, WALK_DURATION_MS + 100);
+
+    expect(session.getSnapshot().self).toMatchObject({ x: 1, y: 0, z: MIN_LEVEL });
+  });
+
+  it("falls from the surface all the way down a shaft to it", () => {
+    let map = replaceStack(emptyMap(), 0, 0, MIN_LEVEL, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "player", direction: "s" }]);
+    const session = new GameSession(map, tiles);
+
+    advance(session, FALL_MS_PER_HEIGHT * HEIGHT_PER_LEVEL * -MIN_LEVEL + WALK_DURATION_MS);
+
+    const self = session.getSnapshot().self;
+    expect(self.fall).toBeNull();
+    expect(self).toMatchObject({ x: 0, y: 0, z: MIN_LEVEL });
   });
 });
 

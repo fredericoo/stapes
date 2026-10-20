@@ -1,5 +1,5 @@
 import type { HeldDirections } from "./heldDirections";
-import { listStandingSurfaces, standingAbs } from "./movement";
+import { standingAbs, standingSurfacesBetween } from "./movement";
 import { noRouteNotice } from "./notices";
 import {
   dropLanding,
@@ -250,9 +250,7 @@ export function standingCellOn(view: WalkView, on: Coord & { stackIndex: number 
 
   const stack = getStack(view.map, on.x, on.y, on.z);
   const top = absoluteStandingElevation(on.z, stack.slice(0, on.stackIndex + 1), view.tilesById);
-  const surface = listStandingSurfaces(view.map, on.x, on.y, view.tilesById).find(
-    (standing) => standing.abs === top,
-  );
+  const [surface] = standingSurfacesBetween(view.map, on.x, on.y, top, top, view.tilesById);
   return surface ? { x: on.x, y: on.y, z: surface.z } : null;
 }
 

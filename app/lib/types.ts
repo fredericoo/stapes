@@ -251,6 +251,15 @@ export function climbFromForSave(
 /** A level is four height units so a body can be shorter than a storey. One unit is `PX_PER_HEIGHT` = 2px. */
 export const HEIGHT_PER_LEVEL = 4;
 
+/**
+ * How far a stack may rise above its own level's floor. `fitsInColumn` refuses
+ * anything taller and `removeUnfitPlacements` holds every loaded map to it, so
+ * a walk down a column can stop this far below the height it is asking about.
+ */
+export const MAX_STACK_HEIGHT = HEIGHT_PER_LEVEL * 2;
+
+export const MAX_TILE_HEIGHT: TileHeight = 8;
+
 export function lightPassingForced(def: TileDef): boolean {
   return def.kind === "item" || def.kind === "battler" || resolveActor(def);
 }
@@ -323,8 +332,8 @@ export type Coord = {
   z: number;
 };
 
-export const MIN_LEVEL = -8;
-export const MAX_LEVEL = 8;
+export const MIN_LEVEL = -64;
+export const MAX_LEVEL = 64;
 export const CELL_SIZE = 8;
 export const CHUNK_SIZE = 16;
 

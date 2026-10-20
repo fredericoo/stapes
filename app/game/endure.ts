@@ -1,9 +1,8 @@
 import type { Affliction, EndureInteraction } from "../lib/interactions";
 import { afflictionFor, resolveAddStatus, resolveEndure } from "../lib/interactions";
-import { getStack, listCoords, replaceStack } from "../lib/mapData";
+import { getStack, listCoords, presentLevels, replaceStack } from "../lib/mapData";
 import type { StatusDef } from "../lib/status";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 import type { Element } from "../lib/element";
 import { cellKey } from "./pressurePlates";
@@ -95,7 +94,7 @@ export function cellAfflicts(
 
 export function findAfflictCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y } of listCoords(map, z)) {
       const cell = { x, y, z };
       if (cellAfflicts(map, cell, tilesById)) out.push(cell);

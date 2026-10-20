@@ -1,9 +1,8 @@
 import { isItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
-import { listCoords, replaceStack } from "../lib/mapData";
+import { listCoords, presentLevels, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 
 function mintContentIds(contents: ItemInstance[]): ItemInstance[] {
   let touched = false;
@@ -17,7 +16,7 @@ function mintContentIds(contents: ItemInstance[]): ItemInstance[] {
 
 export function mintItemIds(map: MapFile, tilesById: Record<string, TileDef>): MapFile {
   let next = map;
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       let touched = false;
       /**

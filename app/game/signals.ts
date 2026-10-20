@@ -1,8 +1,7 @@
-import { getStack, listCoords, replaceStack } from "../lib/mapData";
+import { getStack, listCoords, presentLevels, replaceStack } from "../lib/mapData";
 import type { ReceiveInteraction, SignalValue } from "../lib/interactions";
 import { receiveTriggers, resolveEmit, resolveReceive } from "../lib/interactions";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 
 export type ChannelTally = {
@@ -30,7 +29,7 @@ export function cellIsWired(map: MapFile, cell: Coord): boolean {
 
 export function findWiredCells(map: MapFile): Coord[] {
   const out: Coord[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y } of listCoords(map, z)) {
       const cell = { x, y, z };
       if (cellIsWired(map, cell)) out.push(cell);

@@ -1,6 +1,7 @@
 import { isSpanPart } from "./footprint";
 import type { ChunkCells, MapFile, PlacedTile, TileDef } from "./types";
 import {
+  CHUNK_SIZE,
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MAX_LIGHT_LEVEL,
@@ -13,7 +14,14 @@ import {
   tileCanEmitLight,
   tileLightVaries,
 } from "./types";
-import { chunkIndexOf, chunkKeyAt, elevationAt, footElevation, terrainHeight } from "./mapData";
+import {
+  chunkIndexOf,
+  chunkKeyAt,
+  elevationAt,
+  footElevation,
+  presentLevels,
+  terrainHeight,
+} from "./mapData";
 import type { AnimatedEmitter, EmitterOverride, RawLightGrid, RawLevelLight } from "./lighting";
 import { resolveLight } from "./tileResolve";
 
@@ -323,6 +331,129 @@ function collectLevelCellsIn(
   }
 }
 
+/**
+ * What a domain needs to know about the levels outside it, per column of its
+ * rect: whether anything above seals the column from the sky, and whether
+ * anything below holds it up, so it is not read as the void under the world.
+ */
+type OutsideColumns = { sealedAbove: Uint8Array; tileBelow: Uint8Array };
+
+/**
+ * Walks outward from the domain and stops in each direction once every column
+ * has its answer, so a solid rock floor under the band costs one level rather
+ * than every level beneath it.
+ */
+function markOutside(
+  map: MapFile,
+  domain: FloodDomain,
+  tilesById: Record<string, TileDef>,
+): OutsideColumns {
+  const columns = (domain.x1 - domain.x0 + 1) * (domain.y1 - domain.y0 + 1);
+  const out: OutsideColumns = {
+    sealedAbove: new Uint8Array(columns),
+    tileBelow: new Uint8Array(columns),
+  };
+  const present = presentLevels(map);
+  let sealed = 0;
+  for (let i = 0; i < present.length && sealed < columns; i++) {
+    if (present[i]! <= domain.z1) continue;
+    sealed += markOutsideLevel(map, present[i]!, domain, tilesById, out.sealedAbove);
+  }
+  let held = 0;
+  for (let i = present.length - 1; i >= 0 && held < columns; i--) {
+    if (present[i]! >= domain.z0) continue;
+    held += markOutsideLevel(map, present[i]!, domain, null, out.tileBelow);
+  }
+  return out;
+}
+
+/** With `tilesById` a column counts once something seals it; without, once anything is in it. */
+function markOutsideLevel(
+  map: MapFile,
+  z: number,
+  domain: FloodDomain,
+  tilesById: Record<string, TileDef> | null,
+  into: Uint8Array,
+): number {
+  const level = map.levels[levelKey(z)];
+  if (!level) return 0;
+  let marked = 0;
+  for (let cy = chunkIndexOf(domain.y0); cy <= chunkIndexOf(domain.y1); cy++) {
+    for (let cx = chunkIndexOf(domain.x0); cx <= chunkIndexOf(domain.x1); cx++) {
+      const chunk = level[chunkKeyAt(cx, cy)];
+      if (!chunk) continue;
+      const mask = tilesById ? sealedCellsOf(chunk, tilesById) : occupiedCellsOf(chunk);
+      marked += markMasked(mask, cx, cy, domain, into);
+    }
+  }
+  return marked;
+}
+
+function markMasked(
+  mask: Uint8Array,
+  cx: number,
+  cy: number,
+  domain: FloodDomain,
+  into: Uint8Array,
+): number {
+  const w = domain.x1 - domain.x0 + 1;
+  const x0 = Math.max(domain.x0, cx * CHUNK_SIZE);
+  const x1 = Math.min(domain.x1, cx * CHUNK_SIZE + CHUNK_SIZE - 1);
+  const y0 = Math.max(domain.y0, cy * CHUNK_SIZE);
+  const y1 = Math.min(domain.y1, cy * CHUNK_SIZE + CHUNK_SIZE - 1);
+  let marked = 0;
+  for (let y = y0; y <= y1; y++) {
+    const row = (y - cy * CHUNK_SIZE) * CHUNK_SIZE - cx * CHUNK_SIZE;
+    const col = (y - domain.y0) * w - domain.x0;
+    for (let x = x0; x <= x1; x++) {
+      if (!mask[row + x] || into[col + x]) continue;
+      into[col + x] = 1;
+      marked++;
+    }
+  }
+  return marked;
+}
+
+/**
+ * Per chunk, one byte per cell. Chunks are copy-on-write, so a chunk record
+ * that has not been replaced has not changed and its mask is still right.
+ */
+const occupiedByChunk = new WeakMap<ChunkCells, Uint8Array>();
+const sealedByChunk = new WeakMap<
+  ChunkCells,
+  { tilesById: Record<string, TileDef>; mask: Uint8Array }
+>();
+
+function cellMask(chunk: ChunkCells, keep: (stack: PlacedTile[]) => boolean): Uint8Array {
+  const mask = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
+  for (const ck in chunk) {
+    const stack = chunk[ck]!;
+    if (!stack.length || !keep(stack)) continue;
+    const { x, y } = parseCoordKey(ck);
+    const lx = x - chunkIndexOf(x) * CHUNK_SIZE;
+    const ly = y - chunkIndexOf(y) * CHUNK_SIZE;
+    mask[ly * CHUNK_SIZE + lx] = 1;
+  }
+  return mask;
+}
+
+function occupiedCellsOf(chunk: ChunkCells): Uint8Array {
+  let mask = occupiedByChunk.get(chunk);
+  if (!mask) {
+    mask = cellMask(chunk, () => true);
+    occupiedByChunk.set(chunk, mask);
+  }
+  return mask;
+}
+
+function sealedCellsOf(chunk: ChunkCells, tilesById: Record<string, TileDef>): Uint8Array {
+  const cached = sealedByChunk.get(chunk);
+  if (cached?.tilesById === tilesById) return cached.mask;
+  const mask = cellMask(chunk, (stack) => stackOcc(stack, tilesById).seals);
+  sealedByChunk.set(chunk, { tilesById, mask });
+  return mask;
+}
+
 export function computeLightingFlood(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -341,8 +472,10 @@ export function computeLightingFlood(
   let maxZ = -Infinity;
 
   const cells: FloodCell[] = [];
+  const outside = domain ? markOutside(map, domain, tilesById) : null;
 
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
+    if (domain && (z < domain.z0 || z > domain.z1)) continue;
     if (domain) {
       collectLevelCellsIn(map, z, domain, cells);
       continue;
@@ -479,6 +612,9 @@ export function computeLightingFlood(
     const col = ly * dom.w + lx;
     if (c.z < lowestTileZ[col]!) lowestTileZ[col] = c.z;
   }
+  for (let col = 0; outside && col < slice; col++) {
+    if (outside.tileBelow[col]) lowestTileZ[col] = dom.z0 - 1;
+  }
   const isVoid = new Uint8Array(n);
   for (let col = 0; col < slice; col++) {
     const voidDepth = Math.min(dom.d, lowestTileZ[col]! - dom.z0);
@@ -488,7 +624,7 @@ export function computeLightingFlood(
   const fullFrom = new Int32Array(slice);
   for (let ly = 0; ly < dom.h; ly++) {
     for (let lx = 0; lx < dom.w; lx++) {
-      let shaft = MAX_LIGHT_LEVEL;
+      let shaft = outside?.sealedAbove[ly * dom.w + lx] ? 0 : MAX_LIGHT_LEVEL;
       let full = FULL_SHAFT_NOWHERE;
       for (let lz = dom.d - 1; lz >= 0; lz--) {
         const i = idx(dom, lx, ly, lz);

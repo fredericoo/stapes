@@ -62,6 +62,7 @@ import {
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
+  MAX_STACK_HEIGHT,
   MAX_LEVEL,
   MIN_LEVEL,
   isDirectional,
@@ -333,7 +334,7 @@ import {
   canWalk,
   DIR_DELTA,
   groundWalkSpeedPercent,
-  listStandingSurfaces,
+  standingSurfacesBetween,
   standingAbs,
   surfacesInClimbBand,
   wadesAt,
@@ -4891,9 +4892,15 @@ export class GameSession implements PlaySession {
   }
 
   private canStandIn(def: TileDef, to: Coord): boolean {
-    const surface = listStandingSurfaces(this.map, to.x, to.y, this.tilesById).find(
-      (candidate) => candidate.z === to.z,
-    );
+    const floorAbs = to.z * HEIGHT_PER_LEVEL;
+    const surface = standingSurfacesBetween(
+      this.map,
+      to.x,
+      to.y,
+      floorAbs,
+      floorAbs + MAX_STACK_HEIGHT,
+      this.tilesById,
+    ).find((candidate) => candidate.z === to.z);
     if (!surface) return false;
     return fitsAtElevation(this.map, to.x, to.y, surface.abs, def, this.tilesById).ok;
   }

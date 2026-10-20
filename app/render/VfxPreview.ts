@@ -26,6 +26,7 @@ import {
 import type { Transition, TransitionSide } from "../lib/tileTransition";
 import {
   buildSingleQuadGeometry,
+  depthOriginUniforms,
   injectWorldShader,
   type LevelLightUniforms,
   noAnimUniforms,
@@ -63,6 +64,7 @@ export class VfxPreview {
   private readonly palettePass = new PalettePass();
   private readonly particles: ParticleLayer;
   private readonly lightUniforms: LevelLightUniforms;
+  private readonly depthUniforms = depthOriginUniforms();
   private readonly whiteTex: THREE.DataTexture;
   private readonly darkTex: THREE.DataTexture;
   private night = false;
@@ -125,7 +127,7 @@ export class VfxPreview {
     };
 
     this.scene.add(this.buildFloor());
-    this.particles = new ParticleLayer(() => this.lightUniforms);
+    this.particles = new ParticleLayer(() => this.lightUniforms, this.depthUniforms);
     this.scene.add(this.particles.mesh);
     this.particles.mesh.updateMatrixWorld(true);
   }
@@ -362,6 +364,7 @@ export class VfxPreview {
         this.tintU,
         noCutUniforms(this.whiteTex),
         noAnimUniforms(this.whiteTex),
+        this.depthUniforms,
         this.transitionU,
       );
     };

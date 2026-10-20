@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { BODY_REACH_ON_LEVEL, withinBodyReachOf } from "../app/net/interest";
 import { MAX_LEVEL, MIN_LEVEL } from "../app/lib/types";
+import { VIEW_LEVEL_REACH } from "../app/lib/view";
 import { NEAR_BUCKET_CELLS, NearIndex } from "./nearIndex";
 
 type Filed = { x: number; y: number; z: number; value: number };
@@ -65,7 +66,7 @@ describe("what the tick filed within a client's reach", () => {
 
   it("marks a value at each corner of reach, on either side of a bucket edge", () => {
     for (const offset of [0, 1, NEAR_BUCKET_CELLS - 1, NEAR_BUCKET_CELLS, 7 * NEAR_BUCKET_CELLS]) {
-      for (const dz of [0, 1, MAX_LEVEL - MIN_LEVEL]) {
+      for (const dz of [0, 1, VIEW_LEVEL_REACH]) {
         const reach = BODY_REACH_ON_LEVEL + dz;
         for (const [dx, dy] of [
           [reach, reach],

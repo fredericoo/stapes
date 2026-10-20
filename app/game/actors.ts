@@ -6,6 +6,7 @@ import {
   replaceStack,
   setStacks,
   type StackEdit,
+  presentLevels,
 } from "../lib/mapData";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, levelKey, parseCoordKey, resolveActor } from "../lib/types";
@@ -61,7 +62,7 @@ export function findActorAnywhere(map: MapFile, ownerId: string): ActorLocation 
    * runs on every spawn and departure, so the allocating version cost about
    * 40ms on the shipped map.
    */
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     const level = map.levels[levelKey(z)];
     if (!level) continue;
     for (const chunk of Object.values(level)) {
@@ -108,7 +109,7 @@ export function adoptAuthoredPlayer(map: MapFile, ownerId: string): MapFile {
 
 export function listActorOwners(map: MapFile): ReadonlySet<string> {
   const owners = new Set<string>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { stack } of listCoords(map, z)) {
       for (const placed of stack) {
         if (placed.owner) owners.add(placed.owner);
@@ -123,7 +124,7 @@ export function listResidentBodies(
   tilesById: Record<string, TileDef>,
 ): ActorLocation[] {
   const found: ActorLocation[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       stack.forEach((placed, stackIndex) => {
         if (placed.tileId === PLAYER_TILE_ID) return;
@@ -194,7 +195,7 @@ export function despawnActor(map: MapFile, ownerId: string): MapFile {
 export function despawnActors(map: MapFile, doomed: (ownerId: string) => boolean): MapFile {
   const gone = new Set<string>();
   const edits: StackEdit[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     const level = map.levels[levelKey(z)];
     if (!level) continue;
     for (const chunk of Object.values(level)) {

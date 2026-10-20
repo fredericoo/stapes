@@ -7,6 +7,8 @@ import {
   DEPTH_PLANE_EAST_WEIGHT,
   DEPTH_STACK_BIAS,
   type DepthBox,
+  type DepthOrigin,
+  GROUND_DEPTH_ORIGIN,
   PX_PER_HEIGHT,
   RAY_DEPTH_ELEV,
 } from "../lib/geometry";
@@ -51,6 +53,20 @@ export type LevelLightUniforms = {
   uLightingEnabled: { value: number };
   uAmbient: { value: THREE.Vector3 };
 };
+
+export type DepthOriginUniforms = {
+  uDepthOrigin: { value: THREE.Vector3 };
+};
+
+export function depthOriginUniforms(): DepthOriginUniforms {
+  const u = { uDepthOrigin: { value: new THREE.Vector3() } };
+  setDepthOrigin(u, GROUND_DEPTH_ORIGIN);
+  return u;
+}
+
+export function setDepthOrigin(u: DepthOriginUniforms, origin: DepthOrigin) {
+  u.uDepthOrigin.value.set(origin.pxSum, origin.elev, origin.stackBias);
+}
 
 export type LevelCutUniforms = {
   uCutMask: { value: THREE.Texture };
@@ -99,7 +115,7 @@ const WADE_ALPHA = 0.5;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v13";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v14";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -331,9 +347,10 @@ export function injectWorldShader(
   tint: TintUniforms,
   cut: LevelCutUniforms,
   anim: LevelAnimUniforms,
+  depth: DepthOriginUniforms,
   transition: TransitionUniforms = NO_TRANSITION_UNIFORMS,
 ) {
-  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, transition);
+  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, depth, transition);
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -409,6 +426,7 @@ uniform sampler2D uCutMask;
 uniform vec2 uCutOrigin;
 uniform vec2 uCutSize;
 uniform float uCutEnabled;
+uniform vec3 uDepthOrigin;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -473,10 +491,12 @@ float overhangBias =
 float planeBias =
   (vBox.y + vBox.x * ${glsl(DEPTH_PLANE_EAST_WEIGHT)}) *
   ${glsl(DEPTH_PLANE_BIAS)};
+// Each term is taken from the frame's origin before it is summed, so a cell
+// far from the world's origin keeps the precision of one near it.
 float rayDepth =
-  (depthPx.x + depthPx.y) / ${glsl(CELL_SIZE)} +
-  ${glsl(RAY_DEPTH_ELEV)} * surfaceElev +
-  vStack * ${glsl(DEPTH_STACK_BIAS)} +
+  (depthPx.x + depthPx.y - uDepthOrigin.x) / ${glsl(CELL_SIZE)} +
+  ${glsl(RAY_DEPTH_ELEV)} * (surfaceElev - uDepthOrigin.y) +
+  (vStack - uDepthOrigin.z) * ${glsl(DEPTH_STACK_BIAS)} +
   planeBias +
   overhangBias;
 gl_FragDepth = clamp(

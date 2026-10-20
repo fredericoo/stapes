@@ -22,6 +22,7 @@ import {
   injectWorldShader,
   noAnimUniforms,
   noCutUniforms,
+  type DepthOriginUniforms,
   type LevelLightUniforms,
   WORLD_SHADER_CACHE_KEY,
 } from "./worldQuads";
@@ -189,7 +190,11 @@ export class ParticleLayer {
 
   private readonly pointBox: DepthBox = { eastPx: 0, southPx: 0, foot: 0, top: 0 };
 
-  constructor(lightUniformsFor: (z: number) => LevelLightUniforms, random?: Random) {
+  constructor(
+    lightUniformsFor: (z: number) => LevelLightUniforms,
+    private readonly depthUniforms: DepthOriginUniforms,
+    random?: Random,
+  ) {
     this.system = new ParticleSystem(random);
     this.lightUniformsFor = lightUniformsFor;
     this.atlas = createParticleAtlas();
@@ -223,6 +228,7 @@ export class ParticleLayer {
         noTintUniforms(),
         noCutUniforms(this.atlas),
         noAnimUniforms(this.atlas),
+        this.depthUniforms,
       );
       injectParticleShader(shader);
     };

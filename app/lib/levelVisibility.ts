@@ -2,6 +2,7 @@ import { chunkKeyAt, chunkKeyFor, getChunk, getStack } from "./mapData";
 import { type CellOcclusion, rayTransmission, stackOcclusion } from "./lighting";
 import type { ChunkCells, LevelChunks, MapFile, TileDef } from "./types";
 import { CHUNK_SIZE, HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, coordKey, levelKey } from "./types";
+import { viewLevels } from "./view";
 
 export const VIEW_RADIUS = 2.5;
 
@@ -64,9 +65,11 @@ function buildOcclusion(
   return occlusion;
 }
 
+/** Nothing above the drawn levels is drawn, so nothing there needs cutting. */
 function contentAbove(map: MapFile, x: number, y: number, viewZ: number, into: number[]): number[] {
   into.length = 0;
-  for (let z = viewZ + 1; z <= MAX_LEVEL; z++) {
+  const top = viewLevels(viewZ).z1;
+  for (let z = viewZ + 1; z <= top; z++) {
     if (getStack(map, x, y, z).length > 0) into.push(z);
   }
   return into;
@@ -157,6 +160,7 @@ function fillStructure(
 ): Map<number, Set<string>> | null {
   const byLevel = new Map<number, Set<string>>();
   const queue = [...seeds];
+  const top = viewLevels(floor).z1;
   let size = 0;
 
   const claim = (x: number, y: number, z: number): boolean => {
@@ -207,7 +211,7 @@ function fillStructure(
     const cell = queue[head]!;
     for (let dz = -1; dz <= 1; dz++) {
       const z = cell.z + dz;
-      if (z <= floor || z > MAX_LEVEL) continue;
+      if (z <= floor || z > top) continue;
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           if (dx === 0 && dy === 0 && dz === 0) continue;
@@ -242,7 +246,8 @@ export function cutProbeChunks(map: MapFile, view: ViewAnchor, radius = VIEW_RAD
   const cx1 = Math.floor((view.x + span) / CHUNK_SIZE);
   const cy0 = Math.floor((view.y - span) / CHUNK_SIZE);
   const cy1 = Math.floor((view.y + span) / CHUNK_SIZE);
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  const { z0, z1 } = viewLevels(view.z);
+  for (let z = z0; z <= z1; z++) {
     for (let cx = cx0; cx <= cx1; cx++) {
       for (let cy = cy0; cy <= cy1; cy++) {
         out.push(getChunk(map, z, chunkKeyAt(cx, cy)));

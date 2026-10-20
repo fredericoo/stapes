@@ -7,6 +7,8 @@ import {
   isSolidPlacement,
   isWalkableSurfaceAt,
   planeCoveredBy,
+  levelsReaching,
+  presentLevelsAndAbove,
   stackHeight,
   stackOnLevel,
   surfaceTileAt,
@@ -14,7 +16,14 @@ import {
 } from "../lib/mapData";
 import { stackOcclusion } from "../lib/lighting";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, coordKey, resolveClimbFrom } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  MAX_LEVEL,
+  MAX_STACK_HEIGHT,
+  MIN_LEVEL,
+  coordKey,
+  resolveClimbFrom,
+} from "../lib/types";
 import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
@@ -106,6 +115,37 @@ export function listStandingSurfaces(
   y: number,
   tilesById: Record<string, TileDef>,
 ): StandingSurface[] {
+  return standingSurfacesOn(map, x, y, tilesById, presentLevelsAndAbove(map));
+}
+
+/**
+ * The standing surfaces from `loAbs` to `hiAbs`, the same as filtering
+ * {@link listStandingSurfaces} to them, but reading only the levels that can
+ * reach those heights, so its cost does not grow with how many levels the
+ * column holds.
+ */
+export function standingSurfacesBetween(
+  map: MapFile,
+  x: number,
+  y: number,
+  loAbs: number,
+  hiAbs: number,
+  tilesById: Record<string, TileDef>,
+): StandingSurface[] {
+  const levels = levelsReaching(loAbs, hiAbs, MAX_STACK_HEIGHT);
+  return standingSurfacesOn(map, x, y, tilesById, levels).filter(
+    (surface) => surface.abs >= loAbs && surface.abs <= hiAbs,
+  );
+}
+
+/** `levels` ascending; each level's floor can be made by the stack on the level below. */
+function standingSurfacesOn(
+  map: MapFile,
+  x: number,
+  y: number,
+  tilesById: Record<string, TileDef>,
+  levels: Iterable<number>,
+): StandingSurface[] {
   const out: StandingSurface[] = [];
   let closed: number[] | undefined;
 
@@ -120,19 +160,27 @@ export function listStandingSurfaces(
 
   const chunkKey = chunkKeyFor(x, y);
   const cellKey = coordKey(x, y);
-  let below: PlacedTile[] | undefined;
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  let lastZ = Number.NaN;
+  let last: PlacedTile[] | undefined;
+  for (const z of levels) {
     const stack = stackOnLevel(map, z, chunkKey, cellKey);
     if (stack !== undefined && stack.length > 0) {
       const footing = footingOfStack(stack, tilesById);
       if (planeCoveredBy(footing)) (closed ??= []).push(z * HEIGHT_PER_LEVEL);
       if (footing?.walkable) add(z * HEIGHT_PER_LEVEL + footing.elev, z);
     }
+    const below =
+      lastZ === z - 1
+        ? last
+        : z > MIN_LEVEL
+          ? stackOnLevel(map, z - 1, chunkKey, cellKey)
+          : undefined;
     if (below !== undefined) {
       const floorAbs = walkableFloorAbove(z - 1, below, tilesById);
       if (floorAbs != null) add(floorAbs, z);
     }
-    below = stack;
+    lastZ = z;
+    last = stack;
   }
   if (!closed) return out;
   return out.filter((surface) => !closed.includes(surface.abs));
@@ -167,9 +215,9 @@ export function surfacesInClimbBand(
   y: number,
   tilesById: Record<string, TileDef>,
 ): StandingSurface[] {
-  return listStandingSurfaces(map, x, y, tilesById).filter((surface) => {
-    if (surface.abs < from.abs - MAX_CLIMB_HEIGHT) return false;
-    if (surface.abs > from.abs + MAX_CLIMB_HEIGHT) return false;
+  const lo = from.abs - MAX_CLIMB_HEIGHT;
+  const hi = from.abs + MAX_CLIMB_HEIGHT;
+  return standingSurfacesBetween(map, x, y, lo, hi, tilesById).filter((surface) => {
     /**
      * A step up crosses the plane in the column being left; a step down
      * crosses it in the column being entered. Using the wrong column for
@@ -198,7 +246,16 @@ export function findLandingAbs(
 ): number | null {
   let best: number | null = null;
 
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  /**
+   * Downward from the feet, and done once a level's highest possible top is
+   * no higher than the landing already found: everything under it is lower.
+   */
+  const levels = presentLevelsAndAbove(map);
+  for (let i = levels.length - 1; i >= 0; i--) {
+    const z = levels[i]!;
+    const levelFloorAbs = z * HEIGHT_PER_LEVEL;
+    if (levelFloorAbs >= feetAbs) continue;
+    if (best != null && levelFloorAbs + MAX_STACK_HEIGHT <= best) break;
     let stack = getStack(map, x, y, z);
     if (exclude && exclude.z === z) {
       stack = sceneryStack(map, x, y, z, exclude.stackIndex);

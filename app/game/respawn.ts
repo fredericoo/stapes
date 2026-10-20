@@ -1,8 +1,8 @@
-import { resolveActor, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import { resolveActor } from "../lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import type { ItemInstance } from "../lib/itemInstance";
 import { resolveRespawn, type RespawnInteraction } from "../lib/interactions";
-import { getStack, listCoords } from "../lib/mapData";
+import { getStack, listCoords, presentLevels } from "../lib/mapData";
 import { findActorAnywhere, residentOwnerId } from "./actors";
 import { cellKey } from "./pressurePlates";
 
@@ -42,7 +42,7 @@ function objectKey(cell: Coord, tileId: string): string {
 
 export function findSpawnPoints(map: MapFile, tilesById: Record<string, TileDef>): SpawnPoint[] {
   const points = new Map<string, SpawnPoint>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const cell = { x, y, z };
       stack.forEach((placed, stackIndex) => {

@@ -7,10 +7,11 @@ import {
   visibleChunkKeys,
 } from "./meshWindow";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import { CHUNK_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import { CHUNK_SIZE } from "../lib/types";
 import type { MapFile } from "../lib/types";
+import { VIEW_LEVEL_REACH, viewLevels } from "../lib/view";
 
-const WINDOW = { x0: 10, y0: 10, x1: 25, y1: 25 };
+const WINDOW = { x0: 10, y0: 10, x1: 25, y1: 25, levels: viewLevels(0) };
 
 function mapAt(...cells: Array<{ x: number; y: number; z: number }>): MapFile {
   let map = emptyMap();
@@ -46,8 +47,8 @@ describe("which chunks are worth meshing", () => {
   });
 
   it("follows the level shift down as well as up", () => {
-    const high = { x: 34, y: 34, z: MAX_LEVEL };
-    const low = { x: -10, y: -10, z: MIN_LEVEL };
+    const high = { x: 34, y: 34, z: VIEW_LEVEL_REACH };
+    const low = { x: -10, y: -10, z: -VIEW_LEVEL_REACH };
     const map = mapAt(high, low);
 
     const keys = visibleChunkKeys(map, WINDOW);
@@ -58,7 +59,7 @@ describe("which chunks are worth meshing", () => {
 
   it("reaches far enough past the camera to catch a tall sprite", () => {
     const TALLEST_SPRITE_CELLS = 4;
-    const window = { x0: 4, y0: 4, x1: 12, y1: 12 };
+    const window = { x0: 4, y0: 4, x1: 12, y1: 12, levels: viewLevels(0) };
     const below = {
       x: window.x1 + TALLEST_SPRITE_CELLS,
       y: window.y1 + TALLEST_SPRITE_CELLS,
@@ -85,13 +86,20 @@ describe("which chunks are worth meshing", () => {
     expect(visibleChunkKeys(dense, WINDOW).size).toBe(4);
   });
 
-  it("looks at every level, since a cut roof is still built", () => {
+  it("looks at every level in reach of the viewer, since a cut roof is still built", () => {
     let map = emptyMap();
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (let z = -VIEW_LEVEL_REACH; z <= VIEW_LEVEL_REACH; z++) {
       map = replaceStack(map, 20 + z, 20 + z, z, [{ tileId: "grass" }]);
     }
 
-    expect(visibleChunkKeys(map, WINDOW).size).toBe(MAX_LEVEL - MIN_LEVEL + 1);
+    expect(visibleChunkKeys(map, WINDOW).size).toBe(2 * VIEW_LEVEL_REACH + 1);
+  });
+
+  it("leaves out a level past the viewer's reach, however close it is drawn", () => {
+    const deep = -VIEW_LEVEL_REACH - 1;
+    const map = mapAt({ x: 20 + deep, y: 20 + deep, z: deep });
+
+    expect(visibleChunkKeys(map, WINDOW).size).toBe(0);
   });
 });
 
@@ -105,7 +113,7 @@ describe("naming a chunk of a level", () => {
 });
 
 describe("whether a cell is inside what is drawn", () => {
-  const window = { x0: 0, y0: 0, x1: 20, y1: 20 };
+  const window = { x0: 0, y0: 0, x1: 20, y1: 20, levels: viewLevels(0) };
 
   it("takes a cell inside the rect, margin included", () => {
     expect(cellInMeshWindow(window, 10, 10, 0)).toBe(true);
@@ -115,6 +123,12 @@ describe("whether a cell is inside what is drawn", () => {
   it("refuses a cell past the margin", () => {
     expect(cellInMeshWindow(window, -MESH_WINDOW_MARGIN - 1, 0, 0)).toBe(false);
     expect(cellInMeshWindow(window, 0, 21 + MESH_WINDOW_MARGIN, 0)).toBe(false);
+  });
+
+  it("refuses a cell on a level past the viewer's reach", () => {
+    expect(cellInMeshWindow(window, 10 - VIEW_LEVEL_REACH - 1, 10, -VIEW_LEVEL_REACH - 1)).toBe(
+      false,
+    );
   });
 
   it("shifts the rect with the level, as the projection does", () => {
