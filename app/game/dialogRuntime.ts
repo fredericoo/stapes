@@ -6,9 +6,13 @@ import {
   type CommandPath,
   type DialogCommand,
   type DialogDef,
+  type DialogCondition,
   type DialogTrade,
+  type SwitchTo,
   type TradeSide,
 } from "../lib/dialog";
+import { evaluateCondition, type ConditionNode } from "../lib/conditions";
+import type { Coord } from "../lib/types";
 import { NOBODY } from "./brainRuntime";
 
 export type TalkAction =
@@ -31,10 +35,13 @@ export type DialogEffectDef =
   | { effect: "trade"; take: TradeSide[]; give: TradeSide[] }
   | { effect: "add_status"; statusId: string }
   | { effect: "remove_status"; statusId: string }
-  | { effect: "tag"; tag: string };
+  | { effect: "tag"; tag: string }
+  | { effect: "switch"; channel: string; to: SwitchTo }
+  | { effect: "teleport"; to: Coord };
 
 export type PartnerView = {
   name(): string | null;
+  isKing(): boolean;
   attempt(effects: readonly DialogEffectDef[]): boolean;
 };
 
@@ -132,6 +139,10 @@ function run(dialog: DialogDef, at: Conversation, view: PartnerView): Conversati
     if (command.kind === "choices" || command.kind === "request_trade") {
       return { ...at, pc, transcript };
     }
+    if (command.kind === "if") {
+      pc = [...pc, holds(command.when, view) ? 0 : 1, 0];
+      continue;
+    }
     if (command.kind === "goto") {
       const target = anchorPath(dialog, command.name);
       pc = advance(target ?? pc);
@@ -159,10 +170,21 @@ function advance(pc: CommandPath): number[] {
   return next;
 }
 
+function holds(when: ConditionNode<DialogCondition>, view: PartnerView): boolean {
+  return evaluateCondition(when, (leaf) => leaf.cond === "king" && view.isKing());
+}
+
 function effectOf(
-  command: Extract<DialogCommand, { kind: "add_status" | "remove_status" | "tag" }>,
+  command: Extract<
+    DialogCommand,
+    { kind: "add_status" | "remove_status" | "tag" | "switch" | "teleport" }
+  >,
 ): DialogEffectDef {
+  if (command.kind === "teleport") return { effect: "teleport", to: command.to };
   if (command.kind === "tag") return { effect: "tag", tag: command.tag };
+  if (command.kind === "switch") {
+    return { effect: "switch", channel: command.channel, to: command.to };
+  }
   if (command.kind === "add_status") return { effect: "add_status", statusId: command.statusId };
   return { effect: "remove_status", statusId: command.statusId };
 }

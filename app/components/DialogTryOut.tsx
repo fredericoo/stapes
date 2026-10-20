@@ -17,7 +17,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Input, Select } from "../ui";
+import { Button, Input, Select, Switch } from "../ui";
 import { ConversationPanel } from "./ConversationPanel";
 
 const PRETEND_NAME = "you";
@@ -30,7 +30,12 @@ type Props = {
   className?: string;
 };
 
-type Pretend = { equipment: Equipment; tags: Set<string>; statuses: Set<string> };
+type Pretend = {
+  equipment: Equipment;
+  tags: Set<string>;
+  statuses: Set<string>;
+  king: boolean;
+};
 
 function biggestBag(tiles: TileDef[]): TileDef | null {
   let best: TileDef | null = null;
@@ -53,11 +58,13 @@ function pretendPartner(
 ): PartnerView {
   return {
     name: () => PRETEND_NAME,
+    isKing: () => pretend.king,
     attempt: (effects) => {
       const next = {
         equipment: pretend.equipment,
         tags: new Set(pretend.tags),
         statuses: new Set(pretend.statuses),
+        king: pretend.king,
       };
       for (const effect of effects) {
         if (!applyEffect(next, effect, tilesById, statusDefs)) return false;
@@ -78,6 +85,7 @@ function applyEffect(
     partner.tags.add(effect.tag);
     return true;
   }
+  if (effect.effect === "switch" || effect.effect === "teleport") return true;
   if (effect.effect === "add_status" || effect.effect === "remove_status") {
     if (!statusDefs[effect.statusId]) return false;
     if (effect.effect === "add_status") partner.statuses.add(effect.statusId);
@@ -100,6 +108,7 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
       : emptyEquipment(),
     tags: new Set(),
     statuses: new Set(),
+    king: false,
   }));
   const [adding, setAdding] = useState<string | null>(null);
 
@@ -199,6 +208,14 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             aria-label="Pretend tags, comma separated"
           />
         </div>
+        <label className="flex items-center gap-2 text-[10px] uppercase text-muted">
+          <Switch
+            checked={pretend.king}
+            onCheckedChange={(king) => setPretend({ ...pretend, king })}
+            ariaLabel="Pretend to be the king"
+          />
+          king
+        </label>
         {Object.keys(statusDefs).length > 0 ? (
           <div className="flex flex-wrap items-center gap-1">
             <span className="text-[10px] uppercase text-muted">statuses</span>

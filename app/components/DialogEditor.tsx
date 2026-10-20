@@ -13,16 +13,21 @@ import {
   type DialogChoice,
   type DialogCommand,
   type DialogCommandKind,
+  type DialogCondition,
   type DialogDef,
+  type DialogIf,
   type DialogTrade,
+  SWITCH_TO,
+  type SwitchTo,
   type TradeSide,
 } from "../lib/dialog";
 import { DIALOG_COMMAND_KINDS, DIALOG_COMMANDS, type CatalogDefaults } from "../lib/dialogCatalog";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { StatusDef } from "../lib/status";
-import type { TileDef, TilesetDef } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, type TileDef, type TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Input, NumberInput, Select, Textarea } from "../ui";
+import { Button, Input, NumberInput, Segmented, Select, Textarea } from "../ui";
+import { ConditionTreeEditor } from "./ConditionTreeEditor";
 import { DialogTryOut } from "./DialogTryOut";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
@@ -377,6 +382,47 @@ function CommandFields({
       />
     );
   }
+  if (command.kind === "switch") {
+    return (
+      <>
+        <Input
+          value={command.channel}
+          onChange={(e) => onChange({ ...command, channel: e.target.value })}
+          className="w-32 font-mono"
+          placeholder="channel"
+          aria-label="Channel"
+        />
+        <Segmented
+          value={command.to}
+          onChange={(to: SwitchTo) => onChange({ ...command, to })}
+          options={SWITCH_TO.map((to) => ({ value: to, label: to }))}
+          size="sm"
+          ariaLabel="Switch to"
+        />
+      </>
+    );
+  }
+  if (command.kind === "teleport") {
+    const axis = (key: "x" | "y" | "z") => (value: number) =>
+      onChange({ ...command, to: { ...command.to, [key]: value } });
+    return (
+      <span className="flex items-center gap-1 text-[10px] uppercase text-muted">
+        {(["x", "y", "z"] as const).map((key) => (
+          <label key={key} className="flex items-center gap-1">
+            {key}
+            <NumberInput
+              step={1}
+              {...(key === "z" ? { min: MIN_LEVEL, max: MAX_LEVEL } : {})}
+              value={command.to[key]}
+              onChange={axis(key)}
+              className="w-16"
+              aria-label={`Destination ${key}`}
+            />
+          </label>
+        ))}
+      </span>
+    );
+  }
   if (command.kind === "add_status" || command.kind === "remove_status") {
     return (
       <Select
@@ -431,7 +477,61 @@ function CommandBlocks({
   if (command.kind === "request_trade") {
     return <TradeBlocks path={path} trade={command} ctx={ctx} onChange={onChange} />;
   }
+  if (command.kind === "if") {
+    return <IfBlocks path={path} command={command} ctx={ctx} onChange={onChange} />;
+  }
   return null;
+}
+
+const CONDITION_LABELS: Record<DialogCondition["cond"], string> = {
+  king: "is the king",
+};
+
+function IfBlocks({
+  path,
+  command,
+  ctx,
+  onChange,
+}: {
+  path: CommandPath;
+  command: DialogIf;
+  ctx: EditorContext;
+  onChange: (next: DialogCommand) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 pl-6">
+      <div className="flex flex-col gap-1">
+        <span className="text-[10px] font-bold uppercase text-muted">When the player</span>
+        <ConditionTreeEditor<DialogCondition>
+          root={command.when}
+          onChange={(when) => onChange({ ...command, when })}
+          leaf={{
+            render: (leaf, set) => (
+              <Select
+                value={leaf.cond}
+                onValueChange={(cond) => cond && set({ cond: cond as DialogCondition["cond"] })}
+                options={Object.entries(CONDITION_LABELS).map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+                className="min-w-[8rem]"
+                ariaLabel="Condition"
+              />
+            ),
+            fresh: () => ({ cond: "king" }),
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
+        <span className="text-[10px] font-bold uppercase text-muted">Then</span>
+        <CommandList listPath={[...path, 0]} commands={command.then} ctx={ctx} />
+      </div>
+      <div className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
+        <span className="text-[10px] font-bold uppercase text-muted">Otherwise</span>
+        <CommandList listPath={[...path, 1]} commands={command.else} ctx={ctx} />
+      </div>
+    </div>
+  );
 }
 
 function ChoicesBlocks({

@@ -1291,7 +1291,8 @@ rather than a fix, which is the point.
 `interactions.dialog` (`app/lib/dialog.ts`, run by `app/game/dialogRuntime.ts`)
 is how an NPC holds a conversation: an ordered list of commands, the way an
 RPG Maker event is — `say` a line, `anchor` a label, `goto` one, offer
-`choices`, `request_trade`, `add_status`, `remove_status`, `tag`. A choice
+`choices`, `request_trade`, branch on an `if`, throw a `switch`,
+`teleport` the player, `add_status`, `remove_status`, `tag`. A choice
 holds the commands each button leads to; a trade holds what happens when it
 goes through and when it is cancelled. The interpreter runs one list at a
 time from a counter, descends into a branch on the player's press, continues
@@ -1301,9 +1302,9 @@ after the block when the branch runs out, and stops when the root does.
 every button with its own condition, reply and effects — and it could say
 one thing per press and nothing between presses. A script says as much as it
 likes, in any order, and a new kind of command is one more arm rather than a
-new field on every option. `if` is the arm coming next; the interpreter
-already treats every nested list the same, so it will be a block like
-`choices` is. And before the tree there were typed keywords, which did not
+new field on every option. `if` is a block like `choices`, with two lists
+instead of one per button, so it needed nothing new from the interpreter
+beyond choosing the branch itself. And before the tree there were typed keywords, which did not
 survive a phone: what an NPC can be asked is what is on the buttons, and chat
 is for people.
 
@@ -1495,6 +1496,31 @@ would give it hit points, and hit points are killable: a world where somebody
 has punched the blacksmith to death is a world with no way to buy a weapon,
 and nothing respawns him. The potion salesman predates this and is still a
 battler, which is the same exposure.
+
+### An `if` asks about the player, a `switch` throws levers by channel, and a `teleport` moves them
+
+- **`if` holds a condition tree** (`app/lib/conditions`, the brain's own
+  `and`/`or`/`not` groups) over dialog leaves, and runs `then` (branch 0) or
+  `else` (branch 1) without waiting for a press. The only leaf is
+  `{ cond: "king" }`, read through `PartnerView.isKing`: on the server it is
+  `GameSession.kingId`, which `GameServer.crown` sets alongside the `king`
+  broadcast and `load` sets on every new session. The world in a tab has no
+  realm, so there nobody is king; Try it has a switch to pretend.
+- **`switch` does not hold any state of its own.** It throws every placed tile
+  on its `channel` that has a `switch` interaction, exactly as if somebody had
+  used each one, so the lever's own `emit` drives whatever is wired to the
+  channel and the map is the record of whether it is on. `to: "on"` or
+  `"off"` skips a lever already emitting that value; a lever with no `emit`
+  counts as off. A channel with no lever on it is an effect that does
+  nothing, like a status nobody authored. The lever can stand anywhere,
+  including somewhere nobody can reach, which is how a conversation becomes
+  the only way to work it.
+- **`teleport` is the teleport tile's move with the destination in the
+  script.** It checks `teleportFits` for the player's body first and does
+  nothing if they would not fit, so a blocked destination is a skipped
+  effect. Nothing closes the conversation on purpose: the next tick finds
+  the player out of talk reach and closes it, so a line after the teleport
+  is never read.
 
 ### Authoring a dialog is a list of commands, with the real panel beside it
 

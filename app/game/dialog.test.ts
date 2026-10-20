@@ -4,14 +4,14 @@ import tilesJson from "../../data/tiles.json";
 import type { BrainDef } from "../lib/brain";
 import type { DialogDef } from "../lib/dialog";
 import { DEFAULT_CONTAINER } from "../lib/item";
-import { emptyMap, replaceStack } from "../lib/mapData";
+import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
 import type { ObjectRef } from "./affordances";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { TRADE_REFUSED } from "./dialogRuntime";
-import { GameSession } from "./GameSession";
+import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { FRAME, tile } from "../lib/testTile";
 
 const say = (text: string) => ({ kind: "say" as const, text });
@@ -73,8 +73,54 @@ const standsToServe: BrainDef = {
   ],
 };
 
+const gatekeeper: DialogDef = {
+  script: [
+    {
+      kind: "if",
+      when: { cond: "king" },
+      then: [
+        { kind: "switch", channel: "gate", to: "toggle" },
+        { kind: "say", text: "As you wish." },
+      ],
+      else: [{ kind: "say", text: "Only the king gives that order." }],
+    },
+  ],
+};
+
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
+  tile({
+    id: "lever-off",
+    interactions: { switch: { targetTileId: "lever-on" }, emit: { value: "off" } },
+  }),
+  tile({
+    id: "lever-on",
+    interactions: { switch: { targetTileId: "lever-off" }, emit: { value: "on" } },
+  }),
+  tile({
+    id: "gate",
+    height: 4,
+    walkable: false,
+    interactions: { receive: { tileId: "gate-open", when: "on", mode: "any" } },
+  }),
+  tile({
+    id: "gate-open",
+    interactions: { receive: { tileId: "gate", when: "off", mode: "all" } },
+  }),
+  tile({ id: "gatekeeper", height: 4, walkable: false, interactions: { dialog: gatekeeper } }),
+  tile({
+    id: "ferryman",
+    height: 4,
+    walkable: false,
+    interactions: {
+      dialog: {
+        script: [
+          { kind: "say", text: "Across you go." },
+          { kind: "teleport", to: { x: -5, y: -5, z: 0 } },
+        ],
+      },
+    },
+  }),
   tile({ id: "wall", height: 8, walkable: false }),
   tile({ id: "step", height: 2, walkable: true }),
   tile({ id: "block", height: 4, walkable: true }),
@@ -467,5 +513,67 @@ describe("the tanner, as authored", () => {
     press(session, 0);
     trade(session, 1);
     expect(bagOf(session)).toEqual(["skinx2", "arcane-shardx5", "iron-helm", "leather-cap"]);
+  });
+});
+
+describe("a gatekeeper who answers to the king", () => {
+  function gateWorld(): GameSession {
+    let map = fieldWith("gatekeeper");
+    map = replaceStack(map, -4, -4, 0, [
+      { tileId: "grass" },
+      { tileId: "lever-off", channel: "gate" },
+    ]);
+    map = replaceStack(map, -4, 4, 0, [{ tileId: "grass" }, { tileId: "gate", channel: "gate" }]);
+    return new GameSession(map, tiles);
+  }
+  const top = (session: GameSession, x: number, y: number) =>
+    getStack(session.getMap(), x, y, 0).at(-1)?.tileId;
+
+  it("throws the lever on the gate's channel for the king, and the gate opens", () => {
+    const session = gateWorld();
+    session.setKing(LOCAL_ACTOR_ID);
+
+    talkTo(session, "gatekeeper");
+    session.tick(TICK_MS);
+
+    expect(lastLine(session)).toBe("As you wish.");
+    expect(top(session, -4, -4)).toBe("lever-on");
+    expect(top(session, -4, 4)).toBe("gate-open");
+  });
+
+  it("leaves the gate shut for anybody else", () => {
+    const session = gateWorld();
+
+    talkTo(session, "gatekeeper");
+    session.tick(TICK_MS);
+
+    expect(lastLine(session)).toBe("Only the king gives that order.");
+    expect(top(session, -4, 4)).toBe("gate");
+  });
+});
+
+describe("a ferryman who teleports", () => {
+  const self = (session: GameSession) =>
+    session.actorSnapshots().find((actor) => actor.id === LOCAL_ACTOR_ID)!;
+
+  it("moves the player to the cell the script names, and the conversation ends there", () => {
+    const session = new GameSession(fieldWith("ferryman"), tiles);
+
+    talkTo(session, "ferryman");
+    session.tick(TICK_MS);
+
+    expect(self(session)).toMatchObject({ x: -5, y: -5, z: 0 });
+    expect(session.getSnapshot().conversation).toBeNull();
+  });
+
+  it("leaves the player where they are when their body does not fit there", () => {
+    const map = replaceStack(fieldWith("ferryman"), -5, -5, 0, [{ tileId: "wall" }]);
+    const session = new GameSession(map, tiles);
+
+    talkTo(session, "ferryman");
+    session.tick(TICK_MS);
+
+    expect(self(session)).toMatchObject({ x: 0, y: 0, z: 0 });
+    expect(lastLine(session)).toBe("Across you go.");
   });
 });

@@ -56,10 +56,14 @@ const shop: DialogDef = {
 
 const npc = { id: "npc:1", tileId: "seller" };
 
-function partner(attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true) {
+function partner(
+  attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true,
+  king = false,
+) {
   const attempts: DialogEffectDef[][] = [];
   const view: PartnerView & { attempts: DialogEffectDef[][] } = {
     name: () => "ann",
+    isKing: () => king,
     attempt: (effects) => (attempts.push([...effects]), attempt(effects)),
     attempts,
   };
@@ -203,5 +207,51 @@ describe("goto", () => {
   it("carries on past a goto naming no anchor", () => {
     const lost: DialogDef = { script: [{ kind: "goto", name: "nowhere" }, say("Still here.")] };
     expect(lines(openConversation(lost, npc, partner()))).toEqual(["npc: Still here."]);
+  });
+});
+
+describe("an if", () => {
+  const gate: DialogDef = {
+    script: [
+      {
+        kind: "if",
+        when: { cond: "king" },
+        then: [say("Your Majesty."), { kind: "switch", channel: "gate", to: "on" }],
+        else: [say("Move along.")],
+      },
+      say("Good day."),
+    ],
+  };
+
+  it("runs the first list for the king, and carries on after the block", () => {
+    const view = partner(undefined, true);
+    expect(lines(openConversation(gate, npc, view))).toEqual([
+      "npc: Your Majesty.",
+      "npc: Good day.",
+    ]);
+    expect(view.attempts).toEqual([[{ effect: "switch", channel: "gate", to: "on" }]]);
+  });
+
+  it("runs the other list for anybody else", () => {
+    const view = partner();
+    expect(lines(openConversation(gate, npc, view))).toEqual([
+      "npc: Move along.",
+      "npc: Good day.",
+    ]);
+    expect(view.attempts).toEqual([]);
+  });
+
+  it("reads a negated group the other way round", () => {
+    const notKing: DialogDef = {
+      script: [
+        {
+          kind: "if",
+          when: { combinator: "and", not: true, rules: [{ cond: "king" }] },
+          then: [say("Commoner.")],
+          else: [say("Sire.")],
+        },
+      ],
+    };
+    expect(lines(openConversation(notKing, npc, partner(undefined, true)))).toEqual(["npc: Sire."]);
   });
 });
