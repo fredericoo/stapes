@@ -248,7 +248,7 @@ export function GameViewport({
       statusDefs={statusDefs}
       onTalk={(action) => onTalk?.(action)}
       hotkeys
-      className="scrolls-past-toolbar min-h-0 w-full flex-1"
+      className="clears-toolbar min-h-0 w-full flex-1"
     />
   ) : null;
 
@@ -260,7 +260,7 @@ export function GameViewport({
       onCraft={(recipeIndex) => onCraft?.(crafting.ref, recipeIndex)}
       onClose={() => onCloseCrafting?.()}
       hotkeys
-      className="scrolls-past-toolbar min-h-0 w-full flex-1"
+      className="clears-toolbar min-h-0 w-full flex-1"
     />
   ) : null;
   const replacesList = talkPanel ?? craftPanel;
@@ -446,11 +446,8 @@ export function GameViewport({
                 ))}
             </div>
             <div
-              className="flex min-w-0 shrink flex-col items-center pb-3"
-              style={{
-                flexBasis: PAD_SIZE_PX,
-                marginBottom: "max(env(safe-area-inset-bottom), calc(100lvh - 100dvh))",
-              }}
+              className="clears-toolbar flex min-w-0 shrink flex-col items-center pb-3"
+              style={{ flexBasis: PAD_SIZE_PX }}
             >
               <StatusStrip statuses={statuses} interactive={false} tilesets={tilesets} />
               <div className="flex w-full min-h-0 flex-1 flex-col gap-2">
