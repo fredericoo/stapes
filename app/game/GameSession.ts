@@ -1127,6 +1127,11 @@ export class GameSession implements PlaySession {
     return this.actors.has(id);
   }
 
+  isMoving(id: string): boolean {
+    const actor = this.actors.get(id);
+    return actor !== undefined && !this.idle(actor);
+  }
+
   isResident(id: string): boolean {
     return this.actors.get(id)?.resident === true;
   }
