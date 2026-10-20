@@ -483,9 +483,42 @@ function CommandBlocks({
   return null;
 }
 
-const CONDITION_LABELS: Record<DialogCondition["cond"], string> = {
-  king: "is the king",
-};
+const CONDITIONS: Record<DialogCondition["cond"], { label: string; make: () => DialogCondition }> =
+  {
+    king: { label: "is the king", make: () => ({ cond: "king" }) },
+    tagged: { label: "has the tag", make: () => ({ cond: "tagged", tag: "" }) },
+  };
+
+function ConditionFields({
+  leaf,
+  onChange,
+}: {
+  leaf: DialogCondition;
+  onChange: (next: DialogCondition) => void;
+}) {
+  return (
+    <>
+      <Select
+        value={leaf.cond}
+        onValueChange={(cond) =>
+          cond && cond !== leaf.cond && onChange(CONDITIONS[cond as DialogCondition["cond"]].make())
+        }
+        options={Object.entries(CONDITIONS).map(([value, { label }]) => ({ value, label }))}
+        className="min-w-[8rem]"
+        ariaLabel="Condition"
+      />
+      {leaf.cond === "tagged" ? (
+        <Input
+          value={leaf.tag}
+          onChange={(e) => onChange({ ...leaf, tag: e.target.value })}
+          className="w-32 font-mono"
+          placeholder="tag"
+          aria-label="Tag"
+        />
+      ) : null}
+    </>
+  );
+}
 
 function IfBlocks({
   path,
@@ -506,18 +539,7 @@ function IfBlocks({
           root={command.when}
           onChange={(when) => onChange({ ...command, when })}
           leaf={{
-            render: (leaf, set) => (
-              <Select
-                value={leaf.cond}
-                onValueChange={(cond) => cond && set({ cond: cond as DialogCondition["cond"] })}
-                options={Object.entries(CONDITION_LABELS).map(([value, label]) => ({
-                  value,
-                  label,
-                }))}
-                className="min-w-[8rem]"
-                ariaLabel="Condition"
-              />
-            ),
+            render: (leaf, set) => <ConditionFields leaf={leaf} onChange={set} />,
             fresh: () => ({ cond: "king" }),
           }}
         />

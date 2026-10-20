@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { conditionSchema, type ConditionNode } from "./conditions";
+import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import { resolveContainer } from "./item";
 import { MAX_LEVEL, MIN_LEVEL, type Coord, type TileDef } from "./types";
 
@@ -18,9 +18,7 @@ export type DialogTrade = {
 
 export type DialogChoice = { label: string; then: DialogCommand[] };
 
-export type DialogCondition = { cond: "king" };
-
-export const DIALOG_CONDITIONS: DialogCondition["cond"][] = ["king"];
+export type DialogCondition = { cond: "king" } | { cond: "tagged"; tag: string };
 
 export type DialogIf = {
   kind: "if";
@@ -66,7 +64,10 @@ const count = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIAL
 const tradeSideSchema = v.object({ tileId, count });
 
 const whenSchema = conditionSchema<DialogCondition>(
-  v.object({ cond: v.picklist(DIALOG_CONDITIONS) }),
+  v.variant("cond", [
+    v.object({ cond: v.literal("king") }),
+    v.object({ cond: v.literal("tagged"), tag: name }),
+  ]),
 );
 
 /**
@@ -281,6 +282,11 @@ function checkCommand(
     error(`${where} jumps to "${command.name}", and no anchor has that name`);
   }
   if (command.kind === "tag" && command.tag.trim() === "") error(`${where} has no tag`);
+  if (command.kind === "if") {
+    for (const leaf of conditionLeaves(command.when)) {
+      if (leaf.cond === "tagged" && leaf.tag.trim() === "") error(`${where} asks for no tag`);
+    }
+  }
   if (command.kind === "switch" && command.channel.trim() === "") {
     error(`${where} names no channel`);
   }

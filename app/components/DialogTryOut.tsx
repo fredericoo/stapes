@@ -59,6 +59,7 @@ function pretendPartner(
   return {
     name: () => PRETEND_NAME,
     isKing: () => pretend.king,
+    hasTag: (tag) => pretend.tags.has(tag),
     attempt: (effects) => {
       const next = {
         equipment: pretend.equipment,

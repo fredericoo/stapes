@@ -59,11 +59,13 @@ const npc = { id: "npc:1", tileId: "seller" };
 function partner(
   attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true,
   king = false,
+  tags: readonly string[] = [],
 ) {
   const attempts: DialogEffectDef[][] = [];
   const view: PartnerView & { attempts: DialogEffectDef[][] } = {
     name: () => "ann",
     isKing: () => king,
+    hasTag: (tag) => tags.includes(tag),
     attempt: (effects) => (attempts.push([...effects]), attempt(effects)),
     attempts,
   };
@@ -239,6 +241,23 @@ describe("an if", () => {
       "npc: Good day.",
     ]);
     expect(view.attempts).toEqual([]);
+  });
+
+  it("asks whether the player carries a tag", () => {
+    const greeter: DialogDef = {
+      script: [
+        {
+          kind: "if",
+          when: { cond: "tagged", tag: "met" },
+          then: [say("Back again.")],
+          else: [say("A new face.")],
+        },
+      ],
+    };
+    expect(lines(openConversation(greeter, npc, partner(undefined, false, ["met"])))).toEqual([
+      "npc: Back again.",
+    ]);
+    expect(lines(openConversation(greeter, npc, partner()))).toEqual(["npc: A new face."]);
   });
 
   it("reads a negated group the other way round", () => {

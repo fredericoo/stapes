@@ -109,6 +109,26 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "gatekeeper", height: 4, walkable: false, interactions: { dialog: gatekeeper } }),
   tile({
+    id: "innkeeper",
+    height: 4,
+    walkable: false,
+    interactions: {
+      dialog: {
+        script: [
+          {
+            kind: "if",
+            when: { cond: "tagged", tag: "stayed" },
+            then: [{ kind: "say", text: "Your usual room, then." }],
+            else: [
+              { kind: "tag", tag: "stayed" },
+              { kind: "say", text: "First night? Welcome." },
+            ],
+          },
+        ],
+      },
+    },
+  }),
+  tile({
     id: "ferryman",
     height: 4,
     walkable: false,
@@ -575,5 +595,18 @@ describe("a ferryman who teleports", () => {
 
     expect(self(session)).toMatchObject({ x: 0, y: 0, z: 0 });
     expect(lastLine(session)).toBe("Across you go.");
+  });
+});
+
+describe("an innkeeper who remembers you by a tag", () => {
+  it("greets a first visit one way, tags it, and greets the next visit the other way", () => {
+    const session = new GameSession(fieldWith("innkeeper"), tiles);
+
+    talkTo(session, "innkeeper");
+    expect(lastLine(session)).toBe("First night? Welcome.");
+    session.talk({ kind: "close" });
+
+    talkTo(session, "innkeeper");
+    expect(lastLine(session)).toBe("Your usual room, then.");
   });
 });

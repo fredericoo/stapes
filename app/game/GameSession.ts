@@ -1665,6 +1665,7 @@ export class GameSession implements PlaySession {
     return {
       name: () => this.bodyName(partner.id),
       isKing: () => partner.id === this.kingId,
+      hasTag: (tag) => partner.tags.includes(tag),
       attempt: (effects) => this.attemptDialogEffects(partner.id, effects),
     };
   }
