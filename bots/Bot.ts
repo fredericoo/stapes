@@ -528,7 +528,7 @@ export class Bot {
       this.rememberLostKit();
       if (this.lastAt) this.fearDeathPlace(this.lastAt, nowMs);
       this.deaths++;
-      this.happen("you died, dropped everything and will start again in the tutorial");
+      this.happen("you died, dropped everything and will start again at the town gate");
       this.ask("died", null);
     }
     if (nowMs - this.deadSinceMs >= REBIRTH_AFTER_MS) this.body.rebirth();

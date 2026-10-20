@@ -189,7 +189,7 @@ an agent drives", lists every call.
   against the world at `--url` (`https://` is assumed when no scheme is
   given; the default is `http://localhost:3000`). Each signs in as a player,
   with a name from the game's name generator and an account created the first
-  time, and plays the tutorial and then for gear: hunting, gathering, picking
+  time, and opens the starting rewards and then plays for gear: hunting, gathering, picking
   things up and trading with NPCs. With `OPENAI_API_KEY` set, a model
   (`gpt-5-nano`) also answers players who talk to them and can change their
   goals. They run in one process over worker

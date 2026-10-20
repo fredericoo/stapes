@@ -1497,10 +1497,43 @@ holding the old cell would put the dead back where the marker used to be.
 
 There used to be a `spawn:<id>` row and a `setSpawn` interaction that moved it,
 so a player could anchor themselves to a `respawn-point` tile. Both went with
-permadeath (see *A death is the end of a life*): a new life starts in the
-tutorial, so nothing may choose where it starts. `GameServer.load` deletes any
+permadeath (see *A death is the end of a life*): a new life starts outside the
+town gate, so nothing may choose where it starts. `GameServer.load` deletes any
 `spawn:` rows still in storage. The `respawn-point` tile is still in the
 catalogue, with no interaction, because the map has one placed.
+
+**A new life starts on the path outside the south gate, in the open.** The
+`player` marker is at 2,14 on level 0. It used to be in a dark room on level
+-1 with a lantern chest beside it, and the only way on was a drop through an
+unstable floor. Players opened that chest and left. Nothing on the surface is
+scripted now. It is laid out so that each thing to learn is in sight of the
+last one:
+
+- **Supply camp, 3..6,16 and 4..6,18.** Three `quest-crate`s holding
+  `rusty-sword`, `simple-hammer` and `simple-bow` share the `rewardTag`
+  `starter-weapon`. `takeReward` refuses a tag the player already holds, so
+  opening one closes the other two, and `claimedRewards` draws all three as
+  opened. That is what makes it a choice. The food crate has its own tag.
+  `basic-staff` is not offered, because a new life has no stone to cast with.
+  The `flame` keeps the camp lit at night and cooks meat.
+- **Rats** at -2,27 and 1,26 beside the trail and at -9,24 on the south-west
+  path, all 9 or more cells from the camp. A rat goes for a player it can see
+  within 7 cells and chases for 10. Placed nearer, they reached a new player
+  standing at the camp with no weapon yet and killed them.
+- **The shaft at -2,31.** A dirt trail at x -1 runs from the path through the
+  trees to it. The `starter-torch` chest beside it gives `hand-lantern`, the
+  sign says it is dark below, and a wall `torch` marks it at night. Falling
+  through does no damage, and the `ladder-up` at -2,30 on level -1 climbs back
+  out, so it is a way down that a new life survives.
+- **The old tutorial rooms** are reached by the ramps at 20,36, marked "Cave"
+  on the surface. Their crates keep their `tutorial-*` tags, so they are a
+  second weapon and more food for whoever explores. A `ladder-up` at -7,55 on
+  level -2 leads from the supply room up into the old start room. Without it,
+  the start room could only be reached from the marker.
+
+A lamppost would not do for the shaft. The lamplighter lights every
+`lamppost-off` within its reach at 18:00, and that would take it out of town
+and past the rats.
 
 **The write must not gate the broadcast.** The platform used to hold outgoing
 messages until preceding writes were durable, which was right for anything the
@@ -2438,14 +2471,14 @@ that lets the sky in is still reported.
 
 Straight after a carve, the script checks only the cells it carved. With
 `--verify` it checks every dirt cell on levels -1 to -3, and a good part of
-those were built by hand: the tutorial rooms around the spawn, the cellars
+those were built by hand: the old tutorial rooms under the south path, the cellars
 under houses, rooms behind doors, a floor reached only by ladder. A walk that
 started at the mouth and only took `canWalk` steps reached none of them: it
 reported 355 cells nobody could walk to, and a bat walled in behind a door.
 
 The walk now starts at the `player` marker as well as at the mouth, because
-that is where everybody enters the world, and the tutorial's only way out
-starts with a drop nobody can climb back up. The walk is `reachableCells` in
+that is where everybody enters the world. The marker is on the surface now,
+so the shaft at -2,31 and the ramps at 20,36 are how the walk gets below. The walk is `reachableCells` in
 `app/game/navigation.ts`, the same graph `planRoute` searches: it walks
 through a door as though it were open, since anybody who reaches one can open
 it, falls wherever a step leaves a body in the air, and takes every ladder and
@@ -6609,8 +6642,8 @@ something to practise Fire *with*.
 
 **Light is beside the ladder too, below its foot.** It asks Arcane 1, which is
 `MIN_EARNED_MASTERY` and so a level no death can take, and puts `luminous` on
-the caster at Spark's cooldown and cast time. It is what the quest chest just
-past the tutorial's portal gives, in place of Spark: a stone that can always be
+the caster at Spark's cooldown and cast time. It is what the quest chest in
+the walled pen by the cave ramps at 20,36 gives, in place of Spark: a stone that can always be
 pressed pays the flat fee on every press, so it is a way up to Spark that asks
 nothing. The chest's `rewardTag` is `tutorial-light-stone`, and a death clears
 tags, so each life takes it once. The stone forge makes it from a blank stone
@@ -7131,7 +7164,7 @@ nothing to show.
 **A death nobody was connected for is told on the next `hello`.** A lingering
 body (see *Closing the tab does not end a fight*) can die with no socket to send
 `died` to, and the rows are deleted all the same: the player comes back as a
-new character in the tutorial. So the death batch in
+new character at the spawn. So the death batch in
 `saveActors` also writes a `diedAway:` row holding the `DeathCost`, only for a
 death that was not announced, and `seatJoiner` reads and deletes it and puts it
 on the `hello` as `diedAway`. It is deleted on the read, not once the screen has
@@ -10778,11 +10811,11 @@ the berries it was carrying.
 
 ### A death is the end of a life
 
-A player who dies drops everything and starts again from nothing, back in the
-tutorial. `kill` lays every slot on the corpse's cell; the bag goes down whole,
+A player who dies drops everything and starts again from nothing, back at the
+spawn. `kill` lays every slot on the corpse's cell; the bag goes down whole,
 contents and all, so whoever reaches it first takes the bag in one pickup. The
 masteries go back to what the `player` tile authors, the tags go, and with them
-every reward the tutorial gave, so the tutorial's chests can be opened again.
+every reward already taken, so the starting crates can be opened again.
 
 What carries over is the name and the count of deaths: the `death` table keeps
 a row per death, and the next life is the character's next generation (see
@@ -14085,9 +14118,9 @@ Its legs are:
   `canTeleportFrom` allows.
 
 A drop costs four steps more than its walk, so a route takes one only when it
-is that much shorter. The real tutorial plans in about 60ms: drop through the
-unstable floor, climb the ladder at -8,40, then up the ramps at 20,36 to the
-surface.
+is that much shorter. The way out of the old tutorial rooms plans in about
+60ms: drop through the unstable floor, climb the ladder at -8,40, then up the
+ramps at 20,36 to the surface.
 
 **Goals are decided slowly; everything else is decided every frame.**
 `Bot.act` runs each frame. It turns the current goal into the next errand

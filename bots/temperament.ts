@@ -48,7 +48,7 @@ export type Temperament = {
    * The chance, before each new errand, of first wandering to a spot between
    * `wanderNearCells` and `wanderFarCells` away and looking about for between
    * `glanceMinMs` and `glanceMaxMs`. Without it a bot walks every route as if
-   * it knew the way, and a crowd crosses the tutorial in single file.
+   * it knew the way, and a crowd leaves the spawn in single file.
    */
   readonly wanderChance: number;
   readonly wanderNearCells: number;

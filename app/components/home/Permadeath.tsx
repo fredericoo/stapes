@@ -17,8 +17,9 @@ export function Permadeath() {
             died, for anybody to pick up, and your skull is left beside it.
           </p>
           <p>
-            You start again in the tutorial as the next of your line: Wren I comes back as Wren II,
-            with every skill back at the beginning. Only your name and your deaths carry over.
+            You start again outside the town gate as the next of your line: Wren I comes back as
+            Wren II, with every skill back at the beginning. Only your name and your deaths carry
+            over.
           </p>
         </div>
       </div>

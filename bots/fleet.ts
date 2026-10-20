@@ -35,7 +35,7 @@ const OUTDATED_RETRY_MS = 60_000;
 
 /**
  * A server starts all its bots at once, and bots that join in the same
- * second walk out of the tutorial in a line. Each waits up to this long first.
+ * second walk away from the spawn in a line. Each waits up to this long first.
  */
 const START_JITTER_MS = 20_000;
 
@@ -65,7 +65,7 @@ export type FleetConfig = {
   readonly openaiApiKey: string | null;
 };
 
-/** What every bot does first, before it plays for gear: the tutorial's rewards, then the surface. */
+/** What every bot does first, before it plays for gear: the rewards it has seen, then the surface. */
 const OPENING: readonly Goal[] = [{ goal: "open_rewards" }, { goal: "reach_level", level: 0 }];
 
 /**

@@ -47,7 +47,7 @@ export function DeathScreen({
         <div id="death-screen-cost" className="flex w-full flex-col gap-4">
           <div className="flex flex-col gap-2 text-center text-sm text-pretty text-paper/80">
             <p>Everything you carried lies where you fell.</p>
-            <p>Your masteries start over, and so do you: back in the tutorial, with nothing.</p>
+            <p>Your masteries start over, and so do you: back at the town gate, with nothing.</p>
             {rebornAs ? (
               <p className="text-paper">
                 {away ? `You are now ${rebornAs}.` : `You will be reborn as ${rebornAs}.`}
