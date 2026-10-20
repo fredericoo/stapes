@@ -1408,6 +1408,38 @@ html:has(.home-lightbox[open]) {
   margin-top: 48px;
 }
 
+.home-items {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: calc(var(--home-nav-h) + 48px) 16px 64px;
+}
+
+.home-items-lede {
+  max-width: 40rem;
+  margin: 16px 0 24px;
+  color: var(--home-text);
+  line-height: 1.6;
+}
+
+.home-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+/* The card is reached by an item link or a shared `#id`, and is offset so the
+   fixed bar does not cover its top edge. */
+.home-items-card {
+  scroll-margin-top: calc(var(--home-nav-h) + 16px);
+}
+
+.home-items-card:focus-visible,
+.home-items-card[data-picked="true"] {
+  outline: 2px solid var(--color-interact);
+  outline-offset: 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-rise,
   .home-scroll-cue svg,

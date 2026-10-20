@@ -104,6 +104,8 @@ export default function HomePage() {
               Discord
             </a>
             {" · "}
+            <Link to="/items">Items</Link>
+            {" · "}
             <Link to="/changelog">What changed</Link>
           </p>
           <p>

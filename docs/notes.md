@@ -827,6 +827,27 @@ Every `.html` file is `no-store`, not only `index.html`: a prerendered page
 names hashed chunks exactly as the shell does, so caching it would pin a
 visitor to the build it came from.
 
+## `/items` is the catalogue the world is playing
+
+`/items` is public and lists every item tile. It reads `/api/bootstrap`, the
+same unauthenticated read a tab opens the game with, rather than importing
+`data/tiles.json` the way `/changelog` imports `CHANGELOG.md`: the world prefers
+its own checkpoint, so authored content can differ from what is being played,
+and a page built from `data/` would describe a world nobody is in.
+
+**Each card is `catalogueCard`, not `itemCard`.** `itemCard` reads an item for
+one character, against their masteries. A visitor has none, and reading them as
+a fresh character would strike every figure through and call every magic item
+dormant. `catalogueCard` reads it as somebody who has exactly met its
+requirements, which are the figures the in-game card puts beside a stronger
+reader's as the item's own.
+
+**Where an item comes from is read from tiles alone** (`app/lib/itemSources.ts`):
+shop trades in dialogs, craft recipes, gathering, the kits a death drops, the
+player's starting kit and decay. A placement on the map and a chest's reward
+are not tiles, so an item found only that way says "No shop, recipe or creature
+gives this" and does not claim it cannot be found.
+
 ## The landing page is footage of a staged world
 
 `app/routes/home.tsx` and `app/components/home/` are the page at `/`. Everything

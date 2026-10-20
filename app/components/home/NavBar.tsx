@@ -15,6 +15,9 @@ export function NavBar({ shown, nameHref = "#top" }: { shown: boolean; nameHref?
         The Last Stones
       </a>
       <div className="home-nav-actions">
+        <Link to="/items" className="home-nav-link">
+          Items
+        </Link>
         <a href={DISCORD_INVITE} rel="noreferrer" target="_blank" className="home-nav-link">
           Discord
         </a>
