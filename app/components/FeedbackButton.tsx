@@ -86,7 +86,7 @@ export function FeedbackButton({ gameContext }: { gameContext: () => Record<stri
                 details about your browser and device are sent with it.
               </span>
               <Textarea
-                className="min-h-32 pointer-coarse:text-base"
+                className="min-h-32"
                 autoFocus
                 maxLength={MAX_FEEDBACK_LENGTH}
                 value={message}
