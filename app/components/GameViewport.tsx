@@ -248,7 +248,7 @@ export function GameViewport({
       statusDefs={statusDefs}
       onTalk={(action) => onTalk?.(action)}
       hotkeys
-      className="clears-toolbar min-h-0 w-full flex-1"
+      className="min-h-0 w-full flex-1"
     />
   ) : null;
 
@@ -260,7 +260,7 @@ export function GameViewport({
       onCraft={(recipeIndex) => onCraft?.(crafting.ref, recipeIndex)}
       onClose={() => onCloseCrafting?.()}
       hotkeys
-      className="clears-toolbar min-h-0 w-full flex-1"
+      className="min-h-0 w-full flex-1"
     />
   ) : null;
   const replacesList = talkPanel ?? craftPanel;
@@ -279,7 +279,7 @@ export function GameViewport({
       }}
       onHover={coarse ? undefined : onHoverInteraction}
       hotkeys
-      className="scrolls-past-toolbar min-h-0 w-full flex-1"
+      className="min-h-0 w-full flex-1"
     />
   );
 
@@ -428,7 +428,7 @@ export function GameViewport({
         {coarse ? (
           <div
             className={[
-              "flex w-full min-h-0 flex-1 items-stretch gap-3 px-3",
+              "clears-toolbar flex w-full min-h-0 flex-1 items-stretch gap-3 px-3",
               padSide === "left" ? "flex-row-reverse" : "flex-row",
             ].join(" ")}
           >
@@ -438,7 +438,7 @@ export function GameViewport({
             >
               {replacesList ??
                 (panelCoversList ? (
-                  <div className="scrolls-past-toolbar flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
                     {panels}
                   </div>
                 ) : (
@@ -446,7 +446,7 @@ export function GameViewport({
                 ))}
             </div>
             <div
-              className="clears-toolbar flex min-w-0 shrink flex-col items-center pb-3"
+              className="flex min-w-0 shrink flex-col items-center pb-3"
               style={{ flexBasis: PAD_SIZE_PX }}
             >
               <StatusStrip statuses={statuses} interactive={false} tilesets={tilesets} />
