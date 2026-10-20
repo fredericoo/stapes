@@ -48,12 +48,6 @@ function ChatComposer({
 
   return (
     <>
-      {/**
-       * `pointer-coarse:text-base` is 16px on a finger, and it has to be:
-       * Safari on iOS zooms the page in when a focused field is smaller than
-       * that, and nothing here zooms it back out. No desktop browser does
-       * this, so the desktop bar keeps `text-sm`.
-       */}
       <input
         ref={inputRef}
         type="text"
@@ -63,7 +57,7 @@ function ChatComposer({
         aria-label="Say something"
         autoComplete="off"
         autoFocus={autoFocus}
-        className="min-w-0 flex-1 border-2 border-paper/40 bg-ink px-2 py-1 text-sm text-paper placeholder:text-paper/40 pointer-coarse:text-base focus:border-paper focus:outline-none"
+        className="min-w-0 flex-1 border-2 border-paper/40 bg-ink px-2 py-1 text-sm text-paper placeholder:text-paper/40 focus:border-paper focus:outline-none"
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Escape") {

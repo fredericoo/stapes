@@ -165,6 +165,22 @@ body {
   font-synthesis: none;
 }
 
+/* Safari on iOS zooms the page in when it focuses a field set smaller than
+   16px, and nothing zooms it back out. Unlayered, so it beats every Tailwind
+   size utility, including a theme that redefines `text-base` the way
+   `.pixel-ui` does. 20px is the pixel face's next crisp step above 16. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  .pixel-ui :is(input, textarea, select) {
+    font-size: 20px;
+  }
+}
+
 .pixelated {
   image-rendering: -moz-crisp-edges;
   image-rendering: pixelated;

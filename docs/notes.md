@@ -932,13 +932,12 @@ with no maximum and no `user-scalable=no` — so the page has no way back out. A
 player who tapped the talk button was left playing a cropped, off-centre board
 for the rest of the session.
 
-The chat field therefore carries `pointer-coarse:text-base` on top of its
-`text-sm` (`app/components/ChatBar.tsx`). The variant rather than a breakpoint,
-because the phone shape of the interface is chosen on `(pointer: coarse)` and
-not on width — see `useCoarsePointer`. **Any new field a finger can reach needs
-the same thing.** The shared `app/ui/Input` and `Textarea` are still `text-sm`
-and would zoom the same way; they are only used by editor surfaces nobody opens
-on a phone, which is the reason and not an argument that the rule is optional.
+**One rule in `app/app.css` sizes every field on a coarse pointer**: 16px, and
+20px under `.pixel-ui`, the pixel face's next crisp step. It is unlayered, so
+it beats Tailwind's size utilities, which live in a layer. Per-field
+`pointer-coarse:text-base` was the earlier fix and broke silently when
+`.pixel-ui` redefined `--text-base` as 15px: the chat field, the feedback box
+and the save-character form all zoomed again. A new field needs nothing.
 
 Adding a maximum scale to the viewport meta would also stop the zoom, and is the
 wrong fix: it takes pinch-zoom away from everybody, including anybody who needs
