@@ -485,8 +485,9 @@ function CommandBlocks({
 
 const CONDITIONS: Record<DialogCondition["cond"], { label: string; make: () => DialogCondition }> =
   {
-    king: { label: "is the king", make: () => ({ cond: "king" }) },
-    tagged: { label: "has the tag", make: () => ({ cond: "tagged", tag: "" }) },
+    king: { label: "the player is the king", make: () => ({ cond: "king" }) },
+    tagged: { label: "the player has the tag", make: () => ({ cond: "tagged", tag: "" }) },
+    switched: { label: "the channel is on", make: () => ({ cond: "switched", channel: "" }) },
   };
 
 function ConditionFields({
@@ -516,6 +517,15 @@ function ConditionFields({
           aria-label="Tag"
         />
       ) : null}
+      {leaf.cond === "switched" ? (
+        <Input
+          value={leaf.channel}
+          onChange={(e) => onChange({ ...leaf, channel: e.target.value })}
+          className="w-32 font-mono"
+          placeholder="channel"
+          aria-label="Channel"
+        />
+      ) : null}
     </>
   );
 }
@@ -534,7 +544,7 @@ function IfBlocks({
   return (
     <div className="flex flex-col gap-2 pl-6">
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-bold uppercase text-muted">When the player</span>
+        <span className="text-[10px] font-bold uppercase text-muted">When</span>
         <ConditionTreeEditor<DialogCondition>
           root={command.when}
           onChange={(when) => onChange({ ...command, when })}

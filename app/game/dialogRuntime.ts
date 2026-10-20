@@ -43,6 +43,7 @@ export type PartnerView = {
   name(): string | null;
   isKing(): boolean;
   hasTag(tag: string): boolean;
+  channelOn(channel: string): boolean;
   attempt(effects: readonly DialogEffectDef[]): boolean;
 };
 
@@ -172,9 +173,11 @@ function advance(pc: CommandPath): number[] {
 }
 
 function holds(when: ConditionNode<DialogCondition>, view: PartnerView): boolean {
-  return evaluateCondition(when, (leaf) =>
-    leaf.cond === "king" ? view.isKing() : view.hasTag(leaf.tag),
-  );
+  return evaluateCondition(when, (leaf) => {
+    if (leaf.cond === "king") return view.isKing();
+    if (leaf.cond === "tagged") return view.hasTag(leaf.tag);
+    return view.channelOn(leaf.channel);
+  });
 }
 
 function effectOf(

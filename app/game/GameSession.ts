@@ -402,7 +402,14 @@ import {
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressurePlates";
-import { cellIsWired, findWiredCells, settleSignals, type ExtraEmitter } from "./signals";
+import {
+  cellIsWired,
+  channelPowered,
+  findWiredCells,
+  readChannels,
+  settleSignals,
+  type ExtraEmitter,
+} from "./signals";
 import type { ItemDecay, PlacementDecay } from "./decay";
 import { DecayIndex, applyDecay, applyItemDecay, findDecayCells } from "./decay";
 import {
@@ -1666,6 +1673,7 @@ export class GameSession implements PlaySession {
       name: () => this.bodyName(partner.id),
       isKing: () => partner.id === this.kingId,
       hasTag: (tag) => partner.tags.includes(tag),
+      channelOn: (channel) => this.channelOn(channel),
       attempt: (effects) => this.attemptDialogEffects(partner.id, effects),
     };
   }
@@ -1710,6 +1718,17 @@ export class GameSession implements PlaySession {
     }
     if (effect.effect === "switch") this.throwSwitches(effect.channel, effect.to);
     if (effect.effect === "teleport") this.moveThrough(partner, effect.to);
+  }
+
+  /** Read the way a receiver in `any` mode reads it: on while anything on the channel emits on. */
+  private channelOn(channel: string): boolean {
+    const state = readChannels(
+      this.map,
+      this.wiredCells.values(),
+      this.tilesById,
+      this.actorEmitters(),
+    );
+    return channelPowered(state, channel, "any");
   }
 
   setKing(actorId: string | null) {

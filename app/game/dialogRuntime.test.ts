@@ -60,12 +60,14 @@ function partner(
   attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true,
   king = false,
   tags: readonly string[] = [],
+  channels: readonly string[] = [],
 ) {
   const attempts: DialogEffectDef[][] = [];
   const view: PartnerView & { attempts: DialogEffectDef[][] } = {
     name: () => "ann",
     isKing: () => king,
     hasTag: (tag) => tags.includes(tag),
+    channelOn: (channel) => channels.includes(channel),
     attempt: (effects) => (attempts.push([...effects]), attempt(effects)),
     attempts,
   };
@@ -258,6 +260,22 @@ describe("an if", () => {
       "npc: Back again.",
     ]);
     expect(lines(openConversation(greeter, npc, partner()))).toEqual(["npc: A new face."]);
+  });
+
+  it("asks whether a channel is switched on", () => {
+    const porter: DialogDef = {
+      script: [
+        {
+          kind: "if",
+          when: { cond: "switched", channel: "gate" },
+          then: [say("The gate stands open.")],
+          else: [say("The gate is shut.")],
+        },
+      ],
+    };
+    const open = partner(undefined, false, [], ["gate"]);
+    expect(lines(openConversation(porter, npc, open))).toEqual(["npc: The gate stands open."]);
+    expect(lines(openConversation(porter, npc, partner()))).toEqual(["npc: The gate is shut."]);
   });
 
   it("reads a negated group the other way round", () => {

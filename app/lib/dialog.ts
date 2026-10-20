@@ -18,7 +18,10 @@ export type DialogTrade = {
 
 export type DialogChoice = { label: string; then: DialogCommand[] };
 
-export type DialogCondition = { cond: "king" } | { cond: "tagged"; tag: string };
+export type DialogCondition =
+  | { cond: "king" }
+  | { cond: "tagged"; tag: string }
+  | { cond: "switched"; channel: string };
 
 export type DialogIf = {
   kind: "if";
@@ -67,6 +70,7 @@ const whenSchema = conditionSchema<DialogCondition>(
   v.variant("cond", [
     v.object({ cond: v.literal("king") }),
     v.object({ cond: v.literal("tagged"), tag: name }),
+    v.object({ cond: v.literal("switched"), channel: name }),
   ]),
 );
 
@@ -285,6 +289,9 @@ function checkCommand(
   if (command.kind === "if") {
     for (const leaf of conditionLeaves(command.when)) {
       if (leaf.cond === "tagged" && leaf.tag.trim() === "") error(`${where} asks for no tag`);
+      if (leaf.cond === "switched" && leaf.channel.trim() === "") {
+        error(`${where} asks about no channel`);
+      }
     }
   }
   if (command.kind === "switch" && command.channel.trim() === "") {

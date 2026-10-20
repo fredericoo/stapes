@@ -109,6 +109,23 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "gatekeeper", height: 4, walkable: false, interactions: { dialog: gatekeeper } }),
   tile({
+    id: "porter",
+    height: 4,
+    walkable: false,
+    interactions: {
+      dialog: {
+        script: [
+          {
+            kind: "if",
+            when: { cond: "switched", channel: "gate" },
+            then: [{ kind: "say", text: "The gate stands open." }],
+            else: [{ kind: "say", text: "The gate is shut." }],
+          },
+        ],
+      },
+    },
+  }),
+  tile({
     id: "innkeeper",
     height: 4,
     walkable: false,
@@ -608,5 +625,27 @@ describe("an innkeeper who remembers you by a tag", () => {
 
     talkTo(session, "innkeeper");
     expect(lastLine(session)).toBe("Your usual room, then.");
+  });
+});
+
+describe("a porter who answers by a lever's channel", () => {
+  function porterWorld(lever: "lever-on" | "lever-off"): GameSession {
+    const map = replaceStack(fieldWith("porter"), -4, -4, 0, [
+      { tileId: "grass" },
+      { tileId: lever, channel: "gate" },
+    ]);
+    return new GameSession(map, tiles);
+  }
+
+  it("says the gate is open while a lever on its channel is on", () => {
+    const session = porterWorld("lever-on");
+    talkTo(session, "porter");
+    expect(lastLine(session)).toBe("The gate stands open.");
+  });
+
+  it("says it is shut while every lever on the channel is off", () => {
+    const session = porterWorld("lever-off");
+    talkTo(session, "porter");
+    expect(lastLine(session)).toBe("The gate is shut.");
   });
 });

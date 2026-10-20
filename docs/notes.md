@@ -1501,7 +1501,7 @@ battler, which is the same exposure.
 
 - **`if` holds a condition tree** (`app/lib/conditions`, the brain's own
   `and`/`or`/`not` groups) over dialog leaves, and runs `then` (branch 0) or
-  `else` (branch 1) without waiting for a press. There are two leaves.
+  `else` (branch 1) without waiting for a press. There are three leaves.
   `{ cond: "king" }` is read through `PartnerView.isKing`: on the server it
   is `GameSession.kingId`, which `GameServer.crown` sets alongside the `king`
   broadcast and `load` sets on every new session. The world in a tab has no
@@ -1509,6 +1509,11 @@ battler, which is the same exposure.
   `{ cond: "tagged", tag }` asks whether the player carries a tag, which is
   how a script remembers that something already happened: the `tag` command
   writes it, and a death clears it with every other tag.
+  `{ cond: "switched", channel }` asks whether the channel is on, read the
+  way a receiver in `any` mode reads it: `readChannels` over the wired cells
+  plus the brain-state emitters, so it agrees with what the doors on that
+  channel are doing. In Try it the pretend channels field answers it, and a
+  `switch` command updates that field.
 - **`switch` does not hold any state of its own.** It throws every placed tile
   on its `channel` that has a `switch` interaction, exactly as if somebody had
   used each one, so the lever's own `emit` drives whatever is wired to the

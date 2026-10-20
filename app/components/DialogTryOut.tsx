@@ -35,6 +35,7 @@ type Pretend = {
   tags: Set<string>;
   statuses: Set<string>;
   king: boolean;
+  channels: Set<string>;
 };
 
 function biggestBag(tiles: TileDef[]): TileDef | null {
@@ -60,12 +61,14 @@ function pretendPartner(
     name: () => PRETEND_NAME,
     isKing: () => pretend.king,
     hasTag: (tag) => pretend.tags.has(tag),
+    channelOn: (channel) => pretend.channels.has(channel),
     attempt: (effects) => {
       const next = {
         equipment: pretend.equipment,
         tags: new Set(pretend.tags),
         statuses: new Set(pretend.statuses),
         king: pretend.king,
+        channels: new Set(pretend.channels),
       };
       for (const effect of effects) {
         if (!applyEffect(next, effect, tilesById, statusDefs)) return false;
@@ -86,7 +89,13 @@ function applyEffect(
     partner.tags.add(effect.tag);
     return true;
   }
-  if (effect.effect === "switch" || effect.effect === "teleport") return true;
+  if (effect.effect === "switch") {
+    const on = effect.to === "toggle" ? !partner.channels.has(effect.channel) : effect.to === "on";
+    if (on) partner.channels.add(effect.channel);
+    else partner.channels.delete(effect.channel);
+    return true;
+  }
+  if (effect.effect === "teleport") return true;
   if (effect.effect === "add_status" || effect.effect === "remove_status") {
     if (!statusDefs[effect.statusId]) return false;
     if (effect.effect === "add_status") partner.statuses.add(effect.statusId);
@@ -110,6 +119,7 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
     tags: new Set(),
     statuses: new Set(),
     king: false,
+    channels: new Set(),
   }));
   const [adding, setAdding] = useState<string | null>(null);
 
@@ -193,20 +203,20 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
           <span className="text-[10px] uppercase text-muted">tags</span>
           <Input
             value={[...pretend.tags].join(", ")}
-            onChange={(e) =>
-              setPretend({
-                ...pretend,
-                tags: new Set(
-                  e.target.value
-                    .split(",")
-                    .map((t) => t.trim())
-                    .filter(Boolean),
-                ),
-              })
-            }
+            onChange={(e) => setPretend({ ...pretend, tags: listed(e.target.value) })}
             className="w-40"
             placeholder="none"
             aria-label="Pretend tags, comma separated"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase text-muted">channels on</span>
+          <Input
+            value={[...pretend.channels].join(", ")}
+            onChange={(e) => setPretend({ ...pretend, channels: listed(e.target.value) })}
+            className="w-40"
+            placeholder="none"
+            aria-label="Pretend channels switched on, comma separated"
           />
         </div>
         <label className="flex items-center gap-2 text-[10px] uppercase text-muted">
@@ -260,6 +270,15 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
         )}
       </div>
     </div>
+  );
+}
+
+function listed(text: string): Set<string> {
+  return new Set(
+    text
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean),
   );
 }
 

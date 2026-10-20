@@ -201,13 +201,20 @@ describe("validating a dialog", () => {
     ]);
   });
 
-  it("errors on a switch with no channel and an if asking for a blank tag", () => {
+  it("errors on a switch with no channel, and an if asking for a blank tag or channel", () => {
     const issues = validateDialog({
       script: [
         { kind: "switch", channel: " ", to: "on" },
         {
           kind: "if",
-          when: { combinator: "or", rules: [{ cond: "king" }, { cond: "tagged", tag: "" }] },
+          when: {
+            combinator: "or",
+            rules: [
+              { cond: "king" },
+              { cond: "tagged", tag: "" },
+              { cond: "switched", channel: "" },
+            ],
+          },
           then: [],
           else: [],
         },
@@ -216,6 +223,7 @@ describe("validating a dialog", () => {
     expect(issues.map((i) => i.message)).toEqual([
       expect.stringContaining("names no channel"),
       expect.stringContaining("asks for no tag"),
+      expect.stringContaining("asks about no channel"),
     ]);
   });
 
