@@ -236,6 +236,20 @@ describe("putting a pile down", () => {
   });
 });
 
+describe("putting a thing down where you stand", () => {
+  it("lands beneath you rather than on your head", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "sword" }]));
+
+    expect(session.drop(BAG_SLOT, HERE, WHO)).toBe(true);
+    const stack = getStack(session.getMap(), HERE.x, HERE.y, HERE.z);
+    expect(stack.map((placed) => placed.tileId)).toEqual(["grass", "sword", "player"]);
+    expect(stack[2]?.owner).toBe(WHO);
+    expect(session.drainTransitions().filter((note) => note.tossedFrom)).toMatchObject([
+      { side: "appear", tileId: "sword", ...HERE, stackIndex: 1 },
+    ]);
+  });
+});
+
 describe("a thing put down on the floor", () => {
   function tosses(session: GameSession) {
     return session.drainTransitions().filter((note) => note.tossedFrom);
