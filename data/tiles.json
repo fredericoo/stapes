@@ -28192,6 +28192,45 @@
     }
   },
   {
+    "id": "silver-chest",
+    "name": "Silver Chest",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 16,
+      "y": 12
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "depot": {
+        "size": 12
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "rat",
     "name": "Rat",
     "height": 1,

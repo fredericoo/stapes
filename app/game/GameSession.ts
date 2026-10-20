@@ -300,8 +300,6 @@ import {
 import { pushedColumn } from "./push";
 import { isSpawnFilled, rollRespawnDelayMs, type RespawnOutcome, type SpawnPoint } from "./respawn";
 import {
-  applyItemMove,
-  canMoveItem,
   capacityOf,
   clearSlot,
   isBodySlot,
@@ -313,6 +311,7 @@ import {
   type ItemMoveResult,
   type SlotRef,
 } from "./itemMoves";
+import { applyDepotMove, DepotLedger, type Depots } from "./depot";
 import type { ItemInstance } from "../lib/itemInstance";
 import { instanceFromPlacement, mintItemId, placementFromInstance } from "../lib/itemInstance";
 import {
@@ -552,6 +551,7 @@ export type GameSnapshot = {
   chats: ChatBubble[];
   noises: NoiseEmission[];
   afflicted: readonly AfflictedPlacement[];
+  depots: Depots;
 };
 
 export type Vitals = {
@@ -808,6 +808,7 @@ export class GameSession implements PlaySession {
   private tileIndex: Map<string, string[]> | null = null;
   private readonly spawnAt: Coord & { stackIndex: number };
   private readonly equipmentChanged = new Set<string>();
+  readonly depots: DepotLedger;
   private readonly conversationChanged = new Set<string>();
   private readonly tagsChanged = new Set<string>();
   private readonly extractionChanged = new Set<string>();
@@ -869,6 +870,7 @@ export class GameSession implements PlaySession {
       statuses: statusDefs = {},
       traits = {},
       clock = () => DEFAULT_PLAY_MINUTES,
+      depots = new DepotLedger(),
     }: {
       actorIds?: readonly string[];
       names?: Readonly<Record<string, string>>;
@@ -877,9 +879,11 @@ export class GameSession implements PlaySession {
       statuses?: Record<string, StatusDef>;
       traits?: TraitCatalogue;
       clock?: () => MinutesOfDay;
+      depots?: DepotLedger;
     } = {},
   ) {
     this.clock = clock;
+    this.depots = depots;
     this.tilesById = tilesByIdFromList(withTraits(tiles, traits));
     this.board = settleAllSpans(structuredClone(map), this.tilesById);
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
@@ -4485,7 +4489,8 @@ export class GameSession implements PlaySession {
     if (!actor || this.incapacitated(actor)) return false;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
-    return canMoveItem(this.map, this.tilesById, loc, actor.equipment, from, to);
+    const depots = this.depots.of(actor.id);
+    return applyDepotMove(this.map, this.tilesById, loc, actor.equipment, depots, from, to) != null;
   }
 
   moveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
@@ -4497,13 +4502,15 @@ export class GameSession implements PlaySession {
     if (this.noteCoolingRefusal(actor, loc, from)) return false;
     if (isBodySlot(to) && this.noteCoolingRefusal(actor, loc, to)) return false;
 
-    const moved = applyItemMove(this.map, this.tilesById, loc, actor.equipment, from, to);
+    const depots = this.depots.of(actor.id);
+    const moved = applyDepotMove(this.map, this.tilesById, loc, actor.equipment, depots, from, to);
     if (!moved) return false;
 
     this.map = moved.map;
     if (moved.equipment !== actor.equipment) {
       this.setEquipment(actor, moved.equipment);
     }
+    if (moved.depots !== depots) this.depots.write(actor.id, moved.depots);
     return true;
   }
 
@@ -5780,6 +5787,7 @@ export class GameSession implements PlaySession {
       chats: [],
       noises: this.liveNoise,
       afflicted: this.afflictedPlacements(),
+      depots: this.depots.of(self.id),
       damage: this.liveDamage,
       projectiles: this.liveProjectiles,
       flightEffects: this.liveFlightEffects,

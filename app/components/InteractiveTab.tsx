@@ -3,6 +3,7 @@ import type {
   AddStatusInteraction,
   ClimbAbility,
   DecayInteraction,
+  DepotInteraction,
   EmitInteraction,
   ExtractInteraction,
   ExtractSlot,
@@ -23,6 +24,7 @@ import type {
 import {
   DEFAULT_ADD_STATUS,
   DEFAULT_DECAY,
+  DEFAULT_DEPOT,
   DEFAULT_EMIT,
   DEFAULT_EXTRACT,
   DEFAULT_EXTRACT_VERB,
@@ -44,7 +46,7 @@ import { DEFAULT_BATTLER } from "../lib/battler";
 import { EXTRACT_SPEEDUP_PER_LEVEL } from "../game/extract";
 import { MASTERIES, MASTERY_LABELS } from "../lib/mastery";
 import { CraftFields } from "./CraftFields";
-import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
+import { DEFAULT_WEAPON, MAX_CONTAINER_SIZE, resolveContainer, resolveItem } from "../lib/item";
 import { DEFAULT_PROJECTILE_SPEED } from "../lib/projectile";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
@@ -179,6 +181,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
   const reward = draft.interactions?.reward;
+  const depot = draft.interactions?.depot;
   const craft = draft.interactions?.craft;
   const extract = draft.interactions?.extract;
   const teleport = draft.interactions?.teleport;
@@ -245,6 +248,10 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const patchReward = (patch: Partial<RewardInteraction>) => {
     if (!reward) return;
     setReward({ ...reward, ...patch });
+  };
+
+  const setDepot = (next: DepotInteraction | undefined) => {
+    patchKind("depot", next ?? null);
   };
 
   const setCraft = (next: CraftInteraction | undefined) => {
@@ -487,6 +494,37 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
               Only the player who took it sees this tile. Everyone else, and the rules, still see
               this one.
             </p>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <SectionSwitch
+          on={Boolean(depot)}
+          onToggle={(on) => setDepot(on ? { ...DEFAULT_DEPOT } : undefined)}
+          label="Depot"
+          info="A container whose contents belong to whoever opens it, kept through death and shared by an account's characters. Containers cannot go in."
+        />
+        <p className="text-[11px] leading-snug text-muted">
+          The tag is set per placement, in the map editor. Placements with the same tag open the
+          same stash.
+        </p>
+
+        {depot ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <label className="flex flex-col gap-1 text-xs">
+              <FieldLabel info="How many slots the stash has. Two placements sharing a tag should share a size: a smaller one still shows everything, but takes nothing more until there is room.">
+                Size
+              </FieldLabel>
+              <NumberInput
+                min={1}
+                max={MAX_CONTAINER_SIZE}
+                step={1}
+                value={depot.size}
+                onChange={(size) => setDepot({ size })}
+                className="w-20"
+              />
+            </label>
           </div>
         ) : null}
       </section>

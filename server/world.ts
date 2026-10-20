@@ -192,11 +192,11 @@ export class World {
   async join(
     socket: GameSocket,
     characterId: string,
-    { admin }: { admin: boolean },
+    { admin, accountId }: { admin: boolean; accountId?: string },
   ): Promise<void> {
     if (admin) this.adminSockets.add(socket);
     this.characterOf.set(socket, characterId);
-    await this.server.join(socket, characterId, { admin });
+    await this.server.join(socket, characterId, { admin, accountId });
     if (!socket.closed) await this.characters.markSeen(characterId, Date.now());
   }
 

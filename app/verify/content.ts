@@ -18,6 +18,8 @@ import {
   resolveRemoveStatus,
   resolveRespawn,
   resolveRewardDef,
+  resolveDepot,
+  resolveDepotDef,
   resolveSwitch,
   resolveTeleportDef,
   type TileInteractions,
@@ -124,6 +126,7 @@ const RESOLVERS: { [K in keyof TileInteractions]-?: (def: TileDef) => unknown } 
   push: resolvePush,
   switch: resolveSwitch,
   reward: resolveRewardDef,
+  depot: resolveDepotDef,
   craft: resolveCraft,
   extract: resolveExtract,
   teleport: resolveTeleportDef,
@@ -632,12 +635,17 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
 
   let count = 0;
   const unknown = new Map<string, Tally>();
+  const untagged = new Map<string, Tally>();
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const where = `${x},${y} L${z}`;
       for (const placed of stack) {
         count++;
-        if (!tilesById[placed.tileId]) tally(unknown, placed.tileId, "placed", where);
+        const def = tilesById[placed.tileId];
+        if (!def) tally(unknown, placed.tileId, "placed", where);
+        if (def && resolveDepotDef(def) && !resolveDepot(placed, def)) {
+          tally(untagged, placed.tileId, "depotTag", where);
+        }
         for (const held of placed.contents ?? []) {
           if (!tilesById[held.tileId]) tally(unknown, held.tileId, "contents", where);
         }
@@ -652,6 +660,14 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
       counted.tileId,
       counted.what === "placed" ? "" : counted.what,
       `${UNKNOWN_TILE[counted.what]!(counted)}, which tiles.json does not define (first at ${counted.first}).`,
+    );
+  }
+
+  for (const { tileId, count: times, first } of untagged.values()) {
+    findings.warn(
+      tileId,
+      "depotTag",
+      `The map has ${placements(times)} of the depot "${tileId}" with no depotTag, which never ${times === 1 ? "opens" : "open"} (first at ${first}).`,
     );
   }
 

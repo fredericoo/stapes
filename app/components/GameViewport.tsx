@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ObjectRef } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
-import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import { containerViewOf, type OpenedContainer, type SlotRef } from "../game/itemMoves";
 import type { CastSlot, SpellButton } from "../game/casting";
 import type { CraftingWindow } from "../game/craft";
 import { itemUseFor } from "../game/itemUse";
@@ -219,6 +219,26 @@ export function GameViewport({
     if (openHand && !equipment[openHand]) setOpenHand(null);
   }, [openHand, equipment]);
 
+  /**
+   * On a phone only one panel shows at a time, and a depot is no use without
+   * the bag to drag into, so opening one opens the bag beside it. The bag is
+   * shut again with the depot only if it was the depot that opened it.
+   */
+  const depotOpen = openedContainer?.location.kind === "depot";
+  const bagOpenedForDepot = useRef(false);
+  useEffect(() => {
+    if (!coarse) return;
+    if (depotOpen && !showBag) {
+      bagOpenedForDepot.current = true;
+      setBagOpen(true);
+      setEquipmentOpen(false);
+      setStatsOpen(false);
+    } else if (!depotOpen && bagOpenedForDepot.current) {
+      bagOpenedForDepot.current = false;
+      setBagOpen(false);
+    }
+  }, [coarse, depotOpen]);
+
   const live = vitals !== NO_VITALS;
   const bagNotice = useNotice(equipment.bag, live, (prev, next) =>
     !showBag && bagGained(prev, next) ? "neutral" : null,
@@ -344,7 +364,7 @@ export function GameViewport({
       ) : null}
       {showBag && equipment.bag ? (
         <ContainerPanel
-          container={equipment.bag}
+          container={containerViewOf(equipment.bag, tilesById)}
           location={{ kind: "bag" }}
           equipment={equipment}
           tiles={tiles}
@@ -358,7 +378,7 @@ export function GameViewport({
       ) : null}
       {heldContainer && openHand ? (
         <ContainerPanel
-          container={heldContainer}
+          container={containerViewOf(heldContainer, tilesById)}
           location={{ kind: "hand", hand: openHand }}
           equipment={equipment}
           tiles={tiles}
@@ -372,12 +392,12 @@ export function GameViewport({
       ) : null}
       {openedContainer ? (
         <ContainerPanel
-          container={openedContainer.instance}
-          location={{ kind: "ground", ref: openedContainer.ref }}
+          container={openedContainer}
+          location={openedContainer.location}
           equipment={equipment}
           tiles={tiles}
           tilesets={tilesets}
-          title={tilesById[openedContainer.instance.tileId]?.name ?? "Container"}
+          title={tilesById[openedContainer.tileId]?.name ?? "Container"}
           onClose={() => onOpenContainer?.(null)}
           drag={drag}
           masteryXp={masteryXp}

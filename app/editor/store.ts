@@ -20,6 +20,7 @@ import {
   updatePlacedInscription,
   updatePlacedEngraving,
   updatePlacedReward,
+  updatePlacedDepotTag,
   updatePlacedTeleport,
   updatePlacedDirection,
   updatePlacedFoot,
@@ -156,6 +157,7 @@ export type EditorStore = {
   setStackDescription: (stackIndex: number, description: string) => void;
   setStackEngraving: (stackIndex: number, engraved: string) => void;
   setStackReward: (stackIndex: number, tag: string, tileIds: readonly string[]) => void;
+  setStackDepotTag: (stackIndex: number, tag: string) => void;
   setStackTeleport: (stackIndex: number, to: Coord | null) => void;
   setStackContents: (stackIndex: number, contents: readonly ItemInstance[]) => void;
 };
@@ -585,6 +587,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!selected) return;
     get().commitMap(
       updatePlacedReward(map, selected.x, selected.y, currentLevel, stackIndex, tag, tileIds),
+    );
+  },
+
+  setStackDepotTag: (stackIndex, tag) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedDepotTag(map, selected.x, selected.y, currentLevel, stackIndex, tag),
     );
   },
 

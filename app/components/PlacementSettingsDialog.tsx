@@ -51,6 +51,7 @@ export function PlacementSettingsDialog({
   stackIndex,
   wired,
   gives,
+  stashes,
   teleports,
   holds,
   giveable,
@@ -65,6 +66,7 @@ export function PlacementSettingsDialog({
   stackIndex: number;
   wired: boolean;
   gives: boolean;
+  stashes: boolean;
   teleports: boolean;
   holds: number | null;
   giveable: TileDef[];
@@ -80,6 +82,7 @@ export function PlacementSettingsDialog({
   const [engraved, setEngraved] = useState(placed.engraved ?? "");
   const [rewardTag, setRewardTag] = useState(placed.rewardTag ?? "");
   const [rewardTileIds, setRewardTileIds] = useState<string[]>(placed.rewardTileIds ?? []);
+  const [depotTag, setDepotTag] = useState(placed.depotTag ?? "");
   const [teleportTo, setTeleportTo] = useState<TeleportDraft>(() =>
     draftFromCoord(placed.teleportTo),
   );
@@ -91,6 +94,7 @@ export function PlacementSettingsDialog({
     const store = useEditorStore.getState();
     if (wired) store.setStackChannel(stackIndex, channel);
     if (gives) store.setStackReward(stackIndex, rewardTag, rewardTileIds);
+    if (stashes) store.setStackDepotTag(stackIndex, depotTag);
     if (teleports) {
       store.setStackTeleport(stackIndex, readDestination(teleportTo));
     }
@@ -196,6 +200,19 @@ export function PlacementSettingsDialog({
               emptyHint="None — nothing to give means no row is offered."
             />
           </div>
+        ) : null}
+
+        {stashes ? (
+          <label className="flex flex-col gap-1 border-t-2 border-border pt-4 text-xs">
+            <FieldLabel info="Every placement with the same tag opens the same stash. Each account has its own contents, kept through death. Without a tag the depot does not open.">
+              Depot tag
+            </FieldLabel>
+            <Input
+              placeholder="town"
+              value={depotTag}
+              onChange={(e) => setDepotTag(e.target.value)}
+            />
+          </label>
         ) : null}
 
         {holds !== null ? (

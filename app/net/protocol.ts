@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { CAST_SQUARES, type CastProgress, type CastSlot } from "../game/casting";
 import { MAX_SPELL_NAME_LENGTH } from "../lib/battler";
 import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../game/deathCost";
+import type { Depots } from "../game/depot";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
 import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
@@ -167,6 +168,8 @@ const equipmentSchema = v.object({
   footwear: v.optional(v.nullable(itemInstanceSchema), null),
   bag: v.nullable(itemInstanceSchema),
 });
+
+const depotsSchema = v.record(v.string(), v.array(itemInstanceSchema));
 
 const tolerantEquipmentSchema = v.fallback(equipmentSchema, {
   weapon: null,
@@ -352,8 +355,10 @@ export type ServerMessage =
       nextBlow: Progress | null;
       masteryXp: MasteryXp;
       statuses: StatusPatch[];
+      depots: Depots;
       diedAway?: DeathCost;
     }
+  | { type: "depots"; depots: Depots }
   | {
       type: "equipment";
       equipment: Equipment;
@@ -463,6 +468,11 @@ const inboundSlotRefSchema = v.variant("kind", [
   }),
   v.object({
     kind: v.literal("ground"),
+    ref: inboundRefSchema,
+    index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  }),
+  v.object({
+    kind: v.literal("depot"),
     ref: inboundRefSchema,
     index: v.pipe(v.number(), v.integer(), v.minValue(0)),
   }),
@@ -604,7 +614,12 @@ const serverMessageSchema = v.variant("type", [
     nextBlow: v.optional(v.nullable(nextBlowSchema), () => null),
     masteryXp: tolerantMasteryXpSchema,
     statuses: v.array(statusPatchSchema),
+    depots: v.optional(depotsSchema, () => ({})),
     diedAway: v.fallback(v.optional(deathCostSchema), undefined),
+  }),
+  v.object({
+    type: v.literal("depots"),
+    depots: depotsSchema,
   }),
   v.object({
     type: v.literal("equipment"),

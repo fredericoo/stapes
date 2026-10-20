@@ -27,6 +27,7 @@ import { statusReading } from "../game/statuses";
 import { type SpellButton, spellReading } from "../game/casting";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
+import type { Depots } from "../game/depot";
 import { offeredRecipes, type CraftingWindow } from "../game/craft";
 import {
   applyInteraction,
@@ -248,9 +249,10 @@ export class GameRenderer {
   private interactionsNextBlow: Progress | null = null;
   private onOpenedContainer: ((container: OpenedContainer | null) => void) | null = null;
   private openedRef: ObjectRef | null = null;
-  private openedItemId: string | null = null;
+  private openedIdentity: string | null = null;
   private openedPlacement: PlacedTile | null = null;
   private openedFrom = "";
+  private openedDepots: Depots | null = null;
   private openedSent: OpenedContainer | null | undefined = undefined;
   private onCrafting: ((window: CraftingWindow | null) => void) | null = null;
   private craftingRef: ObjectRef | null = null;
@@ -508,9 +510,10 @@ export class GameRenderer {
 
   setOpenedContainer(ref: ObjectRef | null) {
     this.openedRef = ref;
-    this.openedItemId = null;
+    this.openedIdentity = null;
     this.openedPlacement = null;
     this.openedFrom = "";
+    this.openedDepots = null;
     this.openedSent = undefined;
   }
 
@@ -568,6 +571,7 @@ export class GameRenderer {
     this.onOpenedContainer = cb;
     this.openedPlacement = null;
     this.openedFrom = "";
+    this.openedDepots = null;
     this.openedSent = undefined;
   }
 
@@ -584,16 +588,30 @@ export class GameRenderer {
 
     const placed = getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex];
     const from = `${snap.self.x},${snap.self.y},${snap.self.z}`;
-    if (placed === this.openedPlacement && from === this.openedFrom) return;
+    if (
+      placed === this.openedPlacement &&
+      from === this.openedFrom &&
+      snap.depots === this.openedDepots
+    ) {
+      return;
+    }
     this.openedPlacement = placed ?? null;
     this.openedFrom = from;
+    this.openedDepots = snap.depots;
 
-    const read = readOpenedContainer(snap.map, this.tilesById, snap.self, ref, this.openedItemId);
+    const read = readOpenedContainer(
+      snap.map,
+      this.tilesById,
+      snap.self,
+      snap.depots,
+      ref,
+      this.openedIdentity,
+    );
     if (read.kind === "closed") {
       this.openedRef = null;
-      this.openedItemId = null;
+      this.openedIdentity = null;
     } else {
-      this.openedItemId = read.itemId;
+      this.openedIdentity = read.identity;
     }
 
     const container = read.kind === "open" ? read.container : null;
