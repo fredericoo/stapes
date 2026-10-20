@@ -6,6 +6,8 @@ export const MAX_CHATS_PER_CELL = 3;
 
 export const CHAT_MIN_INTERVAL_MS = 750;
 
+export const CHAT_ARRIVAL_JITTER_MS = 250;
+
 export const MAX_CHAT_RAW_LENGTH = 512;
 
 /**
