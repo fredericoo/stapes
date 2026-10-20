@@ -6650,12 +6650,17 @@ something to practise Fire *with*.
 
 **Light is beside the ladder too, below its foot.** It asks Arcane 1, which is
 `MIN_EARNED_MASTERY` and so a level no death can take, and puts `luminous` on
-the caster at Spark's cooldown and cast time. It is what the quest chest just
-past the tutorial's portal gives, in place of Spark: a stone that can always be
-pressed pays the flat fee on every press, so it is a way up to Spark that asks
-nothing. The chest's `rewardTag` is `tutorial-light-stone`, and a death clears
-tags, so each life takes it once. The stone forge makes it from a blank stone
-too, at Spark's weight, so a Light dropped or traded away can be replaced.
+the caster at Spark's cooldown and cast time. Pressing it pays only the flat
+practice fee, half a point, so it is no way to level: Arcane 5 to 10 is three
+hundred points, six hundred presses. The stone forge makes it from a blank
+stone, at Spark's weight.
+
+**The tutorial gives Spark.** The quest chest just past the tutorial's portal
+holds it, with `rewardTag` `tutorial-spark-stone`; a death clears tags, so each
+life takes it once. Every life starts at the player tile's authored Arcane 5,
+which is Spark's requirement, so the stone works the moment it is taken, and a
+damage spell pays about a point per point of damage — roughly seventy-five
+Spark hits for the same three hundred points.
 
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
