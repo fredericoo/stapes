@@ -6449,7 +6449,7 @@ elements as well as up each one.
 | ---- | ------ | ----- | ------- | ------ | ------------ | -------- | ---- | ----- | ------------------ |
 | 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 1s   | 5.5   | Arcane 10, elem 1  |
 | 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 1.5s | 6.5   | Arcane 20, elem 5  |
-| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 2s   | 7.5   | Arcane 38, elem 10 |
+| 3    | Pyre   | Rime  | Bramble | 10     | 75%, in full; 50% around | 10s | 2s | 7.5 | Arcane 38, elem 10 |
 
 **The halves are the point of the reach numbers, not a rounding.** A reach is
 compared squared, so a whole 3 admits the cell three along (9) and refuses the
@@ -6486,7 +6486,8 @@ is all three of those at once. Nothing was written to make them neutral.
 | 3    | Lance | 12     | —      | 10s      | 2s   | 7.5   | Arcane 33 |
 
 They run beside the elemental rungs at the same cooldown, cast time and reach for
-four fifths of the damage, and they ask five Arcane less. **That difference is
+four fifths of the damage, and they ask five Arcane less. Rung 3 is the exception:
+Lance hits harder than Rime, because Rime spends its damage on an area (below). **That difference is
 what an element buys, stated in the one place it can be read**: more damage and
 a status, for a second mastery and five more Arcane to be let near the stone.
 Pressing one trains Arcane alone, because the flat per-cast fee goes to Arcane
@@ -6509,6 +6510,35 @@ stone is the *only* thing in the game that pays element experience: an element
 gate above the floor would be a wait for something nothing pays. If the bottom
 elemental rung ever asks more than `MIN_EARNED_MASTERY` of its element, an
 arcanist has no way into that element at all.
+
+##### The top rung trades its damage step for an area
+
+Pyre, Rime and Bramble hit their target for exactly what rung 2 does, and add a
+circle of radius 2 around it that leaves the element's status at 50% and does no
+damage of its own. The target takes both rolls. `casting.test.ts` holds the top
+rung to rung 2's damage rather than above it, so the damage climb and the area
+cannot both come back by accident.
+
+##### Novas, stances and the stomp
+
+Seven stones sit beside the ladder, all forged from two top-rung stones:
+
+| stone       | element | does                                              | cooldown | asks                          |
+| ----------- | ------- | ------------------------------------------------- | -------- | ----------------------------- |
+| Inferno     | fire    | circle r4 on the caster: 10 dmg + Burning          | 24s      | Arcane 45, fire 15            |
+| Shatter     | water   | circle r4 on the caster: 10 dmg + Chilled          | 30s      | Arcane 45, water 15           |
+| Overgrowth  | nature  | circle r4 on the caster: 12 dmg + Poisoned         | 36s      | Arcane 45, nature 15          |
+| Stomp       | —       | the cyclops's stomp at 20 dmg                     | 20s      | Toughness 40, Arcane 20       |
+| Berserk     | fire    | Enraged on the caster                              | 60s      | Toughness 40, Arcane 20, fire 10 |
+| Crystallise | water   | Crystallised: +10 def, −25% walk                   | 60s      | Toughness 40, Arcane 20, water 10 |
+| Blossom     | nature  | Blossoming: heals MAX_HP/40 a second, −10 spd and def, −25% walk | 60s | Toughness 40, Arcane 20, nature 10 |
+
+The novas keep the element traits (fire's variance and 0.8 cooldown, nature's
+1.2), so they come to the same rate as each other. **A stance's cooldown is
+twice its status's duration**, so it is up half the time; the three statuses
+last a fixed 30s and `casting.test.ts` asserts the ratio. The stomp is a player
+spell rather than the cyclops's own because the cyclops's 30 damage kills a new
+player outright.
 
 ##### An element is a character, and the three come to the same rate
 
@@ -8627,6 +8657,12 @@ single-element forges (`stone-forge-cinder`, `-flame`, `-spark`, `-bolt`,
 | 2 Ember / Frost / Thorns / Bolt  | Pyre / Rime / Bramble / Lance, 75%                   |
 | 1 Frost + 1 Thorns      | Verdance, 100%                                                |
 | 2 Verdance              | Bloom, 75%                                                    |
+| 2 Pyre / Rime / Bramble | Inferno / Shatter / Overgrowth, 75%                           |
+| 2 Lance                 | Stomp, 75%                                                    |
+| Pyre / Rime + Lance     | Berserk / Crystallise, 75%                                    |
+| Bramble + Bloom         | Blossom, 75%                                                  |
+
+The forge holds 18 recipes, which is why `MAX_CRAFT_RECIPES` is 24.
 
 Blank stones come from the cave troll's kit at 10% (it was 100%), and once per
 player from a quest chest (`troll-stone`) where the troll's own forge used to

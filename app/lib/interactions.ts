@@ -185,7 +185,7 @@ export const MAX_CRAFT_CHANCE = 100;
 
 export const MAX_CRAFT_WEIGHT = 1000;
 
-export const MAX_CRAFT_RECIPES = 16;
+export const MAX_CRAFT_RECIPES = 24;
 
 export const MAX_REWARD_ITEMS = MAX_CONTAINER_SIZE;
 

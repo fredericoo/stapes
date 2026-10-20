@@ -26526,7 +26526,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 15,
+          "damage": 10,
           "variance": 60,
           "projectile": "arcane-bolt",
           "statuses": [
@@ -26534,7 +26534,57 @@
               "id": "burned",
               "chance": 75
             }
-          ]
+          ],
+          "area": {
+            "shape": "circle",
+            "radius": 2,
+            "height": 2,
+            "affects": "others",
+            "throughWalls": false,
+            "statuses": [
+              {
+                "id": "burned",
+                "chance": 50
+              }
+            ],
+            "burst": {
+              "durationMs": 900,
+              "particles": {
+                "ratePerSecond": 200,
+                "ttlFromMs": 300,
+                "ttlToMs": 700,
+                "spawnRadiusCells": 0.5,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 0.5,
+                "riseFrom": 1,
+                "riseTo": 3,
+                "driftCellsPerSecond": 0.4,
+                "lit": true,
+                "ownDepth": false,
+                "gravity": -3,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 0.9,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffb347"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#8a1c00"
+                  }
+                ]
+              }
+            }
+          }
         },
         "cooldownMs": 8000,
         "castTimeMs": 2000,
@@ -26589,7 +26639,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 15,
+          "damage": 10,
           "variance": 25,
           "projectile": "arcane-bolt",
           "statuses": [
@@ -26597,7 +26647,57 @@
               "id": "chilled",
               "chance": 75
             }
-          ]
+          ],
+          "area": {
+            "shape": "circle",
+            "radius": 2,
+            "height": 2,
+            "affects": "others",
+            "throughWalls": false,
+            "statuses": [
+              {
+                "id": "chilled",
+                "chance": 50
+              }
+            ],
+            "burst": {
+              "durationMs": 900,
+              "particles": {
+                "ratePerSecond": 200,
+                "ttlFromMs": 300,
+                "ttlToMs": 700,
+                "spawnRadiusCells": 0.5,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 0.5,
+                "riseFrom": 1,
+                "riseTo": 3,
+                "driftCellsPerSecond": 0.4,
+                "lit": true,
+                "ownDepth": false,
+                "gravity": 1.2,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 0.9,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#2f6fbf"
+                  }
+                ]
+              }
+            }
+          }
         },
         "cooldownMs": 10000,
         "castTimeMs": 2000,
@@ -26652,7 +26752,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 18,
+          "damage": 12,
           "variance": 25,
           "projectile": "arcane-bolt",
           "statuses": [
@@ -26660,7 +26760,57 @@
               "id": "poison",
               "chance": 75
             }
-          ]
+          ],
+          "area": {
+            "shape": "circle",
+            "radius": 2,
+            "height": 2,
+            "affects": "others",
+            "throughWalls": false,
+            "statuses": [
+              {
+                "id": "poison",
+                "chance": 50
+              }
+            ],
+            "burst": {
+              "durationMs": 900,
+              "particles": {
+                "ratePerSecond": 200,
+                "ttlFromMs": 300,
+                "ttlToMs": 700,
+                "spawnRadiusCells": 0.5,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 0.5,
+                "riseFrom": 1,
+                "riseTo": 3,
+                "driftCellsPerSecond": 0.4,
+                "lit": true,
+                "ownDepth": false,
+                "gravity": -1.6,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 0.9,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#9be564"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#2d5a12"
+                  }
+                ]
+              }
+            }
+          }
         },
         "cooldownMs": 12000,
         "castTimeMs": 2000,
@@ -27176,6 +27326,587 @@
         "reach": {
           "cells": 7.5,
           "height": 2
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-inferno",
+    "name": "Inferno",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 7,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "area": {
+            "shape": "circle",
+            "radius": 4,
+            "height": 4,
+            "affects": "others",
+            "throughWalls": false,
+            "damage": 10,
+            "variance": 60,
+            "statuses": [
+              {
+                "id": "burned",
+                "chance": 100
+              }
+            ],
+            "burst": {
+              "durationMs": 900,
+              "particles": {
+                "ratePerSecond": 200,
+                "ttlFromMs": 300,
+                "ttlToMs": 700,
+                "spawnRadiusCells": 0.5,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 0.5,
+                "riseFrom": 1,
+                "riseTo": 3,
+                "driftCellsPerSecond": 0.4,
+                "lit": true,
+                "ownDepth": false,
+                "gravity": -3,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 0.9,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffb347"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#8a1c00"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "cooldownMs": 24000,
+        "castTimeMs": 2500,
+        "requirements": {
+          "arcane": 45,
+          "fire": 15
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-shatter",
+    "name": "Shatter",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 6,
+      "y": 19
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "area": {
+            "shape": "circle",
+            "radius": 4,
+            "height": 4,
+            "affects": "others",
+            "throughWalls": false,
+            "damage": 10,
+            "variance": 25,
+            "statuses": [
+              {
+                "id": "chilled",
+                "chance": 100
+              }
+            ],
+            "burst": {
+              "durationMs": 900,
+              "particles": {
+                "ratePerSecond": 200,
+                "ttlFromMs": 300,
+                "ttlToMs": 700,
+                "spawnRadiusCells": 0.5,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 0.5,
+                "riseFrom": 1,
+                "riseTo": 3,
+                "driftCellsPerSecond": 0.4,
+                "lit": true,
+                "ownDepth": false,
+                "gravity": 1.2,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 0.9,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#2f6fbf"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "cooldownMs": 30000,
+        "castTimeMs": 2500,
+        "requirements": {
+          "arcane": 45,
+          "water": 15
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-overgrowth",
+    "name": "Overgrowth",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 4,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "area": {
+            "shape": "circle",
+            "radius": 4,
+            "height": 4,
+            "affects": "others",
+            "throughWalls": false,
+            "damage": 12,
+            "variance": 25,
+            "statuses": [
+              {
+                "id": "poison",
+                "chance": 100
+              }
+            ],
+            "burst": {
+              "durationMs": 900,
+              "particles": {
+                "ratePerSecond": 200,
+                "ttlFromMs": 300,
+                "ttlToMs": 700,
+                "spawnRadiusCells": 0.5,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 0.5,
+                "riseFrom": 1,
+                "riseTo": 3,
+                "driftCellsPerSecond": 0.4,
+                "lit": true,
+                "ownDepth": false,
+                "gravity": -1.6,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 0.9,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#9be564"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#2d5a12"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "cooldownMs": 36000,
+        "castTimeMs": 2500,
+        "requirements": {
+          "arcane": 45,
+          "nature": 15
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-stomp",
+    "name": "Stomp",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 5,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "area": {
+            "shape": "circle",
+            "radius": 5,
+            "height": 4,
+            "affects": "others",
+            "throughWalls": true,
+            "damage": 20,
+            "variance": 20,
+            "statuses": [
+              {
+                "id": "dazed",
+                "chance": 100
+              }
+            ],
+            "burst": {
+              "durationMs": 800,
+              "particles": {
+                "ratePerSecond": 200,
+                "ttlFromMs": 300,
+                "ttlToMs": 700,
+                "spawnRadiusCells": 0.5,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 0.5,
+                "riseFrom": 1,
+                "riseTo": 3,
+                "driftCellsPerSecond": 0.4,
+                "lit": true,
+                "ownDepth": false,
+                "gravity": -4,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 0.9,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#c2a878"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#5a4630"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "cooldownMs": 20000,
+        "castTimeMs": 1500,
+        "uninterruptible": true,
+        "sound": "*BOOM*",
+        "requirements": {
+          "toughness": 40,
+          "arcane": 20
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-berserk",
+    "name": "Berserk",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 7,
+      "y": 19
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "statuses": [
+            {
+              "id": "enraged",
+              "chance": 100
+            }
+          ]
+        },
+        "cooldownMs": 60000,
+        "castTimeMs": 1000,
+        "requirements": {
+          "toughness": 40,
+          "arcane": 20,
+          "fire": 10
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-crystallise",
+    "name": "Crystallise",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 6,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "statuses": [
+            {
+              "id": "crystallised",
+              "chance": 100
+            }
+          ]
+        },
+        "cooldownMs": 60000,
+        "castTimeMs": 1000,
+        "requirements": {
+          "toughness": 40,
+          "arcane": 20,
+          "water": 10
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-blossom",
+    "name": "Blossom",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 5,
+      "y": 19
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "caster",
+          "statuses": [
+            {
+              "id": "blossoming",
+              "chance": 100
+            }
+          ]
+        },
+        "cooldownMs": 60000,
+        "castTimeMs": 1000,
+        "requirements": {
+          "toughness": 40,
+          "arcane": 20,
+          "nature": 10
         }
       }
     },
@@ -33936,6 +34667,144 @@
               "items": [
                 {
                   "tileId": "arcane-stone-of-bloom",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Inferno",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-pyre",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-inferno",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Shatter",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-rime",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-shatter",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Overgrowth",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-bramble",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-overgrowth",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Stomp",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-lance",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-stomp",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Berserk",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-pyre",
+                "count": 1
+              },
+              {
+                "tileId": "arcane-stone-of-lance",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-berserk",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Crystallise",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-rime",
+                "count": 1
+              },
+              {
+                "tileId": "arcane-stone-of-lance",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-crystallise",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Blossom",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-bramble",
+                "count": 1
+              },
+              {
+                "tileId": "arcane-stone-of-bloom",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-blossom",
                   "chance": 75
                 }
               ]

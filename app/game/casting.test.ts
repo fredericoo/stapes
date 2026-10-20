@@ -616,13 +616,34 @@ const NEUTRAL_LADDER = [
 
 const ELEMENTAL_ARCANE_GAP = 5;
 
+const TOP_RUNG = 2;
+
 const LIGHT = "arcane-stone-of-light";
+
+const NOVAS: Record<Element, string> = {
+  fire: "arcane-stone-of-inferno",
+  water: "arcane-stone-of-shatter",
+  nature: "arcane-stone-of-overgrowth",
+};
+
+const STANCES: Record<Element, { stone: string; status: string }> = {
+  fire: { stone: "arcane-stone-of-berserk", status: "enraged" },
+  water: { stone: "arcane-stone-of-crystallise", status: "crystallised" },
+  nature: { stone: "arcane-stone-of-blossom", status: "blossoming" },
+};
+
+const STOMP = "arcane-stone-of-stomp";
+
+const HIGH_TOUGHNESS = 40;
 
 const BESIDE_THE_LADDER = [
   "arcane-stone-of-flame",
   "arcane-stone-of-verdance",
   "arcane-stone-of-bloom",
   LIGHT,
+  ...Object.values(NOVAS),
+  ...Object.values(STANCES).map((stance) => stance.stone),
+  STOMP,
 ];
 
 describe("the stones we ship", () => {
@@ -732,15 +753,29 @@ describe("the stones we ship", () => {
         const above = rung(element, index);
         const where = `${element} ${index - 1} -> ${index}`;
 
-        expect(bolt(element, index).damage, where).toBeGreaterThan(
-          bolt(element, index - 1).damage!,
-        );
         expect(above.cooldownMs, where).toBeGreaterThan(below.cooldownMs);
         expect(above.castTimeMs!, where).toBeGreaterThan(below.castTimeMs!);
         expect(above.reach!.cells, where).toBeGreaterThan(below.reach!.cells);
         expect(above.requirements!.arcane, where).toBeGreaterThan(below.requirements!.arcane!);
         expect(above.requirements![element], where).toBeGreaterThan(below.requirements![element]!);
       }
+    }
+  });
+
+  it("climbs damage below the top rung, which keeps the rung below's and adds an area", () => {
+    for (const element of ELEMENTS) {
+      for (let index = 1; index < TOP_RUNG; index++) {
+        expect(bolt(element, index).damage, `${element} ${index}`).toBeGreaterThan(
+          bolt(element, index - 1).damage!,
+        );
+      }
+      const top = bolt(element, TOP_RUNG);
+      expect(top.damage, element).toBe(bolt(element, TOP_RUNG - 1).damage);
+      expect(top.area?.damage, element).toBeUndefined();
+      expect(
+        top.area?.statuses?.map((s) => s.id),
+        element,
+      ).toEqual([LEAVES[element]]);
     }
   });
 
@@ -824,10 +859,15 @@ describe("the stones we ship", () => {
       expect(plain.reach, where).toEqual(yardstick.reach);
       expect(plain.castTimeMs, where).toBe(yardstick.castTimeMs);
       expect(plain.cooldownMs, where).toBe(yardstick.cooldownMs);
-      expect(neutralBolt(index).damage, where).toBeLessThan(bolt("water", index).damage!);
       expect(yardstick.requirements!.arcane, where).toBe(
         plain.requirements!.arcane! + ELEMENTAL_ARCANE_GAP,
       );
+    }
+  });
+
+  it("keeps each neutral rung below the top softer than its elemental one", () => {
+    for (let index = 0; index < TOP_RUNG; index++) {
+      expect(neutralBolt(index).damage, `rung ${index}`).toBeLessThan(bolt("water", index).damage!);
     }
   });
 
@@ -907,6 +947,66 @@ describe("the stones we ship", () => {
     expect(conjured.interactions?.decay).toBeDefined();
     expect(conjured.id).not.toBe("flame");
     expect(shipped.flame!.interactions?.decay).toBeUndefined();
+  });
+
+  it("centres each element's nova on its caster and leaves that element's mark", () => {
+    for (const element of ELEMENTS) {
+      const nova = resolveStone(shipped[NOVAS[element]]!)!;
+      if (nova.effect.kind !== "bolt") throw new Error(`${element} nova is not a bolt`);
+
+      expect(nova.effect.on, element).toBe("caster");
+      expect(nova.effect.area?.affects, element).toBe("others");
+      expect(nova.effect.area?.damage, element).toBeGreaterThan(0);
+      expect(
+        nova.effect.area?.statuses?.map((s) => s.id),
+        element,
+      ).toEqual([LEAVES[element]]);
+      expect(nova.requirements![element], element).toBeGreaterThan(
+        rung(element, TOP_RUNG).requirements![element]!,
+      );
+    }
+  });
+
+  it("gives each element a stance that lasts half its cooldown and asks for toughness", () => {
+    for (const element of ELEMENTS) {
+      const { stone: id, status } = STANCES[element];
+      const stance = resolveStone(shipped[id]!)!;
+      if (stance.effect.kind !== "bolt") throw new Error(`${id} is not a bolt`);
+      const def = statusDefs[status]!;
+
+      expect(stance.effect).toMatchObject({ on: "caster", statuses: [{ id: status }] });
+      expect(stance.effect.area, id).toBeUndefined();
+      expect(def.toMs, id).toBe(def.fromMs);
+      expect(stance.cooldownMs, id).toBe(def.toMs * 2);
+      expect(stance.requirements?.toughness, id).toBe(HIGH_TOUGHNESS);
+      expect(spellElements(stance.requirements), id).toEqual([element]);
+    }
+  });
+
+  it("lets a tough caster stomp like the cyclops, without an element", () => {
+    const stomp = resolveStone(shipped[STOMP]!)!;
+    const cyclops = resolveBattler(shipped.cyclops!)!.spells?.find((s) => s.name === "Stomp");
+    if (!cyclops) throw new Error("the cyclops stomps");
+    if (stomp.effect.kind !== "bolt" || cyclops.effect.kind !== "bolt") {
+      throw new Error("both stomps are bolts");
+    }
+
+    expect(stomp.effect.on).toBe("caster");
+    expect(stomp.effect.area?.shape).toBe(cyclops.effect.area?.shape);
+    expect(stomp.effect.area?.radius).toBe(cyclops.effect.area?.radius);
+    expect(stomp.effect.area?.statuses).toEqual(cyclops.effect.area?.statuses);
+    expect(stomp.requirements?.toughness).toBe(HIGH_TOUGHNESS);
+    expect(spellElements(stomp.requirements)).toEqual([]);
+  });
+
+  it("forges every stone beside the ladder but Light and Flame from other stones", () => {
+    const forge = resolveCraft(shipped["stone-forge"]!)!;
+    const fromStones = forge.recipes
+      .filter((recipe) => recipe.inputs.every((input) => input.tileId !== "arcane-stone"))
+      .flatMap((recipe) => recipe.output.items.map((item) => item.tileId));
+    const forged = BESIDE_THE_LADDER.filter((id) => id !== LIGHT && id !== "arcane-stone-of-flame");
+
+    for (const id of forged) expect(fromStones, id).toContain(id);
   });
 
   it("authors them on the item union and nowhere else", () => {
