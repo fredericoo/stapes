@@ -30546,7 +30546,7 @@
       "6,-4": [{"tileId":"grass-2"}],
       "6,-3": [{"tileId":"grass-2"}],
       "6,-2": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
-      "6,-1": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
+      "6,-1": [{"tileId":"grass-2"},{"tileId":"cobblestone"},{"tileId":"silver-chest","depotTag":"town"}],
       "6,0": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "6,1": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "6,2": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
