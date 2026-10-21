@@ -9421,6 +9421,27 @@ and every item needs it, not only the ones somebody gave an effect.
   remains stand in for the body, and the body did not jump.
 - `tossedFrom` is in `serverMessageSchema` (protocol 28).
 
+### A thing taken off the floor flies to whoever took it
+
+Picking a thing up, equipping it straight off the floor, or eating it where it
+lies raises a `disappear` carrying `takenBy`: the taker's cell and `elev`,
+halfway up their body (`midBody`, the same point a toss leaves from) less where
+the thing rested. `GameSession.noteTake` raises it before the board changes, as
+that resting elevation is gone afterwards. `transitionForNote` answers it with
+`TAKE_MS`, whatever the tile authored for disappearing.
+
+- **`takePose` is the toss backwards without the bounce.** The copy
+  `playOutCopy` draws from the previous board travels in a straight line to the
+  taker's cell, rises along `elev` plus one arc of `TAKE_PEAK_LEVELS`, and
+  shrinks to nothing after `TAKE_SHRINK_FROM` of the way, as it goes into
+  their hands. The depth box moves with it, as for a toss.
+- **Eating one off a pile flies one.** The placement stays on the board with
+  one fewer, so `quadsTaken` drops the quads still drawn for what is left and
+  flies the rest. A pile draws at most one quad per thing, so the last quad
+  always flies; which quad left is a guess, since `pileOffsets` lays out a
+  smaller pile afresh.
+- `takenBy` is in `serverMessageSchema` (protocol 33).
+
 ## A brain can name a place, work it, and eat what came out
 
 Everything a brain could name used to be a *body* — `nearest` walks the actor
@@ -11421,10 +11442,11 @@ a wake whose body was reaped — not the re-seat after an editor save, which
 passes `announce: false`), and what a decay or a resource's last pull turns
 into. A disappear is a decay, a resource's last pull (`spendPull`), a death
 (`kill`, where the body fell) or a player leaving (`despawn`). A thing that
-moved — a pickup, gravity — existed all along and plays nothing, and neither
-does a tile swapped in place by a switch or a plate. A drop and loot out of a
-kit are tossed instead, whatever the tile authored (see "A thing put on the
-floor is tossed from whoever let go of it"). Every finished pull also plays the resource's own pull effect (see "A
+moved by gravity existed all along and plays nothing, and neither does a tile
+swapped in place by a switch or a plate. A drop and loot out of a kit are
+tossed instead, whatever the tile authored (see "A thing put on the floor is
+tossed from whoever let go of it"), and a pickup flies to its taker (see "A
+thing taken off the floor flies to whoever took it"). Every finished pull also plays the resource's own pull effect (see "A
 finished pull plays the resource's pull effect"). All of it only when the tile
 has that side authored; everything else changes instantly, which is what
 every tile did before this existed, and costs the wire nothing.

@@ -568,7 +568,9 @@ describe("GameSession transitions", () => {
     const session = new GameSession(map, [...tiles, glowcap]);
 
     expect(session.pickUp({ x: 9, y: 10, z: 0, stackIndex: 1 })).toBe(true);
-    expect(session.drainTransitions()).toEqual([]);
+    expect(session.drainTransitions()).toEqual([
+      expect.objectContaining({ tileId: "glowcap", takenBy: expect.any(Object) }),
+    ]);
     expect(runHearing(session, TICK_MS)).toEqual([]);
 
     expect(session.drop({ kind: "contents", index: 0 }, { x: 9, y: 10, z: 0 })).toBe(true);

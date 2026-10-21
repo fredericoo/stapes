@@ -280,6 +280,25 @@ describe("a thing put down on the floor", () => {
   });
 });
 
+describe("a thing taken off the floor", () => {
+  const INTO_HANDS = { side: "disappear", tileId: "berry", ...ASIDE };
+  const BY_WHO = { x: HERE.x, y: HERE.y, elev: 2 };
+
+  it("flies to halfway up whoever picked it up", () => {
+    const session = world(carrying([]), { tileId: "berry", itemId: "itm_b" });
+
+    expect(session.pickUp(ASIDE, WHO)).toBe(true);
+    expect(session.drainTransitions()).toMatchObject([{ ...INTO_HANDS, takenBy: BY_WHO }]);
+  });
+
+  it("flies to whoever ate it off the floor, even one off a pile", () => {
+    const session = world(carrying([]), { tileId: "berry", itemId: "itm_b", count: 2 });
+
+    expect(session.consume({ kind: "floor", ref: ASIDE }, WHO)).toBe(true);
+    expect(session.drainTransitions()).toMatchObject([{ ...INTO_HANDS, takenBy: BY_WHO }]);
+  });
+});
+
 describe("summoning one with /tile", () => {
   it("pours into a pile already in that cell, like a drop", () => {
     const session = world(carrying([]), {

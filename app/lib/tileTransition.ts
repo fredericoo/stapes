@@ -93,6 +93,7 @@ export type TileTransitionNote = {
   pulled?: true;
   crafted?: CraftOutcome;
   tossedFrom?: { x: number; y: number; elev: number; order: number };
+  takenBy?: { x: number; y: number; elev: number };
 };
 
 export type HeldTransition = { note: TileTransitionNote; ageMs: number };

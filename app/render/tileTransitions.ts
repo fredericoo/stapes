@@ -25,6 +25,10 @@ export const TOSS_PEAK_LEVELS = 0.5;
 export const TOSS_BOUNCE_LEVELS = 0.2;
 export const TOSS_FIRST_LANDING = 0.72;
 
+export const TAKE_MS = 125;
+export const TAKE_PEAK_LEVELS = 0.4;
+export const TAKE_SHRINK_FROM = 0.6;
+
 export type LiveTransition = {
   note: TileTransitionNote;
   transition: Transition;
@@ -51,6 +55,7 @@ export function transitionForNote(
   tilesById: Readonly<Record<string, TileDef>>,
 ): Transition | undefined {
   if (note.tossedFrom) return tossTransition(note.tossedFrom.order);
+  if (note.takenBy) return { durationMs: TAKE_MS };
   if (note.struckBy) return projectileEffect(tilesById[note.struckBy], "hit");
   if (note.pulled) return pullEffect(tilesById[note.tileId]);
   if (note.crafted) return craftEffect(tilesById[note.tileId], note.crafted);
@@ -164,9 +169,39 @@ export function tossTransition(order: number): Transition {
   return { durationMs: TOSS_MS + order * TOSS_STAGGER_MS };
 }
 
+/**
+ * The toss run backwards without the bounce: the thing rises off its resting
+ * place in one arc to `to.elev` over the taker's cell, and shrinks away over
+ * the last stretch, as it goes into their hands.
+ */
+export function takePose(
+  note: { x: number; y: number },
+  to: { x: number; y: number; elev: number },
+  progress: number,
+): TransitionPose {
+  const shrinking = (progress - TAKE_SHRINK_FROM) / (1 - TAKE_SHRINK_FROM);
+  return {
+    scale: 1 - Math.max(0, shrinking),
+    dropLevels:
+      (to.elev / HEIGHT_PER_LEVEL) * progress + TAKE_PEAK_LEVELS * 4 * progress * (1 - progress),
+    travel: { x: (to.x - note.x) * progress, y: (to.y - note.y) * progress },
+  };
+}
+
+/**
+ * Eating one off a pile leaves the rest lying there, and the board redraws
+ * them, so only the quads past the ones `left` behind fly to the taker. The
+ * last quad always does, since a pile draws at most one quad per thing.
+ */
+export function quadsTaken<T>(quads: readonly T[], left: number): T[] {
+  return quads.slice(Math.min(left, quads.length - 1));
+}
+
 const NOT_YET_THROWN: TransitionPose = { scale: 0, dropLevels: 0 };
 
 export function livePose(live: LiveTransition, shown: number): TransitionPose {
+  const { takenBy } = live.note;
+  if (takenBy) return takePose(live.note, takenBy, 1 - shown);
   const from = live.note.tossedFrom;
   if (!from) return transitionPose(live.transition, shown);
   const sinceThrowMs = shown * live.transition.durationMs - from.order * TOSS_STAGGER_MS;
@@ -176,11 +211,11 @@ export function livePose(live: LiveTransition, shown: number): TransitionPose {
 
 export function movesQuad(live: LiveTransition): boolean {
   const { scale, drop } = live.transition;
-  return Boolean(scale || drop || live.note.tossedFrom);
+  return Boolean(scale || drop || live.note.tossedFrom || live.note.takenBy);
 }
 
 export function movesBox(live: LiveTransition): boolean {
-  return Boolean(live.transition.drop || live.note.tossedFrom);
+  return Boolean(live.transition.drop || live.note.tossedFrom || live.note.takenBy);
 }
 
 export type PoseableQuad = {
