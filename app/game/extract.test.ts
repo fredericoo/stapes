@@ -1147,21 +1147,23 @@ describe("the row it offers", () => {
     );
   });
 
-  it("is passed over by the tap while the bag is full", () => {
+  it("stays first for the tap while the bag is full, so the tap can say why", () => {
     const session = new GameSession(board(), tiles);
 
-    expect(topInteractionAt(optionsFor(session, bagWith(4)), BUSH)).toBeNull();
+    expect(topInteractionAt(optionsFor(session, bagWith(4)), BUSH)?.blocked).toEqual({
+      kind: "noRoom",
+    });
   });
 
-  it("is passed over by the tap while the pull is being made", () => {
+  it("stays first for the tap while the pull is being made, blocked until it lands", () => {
     const session = new GameSession(board(), tiles);
-    expect(topInteractionAt(optionsFor(session), BUSH)?.action).toBe("extract");
+    expect(topInteractionAt(optionsFor(session), BUSH)?.blocked).toBeNull();
 
     session.interact(BUSH);
-    expect(topInteractionAt(optionsFor(session), BUSH)).toBeNull();
+    expect(topInteractionAt(optionsFor(session), BUSH)?.blocked?.kind).toBe("working");
 
     session.tick(EXTRACT_MS);
-    expect(topInteractionAt(optionsFor(session), BUSH)?.action).toBe("extract");
+    expect(topInteractionAt(optionsFor(session), BUSH)?.blocked).toBeNull();
   });
 
   it("keeps the pull's identity while it merely runs down", () => {
