@@ -27,6 +27,7 @@ import {
   pullEffect,
   resolveAddStatus,
   resolveRemoveStatus,
+  resolveEmit,
   resolveExtract,
   resolveSwitch,
   resolveTeleport,
@@ -349,7 +350,7 @@ import {
   wadesIn,
 } from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
-import { resolveDialog } from "../lib/dialog";
+import { resolveDialog, type SwitchTo } from "../lib/dialog";
 import {
   acceptTrade,
   cancelTrade,
@@ -402,7 +403,14 @@ import {
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressurePlates";
-import { cellIsWired, findWiredCells, settleSignals, type ExtraEmitter } from "./signals";
+import {
+  cellIsWired,
+  channelPowered,
+  findWiredCells,
+  readChannels,
+  settleSignals,
+  type ExtraEmitter,
+} from "./signals";
 import type { ItemDecay, PlacementDecay } from "./decay";
 import { DecayIndex, applyDecay, applyItemDecay, findDecayCells } from "./decay";
 import {
@@ -818,6 +826,7 @@ export class GameSession implements PlaySession {
   private readonly clock: () => MinutesOfDay;
   private readonly plateCells = new Map<string, Coord>();
   private readonly wiredCells = new Map<string, Coord>();
+  private kingId: string | null = null;
   private readonly looseGravityCells = new Map<string, Coord>();
   private readonly decay: DecayIndex;
   private readonly afflictCells = new Map<string, Coord>();
@@ -1663,6 +1672,9 @@ export class GameSession implements PlaySession {
   private partnerViewFor(partner: ActorRuntime): PartnerView {
     return {
       name: () => this.bodyName(partner.id),
+      isKing: () => partner.id === this.kingId,
+      hasTag: (tag) => partner.tags.includes(tag),
+      channelOn: (channel) => this.channelOn(channel),
       attempt: (effects) => this.attemptDialogEffects(partner.id, effects),
     };
   }
@@ -1674,6 +1686,12 @@ export class GameSession implements PlaySession {
     let kit = partner.equipment;
     for (const effect of effects) {
       if (effect.effect === "add_status" && !this.statusDefs[effect.statusId]) {
+        return false;
+      }
+      if (
+        effect.effect === "teleport" &&
+        !teleportFits(this.map, this.tilesById, this.defFor(partner), effect.to)
+      ) {
         return false;
       }
       if (effect.effect !== "trade") continue;
@@ -1699,6 +1717,50 @@ export class GameSession implements PlaySession {
     if (effect.effect === "tag" && !partner.tags.includes(effect.tag)) {
       this.setTags(partner, [...partner.tags, effect.tag]);
     }
+    if (effect.effect === "switch") this.throwSwitches(effect.channel, effect.to);
+    if (effect.effect === "teleport") this.moveThrough(partner, effect.to);
+  }
+
+  /** Read the way a receiver in `any` mode reads it: on while anything on the channel emits on. */
+  private channelOn(channel: string): boolean {
+    const state = readChannels(
+      this.map,
+      this.wiredCells.values(),
+      this.tilesById,
+      this.actorEmitters(),
+    );
+    return channelPowered(state, channel, "any");
+  }
+
+  setKing(actorId: string | null) {
+    this.kingId = actorId;
+  }
+
+  /**
+   * Throws every switch tile on the channel, wherever it is on the board, as
+   * if somebody had used each one. A switch already emitting what `to` asks
+   * for is left alone, so "on" twice is still on; one that emits nothing reads
+   * as off.
+   */
+  private throwSwitches(channel: string, to: SwitchTo) {
+    const changed: Coord[] = [];
+    for (const cell of this.wiredCells.values()) {
+      const stack = getStack(this.map, cell.x, cell.y, cell.z);
+      let touched = false;
+      const next = stack.map((placed) => {
+        if (placed.channel !== channel) return placed;
+        const def = this.tilesById[placed.tileId];
+        const sw = def && resolveSwitch(def);
+        if (!sw) return placed;
+        if (to !== "toggle" && (resolveEmit(def)?.value ?? "off") === to) return placed;
+        touched = true;
+        return { ...placed, tileId: sw.targetTileId };
+      });
+      if (!touched) continue;
+      this.map = replaceStack(this.map, cell.x, cell.y, cell.z, next);
+      changed.push(cell);
+    }
+    if (changed.length > 0) this.reindexCells(changed);
   }
 
   private clearStatus(actor: ActorRuntime, statusId: string) {
@@ -5748,7 +5810,7 @@ export class GameSession implements PlaySession {
       casting: actor.casting?.progress ?? null,
       pvp: actor.pvp,
       hidden: actor.hidden,
-      king: false,
+      king: actor.id === this.kingId,
     };
   }
 

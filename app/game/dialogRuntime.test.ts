@@ -56,10 +56,18 @@ const shop: DialogDef = {
 
 const npc = { id: "npc:1", tileId: "seller" };
 
-function partner(attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true) {
+function partner(
+  attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true,
+  king = false,
+  tags: readonly string[] = [],
+  channels: readonly string[] = [],
+) {
   const attempts: DialogEffectDef[][] = [];
   const view: PartnerView & { attempts: DialogEffectDef[][] } = {
     name: () => "ann",
+    isKing: () => king,
+    hasTag: (tag) => tags.includes(tag),
+    channelOn: (channel) => channels.includes(channel),
     attempt: (effects) => (attempts.push([...effects]), attempt(effects)),
     attempts,
   };
@@ -203,5 +211,84 @@ describe("goto", () => {
   it("carries on past a goto naming no anchor", () => {
     const lost: DialogDef = { script: [{ kind: "goto", name: "nowhere" }, say("Still here.")] };
     expect(lines(openConversation(lost, npc, partner()))).toEqual(["npc: Still here."]);
+  });
+});
+
+describe("an if", () => {
+  const gate: DialogDef = {
+    script: [
+      {
+        kind: "if",
+        when: { cond: "king" },
+        then: [say("Your Majesty."), { kind: "switch", channel: "gate", to: "on" }],
+        else: [say("Move along.")],
+      },
+      say("Good day."),
+    ],
+  };
+
+  it("runs the first list for the king, and carries on after the block", () => {
+    const view = partner(undefined, true);
+    expect(lines(openConversation(gate, npc, view))).toEqual([
+      "npc: Your Majesty.",
+      "npc: Good day.",
+    ]);
+    expect(view.attempts).toEqual([[{ effect: "switch", channel: "gate", to: "on" }]]);
+  });
+
+  it("runs the other list for anybody else", () => {
+    const view = partner();
+    expect(lines(openConversation(gate, npc, view))).toEqual([
+      "npc: Move along.",
+      "npc: Good day.",
+    ]);
+    expect(view.attempts).toEqual([]);
+  });
+
+  it("asks whether the player carries a tag", () => {
+    const greeter: DialogDef = {
+      script: [
+        {
+          kind: "if",
+          when: { cond: "tagged", tag: "met" },
+          then: [say("Back again.")],
+          else: [say("A new face.")],
+        },
+      ],
+    };
+    expect(lines(openConversation(greeter, npc, partner(undefined, false, ["met"])))).toEqual([
+      "npc: Back again.",
+    ]);
+    expect(lines(openConversation(greeter, npc, partner()))).toEqual(["npc: A new face."]);
+  });
+
+  it("asks whether a channel is switched on", () => {
+    const porter: DialogDef = {
+      script: [
+        {
+          kind: "if",
+          when: { cond: "switched", channel: "gate" },
+          then: [say("The gate stands open.")],
+          else: [say("The gate is shut.")],
+        },
+      ],
+    };
+    const open = partner(undefined, false, [], ["gate"]);
+    expect(lines(openConversation(porter, npc, open))).toEqual(["npc: The gate stands open."]);
+    expect(lines(openConversation(porter, npc, partner()))).toEqual(["npc: The gate is shut."]);
+  });
+
+  it("reads a negated group the other way round", () => {
+    const notKing: DialogDef = {
+      script: [
+        {
+          kind: "if",
+          when: { combinator: "and", not: true, rules: [{ cond: "king" }] },
+          then: [say("Commoner.")],
+          else: [say("Sire.")],
+        },
+      ],
+    };
+    expect(lines(openConversation(notKing, npc, partner(undefined, true)))).toEqual(["npc: Sire."]);
   });
 });

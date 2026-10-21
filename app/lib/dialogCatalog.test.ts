@@ -26,17 +26,25 @@ describe("the dialog catalog", () => {
       "anchor",
       "choices",
       "goto",
+      "if",
       "remove_status",
       "request_trade",
       "say",
+      "switch",
       "tag",
+      "teleport",
     ]);
   });
 
   it("makes commands the parser accepts, given something to point at", () => {
     for (const kind of DIALOG_COMMAND_KINDS) {
       const made = DIALOG_COMMANDS[kind].make(defaults);
-      const command = made.kind === "tag" ? { ...made, tag: "told" } : made;
+      const command =
+        made.kind === "tag"
+          ? { ...made, tag: "told" }
+          : made.kind === "switch"
+            ? { ...made, channel: "gate" }
+            : made;
       const dialog = resolveDialog(tileWith({ script: [command] }));
       expect(dialog?.script[0], kind).toEqual(command);
     }

@@ -13,16 +13,21 @@ import {
   type DialogChoice,
   type DialogCommand,
   type DialogCommandKind,
+  type DialogCondition,
   type DialogDef,
+  type DialogIf,
   type DialogTrade,
+  SWITCH_TO,
+  type SwitchTo,
   type TradeSide,
 } from "../lib/dialog";
 import { DIALOG_COMMAND_KINDS, DIALOG_COMMANDS, type CatalogDefaults } from "../lib/dialogCatalog";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { StatusDef } from "../lib/status";
-import type { TileDef, TilesetDef } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, type TileDef, type TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Input, NumberInput, Select, Textarea } from "../ui";
+import { Button, Input, NumberInput, Segmented, Select, Textarea } from "../ui";
+import { ConditionTreeEditor } from "./ConditionTreeEditor";
 import { DialogTryOut } from "./DialogTryOut";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
@@ -377,6 +382,47 @@ function CommandFields({
       />
     );
   }
+  if (command.kind === "switch") {
+    return (
+      <>
+        <Input
+          value={command.channel}
+          onChange={(e) => onChange({ ...command, channel: e.target.value })}
+          className="w-32 font-mono"
+          placeholder="channel"
+          aria-label="Channel"
+        />
+        <Segmented
+          value={command.to}
+          onChange={(to: SwitchTo) => onChange({ ...command, to })}
+          options={SWITCH_TO.map((to) => ({ value: to, label: to }))}
+          size="sm"
+          ariaLabel="Switch to"
+        />
+      </>
+    );
+  }
+  if (command.kind === "teleport") {
+    const axis = (key: "x" | "y" | "z") => (value: number) =>
+      onChange({ ...command, to: { ...command.to, [key]: value } });
+    return (
+      <span className="flex items-center gap-1 text-[10px] uppercase text-muted">
+        {(["x", "y", "z"] as const).map((key) => (
+          <label key={key} className="flex items-center gap-1">
+            {key}
+            <NumberInput
+              step={1}
+              {...(key === "z" ? { min: MIN_LEVEL, max: MAX_LEVEL } : {})}
+              value={command.to[key]}
+              onChange={axis(key)}
+              className="w-16"
+              aria-label={`Destination ${key}`}
+            />
+          </label>
+        ))}
+      </span>
+    );
+  }
   if (command.kind === "add_status" || command.kind === "remove_status") {
     return (
       <Select
@@ -431,7 +477,93 @@ function CommandBlocks({
   if (command.kind === "request_trade") {
     return <TradeBlocks path={path} trade={command} ctx={ctx} onChange={onChange} />;
   }
+  if (command.kind === "if") {
+    return <IfBlocks path={path} command={command} ctx={ctx} onChange={onChange} />;
+  }
   return null;
+}
+
+const CONDITIONS: Record<DialogCondition["cond"], { label: string; make: () => DialogCondition }> =
+  {
+    king: { label: "the player is the king", make: () => ({ cond: "king" }) },
+    tagged: { label: "the player has the tag", make: () => ({ cond: "tagged", tag: "" }) },
+    switched: { label: "the channel is on", make: () => ({ cond: "switched", channel: "" }) },
+  };
+
+function ConditionFields({
+  leaf,
+  onChange,
+}: {
+  leaf: DialogCondition;
+  onChange: (next: DialogCondition) => void;
+}) {
+  return (
+    <>
+      <Select
+        value={leaf.cond}
+        onValueChange={(cond) =>
+          cond && cond !== leaf.cond && onChange(CONDITIONS[cond as DialogCondition["cond"]].make())
+        }
+        options={Object.entries(CONDITIONS).map(([value, { label }]) => ({ value, label }))}
+        className="min-w-[8rem]"
+        ariaLabel="Condition"
+      />
+      {leaf.cond === "tagged" ? (
+        <Input
+          value={leaf.tag}
+          onChange={(e) => onChange({ ...leaf, tag: e.target.value })}
+          className="w-32 font-mono"
+          placeholder="tag"
+          aria-label="Tag"
+        />
+      ) : null}
+      {leaf.cond === "switched" ? (
+        <Input
+          value={leaf.channel}
+          onChange={(e) => onChange({ ...leaf, channel: e.target.value })}
+          className="w-32 font-mono"
+          placeholder="channel"
+          aria-label="Channel"
+        />
+      ) : null}
+    </>
+  );
+}
+
+function IfBlocks({
+  path,
+  command,
+  ctx,
+  onChange,
+}: {
+  path: CommandPath;
+  command: DialogIf;
+  ctx: EditorContext;
+  onChange: (next: DialogCommand) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 pl-6">
+      <div className="flex flex-col gap-1">
+        <span className="text-[10px] font-bold uppercase text-muted">When</span>
+        <ConditionTreeEditor<DialogCondition>
+          root={command.when}
+          onChange={(when) => onChange({ ...command, when })}
+          leaf={{
+            render: (leaf, set) => <ConditionFields leaf={leaf} onChange={set} />,
+            fresh: () => ({ cond: "king" }),
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
+        <span className="text-[10px] font-bold uppercase text-muted">Then</span>
+        <CommandList listPath={[...path, 0]} commands={command.then} ctx={ctx} />
+      </div>
+      <div className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
+        <span className="text-[10px] font-bold uppercase text-muted">Otherwise</span>
+        <CommandList listPath={[...path, 1]} commands={command.else} ctx={ctx} />
+      </div>
+    </div>
+  );
 }
 
 function ChoicesBlocks({
