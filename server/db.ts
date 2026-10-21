@@ -143,6 +143,7 @@ const MIGRATIONS: readonly string[] = [
      started_at   INTEGER NOT NULL,
      ended_at     INTEGER
    )`,
+  `CREATE TABLE IF NOT EXISTS character_serial (serial INTEGER PRIMARY KEY AUTOINCREMENT)`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

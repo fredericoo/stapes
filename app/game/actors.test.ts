@@ -7,6 +7,7 @@ import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { standingAbs } from "./movement";
 import { findPlayers } from "./player";
 import { tile } from "../lib/testTile";
+import { ResidentIds } from "./actors";
 
 const directionalFrames = () => {
   const frame = {
@@ -268,5 +269,26 @@ describe("actors and shared objects", () => {
     const session = new GameSession(withCrate(3), tiles, { actorIds: ["a", "b"] });
     expect(session.canPush({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(false);
     expect(session.push({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(false);
+  });
+});
+
+describe("ResidentIds", () => {
+  const MINTED = 3;
+  const SAMPLES = 3_000;
+
+  it("mints past every id already taken, so a resumed board keeps its own", () => {
+    const fresh = new ResidentIds(() => false);
+    const kept = new Set(Array.from({ length: MINTED }, () => fresh.mint()));
+    const resumed = new ResidentIds((id) => kept.has(id));
+
+    const minted = [resumed.mint(), resumed.mint()];
+
+    for (const id of minted) expect(kept.has(id)).toBe(false);
+    expect(new Set(minted).size).toBe(minted.length);
+  });
+
+  it("never reads as a number, which commands take for a coordinate", () => {
+    const ids = new ResidentIds(() => false);
+    for (let i = 0; i < SAMPLES; i++) expect(Number.isNaN(Number(ids.mint()))).toBe(true);
   });
 });

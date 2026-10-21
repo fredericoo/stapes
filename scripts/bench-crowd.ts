@@ -11,6 +11,7 @@ import { openDatabase } from "../server/db";
 import { GameServer } from "../server/GameServer";
 import { GameSocket, SocketHub, type WorldContext } from "../server/sockets";
 import { WorldStore } from "../server/WorldStore";
+import { characterIdOf } from "../app/lib/characterId";
 
 const CONTENT = ["map.json", "tiles.json", "statuses.json", "traits.json", "tilesets.json"];
 
@@ -292,7 +293,7 @@ async function run(options: Options) {
   };
   const bots: Bot[] = [];
   for (let i = 0; i < options.players; i++) {
-    const bot = new Bot(crypto.randomUUID(), counters, options.deflate, options.idle);
+    const bot = new Bot(characterIdOf(i), counters, options.deflate, options.idle);
     if (surface.length > 0) {
       const at = surface[Math.floor(Math.random() * surface.length)]!;
       await store.put(`pos:${bot.actorId}`, {

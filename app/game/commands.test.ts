@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { residentAt } from "./testResidents";
 import { DEFAULT_CONTAINER, DEFAULT_SHIELD, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { MASTERIES, xpForLevel } from "../lib/mastery";
@@ -581,19 +582,32 @@ describe("what a command does to the board", () => {
     session.runCommand("/tile deer 0 1 0", "me");
 
     const summoned = session.actorIds().filter((id) => !before.includes(id));
-    expect(summoned).toEqual(["npc:0,1,0,1"]);
-    expect(session.isResident("npc:0,1,0,1")).toBe(true);
-    expect(stackAt(session, 0, 1, 0)[1]?.owner).toBe("npc:0,1,0,1");
+    expect(summoned).toHaveLength(1);
+    expect(session.isResident(summoned[0]!)).toBe(true);
+    expect(stackAt(session, 0, 1, 0)[1]?.owner).toBe(summoned[0]);
   });
 
-  it("never names two bodies the same thing", () => {
+  it("gives a summoned body the cell it was called into as its home", () => {
     const session = world();
-    session.spawn("npc:0,1,0,1");
     session.runCommand("/tile deer 0 1 0", "me");
 
-    const owner = stackAt(session, 0, 1, 0)[1]?.owner;
-    expect(owner).not.toBe("npc:0,1,0,1");
-    expect(session.isResident(owner!)).toBe(true);
+    const internals = session as unknown as { actors: Map<string, { home: unknown }> };
+    expect(internals.actors.get(residentAt(session, 0, 1, 0))?.home).toEqual({ x: 0, y: 1, z: 0 });
+  });
+
+  it("passes over the ids a board resumed from a checkpoint already gives its bodies", () => {
+    const before = world();
+    const kept = before.actorIds();
+    const resumed = new GameSession(before.getMap(), tiles, {
+      actorIds: ["me"],
+      names: { me: "Mira" },
+      seed: 1,
+    });
+    resumed.runCommand("/tile deer 0 1 0", "me");
+
+    const owner = stackAt(resumed, 0, 1, 0)[1]?.owner;
+    expect(kept).not.toContain(owner);
+    expect(resumed.isResident(owner!)).toBe(true);
   });
 
   it("says what appeared and where", () => {
@@ -774,7 +788,7 @@ describe("putting a status on by hand", () => {
 
   it("refuses to take off a status the body does not have, naming both", () => {
     const session = statusWorld();
-    session.runCommand("/status burned off npc:1,0,0,1", "me");
+    session.runCommand(`/status burned off ${residentAt(session, 1, 0, 0)}`, "me");
 
     expect(session.drainNotices("me")).toEqual(["Deer is not burned"]);
   });
@@ -1008,18 +1022,16 @@ describe("going somewhere", () => {
 
   it("sends the named body instead, to the author's level when none is given", () => {
     const session = upstairs();
-    const reply = session.runCommand("/goto 2 0 npc:0,2,0,1", "me");
+    const deer = residentAt(session, 0, 2, 0);
+    const reply = session.runCommand(`/goto 2 0 ${deer}`, "me");
 
-    expect(stackAt(session, 2, 0, 1).map((placed) => placed.owner)).toEqual([
-      undefined,
-      "npc:0,2,0,1",
-    ]);
+    expect(stackAt(session, 2, 0, 1).map((placed) => placed.owner)).toEqual([undefined, deer]);
     expect(stackAt(session, 0, 0, 1)[1]?.owner).toBe("me");
     expect(reply).toEqual({
       ok: true,
       notice: "Deer is now at 2, 0, 1",
       ids: [],
-      data: { command: "goto", target: "npc:0,2,0,1", at: { x: 2, y: 0, z: 1 } },
+      data: { command: "goto", target: deer, at: { x: 2, y: 0, z: 1 } },
     });
   });
 
@@ -1048,13 +1060,14 @@ describe("putting a body at a cell of the map", () => {
   it("puts a body down as a resident, and hands back the id it answers to", () => {
     const session = world();
     const reply = session.runCommand("/spawn deer -2 -1", "me");
+    const resident = residentAt(session, -2, -1, 0);
 
-    expect(stackAt(session, -2, -1, 0)[1]?.owner).toBe("npc:-2,-1,0,1");
-    expect(session.isResident("npc:-2,-1,0,1")).toBe(true);
+    expect(stackAt(session, -2, -1, 0)[1]?.owner).toBe(resident);
+    expect(session.isResident(resident)).toBe(true);
     expect(reply).toEqual({
       ok: true,
-      notice: "Deer appears at -2, -1, 0 as npc:-2,-1,0,1",
-      ids: ["npc:-2,-1,0,1"],
+      notice: `Deer appears at -2, -1, 0 as ${resident}`,
+      ids: [resident],
       data: { command: "spawn", tileId: "deer", at: { x: -2, y: -1, z: 0 } },
     });
   });
@@ -1092,15 +1105,16 @@ describe("putting a body at a cell of the map", () => {
 describe("taking a body off the board", () => {
   it("takes a creature off by its id, and says where it was", () => {
     const session = world();
-    const reply = session.runCommand("/despawn npc:1,0,0,1", "me");
+    const resident = residentAt(session, 1, 0, 0);
+    const reply = session.runCommand(`/despawn ${resident}`, "me");
 
     expect(stackAt(session, 1, 0, 0).map((placed) => placed.tileId)).toEqual(["grass"]);
-    expect(session.hasActor("npc:1,0,0,1")).toBe(false);
+    expect(session.hasActor(resident)).toBe(false);
     expect(reply).toEqual({
       ok: true,
       notice: "Deer disappears from 1, 0, 0",
       ids: [],
-      data: { command: "despawn", target: "npc:1,0,0,1", at: { x: 1, y: 0, z: 0 } },
+      data: { command: "despawn", target: resident, at: { x: 1, y: 0, z: 0 } },
     });
   });
 
@@ -1194,13 +1208,14 @@ describe("giving a body something to carry", () => {
   it("says what it could not give, and to whom", () => {
     const session = world();
     session.runCommand("/spawn keeper 2 2", "me");
+    const resident = residentAt(session, 2, 2, 0);
     session.drainNotices("me");
     for (const line of [
       "/give apple head",
       "/give apple",
       "/give grass",
       "/give apple bag nobody",
-      "/give apple bag npc:2,2,0,1",
+      `/give apple bag ${resident}`,
     ]) {
       session.runCommand(line, "me");
     }
@@ -1246,40 +1261,44 @@ describe("switching a brain", () => {
   it("keeps a body standing while its brain is off, and lets it wander once it is on", () => {
     const session = world();
     session.runCommand("/spawn hound 2 2", "me");
-    const reply = session.runCommand("/brain npc:2,2,0,1 off", "me");
+    const resident = residentAt(session, 2, 2, 0);
+    const reply = session.runCommand(`/brain ${resident} off`, "me");
 
     expect(reply).toEqual({
       ok: true,
       notice: "Hound's brain is off, in the roam state",
       ids: [],
-      data: { command: "brain", target: "npc:2,2,0,1", on: false, state: "roam" },
+      data: { command: "brain", target: resident, on: false, state: "roam" },
     });
-    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).toEqual({ x: 2, y: 2 });
+    expect(cellAfter(session, resident, A_FEW_BRAIN_TURNS_MS)).toEqual({ x: 2, y: 2 });
 
-    session.runCommand("/brain npc:2,2,0,1 on", "me");
-    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).not.toEqual({ x: 2, y: 2 });
+    session.runCommand(`/brain ${resident} on`, "me");
+    expect(cellAfter(session, resident, A_FEW_BRAIN_TURNS_MS)).not.toEqual({ x: 2, y: 2 });
   });
 
   it("puts a brain in the state named, and switches it on", () => {
     const session = world();
     session.runCommand("/spawn hound 2 2", "me");
-    session.runCommand("/brain npc:2,2,0,1 off", "me");
-    const reply = session.runCommand("/brain npc:2,2,0,1 sit", "me");
+    const resident = residentAt(session, 2, 2, 0);
+    session.runCommand(`/brain ${resident} off`, "me");
+    const reply = session.runCommand(`/brain ${resident} sit`, "me");
 
     expect(reply).toMatchObject({
       ok: true,
       notice: "Hound's brain is on, in the sit state",
       data: { on: true, state: "sit" },
     });
-    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).toEqual({ x: 2, y: 2 });
+    expect(cellAfter(session, resident, A_FEW_BRAIN_TURNS_MS)).toEqual({ x: 2, y: 2 });
   });
 
   it("refuses a body with no brain, and a state its brain does not have", () => {
     const session = world();
+    const residentA = residentAt(session, 1, 0, 0);
     session.runCommand("/spawn hound 2 2", "me");
+    const residentB = residentAt(session, 2, 2, 0);
     session.drainNotices("me");
-    session.runCommand("/brain npc:1,0,0,1 off", "me");
-    session.runCommand("/brain npc:2,2,0,1 fetch", "me");
+    session.runCommand(`/brain ${residentA} off`, "me");
+    session.runCommand(`/brain ${residentB} fetch`, "me");
 
     expect(session.drainNotices("me")).toEqual([
       "Deer is not driven by a brain",
@@ -1314,7 +1333,8 @@ describe("firing a projectile", () => {
 
   it("sends a flight from a body to a cell, and answers with how long it flies", () => {
     const session = world();
-    const reply = session.runCommand("/fire bolt npc:1,0,0,1 -2,2,0", "me");
+    const resident = residentAt(session, 1, 0, 0);
+    const reply = session.runCommand(`/fire bolt ${resident} -2,2,0`, "me");
 
     const [flight] = session.drainProjectiles();
     expect(flight).toMatchObject({ tileId: "bolt", from: { x: 1, y: 0 }, to: { x: -2, y: 2 } });

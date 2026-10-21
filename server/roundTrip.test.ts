@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { firstResidentId } from "../app/game/testResidents";
 import { Harness, Pair } from "./testHarness";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
@@ -21,7 +22,7 @@ const statuses = statusesById(statusesJson as unknown[]);
 
 const SPAWN_X = CHUNK_SIZE;
 const DEER_X = SPAWN_X + 2;
-const DEER_ID = `npc:${DEER_X},0,0,1`;
+const DEER_ID = firstResidentId();
 
 function strip(): FlatMapFile {
   const cells: Record<string, unknown[]> = {};

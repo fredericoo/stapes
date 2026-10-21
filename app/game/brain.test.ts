@@ -41,6 +41,9 @@ import { GameSession } from "./GameSession";
 import { Rng } from "./rng";
 import { FRAME, tile } from "../lib/testTile";
 
+/** A body adopted before the test began, whose home the board does not say. */
+const STRAYED_ID = "strayed";
+
 const IDLE_MS = 400;
 
 function wanderingBrain(): BrainDef {
@@ -3460,9 +3463,10 @@ describe("walking home", () => {
     let map = field(6);
     map = replaceStack(map, 4, 0, 0, [
       { tileId: "grass" },
-      { tileId: "homebody", owner: "npc:0,0,0,1" },
+      { tileId: "homebody", owner: STRAYED_ID },
     ]);
     const session = new GameSession(map, [...tiles, homebody], { actorIds: ["alice"] });
+    session.setResidentHomes([{ ownerId: STRAYED_ID, cell: { x: 0, y: 0, z: 0 } }]);
 
     advance(session, BRAIN_TICK_MS * 12);
 
@@ -3480,9 +3484,10 @@ describe("walking home", () => {
     }
     map = replaceStack(map, 20, 0, 0, [
       { tileId: "grass" },
-      { tileId: "homebody", owner: "npc:0,0,0,1" },
+      { tileId: "homebody", owner: STRAYED_ID },
     ]);
     const session = new GameSession(map, [...tiles, homebody], { actorIds: ["alice"] });
+    session.setResidentHomes([{ ownerId: STRAYED_ID, cell: { x: 0, y: 0, z: 0 } }]);
 
     advance(session, BRAIN_TICK_MS * 400);
 
@@ -3742,7 +3747,7 @@ describe("the vermin we ship", () => {
     }
     map = replaceStack(map, STRAYED_TO, 0, 0, [
       { tileId: "dirt" },
-      { tileId: "snake", owner: "npc:0,0,0,1" },
+      { tileId: "snake", owner: STRAYED_ID },
     ]);
     map = replaceStack(map, OFF_IN_THE_CORNER.x, OFF_IN_THE_CORNER.y, 0, [
       { tileId: "dirt" },
@@ -3753,6 +3758,7 @@ describe("the vermin we ship", () => {
       spawnAt: { x: 12, y: 12, z: 0, stackIndex: 1 },
       seed: YARD_SEED,
     });
+    session.setResidentHomes([{ ownerId: STRAYED_ID, cell: { x: 0, y: 0, z: 0 } }]);
 
     advance(session, BRAIN_TICK_MS * 8);
 
@@ -3775,7 +3781,7 @@ describe("the vermin we ship", () => {
     }
     map = replaceStack(map, STRAYED_TO, 0, 0, [
       { tileId: "dirt" },
-      { tileId: "snake", owner: "npc:0,0,0,1" },
+      { tileId: "snake", owner: STRAYED_ID },
     ]);
     map = replaceStack(map, OFF_IN_THE_CORNER.x, OFF_IN_THE_CORNER.y, 0, [
       { tileId: "dirt" },
@@ -3786,6 +3792,7 @@ describe("the vermin we ship", () => {
       spawnAt: { x: 12, y: 12, z: 0, stackIndex: 1 },
       seed: YARD_SEED,
     });
+    session.setResidentHomes([{ ownerId: STRAYED_ID, cell: { x: 0, y: 0, z: 0 } }]);
 
     advance(session, BRAIN_TICK_MS * 24);
 
@@ -4172,9 +4179,10 @@ describe("who gets a turn", () => {
     let map = field(ATTENTION_FIELD);
     map = replaceStack(map, START.x, START.y, 0, [
       { tileId: "grass" },
-      { tileId: "ticker-quitter", owner: `npc:${HOME.x},${HOME.y},0,1` },
+      { tileId: "ticker-quitter", owner: STRAYED_ID },
     ]);
     const session = new GameSession(map, attention, { actorIds: ["alice"] });
+    session.setResidentHomes([{ ownerId: STRAYED_ID, cell: { ...HOME, z: 0 } }]);
 
     const cell = () => {
       const quitter = session.actorSnapshots().find((actor) => actor.tileId === "ticker-quitter")!;
@@ -4195,9 +4203,10 @@ describe("who gets a turn", () => {
     let map = field(ATTENTION_FIELD);
     map = replaceStack(map, 0, FAR_ROW_Y, 0, [
       { tileId: "grass" },
-      { tileId: "ticker-walker", owner: `npc:${HOME.x},${HOME.y},0,1` },
+      { tileId: "ticker-walker", owner: STRAYED_ID },
     ]);
     const session = new GameSession(map, attention, { actorIds: ["alice"] });
+    session.setResidentHomes([{ ownerId: STRAYED_ID, cell: { ...HOME, z: 0 } }]);
 
     const walkerCell = () => {
       const walker = session.actorSnapshots().find((actor) => actor.tileId === "ticker-walker")!;
