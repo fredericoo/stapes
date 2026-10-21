@@ -19,6 +19,7 @@ import { ChatBar, ChatButton } from "./ChatBar";
 import { ContainerPanel } from "./ContainerPanel";
 import { DirectionPad, PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
+import { HealthGauge } from "./HealthGauge";
 import { DragLayer } from "./DragLayer";
 import { ConversationPanel } from "./ConversationPanel";
 import { CraftPanel } from "./CraftPanel";
@@ -431,6 +432,8 @@ export function GameViewport({
           </div>
         </div>
 
+        {coarse ? <HealthGauge vitals={vitals} /> : null}
+
         {coarse ? (
           <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">
             {onSay ? (
@@ -504,6 +507,7 @@ export function GameViewport({
           style={{ width: INTERACTION_PANEL_WIDTH_PX }}
         >
           <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
+            <HealthGauge vitals={vitals} />
             {readouts ? (
               <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
             ) : null}

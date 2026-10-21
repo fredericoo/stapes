@@ -13,7 +13,6 @@ import type { Vitals } from "../game/GameSession";
 import { formatCountdown, formatDuration } from "../lib/duration";
 import { bandLabel, HEADINGS, termLabel, type TermKey } from "../lib/terms";
 import type { TilesetDef } from "../lib/types";
-import { healthBarColor, healthFraction } from "../render/healthBar";
 import { secondsLeft } from "../game/statuses";
 import { Tooltip } from "../ui";
 import type { ActiveStatus } from "../lib/status";
@@ -65,8 +64,6 @@ export function StatsPanel({
           .join(" ")}
         style={scrolls ? { maxHeight: STATS_BODY_MAX_HEIGHT } : undefined}
       >
-        <Health vitals={vitals} />
-
         <Effects statuses={statuses} tilesets={tilesets} />
 
         <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
@@ -167,39 +164,6 @@ function EffectRow({ status, tilesets }: { status: ActiveStatus; tilesets: Tiles
         </span>
       </li>
     </Tooltip>
-  );
-}
-
-function Health({ vitals }: { vitals: Vitals }) {
-  const { hp, maxHp } = vitals;
-  if (hp === null || maxHp === null) {
-    return <p className="px-1 text-xs text-paper/50">No hit points to speak of.</p>;
-  }
-
-  const fraction = healthFraction(hp, maxHp);
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="flex items-baseline gap-1 text-xs">
-        <span className="text-paper/80">{termLabel("health")}</span>
-        <span className="ml-auto tabular-nums text-paper">
-          {hp}
-          <span className="text-paper/40">/{maxHp}</span>
-        </span>
-      </span>
-      <span
-        role="img"
-        aria-label={`${hp} of ${maxHp} health`}
-        className="flex h-1.5 w-full border border-paper/40 bg-ink"
-      >
-        <span
-          style={{
-            width: `${fraction * 100}%`,
-            backgroundColor: healthBarColor(fraction),
-          }}
-        />
-      </span>
-    </div>
   );
 }
 

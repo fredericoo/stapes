@@ -551,3 +551,46 @@ body {
   border-radius: 9999px !important;
   box-shadow: 2px 2px 0 0 var(--color-border);
 }
+
+/* The trail sits under the fill at the same width, and whichever of the two
+   is moving away from the old value eases late: on a hit the fill drops at
+   once and the trail drains after it, on a heal the trail jumps ahead and the
+   fill grows into it. */
+.health-gauge__trail {
+  background-color: var(--color-paper);
+  transition: width 200ms ease-out 120ms;
+}
+
+.health-gauge--healing .health-gauge__trail {
+  transition: none;
+}
+
+.health-gauge--healing .health-gauge__fill {
+  transition: width 200ms ease-out 120ms;
+}
+
+.health-gauge__value {
+  text-shadow: 1px 1px 0 var(--color-ink);
+}
+
+@keyframes health-gauge-low {
+  50% {
+    border-color: var(--color-danger-on-ink);
+  }
+}
+
+.health-gauge--low {
+  animation: health-gauge-low 1s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .health-gauge__trail,
+  .health-gauge--healing .health-gauge__fill {
+    transition: none;
+  }
+
+  .health-gauge--low {
+    animation: none;
+    border-color: var(--color-danger-on-ink);
+  }
+}
