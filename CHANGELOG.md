@@ -1,5 +1,16 @@
 # the-last-stones
 
+## 0.5.0
+
+### Minor Changes
+
+- Your health is now always on screen, as a bar with the numbers on it: at the top of the sidebar, or right under the world on a phone. A hit leaves a white trail that drains after it, a heal shows a white stretch that fills in, and the bar's border flashes red when you are close to death.
+- A spell whose target is out of range no longer greys out while you can walk to them: press it and you walk into range and cast when you get there. It only greys out when there is no way to get close enough.
+
+### Patch Changes
+
+- Following someone you are attacking now stops as soon as your weapon reaches them, so a bow keeps its distance instead of walking you into melee.
+
 ## 0.4.0
 
 ### Minor Changes
