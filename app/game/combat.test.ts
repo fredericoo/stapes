@@ -28,6 +28,7 @@ import {
   swingIntervalMs,
   swingWindupMs,
   underPressure,
+  heldWeaponReaches,
   rangedWeaponReaches,
 } from "./combat";
 import { TICK_MS } from "./constants";
@@ -780,5 +781,10 @@ describe("rangedWeaponReaches", () => {
     expect(
       rangedWeaponReaches(row(8), catalogue, holding("rusty-sword"), UNTRAINED, at(0), at(1)),
     ).toBe(false);
+  });
+  it("counts a melee weapon when asked about any weapon held", () => {
+    expect(
+      heldWeaponReaches(row(8), catalogue, holding("rusty-sword"), UNTRAINED, at(0), at(1)),
+    ).toBe(true);
   });
 });

@@ -109,7 +109,7 @@ import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
 import { type Reach, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 import { areaFloorCells } from "../game/area";
-import { rangedWeaponReaches, reachPointAt } from "../game/combat";
+import { heldWeaponReaches, rangedWeaponReaches, reachPointAt } from "../game/combat";
 import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
@@ -969,7 +969,23 @@ export class GameRenderer {
         if (!this.isWithinView(snap.map, actor, camera)) return null;
         return { x: actor.x, y: actor.y, z: actor.z };
       },
+      strikes: (actorId) => this.strikesFromHere(snap, actorId),
     };
+  }
+
+  private strikesFromHere(snap: GameSnapshot, actorId: string): boolean {
+    if (!snap.attacking || snap.targetId !== actorId) return false;
+    const target = snap.actors.find((a) => a.id === actorId);
+    if (!target) return false;
+    const masteries = masteriesFromXp(snap.masteryXp);
+    return heldWeaponReaches(
+      snap.map,
+      this.tilesById,
+      snap.equipment,
+      masteries,
+      snap.self,
+      target,
+    );
   }
 
   private runPointerOption(option: InteractionOption) {
