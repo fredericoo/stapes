@@ -13203,6 +13203,15 @@ emits cells in a stable (x, y) order so a one-cell edit is a one-line diff.
 Batch multi-cell edits through `setStacks` in one call so each chunk is copied
 once — `moveEntity` touches two cells and does exactly that.
 
+**`getStack` reads a chunk through a slot index, not its cell keys.** The first
+read of a chunk files its stacks in a `CHUNK_SIZE²` array kept in a `WeakMap`
+on the chunk, and `setStacks` hands each copy its source's array with the edits
+applied, so a read builds no `"x,y"` string. That is only correct while a chunk
+is never written after `setStacks` returns it: a chunk edited in place keeps
+answering with the stacks it held when it was first read. Fractional
+coordinates are not slots and go through the cell key as before. On the fixture
+town it took a `getStack` call from about 155ns to 95ns.
+
 ### Do not sweep for the player
 
 `requireSinglePlayer` is a full map sweep. `GameSession` memoises it on map
