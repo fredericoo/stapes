@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { residentAt } from "./testResidents";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { Direction, MapFile, TileDef } from "../lib/types";
@@ -98,7 +99,6 @@ const catalogue = statusesById([
 
 const BED = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const STOOL = { x: 0, y: 1, z: 0, stackIndex: 1 };
-const DEER_ID = "npc:-1,0,0,1";
 
 function world(): MapFile {
   let map = emptyMap();
@@ -184,21 +184,23 @@ describe("a body that cannot act", () => {
 
   it("swings, awake, at the same target", () => {
     const play = session();
-    const deerHp = snapshotOf(play, DEER_ID)!.hp!;
-    play.setTarget(DEER_ID);
+    const deer = residentAt(play, -1, 0, 0);
+    const deerHp = snapshotOf(play, deer)!.hp!;
+    play.setTarget(deer);
     play.setAttackMode(true);
     run(play, 3 * TICKS_PER_SECOND);
-    expect(snapshotOf(play, DEER_ID)!.hp).toBeLessThan(deerHp);
+    expect(snapshotOf(play, deer)!.hp).toBeLessThan(deerHp);
   });
 
   it("swings at nothing, even with a target and attack mode on", () => {
     const play = session();
-    const deerHp = snapshotOf(play, DEER_ID)!.hp;
+    const deer = residentAt(play, -1, 0, 0);
+    const deerHp = snapshotOf(play, deer)!.hp;
     sleep(play);
-    play.setTarget(DEER_ID);
+    play.setTarget(deer);
     play.setAttackMode(true);
     run(play, 3 * TICKS_PER_SECOND);
-    expect(snapshotOf(play, DEER_ID)!.hp).toBe(deerHp);
+    expect(snapshotOf(play, deer)!.hp).toBe(deerHp);
   });
 
   it("refuses a step a client says it has already taken", () => {
