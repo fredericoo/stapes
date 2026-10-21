@@ -3,7 +3,7 @@ import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import type { ItemInstance } from "../lib/itemInstance";
 import { resolveRespawn, type RespawnInteraction } from "../lib/interactions";
 import { getStack, listCoords } from "../lib/mapData";
-import { findActorAnywhere, residentOwnerId } from "./actors";
+import { findActorAnywhere } from "./actors";
 import { cellKey } from "./pressurePlates";
 
 export type SpawnPoint = {
@@ -45,13 +45,15 @@ export function findSpawnPoints(map: MapFile, tilesById: Record<string, TileDef>
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const cell = { x, y, z };
-      stack.forEach((placed, stackIndex) => {
+      stack.forEach((placed) => {
         const def = tilesById[placed.tileId];
         const respawn = def ? resolveRespawn(def) : null;
         if (!def || !respawn) return;
 
         if (resolveActor(def)) {
-          const ownerId = placed.owner ?? residentOwnerId({ ...cell, stackIndex });
+          /** A body nobody has adopted has no id to come back under. */
+          const ownerId = placed.owner;
+          if (!ownerId) return;
           points.set(ownerId, {
             key: ownerId,
             cell,

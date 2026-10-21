@@ -8,6 +8,7 @@ import { Characters } from "./characters";
 import { readConfig } from "./config";
 import { openDatabase, type Database } from "./db";
 import { MAX_CHARACTERS_PER_ACCOUNT } from "../app/lib/characterName";
+import { firstResidentId } from "../app/game/testResidents";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -217,6 +218,19 @@ describe("characters", () => {
   });
 
   it("answers null for an id no account owns", async () => {
-    expect(await characters.nameOf("npc:1,2,0,1")).toBeNull();
+    expect(await characters.nameOf(firstResidentId())).toBeNull();
+  });
+
+  it("never gives a new character the id of one deleted with its account", async () => {
+    const gone = await makeAccount("guest");
+    const made = await characters.create(gone, "Arthur");
+    if (!("character" in made)) throw new Error("expected a character");
+    const remove = await db.prepare("DELETE FROM user WHERE id = ?");
+    await remove.run([gone]);
+
+    const next = await characters.create(await makeAccount("player"), "Bedwyr");
+    if (!("character" in next)) throw new Error("expected a character");
+
+    expect(next.character.id).not.toBe(made.character.id);
   });
 });

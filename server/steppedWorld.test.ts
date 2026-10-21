@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { firstResidentId } from "../app/game/testResidents";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
 import traitsJson from "../data/traits.json";
@@ -13,7 +14,7 @@ import { Harness, Pair } from "./testHarness";
 const JSON_TYPE = "application/json";
 const NOON_MS = 12 * 60 * 60 * 1000;
 const RAT_X = 3;
-const RAT_ID = `npc:${RAT_X},0,0,1`;
+const RAT_ID = firstResidentId();
 const SEED = 7;
 
 const rat = (tilesJson as TileDef[]).map(normalizeTileDef).find((tile) => tile.id === "rat")!;
@@ -112,7 +113,7 @@ describe("a world stepped by hand", () => {
 });
 
 describe("a world with a trait catalogue in its store", () => {
-  const YELPER_ID = "npc:2,0,0,1";
+  const YELPER_ID = firstResidentId();
 
   const yelper = tile({
     id: "yelper",

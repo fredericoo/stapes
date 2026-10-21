@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { residentAt } from "./testResidents";
 import statusesJson from "../../data/statuses.json";
 import { maxHpFrom } from "../lib/battler";
 import { resolveAddStatus } from "../lib/interactions";
@@ -285,17 +286,19 @@ describe("stepping into a fire", () => {
 
   it("burns a creature too — a body is a body", () => {
     const play = session(world("fire", "deer"), { actorIds: [] });
-    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    const resident = residentAt(play, 0, 0, 0);
+    expect(play.requestStep(resident, "e")).toBe("started");
     run(play, TICKS_PER_STEP);
-    expect(held(play, "npc:0,0,0,1")).toEqual(["burned"]);
+    expect(held(play, resident)).toEqual(["burned"]);
   });
 
   it("leaves a body with no hit points alone", () => {
     const play = session(world("fire", "wisp"), { actorIds: [] });
-    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    const resident = residentAt(play, 0, 0, 0);
+    expect(play.requestStep(resident, "e")).toBe("started");
     run(play, TICKS_PER_STEP);
     expect(whereIs(play.getMap(), "wisp")).toMatchObject({ x: 1, y: 0 });
-    expect(held(play, "npc:0,0,0,1")).toEqual([]);
+    expect(held(play, resident)).toEqual([]);
   });
 
   it("does it again when you walk back in", () => {
@@ -345,18 +348,20 @@ describe("stepping into a fire", () => {
 
   it("keeps burning a creature standing in it too — a body is a body", () => {
     const play = session(world("fire", "deer"), { actorIds: [] });
-    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    const resident = residentAt(play, 0, 0, 0);
+    expect(play.requestStep(resident, "e")).toBe("started");
     run(play, TICKS_PER_STEP);
-    const arrival = play.statusesOf("npc:0,0,0,1")![0]!.remainingMs;
+    const arrival = play.statusesOf(resident)![0]!.remainingMs;
     run(play, TICKS_PER_SECOND);
-    expect(play.statusesOf("npc:0,0,0,1")![0]!.remainingMs).toBeGreaterThan(arrival);
+    expect(play.statusesOf(resident)![0]!.remainingMs).toBeGreaterThan(arrival);
   });
 
   it("leaves a body with no hit points alone however long it stands there", () => {
     const play = session(world("fire", "wisp"), { actorIds: [] });
-    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    const resident = residentAt(play, 0, 0, 0);
+    expect(play.requestStep(resident, "e")).toBe("started");
     run(play, TICKS_PER_STEP + TICKS_PER_SECOND * 3);
-    expect(held(play, "npc:0,0,0,1")).toEqual([]);
+    expect(held(play, resident)).toEqual([]);
   });
 
   it("grants nothing to a body standing on plain ground", () => {
@@ -436,9 +441,10 @@ describe("being shoved into a fire", () => {
 
   it("burns the body that was pushed in", () => {
     const play = session(lane());
+    const resident = residentAt(play, 1, 0, 0);
     expect(play.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     expect(whereIs(play.getMap(), "shovable")).toMatchObject({ x: 2, y: 0 });
-    expect(held(play, "npc:1,0,0,1")).toEqual(["burned"]);
+    expect(held(play, resident)).toEqual(["burned"]);
   });
 });
 
@@ -507,26 +513,29 @@ describe("what a condition coming on says", () => {
 
   it("says nothing to a player about a deer that caught fire", () => {
     const play = session(world("fire", "deer"), { actorIds: ["local"] });
-    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    const resident = residentAt(play, 0, 0, 0);
+    expect(play.requestStep(resident, "e")).toBe("started");
     run(play, TICKS_PER_STEP);
-    expect(held(play, "npc:0,0,0,1")).toEqual(["burned"]);
+    expect(held(play, resident)).toEqual(["burned"]);
     expect(play.drainNotices()).toEqual([]);
-    expect(play.drainNotices("npc:0,0,0,1")).toEqual([]);
+    expect(play.drainNotices(resident)).toEqual([]);
   });
 });
 
 describe("a body authored immune", () => {
   it("is refused by name, rather than refused in silence", () => {
     const play = session(world("grass", "salamander"), { actorIds: ["local"] });
-    play.runCommand("/status burned npc:0,0,0,1");
-    expect(held(play, "npc:0,0,0,1")).toEqual([]);
+    const resident = residentAt(play, 0, 0, 0);
+    play.runCommand(`/status burned ${resident}`);
+    expect(held(play, resident)).toEqual([]);
     expect(play.drainNotices()).toEqual(["salamander cannot be burned"]);
   });
 
   it("takes nothing from a fire it stands in either", () => {
     const play = session(world("fire", "salamander"), { actorIds: ["local"] });
-    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    const resident = residentAt(play, 0, 0, 0);
+    expect(play.requestStep(resident, "e")).toBe("started");
     run(play, TICKS_PER_STEP + TICKS_PER_SECOND * 2);
-    expect(held(play, "npc:0,0,0,1")).toEqual([]);
+    expect(held(play, resident)).toEqual([]);
   });
 });

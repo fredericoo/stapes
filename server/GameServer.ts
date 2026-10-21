@@ -919,6 +919,7 @@ export class GameServer {
   }
 
   private setRespawnPoints(points: SpawnPoint[]) {
+    this.session?.setResidentHomes(points);
     this.respawnPoints = new Map(points.map((point) => [point.key, point]));
     this.respawnPointsByCell = new Map();
     for (const point of points) {

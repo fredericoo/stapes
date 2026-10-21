@@ -101,9 +101,9 @@ function strip(width: number): MapFile {
 }
 
 const GNOME_X = 3;
-const GNOME_OWNER = `npc:${GNOME_X},0,0,1`;
+const GNOME_OWNER = "gnome-1";
 
-function withGnome(map: MapFile, owner?: string): MapFile {
+function withGnome(map: MapFile, owner: string | null = GNOME_OWNER): MapFile {
   return replaceStack(map, GNOME_X, 0, 0, [
     { tileId: "grass" },
     { tileId: "gnome", ...(owner ? { owner } : {}) },
@@ -153,9 +153,8 @@ describe("findSpawnPoints", () => {
     ]);
   });
 
-  it("derives the identity an unadopted creature would be given", () => {
-    const point = pointFor(withGnome(strip(6)), GNOME_OWNER);
-    expect(point.ownerId).toBe(GNOME_OWNER);
+  it("leaves out a creature nobody has adopted, which has no id to come back under", () => {
+    expect(findSpawnPoints(withGnome(strip(6), null), tilesById)).toEqual([]);
   });
 
   it("strips runtime identities off the template it keeps", () => {
@@ -366,10 +365,10 @@ describe("GameSession.respawnAt", () => {
 
   it("rolls a respawned creature's kit, and rolls it fresh each time", () => {
     const PACKRAT_X = 2;
-    const owner = `npc:${PACKRAT_X},0,0,1`;
+    const owner = "packrat-1";
     const authoredRat = replaceStack(strip(6), PACKRAT_X, 0, 0, [
       { tileId: "grass" },
-      { tileId: "packrat" },
+      { tileId: "packrat", owner },
     ]);
     const point = pointFor(authoredRat, owner);
     const session = new GameSession(strip(6), tiles);

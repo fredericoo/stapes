@@ -1161,18 +1161,16 @@ single-actor API still defaults to, and the tests are what call it.
   single `player` tile is a *spawn marker*, and `requireSinglePlayer` now exists
   only to read it. Nothing in the tick loop calls that function: the invariant
   it enforces is broken deliberately the moment a second actor joins.
-- **A resident's name is also its address, and that is load-bearing.**
-  `residentOwnerId` mints `npc:<x>,<y>,<z>,<stackIndex>` from the *authored*
-  placement, and `residentHome` reads it straight back out. Nothing else records
-  where a creature belongs: the id is minted once from `data/map.json`, rides on
-  the placement through every checkpoint, and is handed back to whatever respawns
-  there — so it survives the reload that a birthplace recorded at adoption cannot,
-  because a resumed world adopts a body wherever it had already wandered to. That
-  is what the brain's `home` selector reads, and it is why a leashed snake goes
-  back to the cell the author put it on rather than to the one it woke up in.
-  Change the format in one of those two functions and you have changed it in
-  both, three lines apart; change it anywhere else and every creature in the world
-  forgets where it lives.
+- **A resident's home is its spawn point's cell, not anything in its id.**
+  Adoption names a body `n` and a base-36 count (`ResidentIds`) and records the
+  cell it was authored on as its home. A resumed world adopts a body wherever it
+  had wandered to, so that record would be wrong after a reload; instead the
+  server hands `setResidentHomes` the stored spawn points, whose cells were taken
+  from the authored map on the world's first load. `respawnAt` and a summon
+  record their own cell. That is what the brain's `home` selector reads, and it
+  is why a leashed snake goes back to the cell the author put it on rather than
+  to the one it woke up in. A session built without the server, as tests and
+  `/play` build one, only knows the homes of bodies it adopted itself.
 - **Locate through `./actors`, never by sweeping.** `locateActor` tries the
   actor's last cell, then the neighbourhood, then the board — the same
   cheapest-first discipline the single-player memo had, and for the same reason:
@@ -3591,8 +3589,8 @@ one part of what is left is most of it:
   the bench's rate halves. It is off for a different reason — Safari cannot read
   what Bun compresses (see "A frame is compressed only when `send` is told
   to") — and what that costs is bandwidth: about 60KB/s per player. The patch
-  itself could be smaller: an actor id is a 36-character UUID and appears in
-  every cell and event about that actor.
+  was made smaller since by shortening the ids in it; see "Actor ids are
+  counters".
 - **Each client costs about 11µs a tick whatever happens near it**: 5µs to cut,
   3µs to serialize, 3µs to flatten and send. At a thousand that is 11ms a tick
   before anything has changed. Moving the cut and serialization to workers is
@@ -3977,6 +3975,43 @@ handing `WorldRenderer` a new map each frame re-diffs every level.
 **Known gap:** `destinationTaken` still counts a hidden admin's walk, so a
 creature cannot end a step in a cell the admin is walking into. It is a
 one-step window, and seeing it means watching the creature closely.
+
+## Actor ids are counters
+
+A body's actor id is repeated in every cell that holds it (`owner`) and every
+event and entry about it (`actorId`). Characters were 36-character UUIDs and
+residents `npc:x,y,z,i`, which at 200 players made ids 10% of patch bytes with
+the crowd spread out and 29% clustered (`bench:crowd`, counting every id-shaped
+JSON string).
+
+- **A character is `p` and its serial in base 36** (`characterIdOf`). The serial
+  is the rowid of a row inserted into `character_serial`, whose
+  `AUTOINCREMENT` never hands a number out twice: a guest account's characters
+  are deleted with it, and a count of the `character` table would give the next
+  character the id that old deaths and reigns still name.
+- **A resident is `n` and a count** (`ResidentIds`), minted at adoption, for a
+  summon, and nowhere else. The count starts again with every session, so it
+  skips ids a resumed board already holds. Where a resident belongs is not in
+  the id; see "A resident's home is its spawn point's cell".
+- **Both start with a letter** because commands read a word that is not a number
+  as a body.
+
+`bench:crowd` for 30 seconds, `main` before this change and the branch in turn,
+two runs each:
+
+| | KB/s a player, before | KB/s a player, after | tick p95, before | tick p95, after |
+|---|---|---|---|---|
+| 1000 spread | 110.2 / 117.7 | 105.5 / 90.6 | 28.6 / 31.9ms | 26.6 / 27.7ms |
+| 400 clustered | 823.4 / 861.4 | 624.3 / 680.9 | 13.9 / 14.2ms | 13.6 / 13.0ms |
+
+Spread out, the runs vary more than the change; clustered, where ids were most
+of what a patch repeats, it is about a fifth less.
+
+**Rejected: aliasing ids on the way out.** Swapping each long id for a short
+alias as it was serialized saved about as much, but cost a walk over every
+fragment each tick (tick p95 up 1.4ms at 1000 spread out), a table that only
+grew, and a rule that every new id field on the wire had to be named in a list
+or reach the client raw.
 
 ## A test that reads the wire is not a test that plays the game
 
@@ -8392,8 +8427,8 @@ its way there end in one state and the client animates both the same way.
 **`/goto` can send any body, named last.** `/goto <x> <y> [z] [body]` moves the
 body with that actor id instead of the author, under the same `canStandIn`
 rule, asked of that body's own tile. A last word that is not a number is the
-body, which cannot be misread because no id is a number: a player's is a UUID
-and a creature's begins `npc:`. A level left off is still the author's rather
+body, which cannot be misread because no id is a number: a player's starts
+with a `p` (`characterIdOf`) and a creature's with an `n` (`ResidentIds`). A level left off is still the author's rather
 than the body's, for the reason above: it is the floor the author is looking
 at, so a creature fetched out of a cave lands on the author's floor. The author
 is told where the body went, "Wolf is now at 5, 5, 0", because unlike their own
@@ -8429,11 +8464,9 @@ on.
 - **Summoning a body adopts it on the spot**, rather than leaving it to the
   load-time sweep — the same trade `respawnAt` makes. Placing the tile is the
   whole of putting a creature in the world, and without the runtime it is
-  scenery shaped like a deer. Its owner id is the authored one
-  (`residentOwnerId`), so a called creature knows the cell it was called into as
-  its home; that name is the cell and slot, though, so it can already be taken
-  by a body that has since walked off, and a taken name falls back to a unique
-  one. Two bodies under one owner is the shape nothing recovers from — `despawn`
+  scenery shaped like a deer. It gets the next id `ResidentIds` mints, which
+  skips every id already taken, and the cell it was called into as its home.
+  Two bodies under one owner is the shape nothing recovers from — `despawn`
   removes a single tile.
 - **The `player` tile is the one refusal that is about the file.** A map is
   allowed exactly one, and `requireSinglePlayer` throws rather than choosing, so
@@ -8451,8 +8484,8 @@ on.
   map before any of it is committed, so a count that runs out of room leaves the
   cell exactly as it was. Half a command carried out is the one outcome nobody
   could act on, and it is the rule a trade already keeps. It is also why
-  `summonedOwnerId` takes the names this same command has already minted: with
-  nothing adopted until the end, the runtime cannot see a clash inside one
+  `ResidentIds.mint` is handed the ids this same command has already minted:
+  with nothing adopted until the end, the runtime cannot see a clash inside one
   `/tile wolf x3` for itself.
 
 ### `/spawn` is `/tile` for a body, at a cell of the map
@@ -8476,13 +8509,11 @@ the one the author stands on.
   `canStandIn` asks the question `/goto` asks of a typed destination, and
   `canPlace` still runs after it because the body is placed through `/tile`'s
   path.
-- **That path is `placeTiles`, the one `/tile` summons through.** The body gets
-  its owner id from `summonedOwnerId` and is adopted as a resident on the spot,
-  on the same terms as a body `/tile` summons: named after the cell it was put
-  in, which `residentHome` reads back as its home, unless that name is taken,
-  in which case it gets a unique name and no home.
-- **The sentence names the body's id**: "Wolf appears at -3, 12, 0 as
-  npc:-3,12,0,1". Every command that acts on a creature takes that id, and
+- **That path is `placeTiles`, the one `/tile` summons through.** The body is
+  adopted as a resident on the spot, on the same terms as a body `/tile`
+  summons: the next id `ResidentIds` mints, and the cell it was put in as its
+  home.
+- **The sentence names the body's id**: "Wolf appears at -3, 12, 0 as n2f". Every command that acts on a creature takes that id, and
   nothing else on screen shows it. The reply carries it in `ids`.
 
 ### `/despawn` takes a creature off the board, and never a player
@@ -8580,8 +8611,8 @@ be in one particular state for the thing being checked to happen.
 other, to check how a flight looks without arranging a fight. Each end is a body
 id (`self` is the author) or a cell written `x,y,z`, where a left-off level is
 the author's. A word of numbers and commas is a cell and any other word is a
-body; a creature's id has `npc:` in front of its commas, so the two cannot be
-confused.
+body; every id starts with a letter (`p` for a character, `n` for a creature),
+so the two cannot be confused.
 
 - **It is the flight a blow's projectile takes.** It goes through
   `fireProjectile`, the path a bow's shot and a stone's bolt take, which takes
@@ -11061,8 +11092,8 @@ the body was and described by what killed it — in `description` and never in
 `inscription`, so a cell holding nine of them is nine skulls rather than nine
 sentences hanging in the air. An author picks the art and the world fills in the
 rest. `dropRemains` reads whose it is off the *tile* rather
-than the id, on `app/game/displayName.ts`' argument — `npc:` prefixes are how
-residents are keyed, not what they are — which is also what makes a creature's
+than the id, on `app/game/displayName.ts`' argument — an id is how a body is
+keyed, not what it is — which is also what makes a creature's
 skull read "Troll" and a player's read their own name. A tile whose name has no
 `%s` in it simply ignores the engraving, which is what lets the plain
 `Troll skull` be a perfectly good thing for a troll to leave.

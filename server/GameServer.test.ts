@@ -1,4 +1,5 @@
 import { MAP_FILE_VERSION, normalizeTiles } from "../app/lib/types";
+import { firstResidentId } from "../app/game/testResidents";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Harness, Pair, type TestSocket } from "./testHarness";
 import type { WorldStore } from "./WorldStore";
@@ -771,7 +772,7 @@ describe("residents", () => {
     const { hello } = await connect("alice");
 
     expect(deerCells(hello.map as FlatMapFile)).toEqual([DEER_CELL]);
-    expect(hello.actorIds).toEqual(expect.arrayContaining([expect.stringMatching(/^npc:/)]));
+    expect(hello.actorIds).toEqual(expect.arrayContaining([firstResidentId()]));
   });
 
   it("looks the same to everybody in the room", async () => {
@@ -781,7 +782,7 @@ describe("residents", () => {
     expect(deerCells(alice.hello.map as FlatMapFile)).toEqual(deerCells(hello.map as FlatMapFile));
   });
 
-  const DEER_ID = `npc:${DEER_CELL},0,0,1`;
+  const DEER_ID = firstResidentId();
 
   it("is not logged, even when a player's blow ends it", async () => {
     await connect("alice");
@@ -1265,7 +1266,7 @@ describe("calling a creature", () => {
 
     const spawned = await eventWithin(alice.ws, "spawned", 2000);
     expect(spawned).toMatchObject({ kind: "spawned" });
-    expect(spawned?.actorId).toBe("npc:1,0,0,1");
+    expect(spawned?.actorId).toBe(firstResidentId());
   });
 
   it("does not announce the actors a hello already named", async () => {
@@ -2097,7 +2098,7 @@ describe("consuming", () => {
 
 describe("respawn", () => {
   const GNOME_X = 3;
-  const GNOME_OWNER = `npc:${GNOME_X},0,0,1`;
+  const GNOME_OWNER = firstResidentId();
   const RESPAWN_WINDOW_MS = 1;
 
   function gnomeTile() {
@@ -2147,6 +2148,28 @@ describe("respawn", () => {
     );
     expect(points?.map((p) => p.key)).toEqual([GNOME_OWNER]);
     expect(points?.[0]?.ownerId).toBe(GNOME_OWNER);
+  });
+
+  it("gives a resumed creature back the home its stored spawn point was authored at", async () => {
+    await connect("alice");
+    const wandered: Record<string, unknown[]> = {};
+    for (let x = 0; x <= GNOME_X; x++) wandered[`${x},0`] = [{ tileId: "grass" }];
+    wandered["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s", owner: "alice" }];
+    wandered[`${GNOME_X - 1},0`] = [{ tileId: "grass" }, { tileId: "gnome", owner: GNOME_OWNER }];
+    await putCheckpoint({
+      map: { version: MAP_FILE_VERSION, levels: { "0": wandered } },
+      spawn: { x: 0, y: 0, z: 0, stackIndex: 0 },
+    });
+    await simulateEviction();
+    await connect("alice");
+
+    const home = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { actors: Map<string, { home: unknown }> };
+      };
+      return internals.session.actors.get(GNOME_OWNER)?.home;
+    });
+    expect(home).toEqual({ x: GNOME_X, y: 0, z: 0 });
   });
 
   it("arms a creature missing at load and grows it back on the alarm", async () => {
@@ -2499,7 +2522,7 @@ describe("resetting the world", () => {
 
 describe("what a flush writes", () => {
   const GNOME_X = 3;
-  const GNOME_OWNER = `npc:${GNOME_X},0,0,1`;
+  const GNOME_OWNER = firstResidentId();
 
   function gnomeTile() {
     return {
