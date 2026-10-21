@@ -50,7 +50,10 @@ jobs:
             exit 1
           fi
 
+      # The build dates each release from its tag, and a shallow clone has no tags.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
