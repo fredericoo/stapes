@@ -1,4 +1,4 @@
-import { IconClose, IconMinus, IconPlus } from "./pixelIcons";
+import { IconClose, IconMinus, IconPlus, IconSearch } from "./pixelIcons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   scaledTrade,
@@ -25,25 +25,27 @@ import { itemCard } from "../game/itemCard";
 import type { MasteryXp } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import { bindNumberKeys, bindStepKeys, numberKeyLabel } from "../game/heldDirections";
-import { useCoarsePointer } from "../lib/useMediaQuery";
+import { useCoarsePointer, useReducedMotion } from "../lib/useMediaQuery";
 import { useDwell } from "../lib/useDwell";
 import { Tooltip } from "../ui";
 import { ItemCard } from "./ItemCard";
 import { KeyHint } from "./KeyHint";
+import { TypedText } from "./TypedText";
 import { useTap } from "./useTap";
 
 export const CLOSE_ICON_SIZE_PX = 12;
 const STEP_ICON_SIZE_PX = 12;
 const ITEM_SPRITE_SIZE_PX = 18;
+const INSPECT_ICON_SIZE_PX = 12;
 
 const NO_MASTERY_XP: MasteryXp = {};
 const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 const ROW_CLASS =
-  "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9";
+  "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11";
 export const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
 export const CLOSE_BUTTON_CLASS =
-  "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent relative pointer-coarse:after:absolute pointer-coarse:after:-inset-3";
 export const LABEL_CLASS = "truncate text-detail leading-snug font-medium tracking-tight";
 const CHOICE_LABEL_CLASS = "text-detail leading-snug font-medium tracking-tight";
 const TURN_GAP_CLASS = "mt-1.5";
@@ -92,7 +94,15 @@ export function ConversationPanel({
     if (line) body.scrollTop = line.offsetTop;
   }, [conversation, lastPress]);
 
-  const choices = waiting?.kind === "choices" ? waiting.options.length : 0;
+  const { typingIndex, typing, onTyped, skip } = useTypingCursor(conversation, useReducedMotion());
+  const skipRef = useRef(skip);
+  skipRef.current = skip;
+  useEffect(() => {
+    if (!hotkeys || !typing) return;
+    return bindNumberKeys(() => skipRef.current());
+  }, [hotkeys, typing]);
+
+  const choices = !typing && waiting?.kind === "choices" ? waiting.options.length : 0;
   const onTalkRef = useRef(onTalk);
   onTalkRef.current = onTalk;
   useEffect(() => {
@@ -136,21 +146,24 @@ export function ConversationPanel({
        */}
       <div
         ref={bodyRef}
+        onClick={typing ? skip : undefined}
         className="relative flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
       >
         <ol role="log" aria-live="polite" className="flex flex-col gap-1">
-          {conversation.transcript.map((entry, i) => (
+          {conversation.transcript.slice(0, typingIndex + 1).map((entry, i) => (
             <TranscriptLine
               key={i}
               index={i}
               entry={entry}
               speaker={title}
               newTurn={i > 0 && entry.who !== conversation.transcript[i - 1]!.who}
+              typing={i === typingIndex}
+              onTyped={onTyped}
             />
           ))}
         </ol>
-        {waiting?.kind === "choices" ? (
-          <div className="flex flex-col gap-1" key={conversation.pc.join(".")}>
+        {!typing && waiting?.kind === "choices" ? (
+          <div className="flex flex-col gap-1 pointer-coarse:gap-2" key={conversation.pc.join(".")}>
             {waiting.options.map((option, index) => (
               <PanelButton key={index} onPress={() => onTalk({ kind: "choose", index })}>
                 {hotkeys ? <KeyHint label={numberKeyLabel(index)} /> : null}
@@ -159,7 +172,7 @@ export function ConversationPanel({
             ))}
           </div>
         ) : null}
-        {waiting?.kind === "request_trade" ? (
+        {!typing && waiting?.kind === "request_trade" ? (
           <TradeOffer
             key={conversation.pc.join(".")}
             trade={waiting}
@@ -182,18 +195,24 @@ function TranscriptLine({
   entry,
   speaker,
   newTurn,
+  typing,
+  onTyped,
 }: {
   index: number;
   entry: TranscriptEntry;
   speaker: string;
   newTurn: boolean;
+  typing: boolean;
+  onTyped: () => void;
 }) {
   const gap = newTurn ? TURN_GAP_CLASS : "";
   if (entry.who === "npc") {
     return (
       <li data-line={index} className={`text-xs leading-snug text-paper ${gap}`}>
-        <span className="sr-only">{speaker}: </span>
-        {entry.text}
+        <span className="sr-only">
+          {speaker}: {entry.text}
+        </span>
+        <TypedText text={entry.text} typing={typing} onTyped={onTyped} />
       </li>
     );
   }
@@ -212,6 +231,34 @@ function TranscriptLine({
       {entry.text}
     </li>
   );
+}
+
+/**
+ * NPC lines type out one after another; the player's own lines and notes
+ * appear at once. On mount only the reply to the last press types, so a panel
+ * that remounts mid-conversation does not retype everything above it.
+ */
+function useTypingCursor(conversation: Conversation, instant: boolean) {
+  const { npcId, transcript } = conversation;
+  const [typed, setTyped] = useState(() => ({ npcId, count: lastPlayerEntry(transcript) + 1 }));
+  let count = typed.count;
+  if (typed.npcId !== npcId || typed.count > transcript.length) {
+    count = lastPlayerEntry(transcript) + 1;
+    setTyped({ npcId, count });
+  }
+  const typingIndex = instant ? transcript.length : nextNpcLine(transcript, count);
+  return {
+    typingIndex,
+    typing: typingIndex < transcript.length,
+    onTyped: () => setTyped({ npcId, count: typingIndex + 1 }),
+    skip: () => setTyped({ npcId, count: transcript.length }),
+  };
+}
+
+function nextNpcLine(transcript: readonly TranscriptEntry[], from: number): number {
+  let i = from;
+  while (i < transcript.length && transcript[i]!.who !== "npc") i++;
+  return i;
 }
 
 function lastPlayerEntry(transcript: readonly TranscriptEntry[]): number {
@@ -253,7 +300,7 @@ function TradeOffer({
   const possible = plan !== null;
   const stepBaseClass =
     "grid shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-  const stepClass = `${stepBaseClass} w-8 pointer-coarse:w-9`;
+  const stepClass = `${stepBaseClass} w-8 pointer-coarse:w-11`;
   const step = (delta: 1 | -1) =>
     setAmount((c) => Math.min(trade.max, Math.max(trade.min, c + delta)));
   const less = useTap(() => step(-1));
@@ -307,7 +354,7 @@ function TradeOffer({
         </>
       ) : null}
       {trade.max > trade.min ? (
-        <div className="flex items-stretch gap-1">
+        <div className="flex items-stretch gap-1 pointer-coarse:min-h-11 pointer-coarse:gap-2">
           <button
             type="button"
             {...less}
@@ -353,7 +400,7 @@ function TradeOffer({
           There is nowhere on you to put what you would get.
         </p>
       ) : null}
-      <div className="flex gap-1">
+      <div className="flex gap-1 pointer-coarse:gap-2">
         <PanelButton
           className={`${OPTION_CLASS} flex-1`}
           disabled={!possible}
@@ -442,7 +489,7 @@ function TradeSideItem({
       onFocus={() => setPointedAt(true)}
       onBlur={() => setPointedAt(false)}
       aria-label={card ? `${side.count} ${card.speech}` : undefined}
-      className="flex items-center gap-1 border border-paper/20 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="flex items-center gap-1 border border-paper/20 px-1 pointer-coarse:min-h-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       style={{
         touchAction: coarse ? "none" : undefined,
       }}
@@ -459,6 +506,9 @@ function TradeSideItem({
       ) : null}
       <span className="tabular-nums">×{side.count}</span>
       <span className="truncate">{def?.name ?? side.tileId}</span>
+      {coarse && card ? (
+        <IconSearch size={INSPECT_ICON_SIZE_PX} aria-hidden="true" className="text-paper/60" />
+      ) : null}
     </span>
   );
 
