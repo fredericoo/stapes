@@ -7,7 +7,7 @@ import { formatReleaseDate, RELEASES } from "../components/releaseNotes";
 import type { Route } from "./+types/changelog";
 import "./home.css";
 
-const TITLE = "What changed · The Last Stones";
+const TITLE = "What's new · The Last Stones";
 const DESCRIPTION = "Everything that changed in The Last Stones, release by release.";
 
 const PAGE_STYLE: CSSProperties = { fontFamily: SYSTEM_MONO, "--home-nav-h": `${NAV_HEIGHT_PX}px` };
@@ -25,7 +25,7 @@ export default function ChangelogPage() {
     <div className="home" style={PAGE_STYLE}>
       <NavBar shown nameHref="/" />
       <main className="home-changelog">
-        <h1 className="home-pixel home-section-title home-outline">What changed</h1>
+        <h1 className="home-pixel home-section-title home-outline">What's new</h1>
         {RELEASES.length === 0 ? (
           <p className="home-changelog-empty">
             Nothing yet. The first release will be listed here.

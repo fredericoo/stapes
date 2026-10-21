@@ -18,7 +18,7 @@ export function ChangelogButton({ unseen, onView }: { unseen: boolean; onView: (
     <>
       <Button variant="ghost-inverse" size="sm" onClick={show}>
         <IconChangelog size={16} aria-hidden="true" />
-        What changed
+        What's new
         {unseen ? (
           <>
             <AttentionDot />
@@ -29,7 +29,7 @@ export function ChangelogButton({ unseen, onView }: { unseen: boolean; onView: (
       <Dialog
         open={open}
         onOpenChange={setOpen}
-        title="What changed"
+        title="What's new"
         footer={
           <Button variant="primary" onClick={() => setOpen(false)}>
             Back to the game

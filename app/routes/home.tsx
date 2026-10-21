@@ -108,7 +108,7 @@ export default function HomePage() {
             {" · "}
             <Link to="/items">Items</Link>
             {" · "}
-            <Link to="/changelog">What changed</Link>
+            <Link to="/changelog">What's new</Link>
           </p>
           <p>
             Made by {MAKER.name}
