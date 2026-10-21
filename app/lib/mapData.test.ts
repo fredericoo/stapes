@@ -742,3 +742,49 @@ describe("board keys", () => {
     }
   });
 });
+
+describe("getStack's cell index", () => {
+  const span = 2 * CHUNK_SIZE + 3;
+  const editCount = 400;
+  const seed = 7;
+
+  function readByKey(map: MapFile, x: number, y: number, z: number): PlacedTile[] {
+    return stackOnLevel(map, z, chunkKeyFor(x, y), coordKey(x, y)) ?? [];
+  }
+
+  it("reads what the cell-key record holds, through edits, clears and negative coordinates", () => {
+    let random = seed;
+    const next = (n: number) => {
+      random = (random * 48271) % 0x7fffffff;
+      return random % n;
+    };
+    const versions: Array<{ map: MapFile; x: number; y: number; stack: PlacedTile[] }> = [];
+    let map = emptyMap();
+    for (let i = 0; i < editCount; i++) {
+      const x = next(2 * span) - span;
+      const y = next(2 * span) - span;
+      const stack: PlacedTile[] = next(4) === 0 ? [] : [{ tileId: `tile-${i}` }];
+      getStack(map, x, y, 0);
+      map = replaceStack(map, x, y, 0, stack);
+      versions.push({ map, x, y, stack });
+    }
+    for (let x = -span; x < span; x++) {
+      for (let y = -span; y < span; y++) {
+        expect(getStack(map, x, y, 0)).toEqual(readByKey(map, x, y, 0));
+      }
+    }
+    for (const { map: version, x, y, stack } of versions) {
+      expect(getStack(version, x, y, 0)).toEqual(stack);
+    }
+  });
+
+  it("keeps a fractional coordinate apart from the whole cell it falls in", () => {
+    const whole: PlacedTile[] = [{ tileId: "grass" }];
+    const fraction: PlacedTile[] = [{ tileId: "stone" }];
+    let map = replaceStack(emptyMap(), 3, -1, 0, whole);
+    expect(getStack(map, 3.5, -0.5, 0)).toEqual([]);
+    map = replaceStack(map, 3.5, -0.5, 0, fraction);
+    expect(getStack(map, 3, -1, 0)).toBe(whole);
+    expect(getStack(map, 3.5, -0.5, 0)).toBe(fraction);
+  });
+});
