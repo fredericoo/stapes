@@ -1,28 +1,34 @@
 import { describe, expect, it } from "vitest";
-import type { CastRefusal } from "../game/casting";
+import type { Castability, CastRefusal } from "../game/casting";
 import { castTimeNote, cooldownShare, spellAppearance } from "./SpellBar";
+
+const press = (castability: Castability, approach = false) => ({ castability, approach });
 
 describe("spellAppearance", () => {
   it("draws a castable stone ready", () => {
-    expect(spellAppearance({ ok: true })).toBe("ready");
+    expect(spellAppearance(press({ ok: true }))).toBe("ready");
   });
 
   it("draws a cooling stone as cooling, since the ring is the point of it", () => {
-    expect(spellAppearance({ ok: false, reason: "cooling" })).toBe("cooling");
+    expect(spellAppearance(press({ ok: false, reason: "cooling" }))).toBe("cooling");
   });
 
   it("draws a stone with nobody targeted ready, because the stone is fine", () => {
-    expect(spellAppearance({ ok: false, reason: "noTarget" })).toBe("ready");
+    expect(spellAppearance(press({ ok: false, reason: "noTarget" }))).toBe("ready");
   });
 
   it("draws the stone being cast as casting, since pressing it stops the cast", () => {
-    expect(spellAppearance({ ok: false, reason: "underway" })).toBe("casting");
+    expect(spellAppearance(press({ ok: false, reason: "underway" }))).toBe("casting");
+  });
+
+  it("draws an out-of-range stone ready when a walk reaches range, since pressing it walks there", () => {
+    expect(spellAppearance(press({ ok: false, reason: "outOfRange" }, true))).toBe("ready");
   });
 
   it.each<CastRefusal>(["empty", "casting", "mastery", "outOfRange", "blocked"])(
     "collapses %s into one unavailable appearance",
     (reason) => {
-      expect(spellAppearance({ ok: false, reason })).toBe("unavailable");
+      expect(spellAppearance(press({ ok: false, reason }))).toBe("unavailable");
     },
   );
 });
