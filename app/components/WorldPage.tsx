@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { AppShell, type Destination, MenuRow } from "./AppShell";
+import { ChangelogButton } from "./ChangelogButton";
+import { hasUnseenRelease, loadSeenVersion, saveSeenVersion } from "./changelogSeen";
 import { InvisibleToggle } from "./InvisibleToggle";
 import { DeathScreen } from "./DeathScreen";
 import { FeedbackButton } from "./FeedbackButton";
@@ -24,6 +26,7 @@ import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirectio
 import { applyInteraction, type InteractionOption } from "../game/interactionOptions";
 import { activeStatuses, COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
+import { LATEST_VERSION } from "./releaseNotes";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
@@ -97,6 +100,13 @@ export function WorldPage({
   onRefused?: () => void;
 }) {
   const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
+  const [seenVersion, setSeenVersion] = useState(loadSeenVersion);
+  const changelogUnseen = hasUnseenRelease(seenVersion);
+  const viewChangelog = () => {
+    if (LATEST_VERSION === null) return;
+    saveSeenVersion(LATEST_VERSION);
+    setSeenVersion(LATEST_VERSION);
+  };
   const assetsReady = useGameAssets(tilesets);
   const [painted, setPainted] = useState(false);
   const reloadedKey = `${RELOADED_FOR_VERSION}:${link.id}`;
@@ -505,6 +515,9 @@ export function WorldPage({
               ) : null}
               {menuExtras}
               <div className="py-2">
+                <ChangelogButton unseen={changelogUnseen} onView={viewChangelog} />
+              </div>
+              <div className="py-2">
                 <FeedbackButton gameContext={gameContext} />
               </div>
               {onLeave ? (
@@ -518,7 +531,7 @@ export function WorldPage({
             </>
           }
           menuInPage
-          menuAttention={menuAttention}
+          menuAttention={menuAttention || changelogUnseen}
         >
           <InkDocument />
           <div className="relative h-full w-full">
