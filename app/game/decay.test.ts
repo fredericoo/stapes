@@ -896,12 +896,13 @@ describe("what a dead battler leaves on the floor", () => {
     ]);
   });
 
-  it("goes off on the clock it started in the kit, not the one it fell on", () => {
+  it("starts going off when it falls, however long the body carried it", () => {
     const session = withScarecrow();
-    const diedAtMs = killBeside(session);
+    run(session, GOURD_MS);
+    killBeside(session);
 
-    run(session, GOURD_MS - diedAtMs);
-
+    expect(stackIds(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z)).toEqual(["grass", "gourd"]);
+    run(session, GOURD_MS);
     expect(stackIds(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z)).toEqual([
       "grass",
       "rotten-berry",
