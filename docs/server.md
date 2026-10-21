@@ -12,5 +12,7 @@
 
 ## Wire
 
+- A client never sees a long actor id. `server/wireIds.ts` swaps every id at least as long as a resident's (`npc:x,y,z,i`, so every UUID too) for a short `~` alias, at the point where it is serialized: `Fragments`, `listJson` and `cellsJson` in `GameServer`, the stack texts in `server/chunkJson.ts`, and `wireJson` for every other message. It finds the ids by key, from `ID_KEYS`. A new field holding an actor id needs a key in that set, or the client gets the raw id and cannot match it to the body it knows by alias. A new client message carrying an id has to pass it through `realId` before `GameSession` sees it, the way `target` and `command` do.
+
 - `parseServerMessage` uses valibot `v.object` schemas, which strip unknown fields. A field added to a message type but not to its schema is dropped in transit without a type error.
 - `GameServer.flushCommandReplies` runs at the end of `tick`, after `broadcastPatch`. `RemoteSession.command` resolves when the reply arrives and its callers read the board straight after, so a reply sent from `webSocketMessage`, where the command runs, would reach them before the change it reports.

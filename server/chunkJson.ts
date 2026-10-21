@@ -3,6 +3,7 @@ import { visibleStack } from "../app/net/interest";
 import type { CellAffliction, CellPatch } from "../app/net/protocol";
 import type { ChunkCells, MapFile, PlacedTile } from "../app/lib/types";
 import { MAP_FILE_VERSION, MAX_LEVEL, MIN_LEVEL, levelKey } from "../app/lib/types";
+import { wireStack } from "./wireIds";
 
 type ChunkText = {
   z: number;
@@ -44,7 +45,9 @@ function stackTextOf(stack: PlacedTile[], key: string, z: number): StackText {
 }
 
 function bareOf(text: StackText): string {
-  text.bare ??= JSON.stringify(text.owners ? visibleStack(text.stack, NOBODY) : text.stack);
+  text.bare ??= JSON.stringify(
+    wireStack(text.owners ? visibleStack(text.stack, NOBODY) : text.stack),
+  );
   return text.bare;
 }
 
@@ -150,7 +153,8 @@ function cellPatchOf(
   stack: PlacedTile[],
   afflicted: CellAffliction[] | undefined,
 ): CellPatch {
-  return afflicted ? { x, y, z, stack, afflicted } : { x, y, z, stack };
+  const wired = wireStack(stack);
+  return afflicted ? { x, y, z, stack: wired, afflicted } : { x, y, z, stack: wired };
 }
 
 export function handoverCellsJson(
@@ -217,7 +221,7 @@ export function mapOfInterestJson(
       for (const stack of text.stacks) {
         parts.push(
           holdsAny(stack.owners, held)
-            ? `${JSON.stringify(stack.key)}:${JSON.stringify(visibleStack(stack.stack, held))}`
+            ? `${JSON.stringify(stack.key)}:${JSON.stringify(wireStack(visibleStack(stack.stack, held)))}`
             : entryTextOf(stack),
         );
       }

@@ -14,6 +14,7 @@ import type { FlatMapFile, TileDef } from "../app/lib/types";
 import { PLAYER_TILE_ID, TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { CHUNK_SIZE } from "../app/lib/types";
 import { statusesById } from "../app/lib/status";
+import { realId, wireId, wireStack } from "./wireIds";
 
 const JSON_TYPE = "application/json";
 const tiles: TileDef[] = (tilesJson as TileDef[]).map(normalizeTileDef);
@@ -48,9 +49,10 @@ afterEach(async () => {
   await harness.dispose();
 });
 
-async function play(actorId: string) {
+async function play(actorId: string, heard?: string[]) {
   const pair = new Pair();
   const socket = pair.client();
+  if (heard) socket.addEventListener("message", (event) => heard.push(event.data));
   pair.onClientMessage = (data) => {
     void harness.server.webSocketMessage(pair.server, data);
   };
@@ -145,7 +147,7 @@ function divergence(remote: RemoteSession, actorId: string): string[] {
         seen.add(key);
         if (!covers(chunks, x, y)) continue;
         const mine = getStack(clientMap, x, y, z);
-        const theirs = visibleStack(getStack(serverMap, x, y, z), held);
+        const theirs = wireStack(visibleStack(getStack(serverMap, x, y, z), held));
         if (JSON.stringify(mine) === JSON.stringify(theirs)) continue;
         out.push(`${x},${y},${z}: client ${JSON.stringify(mine)} world ${JSON.stringify(theirs)}`);
       }
@@ -173,7 +175,7 @@ describe("a client playing against a real world", () => {
     await advance(200);
 
     const snap = remote.getSnapshot();
-    expect(snap.actors.map((a) => a.id)).toContain(DEER_ID);
+    expect(snap.actors.map((a) => a.id)).toContain(wireId(DEER_ID));
   });
 
   it("takes a dead body off the board it draws", async () => {
@@ -184,7 +186,7 @@ describe("a client playing against a real world", () => {
     await advance(500);
 
     const snap = remote.getSnapshot();
-    expect(snap.actors.map((a) => a.id)).not.toContain(DEER_ID);
+    expect(snap.actors.map((a) => a.id)).not.toContain(wireId(DEER_ID));
     const stack = getStack(snap.map, DEER_X, 0, 0);
     expect(stack.filter((placed) => placed.owner)).toEqual([]);
   });
@@ -238,7 +240,7 @@ describe("walking about with a creature in the world", () => {
   it("does not leave a body behind when it walks out of reach itself", async () => {
     const session = await play("alice");
     await session.advance(300);
-    expect(session.remote.getSnapshot().actors.map((a) => a.id)).toContain(DEER_ID);
+    expect(session.remote.getSnapshot().actors.map((a) => a.id)).toContain(wireId(DEER_ID));
 
     for (let i = 0; i < BODY_REACH_ON_LEVEL + 4; i++) {
       await stepCreature(DEER_ID, "e", session.advance);
@@ -291,4 +293,35 @@ describe("somebody joining out of reach", () => {
     },
     WALKING_TEST_MS,
   );
+});
+
+describe("actor ids on the wire", () => {
+  const CHARACTER_ID = "6f1c2a9e-3b7d-4e21-9a0c-58d4f2b17e63";
+  const LONG_ID = /"(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|npc:[^"]*)"/;
+  const DEER_HP = 3;
+
+  it("names every body by an alias, and reads the alias back as the body", async () => {
+    const heard: string[] = [];
+    const { remote, advance } = await play(CHARACTER_ID, heard);
+    await advance(300);
+    await walk({ remote, advance }, "e", 2);
+
+    const deer = remote.getSnapshot().actors.find((actor) => realId(actor.id) === DEER_ID);
+    expect(deer).toBeDefined();
+    expect(heard.filter((frame) => LONG_ID.test(frame))).toEqual([]);
+
+    remote.setTarget(deer!.id);
+    const replied = remote.command(`/health ${DEER_HP} ${deer!.id}`);
+    await advance(200);
+    expect((await replied).ok).toBe(true);
+
+    const world = harness.server as unknown as {
+      session: {
+        actors: Map<string, { targetId: string | null }>;
+        actorSnapshots(): { id: string; hp: number | null }[];
+      };
+    };
+    expect(world.session.actors.get(CHARACTER_ID)?.targetId).toBe(DEER_ID);
+    expect(world.session.actorSnapshots().find((actor) => actor.id === DEER_ID)?.hp).toBe(DEER_HP);
+  });
 });

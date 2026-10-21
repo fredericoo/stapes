@@ -20,6 +20,7 @@ import { GameSocket } from "./sockets";
 import { readConfig } from "./config";
 import { World, type PlayerEntry } from "./world";
 import type { CharacterSheet } from "./GameServer";
+import { wireId } from "./wireIds";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -551,7 +552,7 @@ describe("the realm", () => {
 
     await realm();
 
-    expect(heard).toContainEqual({ type: "king", actorId: maren });
+    expect(heard).toContainEqual({ type: "king", actorId: wireId(maren) });
   });
 
   it("passes the crown to the next in line when the king dies, and keeps the old reign", async () => {

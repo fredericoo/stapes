@@ -27,6 +27,7 @@ import { fightingStats, resolveBattler } from "../app/lib/battler";
 import { swingWindupMs } from "../app/game/combat";
 import type { Blame } from "../app/game/blame";
 import { CHAT_LOG_MAX_ROWS, MAX_REMEMBERED_ACTORS, type GameServer } from "./GameServer";
+import { realId, wireId } from "./wireIds";
 
 const BAG_TILE_ID = "basic-bag";
 
@@ -771,7 +772,9 @@ describe("residents", () => {
     const { hello } = await connect("alice");
 
     expect(deerCells(hello.map as FlatMapFile)).toEqual([DEER_CELL]);
-    expect(hello.actorIds).toEqual(expect.arrayContaining([expect.stringMatching(/^npc:/)]));
+    expect((hello.actorIds as string[]).map(realId)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^npc:/)]),
+    );
   });
 
   it("looks the same to everybody in the room", async () => {
@@ -1265,7 +1268,7 @@ describe("calling a creature", () => {
 
     const spawned = await eventWithin(alice.ws, "spawned", 2000);
     expect(spawned).toMatchObject({ kind: "spawned" });
-    expect(spawned?.actorId).toBe("npc:1,0,0,1");
+    expect(spawned?.actorId).toBe(wireId("npc:1,0,0,1"));
   });
 
   it("does not announce the actors a hello already named", async () => {

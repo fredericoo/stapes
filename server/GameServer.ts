@@ -70,6 +70,7 @@ import type {
 } from "../app/lib/types";
 import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
+import { realId, realIdsInCommand, toWire, wireId, wireJson } from "./wireIds";
 import {
   CLOSE_REPLACED,
   CLOSE_WORLD_FULL,
@@ -519,7 +520,7 @@ class Fragments<T> {
   }
 
   at(i: number): string {
-    return (this.text[i] ??= JSON.stringify(this.make ? this.make(i) : this.items[i]));
+    return (this.text[i] ??= JSON.stringify(toWire(this.make ? this.make(i) : this.items[i])));
   }
 }
 
@@ -668,7 +669,7 @@ function listJson<T>(parts: ReadonlyArray<number | T>, shared: Fragments<T>): st
   for (let k = 0; k < parts.length; k++) {
     const part = parts[k]!;
     if (k > 0) out += ",";
-    out += typeof part === "number" ? shared.at(part) : JSON.stringify(part);
+    out += typeof part === "number" ? shared.at(part) : JSON.stringify(toWire(part));
   }
   return `${out}]`;
 }
@@ -683,7 +684,7 @@ function cellsJson(
   for (let k = 0; k < parts.length; k++) {
     const part = parts[k]!;
     if (k > 0) out += ",";
-    if (typeof part !== "number") out += JSON.stringify(part);
+    if (typeof part !== "number") out += JSON.stringify(toWire(part));
     else out += part >= 0 ? cells.at(part) : bare.at(-part - 1);
   }
   return `${out}]`;
@@ -695,7 +696,7 @@ function serializeCut(cut: Cut, frame: TickFrame): string {
     `{"type":"patch","cells":${cellsJson(cut.cells, json.cells, json.bare)}` +
     `,"events":${listJson(cut.events, json.events)}` +
     `,"hps":${listJson(cut.hps, json.hps)}` +
-    `,"names":${JSON.stringify(cut.names)}` +
+    `,"names":${JSON.stringify(toWire(cut.names))}` +
     `,"carriedLights":${listJson(cut.carriedLights, json.carriedLights)}` +
     `,"statusIds":${listJson(cut.statusIds, json.statusIds)}` +
     `,"pvp":${listJson(cut.pvp, json.pvp)}` +
@@ -1602,10 +1603,10 @@ export class GameServer {
   }
 
   private tellAdminsPlayerCount({ closing, told }: { closing?: GameSocket; told?: GameSocket }) {
-    const payload = JSON.stringify({
+    const payload = wireJson({
       type: "players",
       playerCount: this.playerCount(closing),
-    } satisfies ServerMessage);
+    });
     for (const ws of this.adminSockets) {
       if (ws === closing || ws === told) continue;
       const attachment = ws.deserializeAttachment() as Attachment | null;
@@ -1647,10 +1648,10 @@ export class GameServer {
     };
     const map = mapOfInterestJson(session.getMap(), chunks, held);
     ws.send(
-      `{"type":"hello","selfId":${JSON.stringify(actorId)},"map":${map},${JSON.stringify(rest).slice(1)}`,
+      `{"type":"hello","selfId":${JSON.stringify(wireId(actorId))},"map":${map},${JSON.stringify(toWire(rest)).slice(1)}`,
     );
     if (session.hiddenOf(actorId)) {
-      ws.send(JSON.stringify({ type: "hidden", on: true } satisfies ServerMessage));
+      ws.send(wireJson({ type: "hidden", on: true }));
     }
   }
 
@@ -1695,7 +1696,7 @@ export class GameServer {
     }
 
     if (message.type === "target") {
-      session.setTarget(message.actorId, actorId);
+      session.setTarget(message.actorId === null ? null : realId(message.actorId), actorId);
     } else if (message.type === "cast") {
       this.queueAction(actorId, { kind: "cast", slot: message.slot });
     } else if (message.type === "cancelCast") {
@@ -1709,7 +1710,7 @@ export class GameServer {
       session.setAttackMode(message.enabled, actorId);
     } else if (message.type === "command") {
       const reply = admin
-        ? session.runCommand(message.text, actorId)
+        ? session.runCommand(realIdsInCommand(message.text), actorId)
         : session.refuseCommand(actorId);
       this.commandReplies.push({ ws, requestId: message.requestId, reply });
     } else {
@@ -1780,7 +1781,7 @@ export class GameServer {
     for (const [ws, actorId] of this.seated()) {
       if (!wanted.has(actorId)) continue;
       const out = message(session, actorId);
-      if (out) ws.send(JSON.stringify(out));
+      if (out) ws.send(wireJson(out));
     }
   }
 
@@ -1833,12 +1834,7 @@ export class GameServer {
         continue;
       }
       this.sentNextBlow.set(actorId, now);
-      ws.send(
-        JSON.stringify({
-          type: "nextBlow",
-          nextBlow: now ? { ...now } : null,
-        } satisfies ServerMessage),
-      );
+      ws.send(wireJson({ type: "nextBlow", nextBlow: now ? { ...now } : null }));
     }
     for (const id of this.sentNextBlow.keys()) {
       if (!live.has(id)) this.sentNextBlow.delete(id);
@@ -1872,7 +1868,7 @@ export class GameServer {
 
     for (const [ws, actorId] of this.seated()) {
       for (const text of session.drainNotices(actorId)) {
-        ws.send(JSON.stringify({ type: "notice", text } satisfies ServerMessage));
+        ws.send(wireJson({ type: "notice", text }));
       }
     }
   }
@@ -1887,7 +1883,7 @@ export class GameServer {
     const replies = this.commandReplies;
     this.commandReplies = [];
     for (const { ws, requestId, reply } of replies) {
-      ws.send(JSON.stringify({ type: "commandReply", requestId, reply } satisfies ServerMessage));
+      ws.send(wireJson({ type: "commandReply", requestId, reply }));
     }
   }
 
@@ -2008,7 +2004,7 @@ export class GameServer {
   }
 
   private sendTo(actorId: string, message: ServerMessage) {
-    const payload = JSON.stringify(message);
+    const payload = wireJson(message);
     for (const ws of this.socketsOf(actorId)) {
       try {
         ws.send(payload);
@@ -2018,7 +2014,7 @@ export class GameServer {
   }
 
   private sendToEverySocketOf(actorId: string, message: ServerMessage) {
-    const payload = JSON.stringify(message);
+    const payload = wireJson(message);
     for (const ws of this.socketsOf(actorId)) {
       try {
         ws.send(payload);
@@ -2112,7 +2108,7 @@ export class GameServer {
     message: ServerMessage,
   ) {
     const whereById = new Map(actors.map((actor) => [actor.id, actor]));
-    const payload = JSON.stringify(message);
+    const payload = wireJson(message);
     for (const [ws, actorId] of this.seated()) {
       const viewer = whereById.get(actorId);
       if (!viewer || viewer.z !== at.z) continue;
@@ -3004,10 +3000,7 @@ export class GameServer {
         if (mine === null) {
           payload = isEmptyPatch(patch)
             ? null
-            : (shared ??= JSON.stringify({
-                type: "patch",
-                ...wholePatch(patch),
-              }));
+            : (shared ??= wireJson({ type: "patch", ...wholePatch(patch) }));
         } else {
           payload = isEmptyCut(mine) ? null : serializeCut(mine, frame);
         }
@@ -3668,7 +3661,7 @@ export class GameServer {
   }
 
   private broadcast(message: ServerMessage) {
-    const payload = JSON.stringify(message);
+    const payload = wireJson(message);
     const anySilenced = this.silenced.size > 0;
     for (const ws of this.ctx.getWebSockets()) {
       if (anySilenced && this.isSilenced(ws)) continue;

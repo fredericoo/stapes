@@ -3944,6 +3944,54 @@ handing `WorldRenderer` a new map each frame re-diffs every level.
 creature cannot end a step in a cell the admin is walking into. It is a
 one-step window, and seeing it means watching the creature closely.
 
+## Actor ids travel as aliases
+
+A character's actor id is its UUID, and a resident's is `npc:x,y,z,i`. Every
+cell holding a body names it in `owner`, and every event and entry about it in
+`actorId`, so at 200 players the ids were 7% of patch bytes with the crowd spread
+out and 28% with it clustered, most of it `owner` in cells (`bench:crowd`,
+counting the bytes of every id-shaped JSON string).
+
+`server/wireIds.ts` gives each id at least as long as a resident's a `~` alias
+in base 36, assigned on first use and never reused while the process runs, and
+the client only ever sees the alias. Shorter ids, which tests use, go out as
+they are. `realId` reads one back on the way in. The simulation, the database
+and the cut's bookkeeping (held sets, `owner` columns, `onlyTo`) keep the real
+ids; only what is serialized changes, and only at the places it is already
+built once and kept: each `Fragments` entry once a tick, each stack text in
+`server/chunkJson.ts` once per stack, and a stack's aliased copy in a `WeakMap`
+on the stack.
+
+**What it bought**, `bench:crowd` for 30 seconds, main and the branch in turn,
+two runs each:
+
+| | KB/s a player | `broadcastPatch` | tick p50 | tick p95 |
+|---|---|---|---|---|
+| 1000 spread, before | 148.8 / 147.3 | 6.8 / 6.6ms | 17.4 / 17.2ms | 23.6 / 23.9ms |
+| 1000 spread, after | 121.8 / 109.8 | 7.0 / 6.9ms | 17.6 / 17.4ms | 25.2 / 25.2ms |
+| 400 clustered, before | 837.6 / 854.2 | 4.5 / 4.7ms | 8.1 / 8.5ms | 11.6 / 12.1ms |
+| 400 clustered, after | 606.1 / 648.2 | 4.1 / 4.1ms | 7.4 / 7.4ms | 10.7 / 10.3ms |
+
+Spread out, the walk over every fragment costs a little more than the shorter
+strings save; clustered, where ids are a larger share, it is cheaper overall.
+
+**Rejected:**
+
+- **Rewriting each frame with a regular expression at the socket.** One choke
+  point and nothing can be missed, but it scans every byte sent to every
+  client: about 526MB/s here, which at 200 clustered players is an eighth of a
+  core.
+- **Minting shorter character ids.** Existing characters would keep their UUIDs,
+  residents would be unchanged, and the id is a key in several tables.
+- **Short ids inside the simulation.** `residentHome` reads a resident's home
+  from its id, and a checkpointed board stores `owner` and `castBy`; an alias
+  that did not survive a restart would hand an old body to somebody new.
+
+The table grows by one entry per distinct id the process ever sends, which is
+the residents plus every character that joined and every summon. Nothing
+removes an entry, because a text cached in `chunkJson` may still carry the
+alias.
+
 ## A test that reads the wire is not a test that plays the game
 
 `server/roundTrip.test.ts` drives a real `RemoteSession` over the same socket
