@@ -32,6 +32,8 @@ import {
   TOSS_MS,
   TOSS_STAGGER_MS,
   livePose,
+  quadsTaken,
+  TAKE_MS,
   tossTransition,
   transitionUniforms,
   type LiveTransition,
@@ -479,6 +481,57 @@ describe("livePose for a staggered toss", () => {
     const from = live.note.tossedFrom!;
     expect(at(live, 2 * TOSS_STAGGER_MS)).toEqual(tossPose(live.note, from, 0));
     expect(at(live, live.transition.durationMs)).toEqual(tossPose(live.note, from, 1));
+  });
+});
+
+describe("livePose for a thing taken off the floor", () => {
+  const TAKER_ELEV = 2;
+  const taken: LiveTransition = {
+    note: { ...note("t", "disappear"), x: 5, y: 5, takenBy: { x: 3, y: 6, elev: TAKER_ELEV } },
+    transition: { durationMs: TAKE_MS },
+    startMs: 0,
+  };
+  const at = (elapsedMs: number) => livePose(taken, liveShown(taken, elapsedMs));
+
+  it("plays for TAKE_MS whatever the tile would play on disappearing", () => {
+    expect(transitionForNote(taken.note, {})).toEqual({ durationMs: TAKE_MS });
+  });
+
+  it("starts where it lay, whole", () => {
+    const start = at(0);
+    expect(start).toMatchObject({ scale: 1, dropLevels: 0 });
+    expect(Math.abs(start.travel?.x ?? NaN)).toBe(0);
+    expect(Math.abs(start.travel?.y ?? NaN)).toBe(0);
+  });
+
+  it("ends gone, halfway up the taker in their cell", () => {
+    expect(at(TAKE_MS)).toEqual({
+      scale: 0,
+      dropLevels: TAKER_ELEV / HEIGHT_PER_LEVEL,
+      travel: { x: -2, y: 1 },
+    });
+  });
+
+  it("rises above the straight line on the way", () => {
+    const halfway = at(TAKE_MS / 2);
+    expect(halfway.dropLevels).toBeGreaterThan(TAKER_ELEV / HEIGHT_PER_LEVEL / 2);
+    expect(halfway.scale).toBe(1);
+  });
+});
+
+describe("quadsTaken", () => {
+  const pile = ["a", "b", "c"];
+
+  it("flies the whole pile when nothing is left", () => {
+    expect(quadsTaken(pile, 0)).toEqual(pile);
+  });
+
+  it("flies only the quads past what is left lying there", () => {
+    expect(quadsTaken(pile, 2)).toEqual(["c"]);
+  });
+
+  it("flies the last quad when the pile draws fewer quads than it holds", () => {
+    expect(quadsTaken(pile, 5)).toEqual(["c"]);
   });
 });
 

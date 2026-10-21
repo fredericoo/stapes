@@ -635,6 +635,11 @@ describe("nothing is quietly dropped in transit", () => {
       tileId: "iron-sword",
       tossedFrom: { x: 3, y: -1, elev: 1.5, order: 2 },
     },
+    {
+      what: "a taken thing's taker",
+      tileId: "iron-sword",
+      takenBy: { x: 3, y: -1, elev: 1.5 },
+    },
   ])("carries $what through whole", ({ what: _what, ...cause }) => {
     const event = {
       kind: "tileTransition" as const,

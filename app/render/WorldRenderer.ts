@@ -42,6 +42,7 @@ import {
 import {
   admitTransitions,
   placementIdentity,
+  quadsTaken,
   appendTransitionEmitters,
   burstScale,
   fadingLightScale,
@@ -232,6 +233,12 @@ type TransitionMesh = {
   moves: boolean;
   tileKey?: string;
 };
+
+function leftInSlot(taken: PlacedTile | undefined, after: PlacedTile | undefined): number {
+  if (!taken || !after || after.tileId !== taken.tileId) return 0;
+  if (placementIdentity(after) !== placementIdentity(taken)) return 0;
+  return countOf(after);
+}
 
 function poseTransitionMesh(
   held: TransitionMesh,
@@ -2199,7 +2206,7 @@ export class WorldRenderer {
       const played =
         live.note.side === "appear"
           ? this.markForming(state, view.map) || this.throwBurstWhereItStood(state)
-          : this.playOutCopy(state);
+          : this.playOutCopy(state, view.map);
       if (played) this.liveTransitions.set(live.note.id, state);
     }
   }
@@ -2223,16 +2230,19 @@ export class WorldRenderer {
     return true;
   }
 
-  private playOutCopy(state: TransitionState): boolean {
+  private playOutCopy(state: TransitionState, next: MapFile): boolean {
     const prev = this.prevMap;
     const { note } = state.live;
     if (!prev) return false;
     const stack = getStack(prev, note.x, note.y, note.z);
     const slot = resolveTransitionSlot(stack, note);
     if (slot === undefined) return false;
-    const items = this.cellItems(prev, note.z, note.x, note.y, stack).filter(
+    const inSlot = this.cellItems(prev, note.z, note.x, note.y, stack).filter(
       (item) => item.stackIndex === slot,
     );
+    const items = note.takenBy
+      ? quadsTaken(inSlot, leftInSlot(stack[slot], getStack(next, note.x, note.y, note.z)[slot]))
+      : inSlot;
     state.plume = items.find((item) => item.emitter)?.emitter ?? null;
     for (const item of items) {
       const mesh = this.addQuadMesh(this.transitionGroup, item, item.texture, note.z);

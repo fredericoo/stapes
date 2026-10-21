@@ -780,6 +780,13 @@ const serverMessageSchema = v.variant("type", [
               order: v.pipe(v.number(), v.integer(), v.minValue(0)),
             }),
           ),
+          takenBy: v.optional(
+            v.object({
+              x: v.pipe(v.number(), v.integer()),
+              y: v.pipe(v.number(), v.integer()),
+              elev: v.number(),
+            }),
+          ),
           x: v.pipe(v.number(), v.integer()),
           y: v.pipe(v.number(), v.integer()),
           z: v.pipe(v.number(), v.integer()),
@@ -882,7 +889,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 32;
+export const PROTOCOL_VERSION = 33;
 
 export const MAX_STEPS_AHEAD = 8;
 
