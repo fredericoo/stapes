@@ -184,7 +184,7 @@ export function WorldPage({
     sessionRef.current?.consume({ kind: "slot", slot });
   }, []);
   const cast = useCallback((slot: CastSlot) => {
-    sessionRef.current?.cast(slot);
+    rendererRef.current?.cast(slot);
   }, []);
   const stopCast = useCallback(() => {
     sessionRef.current?.cancelCast();
@@ -276,8 +276,8 @@ export function WorldPage({
     const unbindCast = bindCastKeys((index) => {
       const spell = spellsRef.current[index];
       if (!spell) return;
-      if (spellPress(spell.castability) === "stop") sessionRef.current?.cancelCast();
-      else sessionRef.current?.cast(spell.slot);
+      if (spellPress(spell) === "stop") sessionRef.current?.cancelCast();
+      else rendererRef.current?.cast(spell.slot);
     });
 
     const teardownRenderer = () => {

@@ -6807,6 +6807,39 @@ broken or still cooling, and went and stood somewhere else. There are now three:
   standing, so they stay collapsed into one appearance and the tooltip says
   which.
 
+#### A stone out of range walks you into range, unless no walk gets there
+
+Out of range used to be unavailable, and a player chasing something with a
+bolt had to walk up by hand, watch the disc light and only then press it. The
+spell bar now asks one more question of an `outOfRange` verdict: does a walk
+reach a cell the target is in reach from? `castReaching`
+(`app/game/castApproach.ts`) is that cell test, read through the same
+`canReach` the cast is refused by, and `GameRenderer.walksIntoRange` asks
+`approachStand` with it. If a route exists the button is drawn ready with
+`approach` set, and pressing it follows the target with `WalkTo.follow`. The
+follow stops through the same `WalkView.strikes` hook a held weapon stops it
+with (`castReachesFromHere` beside `strikesFromHere`), so a target that walks
+off is chased again without anything re-planning the walk, and the renderer
+casts from `stepCastApproach` once the verdict is `ok` and the body has
+stopped. The cast waits for the stop because the server measures range from
+where it has the caster standing, which is behind the client's prediction
+mid-step. A held direction key ends it, where it only pauses a follow; so does
+a new target or any other refusal. A follow the player had already asked for
+keeps running after the cast.
+
+- **The question is the renderer's, not `castability`'s.** It needs the
+  walker's body, the status catalogue and a path search, none of which the
+  session or the server has any use for, and bots read `spells()` and must
+  never be told a cast is available that `cast` would refuse. `castableSpells`
+  always answers `approach: false`.
+- **`outOfRange` is checked last** in `castability`, after `peaceful` and
+  `blocked`. Neither depends on where the caster stands, so a walk cannot fix
+  them, and checked after range they would let a player walk the whole way up
+  to a cast that is then refused.
+- **The answer is kept for `WALKABLE_RECHECK_MS` while neither body moves.**
+  One search per spell per frame is the cost the click-walk notes above accept
+  only while a walk is under way; the bar is drawn all the time.
+
 A stone whose requirements the caster has not met is not one of these — **it has
 no button at all**, on the same grounds an automatic charm does not. Every other
 refusal changes by waiting, walking closer or pointing at somebody, so the button

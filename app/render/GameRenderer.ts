@@ -24,12 +24,13 @@ import { sameAttributes } from "../game/attributes";
 import type { Vitals } from "../game/GameSession";
 import type { AfflictedPlacement } from "../game/endure";
 import { statusReading } from "../game/statuses";
-import { type SpellButton, spellReading } from "../game/casting";
+import { type CastSlot, sameSlot, type SpellButton, spellReading } from "../game/casting";
+import { type CastAim, castReaching } from "../game/castApproach";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
 import type { Depots } from "../game/depot";
 import { offeredRecipes, type CraftingWindow } from "../game/craft";
-import { blockedNotice } from "../game/notices";
+import { blockedNotice, castRefusalNotice } from "../game/notices";
 import {
   applyInteraction,
   blockReason,
@@ -45,6 +46,7 @@ import {
 import { TALK_REACH_CELLS } from "../game/affordances";
 import type { Reaching } from "../game/pathfinding";
 import type { Extraction } from "../game/extract";
+import type { Reach as CastReach } from "../lib/item";
 import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby } from "./nearbyInscriptions";
 import { BLOCKED_INK, INTERACTION_COLORS } from "./interactionColors";
@@ -133,6 +135,11 @@ function cellText(cell: Coord): string {
   return `${cell.x},${cell.y},${cell.z}`;
 }
 
+function castAimOf(snap: GameSnapshot): CastAim {
+  const target = snap.targetId ? snap.actors.find((actor) => actor.id === snap.targetId) : null;
+  return { map: snap.map, self: snap.self, target: target ?? null };
+}
+
 function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
   return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight), spanPx);
 }
@@ -154,6 +161,13 @@ const PICK_LEVEL_SLACK = 1;
 const APPROACH_PATIENCE_MS = 1000;
 
 const FAR_REFRESH_MS = 250;
+
+/**
+ * How long a spell's "a walk reaches range" answer stands while neither body
+ * moves. Doors and other bodies change it too, and map identity changes on any
+ * commit anywhere, so it is not what the answer is keyed on.
+ */
+const WALKABLE_RECHECK_MS = 500;
 
 /**
  * The most steps apart, on the grid, a cell can be from a thing it still acts
@@ -293,6 +307,11 @@ export class GameRenderer {
   private afarSent: InteractionOption[] | null = null;
   private readonly afarByRef = new Map<string, InteractionOption[]>();
   private approaching: { id: string; label: string; stillSinceMs: number | null } | null = null;
+  private castApproach: { slot: CastSlot; targetId: string; wasFollowing: boolean } | null = null;
+  private castAim: CastAim | null = null;
+  private spellsShown: SpellButton[] = [];
+  private walkableFrom = "";
+  private readonly walkableByReach = new Map<string, { atMs: number; walkable: boolean }>();
   private explained: string[] = [];
   private listHoverId: string | null = null;
   private dropDrag: { from: SlotRef; tileId: string; point: { x: number; y: number } } | null =
@@ -316,6 +335,7 @@ export class GameRenderer {
   private notificationLayer: NotificationLayer | null = null;
   private readonly notices = new NoticeQueue();
   private walkTo: WalkTo | null = null;
+  private directions: HeldDirections | null = null;
   private lookMode = false;
   private lookKeyHeld = false;
   private touchLooking = false;
@@ -363,6 +383,7 @@ export class GameRenderer {
   }
 
   setDirections(directions: HeldDirections) {
+    this.directions = directions;
     this.walkTo = new WalkTo(directions);
   }
 
@@ -482,13 +503,117 @@ export class GameRenderer {
     this.spellsSent = null;
   }
 
-  private pushSpells() {
-    if (!this.onSpells) return;
-    const spells = this.session.spells();
+  private pushSpells(snap: GameSnapshot, nowMs: number) {
+    if (!this.onSpells && !this.castApproach) return;
+    this.castAim = castAimOf(snap);
+    const spells = this.session.spells().map((spell) => this.withApproach(spell, snap, nowMs));
+    this.spellsShown = spells;
     const reading = spellReading(spells);
-    if (reading === this.spellsSent) return;
+    if (!this.onSpells || reading === this.spellsSent) return;
     this.spellsSent = reading;
     this.onSpells(spells);
+  }
+
+  private withApproach(spell: SpellButton, snap: GameSnapshot, nowMs: number): SpellButton {
+    const verdict = spell.castability;
+    if (verdict.ok || verdict.reason !== "outOfRange" || !spell.reach) return spell;
+    return { ...spell, approach: this.walksIntoRange(snap, spell.reach, nowMs) };
+  }
+
+  private walksIntoRange(snap: GameSnapshot, reach: CastReach, nowMs: number): boolean {
+    const target = this.castAim?.target;
+    if (!target) return false;
+    const stepping = snap.self.walk ? cellText(snap.self.walk.to) : "";
+    const from = `${cellText(snap.self)}|${stepping}|${cellText(target)}`;
+    if (from !== this.walkableFrom) {
+      this.walkableFrom = from;
+      this.walkableByReach.clear();
+    }
+    const key = `${reach.cells}/${reach.height}/${reach.min ?? 0}`;
+    const known = this.walkableByReach.get(key);
+    if (known && nowMs - known.atMs < WALKABLE_RECHECK_MS) return known.walkable;
+    const view = this.walkView(snap, this.cameraFor(snap));
+    const walkable =
+      view !== null && approachStand(view, target, this.castReaching(reach)) !== null;
+    this.walkableByReach.set(key, { atMs: nowMs, walkable });
+    return walkable;
+  }
+
+  private castReaching(reach: CastReach): Reaching {
+    return castReaching(
+      this.tilesById,
+      reach,
+      () => this.castAim ?? castAimOf(this.session.getSnapshot()),
+    );
+  }
+
+  /**
+   * Casts `slot`, or, when the spell bar offered it as out of range but a walk
+   * away, follows the target until `castReachesFromHere` stops the follow and
+   * `stepCastApproach` casts.
+   */
+  cast(slot: CastSlot): boolean {
+    this.endCastApproach();
+    const spell = this.spellsShown.find((shown) => sameSlot(shown.slot, slot));
+    if (spell?.approach) return this.approachCast(slot);
+    return this.session.cast(slot);
+  }
+
+  private approachCast(slot: CastSlot): boolean {
+    const walkTo = this.walkTo;
+    const snap = this.session.getSnapshot();
+    const targetId = snap.targetId;
+    const view = this.walkView(snap, this.cameraFor(snap));
+    if (!walkTo || !targetId || !view) return false;
+    const wasFollowing = walkTo.followingId === targetId;
+    this.approaching = null;
+    this.castApproach = { slot, targetId, wasFollowing };
+    walkTo.follow(targetId, view);
+    return true;
+  }
+
+  /**
+   * The cast waits for the body to stop, because the server measures range from
+   * where it has the caster standing, which is behind the client's prediction
+   * mid-step. A held key ends it rather than pausing it as it pauses a follow,
+   * so walking away is how a player calls a queued cast off.
+   */
+  private stepCastApproach(snap: GameSnapshot) {
+    const pending = this.castApproach;
+    if (!pending) return;
+    if (this.walkTo?.followingId !== pending.targetId) {
+      this.castApproach = null;
+      return;
+    }
+    const spell = this.spellsShown.find((shown) => sameSlot(shown.slot, pending.slot));
+    if (!spell || snap.targetId !== pending.targetId || this.directions?.pressed) {
+      this.endCastApproach();
+      return;
+    }
+    if (spell.castability.ok) {
+      if (snap.self.walk === null && this.session.cast(pending.slot)) this.endCastApproach();
+      return;
+    }
+    if (spell.approach) return;
+    const notice = castRefusalNotice(spell.castability.reason);
+    if (notice) this.explained.push(notice);
+    this.endCastApproach();
+  }
+
+  private castReachesFromHere(actorId: string): boolean {
+    const pending = this.castApproach;
+    if (pending?.targetId !== actorId) return false;
+    const spell = this.spellsShown.find((shown) => sameSlot(shown.slot, pending.slot));
+    return spell?.castability.ok ?? false;
+  }
+
+  /** Leaves a follow the player had already asked for running after the cast. */
+  private endCastApproach() {
+    const pending = this.castApproach;
+    if (!pending) return;
+    this.castApproach = null;
+    if (pending.wasFollowing || this.walkTo?.followingId !== pending.targetId) return;
+    this.walkTo.cancel();
   }
 
   private pushNotices(nowMs: number) {
@@ -969,7 +1094,8 @@ export class GameRenderer {
         if (!this.isWithinView(snap.map, actor, camera)) return null;
         return { x: actor.x, y: actor.y, z: actor.z };
       },
-      strikes: (actorId) => this.strikesFromHere(snap, actorId),
+      strikes: (actorId) =>
+        this.strikesFromHere(snap, actorId) || this.castReachesFromHere(actorId),
     };
   }
 
@@ -1014,6 +1140,7 @@ export class GameRenderer {
     if (!view) return;
     const offered = (options: readonly InteractionOption[]) =>
       options.some((o) => o.id === option.id && o.label === option.label);
+    this.castApproach = null;
     walkTo.approach(option.ref, this.reaching(option.ref, offered), view);
     this.approaching = walkTo.approaching
       ? { id: option.id, label: option.label, stillSinceMs: null }
@@ -1877,9 +2004,10 @@ export class GameRenderer {
     this.pushEquipment(snap);
     this.pushConversation(snap);
     this.pushMasteries(snap);
-    this.pushSpells();
+    this.pushSpells(snap, nowMs);
     this.stepWalkTo(snap, camera);
     this.stepApproach(snap, nowMs);
+    this.stepCastApproach(snap);
     this.pushNotices(nowMs);
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);

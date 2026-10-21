@@ -315,6 +315,17 @@ describe("why a stone cannot be cast", () => {
     });
   });
 
+  it("refuses somebody it may not harm as peaceful from out of reach too, so nobody walks up to them", () => {
+    const state = context(
+      { weapon: instance("bolt-stone") },
+      { target: point(5), mayHarmTarget: false },
+    );
+    expect(castability(state, squareSlot("weapon"))).toEqual({
+      ok: false,
+      reason: "peaceful",
+    });
+  });
+
   it("refuses a target in reach with a wall in the way", () => {
     let map = open(4);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
@@ -1076,21 +1087,31 @@ describe("how long a cast takes", () => {
 
 describe("spellPress", () => {
   it("asks for a cast from a stone that would land", () => {
-    expect(spellPress({ ok: true })).toBe("cast");
+    expect(spellPress({ castability: { ok: true }, approach: false })).toBe("cast");
   });
 
   it("asks for one with nobody targeted, so the session can say why not", () => {
-    expect(spellPress({ ok: false, reason: "noTarget" })).toBe("cast");
+    expect(spellPress({ castability: { ok: false, reason: "noTarget" }, approach: false })).toBe(
+      "cast",
+    );
+  });
+
+  it("asks to walk into range from a stone out of range that a walk reaches", () => {
+    expect(spellPress({ castability: { ok: false, reason: "outOfRange" }, approach: true })).toBe(
+      "approach",
+    );
   });
 
   it("asks to stop from the stone whose cast is running", () => {
-    expect(spellPress({ ok: false, reason: "underway" })).toBe("stop");
+    expect(spellPress({ castability: { ok: false, reason: "underway" }, approach: false })).toBe(
+      "stop",
+    );
   });
 
   it.each(["empty", "casting", "cooling", "mastery", "outOfRange", "blocked"] as const)(
     "asks nothing of a stone refused for %s, which the button already draws",
     (reason) => {
-      expect(spellPress({ ok: false, reason })).toBeNull();
+      expect(spellPress({ castability: { ok: false, reason }, approach: false })).toBeNull();
     },
   );
 });
