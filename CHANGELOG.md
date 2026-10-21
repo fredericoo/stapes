@@ -1,5 +1,19 @@
 # the-last-stones
 
+## 0.4.0
+
+### Minor Changes
+
+- Hovering something you cannot use right now shows why, in grey, where its action used to be, such as "Needs *10" or "No room". Clicking it tells you the same thing instead of doing nothing, walking over first if it is out of reach.
+- What a shopkeeper says now types out letter by letter; tap the conversation to see it all at once. On a phone, conversation buttons are bigger and further apart, and each item in a trade shows a magnifier: hold it to see what the item does.
+- The game's menu now has a What's new button that lists every release and the day it came out. The menu shows a dot when there is a release you have not read yet, until you open it. The changelog page on the website shows each release's date too.
+- Some quest chests now ask for a rating before they open. Until you reach it, the chest still shows its Open action, greyed out, with the rating it needs beside it. A chest you have no bag room for now shows the same way, marked "no room", instead of disappearing from the list.
+- Trading with a shopkeeper now has a Max button beside + and −, which sets the amount to as many as you can pay for and carry.
+
+### Patch Changes
+
+- Food that creatures and townsfolk carry no longer goes off while they hold it, so a deer that has roamed for days still drops fresh meat.
+
 ## 0.3.0
 
 ### Minor Changes
