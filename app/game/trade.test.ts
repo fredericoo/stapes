@@ -3,7 +3,7 @@ import { DEFAULT_CONTAINER } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
 import { emptyEquipment, type Equipment } from "./equipment";
-import { carriedCount, hasRoomFor, planTrade } from "./trade";
+import { carriedCount, hasRoomFor, largestTradeAmount, planTrade } from "./trade";
 import { tile as baseTile } from "../lib/testTile";
 
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
@@ -186,5 +186,36 @@ describe("being paid", () => {
     const kit = wearing([pile("sword")]);
     expect(hasRoomFor(tilesById, kit, { tileId: "potion", count: 4 }, mint)).toBe(true);
     expect(hasRoomFor(tilesById, kit, { tileId: "sword", count: 4 }, mint)).toBe(false);
+  });
+});
+
+describe("the largest amount a player can trade", () => {
+  const swordForShards = {
+    take: [{ tileId: "shard", count: 3 }],
+    give: [{ tileId: "sword", count: 1 }],
+    min: 1,
+    max: 10,
+  };
+
+  it("stops at what the player can pay for", () => {
+    const kit = wearing([pile("shard", 7)]);
+    const trade = { ...swordForShards, give: [{ tileId: "shard", count: 1 }] };
+    expect(largestTradeAmount(tilesById, kit, trade, mint)).toBe(2);
+  });
+
+  it("stops at what the player has room for", () => {
+    const kit = wearing([pile("shard", 99)]);
+    expect(largestTradeAmount(tilesById, kit, swordForShards, mint)).toBe(3);
+  });
+
+  it("stops at the trade's own ceiling", () => {
+    const kit = wearing([pile("shard", 99)]);
+    const trade = { ...swordForShards, give: [{ tileId: "shard", count: 1 }], max: 4 };
+    expect(largestTradeAmount(tilesById, kit, trade, mint)).toBe(4);
+  });
+
+  it("answers nothing when even the floor is out of reach", () => {
+    const kit = wearing([pile("shard", 2)]);
+    expect(largestTradeAmount(tilesById, kit, swordForShards, mint)).toBeNull();
   });
 });

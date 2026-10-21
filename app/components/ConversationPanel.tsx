@@ -8,7 +8,7 @@ import {
   type TranscriptEntry,
 } from "../game/dialogRuntime";
 import type { Equipment } from "../game/equipment";
-import { carriedCount, planTrade } from "../game/trade";
+import { carriedCount, largestTradeAmount, planTrade } from "../game/trade";
 import {
   clampAmount,
   resolveDialog,
@@ -251,12 +251,20 @@ function TradeOffer({
       ? planTrade(tilesById, equipment, scaled.take, scaled.give, mintItemId)
       : null;
   const possible = plan !== null;
-  const stepClass =
-    "grid w-8 shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:w-9";
+  const stepBaseClass =
+    "grid shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  const stepClass = `${stepBaseClass} w-8 pointer-coarse:w-9`;
   const step = (delta: 1 | -1) =>
     setAmount((c) => Math.min(trade.max, Math.max(trade.min, c + delta)));
   const less = useTap(() => step(-1));
   const more = useTap(() => step(1));
+  const largest = useMemo(
+    () => largestTradeAmount(tilesById, equipment, trade, mintItemId),
+    [tilesById, equipment, trade],
+  );
+  const most = useTap(() => {
+    if (largest !== null) setAmount(largest);
+  });
 
   const pressRef = useRef({ possible, amount, onTalk, step });
   pressRef.current = { possible, amount, onTalk, step };
@@ -323,6 +331,14 @@ function TradeOffer({
             className={stepClass}
           >
             <IconPlus size={STEP_ICON_SIZE_PX} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            {...most}
+            aria-disabled={largest === null || amount === largest}
+            className={`${stepBaseClass} px-1.5 text-2xs uppercase`}
+          >
+            Max
           </button>
         </div>
       ) : null}
