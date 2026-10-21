@@ -14,6 +14,7 @@ import {
   resolveTeleportDef,
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
+import { RATING_GLYPH } from "../lib/mastery";
 import { variantKeys } from "../lib/variant";
 import { useEditorStore } from "../editor/store";
 import { Button, Segmented, Tooltip } from "../ui";
@@ -254,6 +255,9 @@ function SortableStackItem({
               <span className="shrink-0">
                 ⛁ {placed.rewardTag}
                 {placed.rewardTileIds?.length ? ` ×${placed.rewardTileIds.length}` : ""}
+                {placed.rewardRequires?.rating
+                  ? ` ${RATING_GLYPH}${placed.rewardRequires.rating}`
+                  : ""}
               </span>
             ) : null}
             {placed.depotTag ? (

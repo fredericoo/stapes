@@ -24,6 +24,7 @@ import {
   updatePlacedTeleport,
   updatePlacedDirection,
   updatePlacedFoot,
+  type RewardDraft,
   updatePlacedVariant,
 } from "../lib/mapData";
 import {
@@ -156,7 +157,7 @@ export type EditorStore = {
   setStackInscription: (stackIndex: number, inscription: string) => void;
   setStackDescription: (stackIndex: number, description: string) => void;
   setStackEngraving: (stackIndex: number, engraved: string) => void;
-  setStackReward: (stackIndex: number, tag: string, tileIds: readonly string[]) => void;
+  setStackReward: (stackIndex: number, draft: RewardDraft) => void;
   setStackDepotTag: (stackIndex: number, tag: string) => void;
   setStackTeleport: (stackIndex: number, to: Coord | null) => void;
   setStackContents: (stackIndex: number, contents: readonly ItemInstance[]) => void;
@@ -582,11 +583,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     );
   },
 
-  setStackReward: (stackIndex, tag, tileIds) => {
+  setStackReward: (stackIndex, draft) => {
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedReward(map, selected.x, selected.y, currentLevel, stackIndex, tag, tileIds),
+      updatePlacedReward(map, selected.x, selected.y, currentLevel, stackIndex, draft),
     );
   },
 

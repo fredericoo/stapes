@@ -6,10 +6,10 @@ import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
 import { itemForSave, stoneForSave, MAX_CONTAINER_SIZE, resolveItem, weaponForSave } from "./item";
-import { MASTERIES, type Mastery } from "./mastery";
+import { MASTERIES, MIN_RATING, type Mastery } from "./mastery";
 import { MAX_PROJECTILE_SPEED, MIN_PROJECTILE_SPEED, type ProjectileBlock } from "./projectile";
 import { type CraftOutcome, resolveTransition, type Transition } from "./tileTransition";
-import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
+import type { Coord, PlacedTile, RewardRequirements, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
 export type ClimbAbility = "none" | "half" | "full";
@@ -149,6 +149,7 @@ export type PlacedReward = {
   actionName?: string;
   tag: string;
   itemTileIds: string[];
+  requires: RewardRequirements;
 };
 
 export type CraftInput = {
@@ -416,9 +417,18 @@ export function resolveReward(placed: PlacedTile, def: TileDef | undefined): Pla
   return reward;
 }
 
+export const rewardRequirementsSchema = v.object({
+  rating: v.optional(v.pipe(v.number(), v.integer(), v.minValue(MIN_RATING))),
+});
+
+/**
+ * A malformed requirement falls back to asking nothing rather than voiding the
+ * reward, so a typo in the editor never hides a chest the placement still names.
+ */
 const placedRewardSchema = v.object({
   rewardTag: v.pipe(v.string(), v.trim(), v.minLength(1)),
   rewardTileIds: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(MAX_REWARD_ITEMS)),
+  rewardRequires: v.fallback(v.optional(rewardRequirementsSchema, {}), {}),
 });
 
 function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null {
@@ -430,6 +440,7 @@ function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null
     ...gesture,
     tag: parsed.output.rewardTag,
     itemTileIds: parsed.output.rewardTileIds,
+    requires: parsed.output.rewardRequires,
   };
 }
 

@@ -21,7 +21,14 @@ import {
 import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
 import { stackWithLanding, stowFits } from "../lib/piles";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  RewardRequirements,
+  TileDef,
+} from "../lib/types";
 import { footprintOf, HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
@@ -451,12 +458,32 @@ export function rewardFits(
   const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
   const free = size - (bag.contents?.length ?? 0);
   if (reward.itemTileIds.length > free) return false;
+  return rewardGivable(reward, tilesById);
+}
 
+/** Whether every item `reward` names still exists and is something a bag can hold. */
+function rewardGivable(reward: PlacedReward, tilesById: Record<string, TileDef>): boolean {
   return reward.itemTileIds.every((tileId) => {
     const def = tilesById[tileId];
     if (!def) return false;
     return resolveItem(def) != null && resolveContainer(def) == null;
   });
+}
+
+/**
+ * A reward within reach that the holder of `tags` has not taken, whether or
+ * not they can take it right now: the interaction list shows it blocked.
+ */
+export function rewardOfferedAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  tags: readonly string[],
+): PlacedReward | null {
+  const reward = reachableRewardAt(map, tilesById, actor, ref);
+  if (!reward || tags.includes(reward.tag)) return null;
+  return rewardGivable(reward, tilesById) ? reward : null;
 }
 
 export function canRewardFrom(
@@ -467,10 +494,36 @@ export function canRewardFrom(
   equipment: Equipment,
   tags: readonly string[],
 ): boolean {
+  const reward = rewardOfferedAt(map, tilesById, actor, ref, tags);
+  return reward !== null && rewardFits(reward, tilesById, equipment);
+}
+
+/**
+ * The criteria of `reward` that a taker rated `rating` falls short of, or null
+ * when they meet them all. An unknown rating meets nothing that asks for one.
+ */
+export function rewardShortfall(
+  reward: PlacedReward,
+  rating: number | null,
+): Required<RewardRequirements> | null {
+  const needed = reward.requires.rating;
+  if (needed === undefined) return null;
+  if (rating !== null && rating >= needed) return null;
+  return { rating: needed };
+}
+
+export function canClaimRewardFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  equipment: Equipment,
+  tags: readonly string[],
+  rating: number | null,
+): boolean {
+  if (!canRewardFrom(map, tilesById, actor, ref, equipment, tags)) return false;
   const reward = reachableRewardAt(map, tilesById, actor, ref);
-  if (!reward) return false;
-  if (tags.includes(reward.tag)) return false;
-  return rewardFits(reward, tilesById, equipment);
+  return reward !== null && rewardShortfall(reward, rating) === null;
 }
 
 export function reachableCraftAt(

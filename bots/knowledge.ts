@@ -1,4 +1,9 @@
-import { canRewardFrom, reachableCraftAt, type ObjectRef } from "../app/game/affordances";
+import {
+  canRewardFrom,
+  reachableCraftAt,
+  rewardShortfall,
+  type ObjectRef,
+} from "../app/game/affordances";
 import type { Equipment } from "../app/game/equipment";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import { listStandingSurfaces } from "../app/game/movement";
@@ -65,11 +70,15 @@ export class Knowledge {
     );
   }
 
-  rewardsOnOffer(tags: readonly string[]): Array<{ ref: ObjectRef; tag: string; name: string }> {
+  rewardsOnOffer(
+    tags: readonly string[],
+    rating: number | null,
+  ): Array<{ ref: ObjectRef; tag: string; name: string }> {
     const out: Array<{ ref: ObjectRef; tag: string; name: string }> = [];
     this.placementsOf(rewardTileIds(this.tilesById), (ref, def, placed) => {
       const reward = resolveReward(placed, def);
       if (!reward || tags.includes(reward.tag)) return;
+      if (rewardShortfall(reward, rating)) return;
       out.push({ ref, tag: reward.tag, name: def.name });
     });
     return out;

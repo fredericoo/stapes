@@ -97,7 +97,7 @@ import {
   canPickUpFrom,
   pickUpDestination,
   canPushFrom,
-  canRewardFrom,
+  canClaimRewardFrom,
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
@@ -108,6 +108,7 @@ import {
   reachableRewardAt,
   reachableTeleportAt,
   rewardFits,
+  rewardShortfall,
   teleportFits,
   pushDirectionFrom,
   pushTargetFrom,
@@ -4643,13 +4644,14 @@ export class GameSession implements PlaySession {
   canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
-    return canRewardFrom(
+    return canClaimRewardFrom(
       this.map,
       this.tilesById,
       this.locate(actor),
       ref,
       actor.equipment,
       actor.tags,
+      this.ratingOf(actor),
     );
   }
 
@@ -4662,6 +4664,7 @@ export class GameSession implements PlaySession {
     if (!reward) return false;
     if (actor.tags.includes(reward.tag)) return false;
     if (!rewardFits(reward, this.tilesById, actor.equipment)) return false;
+    if (rewardShortfall(reward, this.ratingOf(actor))) return false;
 
     const giverDef = this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
     if (!giverDef) return false;

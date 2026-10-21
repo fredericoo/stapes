@@ -8623,7 +8623,8 @@ in. So **nothing on the board changes at all**. What changes is the taker.
   saves constantly, and dropping them would refill every reward in the world for
   everybody standing in it, once per save.
 - **All or nothing on space.** `rewardFits` needs room for every item at once,
-  because a reward is taken once and half of one is half of it lost. Containers
+  because a reward is taken once and half of one is half of it lost. Short of
+  room, the row stays listed and blocked rather than disappearing. Containers
   are refused outright — nothing nests, so a bag could only go on a back the
   reward's own items need occupied.
 - **Purple is a fifth colour and it says something the other four cannot.**
@@ -8632,6 +8633,20 @@ in. So **nothing on the board changes at all**. What changes is the taker.
   verb nor the sprite can tell you before you walk away from it. The list row
   wears it unlit, unlike every other row, because "only once" is a property of
   the offer rather than a state you are in.
+- **A placement can ask something of the taker: `PlacedTile.rewardRequires`.**
+  Only `rating` so far. It sits on the placement beside the tag for the same
+  reason the tag does: one `quest-chest` tile is both the tutorial's free chest
+  and a deep one for veterans. A taker who falls short is shown the row anyway,
+  blocked (`OptionBlock` `needs`), drawn as `needs *10` and announced as
+  `needs rating 10` — a row that silently vanished would read as "nothing here".
+  A full bag is listed the same way, as `noRoom`, and the rating is named
+  first because emptying the bag would not open it. So the list asks
+  `rewardOfferedAt` (in reach, not yet taken, every item still givable) and
+  computes the block, while the session, the click path and the bots ask
+  `canClaimRewardFrom`: only what will work. A malformed requirement parses as none, so an
+  editor typo never hides a chest. The near-options cache in `GameRenderer`
+  keys on the player's rating so a row unblocks on the level-up itself, not on
+  the next step.
 
 `interactionKinds` asks `resolveRewardDef` — the def's half — because it is a
 question about tiles, and whether a given *slot* gives anything is what the

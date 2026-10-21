@@ -33,6 +33,7 @@ import {
   listedActionRows,
   rowPress,
 } from "../game/interactionOptions";
+import { RATING_GLYPH } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
@@ -237,6 +238,7 @@ function InteractionBox({
 export function blockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return "working";
   if (blocked.kind === "taken") return "in use";
+  if (blocked.kind === "needs") return `needs rating ${blocked.rating}`;
   return "no room";
 }
 
@@ -251,6 +253,7 @@ function actionLabel(option: InteractionOption): string {
 
 export function drawnBlockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return null;
+  if (blocked.kind === "needs") return `needs ${RATING_GLYPH}${blocked.rating}`;
   return blockReason(blocked);
 }
 
