@@ -983,7 +983,7 @@ export class GameSession implements PlaySession {
     const resident = opts.resident === true;
     const equipment =
       opts.carrying ?? (opts.bodyTileId ? this.rollKit(opts.bodyTileId) : emptyEquipment());
-    this.decay.armEquipment(equipment, this.tilesById);
+    if (!resident) this.decay.armEquipment(equipment, this.tilesById);
     const actor: ActorRuntime = {
       id,
       name: opts.name ?? null,
@@ -1403,13 +1403,7 @@ export class GameSession implements PlaySession {
     }
 
     if (items.length > 0) {
-      const rotted = applyItemDecay(
-        this.map,
-        this.actors.values(),
-        items,
-        this.tilesById,
-        mintItemId,
-      );
+      const rotted = applyItemDecay(this.map, this.playerKits(), items, this.tilesById, mintItemId);
       this.map = rotted.map;
       changed.push(...rotted.changed);
       for (const [actorId, equipment] of rotted.equipment) {
@@ -1418,6 +1412,17 @@ export class GameSession implements PlaySession {
     }
 
     this.reindexCells(changed);
+  }
+
+  /**
+   * A resident's kit never rots. An item that reaches one already counting
+   * down is passed over here, and its clock starts fresh from `reindexCells`
+   * once it is dropped.
+   */
+  private *playerKits(): Iterable<ActorRuntime> {
+    for (const actor of this.actors.values()) {
+      if (!actor.resident) yield actor;
+    }
   }
 
   private tickAfflictions(tickMs: number) {
@@ -4658,7 +4663,7 @@ export class GameSession implements PlaySession {
   private setEquipment(actor: ActorRuntime, next: Equipment) {
     actor.equipment = next;
     actor.carriedLights = carriedLightTileIds(next, this.tilesById);
-    this.decay.armEquipment(next, this.tilesById);
+    if (!actor.resident) this.decay.armEquipment(next, this.tilesById);
     this.equipmentChanged.add(actor.id);
   }
 

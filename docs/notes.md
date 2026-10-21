@@ -11320,6 +11320,14 @@ stash and loot is a discipline that eventually slips. Both are additive, for the
 sharper version of the reason `reindexCells` is: a kit is rewritten constantly,
 so re-stamping would mean a berry moved from bag to hand came back fresh.
 
+**A resident's kit is outside the clock.** A deer or a shopkeeper can carry
+the same thing for days, and a rolled kit that rotted on the body dropped
+rotten meat from anything that lived long enough. So `setEquipment` and
+`addActor` arm only a player's kit, and `applyItemDecay` is handed only
+players' kits (`playerKits`), which also passes over a thing that was already
+counting down when it reached a resident. Its clock starts when it falls,
+from `reindexCells` on the cell it lands in.
+
 **Applying an item decay sweeps rather than looks up.** An entry names a thing
 and not a place, which is exactly what survives a pickup and exactly what leaves
 `applyItemDecay` with no address to go to. It could carry a last-known
