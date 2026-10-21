@@ -1463,6 +1463,12 @@ html:has(.home-lightbox[open]) {
   color: var(--color-label);
 }
 
+.home-changelog-date {
+  display: block;
+  margin-top: 8px;
+  color: var(--home-text-faint);
+}
+
 .home-changelog-kind {
   margin-top: 20px;
   font-size: 0.75rem;
