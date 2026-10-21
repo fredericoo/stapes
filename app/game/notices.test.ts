@@ -192,6 +192,7 @@ const reward = (actionName: string | undefined, itemTileIds: string[]) => ({
   ...(actionName === undefined ? {} : { actionName }),
   tag: "the-chest",
   itemTileIds,
+  requires: {},
 });
 
 describe("what a reward says", () => {

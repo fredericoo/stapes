@@ -1886,7 +1886,7 @@ export class GameRenderer {
       : "";
     const unlisted = this.unlistedInDarkness(snap);
     const dark = unlisted.map((a) => a.id).join(" ");
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following},${crafting},${dark}`;
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following},${crafting},${dark},${snap.self.rating}`;
     const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&

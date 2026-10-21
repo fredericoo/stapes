@@ -42,7 +42,7 @@ import {
   canEquipFrom,
   canPickUpFrom,
   canPushFrom,
-  canRewardFrom,
+  canClaimRewardFrom,
   canSwitchFrom,
   canAddStatusFrom,
   canRemoveStatusFrom,
@@ -1518,7 +1518,15 @@ export class RemoteSession implements PlaySession {
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     return (
-      canRewardFrom(this.map, this.tilesById, loc, ref, this.equipment, this.tags) ||
+      canClaimRewardFrom(
+        this.map,
+        this.tilesById,
+        loc,
+        ref,
+        this.equipment,
+        this.tags,
+        this.hps.get(this.selfId)?.rating ?? null,
+      ) ||
       this.canTeleport(loc, ref) ||
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||

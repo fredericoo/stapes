@@ -24,6 +24,8 @@ import {
   canPickUpFrom,
   canPushFrom,
   canRewardFrom,
+  reachableRewardAt,
+  rewardShortfall,
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
@@ -79,7 +81,8 @@ export type InteractionOption = {
 export type OptionBlock =
   | { kind: "working"; extraction: Extraction }
   | { kind: "noRoom" }
-  | { kind: "taken" };
+  | { kind: "taken" }
+  | { kind: "needs"; rating: number };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
@@ -576,9 +579,12 @@ function slotOptions(
   const stow = pickUpDestination(map, tilesById, self, ref, equipment) != null;
   const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
   if (action) {
-    const blocked =
-      action === "extract" ? extractBlock(map, tilesById, self, equipment, ref, extracting) : null;
-    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, blocked);
+    add(
+      action,
+      objectActionLabel(action, tilesById[placed.tileId]),
+      false,
+      actionBlock(action, map, tilesById, self, equipment, ref, extracting),
+    );
   }
 
   if (action === "equip" && stow) add("pickUp", LABELS.pickUp);
@@ -601,6 +607,31 @@ function slotOptions(
   }
 
   return out;
+}
+
+function actionBlock(
+  action: InteractionAction,
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  equipment: Equipment,
+  ref: ObjectRef,
+  extracting: Extraction | null,
+): OptionBlock | null {
+  if (action === "extract") return extractBlock(map, tilesById, self, equipment, ref, extracting);
+  if (action === "reward") return rewardBlock(map, tilesById, self, ref);
+  return null;
+}
+
+function rewardBlock(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  ref: ObjectRef,
+): OptionBlock | null {
+  const reward = reachableRewardAt(map, tilesById, self, ref);
+  const short = reward ? rewardShortfall(reward, self.rating) : null;
+  return short ? { kind: "needs", rating: short.rating } : null;
 }
 
 function extractBlock(

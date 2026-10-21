@@ -5,6 +5,7 @@ import type { Equipment } from "../app/game/equipment";
 import { MAX_LEVEL, MIN_LEVEL, type Coord } from "../app/lib/types";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import type { BattlerDef } from "../app/lib/battler";
+import { rating } from "../app/lib/mastery";
 import { forgeOrders, type ForgeOrder } from "./arcane";
 import type { Deal, Economy } from "./economy";
 import { exploredKey, type Knowledge } from "./knowledge";
@@ -141,7 +142,7 @@ export function nextErrand(
     }
     case "open_rewards": {
       const offers = knowledge
-        .rewardsOnOffer(holdings.tags)
+        .rewardsOnOffer(holdings.tags, holdings.body ? rating(holdings.body.masteries) : null)
         .filter(({ ref }) => !recall.skipped.has(refKey(ref)));
       const nearest = offers.sort((a, b) => distance(self, a.ref) - distance(self, b.ref))[0];
       if (!nearest) return "done";

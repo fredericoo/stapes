@@ -64,6 +64,11 @@ describe("why a blocked row is grey", () => {
     expect(drawnBlockReason({ kind: "taken" })).toBe("in use");
   });
 
+  it("draws the rating a reward needs with the glyph, and announces it in words", () => {
+    expect(drawnBlockReason({ kind: "needs", rating: 10 })).toBe("needs *10");
+    expect(blockReason({ kind: "needs", rating: 10 })).toBe("needs rating 10");
+  });
+
   it("draws nothing for a pull in progress, and still announces it", () => {
     expect(drawnBlockReason(WORKING)).toBeNull();
     expect(blockReason(WORKING)).toBe("working");

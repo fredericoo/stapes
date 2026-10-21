@@ -270,6 +270,11 @@ export type TilesetDef = {
   height: number;
 };
 
+/** What a player must have to take a placement's reward; a missing criterion asks nothing. */
+export type RewardRequirements = {
+  rating?: number;
+};
+
 export type PlacedTile = {
   tileId: string;
   direction?: Direction;
@@ -281,6 +286,7 @@ export type PlacedTile = {
   engraved?: string;
   rewardTag?: string;
   rewardTileIds?: string[];
+  rewardRequires?: RewardRequirements;
   depotTag?: string;
   teleportTo?: Coord;
   owner?: string;

@@ -21,7 +21,14 @@ import {
 import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
 import { stackWithLanding, stowFits } from "../lib/piles";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  RewardRequirements,
+  TileDef,
+} from "../lib/types";
 import { footprintOf, HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
@@ -471,6 +478,34 @@ export function canRewardFrom(
   if (!reward) return false;
   if (tags.includes(reward.tag)) return false;
   return rewardFits(reward, tilesById, equipment);
+}
+
+/**
+ * The criteria of `reward` that a taker rated `rating` falls short of, or null
+ * when they meet them all. An unknown rating meets nothing that asks for one.
+ */
+export function rewardShortfall(
+  reward: PlacedReward,
+  rating: number | null,
+): Required<RewardRequirements> | null {
+  const needed = reward.requires.rating;
+  if (needed === undefined) return null;
+  if (rating !== null && rating >= needed) return null;
+  return { rating: needed };
+}
+
+export function canClaimRewardFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  equipment: Equipment,
+  tags: readonly string[],
+  rating: number | null,
+): boolean {
+  if (!canRewardFrom(map, tilesById, actor, ref, equipment, tags)) return false;
+  const reward = reachableRewardAt(map, tilesById, actor, ref);
+  return reward !== null && rewardShortfall(reward, rating) === null;
 }
 
 export function reachableCraftAt(

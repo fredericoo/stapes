@@ -8632,6 +8632,18 @@ in. So **nothing on the board changes at all**. What changes is the taker.
   verb nor the sprite can tell you before you walk away from it. The list row
   wears it unlit, unlike every other row, because "only once" is a property of
   the offer rather than a state you are in.
+- **A placement can ask something of the taker: `PlacedTile.rewardRequires`.**
+  Only `rating` so far. It sits on the placement beside the tag for the same
+  reason the tag does: one `quest-chest` tile is both the tutorial's free chest
+  and a deep one for veterans. A taker who falls short is shown the row anyway,
+  blocked (`OptionBlock` `needs`), drawn as `needs *10` and announced as
+  `needs rating 10` — a row that silently vanished would read as "nothing here".
+  This is why `canRewardFrom` does not check it and `canClaimRewardFrom` does:
+  the list wants the offer it cannot take; the session, the click path and the
+  bots want only what will work. A malformed requirement parses as none, so an
+  editor typo never hides a chest. The near-options cache in `GameRenderer`
+  keys on the player's rating so a row unblocks on the level-up itself, not on
+  the next step.
 
 `interactionKinds` asks `resolveRewardDef` — the def's half — because it is a
 question about tiles, and whether a given *slot* gives anything is what the

@@ -744,33 +744,45 @@ export function updatePlacedFoot(
   return setStack(map, x, y, z, stack);
 }
 
+export type RewardDraft = {
+  tag: string;
+  tileIds: readonly string[];
+  minRating: number | null;
+};
+
 export function updatePlacedReward(
   map: MapFile,
   x: number,
   y: number,
   z: number,
   stackIndex: number,
-  tag: string,
-  tileIds: readonly string[],
+  draft: RewardDraft,
 ): MapFile {
   const current = getStack(map, x, y, z);
   const placed = current[stackIndex];
   if (!placed) return map;
 
-  const trimmedTag = tag.trim();
-  const kept = tileIds.filter((id) => id.trim());
+  const trimmedTag = draft.tag.trim();
+  const kept = draft.tileIds.filter((id) => id.trim());
   const live = trimmedTag !== "" && kept.length > 0;
   const nextTag = live ? trimmedTag : undefined;
   const nextIds = live ? kept : undefined;
+  const nextRating = live && draft.minRating !== null ? draft.minRating : undefined;
 
-  if (placed.rewardTag === nextTag && sameIds(placed.rewardTileIds, nextIds)) {
+  if (
+    placed.rewardTag === nextTag &&
+    sameIds(placed.rewardTileIds, nextIds) &&
+    placed.rewardRequires?.rating === nextRating
+  ) {
     return map;
   }
 
   const stack = current.map((p, i) => {
     if (i !== stackIndex) return { ...p };
-    const { rewardTag: _tag, rewardTileIds: _ids, ...rest } = p;
-    return live ? { ...rest, rewardTag: nextTag, rewardTileIds: nextIds } : rest;
+    const { rewardTag: _tag, rewardTileIds: _ids, rewardRequires: _requires, ...rest } = p;
+    if (!live) return rest;
+    const requires = nextRating === undefined ? {} : { rewardRequires: { rating: nextRating } };
+    return { ...rest, rewardTag: nextTag, rewardTileIds: nextIds, ...requires };
   });
   return setStack(map, x, y, z, stack);
 }
