@@ -115,6 +115,7 @@ function view(
     at?: Coord & { stackIndex: number };
     stepping?: Coord;
     bodies?: Record<string, Coord>;
+    striking?: string;
   } = {},
 ): WalkView {
   return {
@@ -126,6 +127,7 @@ function view(
     tilesById,
     statusDefs,
     bodyAt: (actorId) => opts.bodies?.[actorId] ?? null,
+    strikes: (actorId) => actorId === opts.striking,
   };
 }
 
@@ -566,6 +568,40 @@ describe("following a body", () => {
     expect(last()).toEqual([]);
 
     walk.tick(view(map, { ...beside, bodies: { [THEM]: { x: 4, y: 0, z: 0 } } }));
+
+    expect(last()).toEqual(["e"]);
+  });
+
+  it("does not set off towards a body its weapon already reaches", () => {
+    const { walk, asked } = walker();
+
+    walk.follow(THEM, view(field(6), { bodies: { [THEM]: { x: 4, y: 0, z: 0 } }, striking: THEM }));
+
+    expect(asked).toEqual([]);
+    expect(walk.walking).toBe(true);
+    expect(walk.followingId).toBe(THEM);
+  });
+
+  it("stops where its weapon reaches rather than walking on to stand beside them", () => {
+    const { walk, last } = walker();
+    const map = field(6);
+    const them = { [THEM]: { x: 4, y: 0, z: 0 } };
+
+    walk.follow(THEM, view(map, { bodies: them }));
+    expect(last()).toEqual(["e"]);
+
+    walk.tick(view(map, { at: { x: 1, y: 0, z: 0, stackIndex: 1 }, bodies: them, striking: THEM }));
+
+    expect(last()).toEqual([]);
+    expect(walk.followingId).toBe(THEM);
+  });
+
+  it("closes in again once they step out of its weapon's reach", () => {
+    const { walk, last } = walker();
+    const map = field(6);
+
+    walk.follow(THEM, view(map, { bodies: { [THEM]: { x: 4, y: 0, z: 0 } }, striking: THEM }));
+    walk.tick(view(map, { bodies: { [THEM]: { x: 6, y: 0, z: 0 } } }));
 
     expect(last()).toEqual(["e"]);
   });

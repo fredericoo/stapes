@@ -290,11 +290,34 @@ export function rangedWeaponReaches(
   from: { x: number; y: number; z: number; stackIndex: number },
   to: { x: number; y: number; z: number; stackIndex: number },
 ): boolean {
-  const ranged = HANDS.map((hand) => weaponSwungBy(equipment, tilesById, hand, masteries)).filter(
-    (weapon): weapon is WeaponItem => weapon !== null && isRanged(weapon),
+  return swungWeaponReaches(map, tilesById, equipment, masteries, from, to, isRanged);
+}
+
+export function heldWeaponReaches(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment | null,
+  masteries: Masteries,
+  from: { x: number; y: number; z: number; stackIndex: number },
+  to: { x: number; y: number; z: number; stackIndex: number },
+): boolean {
+  return swungWeaponReaches(map, tilesById, equipment, masteries, from, to, () => true);
+}
+
+function swungWeaponReaches(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment | null,
+  masteries: Masteries,
+  from: { x: number; y: number; z: number; stackIndex: number },
+  to: { x: number; y: number; z: number; stackIndex: number },
+  counts: (weapon: WeaponItem) => boolean,
+): boolean {
+  const swung = HANDS.map((hand) => weaponSwungBy(equipment, tilesById, hand, masteries)).filter(
+    (weapon): weapon is WeaponItem => weapon !== null && counts(weapon),
   );
-  if (ranged.length === 0) return false;
+  if (swung.length === 0) return false;
   const fromPoint = reachPointAt(map, tilesById, from);
   const toPoint = reachPointAt(map, tilesById, to);
-  return ranged.some((weapon) => canReach(map, tilesById, fromPoint, toPoint, weapon.reach));
+  return swung.some((weapon) => canReach(map, tilesById, fromPoint, toPoint, weapon.reach));
 }
