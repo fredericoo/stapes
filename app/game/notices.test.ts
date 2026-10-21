@@ -9,7 +9,13 @@ import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
-import { masteryNotice, otherStatusNotice, rewardNotice, statusAcquiredNotice } from "./notices";
+import {
+  blockedNotice,
+  masteryNotice,
+  otherStatusNotice,
+  rewardNotice,
+  statusAcquiredNotice,
+} from "./notices";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
 describe("what a crossing says", () => {
@@ -266,5 +272,33 @@ describe("a status named in a sentence", () => {
   it("is lowercased, whatever the author capitalised for the strip", () => {
     expect(statusAcquiredNotice("Asleep")).toBe("You are asleep");
     expect(otherStatusNotice("Deer", "Burning")).toBe("Deer is burning");
+  });
+});
+
+describe("why a blocked thing did nothing", () => {
+  const chest = { label: "Open", name: "Quest Chest" };
+
+  it("names the rating a reward asks for", () => {
+    expect(blockedNotice({ ...chest, blocked: { kind: "needs", rating: 10 } })).toBe(
+      "You need a rating of 10 to open Quest Chest",
+    );
+  });
+
+  it("says there is no room, and that something else is using it", () => {
+    expect(blockedNotice({ ...chest, blocked: { kind: "noRoom" } })).toBe(
+      "You have no room to open Quest Chest",
+    );
+    expect(blockedNotice({ label: "Pull", name: "Bush", blocked: { kind: "taken" } })).toBe(
+      "Bush is in use",
+    );
+  });
+
+  it("says nothing about a pull already under way, or a thing that is not blocked", () => {
+    const working = {
+      kind: "working",
+      extraction: { key: "0:1,0|bush", remainingMs: 500, durationMs: 1_000 },
+    } as const;
+    expect(blockedNotice({ ...chest, blocked: working })).toBeNull();
+    expect(blockedNotice({ ...chest, blocked: null })).toBeNull();
   });
 });

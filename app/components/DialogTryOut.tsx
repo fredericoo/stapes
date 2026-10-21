@@ -17,7 +17,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Input, Select } from "../ui";
+import { Button, Input, Select, Switch } from "../ui";
 import { ConversationPanel } from "./ConversationPanel";
 
 const PRETEND_NAME = "you";
@@ -30,7 +30,13 @@ type Props = {
   className?: string;
 };
 
-type Pretend = { equipment: Equipment; tags: Set<string>; statuses: Set<string> };
+type Pretend = {
+  equipment: Equipment;
+  tags: Set<string>;
+  statuses: Set<string>;
+  king: boolean;
+  channels: Set<string>;
+};
 
 function biggestBag(tiles: TileDef[]): TileDef | null {
   let best: TileDef | null = null;
@@ -53,11 +59,16 @@ function pretendPartner(
 ): PartnerView {
   return {
     name: () => PRETEND_NAME,
+    isKing: () => pretend.king,
+    hasTag: (tag) => pretend.tags.has(tag),
+    channelOn: (channel) => pretend.channels.has(channel),
     attempt: (effects) => {
       const next = {
         equipment: pretend.equipment,
         tags: new Set(pretend.tags),
         statuses: new Set(pretend.statuses),
+        king: pretend.king,
+        channels: new Set(pretend.channels),
       };
       for (const effect of effects) {
         if (!applyEffect(next, effect, tilesById, statusDefs)) return false;
@@ -78,6 +89,13 @@ function applyEffect(
     partner.tags.add(effect.tag);
     return true;
   }
+  if (effect.effect === "switch") {
+    const on = effect.to === "toggle" ? !partner.channels.has(effect.channel) : effect.to === "on";
+    if (on) partner.channels.add(effect.channel);
+    else partner.channels.delete(effect.channel);
+    return true;
+  }
+  if (effect.effect === "teleport") return true;
   if (effect.effect === "add_status" || effect.effect === "remove_status") {
     if (!statusDefs[effect.statusId]) return false;
     if (effect.effect === "add_status") partner.statuses.add(effect.statusId);
@@ -100,6 +118,8 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
       : emptyEquipment(),
     tags: new Set(),
     statuses: new Set(),
+    king: false,
+    channels: new Set(),
   }));
   const [adding, setAdding] = useState<string | null>(null);
 
@@ -183,22 +203,30 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
           <span className="text-[10px] uppercase text-muted">tags</span>
           <Input
             value={[...pretend.tags].join(", ")}
-            onChange={(e) =>
-              setPretend({
-                ...pretend,
-                tags: new Set(
-                  e.target.value
-                    .split(",")
-                    .map((t) => t.trim())
-                    .filter(Boolean),
-                ),
-              })
-            }
+            onChange={(e) => setPretend({ ...pretend, tags: listed(e.target.value) })}
             className="w-40"
             placeholder="none"
             aria-label="Pretend tags, comma separated"
           />
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase text-muted">channels on</span>
+          <Input
+            value={[...pretend.channels].join(", ")}
+            onChange={(e) => setPretend({ ...pretend, channels: listed(e.target.value) })}
+            className="w-40"
+            placeholder="none"
+            aria-label="Pretend channels switched on, comma separated"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-[10px] uppercase text-muted">
+          <Switch
+            checked={pretend.king}
+            onCheckedChange={(king) => setPretend({ ...pretend, king })}
+            ariaLabel="Pretend to be the king"
+          />
+          king
+        </label>
         {Object.keys(statusDefs).length > 0 ? (
           <div className="flex flex-wrap items-center gap-1">
             <span className="text-[10px] uppercase text-muted">statuses</span>
@@ -242,6 +270,15 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
         )}
       </div>
     </div>
+  );
+}
+
+function listed(text: string): Set<string> {
+  return new Set(
+    text
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean),
   );
 }
 

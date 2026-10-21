@@ -20,6 +20,7 @@ import { GameSocket } from "./sockets";
 import { readConfig } from "./config";
 import { World, type PlayerEntry } from "./world";
 import type { CharacterSheet } from "./GameServer";
+import type { GameSession } from "../app/game/GameSession";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -559,6 +560,8 @@ describe("the realm", () => {
     const tobin = await character("Tobin Reed", 20);
     await world.join(openSocket(), maren, { admin: false });
     expect((await realm()).king?.name).toBe("Maren Ormstead I");
+    const session = (world.server as unknown as { session: GameSession }).session;
+    expect(session.actorSnapshots().find((actor) => actor.id === maren)?.king).toBe(true);
 
     await killInWorld(maren, { source: "Rusty sword", by: "Tobin Reed", byId: tobin });
     const after = await realm();

@@ -852,6 +852,7 @@ export class GameServer {
           clock: () => this.minutesOfDay(),
           depots: this.depots,
         });
+    this.session.setKing(this.kingId);
     this.dead = new Set(board ? (checkpoint!.dead ?? []) : []);
     this.broadcastMap = this.session.getMap();
     /**
@@ -1588,6 +1589,7 @@ export class GameServer {
   crown(actorId: string | null) {
     if (actorId === this.kingId) return;
     this.kingId = actorId;
+    this.session?.setKing(actorId);
     this.broadcast({ type: "king", actorId });
   }
 

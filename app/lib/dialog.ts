@@ -1,6 +1,7 @@
 import * as v from "valibot";
+import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import { resolveContainer } from "./item";
-import type { TileDef } from "./types";
+import { MAX_LEVEL, MIN_LEVEL, type Coord, type TileDef } from "./types";
 
 export type TradeSide = { tileId: string; count: number };
 
@@ -17,12 +18,31 @@ export type DialogTrade = {
 
 export type DialogChoice = { label: string; then: DialogCommand[] };
 
+export type DialogCondition =
+  | { cond: "king" }
+  | { cond: "tagged"; tag: string }
+  | { cond: "switched"; channel: string };
+
+export type DialogIf = {
+  kind: "if";
+  when: ConditionNode<DialogCondition>;
+  then: DialogCommand[];
+  else: DialogCommand[];
+};
+
+export type SwitchTo = "toggle" | "on" | "off";
+
+export const SWITCH_TO: SwitchTo[] = ["toggle", "on", "off"];
+
 export type DialogCommand =
   | { kind: "say"; text: string }
   | { kind: "anchor"; name: string }
   | { kind: "goto"; name: string }
   | { kind: "choices"; options: DialogChoice[] }
   | DialogTrade
+  | DialogIf
+  | { kind: "switch"; channel: string; to: SwitchTo }
+  | { kind: "teleport"; to: Coord }
   | { kind: "add_status"; statusId: string }
   | { kind: "remove_status"; statusId: string }
   | { kind: "tag"; tag: string };
@@ -45,6 +65,14 @@ const line = v.pipe(v.string(), v.minLength(1));
 const count = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT));
 
 const tradeSideSchema = v.object({ tileId, count });
+
+const whenSchema = conditionSchema<DialogCondition>(
+  v.variant("cond", [
+    v.object({ cond: v.literal("king") }),
+    v.object({ cond: v.literal("tagged"), tag: name }),
+    v.object({ cond: v.literal("switched"), channel: name }),
+  ]),
+);
 
 /**
  * Typed explicitly and referenced through `v.lazy` inside its own options and
@@ -81,6 +109,21 @@ const commandSchema: v.GenericSchema<unknown, DialogCommand> = v.variant("kind",
     v.check((raw) => raw.take.length + raw.give.length > 0, "a trade moves something"),
     v.check((raw) => raw.max >= raw.min, "a quantity's ceiling is at least its floor"),
   ),
+  v.object({
+    kind: v.literal("if"),
+    when: whenSchema,
+    then: v.array(v.lazy(() => commandSchema)),
+    else: v.array(v.lazy(() => commandSchema)),
+  }),
+  v.object({ kind: v.literal("switch"), channel: name, to: v.picklist(SWITCH_TO) }),
+  v.object({
+    kind: v.literal("teleport"),
+    to: v.object({
+      x: v.pipe(v.number(), v.integer()),
+      y: v.pipe(v.number(), v.integer()),
+      z: v.pipe(v.number(), v.integer(), v.minValue(MIN_LEVEL), v.maxValue(MAX_LEVEL)),
+    }),
+  }),
   v.object({ kind: v.literal("add_status"), statusId: tileId }),
   v.object({ kind: v.literal("remove_status"), statusId: tileId }),
   v.object({ kind: v.literal("tag"), tag: name }),
@@ -106,6 +149,7 @@ export type CommandPath = readonly number[];
 export function branchesOf(command: DialogCommand): readonly DialogCommand[][] {
   if (command.kind === "choices") return command.options.map((option) => option.then);
   if (command.kind === "request_trade") return [command.traded, command.cancel];
+  if (command.kind === "if") return [command.then, command.else];
   return [];
 }
 
@@ -124,6 +168,9 @@ export function withBranch(
   }
   if (command.kind === "request_trade") {
     return index === 0 ? { ...command, traded: list } : { ...command, cancel: list };
+  }
+  if (command.kind === "if") {
+    return index === 0 ? { ...command, then: list } : { ...command, else: list };
   }
   return command;
 }
@@ -239,6 +286,17 @@ function checkCommand(
     error(`${where} jumps to "${command.name}", and no anchor has that name`);
   }
   if (command.kind === "tag" && command.tag.trim() === "") error(`${where} has no tag`);
+  if (command.kind === "if") {
+    for (const leaf of conditionLeaves(command.when)) {
+      if (leaf.cond === "tagged" && leaf.tag.trim() === "") error(`${where} asks for no tag`);
+      if (leaf.cond === "switched" && leaf.channel.trim() === "") {
+        error(`${where} asks about no channel`);
+      }
+    }
+  }
+  if (command.kind === "switch" && command.channel.trim() === "") {
+    error(`${where} names no channel`);
+  }
   if (command.kind === "choices") checkChoices(command.options, where, error);
   if (command.kind === "request_trade") checkTrade(command, where, error, catalogue);
   if (!catalogue) return;

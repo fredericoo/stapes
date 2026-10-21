@@ -1291,7 +1291,8 @@ rather than a fix, which is the point.
 `interactions.dialog` (`app/lib/dialog.ts`, run by `app/game/dialogRuntime.ts`)
 is how an NPC holds a conversation: an ordered list of commands, the way an
 RPG Maker event is — `say` a line, `anchor` a label, `goto` one, offer
-`choices`, `request_trade`, `add_status`, `remove_status`, `tag`. A choice
+`choices`, `request_trade`, branch on an `if`, throw a `switch`,
+`teleport` the player, `add_status`, `remove_status`, `tag`. A choice
 holds the commands each button leads to; a trade holds what happens when it
 goes through and when it is cancelled. The interpreter runs one list at a
 time from a counter, descends into a branch on the player's press, continues
@@ -1301,9 +1302,9 @@ after the block when the branch runs out, and stops when the root does.
 every button with its own condition, reply and effects — and it could say
 one thing per press and nothing between presses. A script says as much as it
 likes, in any order, and a new kind of command is one more arm rather than a
-new field on every option. `if` is the arm coming next; the interpreter
-already treats every nested list the same, so it will be a block like
-`choices` is. And before the tree there were typed keywords, which did not
+new field on every option. `if` is a block like `choices`, with two lists
+instead of one per button, so it needed nothing new from the interpreter
+beyond choosing the branch itself. And before the tree there were typed keywords, which did not
 survive a phone: what an NPC can be asked is what is on the buttons, and chat
 is for people.
 
@@ -1495,6 +1496,39 @@ would give it hit points, and hit points are killable: a world where somebody
 has punched the blacksmith to death is a world with no way to buy a weapon,
 and nothing respawns him. The potion salesman predates this and is still a
 battler, which is the same exposure.
+
+### An `if` asks about the player, a `switch` throws levers by channel, and a `teleport` moves them
+
+- **`if` holds a condition tree** (`app/lib/conditions`, the brain's own
+  `and`/`or`/`not` groups) over dialog leaves, and runs `then` (branch 0) or
+  `else` (branch 1) without waiting for a press. There are three leaves.
+  `{ cond: "king" }` is read through `PartnerView.isKing`: on the server it
+  is `GameSession.kingId`, which `GameServer.crown` sets alongside the `king`
+  broadcast and `load` sets on every new session. The world in a tab has no
+  realm, so there nobody is king; Try it has a switch to pretend.
+  `{ cond: "tagged", tag }` asks whether the player carries a tag, which is
+  how a script remembers that something already happened: the `tag` command
+  writes it, and a death clears it with every other tag.
+  `{ cond: "switched", channel }` asks whether the channel is on, read the
+  way a receiver in `any` mode reads it: `readChannels` over the wired cells
+  plus the brain-state emitters, so it agrees with what the doors on that
+  channel are doing. In Try it the pretend channels field answers it, and a
+  `switch` command updates that field.
+- **`switch` does not hold any state of its own.** It throws every placed tile
+  on its `channel` that has a `switch` interaction, exactly as if somebody had
+  used each one, so the lever's own `emit` drives whatever is wired to the
+  channel and the map is the record of whether it is on. `to: "on"` or
+  `"off"` skips a lever already emitting that value; a lever with no `emit`
+  counts as off. A channel with no lever on it is an effect that does
+  nothing, like a status nobody authored. The lever can stand anywhere,
+  including somewhere nobody can reach, which is how a conversation becomes
+  the only way to work it.
+- **`teleport` is the teleport tile's move with the destination in the
+  script.** It checks `teleportFits` for the player's body first and does
+  nothing if they would not fit, so a blocked destination is a skipped
+  effect. Nothing closes the conversation on purpose: the next tick finds
+  the player out of talk reach and closes it, so a line after the teleport
+  is never read.
 
 ### Authoring a dialog is a list of commands, with the real panel beside it
 
@@ -4751,7 +4785,11 @@ What replaced each of the three:
   a pixel mouse icon for its button (`MOUSE_PIXELS` in `textLabels.ts`) and in
   its own colour from `INTERACTION_COLORS`, so a body reads a red Attack beside
   a white Target and a quest chest a purple Open. A thing with one verb shows
-  one hint. The name always sits in the name-tag slot under the hints: a body
+  one hint. A blocked verb keeps its mouse icon and its button but shows its
+  reason in grey (`BLOCKED_INK`) in place of the verb — "Needs *10", "No room"
+  — and the cursor does not change, because the other button may still work.
+  Clicking it says why in a notice (`blockedNotice`); from afar it walks there
+  first and says why on arrival, the same walk an unblocked verb takes. The name always sits in the name-tag slot under the hints: a body
   with health has its own tag there, and anything else gets one drawn in the
   same place with an invisible health bar (`reserveBar`) so the two line up. The
   hints are laid out on top of that name label rather than at their own lift
@@ -13198,6 +13236,15 @@ emits cells in a stable (x, y) order so a one-cell edit is a one-line diff.
 
 Batch multi-cell edits through `setStacks` in one call so each chunk is copied
 once — `moveEntity` touches two cells and does exactly that.
+
+**`getStack` reads a chunk through a slot index, not its cell keys.** The first
+read of a chunk files its stacks in a `CHUNK_SIZE²` array kept in a `WeakMap`
+on the chunk, and `setStacks` hands each copy its source's array with the edits
+applied, so a read builds no `"x,y"` string. That is only correct while a chunk
+is never written after `setStacks` returns it: a chunk edited in place keeps
+answering with the stacks it held when it was first read. Fractional
+coordinates are not slots and go through the cell key as before. On the fixture
+town it took a `getStack` call from about 155ns to 95ns.
 
 ### Do not sweep for the player
 

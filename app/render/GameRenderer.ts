@@ -29,9 +29,12 @@ import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
 import type { Depots } from "../game/depot";
 import { offeredRecipes, type CraftingWindow } from "../game/craft";
+import { blockedNotice } from "../game/notices";
 import {
   applyInteraction,
+  blockReason,
   interactionText,
+  pointerHintText,
   listInteractionOptions,
   rankedInteractionsAt,
   refOptionsFrom,
@@ -44,7 +47,7 @@ import type { Reaching } from "../game/pathfinding";
 import type { Extraction } from "../game/extract";
 import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby } from "./nearbyInscriptions";
-import { INTERACTION_COLORS } from "./interactionColors";
+import { BLOCKED_INK, INTERACTION_COLORS } from "./interactionColors";
 import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
@@ -168,13 +171,22 @@ function interactionInk(option: InteractionOption): string {
   return INTERACTION_COLORS[option.action].ink;
 }
 
+function hintInk(option: InteractionOption): string {
+  return option.blocked ? BLOCKED_INK : interactionInk(option);
+}
+
 function buttonLine(first: InteractionOption, second: InteractionOption | null): LabelLine {
-  const left = { button: "left", text: first.label, color: interactionInk(first) } as const;
+  const left = { button: "left", text: pointerHintText(first), color: hintInk(first) } as const;
   if (!second) return { id: "buttons", hints: [left] };
   return {
     id: "buttons",
-    hints: [left, { button: "right", text: second.label, color: interactionInk(second) }],
+    hints: [left, { button: "right", text: pointerHintText(second), color: hintInk(second) }],
   };
+}
+
+function touchHintText(option: InteractionOption): string {
+  const reason = option.blocked ? blockReason(option.blocked) : null;
+  return reason ? `${interactionText(option)}, ${reason}` : interactionText(option);
 }
 
 const POINTER_NAME_ID = "look:name";
@@ -281,6 +293,7 @@ export class GameRenderer {
   private afarSent: InteractionOption[] | null = null;
   private readonly afarByRef = new Map<string, InteractionOption[]>();
   private approaching: { id: string; label: string; stillSinceMs: number | null } | null = null;
+  private explained: string[] = [];
   private listHoverId: string | null = null;
   private dropDrag: { from: SlotRef; tileId: string; point: { x: number; y: number } } | null =
     null;
@@ -483,6 +496,9 @@ export class GameRenderer {
       this.notices.push(text, nowMs);
     }
     for (const text of this.walkTo?.drainNotices() ?? []) {
+      this.notices.push(text, nowMs);
+    }
+    for (const text of this.explained.splice(0)) {
       this.notices.push(text, nowMs);
     }
     this.notificationLayer?.set(this.notices.live(nowMs));
@@ -957,11 +973,21 @@ export class GameRenderer {
   }
 
   private runPointerOption(option: InteractionOption) {
-    if (this.listOption(option.id)) {
+    const near = this.listOption(option.id);
+    if (near?.blocked) {
+      this.explain(near);
+      return;
+    }
+    if (near) {
       this.runOption(option);
       return;
     }
     this.approach(option);
+  }
+
+  private explain(option: InteractionOption) {
+    const text = blockedNotice(option);
+    if (text) this.explained.push(text);
   }
 
   private approach(option: InteractionOption) {
@@ -998,6 +1024,11 @@ export class GameRenderer {
     if (!walkTo.arrived || snap.self.walk !== null) return;
     pending.stillSinceMs ??= nowMs;
     if (runnable && this.runOption(runnable)) {
+      this.endApproach();
+      return;
+    }
+    if (ready?.blocked && ready.label === pending.label) {
+      this.explain(ready);
       this.endApproach();
       return;
     }
@@ -1571,8 +1602,8 @@ export class GameRenderer {
         ref: option.ref,
         actorId: option.actorId,
         height,
-        lines: [{ id: "action", text: interactionText(option) }],
-        color: interactionInk(option),
+        lines: [{ id: "action", text: touchHintText(option) }],
+        color: hintInk(option),
       };
     }
     const second = this.pointerOptions()[1] ?? null;
