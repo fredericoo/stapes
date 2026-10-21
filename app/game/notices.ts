@@ -5,6 +5,7 @@ import { EQUIP_SLOTS } from "../lib/kit";
 import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
 import type { CastRefusal } from "./casting";
+import type { InteractionOption } from "./interactionOptions";
 import {
   COMMAND_PREFIX,
   COMMAND_USAGE,
@@ -35,6 +36,23 @@ function sentenceVerb(authored: string | undefined, fallback: string): string {
   const verb = authored?.trim();
   if (!verb) return fallback;
   return verb[0].toLowerCase() + verb.slice(1);
+}
+
+const DEFAULT_BLOCKED_VERB = "use";
+
+/**
+ * Why a click on a blocked thing did nothing. A pull already under way says
+ * nothing: its progress is already on screen.
+ */
+export function blockedNotice(
+  option: Pick<InteractionOption, "label" | "name" | "blocked">,
+): string | null {
+  const blocked = option.blocked;
+  if (!blocked || blocked.kind === "working") return null;
+  const doing = `${sentenceVerb(option.label, DEFAULT_BLOCKED_VERB)} ${option.name}`;
+  if (blocked.kind === "needs") return `You need a rating of ${blocked.rating} to ${doing}`;
+  if (blocked.kind === "taken") return `${option.name} is in use`;
+  return `You have no room to ${doing}`;
 }
 
 function verbOf(reward: PlacedReward): string {

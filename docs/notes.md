@@ -4751,7 +4751,11 @@ What replaced each of the three:
   a pixel mouse icon for its button (`MOUSE_PIXELS` in `textLabels.ts`) and in
   its own colour from `INTERACTION_COLORS`, so a body reads a red Attack beside
   a white Target and a quest chest a purple Open. A thing with one verb shows
-  one hint. The name always sits in the name-tag slot under the hints: a body
+  one hint. A blocked verb keeps its mouse icon and its button but shows its
+  reason in grey (`BLOCKED_INK`) in place of the verb — "Needs *10", "No room"
+  — and the cursor does not change, because the other button may still work.
+  Clicking it says why in a notice (`blockedNotice`); from afar it walks there
+  first and says why on arrival, the same walk an unblocked verb takes. The name always sits in the name-tag slot under the hints: a body
   with health has its own tag there, and anything else gets one drawn in the
   same place with an invisible health bar (`reserveBar`) so the two line up. The
   hints are laid out on top of that name label rather than at their own lift

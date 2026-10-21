@@ -12,6 +12,7 @@ import {
   DEFAULT_CRAFT_VERB,
 } from "../lib/interactions";
 import { consumeVerb, EQUIP_FALLBACK_VERB, equipVerb, resolveConsumable } from "../lib/item";
+import { RATING_GLYPH } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Progress } from "./progress";
@@ -110,6 +111,26 @@ const NOTHING_EXTRACTING: Extraction | null = null;
 
 export function interactionText(option: InteractionOption): string {
   return `${option.label} ${option.name}`;
+}
+
+export function blockReason(blocked: OptionBlock): string | null {
+  if (blocked.kind === "working") return "working";
+  if (blocked.kind === "taken") return "in use";
+  if (blocked.kind === "needs") return `needs rating ${blocked.rating}`;
+  return "no room";
+}
+
+export function drawnBlockReason(blocked: OptionBlock): string | null {
+  if (blocked.kind === "working") return null;
+  if (blocked.kind === "needs") return `needs ${RATING_GLYPH}${blocked.rating}`;
+  return blockReason(blocked);
+}
+
+/** What a pointer hint says for `option`: its verb, or why it cannot be done right now. */
+export function pointerHintText(option: Pick<InteractionOption, "label" | "blocked">): string {
+  const reason = option.blocked ? drawnBlockReason(option.blocked) : null;
+  if (!reason) return option.label;
+  return reason[0].toUpperCase() + reason.slice(1);
 }
 
 const ACTION_ORDER: Record<InteractionAction, number> = {
