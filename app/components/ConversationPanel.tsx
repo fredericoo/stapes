@@ -1,4 +1,4 @@
-import { IconClose, IconMinus, IconPlus } from "./pixelIcons";
+import { IconClose, IconMinus, IconPlus, IconSearch } from "./pixelIcons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   scaledTrade,
@@ -35,15 +35,16 @@ import { useTap } from "./useTap";
 export const CLOSE_ICON_SIZE_PX = 12;
 const STEP_ICON_SIZE_PX = 12;
 const ITEM_SPRITE_SIZE_PX = 18;
+const INSPECT_ICON_SIZE_PX = 12;
 
 const NO_MASTERY_XP: MasteryXp = {};
 const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 const ROW_CLASS =
-  "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9";
+  "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11";
 export const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
 export const CLOSE_BUTTON_CLASS =
-  "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent relative pointer-coarse:after:absolute pointer-coarse:after:-inset-3";
 export const LABEL_CLASS = "truncate text-detail leading-snug font-medium tracking-tight";
 const CHOICE_LABEL_CLASS = "text-detail leading-snug font-medium tracking-tight";
 const TURN_GAP_CLASS = "mt-1.5";
@@ -150,7 +151,7 @@ export function ConversationPanel({
           ))}
         </ol>
         {waiting?.kind === "choices" ? (
-          <div className="flex flex-col gap-1" key={conversation.pc.join(".")}>
+          <div className="flex flex-col gap-1 pointer-coarse:gap-2" key={conversation.pc.join(".")}>
             {waiting.options.map((option, index) => (
               <PanelButton key={index} onPress={() => onTalk({ kind: "choose", index })}>
                 {hotkeys ? <KeyHint label={numberKeyLabel(index)} /> : null}
@@ -253,7 +254,7 @@ function TradeOffer({
   const possible = plan !== null;
   const stepBaseClass =
     "grid shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-  const stepClass = `${stepBaseClass} w-8 pointer-coarse:w-9`;
+  const stepClass = `${stepBaseClass} w-8 pointer-coarse:w-11`;
   const step = (delta: 1 | -1) =>
     setAmount((c) => Math.min(trade.max, Math.max(trade.min, c + delta)));
   const less = useTap(() => step(-1));
@@ -307,7 +308,7 @@ function TradeOffer({
         </>
       ) : null}
       {trade.max > trade.min ? (
-        <div className="flex items-stretch gap-1">
+        <div className="flex items-stretch gap-1 pointer-coarse:min-h-11 pointer-coarse:gap-2">
           <button
             type="button"
             {...less}
@@ -353,7 +354,7 @@ function TradeOffer({
           There is nowhere on you to put what you would get.
         </p>
       ) : null}
-      <div className="flex gap-1">
+      <div className="flex gap-1 pointer-coarse:gap-2">
         <PanelButton
           className={`${OPTION_CLASS} flex-1`}
           disabled={!possible}
@@ -442,7 +443,7 @@ function TradeSideItem({
       onFocus={() => setPointedAt(true)}
       onBlur={() => setPointedAt(false)}
       aria-label={card ? `${side.count} ${card.speech}` : undefined}
-      className="flex items-center gap-1 border border-paper/20 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="flex items-center gap-1 border border-paper/20 px-1 pointer-coarse:min-h-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       style={{
         touchAction: coarse ? "none" : undefined,
       }}
@@ -459,6 +460,9 @@ function TradeSideItem({
       ) : null}
       <span className="tabular-nums">×{side.count}</span>
       <span className="truncate">{def?.name ?? side.tileId}</span>
+      {coarse && card ? (
+        <IconSearch size={INSPECT_ICON_SIZE_PX} aria-hidden="true" className="text-paper/60" />
+      ) : null}
     </span>
   );
 
