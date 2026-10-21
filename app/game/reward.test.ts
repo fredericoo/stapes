@@ -309,6 +309,32 @@ describe("taking a reward", () => {
   });
 });
 
+describe("a reward the taker has no room for", () => {
+  const rowsCarrying = (equipment: Equipment, map = board()) => {
+    const snap = new GameSession(map, tiles).getSnapshot();
+    return listInteractionOptions(snap.map, tilesById, snap.self, [], null, equipment, null, []);
+  };
+  const chestRow = (rows: ReturnType<typeof rowsCarrying>) =>
+    rows.find((o) => o.action === "reward" && o.ref.x === CHEST.x && o.ref.y === CHEST.y);
+
+  it("stays listed, blocked for want of room", () => {
+    expect(chestRow(rowsCarrying(bagWith(3)))?.blocked).toEqual({ kind: "noRoom" });
+  });
+
+  it("names the rating it needs before the room, since emptying the bag would not open it", () => {
+    const short = new GameSession(board(), tiles).getSnapshot().self.rating! + 1;
+    expect(chestRow(rowsCarrying(bagWith(3), requiring(short)))?.blocked).toEqual({
+      kind: "needs",
+      rating: short,
+    });
+  });
+
+  it("is not listed when it names an item that no longer exists", () => {
+    const map = board("quest-chest", REWARD_TAG, ["ghost-item"]);
+    expect(chestRow(rowsCarrying(bagWith(0), map))).toBeUndefined();
+  });
+});
+
 describe("a reward the actor cannot reach", () => {
   it("is not offered from two cells away", () => {
     const map = board();

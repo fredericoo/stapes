@@ -23,8 +23,9 @@ import {
   canOpenFrom,
   canPickUpFrom,
   canPushFrom,
-  canRewardFrom,
   reachableRewardAt,
+  rewardFits,
+  rewardOfferedAt,
   rewardShortfall,
   canSwitchFrom,
   canTeleportFrom,
@@ -619,7 +620,7 @@ function actionBlock(
   extracting: Extraction | null,
 ): OptionBlock | null {
   if (action === "extract") return extractBlock(map, tilesById, self, equipment, ref, extracting);
-  if (action === "reward") return rewardBlock(map, tilesById, self, ref);
+  if (action === "reward") return rewardBlock(map, tilesById, self, equipment, ref);
   return null;
 }
 
@@ -627,11 +628,15 @@ function rewardBlock(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   self: ActorSnapshot,
+  equipment: Equipment,
   ref: ObjectRef,
 ): OptionBlock | null {
   const reward = reachableRewardAt(map, tilesById, self, ref);
-  const short = reward ? rewardShortfall(reward, self.rating) : null;
-  return short ? { kind: "needs", rating: short.rating } : null;
+  if (!reward) return null;
+  const short = rewardShortfall(reward, self.rating);
+  if (short) return { kind: "needs", rating: short.rating };
+  if (!rewardFits(reward, tilesById, equipment)) return { kind: "noRoom" };
+  return null;
 }
 
 function extractBlock(
@@ -660,7 +665,7 @@ function objectAction(
   tags: readonly string[],
   equipSlot: EquipSlot | null,
 ): InteractionAction | null {
-  if (canRewardFrom(map, tilesById, self, ref, equipment, tags)) return "reward";
+  if (rewardOfferedAt(map, tilesById, self, ref, tags)) return "reward";
   const selfDef = tilesById[self.tileId];
   if (selfDef && canTeleportFrom(map, tilesById, self, ref, selfDef)) {
     return "teleport";

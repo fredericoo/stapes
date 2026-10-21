@@ -458,12 +458,32 @@ export function rewardFits(
   const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
   const free = size - (bag.contents?.length ?? 0);
   if (reward.itemTileIds.length > free) return false;
+  return rewardGivable(reward, tilesById);
+}
 
+/** Whether every item `reward` names still exists and is something a bag can hold. */
+function rewardGivable(reward: PlacedReward, tilesById: Record<string, TileDef>): boolean {
   return reward.itemTileIds.every((tileId) => {
     const def = tilesById[tileId];
     if (!def) return false;
     return resolveItem(def) != null && resolveContainer(def) == null;
   });
+}
+
+/**
+ * A reward within reach that the holder of `tags` has not taken, whether or
+ * not they can take it right now: the interaction list shows it blocked.
+ */
+export function rewardOfferedAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  tags: readonly string[],
+): PlacedReward | null {
+  const reward = reachableRewardAt(map, tilesById, actor, ref);
+  if (!reward || tags.includes(reward.tag)) return null;
+  return rewardGivable(reward, tilesById) ? reward : null;
 }
 
 export function canRewardFrom(
@@ -474,10 +494,8 @@ export function canRewardFrom(
   equipment: Equipment,
   tags: readonly string[],
 ): boolean {
-  const reward = reachableRewardAt(map, tilesById, actor, ref);
-  if (!reward) return false;
-  if (tags.includes(reward.tag)) return false;
-  return rewardFits(reward, tilesById, equipment);
+  const reward = rewardOfferedAt(map, tilesById, actor, ref, tags);
+  return reward !== null && rewardFits(reward, tilesById, equipment);
 }
 
 /**
