@@ -25,11 +25,12 @@ import { itemCard } from "../game/itemCard";
 import type { MasteryXp } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import { bindNumberKeys, bindStepKeys, numberKeyLabel } from "../game/heldDirections";
-import { useCoarsePointer } from "../lib/useMediaQuery";
+import { useCoarsePointer, useReducedMotion } from "../lib/useMediaQuery";
 import { useDwell } from "../lib/useDwell";
 import { Tooltip } from "../ui";
 import { ItemCard } from "./ItemCard";
 import { KeyHint } from "./KeyHint";
+import { TypedText } from "./TypedText";
 import { useTap } from "./useTap";
 
 export const CLOSE_ICON_SIZE_PX = 12;
@@ -93,7 +94,15 @@ export function ConversationPanel({
     if (line) body.scrollTop = line.offsetTop;
   }, [conversation, lastPress]);
 
-  const choices = waiting?.kind === "choices" ? waiting.options.length : 0;
+  const { typingIndex, typing, onTyped, skip } = useTypingCursor(conversation, useReducedMotion());
+  const skipRef = useRef(skip);
+  skipRef.current = skip;
+  useEffect(() => {
+    if (!hotkeys || !typing) return;
+    return bindNumberKeys(() => skipRef.current());
+  }, [hotkeys, typing]);
+
+  const choices = !typing && waiting?.kind === "choices" ? waiting.options.length : 0;
   const onTalkRef = useRef(onTalk);
   onTalkRef.current = onTalk;
   useEffect(() => {
@@ -137,20 +146,23 @@ export function ConversationPanel({
        */}
       <div
         ref={bodyRef}
+        onClick={typing ? skip : undefined}
         className="relative flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
       >
         <ol role="log" aria-live="polite" className="flex flex-col gap-1">
-          {conversation.transcript.map((entry, i) => (
+          {conversation.transcript.slice(0, typingIndex + 1).map((entry, i) => (
             <TranscriptLine
               key={i}
               index={i}
               entry={entry}
               speaker={title}
               newTurn={i > 0 && entry.who !== conversation.transcript[i - 1]!.who}
+              typing={i === typingIndex}
+              onTyped={onTyped}
             />
           ))}
         </ol>
-        {waiting?.kind === "choices" ? (
+        {!typing && waiting?.kind === "choices" ? (
           <div className="flex flex-col gap-1 pointer-coarse:gap-2" key={conversation.pc.join(".")}>
             {waiting.options.map((option, index) => (
               <PanelButton key={index} onPress={() => onTalk({ kind: "choose", index })}>
@@ -160,7 +172,7 @@ export function ConversationPanel({
             ))}
           </div>
         ) : null}
-        {waiting?.kind === "request_trade" ? (
+        {!typing && waiting?.kind === "request_trade" ? (
           <TradeOffer
             key={conversation.pc.join(".")}
             trade={waiting}
@@ -183,18 +195,24 @@ function TranscriptLine({
   entry,
   speaker,
   newTurn,
+  typing,
+  onTyped,
 }: {
   index: number;
   entry: TranscriptEntry;
   speaker: string;
   newTurn: boolean;
+  typing: boolean;
+  onTyped: () => void;
 }) {
   const gap = newTurn ? TURN_GAP_CLASS : "";
   if (entry.who === "npc") {
     return (
       <li data-line={index} className={`text-xs leading-snug text-paper ${gap}`}>
-        <span className="sr-only">{speaker}: </span>
-        {entry.text}
+        <span className="sr-only">
+          {speaker}: {entry.text}
+        </span>
+        <TypedText text={entry.text} typing={typing} onTyped={onTyped} />
       </li>
     );
   }
@@ -213,6 +231,34 @@ function TranscriptLine({
       {entry.text}
     </li>
   );
+}
+
+/**
+ * NPC lines type out one after another; the player's own lines and notes
+ * appear at once. On mount only the reply to the last press types, so a panel
+ * that remounts mid-conversation does not retype everything above it.
+ */
+function useTypingCursor(conversation: Conversation, instant: boolean) {
+  const { npcId, transcript } = conversation;
+  const [typed, setTyped] = useState(() => ({ npcId, count: lastPlayerEntry(transcript) + 1 }));
+  let count = typed.count;
+  if (typed.npcId !== npcId || typed.count > transcript.length) {
+    count = lastPlayerEntry(transcript) + 1;
+    setTyped({ npcId, count });
+  }
+  const typingIndex = instant ? transcript.length : nextNpcLine(transcript, count);
+  return {
+    typingIndex,
+    typing: typingIndex < transcript.length,
+    onTyped: () => setTyped({ npcId, count: typingIndex + 1 }),
+    skip: () => setTyped({ npcId, count: transcript.length }),
+  };
+}
+
+function nextNpcLine(transcript: readonly TranscriptEntry[], from: number): number {
+  let i = from;
+  while (i < transcript.length && transcript[i]!.who !== "npc") i++;
+  return i;
 }
 
 function lastPlayerEntry(transcript: readonly TranscriptEntry[]): number {

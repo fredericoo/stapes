@@ -1315,6 +1315,18 @@ on needs. Running off the end, or a branch with no `goto` back, leaves the
 transcript up and the close button as the only thing left — the script
 stopped, and the panel says so by offering nothing.
 
+**An NPC's lines type out.** `ConversationPanel` reveals each new `npc` line
+at 100 characters a second (`TypedText`), one line after another, and shows
+the choices or the trade only once the last has finished. A tap on the
+transcript, or a number key in the game, finishes them all at once, so a
+number key pressed early never picks a choice the player has not seen.
+`TypedText` writes the two text nodes from `requestAnimationFrame` instead of
+re-rendering per character, and keeps the untyped rest in the layout but
+invisible, so the line wraps where it ends up and nothing under it moves.
+Screen readers get the whole line in an `sr-only` span the moment it
+appears; reduced motion shows it whole. A panel that mounts mid-conversation
+types only the reply to the last press.
+
 **A conversation is the player's, not the NPC's.** `ActorRuntime.conversation`
 — `{ npcId, tileId, pc, transcript }` — lives on whoever pressed Talk, so any
 number of people can be running one salesman's script and none sees the
