@@ -33881,7 +33881,7 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 30,
         "hit": {
           "durationMs": 160,
           "particles": {
@@ -34339,7 +34339,7 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 30,
         "hit": {
           "durationMs": 220,
           "particles": {
@@ -34637,7 +34637,7 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 30,
         "hit": {
           "durationMs": 300,
           "particles": {
@@ -35575,7 +35575,7 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 12,
         "hit": {
           "durationMs": 160,
           "particles": {
@@ -35769,7 +35769,7 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 12,
         "hit": {
           "durationMs": 220,
           "particles": {
@@ -35963,7 +35963,7 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 12,
         "hit": {
           "durationMs": 300,
           "particles": {
@@ -36903,7 +36903,7 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 20,
         "hit": {
           "durationMs": 220,
           "particles": {
@@ -37147,7 +37147,7 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 20,
         "hit": {
           "durationMs": 300,
           "particles": {

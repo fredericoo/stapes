@@ -5703,10 +5703,13 @@ with a wider trail, a brighter light and a bigger hit. Lance is the exception to
   flight's position each frame, so it is left behind in the world. The hits use
   5×5 particle shapes — a sparkle, a snowflake, a leaf — drawn at size 5, one
   world pixel per character. Tier 3 stones also keep their own area `burst`.
-- **Speeds stayed where they were.** A slower flight lands its blow later
-  (`blowsInFlight`), so a speed is a balance change, not a look. Every new
-  projectile flies at eight cells a second except `cinder-flame`, which keeps
-  the twenty Cinder had on `fireball`.
+- **The speed is the element's, whatever the tier.** Neutral flies at thirty
+  cells a second, fire at twenty, nature at twelve and water at eight, so an
+  arcane bolt snaps across and a frost shard drifts. A flight lands its blow
+  when it arrives (`blowsInFlight`), so this is a balance change as well as a
+  look: across six cells a neutral bolt lands in a fifth of a second and a
+  water one in three quarters, and the target has that long to step out of a
+  cell before an area burst goes off.
 
 ### A tile names one sheet, and every rect is measured from one cell
 
