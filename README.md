@@ -136,8 +136,8 @@ an agent drives", lists every call.
   shape and its palette entries live in the script where a diff can read them
 - `bun run generate:spell-projectiles` — redraw `data/tilesets/spell-projectiles.png`,
   the neutral, water, nature and fire bolts at each of three tiers, cut from
-  `tiny-ranch-tiles.png` and repainted in palette colours, with the thorn and the
-  leaf drawn in the script. Which source pixel takes which palette entry is a
+  `tiny-ranch-tiles.png` and repainted in palette colours, with the thorn, the
+  leaf, the trident and the diagonal flame drawn in the script. Which source pixel takes which palette entry is a
   table per element in the script; the tiles that fly them are authored in
   `data/tiles.json`
 - `bun run generate:cave-wall` — redraw `data/tilesets/cave-wall.png` and the

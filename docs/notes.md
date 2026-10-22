@@ -5674,8 +5674,9 @@ projectile, one per element per tier:
 | 2 | Bolt → `arcane-bolt` | Frost → `frost-shard` | Thorns → `thorn-leaf` | Ember → `ember-comet` |
 | 3 | Lance → `arcane-lance` | Rime → `rime-orb` | Bramble → `bramble-tangle` | Pyre → `pyre-fireball` |
 
-Tier 1 is a one-cell mote, tier 2 a one-cell bolt, tier 3 a three-cell orb with
-a wider trail, a brighter light and a bigger hit.
+Tier 1 is a one-cell mote, tier 2 a one-cell bolt, tier 3 three cells across
+with a wider trail, a brighter light and a bigger hit. Lance is the exception to
+"tier 3 is an orb": its name asks for a weapon, so it is a trident.
 
 - **The art is cut from `tiny-ranch-tiles.png` and repainted.**
   `scripts/generate-spell-projectiles.ts` maps each source colour to a role
@@ -5683,17 +5684,16 @@ a wider trail, a brighter light and a bigger hit.
   of `STAPES_PALETTE` indices per element. The sources are the sparkle at
   (4, 23), trimmed shorter for the twinkle frame and given diagonal arms for the
   snowflake; the falling star at (12, 14) for the bolt and, with its tail made
-  solid and a point added, the shard; the fireball frames at row 20 in violet
-  for the lance; the same star in its own fire colours for the ember comet; the
+  solid and a point added, the shard; the same star in its own fire colours for the ember comet; the
   smallest flame at (0, 23), shortened to fit a cell and laid on its side so its
   tip trails, for the cinder; the
   bubble frames at row 23 in frost colours for the rime orb;
   and the fern at (18, 18), turned a quarter per frame, for the bramble.
   `pyre-fireball` draws the fireball frames straight off `tiny-ranch-tiles`, as
   the older `fireball` tile does.
-- **The thorn, the leaf and the diagonal flame are drawn in the script.** The
-  sheet has nothing sharp or leaf-shaped that is not food, and its flames only
-  stand upright, so these are letter grids there.
+- **The thorn, the leaf, the trident and the diagonal flame are drawn in the
+  script.** The sheet has nothing sharp or leaf-shaped that is not food, no
+  spear, and its flames only stand upright, so these are letter grids there.
 - **Eight-way tiles turn by quarter turns.** The star exists only on a diagonal;
   the other three diagonals are quarter turns of it, which keeps every pixel on
   the grid. Straightening it scatters its pixels, so the westward flight is a

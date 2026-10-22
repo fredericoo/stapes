@@ -9,7 +9,7 @@ const OUT = path.join(ROOT, "data", "tilesets", "spell-projectiles.png");
 
 const CELL = 8;
 const ORB = 3 * CELL;
-const SHEET_W = 6 * ORB;
+const SHEET_W = 8 * ORB;
 const SMALL_ROWS = 5;
 const ORB_ROWS = 3;
 const QUARTER_TURNS = 4;
@@ -22,12 +22,6 @@ const COMET: Box = { x: 96, y: 112, w: 16, h: 16 };
 const SPARKLE: Box = { x: 30, y: 190, w: 9, h: 9 };
 /** The fern at tiny-ranch (18, 18). */
 const FERN: Box = { x: 144, y: 144, w: 16, h: 16 };
-const FIREBALL_FRAMES: Box[] = [0, 1, 2, 3, 4, 5].map((i) => ({
-  x: i * ORB,
-  y: 160,
-  w: ORB,
-  h: ORB,
-}));
 /** The smallest of the three flames at tiny-ranch (0, 23). */
 const FLAME: Box = { x: 2, y: 187, w: 5, h: 11 };
 const BUBBLE_FRAMES: Box[] = [64, 88, 112, 136].map((x) => ({ x, y: 184, w: ORB, h: ORB }));
@@ -80,7 +74,6 @@ const FIRE: Ink = { c: 28, h: 19, m: 12, d: 9, t: 11 };
 const FIRE_FLICKER: Ink = { c: 19, h: 28, m: 12, d: 9, t: 11 };
 const FLAME_INK: Ink = { c: 28, h: 19, m: 17, d: 10 };
 const FLAME_FLICKER: Ink = { c: 19, h: 28, m: 17, d: 10 };
-const VIOLET_FIRE: Ink = { "#fcd8c4": 28, "#fbb954": 26, "#f79617": 23, "#e83b3b": 32 };
 const FROZEN_BUBBLE: Ink = {
   "#fcfcfc": 28,
   "#affcdb": 28,
@@ -108,6 +101,34 @@ const FLAME_NORTH_WEST = [
   ".dmmmmd.",
   "...dddm.",
   ".......d",
+];
+/** A trident: three prongs on a crossbar, then a shaft that darkens to its butt. */
+const TRIDENT_WEST = [
+  "chhhd...............",
+  ".....h..............",
+  "chhhhhhhhhhhhhddddtt",
+  ".....h..............",
+  "chhhd...............",
+];
+const TRIDENT_NORTH_WEST = [
+  "....c.............",
+  ".c...h............",
+  "..h...h...........",
+  "...h...h..........",
+  "c...h.h...........",
+  ".h...h............",
+  "..h.h.ht..........",
+  "...h...ht.........",
+  "........ht........",
+  ".........ht.......",
+  "..........ht......",
+  "...........dt.....",
+  "............dt....",
+  ".............dt...",
+  "..............dt..",
+  "...............t..",
+  "................t.",
+  ".................t",
 ];
 const LEAF_DRAWN = [
   ".....ooo",
@@ -175,15 +196,15 @@ function tumble(pixels: Pixel[], size: number): Pixel[][] {
 }
 
 /** n, ne, e, se, s, sw, w, nw — the order `directional8` frames are read in. */
-function octants(northWest: Pixel[], west: Pixel[]): Pixel[][] {
-  const nw = centre(northWest, CELL);
-  const ne = rotateClockwise(nw, CELL);
-  const se = rotateClockwise(ne, CELL);
-  const sw = rotateClockwise(se, CELL);
-  const w = centre(west, CELL);
-  const n = rotateClockwise(w, CELL);
-  const e = rotateClockwise(n, CELL);
-  const s = rotateClockwise(e, CELL);
+function octants(northWest: Pixel[], west: Pixel[], size = CELL): Pixel[][] {
+  const nw = centre(northWest, size);
+  const ne = rotateClockwise(nw, size);
+  const se = rotateClockwise(ne, size);
+  const sw = rotateClockwise(se, size);
+  const w = centre(west, size);
+  const n = rotateClockwise(w, size);
+  const e = rotateClockwise(n, size);
+  const s = rotateClockwise(e, size);
   return [n, ne, e, se, s, sw, w, nw];
 }
 
@@ -299,8 +320,8 @@ const strips: Strip[] = [
     row: 4,
   },
   {
-    frames: FIREBALL_FRAMES.map((box) => cut(sheet, box)),
-    ink: VIOLET_FIRE,
+    frames: octants(drawn(TRIDENT_NORTH_WEST), drawn(TRIDENT_WEST), ORB),
+    ink: VIOLET,
     size: ORB,
     column: 0,
     row: 0,

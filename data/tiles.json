@@ -34396,135 +34396,205 @@
     "height": 0,
     "kind": "projectile",
     "attributes": {},
-    "type": "simple",
+    "type": "directional8",
     "anchor": {
       "tilesetId": "spell-projectiles",
       "x": 0,
-      "y": 0
+      "y": 5
     },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 5,
-              "w": 3,
-              "h": 3
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 1
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
             }
-          },
-          "durationMs": 90,
-          "light": {
-            "radius": 2,
-            "intensity": 0.7,
-            "color": "#a884f3"
           }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 3,
-              "y": 5,
-              "w": 3,
-              "h": 3
+        ]
+      },
+      "ne": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 1
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
             }
-          },
-          "durationMs": 90,
-          "light": {
-            "radius": 2,
-            "intensity": 0.7,
-            "color": "#a884f3"
           }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 6,
-              "y": 5,
-              "w": 3,
-              "h": 3
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 1
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
             }
-          },
-          "durationMs": 90,
-          "light": {
-            "radius": 2,
-            "intensity": 0.7,
-            "color": "#a884f3"
           }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 9,
-              "y": 5,
-              "w": 3,
-              "h": 3
+        ]
+      },
+      "se": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 9,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 1
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
             }
-          },
-          "durationMs": 90,
-          "light": {
-            "radius": 2,
-            "intensity": 0.7,
-            "color": "#a884f3"
           }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 12,
-              "y": 5,
-              "w": 3,
-              "h": 3
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 12,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 1
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
             }
-          },
-          "durationMs": 90,
-          "light": {
-            "radius": 2,
-            "intensity": 0.7,
-            "color": "#a884f3"
           }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 15,
-              "y": 5,
-              "w": 3,
-              "h": 3
+        ]
+      },
+      "sw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 15,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 1
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
             }
-          },
-          "durationMs": 90,
-          "light": {
-            "radius": 2,
-            "intensity": 0.7,
-            "color": "#a884f3"
           }
-        }
-      ]
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 18,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "nw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 21,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      }
     },
     "lightPassing": true,
     "particles": {
