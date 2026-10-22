@@ -1037,7 +1037,7 @@ describe("listInteractionOptions — picking things up", () => {
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
-  it("says nothing once the bag and both hands are full", () => {
+  it("offers pick up blocked for no room once the bag and both hands are full", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "sword"]);
     const me = playerAt(map);
@@ -1047,7 +1047,10 @@ describe("listInteractionOptions — picking things up", () => {
       offhand: { id: "o", tileId: "torch" },
     };
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, noRoomAnywhere)).toEqual([]);
+    const options = listInteractionOptions(map, tilesById, me, [me], null, noRoomAnywhere);
+    expect(options.map((option) => [option.action, option.blocked])).toEqual([
+      ["pickUp", { kind: "noRoom" }],
+    ]);
   });
 
   it("reaches for a hand when the bag has no room", () => {
@@ -1243,7 +1246,7 @@ describe("listInteractionOptions — consumables on the floor", () => {
     expect(eat?.label).toBe("Use");
   });
 
-  it("offers the meal when there is nowhere left to put it", () => {
+  it("offers the meal, and pick up blocked, when there is nowhere left to put it", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "cherry"]);
     const me = playerAt(map);
@@ -1253,8 +1256,10 @@ describe("listInteractionOptions — consumables on the floor", () => {
       offhand: { id: "o", tileId: "torch" },
     };
 
-    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, laden))).toEqual([
-      "consume",
+    const options = listInteractionOptions(map, tilesById, me, [me], null, laden);
+    expect(options.map((option) => [option.action, option.blocked?.kind ?? null])).toEqual([
+      ["pickUp", "noRoom"],
+      ["consume", null],
     ]);
   });
 
