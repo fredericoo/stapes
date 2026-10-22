@@ -28897,6 +28897,7 @@
     "lightPassing": true,
     "affectedByGravity": true,
     "walkDurationMs": 150,
+    "swims": true,
     "interactions": {
       "brain": {
         "initial": "scurry",
@@ -30158,6 +30159,7 @@
     "affectedByGravity": true,
     "walkable": false,
     "walkDurationMs": 140,
+    "swims": true,
     "interactions": {
       "brain": {
         "initial": "prowling",
