@@ -28,6 +28,8 @@ const FIREBALL_FRAMES: Box[] = [0, 1, 2, 3, 4, 5].map((i) => ({
   w: ORB,
   h: ORB,
 }));
+/** The smallest of the three flames at tiny-ranch (0, 23). */
+const FLAME: Box = { x: 2, y: 187, w: 5, h: 11 };
 const BUBBLE_FRAMES: Box[] = [64, 88, 112, 136].map((x) => ({ x, y: 184, w: ORB, h: ORB }));
 
 /** A pixel names a key into an `Ink`: a role for hand-drawn and role-mapped art, a source colour for recoloured art. */
@@ -48,6 +50,18 @@ const SPARKLE_ROLES: Record<string, string> = {
   "#53d5cf": "m",
   "#4d9be6": "d",
 };
+const FLAME_ROLES: Record<string, string> = {
+  "#fcd8c4": "c",
+  "#fbb954": "h",
+  "#f79617": "m",
+  "#e83b3b": "d",
+};
+/**
+ * The flame is eleven pixels tall. Dropping two rows of its thin tail and one
+ * of the three identical rows of its body fits it in a cell without losing the
+ * tip or the outline.
+ */
+const FLAME_ROWS_DROPPED = new Set([1, 3, 7]);
 const FERN_ROLES: Record<string, string> = {
   "#1ebc73": "h",
   "#239063": "m",
@@ -62,6 +76,10 @@ const ICE: Ink = { c: 28, h: 29, m: 30, d: 24, t: 31 };
 const THORN: Ink = { c: 21, h: 20, m: 16, d: 6 };
 const LEAF: Ink = { c: 21, h: 20, m: 16, d: 15, o: 0 };
 const BRAMBLE: Ink = { h: 21, m: 20, d: 16, o: 6 };
+const FIRE: Ink = { c: 28, h: 19, m: 12, d: 9, t: 11 };
+const FIRE_FLICKER: Ink = { c: 19, h: 28, m: 12, d: 9, t: 11 };
+const FLAME_INK: Ink = { c: 28, h: 19, m: 17, d: 10 };
+const FLAME_FLICKER: Ink = { c: 19, h: 28, m: 17, d: 10 };
 const VIOLET_FIRE: Ink = { "#fcd8c4": 28, "#fbb954": 26, "#f79617": 23, "#e83b3b": 32 };
 const FROZEN_BUBBLE: Ink = {
   "#fcfcfc": 28,
@@ -80,6 +98,17 @@ const COMET_WEST = ["..hm....", ".hcmddtt", "..mdt.t."];
 const SHARD_WEST = ["..hmm...", "chcmmdd.", "..hmdd.."];
 const THORN_NORTH_WEST = ["c.......", ".hh.....", ".hmm....", "..mmd...", "...mdd..", "....dd.."];
 const THORN_WEST = ["..hhm...", "chmmmdd.", "..mmdd.."];
+/** The flame flying north-west, head first, its tip trailing; symmetric about the diagonal. */
+const FLAME_NORTH_WEST = [
+  ".ddd....",
+  "dmhhmd..",
+  "dhcchm..",
+  "dhchhmd.",
+  ".mhhmmd.",
+  ".dmmmmd.",
+  "...dddm.",
+  ".......d",
+];
 const LEAF_DRAWN = [
   ".....ooo",
   "...oohho",
@@ -119,17 +148,24 @@ function drawn(rows: readonly string[]): Pixel[] {
   );
 }
 
-/** Shifts a drawing so the middle of its bounds sits on the middle of a `size` square. */
-function centre(pixels: Pixel[], size: number): Pixel[] {
+/** Shifts a drawing so the middle of its bounds sits on the middle of a `width` by `height` box. */
+function centre(pixels: Pixel[], width: number, height = width): Pixel[] {
   const xs = pixels.map((p) => p.x);
   const ys = pixels.map((p) => p.y);
-  const dx = Math.floor((size - 1 - Math.max(...xs) - Math.min(...xs)) / 2);
-  const dy = Math.floor((size - 1 - Math.max(...ys) - Math.min(...ys)) / 2);
+  const dx = Math.floor((width - 1 - Math.max(...xs) - Math.min(...xs)) / 2);
+  const dy = Math.floor((height - 1 - Math.max(...ys) - Math.min(...ys)) / 2);
   return pixels.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
 }
 
 function rotateClockwise(pixels: Pixel[], size: number): Pixel[] {
   return pixels.map((p) => ({ ...p, x: size - 1 - p.y, y: p.x }));
+}
+
+/** Drops the given source rows and closes the gap, so the rows below move up. */
+function dropRows(pixels: Pixel[], rows: Set<number>): Pixel[] {
+  return pixels
+    .filter((p) => !rows.has(p.y))
+    .map((p) => ({ ...p, y: p.y - [...rows].filter((row) => row < p.y).length }));
 }
 
 function tumble(pixels: Pixel[], size: number): Pixel[][] {
@@ -174,13 +210,13 @@ function flake(sparkle: Pixel[]): Pixel[] {
   return [...sparkle, ...arms];
 }
 
-function paint(png: PNG, pixels: Pixel[], ink: Ink, size: number, left: number, top: number) {
+function paint(png: PNG, pixels: Pixel[], ink: Ink, box: Box) {
   for (const p of pixels) {
-    if (p.x < 0 || p.y < 0 || p.x >= size || p.y >= size) throw new Error("pixel off its cell");
+    if (p.x < 0 || p.y < 0 || p.x >= box.w || p.y >= box.h) throw new Error("pixel off its cell");
     const entry = ink[p.key];
     if (entry === undefined) throw new Error(`no ink for ${p.key}`);
     const hex = STAPES_PALETTE[entry]!;
-    const i = (png.width * (top + p.y) + left + p.x) << 2;
+    const i = (png.width * (box.y + p.y) + box.x + p.x) << 2;
     png.data[i] = parseInt(hex.slice(1, 3), 16);
     png.data[i + 1] = parseInt(hex.slice(3, 5), 16);
     png.data[i + 2] = parseInt(hex.slice(5, 7), 16);
@@ -195,10 +231,16 @@ const SPARKLE_LONG = 4;
 const SPARKLE_SHORT = 3;
 const longSparkle = trimSparkle(sparkle, SPARKLE_LONG);
 const shortSparkle = trimSparkle(sparkle, SPARKLE_SHORT);
+/** Upright, the flame's tip is ahead; flying, it trails, so the upright flame is the one flying south and a quarter turn flies west. */
+const flameWest = rotateClockwise(
+  centre(dropRows(cut(sheet, FLAME, FLAME_ROLES), FLAME_ROWS_DROPPED), CELL),
+  CELL,
+);
 
 /**
  * A strip is one projectile's frames laid left to right. `column` and `row`
- * count cells of the strip's own `size`, and orb rows start below the small ones.
+ * count cells of the strip's own `size`, and orb rows start below the small
+ * ones.
  */
 type Strip = { frames: Pixel[][]; ink: Ink | Ink[]; size: number; column: number; row: number };
 
@@ -240,6 +282,22 @@ const strips: Strip[] = [
     column: 0,
     row: 4,
   },
+  { frames: octants(comet, drawn(COMET_WEST)), ink: FIRE, size: CELL, column: 8, row: 1 },
+  { frames: octants(comet, drawn(COMET_WEST)), ink: FIRE_FLICKER, size: CELL, column: 8, row: 2 },
+  {
+    frames: octants(drawn(FLAME_NORTH_WEST), flameWest),
+    ink: FLAME_INK,
+    size: CELL,
+    column: 8,
+    row: 3,
+  },
+  {
+    frames: octants(drawn(FLAME_NORTH_WEST), flameWest),
+    ink: FLAME_FLICKER,
+    size: CELL,
+    column: 8,
+    row: 4,
+  },
   {
     frames: FIREBALL_FRAMES.map((box) => cut(sheet, box)),
     ink: VIOLET_FIRE,
@@ -268,10 +326,10 @@ const png = new PNG({ width: SHEET_W, height: ORB_TOP_PX + ORB_ROWS * ORB });
 /** pngjs leaves the buffer opaque black even with `fill: true`; the sheet needs a transparent backdrop. */
 png.data.fill(0);
 for (const { frames, ink, size, column, row } of strips) {
-  const topPx = size === ORB ? ORB_TOP_PX + row * ORB : row * CELL;
+  const y = size === ORB ? ORB_TOP_PX + row * ORB : row * CELL;
   frames.forEach((frame, i) => {
     const frameInk = Array.isArray(ink) ? ink[i]! : ink;
-    paint(png, frame, frameInk, size, (column + i) * size, topPx);
+    paint(png, frame, frameInk, { x: (column + i) * size, y, w: size, h: size });
   });
 }
 
