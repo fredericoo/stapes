@@ -131,5 +131,12 @@
     "file": "counter.png",
     "width": 80,
     "height": 48
+  },
+  {
+    "id": "spell-projectiles",
+    "name": "Spell Projectiles",
+    "file": "spell-projectiles.png",
+    "width": 192,
+    "height": 112
   }
 ]

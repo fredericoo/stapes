@@ -26577,7 +26577,7 @@
           "on": "target",
           "damage": 10,
           "variance": 60,
-          "projectile": "arcane-bolt",
+          "projectile": "ember-comet",
           "statuses": [
             {
               "id": "burned",
@@ -26642,7 +26642,7 @@
           "on": "target",
           "damage": 10,
           "variance": 25,
-          "projectile": "arcane-bolt",
+          "projectile": "frost-shard",
           "statuses": [
             {
               "id": "chilled",
@@ -26707,7 +26707,7 @@
           "on": "target",
           "damage": 12,
           "variance": 25,
-          "projectile": "arcane-bolt",
+          "projectile": "thorn-leaf",
           "statuses": [
             {
               "id": "poison",
@@ -26772,7 +26772,7 @@
           "on": "target",
           "damage": 10,
           "variance": 60,
-          "projectile": "arcane-bolt",
+          "projectile": "pyre-fireball",
           "statuses": [
             {
               "id": "burned",
@@ -26885,7 +26885,7 @@
           "on": "target",
           "damage": 10,
           "variance": 25,
-          "projectile": "arcane-bolt",
+          "projectile": "rime-orb",
           "statuses": [
             {
               "id": "chilled",
@@ -26998,7 +26998,7 @@
           "on": "target",
           "damage": 12,
           "variance": 25,
-          "projectile": "arcane-bolt",
+          "projectile": "bramble-tangle",
           "statuses": [
             {
               "id": "poison",
@@ -27302,7 +27302,7 @@
           "on": "target",
           "damage": 5,
           "variance": 60,
-          "projectile": "fireball"
+          "projectile": "cinder-flame"
         },
         "cooldownMs": 4000,
         "castTimeMs": 1000,
@@ -27359,7 +27359,7 @@
           "on": "target",
           "damage": 5,
           "variance": 25,
-          "projectile": "arcane-bolt"
+          "projectile": "sleet-flake"
         },
         "cooldownMs": 5000,
         "castTimeMs": 1000,
@@ -27416,7 +27416,7 @@
           "on": "target",
           "damage": 6,
           "variance": 25,
-          "projectile": "arcane-bolt"
+          "projectile": "barb-thorn"
         },
         "cooldownMs": 6000,
         "castTimeMs": 1000,
@@ -27569,7 +27569,7 @@
           "on": "target",
           "damage": 4,
           "variance": 25,
-          "projectile": "arcane-bolt"
+          "projectile": "arcane-spark"
         },
         "cooldownMs": 5000,
         "castTimeMs": 1000,
@@ -27681,7 +27681,7 @@
           "on": "target",
           "damage": 12,
           "variance": 25,
-          "projectile": "arcane-bolt"
+          "projectile": "arcane-lance"
         },
         "cooldownMs": 10000,
         "castTimeMs": 2000,
@@ -34478,16 +34478,16 @@
     }
   },
   {
-    "id": "arcane-bolt",
-    "name": "Arcane Bolt",
+    "id": "arcane-spark",
+    "name": "Arcane Spark",
     "height": 0,
-    "type": "simple",
     "kind": "projectile",
     "attributes": {},
+    "type": "simple",
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 10,
-      "y": 14
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 0
     },
     "sprite": {
       "frames": [
@@ -34504,23 +34504,81 @@
               "y": 0
             }
           },
-          "durationMs": 200,
+          "durationMs": 120,
           "light": {
             "radius": 1,
-            "intensity": 0.3,
-            "color": "#8ad8ff"
+            "intensity": 0.25,
+            "color": "#a884f3"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 120,
+          "light": {
+            "radius": 1,
+            "intensity": 0.25,
+            "color": "#a884f3"
           }
         }
       ]
     },
     "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 20,
+      "ttlFromMs": 175,
+      "ttlToMs": 350,
+      "spawnRadiusCells": 0.08,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": -0.5,
+      "riseTo": 0.5,
+      "driftCellsPerSecond": 0.15,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.35,
+          "color": "#a884f3"
+        },
+        {
+          "at": 1,
+          "color": "#362281"
+        }
+      ]
+    },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8,
+        "cellsPerSecond": 30,
         "hit": {
-          "durationMs": 220,
+          "durationMs": 160,
           "particles": {
-            "ratePerSecond": 120,
+            "ratePerSecond": 80,
             "ttlFromMs": 180,
             "ttlToMs": 420,
             "spawnRadiusCells": 0.2,
@@ -34530,12 +34588,22 @@
             "riseTo": 5,
             "driftCellsPerSecond": 1.1,
             "lit": false,
+            "ownDepth": false,
             "gravity": -9,
             "offsetX": "",
             "offsetY": "",
             "offsetElev": "",
+            "shape": [
+              ".....",
+              "..#..",
+              ".###.",
+              "..#..",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
             "radiusFromPx": 1,
-            "radiusToPx": 2,
+            "radiusToPx": 1,
             "alphaFrom": 1,
             "alphaTo": 0,
             "ramp": [
@@ -34544,12 +34612,3286 @@
                 "color": "#ffffff"
               },
               {
-                "at": 0.3,
+                "at": 0.35,
                 "color": "#a884f3"
               },
               {
                 "at": 1,
                 "color": "#362281"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "arcane-bolt",
+    "name": "Arcane Bolt",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "directional8",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "ne": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "se": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "sw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 5,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 5,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "nw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 7,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 7,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 120,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      }
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 35,
+      "ttlFromMs": 225,
+      "ttlToMs": 450,
+      "spawnRadiusCells": 0.08,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": -0.5,
+      "riseTo": 0.5,
+      "driftCellsPerSecond": 0.15,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.35,
+          "color": "#a884f3"
+        },
+        {
+          "at": 1,
+          "color": "#362281"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 30,
+        "hit": {
+          "durationMs": 220,
+          "particles": {
+            "ratePerSecond": 130,
+            "ttlFromMs": 180,
+            "ttlToMs": 420,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 1.1,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": -9,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              "..#..",
+              ".###.",
+              "..#..",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.35,
+                "color": "#a884f3"
+              },
+              {
+                "at": 1,
+                "color": "#362281"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "arcane-lance",
+    "name": "Arcane Lance",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "directional8",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 5
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "ne": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "se": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 9,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 12,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "sw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 15,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 18,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      },
+      "nw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 21,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 2,
+              "intensity": 0.7,
+              "color": "#a884f3"
+            }
+          }
+        ]
+      }
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 60,
+      "ttlFromMs": 300,
+      "ttlToMs": 600,
+      "spawnRadiusCells": 0.3,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": -0.5,
+      "riseTo": 0.5,
+      "driftCellsPerSecond": 0.15,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 2,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.35,
+          "color": "#a884f3"
+        },
+        {
+          "at": 1,
+          "color": "#362281"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 30,
+        "hit": {
+          "durationMs": 300,
+          "particles": {
+            "ratePerSecond": 200,
+            "ttlFromMs": 180,
+            "ttlToMs": 420,
+            "spawnRadiusCells": 0.35,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 1.1,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": -9,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              "..#..",
+              ".###.",
+              "..#..",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.35,
+                "color": "#a884f3"
+              },
+              {
+                "at": 1,
+                "color": "#362281"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "sleet-flake",
+    "name": "Sleet Flake",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 1,
+            "intensity": 0.25,
+            "color": "#53d5cf"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 1,
+            "intensity": 0.25,
+            "color": "#53d5cf"
+          }
+        }
+      ]
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 20,
+      "ttlFromMs": 175,
+      "ttlToMs": 350,
+      "spawnRadiusCells": 0.12,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 0,
+      "riseTo": 1,
+      "driftCellsPerSecond": 0.25,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -4,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.4,
+          "color": "#affcdb"
+        },
+        {
+          "at": 1,
+          "color": "#4d9be6"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 8,
+        "hit": {
+          "durationMs": 160,
+          "particles": {
+            "ratePerSecond": 80,
+            "ttlFromMs": 250,
+            "ttlToMs": 550,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 1.4,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": -14,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              ".#.#.",
+              "..#..",
+              ".#.#.",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.4,
+                "color": "#affcdb"
+              },
+              {
+                "at": 1,
+                "color": "#4d9be6"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "frost-shard",
+    "name": "Frost Shard",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "directional8",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#53d5cf"
+            }
+          }
+        ]
+      },
+      "ne": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#53d5cf"
+            }
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#53d5cf"
+            }
+          }
+        ]
+      },
+      "se": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#53d5cf"
+            }
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#53d5cf"
+            }
+          }
+        ]
+      },
+      "sw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 5,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#53d5cf"
+            }
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#53d5cf"
+            }
+          }
+        ]
+      },
+      "nw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 7,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#53d5cf"
+            }
+          }
+        ]
+      }
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 35,
+      "ttlFromMs": 225,
+      "ttlToMs": 450,
+      "spawnRadiusCells": 0.12,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 0,
+      "riseTo": 1,
+      "driftCellsPerSecond": 0.25,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -4,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.4,
+          "color": "#affcdb"
+        },
+        {
+          "at": 1,
+          "color": "#4d9be6"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 8,
+        "hit": {
+          "durationMs": 220,
+          "particles": {
+            "ratePerSecond": 130,
+            "ttlFromMs": 250,
+            "ttlToMs": 550,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 1.4,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": -14,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              ".#.#.",
+              "..#..",
+              ".#.#.",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.4,
+                "color": "#affcdb"
+              },
+              {
+                "at": 1,
+                "color": "#4d9be6"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "rime-orb",
+    "name": "Rime Orb",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 8,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 120,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#53d5cf"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 8,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 120,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#53d5cf"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 8,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 120,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#53d5cf"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 9,
+              "y": 8,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 120,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#53d5cf"
+          }
+        }
+      ]
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 60,
+      "ttlFromMs": 300,
+      "ttlToMs": 600,
+      "spawnRadiusCells": 0.3,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 0,
+      "riseTo": 1,
+      "driftCellsPerSecond": 0.25,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -4,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 2,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.4,
+          "color": "#affcdb"
+        },
+        {
+          "at": 1,
+          "color": "#4d9be6"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 8,
+        "hit": {
+          "durationMs": 300,
+          "particles": {
+            "ratePerSecond": 200,
+            "ttlFromMs": 250,
+            "ttlToMs": 550,
+            "spawnRadiusCells": 0.35,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 1.4,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": -14,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              ".#.#.",
+              "..#..",
+              ".#.#.",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.4,
+                "color": "#affcdb"
+              },
+              {
+                "at": 1,
+                "color": "#4d9be6"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "barb-thorn",
+    "name": "Barb",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "directional8",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#91db69"
+            }
+          }
+        ]
+      },
+      "ne": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#91db69"
+            }
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#91db69"
+            }
+          }
+        ]
+      },
+      "se": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#91db69"
+            }
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#91db69"
+            }
+          }
+        ]
+      },
+      "sw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 5,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#91db69"
+            }
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#91db69"
+            }
+          }
+        ]
+      },
+      "nw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 7,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#91db69"
+            }
+          }
+        ]
+      }
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 20,
+      "ttlFromMs": 175,
+      "ttlToMs": 350,
+      "spawnRadiusCells": 0.15,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 0.5,
+      "riseTo": 1.5,
+      "driftCellsPerSecond": 0.35,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -3,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": [
+        ".....",
+        "..##.",
+        ".##..",
+        ".#...",
+        "....."
+      ],
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0.2,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#d5e04b"
+        },
+        {
+          "at": 0.5,
+          "color": "#91db69"
+        },
+        {
+          "at": 1,
+          "color": "#1ebc73"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 12,
+        "hit": {
+          "durationMs": 160,
+          "particles": {
+            "ratePerSecond": 80,
+            "ttlFromMs": 350,
+            "ttlToMs": 750,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 6,
+            "driftCellsPerSecond": 1.1,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": -10,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              "..##.",
+              ".##..",
+              ".#...",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#d5e04b"
+              },
+              {
+                "at": 0.5,
+                "color": "#91db69"
+              },
+              {
+                "at": 1,
+                "color": "#1ebc73"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "thorn-leaf",
+    "name": "Thorn Leaf",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 1,
+            "intensity": 0.4,
+            "color": "#91db69"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 5,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 1,
+            "intensity": 0.4,
+            "color": "#91db69"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 1,
+            "intensity": 0.4,
+            "color": "#91db69"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 7,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 1,
+            "intensity": 0.4,
+            "color": "#91db69"
+          }
+        }
+      ]
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 35,
+      "ttlFromMs": 225,
+      "ttlToMs": 450,
+      "spawnRadiusCells": 0.15,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 0.5,
+      "riseTo": 1.5,
+      "driftCellsPerSecond": 0.35,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -3,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": [
+        ".....",
+        "..##.",
+        ".##..",
+        ".#...",
+        "....."
+      ],
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0.2,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#d5e04b"
+        },
+        {
+          "at": 0.5,
+          "color": "#91db69"
+        },
+        {
+          "at": 1,
+          "color": "#1ebc73"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 12,
+        "hit": {
+          "durationMs": 220,
+          "particles": {
+            "ratePerSecond": 130,
+            "ttlFromMs": 350,
+            "ttlToMs": 750,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 6,
+            "driftCellsPerSecond": 1.1,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": -10,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              "..##.",
+              ".##..",
+              ".#...",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#d5e04b"
+              },
+              {
+                "at": 0.5,
+                "color": "#91db69"
+              },
+              {
+                "at": 1,
+                "color": "#1ebc73"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "bramble-tangle",
+    "name": "Bramble Tangle",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 11,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 110,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#91db69"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 11,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 110,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#91db69"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 11,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 110,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#91db69"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 9,
+              "y": 11,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 110,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#91db69"
+          }
+        }
+      ]
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 60,
+      "ttlFromMs": 300,
+      "ttlToMs": 600,
+      "spawnRadiusCells": 0.3,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 0.5,
+      "riseTo": 1.5,
+      "driftCellsPerSecond": 0.35,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -3,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": [
+        ".....",
+        "..##.",
+        ".##..",
+        ".#...",
+        "....."
+      ],
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 2,
+      "alphaFrom": 1,
+      "alphaTo": 0.2,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#d5e04b"
+        },
+        {
+          "at": 0.5,
+          "color": "#91db69"
+        },
+        {
+          "at": 1,
+          "color": "#1ebc73"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 12,
+        "hit": {
+          "durationMs": 300,
+          "particles": {
+            "ratePerSecond": 200,
+            "ttlFromMs": 350,
+            "ttlToMs": 750,
+            "spawnRadiusCells": 0.35,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 6,
+            "driftCellsPerSecond": 1.1,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": -10,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              "..##.",
+              ".##..",
+              ".#...",
+              "....."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#d5e04b"
+              },
+              {
+                "at": 0.5,
+                "color": "#91db69"
+              },
+              {
+                "at": 1,
+                "color": "#1ebc73"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "cinder-flame",
+    "name": "Cinder Flame",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "directional8",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 8,
+      "y": 3
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "ne": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "se": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "sw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 5,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 5,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "nw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 7,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 7,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 110,
+            "light": {
+              "radius": 1,
+              "intensity": 0.25,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      }
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 20,
+      "ttlFromMs": 175,
+      "ttlToMs": 350,
+      "spawnRadiusCells": 0.1,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 1,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.3,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": 2,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.2,
+          "color": "#fbb954"
+        },
+        {
+          "at": 0.5,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.8,
+          "color": "#ae2334"
+        },
+        {
+          "at": 1,
+          "color": "#313638"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 20,
+        "hit": {
+          "durationMs": 160,
+          "particles": {
+            "ratePerSecond": 80,
+            "ttlFromMs": 250,
+            "ttlToMs": 600,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 6,
+            "driftCellsPerSecond": 1.2,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": 3,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              "..#..",
+              ".###.",
+              ".###.",
+              "..#.."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.2,
+                "color": "#fbb954"
+              },
+              {
+                "at": 0.5,
+                "color": "#fb6b1d"
+              },
+              {
+                "at": 0.8,
+                "color": "#ae2334"
+              },
+              {
+                "at": 1,
+                "color": "#313638"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "ember-comet",
+    "name": "Ember Comet",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "directional8",
+    "anchor": {
+      "tilesetId": "spell-projectiles",
+      "x": 8,
+      "y": 1
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "ne": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "se": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "sw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 5,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 5,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      },
+      "nw": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 7,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 7,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 100,
+            "light": {
+              "radius": 1,
+              "intensity": 0.4,
+              "color": "#fb6b1d"
+            }
+          }
+        ]
+      }
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 35,
+      "ttlFromMs": 225,
+      "ttlToMs": 450,
+      "spawnRadiusCells": 0.1,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 1,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.3,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": 2,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.2,
+          "color": "#fbb954"
+        },
+        {
+          "at": 0.5,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.8,
+          "color": "#ae2334"
+        },
+        {
+          "at": 1,
+          "color": "#313638"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 20,
+        "hit": {
+          "durationMs": 220,
+          "particles": {
+            "ratePerSecond": 130,
+            "ttlFromMs": 250,
+            "ttlToMs": 600,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 6,
+            "driftCellsPerSecond": 1.2,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": 3,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              "..#..",
+              ".###.",
+              ".###.",
+              "..#.."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.2,
+                "color": "#fbb954"
+              },
+              {
+                "at": 0.5,
+                "color": "#fb6b1d"
+              },
+              {
+                "at": 0.8,
+                "color": "#ae2334"
+              },
+              {
+                "at": 1,
+                "color": "#313638"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "pyre-fireball",
+    "name": "Pyre Fireball",
+    "height": 0,
+    "kind": "projectile",
+    "attributes": {},
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 20
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 9,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 15,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90,
+          "light": {
+            "radius": 2,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 60,
+      "ttlFromMs": 300,
+      "ttlToMs": 600,
+      "spawnRadiusCells": 0.3,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 0.5,
+      "riseFrom": 1,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.3,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": 2,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 2,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.2,
+          "color": "#fbb954"
+        },
+        {
+          "at": 0.5,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.8,
+          "color": "#ae2334"
+        },
+        {
+          "at": 1,
+          "color": "#313638"
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 20,
+        "hit": {
+          "durationMs": 300,
+          "particles": {
+            "ratePerSecond": 200,
+            "ttlFromMs": 250,
+            "ttlToMs": 600,
+            "spawnRadiusCells": 0.35,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 6,
+            "driftCellsPerSecond": 1.2,
+            "lit": false,
+            "ownDepth": false,
+            "gravity": 3,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": [
+              ".....",
+              "..#..",
+              ".###.",
+              ".###.",
+              "..#.."
+            ],
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.2,
+                "color": "#fbb954"
+              },
+              {
+                "at": 0.5,
+                "color": "#fb6b1d"
+              },
+              {
+                "at": 0.8,
+                "color": "#ae2334"
+              },
+              {
+                "at": 1,
+                "color": "#313638"
               }
             ]
           }
