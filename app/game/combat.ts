@@ -74,6 +74,11 @@ export function reflex(attacker: FightingStats): number {
   return attacker.flee;
 }
 
+export function dodgeChanceAgainst(defender: FightingStats, attacker: FightingStats): number {
+  if (!defender.canDodge) return 0;
+  return dodgeChance(defender.flee, reflex(attacker));
+}
+
 export const GUARD_LOST_PER_ASSAILANT = 0.35;
 
 export const ASSAILANT_GRACE_MS = 2_000;
@@ -217,7 +222,7 @@ export function rollAttack(
 
   const potentialDamage = potentialDamageFrom(attacker, damageRoll);
 
-  if (dodgeRoll < dodgeChance(defender.flee, reflex(attacker))) {
+  if (dodgeRoll < dodgeChanceAgainst(defender, attacker)) {
     return {
       missed: false,
       dodged: true,
