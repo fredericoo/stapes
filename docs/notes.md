@@ -5662,6 +5662,45 @@ did decide, roof-cut visibility, is a line of code instead. The mesh takes the
 material of whichever level its *height* puts it over, re-asked per frame so a
 shot from a balcony is not lit by the room it left for the whole descent.
 
+### A bolt flies in its element's colours and its tier's size
+
+Every stone's bolt used to fly as `arcane-bolt`, a blue diamond, whatever its
+element or tier. Each neutral, water and nature stone now has its own
+projectile, one per tier, all on `spell-projectiles.png`:
+
+| Tier | Neutral | Water | Nature |
+| --- | --- | --- | --- |
+| 1 | Spark → `arcane-spark` | Sleet → `sleet-flake` | Barbs → `barb-thorn` |
+| 2 | Bolt → `arcane-bolt` | Frost → `frost-shard` | Thorns → `thorn-leaf` |
+| 3 | Lance → `arcane-lance` | Rime → `rime-orb` | Bramble → `bramble-tangle` |
+
+Tier 1 is a one-cell mote, tier 2 a one-cell bolt, tier 3 a three-cell orb with
+a wider trail, a brighter light and a bigger hit. Fire is not part of this yet:
+Ember and Pyre still fly `arcane-bolt`, and Cinder flies `fireball`.
+
+- **The art is cut from `tiny-ranch-tiles.png` and repainted.**
+  `scripts/generate-spell-projectiles.ts` maps each source colour to a role
+  (core, highlight, mid, deep, tail, outline) and paints the roles from a table
+  of `STAPES_PALETTE` indices per element. The sources are the sparkle at
+  (4, 23), trimmed shorter for the twinkle frame and given diagonal arms for the
+  snowflake; the falling star at (12, 14) for the bolt and, with its tail made
+  solid and a point added, the shard; the fireball frames at row 20 in violet
+  for the lance; the bubble frames at row 23 in frost colours for the rime orb;
+  and the fern at (18, 18), turned a quarter per frame, for the bramble.
+- **The thorn and the leaf are drawn in the script.** The sheet has nothing
+  sharp or leaf-shaped that is not food, so both are letter grids there.
+- **Eight-way tiles turn by quarter turns.** The star exists only on a diagonal;
+  the other three diagonals are quarter turns of it, which keeps every pixel on
+  the grid. Straightening it scatters its pixels, so the westward flight is a
+  drawing too and is turned for the other cardinals. Things that tumble or are
+  round have no bearing and are `simple` tiles.
+- **The trail is the tile's own `particles`**, which `flightTrail` emits at the
+  flight's position each frame, so it is left behind in the world. The hits use
+  5×5 particle shapes — a sparkle, a snowflake, a leaf — drawn at size 5, one
+  world pixel per character. Tier 3 stones also keep their own area `burst`.
+- **Speeds stayed at eight cells a second.** A slower flight lands its blow
+  later (`blowsInFlight`), so a speed is a balance change, not a look.
+
 ### A tile names one sheet, and every rect is measured from one cell
 
 `TileDef.anchor` is a `SpriteAnchor` — a sheet and a cell on it — and every

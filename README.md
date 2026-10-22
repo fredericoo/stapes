@@ -134,6 +134,12 @@ an agent drives", lists every call.
 - `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
   shape and its palette entries live in the script where a diff can read them
+- `bun run generate:spell-projectiles` — redraw `data/tilesets/spell-projectiles.png`,
+  the neutral, water and nature bolts at each of three tiers, cut from
+  `tiny-ranch-tiles.png` and repainted in palette colours, with the thorn and the
+  leaf drawn in the script. Which source pixel takes which palette entry is a
+  table per element in the script; the tiles that fly them are authored in
+  `data/tiles.json`
 - `bun run generate:cave-wall` — redraw `data/tilesets/cave-wall.png` and the
   slices of the cave walls on it: `cave-wall`, rock whose face stands on the half
   line of its cell wherever it meets open ground, so a passage one cell wide
