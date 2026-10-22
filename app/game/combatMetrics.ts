@@ -2,12 +2,11 @@ import type { FightingStats } from "../lib/battler";
 import { MAX_PERCENT_STAT, MAX_WEAPON_DAMAGE } from "../lib/item";
 import {
   defenceAgainst,
-  dodgeChance,
+  dodgeChanceAgainst,
   guardBand,
   guardRolled,
   landChance,
   potentialDamageFrom,
-  reflex,
   swingIntervalMs,
 } from "./combat";
 
@@ -106,7 +105,7 @@ export type SwingOdds = {
 /** Mirrors the draw order of `rollAttack` in `combat.ts`. */
 export function swingOdds(attacker: FightingStats, defender: FightingStats): SwingOdds {
   const lands = landChance(attacker);
-  const dodgeGivenAim = dodgeChance(defender.flee, reflex(attacker));
+  const dodgeGivenAim = dodgeChanceAgainst(defender, attacker);
 
   const missed = 1 - lands;
   const dodged = lands * dodgeGivenAim;

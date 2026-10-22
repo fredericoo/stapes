@@ -4966,6 +4966,16 @@ what mastery keeps buying past that point is damage. And `chilled`, which docks
 that follows from the rule rather than being authored, and it is the right
 reading of chilled reflexes.
 
+### A body that cannot act cannot dodge
+
+`withStatusModifiers` sets `flee` to 0 and `canDodge` to false while any status
+on the body `incapacitates` — in the shipped catalogue that is only `sleep`.
+Zeroing `flee` alone is not enough: `dodgeChance` clamps to `MIN_CHANCE`, so a
+body at 0 still dodges one aimed blow in twenty. `dodgeChanceAgainst` reads
+`canDodge` first and returns 0, and both `rollAttack` and `swingOdds` go
+through it, so the odds bots read agree with the roll.
+`Duel` builds its stats through the same function and gets the rule for free.
+
 ### Eight rats used to be one rat, eight times
 
 Defence is a flat subtraction and evasion is a contest fought one attacker at a
