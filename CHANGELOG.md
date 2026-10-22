@@ -1,5 +1,11 @@
 # the-last-stones
 
+## 0.6.0
+
+### Minor Changes
+
+- Things you pick up or eat off the floor now fly up into the hands of whoever took them, so you can see who grabbed what.
+
 ## 0.5.0
 
 ### Minor Changes
