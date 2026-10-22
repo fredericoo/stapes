@@ -33,6 +33,7 @@ import { projectileTiles, resolveProjectile } from "../lib/projectile";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
 import { AreaFields } from "./AreaFields";
+import { CasterEffectFields } from "./CasterEffectFields";
 import { StatusCures } from "./StatusCures";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
@@ -170,7 +171,7 @@ export function StoneFields({
           </div>
 
           <div className="flex flex-col gap-2">
-            <FieldLabel info="A picture only, drawn as a bow's arrow is: the health has moved before the first frame, so it cannot miss in the air. Nothing flies at the caster.">
+            <FieldLabel info="A picture only, drawn as a bow's arrow is: the health has moved before the first frame, so it cannot miss in the air. Nothing flies at the caster: a spell on the caster shows itself with a caster effect.">
               Projectile
             </FieldLabel>
             <div className="flex flex-wrap items-end gap-4">
@@ -245,6 +246,13 @@ export function StoneFields({
           />
         </label>
       )}
+
+      <CasterEffectFields
+        effect={stone.casterEffect}
+        onChange={(casterEffect) => onChange({ casterEffect })}
+        tiles={tiles}
+        tilesets={tilesets}
+      />
 
       <div className="flex flex-wrap gap-4 border-t-2 border-border pt-3">
         <StatField

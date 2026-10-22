@@ -57,6 +57,7 @@ export function transitionForNote(
   if (note.tossedFrom) return tossTransition(note.tossedFrom.order);
   if (note.takenBy) return { durationMs: TAKE_MS };
   if (note.struckBy) return projectileEffect(tilesById[note.struckBy], "hit");
+  if (note.casterEffect) return note.casterEffect;
   if (note.pulled) return pullEffect(tilesById[note.tileId]);
   if (note.crafted) return craftEffect(tilesById[note.tileId], note.crafted);
   return transitionOf(tilesById[note.tileId], note.side);
@@ -64,14 +65,19 @@ export function transitionForNote(
 
 /**
  * A hit is authored once, on the projectile, and plays on whatever body it
- * struck, so it is drawn to that body's size. Every other transition is the
- * tile's own and is drawn as authored.
+ * struck, so it is drawn to that body's size; a spell's caster effect plays on
+ * whoever cast it, the same way. Every other transition is the tile's own and
+ * is drawn as authored.
  */
 export function burstScale(
   note: TileTransitionNote,
   tilesById: Readonly<Record<string, TileDef>>,
 ): number {
-  return note.struckBy ? plumeScale(tilesById[note.tileId]) : 1;
+  return playsOnABody(note) ? plumeScale(tilesById[note.tileId]) : 1;
+}
+
+function playsOnABody(note: TileTransitionNote): boolean {
+  return Boolean(note.struckBy || note.casterEffect);
 }
 
 export type TransitionIntake = {
@@ -115,7 +121,7 @@ export function formerSlot(
   note: TileTransitionNote,
   previousStack: readonly { tileId: string }[],
 ): number | undefined {
-  if (!note.struckBy && !note.pulled) return undefined;
+  if (!playsOnABody(note) && !note.pulled) return undefined;
   return resolveTransitionSlot(previousStack, note);
 }
 

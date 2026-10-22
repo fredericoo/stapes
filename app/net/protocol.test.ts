@@ -628,6 +628,11 @@ describe("nothing is quietly dropped in transit", () => {
 
   it.each([
     { what: "a struck body's borrowed effect", tileId: "rat", struckBy: "arrow" },
+    {
+      what: "a caster's spell effect",
+      tileId: "player",
+      casterEffect: { durationMs: 600, scale: {} },
+    },
     { what: "a worked resource's pull effect", tileId: "crystal", pulled: true as const },
     { what: "a crafter's failed craft", tileId: "forge", crafted: "failed" as const },
     {

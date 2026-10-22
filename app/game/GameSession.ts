@@ -4,6 +4,7 @@ import {
   type CraftOutcome,
   type HeldTransition,
   type TileTransitionNote,
+  type Transition,
   type TransitionSide,
 } from "../lib/tileTransition";
 import { absoluteElevation } from "../lib/geometry";
@@ -2139,6 +2140,22 @@ export class GameSession implements PlaySession {
     });
   }
 
+  private dressCaster(caster: ActorRuntime, casterEffect: Transition | undefined) {
+    if (!casterEffect) return;
+    const loc = this.tryLocate(caster);
+    if (!loc) return;
+
+    this.raiseTransition({
+      side: "appear",
+      tileId: loc.placed.tileId,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+      casterEffect,
+    });
+  }
+
   private noteCraft(tileId: string, at: ObjectRef, crafted: CraftOutcome) {
     if (!craftEffect(this.tilesById[tileId], crafted)) return;
     this.raiseTransition({
@@ -3317,6 +3334,7 @@ export class GameSession implements PlaySession {
 
     this.spendCooldown(actor, slot, stone);
     this.grantExperience(actor, practiceEarnings(elements));
+    this.dressCaster(actor, stone.casterEffect);
 
     if (stone.effect.kind === "bolt") {
       this.castBolt(actor, slot, stone, stone.effect, elements);

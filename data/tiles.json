@@ -14060,7 +14060,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -15437,11 +15478,51 @@
             "effect": {
               "kind": "bolt",
               "on": "caster",
-              "damage": -60,
-              "projectile": "verdant-light"
+              "damage": -60
             },
             "cooldownMs": 300000,
-            "castTimeMs": 1500
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
           },
           {
             "type": "stone",
@@ -15459,7 +15540,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -16612,11 +16734,51 @@
             "effect": {
               "kind": "bolt",
               "on": "caster",
-              "damage": -60,
-              "projectile": "verdant-light"
+              "damage": -60
             },
             "cooldownMs": 300000,
-            "castTimeMs": 1500
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
           },
           {
             "type": "stone",
@@ -16634,7 +16796,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -17562,7 +17765,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -26865,8 +27109,7 @@
         "effect": {
           "kind": "bolt",
           "on": "caster",
-          "damage": -20,
-          "projectile": "verdant-light"
+          "damage": -20
         },
         "cooldownMs": 30000,
         "castTimeMs": 1500,
@@ -26874,6 +27117,47 @@
           "arcane": 20,
           "water": 8,
           "nature": 8
+        },
+        "casterEffect": {
+          "durationMs": 1200,
+          "particles": {
+            "ratePerSecond": 8,
+            "ttlFromMs": 1600,
+            "ttlToMs": 1600,
+            "spawnRadiusCells": 0,
+            "spawnElevFrom": 0.5,
+            "spawnElevTo": 0.5,
+            "riseFrom": 2,
+            "riseTo": 2,
+            "driftCellsPerSecond": 0,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": 0,
+            "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+            "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 2,
+            "radiusToPx": 2,
+            "alphaFrom": 1,
+            "alphaTo": 0.5,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#91db69"
+              },
+              {
+                "at": 1.0,
+                "color": "#1ebc73"
+              }
+            ]
+          }
         }
       }
     },
@@ -26919,7 +27203,6 @@
           "kind": "bolt",
           "on": "caster",
           "damage": -35,
-          "projectile": "verdant-light",
           "cures": [
             "burned",
             "poison",
@@ -26932,6 +27215,47 @@
           "arcane": 38,
           "water": 15,
           "nature": 15
+        },
+        "casterEffect": {
+          "durationMs": 1500,
+          "particles": {
+            "ratePerSecond": 12,
+            "ttlFromMs": 1600,
+            "ttlToMs": 1600,
+            "spawnRadiusCells": 0,
+            "spawnElevFrom": 0.5,
+            "spawnElevTo": 0.5,
+            "riseFrom": 2,
+            "riseTo": 2,
+            "driftCellsPerSecond": 0,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": 0,
+            "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+            "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 3,
+            "radiusToPx": 3,
+            "alphaFrom": 1,
+            "alphaTo": 0.5,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#91db69"
+              },
+              {
+                "at": 1.0,
+                "color": "#1ebc73"
+              }
+            ]
+          }
         }
       }
     },
@@ -27158,6 +27482,47 @@
         "castTimeMs": 1000,
         "requirements": {
           "arcane": 1
+        },
+        "casterEffect": {
+          "durationMs": 600,
+          "particles": {
+            "ratePerSecond": 60,
+            "ttlFromMs": 500,
+            "ttlToMs": 900,
+            "spawnRadiusCells": 0.4,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 4,
+            "riseFrom": 3,
+            "riseTo": 6,
+            "driftCellsPerSecond": 0.2,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": 0,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#fff4b8"
+              },
+              {
+                "at": 1.0,
+                "color": "#ffd25a"
+              }
+            ]
+          }
         }
       }
     },
@@ -27428,6 +27793,47 @@
         "requirements": {
           "arcane": 45,
           "fire": 15
+        },
+        "casterEffect": {
+          "durationMs": 500,
+          "particles": {
+            "ratePerSecond": 100,
+            "ttlFromMs": 300,
+            "ttlToMs": 600,
+            "spawnRadiusCells": 0.25,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 1,
+            "riseFrom": 2,
+            "riseTo": 5,
+            "driftCellsPerSecond": 0.5,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": -3,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#ffb347"
+              },
+              {
+                "at": 1.0,
+                "color": "#8a1c00"
+              }
+            ]
+          }
         }
       }
     },
@@ -27530,6 +27936,47 @@
         "requirements": {
           "arcane": 45,
           "water": 15
+        },
+        "casterEffect": {
+          "durationMs": 500,
+          "particles": {
+            "ratePerSecond": 100,
+            "ttlFromMs": 300,
+            "ttlToMs": 600,
+            "spawnRadiusCells": 0.25,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 1,
+            "riseFrom": 3,
+            "riseTo": 6,
+            "driftCellsPerSecond": 0.9,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": -14,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#bfe6ff"
+              },
+              {
+                "at": 1.0,
+                "color": "#2f6fbf"
+              }
+            ]
+          }
         }
       }
     },
@@ -27632,6 +28079,47 @@
         "requirements": {
           "arcane": 45,
           "nature": 15
+        },
+        "casterEffect": {
+          "durationMs": 600,
+          "particles": {
+            "ratePerSecond": 80,
+            "ttlFromMs": 300,
+            "ttlToMs": 600,
+            "spawnRadiusCells": 0.25,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 1,
+            "riseFrom": 2,
+            "riseTo": 5,
+            "driftCellsPerSecond": 0.6,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": -6,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#9be564"
+              },
+              {
+                "at": 1.0,
+                "color": "#2d5a12"
+              }
+            ]
+          }
         }
       }
     },
@@ -27736,6 +28224,47 @@
         "requirements": {
           "toughness": 40,
           "arcane": 20
+        },
+        "casterEffect": {
+          "durationMs": 400,
+          "particles": {
+            "ratePerSecond": 120,
+            "ttlFromMs": 300,
+            "ttlToMs": 600,
+            "spawnRadiusCells": 0.25,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 1,
+            "riseFrom": 2,
+            "riseTo": 5,
+            "driftCellsPerSecond": 1.2,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": -20,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 2,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#e8d6b0"
+              },
+              {
+                "at": 0.5,
+                "color": "#c2a878"
+              },
+              {
+                "at": 1.0,
+                "color": "#5a4630"
+              }
+            ]
+          }
         }
       }
     },
@@ -27793,6 +28322,47 @@
           "toughness": 40,
           "arcane": 20,
           "fire": 10
+        },
+        "casterEffect": {
+          "durationMs": 500,
+          "particles": {
+            "ratePerSecond": 120,
+            "ttlFromMs": 300,
+            "ttlToMs": 600,
+            "spawnRadiusCells": 0.25,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 1,
+            "riseFrom": 4,
+            "riseTo": 8,
+            "driftCellsPerSecond": 0.8,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": -18,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#ff5050"
+              },
+              {
+                "at": 1.0,
+                "color": "#8a1c1c"
+              }
+            ]
+          }
         }
       }
     },
@@ -27850,6 +28420,47 @@
           "toughness": 40,
           "arcane": 20,
           "water": 10
+        },
+        "casterEffect": {
+          "durationMs": 600,
+          "particles": {
+            "ratePerSecond": 50,
+            "ttlFromMs": 500,
+            "ttlToMs": 900,
+            "spawnRadiusCells": 0.4,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 4,
+            "riseFrom": -1,
+            "riseTo": 1,
+            "driftCellsPerSecond": 0.15,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": 1.2,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#bfe6ff"
+              },
+              {
+                "at": 1.0,
+                "color": "#4fa4ff"
+              }
+            ]
+          }
         }
       }
     },
@@ -27907,6 +28518,47 @@
           "toughness": 40,
           "arcane": 20,
           "nature": 10
+        },
+        "casterEffect": {
+          "durationMs": 800,
+          "particles": {
+            "ratePerSecond": 30,
+            "ttlFromMs": 700,
+            "ttlToMs": 1200,
+            "spawnRadiusCells": 0.4,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 4,
+            "riseFrom": 2,
+            "riseTo": 4,
+            "driftCellsPerSecond": 0.6,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": -2,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0.0,
+                "color": "#ffd1e8"
+              },
+              {
+                "at": 0.5,
+                "color": "#f59ac8"
+              },
+              {
+                "at": 1.0,
+                "color": "#7fd65a"
+              }
+            ]
+          }
         }
       }
     },
@@ -30322,7 +30974,48 @@
                 }
               ]
             },
-            "cooldownMs": 1000
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -35407,7 +36100,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -36009,11 +36743,51 @@
             "effect": {
               "kind": "bolt",
               "on": "caster",
-              "damage": -60,
-              "projectile": "verdant-light"
+              "damage": -60
             },
             "cooldownMs": 300000,
-            "castTimeMs": 1500
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
           },
           {
             "type": "stone",
@@ -36031,7 +36805,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -36796,7 +37611,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -37521,7 +38377,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -40437,7 +41334,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -41391,11 +42329,51 @@
             "effect": {
               "kind": "bolt",
               "on": "caster",
-              "damage": -60,
-              "projectile": "verdant-light"
+              "damage": -60
             },
             "cooldownMs": 300000,
-            "castTimeMs": 1500
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
           },
           {
             "type": "stone",
@@ -41413,7 +42391,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -42357,7 +43376,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -43841,11 +44901,51 @@
             "effect": {
               "kind": "bolt",
               "on": "caster",
-              "damage": -60,
-              "projectile": "verdant-light"
+              "damage": -60
             },
             "cooldownMs": 300000,
-            "castTimeMs": 1500
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
           },
           {
             "type": "stone",
@@ -43863,7 +44963,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -44535,7 +45676,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -45229,7 +46411,48 @@
               ]
             },
             "cooldownMs": 60000,
-            "castTimeMs": 2000
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
           }
         ]
       }
@@ -47139,7 +48362,48 @@
                 }
               ]
             },
-            "cooldownMs": 1000
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           },
           {
             "type": "stone",
@@ -48089,7 +49353,48 @@
                 }
               ]
             },
-            "cooldownMs": 1000
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           },
           {
             "type": "stone",
@@ -48153,7 +49458,48 @@
             "cooldownMs": 10000,
             "castTimeMs": 1500,
             "uninterruptible": true,
-            "sound": "*BOOM*"
+            "sound": "*BOOM*",
+            "casterEffect": {
+              "durationMs": 400,
+              "particles": {
+                "ratePerSecond": 120,
+                "ttlFromMs": 300,
+                "ttlToMs": 600,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 5,
+                "driftCellsPerSecond": 1.2,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -20,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#e8d6b0"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c2a878"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#5a4630"
+                  }
+                ]
+              }
+            }
           },
           {
             "type": "stone",
@@ -48169,7 +49515,48 @@
               ]
             },
             "cooldownMs": 30000,
-            "sound": "*ROAR*"
+            "sound": "*ROAR*",
+            "casterEffect": {
+              "durationMs": 500,
+              "particles": {
+                "ratePerSecond": 120,
+                "ttlFromMs": 300,
+                "ttlToMs": 600,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 4,
+                "riseTo": 8,
+                "driftCellsPerSecond": 0.8,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -18,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0.0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#ff5050"
+                  },
+                  {
+                    "at": 1.0,
+                    "color": "#8a1c1c"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
