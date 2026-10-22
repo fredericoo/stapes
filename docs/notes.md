@@ -9217,9 +9217,9 @@ are already on", and is what the client's own tap asks.
   refusal stands until the player goes and fixes it. Then the reservation, last,
   because it is the only one that resolves itself — "in use" while the bag is
   full would be pointing at somebody else's problem instead of theirs.
-- **A row carrying any of them is not actionable**: `topInteractionAt` passes
-  over it, so the pointer outlines nothing and a click on the world does nothing;
-  `applyInteraction` refuses it; and the button is `aria-disabled` with the
+- **A row carrying any of them is not actionable**: `topInteractionAt` keeps it
+  in its place, so the pointer hint shows the reason in place of the verb and a
+  click on the world says why in a notice; `applyInteraction` refuses it; and the button is `aria-disabled` with the
   reason read out after the verb. Four refusals for one press is the spell bar's
   discipline, and it is why the grey is not a lie.
 - **`noRoom` is one arm for two states** — a full bag and no bag at all — because
