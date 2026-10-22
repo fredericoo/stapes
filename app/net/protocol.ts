@@ -13,7 +13,12 @@ import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
 import type { PlacedTile } from "../lib/types";
-import { CRAFT_OUTCOMES, TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
+import {
+  CRAFT_OUTCOMES,
+  TRANSITION_SIDES,
+  type TileTransitionNote,
+  transitionSchema,
+} from "../lib/tileTransition";
 import { AREA_SHAPES, MAX_AREA_RADIUS, MIN_AREA_RADIUS } from "../lib/area";
 import { MAX_REACH_HEIGHT, STONE_SUBJECTS, type AreaBurst } from "../lib/item";
 import { particleEmitterSchema } from "../lib/particleVfx";
@@ -770,6 +775,7 @@ const serverMessageSchema = v.variant("type", [
           side: v.picklist(TRANSITION_SIDES),
           tileId: v.string(),
           struckBy: v.optional(v.string()),
+          casterEffect: v.optional(transitionSchema),
           pulled: v.optional(v.literal(true)),
           crafted: v.optional(v.picklist(CRAFT_OUTCOMES)),
           tossedFrom: v.optional(
@@ -889,7 +895,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 33;
+export const PROTOCOL_VERSION = 34;
 
 export const MAX_STEPS_AHEAD = 8;
 

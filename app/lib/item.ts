@@ -21,6 +21,8 @@ import {
   MAX_BURST_PARTICLES,
   MAX_TRANSITION_MS,
   MIN_TRANSITION_MS,
+  type Transition,
+  transitionSchema,
 } from "./tileTransition";
 import { HEIGHT_PER_LEVEL, type TileDef } from "./types";
 
@@ -163,6 +165,7 @@ export type ArcaneStoneItem = {
   requirements?: Masteries;
   reach?: Reach;
   elements?: Element[];
+  casterEffect?: Transition;
 };
 
 export type CharmItem = {
@@ -529,6 +532,7 @@ export const stoneSchema = v.object({
   requirements: v.optional(masteriesSchema),
   reach: v.optional(reachEntries),
   elements: v.optional(elementsSchema),
+  casterEffect: v.optional(transitionSchema),
 });
 
 const charmSchema = v.object({

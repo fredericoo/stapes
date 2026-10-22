@@ -6116,6 +6116,26 @@ and were never seen to fly. The arrow has no appear now. The fireball still
 has a 300ms one at the same speed, so a fireball thrown less than six cells is
 still only partly drawn when it lands.
 
+#### A spell shows itself on its caster with `casterEffect`
+
+A stone or a natural spell can carry `casterEffect`, a `Transition` written on
+the stone itself. `resolveCast` raises it as an `appear` note on the caster's
+body as the spell goes off, whoever the spell lands on, so it plays once the
+cast bar fills and never for a cast that was broken or refused.
+
+**The effect travels inside the note**, not as a tile id the client looks up.
+A natural spell has no tile of its own to point at, only a name inside a
+battler block, and an area burst already sends its particles inline the same
+way. `transitionForNote` plays it, and `burstScale` draws it to the caster's
+size, as it does a projectile's `hit`.
+
+**This replaces the self-heals' borrowed projectile.** Verdance, Bloom and
+Second wind used to name `verdant-light` as their projectile only so that
+`strikeBody` would play its `hit` on the caster. They carry that swirl as a
+`casterEffect` now and throw nothing. A bolt on its caster that names a
+projectile with a `hit` still plays it, and plays both if it has a
+`casterEffect` too.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own

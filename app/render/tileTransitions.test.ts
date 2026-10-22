@@ -291,6 +291,11 @@ describe("transitionForNote", () => {
     expect(transitionForNote(arrived, { crystal })).toEqual(sweep);
   });
 
+  it("plays a caster's spell effect off the note, whatever the tile would play on appearing", () => {
+    const glow = sideOf({ durationMs: 600, scale: {} });
+    expect(transitionForNote({ ...arrived, casterEffect: glow }, { crystal })).toEqual(glow);
+  });
+
   it("tosses a dropped thing, whatever the tile would play on appearing", () => {
     const tossed = { ...arrived, tossedFrom: { x: 0, y: 0, elev: 2, order: 2 } };
     expect(transitionForNote(tossed, { crystal })).toEqual({
@@ -353,6 +358,11 @@ describe("burstScale", () => {
     expect(burstScale({ ...own, struckBy: "verdant-light" }, { cyclops })).toBe(2);
     expect(burstScale(own, { cyclops })).toBe(1);
     expect(burstScale({ ...own, pulled: true }, { cyclops })).toBe(1);
+  });
+
+  it("draws a caster's spell effect to the size of whoever cast it", () => {
+    const glow = { durationMs: 600, scale: {} };
+    expect(burstScale({ ...own, casterEffect: glow }, { cyclops })).toBe(2);
   });
 });
 

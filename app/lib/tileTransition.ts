@@ -44,7 +44,7 @@ const dissolveSchema = v.pipe(
   ),
 );
 
-const transitionSchema = v.pipe(
+export const transitionSchema = v.pipe(
   v.object({
     durationMs: v.pipe(v.number(), v.minValue(MIN_TRANSITION_MS), v.maxValue(MAX_TRANSITION_MS)),
     dissolve: v.optional(dissolveSchema),
@@ -90,6 +90,7 @@ export type TileTransitionNote = {
   z: number;
   stackIndex: number;
   struckBy?: string;
+  casterEffect?: Transition;
   pulled?: true;
   crafted?: CraftOutcome;
   tossedFrom?: { x: number; y: number; elev: number; order: number };
