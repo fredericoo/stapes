@@ -46,6 +46,8 @@ const ROW_CLASS =
 export const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
 export const CLOSE_BUTTON_CLASS =
   "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent relative pointer-coarse:after:absolute pointer-coarse:after:-inset-3";
+export const PANEL_TITLE_CLASS =
+  "min-w-0 truncate text-detail font-bold uppercase tracking-wide text-paper/50";
 export const LABEL_CLASS = "truncate text-detail leading-snug font-medium tracking-tight";
 const CHOICE_LABEL_CLASS = "text-detail leading-snug font-medium tracking-tight";
 const TURN_GAP_CLASS = "mt-1.5";
@@ -129,7 +131,9 @@ export function ConversationPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">{title}</h2>
+        <h2 className={PANEL_TITLE_CLASS} title={title}>
+          {title}
+        </h2>
         <button
           type="button"
           onClick={() => onTalk({ kind: "close" })}

@@ -2,7 +2,7 @@ import { IconClose } from "./pixelIcons";
 import { useEffect, useMemo, useRef } from "react";
 import type { CraftingWindow } from "../game/craft";
 import { bindNumberKeys, numberKeyLabel } from "../game/heldDirections";
-import { craftRecipeName, craftVerb, type CraftInput } from "../lib/interactions";
+import { craftRecipeName, type CraftInput } from "../lib/interactions";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
@@ -10,6 +10,7 @@ import {
   CLOSE_BUTTON_CLASS,
   CLOSE_ICON_SIZE_PX,
   LABEL_CLASS,
+  PANEL_TITLE_CLASS,
   PanelButton,
 } from "./ConversationPanel";
 import { KeyHint } from "./KeyHint";
@@ -41,7 +42,6 @@ export function CraftPanel({
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const def = tilesById[crafting.tileId];
   const name = def?.name ?? crafting.tileId;
-  const title = `${craftVerb(crafting.craft)} · ${name}`;
 
   const onCraftRef = useRef(onCraft);
   onCraftRef.current = onCraft;
@@ -56,7 +56,7 @@ export function CraftPanel({
 
   return (
     <section
-      aria-label={title}
+      aria-label={name}
       className={`flex flex-col gap-1 border-2 border-paper/25 bg-paper/5 p-1.5 ${className}`}
     >
       <div className="flex shrink-0 items-center gap-1.5">
@@ -71,7 +71,9 @@ export function CraftPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">{title}</h2>
+        <h2 className={PANEL_TITLE_CLASS} title={name}>
+          {name}
+        </h2>
         <button
           type="button"
           onClick={onClose}
