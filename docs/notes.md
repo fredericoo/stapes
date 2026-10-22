@@ -9225,9 +9225,13 @@ are already on", and is what the client's own tap asks.
 - **`noRoom` is one arm for two states** — a full bag and no bag at all — because
   they are one fact to the player, who can see which by looking at what they are
   wearing.
-- **The field is not extract-shaped.** Nothing else uses it yet, but the next
-  mechanism that tells a player "not you, not now" should add an arm here rather
-  than inventing a second way to be grey.
+- **The field is not extract-shaped.** A reward uses `noRoom` and `needs`, and
+  an item on the floor uses `noRoom` once neither the bag nor a free hand would
+  take it: the row is Pick up, blocked, rather than nothing, so a full bag does
+  not read as an item that will not pick up. A chest is the exception, because
+  it is an item no room would let anybody carry (`carriable`), and it still
+  offers only Open. The next mechanism that tells a player "not you, not now"
+  should add an arm here rather than inventing a second way to be grey.
 - **The bar is a CSS keyframe with a negative delay** (`fill-progress` in `app.css`),
   given the whole `durationMs` and started `durationMs - remainingMs` in. That is
   the whole reason a row with a pull on it costs nothing: the browser runs it on

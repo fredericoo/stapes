@@ -349,6 +349,11 @@ export function pickUpDestination(
   return null;
 }
 
+/** A fixed container, such as a chest, is an item no amount of room lets anybody carry. */
+export function carriable(def: TileDef): boolean {
+  return !resolveContainer(def) || handAccepts(def);
+}
+
 export function canPickUpFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,

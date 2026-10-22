@@ -28,6 +28,8 @@ import {
   rewardFits,
   rewardOfferedAt,
   rewardShortfall,
+  reachableItemDefAt,
+  carriable,
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
@@ -646,6 +648,9 @@ function actionBlock(
 ): OptionBlock | null {
   if (action === "extract") return extractBlock(map, tilesById, self, equipment, ref, extracting);
   if (action === "reward") return rewardBlock(map, tilesById, self, equipment, ref);
+  if (action === "pickUp" && !canPickUpFrom(map, tilesById, self, ref, equipment)) {
+    return { kind: "noRoom" };
+  }
   return null;
 }
 
@@ -702,6 +707,9 @@ function objectAction(
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
+  /** An item with nowhere to go is still offered, blocked, so the full bag is what the player sees. */
+  const item = reachableItemDefAt(map, tilesById, self, ref);
+  if (item && carriable(item)) return "pickUp";
   return null;
 }
 
