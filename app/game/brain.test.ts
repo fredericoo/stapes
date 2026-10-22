@@ -2920,6 +2920,11 @@ describe("the wolf we ship", () => {
     return Math.abs(wolf.x - cat.x) + Math.abs(wolf.y - cat.y);
   }
 
+  function wolfAt(session: GameSession): { x: number; y: number } {
+    const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
+    return { x: wolf.x, y: wolf.y };
+  }
+
   it("has a brain that holds together", () => {
     const wolf = authored.find((def) => def.id === "wolf")!;
     expect(resolveBrain(wolf)?.initial).toBe("prowling");
@@ -2935,12 +2940,14 @@ describe("the wolf we ship", () => {
   });
 
   it("ignores one from further off than it can hear", () => {
-    const session = moor(EARSHOT_CELLS + 1);
-    session.hear("alice", "psps");
+    const called = moor(EARSHOT_CELLS + 1);
+    const silent = moor(EARSHOT_CELLS + 1);
+    called.hear("alice", "psps");
 
-    advance(session, BRAIN_TICK_MS * 12);
+    advance(called, BRAIN_TICK_MS * 12);
+    advance(silent, BRAIN_TICK_MS * 12);
 
-    expect(gapToCat(session)).toBeGreaterThanOrEqual(EARSHOT_CELLS);
+    expect(wolfAt(called)).toEqual(wolfAt(silent));
   });
 
   it("passes word to a wolf that heard nothing itself", () => {
