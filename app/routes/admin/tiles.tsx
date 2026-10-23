@@ -12,11 +12,13 @@ import {
   fetchBootstrap,
   fetchTiles,
   fetchTilesets,
+  fetchTraits,
   saveTiles,
   saveTilesets,
   uploadTilesetBytes,
 } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
+import { traitsById } from "../../lib/traits";
 import type { TileDef, TilesetDef } from "../../lib/types";
 import { KeyHint } from "../../components/KeyHint";
 import { Button, Dialog, Input, Segmented, useToast } from "../../ui";
@@ -25,7 +27,8 @@ const SEARCH_KEY = "/";
 
 export async function clientLoader() {
   await requireAdmin();
-  return await fetchBootstrap();
+  const [bootstrap, traits] = await Promise.all([fetchBootstrap(), fetchTraits()]);
+  return { ...bootstrap, traits };
 }
 
 export async function clientAction({ request }: Route.ClientActionArgs) {
@@ -93,8 +96,9 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
 }
 
 export default function TilesPage() {
-  const { tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
+  const { tiles, tilesets, statuses, traits } = useLoaderData<typeof clientLoader>();
   const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
+  const catalogue = useMemo(() => traitsById(traits), [traits]);
   const fetcher = useFetcher<typeof clientAction>();
   const toast = useToast();
   const [editing, setEditing] = useState<TileDef | null>(null);
@@ -247,6 +251,7 @@ export default function TilesPage() {
         }}
         tile={editing}
         statusDefs={statusDefs}
+        traits={catalogue}
         tiles={tiles}
         tilesets={tilesets}
         isNew={isNew}

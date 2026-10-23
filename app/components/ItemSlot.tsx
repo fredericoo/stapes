@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { stoneLocked, takesEffect, type Equipment } from "../game/equipment";
 import { itemCard } from "../game/itemCard";
 import { isBodySlot, slotKey, type SlotRef } from "../game/itemMoves";
@@ -14,6 +14,7 @@ import { DWELL_MS } from "../lib/useDwell";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { Tooltip } from "../ui";
 import { ItemCard } from "./ItemCard";
+import type { PixelIcon } from "./pixelIcons";
 import type { ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
 
@@ -26,8 +27,6 @@ export const ITEM_SLOT_SIZE_PX = 44;
 const SPRITE_SHARE = 32 / ITEM_SLOT_SIZE_PX;
 
 const EMPTY_ICON_SHARE = 20 / ITEM_SLOT_SIZE_PX;
-
-const EMPTY_ICON_STROKE = 1.5;
 
 const LOCKED_NOTE = "Still cooling; it cannot be moved yet";
 
@@ -132,7 +131,7 @@ export function ItemSlot({
   tilesets: TilesetDef[];
   label: string;
   emptyHint?: string;
-  emptyIcon?: ComponentType<{ size?: number; stroke?: number; className?: string }>;
+  emptyIcon?: PixelIcon;
   open?: boolean | undefined;
   drag: ItemDrag;
   masteryXp?: MasteryXp;
@@ -294,16 +293,12 @@ export function ItemSlot({
           />
         </span>
       ) : EmptyIcon ? (
-        <EmptyIcon
-          size={Math.round(sizePx * EMPTY_ICON_SHARE)}
-          stroke={EMPTY_ICON_STROKE}
-          className="text-paper/25"
-        />
+        <EmptyIcon size={Math.round(sizePx * EMPTY_ICON_SHARE)} className="text-paper/25" />
       ) : null}
       {tally ? (
         <span
           aria-hidden
-          className="pointer-events-none absolute right-0 bottom-0 px-0.5 text-[10px] leading-none font-bold text-paper [text-shadow:1px_1px_0_var(--color-ink),-1px_1px_0_var(--color-ink),1px_-1px_0_var(--color-ink),-1px_-1px_0_var(--color-ink)]"
+          className="pointer-events-none absolute right-0 bottom-0 px-0.5 text-2xs leading-none font-bold text-paper [text-shadow:1px_1px_0_var(--color-ink),-1px_1px_0_var(--color-ink),1px_-1px_0_var(--color-ink),-1px_-1px_0_var(--color-ink)]"
         >
           {tally}
         </span>

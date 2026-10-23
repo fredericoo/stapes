@@ -244,6 +244,7 @@ function actor(
     casting: null,
     pvp,
     hidden: false,
+    king: false,
   };
 }
 
@@ -325,16 +326,14 @@ describe("listInteractionOptions — objects", () => {
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
-  it("offers a push on a crate a floor down where that ground is missing", () => {
+  it("offers nothing a whole floor down, even where the ground is missing", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, []);
     map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 2, 0, -1, [{ tileId: "grass" }]);
     const me = playerAt(map);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
-
-    expect(actionsIn(targets)).toEqual(["push"]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("says nothing about a door a floor down under solid ground", () => {
@@ -343,17 +342,6 @@ describe("listInteractionOptions — objects", () => {
     const me = playerAt(map);
 
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
-  });
-
-  it("offers a door a floor down where that ground is missing", () => {
-    let map = field();
-    map = replaceStack(map, 1, 0, 0, []);
-    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "door_shut" }]);
-    const me = playerAt(map);
-
-    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
-
-    expect(actionsIn(targets)).toEqual(["switch"]);
   });
 
   it("drops a push with nowhere to go", () => {
@@ -509,7 +497,6 @@ describe("listInteractionOptions — battlers", () => {
       KIT,
       null,
       [],
-      null,
       false,
     );
     const armed = listInteractionOptions(
@@ -521,7 +508,6 @@ describe("listInteractionOptions — battlers", () => {
       KIT,
       null,
       [],
-      null,
       true,
     );
 
@@ -571,7 +557,6 @@ describe("listInteractionOptions — battlers", () => {
         KIT,
         null,
         [],
-        null,
         attacking,
         undefined,
         null,
@@ -808,7 +793,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       { key: bushKey, remainingMs: 500, durationMs: 1_000 },
       null,
@@ -824,7 +808,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -882,7 +865,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -910,7 +892,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -958,7 +939,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -994,7 +974,6 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
-      null,
       false,
       null,
       null,
@@ -1058,7 +1037,7 @@ describe("listInteractionOptions — picking things up", () => {
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
-  it("says nothing once the bag and both hands are full", () => {
+  it("offers pick up blocked for no room once the bag and both hands are full", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "sword"]);
     const me = playerAt(map);
@@ -1068,7 +1047,10 @@ describe("listInteractionOptions — picking things up", () => {
       offhand: { id: "o", tileId: "torch" },
     };
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, noRoomAnywhere)).toEqual([]);
+    const options = listInteractionOptions(map, tilesById, me, [me], null, noRoomAnywhere);
+    expect(options.map((option) => [option.action, option.blocked])).toEqual([
+      ["pickUp", { kind: "noRoom" }],
+    ]);
   });
 
   it("reaches for a hand when the bag has no room", () => {
@@ -1264,7 +1246,7 @@ describe("listInteractionOptions — consumables on the floor", () => {
     expect(eat?.label).toBe("Use");
   });
 
-  it("offers the meal when there is nowhere left to put it", () => {
+  it("offers the meal, and pick up blocked, when there is nowhere left to put it", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "cherry"]);
     const me = playerAt(map);
@@ -1274,8 +1256,10 @@ describe("listInteractionOptions — consumables on the floor", () => {
       offhand: { id: "o", tileId: "torch" },
     };
 
-    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, laden))).toEqual([
-      "consume",
+    const options = listInteractionOptions(map, tilesById, me, [me], null, laden);
+    expect(options.map((option) => [option.action, option.blocked?.kind ?? null])).toEqual([
+      ["pickUp", "noRoom"],
+      ["consume", null],
     ]);
   });
 
@@ -1487,7 +1471,6 @@ describe("topInteractionAt", () => {
         KIT,
         null,
         [],
-        null,
         attacking,
       );
 
@@ -1515,7 +1498,6 @@ describe("refOptionsFrom", () => {
     equipment: NO_BAG,
     openedRef: null,
     tags: [],
-    spawnAt: null,
     extracting: null,
     conversation: null,
     craftingRef: null,
@@ -1645,6 +1627,7 @@ describe("groupInteractionOptions", () => {
       actorId: null,
       blocked: null,
       wait: null,
+      far: false,
       tileId: "crate",
       name: "Crate",
       health: null,
@@ -1804,7 +1787,7 @@ describe("listedActionRows and rowPress", () => {
   it("runs nothing for a line that is greyed", () => {
     const [, , , crate] = listedActionRows(bodyAndCrate());
 
-    expect(rowPress([{ ...crate![0]!, blocked: { kind: "here" } }])).toBeNull();
+    expect(rowPress([{ ...crate![0]!, blocked: { kind: "taken" } }])).toBeNull();
   });
 
   it("has no lines and nothing to press for an empty list", () => {
@@ -1863,7 +1846,6 @@ describe("listInteractionOptions — somebody you cannot fight", () => {
       KIT,
       null,
       [],
-      null,
       true,
     );
 
@@ -1895,7 +1877,6 @@ describe("applyInteraction — the fight and the watch", () => {
       KIT,
       null,
       [],
-      null,
       attacking,
     );
   }

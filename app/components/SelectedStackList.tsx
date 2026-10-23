@@ -7,12 +7,14 @@ import { isDirectional } from "../lib/types";
 import { elevationAt, getStack, listChannels } from "../lib/mapData";
 import { footRange } from "../lib/validation";
 import {
+  resolveDepotDef,
   resolveEmit,
   resolveReceive,
   resolveRewardDef,
   resolveTeleportDef,
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
+import { RATING_GLYPH } from "../lib/mastery";
 import { variantKeys } from "../lib/variant";
 import { useEditorStore } from "../editor/store";
 import { Button, Segmented, Tooltip } from "../ui";
@@ -66,6 +68,10 @@ function isWired(def: TileDef): boolean {
 
 function isGiver(def: TileDef): boolean {
   return resolveRewardDef(def) != null;
+}
+
+function isDepot(def: TileDef): boolean {
+  return resolveDepotDef(def) != null;
 }
 
 function needsDestination(def: TileDef): boolean {
@@ -238,13 +244,27 @@ function SortableStackItem({
             />
           </div>
         ) : null}
-        {placed.channel || placed.rewardTag || placed.contents?.length || placed.inscription ? (
+        {placed.channel ||
+        placed.rewardTag ||
+        placed.depotTag ||
+        placed.contents?.length ||
+        placed.inscription ? (
           <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
             {placed.channel ? <span className="shrink-0">⌁ {placed.channel}</span> : null}
             {placed.rewardTag ? (
               <span className="shrink-0">
                 ⛁ {placed.rewardTag}
                 {placed.rewardTileIds?.length ? ` ×${placed.rewardTileIds.length}` : ""}
+                {placed.rewardRequires?.rating
+                  ? ` ${RATING_GLYPH}${placed.rewardRequires.rating}`
+                  : ""}
+              </span>
+            ) : null}
+            {placed.depotTag ? (
+              <span className="shrink-0">
+                <span className="sr-only">Depot </span>
+                <span aria-hidden="true">⌂ </span>
+                {placed.depotTag}
               </span>
             ) : null}
             {placed.contents?.length ? (
@@ -294,6 +314,7 @@ function SortableStackItem({
           stackIndex={stackIndex}
           wired={isWired(def)}
           gives={isGiver(def)}
+          stashes={isDepot(def)}
           teleports={needsDestination(def)}
           holds={holdsCount(def)}
           giveable={giveable}

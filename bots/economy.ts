@@ -23,6 +23,12 @@ export const FOOD_RESERVE = 4;
  */
 export const MIN_GAIN = 0.25;
 
+/**
+ * What one of a wanted thing no NPC buys or sells counts for, in the
+ * currency, such as a skin or an unforged stone: little, but not nothing.
+ */
+export const UNPRICED_WORTH = 1;
+
 export type Deal = { readonly offer: Offer; readonly amount: number; readonly why: string };
 
 /**
@@ -158,6 +164,50 @@ export class Economy {
       if (carried.has(tileId)) return false;
       return (bestUpgrade(def, equipment, this.tilesById, body, this.taste)?.gain ?? 0) > 0;
     };
+  }
+
+  /**
+   * What the bag a bot wears would be worth to get back after dying with it,
+   * in the currency. Its contents are judged as the bot will be after
+   * rebirth, wearing what it wore and an empty bag, so food counts while it
+   * has none and spare gear counts only where it beats what is worn. A bag
+   * the bot is reborn without, such as one bought, adds its price.
+   */
+  kitWorth(equipment: Equipment, body: BattlerDef): number {
+    const bag = equipment.bag;
+    if (!bag) return 0;
+    const wanted = this.wanted({ ...equipment, bag: { ...bag, contents: [] } }, body);
+    let worth = this.shopPrice(bag.tileId) ?? 0;
+    for (const instance of bag.contents ?? []) {
+      if (wanted(instance.tileId)) worth += this.unitWorth(instance.tileId) * countOf(instance);
+    }
+    return worth;
+  }
+
+  /** What an NPC pays for one, or charges for one, whichever is more, and at least `UNPRICED_WORTH`. */
+  private unitWorth(tileId: string): number {
+    if (tileId === this.currency) return 1;
+    return Math.max(UNPRICED_WORTH, this.salePrice(tileId), this.shopPrice(tileId) ?? 0);
+  }
+
+  /** The most money any NPC pays for one of these, or 0. */
+  private salePrice(tileId: string): number {
+    let best = 0;
+    for (const offer of this.offers) {
+      const side = offer.take.length === 1 ? offer.take[0]! : null;
+      if (side?.tileId !== tileId || !this.paysMoney(offer)) continue;
+      const paid = offer.give.reduce((sum, given) => sum + given.count, 0);
+      best = Math.max(best, paid / side.count);
+    }
+    return best;
+  }
+
+  /** The cheapest any NPC sells one of these for, or null when none does. */
+  private shopPrice(tileId: string): number | null {
+    const prices = this.offers
+      .filter((offer) => soleGive(offer) === tileId)
+      .map((offer) => this.price(offer));
+    return prices.length > 0 ? Math.min(...prices) : null;
   }
 
   /** Whether this is a stone, or goes into making one. A bot keeps all of them. */

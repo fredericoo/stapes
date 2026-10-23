@@ -104,7 +104,8 @@ export type TileSprite = {
   phase?: SpritePhase;
 };
 
-export type TileHeight = 0 | 1 | 2 | 3 | 4;
+/** Past `HEIGHT_PER_LEVEL` a tile overflows into the level above, up to two levels; see `fitsInColumn`. */
+export type TileHeight = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export type TileType =
   | "simple"
@@ -275,6 +276,11 @@ export type TilesetDef = {
   height: number;
 };
 
+/** What a player must have to take a placement's reward; a missing criterion asks nothing. */
+export type RewardRequirements = {
+  rating?: number;
+};
+
 export type PlacedTile = {
   tileId: string;
   direction?: Direction;
@@ -286,6 +292,8 @@ export type PlacedTile = {
   engraved?: string;
   rewardTag?: string;
   rewardTileIds?: string[];
+  rewardRequires?: RewardRequirements;
+  depotTag?: string;
   teleportTo?: Coord;
   owner?: string;
   castBy?: string;

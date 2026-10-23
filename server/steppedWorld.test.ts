@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
-import { PLAYER_TILE_ID, TICK_MS } from "../app/game/constants";
+import traitsJson from "../data/traits.json";
+import { BRAIN_ROUND_TICKS, PLAYER_TILE_ID, TICK_MS } from "../app/game/constants";
 import { resolveRespawn } from "../app/lib/interactions";
 import { getStack } from "../app/lib/mapData";
+import { tile } from "../app/lib/testTile";
 import { MAP_FILE_VERSION, normalizeTileDef } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { Harness, Pair } from "./testHarness";
@@ -46,6 +48,7 @@ async function steppedWorld(seed: number): Promise<Harness> {
   opened.push(harness);
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
+  await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
   await harness.blobs.put("map.json", JSON.stringify(field()), JSON_TYPE);
   await harness.server.step();
   return harness;
@@ -105,5 +108,55 @@ describe("a world stepped by hand", () => {
 
     await harness.server.step(3);
     expect(burnLeft()).toBeCloseTo(granted - 3 * TICK_MS);
+  });
+});
+
+describe("a world with a trait catalogue in its store", () => {
+  const YELPER_ID = "npc:2,0,0,1";
+
+  const yelper = tile({
+    id: "yelper",
+    height: 2,
+    actor: true,
+    walkable: false,
+    interactions: {
+      brain: {
+        initial: "idle",
+        states: { idle: { do: [{ action: "hold" }] } },
+        transitions: [],
+        traits: [{ trait: "yelps" }],
+      },
+    },
+  });
+
+  const yelps = {
+    id: "yelps",
+    name: "Yelps",
+    states: { yelping: { band: "errand", do: [{ action: "hold" }] } },
+    triggers: [{ if: { cond: "after", ms: 0 }, to: "yelping" }],
+  };
+
+  function yard(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (let x = 0; x <= 3; x++) cells[`${x},0`] = [{ tileId: "grass" }];
+    cells["0,0"] = [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID, direction: "s" }];
+    cells["2,0"] = [{ tileId: "grass" }, { tileId: "yelper", direction: "w" }];
+    return { version: MAP_FILE_VERSION, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  it("runs a creature whose brain calls a trait from that catalogue", async () => {
+    const harness = await Harness.create({}, { manualTicks: { startAtMs: NOON_MS }, seed: SEED });
+    opened.push(harness);
+    await harness.blobs.put("tiles.json", JSON.stringify([...tilesJson, yelper]), JSON_TYPE);
+    await harness.blobs.put("traits.json", JSON.stringify([...traitsJson, yelps]), JSON_TYPE);
+    await harness.blobs.put("map.json", JSON.stringify(yard()), JSON_TYPE);
+    await harness.server.step();
+    await seatPlayer(harness);
+
+    await harness.server.step(BRAIN_ROUND_TICKS * 2);
+
+    const { session } = harness.server as unknown as Internals;
+    const brain = (session.actors.get(YELPER_ID) as { brain: { state: string } | null }).brain;
+    expect(brain?.state).toContain("yelping");
   });
 });

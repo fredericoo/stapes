@@ -78,7 +78,7 @@ const app = new Elysia({
           socket.close(CLOSE_MAINTENANCE, "maintenance");
           return;
         }
-        await world.join(socket, character.id, { admin });
+        await world.join(socket, character.id, { admin, accountId: viewer.id });
       })();
     },
 

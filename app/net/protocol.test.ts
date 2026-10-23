@@ -571,6 +571,44 @@ describe("nothing is quietly dropped in transit", () => {
         z: 0,
         stackIndex: 1,
       },
+      areaBurst: {
+        kind: "areaBurst",
+        id: "area-1",
+        x: 1,
+        y: 0,
+        cells: [
+          { x: 1, y: 0, elevAbs: 0 },
+          { x: 2, y: 0, elevAbs: 0.5 },
+        ],
+        burst: {
+          durationMs: 400,
+          particles: {
+            ratePerSecond: 60,
+            ttlFromMs: 100,
+            ttlToMs: 200,
+            spawnRadiusCells: 0.4,
+            spawnElevFrom: 0,
+            spawnElevTo: 1,
+            riseFrom: 1,
+            riseTo: 3,
+            driftCellsPerSecond: 0.5,
+            lit: true,
+            ownDepth: false,
+            gravity: -4,
+            offsetX: "",
+            offsetY: "",
+            offsetElev: "",
+            shape: null,
+            sizeFromPx: 5,
+            sizeToPx: null,
+            radiusFromPx: 1,
+            radiusToPx: 1,
+            alphaFrom: 1,
+            alphaTo: 0,
+            ramp: [{ at: 0, color: "#a08060" }],
+          },
+        },
+      },
       damage: damageEvent,
     };
 
@@ -590,8 +628,23 @@ describe("nothing is quietly dropped in transit", () => {
 
   it.each([
     { what: "a struck body's borrowed effect", tileId: "rat", struckBy: "arrow" },
+    {
+      what: "a caster's spell effect",
+      tileId: "player",
+      casterEffect: { durationMs: 600, scale: {} },
+    },
     { what: "a worked resource's pull effect", tileId: "crystal", pulled: true as const },
     { what: "a crafter's failed craft", tileId: "forge", crafted: "failed" as const },
+    {
+      what: "a dropped thing's toss",
+      tileId: "iron-sword",
+      tossedFrom: { x: 3, y: -1, elev: 1.5, order: 2 },
+    },
+    {
+      what: "a taken thing's taker",
+      tileId: "iron-sword",
+      takenBy: { x: 3, y: -1, elev: 1.5 },
+    },
   ])("carries $what through whole", ({ what: _what, ...cause }) => {
     const event = {
       kind: "tileTransition" as const,

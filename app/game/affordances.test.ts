@@ -102,7 +102,7 @@ const FULL_KIT: Equipment = {
   },
 };
 
-const ME = { x: 0, y: 0, z: 0 };
+const ME = { x: 0, y: 0, z: 0, stackIndex: 0 };
 
 const OPEN_AIR = emptyMap();
 
@@ -112,6 +112,21 @@ function mapWith(x: number, y: number, tileId: string, z = 0): MapFile {
 
 function ref(x: number, y: number, z = 0, stackIndex = 1): ObjectRef {
   return { x, y, z, stackIndex };
+}
+
+const ON_ROCK = { ...ME, stackIndex: 1 };
+
+const UP_A_FLOOR = { ...ME, z: 1 };
+
+function onRock(map: MapFile): MapFile {
+  return replaceStack(map, ME.x, ME.y, ME.z, [{ tileId: "rock" }]);
+}
+
+function chestOnRock(): MapFile {
+  return replaceStack(emptyMap(), 1, 0, 0, [
+    { tileId: "rock" },
+    { tileId: "chest", itemId: "itm_target" },
+  ]);
 }
 
 describe("withinReach", () => {
@@ -162,33 +177,36 @@ describe("withinReach", () => {
       [{ tileId: "grass" }, { tileId: "bed", span: { id: "b", dx: 1, dy: 0 } }],
     );
     expect(withinReach(bed, tilesById, ME, ref(2, 0))).toBe(true);
-    expect(withinReach(bed, tilesById, { x: -1, y: 0, z: 0 }, ref(2, 0))).toBe(false);
+    expect(withinReach(bed, tilesById, { x: -1, y: 0, z: 0, stackIndex: 0 }, ref(2, 0))).toBe(
+      false,
+    );
   });
 
-  it("reaches one floor up and down, and no further", () => {
-    expect(withinReach(OPEN_AIR, tilesById, ME, ref(1, 0, 1))).toBe(true);
-    expect(withinReach(OPEN_AIR, tilesById, ME, ref(1, 0, -1))).toBe(true);
-    expect(withinReach(OPEN_AIR, tilesById, ME, ref(1, 0, 2))).toBe(false);
+  it("refuses a ledge a whole floor up, like the rim of a hole you have fallen into", () => {
+    expect(withinReach(mapWith(1, 0, "chest", 1), tilesById, ME, ref(1, 0, 1))).toBe(false);
   });
 
-  it("refuses a thing one floor down with ground laid over it", () => {
-    const roofed = replaceStack(mapWith(1, 0, "chest", -1), 1, 0, 0, [{ tileId: "grass" }]);
-    expect(withinReach(roofed, tilesById, ME, ref(1, 0, -1))).toBe(false);
+  it("refuses a thing a whole floor down", () => {
+    expect(withinReach(mapWith(1, 0, "chest", -1), tilesById, ME, ref(1, 0, -1))).toBe(false);
   });
 
-  it("still reaches down where that ground is missing", () => {
-    const open = mapWith(1, 0, "chest", -1);
-    expect(withinReach(open, tilesById, ME, ref(1, 0, -1))).toBe(true);
-  });
-
-  it("reaches up onto a ledge with ground of its own", () => {
-    const ledge = mapWith(1, 0, "chest", 1);
-    expect(withinReach(ledge, tilesById, ME, ref(1, 0, 1))).toBe(true);
+  it("reaches a floor up from a rock half a floor high", () => {
+    const ledge = onRock(mapWith(1, 0, "chest", 1));
+    expect(withinReach(ledge, tilesById, ON_ROCK, ref(1, 0, 1))).toBe(true);
   });
 
   it("refuses that ledge from under a ceiling", () => {
-    const roofed = replaceStack(mapWith(1, 0, "chest", 1), 0, 0, 1, [{ tileId: "grass" }]);
-    expect(withinReach(roofed, tilesById, ME, ref(1, 0, 1))).toBe(false);
+    const roofed = replaceStack(onRock(mapWith(1, 0, "chest", 1)), 0, 0, 1, [{ tileId: "grass" }]);
+    expect(withinReach(roofed, tilesById, ON_ROCK, ref(1, 0, 1))).toBe(false);
+  });
+
+  it("reaches down a floor to the top of a rock", () => {
+    expect(withinReach(chestOnRock(), tilesById, UP_A_FLOOR, ref(1, 0))).toBe(true);
+  });
+
+  it("refuses that rock with ground laid over it", () => {
+    const roofed = replaceStack(chestOnRock(), 1, 0, 1, [{ tileId: "grass" }]);
+    expect(withinReach(roofed, tilesById, UP_A_FLOOR, ref(1, 0))).toBe(false);
   });
 
   it("reaches across its own floor whatever is standing in the way", () => {

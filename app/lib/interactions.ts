@@ -1,15 +1,15 @@
 import * as v from "valibot";
 import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
-import type { BrainDef } from "./brain";
+import type { AuthoredBrain } from "./traits";
 import type { DialogDef } from "./dialog";
 import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
 import { itemForSave, stoneForSave, MAX_CONTAINER_SIZE, resolveItem, weaponForSave } from "./item";
-import { MASTERIES } from "./mastery";
+import { MASTERIES, MIN_RATING, type Mastery } from "./mastery";
 import { MAX_PROJECTILE_SPEED, MIN_PROJECTILE_SPEED, type ProjectileBlock } from "./projectile";
 import { type CraftOutcome, resolveTransition, type Transition } from "./tileTransition";
-import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
+import type { Coord, PlacedTile, RewardRequirements, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
 export type ClimbAbility = "none" | "half" | "full";
@@ -130,20 +130,26 @@ export type RemoveStatusInteraction = {
   statusId: string;
 };
 
-export type SetSpawnInteraction = {
-  actionName?: string;
-  trigger: ActivationTrigger;
-};
-
 export type RewardInteraction = {
   actionName?: string;
   claimedTileId?: string;
 };
 
+/**
+ * A container whose contents belong to whoever opens it. The tag is set per
+ * placement, so every placement sharing a tag opens the same stash.
+ */
+export type DepotInteraction = {
+  size: number;
+};
+
+export type PlacedDepot = DepotInteraction & { tag: string };
+
 export type PlacedReward = {
   actionName?: string;
   tag: string;
   itemTileIds: string[];
+  requires: RewardRequirements;
 };
 
 export type CraftInput = {
@@ -190,7 +196,7 @@ export const MAX_CRAFT_CHANCE = 100;
 
 export const MAX_CRAFT_WEIGHT = 1000;
 
-export const MAX_CRAFT_RECIPES = 16;
+export const MAX_CRAFT_RECIPES = 24;
 
 export const MAX_REWARD_ITEMS = MAX_CONTAINER_SIZE;
 
@@ -210,11 +216,13 @@ export type ExtractInteraction = {
   tileId: string;
   durationMs: number;
   slots: ExtractSlot[];
+  mastery?: Mastery;
+  xp?: number;
   pulled?: Transition;
 };
 
 export type TileInteractions = {
-  brain?: BrainDef;
+  brain?: AuthoredBrain;
   dialog?: DialogDef;
   battler?: BattlerDef;
   item?: ItemDef;
@@ -222,12 +230,12 @@ export type TileInteractions = {
   push?: PushInteraction;
   switch?: SwitchInteraction;
   reward?: RewardInteraction;
+  depot?: DepotInteraction;
   craft?: CraftInteraction;
   extract?: ExtractInteraction;
   teleport?: TeleportInteraction;
   addStatus?: AddStatusInteraction;
   removeStatus?: RemoveStatusInteraction;
-  setSpawn?: SetSpawnInteraction;
   endure?: EndureInteraction;
   decay?: DecayInteraction;
   respawn?: RespawnInteraction;
@@ -243,6 +251,10 @@ export const DEFAULT_SWITCH: SwitchInteraction = {
 
 export const DEFAULT_REWARD: RewardInteraction = {
   actionName: "",
+};
+
+export const DEFAULT_DEPOT: DepotInteraction = {
+  size: MAX_CONTAINER_SIZE,
 };
 
 export const DEFAULT_CRAFT_RECIPE: CraftRecipe = {
@@ -300,11 +312,6 @@ export const MAX_AFFLICTIONS = 4;
 
 const DEFAULT_DECAY_FROM_MS = 20_000;
 const DEFAULT_DECAY_TO_MS = 40_000;
-
-export const DEFAULT_SET_SPAWN: SetSpawnInteraction = {
-  trigger: "interact",
-  actionName: "",
-};
 
 export const DEFAULT_DECAY: DecayInteraction = {
   tileId: "",
@@ -410,9 +417,18 @@ export function resolveReward(placed: PlacedTile, def: TileDef | undefined): Pla
   return reward;
 }
 
+export const rewardRequirementsSchema = v.object({
+  rating: v.optional(v.pipe(v.number(), v.integer(), v.minValue(MIN_RATING))),
+});
+
+/**
+ * A malformed requirement falls back to asking nothing rather than voiding the
+ * reward, so a typo in the editor never hides a chest the placement still names.
+ */
 const placedRewardSchema = v.object({
   rewardTag: v.pipe(v.string(), v.trim(), v.minLength(1)),
   rewardTileIds: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(MAX_REWARD_ITEMS)),
+  rewardRequires: v.fallback(v.optional(rewardRequirementsSchema, {}), {}),
 });
 
 function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null {
@@ -424,7 +440,42 @@ function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null
     ...gesture,
     tag: parsed.output.rewardTag,
     itemTileIds: parsed.output.rewardTileIds,
+    requires: parsed.output.rewardRequires,
   };
+}
+
+const depotSchema = v.object({
+  size: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CONTAINER_SIZE)),
+});
+
+const depotCache = new WeakMap<TileDef, DepotInteraction | null>();
+
+export function resolveDepotDef(def: TileDef): DepotInteraction | null {
+  const cached = depotCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.depot;
+  const parsed = raw == null ? null : v.safeParse(depotSchema, raw);
+  const depot = parsed?.success ? parsed.output : null;
+  depotCache.set(def, depot);
+  return depot;
+}
+
+const placedDepotSchema = v.object({
+  depotTag: v.pipe(v.string(), v.trim(), v.minLength(1)),
+});
+
+const placedDepotCache = new WeakMap<PlacedTile, PlacedDepot | null>();
+
+export function resolveDepot(placed: PlacedTile, def: TileDef | undefined): PlacedDepot | null {
+  const cached = placedDepotCache.get(placed);
+  if (cached !== undefined) return cached;
+
+  const gesture = def ? resolveDepotDef(def) : null;
+  const parsed = gesture ? v.safeParse(placedDepotSchema, placed) : null;
+  const depot = gesture && parsed?.success ? { ...gesture, tag: parsed.output.depotTag } : null;
+  placedDepotCache.set(placed, depot);
+  return depot;
 }
 
 const craftTileIdSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
@@ -537,6 +588,8 @@ const extractSchema = v.object({
       slots.filter((slot): slot is ExtractSlot => slot != null).slice(0, MAX_EXTRACT_SLOTS),
     ),
   ),
+  mastery: v.fallback(v.optional(v.picklist(MASTERIES)), undefined),
+  xp: v.fallback(v.optional(v.pipe(v.number(), v.finite(), v.minValue(0))), undefined),
   pulled: v.optional(v.unknown()),
 });
 
@@ -707,24 +760,6 @@ export function resolveRemoveStatus(def: TileDef): RemoveStatusInteraction | nul
   return removeStatus;
 }
 
-const setSpawnSchema = v.object({
-  actionName: v.optional(v.string()),
-  trigger: v.picklist(ACTIVATION_TRIGGERS),
-});
-
-const setSpawnCache = new WeakMap<TileDef, SetSpawnInteraction | null>();
-
-export function resolveSetSpawn(def: TileDef): SetSpawnInteraction | null {
-  const cached = setSpawnCache.get(def);
-  if (cached !== undefined) return cached;
-
-  const raw = def.interactions?.setSpawn;
-  const parsed = raw == null ? null : v.safeParse(setSpawnSchema, raw);
-  const setSpawn = parsed?.success ? parsed.output : null;
-  setSpawnCache.set(def, setSpawn);
-  return setSpawn;
-}
-
 const afflictionSchema = v.object({
   statusId: v.pipe(v.string(), v.minLength(1)),
   tileId: v.string(),
@@ -860,7 +895,6 @@ export type InteractionKind =
   | "switch"
   | "addStatus"
   | "removeStatus"
-  | "setSpawn"
   | "craft"
   | "extract"
   | "pickUp"
@@ -873,7 +907,6 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   if (resolveSwitch(def)) kinds.push("switch");
   if (pressable(resolveAddStatus(def))) kinds.push("addStatus");
   if (pressable(resolveRemoveStatus(def))) kinds.push("removeStatus");
-  if (pressable(resolveSetSpawn(def))) kinds.push("setSpawn");
   if (resolveCraft(def)) kinds.push("craft");
   if (resolveExtract(def)) kinds.push("extract");
   if (resolveItem(def)) kinds.push("pickUp");
@@ -902,7 +935,7 @@ export function hasSpriteStates(def: TileDef): boolean {
 }
 
 export function isInteractive(def: TileDef): boolean {
-  return interactionKinds(def).length > 0;
+  return interactionKinds(def).length > 0 || resolveDepotDef(def) != null;
 }
 
 export function hasAnyInteraction(interactions: TileInteractions | undefined): boolean {
@@ -915,6 +948,7 @@ export function hasAnyInteraction(interactions: TileInteractions | undefined): b
     interactions?.push ||
     interactions?.switch ||
     interactions?.reward ||
+    interactions?.depot ||
     interactions?.craft ||
     interactions?.extract ||
     interactions?.teleport ||
@@ -956,6 +990,7 @@ export function interactionsForSave(
   const savedReward = reward
     ? { ...(rewardActionName ? { actionName: rewardActionName } : {}) }
     : undefined;
+  const savedDepot = interactions?.depot ? { size: interactions.depot.size } : undefined;
   const savedCraft = interactions?.craft ? craftForSave(interactions.craft) : undefined;
   const extract = interactions?.extract;
   const savedSlots = (extract?.slots ?? []).flatMap((slot) => {
@@ -972,6 +1007,8 @@ export function interactionsForSave(
           tileId: extract.tileId.trim(),
           durationMs: Math.max(0, Math.round(extract.durationMs)),
           slots: savedSlots.slice(0, MAX_EXTRACT_SLOTS),
+          ...(extract.mastery ? { mastery: extract.mastery } : {}),
+          ...(extract.mastery && extract.xp && extract.xp > 0 ? { xp: extract.xp } : {}),
           ...(extract.pulled ? { pulled: extract.pulled } : {}),
         }
       : undefined;
@@ -1011,14 +1048,6 @@ export function interactionsForSave(
         ...(removeStatusActionName ? { actionName: removeStatusActionName } : {}),
         trigger: removeStatus.trigger,
         statusId: removeStatus.statusId.trim(),
-      }
-    : undefined;
-  const setSpawn = interactions?.setSpawn;
-  const setSpawnActionName = setSpawn?.actionName?.trim();
-  const savedSetSpawn = setSpawn
-    ? {
-        ...(setSpawnActionName ? { actionName: setSpawnActionName } : {}),
-        trigger: setSpawn.trigger,
       }
     : undefined;
   const endure = interactions?.endure;
@@ -1121,12 +1150,12 @@ export function interactionsForSave(
     !savedPush &&
     !savedSwitch &&
     !savedReward &&
+    !savedDepot &&
     !savedCraft &&
     !savedExtract &&
     !savedTeleport &&
     !savedAddStatus &&
     !savedRemoveStatus &&
-    !savedSetSpawn &&
     !savedEndure &&
     !savedDecay &&
     !savedRespawn &&
@@ -1145,12 +1174,12 @@ export function interactionsForSave(
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedReward ? { reward: savedReward } : {}),
+    ...(savedDepot ? { depot: savedDepot } : {}),
     ...(savedCraft ? { craft: savedCraft } : {}),
     ...(savedExtract ? { extract: savedExtract } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
     ...(savedRemoveStatus ? { removeStatus: savedRemoveStatus } : {}),
-    ...(savedSetSpawn ? { setSpawn: savedSetSpawn } : {}),
     ...(savedEndure ? { endure: savedEndure } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),

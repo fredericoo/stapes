@@ -13,6 +13,8 @@
 
 @theme {
   --font-sans: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --text-2xs: 10px;
+  --text-detail: 11px;
   /* Copied by the `theme-color` meta in `root.tsx`. */
   --color-ink: #1a1a1a;
   --color-paper: #f4f0e6;
@@ -21,6 +23,7 @@
   --color-accent: #2d6a4f;
   --color-danger: #9b2226;
   --color-danger-on-ink: #ff6b6b;
+  --color-mend: #7fe08a;
   /* Must be the same value as the shared `outline` in
      `render/interactionColors.ts`: the outline drawn in the world when the
      pointer is over something actionable uses this colour too, and the two are
@@ -60,12 +63,14 @@
     }
   }
 
-  /* Padding rather than `scroll-padding`: the latter moves where a
-     programmatic scroll comes to rest and adds no room at all, so a row at
-     the very bottom would stay under the toolbar however you asked to be
-     taken to it. This is what makes that band scrollable space instead. */
-  .scrolls-past-toolbar {
-    padding-bottom: env(safe-area-inset-bottom);
+  /* Safari 26's tab bar floats over the page, and the home-indicator inset
+     alone is far shorter than it. `100lvh - 100dvh` is the height of whatever
+     browser chrome is showing at the bottom, and zero once it has collapsed.
+     Margin on the row that holds the scrollers, not padding inside each one:
+     padding at the end of the reach list's scroller still left its last row
+     under the bar on an iPhone. */
+  .clears-toolbar {
+    margin-bottom: max(env(safe-area-inset-bottom), calc(100lvh - 100dvh));
   }
 
   /* Naming a `scrollbar-color` is what opts a Chromium scroller out of
@@ -133,6 +138,51 @@ body {
   }
 }
 
+/* The game's whole interface in the world-label face, set on `<html>` by
+   `WorldPage` so tooltips and toasts portalled to `<body>` get it too. Sizes
+   step in 5px, half of the face's 10-pixel em: crisp at 2x, uneven by a
+   fraction of a device pixel at 1x and 3x, which reads better than rounding
+   every label up to 20px. The face has one weight and only ASCII, so bold is
+   not synthesised and anything else falls back to the mono stack. */
+.pixel-ui {
+  --font-sans: "NF Pixels", "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --font-mono: var(--font-sans);
+  --text-2xs: 10px;
+  --text-2xs--line-height: 1.2;
+  --text-detail: 15px;
+  --text-detail--line-height: 1.2;
+  --text-xs: 15px;
+  --text-xs--line-height: 1.2;
+  --text-sm: 15px;
+  --text-sm--line-height: 1.2;
+  --text-base: 15px;
+  --text-base--line-height: 1.2;
+  --text-lg: 20px;
+  --text-lg--line-height: 1.2;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.2;
+  --text-2xl: 30px;
+  --text-2xl--line-height: 1.2;
+  font-size: 15px;
+  font-synthesis: none;
+}
+
+/* Safari on iOS zooms the page in when it focuses a field set smaller than
+   16px, and nothing zooms it back out. Unlayered, so it beats every Tailwind
+   size utility, including a theme that redefines `text-base` the way
+   `.pixel-ui` does. 20px is the pixel face's next crisp step above 16. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  .pixel-ui :is(input, textarea, select) {
+    font-size: 20px;
+  }
+}
+
 .pixelated {
   image-rendering: -moz-crisp-edges;
   image-rendering: pixelated;
@@ -155,6 +205,12 @@ body {
   inset: 0;
   pointer-events: none;
   overflow: hidden;
+}
+
+@media (pointer: coarse) {
+  .world-label-layer {
+    --world-label-size: 16px;
+  }
 }
 
 .world-label {
@@ -257,6 +313,22 @@ body {
     drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
 }
 
+.world-label__line--crowned {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--world-label-brick) * 3);
+}
+
+.world-label__crown {
+  flex-shrink: 0;
+  width: calc(var(--world-label-brick) * 7);
+  height: calc(var(--world-label-brick) * 4);
+  color: var(--color-interact);
+  filter: drop-shadow(var(--o1) 0 0 #000) drop-shadow(var(--o1n) 0 0 #000)
+    drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
+}
+
 .world-label--name {
   color: var(--color-label);
   z-index: 0;
@@ -329,7 +401,7 @@ body {
 }
 
 .damage-number--mend {
-  color: #7fe08a;
+  color: var(--color-mend);
 }
 
 /* `--cast-line-px` is one world pixel in CSS pixels, written by the layer
@@ -478,4 +550,47 @@ body {
   border: 2px solid var(--color-border);
   border-radius: 9999px !important;
   box-shadow: 2px 2px 0 0 var(--color-border);
+}
+
+/* The trail sits under the fill at the same width, and whichever of the two
+   is moving away from the old value eases late: on a hit the fill drops at
+   once and the trail drains after it, on a heal the trail jumps ahead and the
+   fill grows into it. */
+.health-gauge__trail {
+  background-color: var(--color-paper);
+  transition: width 200ms ease-out 120ms;
+}
+
+.health-gauge--healing .health-gauge__trail {
+  transition: none;
+}
+
+.health-gauge--healing .health-gauge__fill {
+  transition: width 200ms ease-out 120ms;
+}
+
+.health-gauge__value {
+  text-shadow: 1px 1px 0 var(--color-ink);
+}
+
+@keyframes health-gauge-low {
+  50% {
+    border-color: var(--color-danger-on-ink);
+  }
+}
+
+.health-gauge--low {
+  animation: health-gauge-low 1s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .health-gauge__trail,
+  .health-gauge--healing .health-gauge__fill {
+    transition: none;
+  }
+
+  .health-gauge--low {
+    animation: none;
+    border-color: var(--color-danger-on-ink);
+  }
 }

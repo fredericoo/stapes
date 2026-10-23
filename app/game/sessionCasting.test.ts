@@ -33,6 +33,27 @@ function stoneTile(
 
 const FIXTURE_BASE_HP = 8;
 
+const CASTER_EFFECT = {
+  durationMs: 600,
+  particles: {
+    ratePerSecond: 40,
+    ttlFromMs: 300,
+    ttlToMs: 600,
+    spawnRadiusCells: 0.3,
+    spawnElevFrom: 0,
+    spawnElevTo: 2,
+    riseFrom: 2,
+    riseTo: 4,
+    driftCellsPerSecond: 0.3,
+    gravity: 0,
+    radiusFromPx: 1,
+    radiusToPx: 1,
+    alphaFrom: 1,
+    alphaTo: 0,
+    ramp: [{ at: 0, color: "#ffffff" }],
+  },
+};
+
 const PLAYER_TOUGHNESS = 40;
 const PLAYER_MAX_HP = maxHpFrom(FIXTURE_BASE_HP, PLAYER_TOUGHNESS);
 const RAT_TOUGHNESS = 40;
@@ -158,6 +179,11 @@ const props: TileDef[] = [
   stoneTile("mote-mend-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster", projectile: "arcane-mote" },
     cooldownMs: MEND_COOLDOWN_MS,
+  }),
+  stoneTile("glowing-mend-stone", {
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
+    cooldownMs: MEND_COOLDOWN_MS,
+    casterEffect: CASTER_EFFECT,
   }),
   stoneTile("bolt-stone", {
     effect: { kind: "bolt", on: "target", damage: 4 },
@@ -361,6 +387,12 @@ const props: TileDef[] = [
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
     cooldownMs: MEND_COOLDOWN_MS,
     castTimeMs: CAST_MS,
+  }),
+  stoneTile("slow-glowing-mend-stone", {
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
+    cooldownMs: MEND_COOLDOWN_MS,
+    castTimeMs: CAST_MS,
+    casterEffect: CASTER_EFFECT,
   }),
   stoneTile("quick-mend-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
@@ -663,17 +695,12 @@ describe("a cooling stone is locked in its square", () => {
     expect(play.equipmentOf("local")?.weapon?.tileId).toBe("mend-stone");
   });
 
-  it("stays in its square when its owner dies, still cooling", () => {
+  it("drops with the rest of the kit when its owner dies", () => {
     const play = armed();
     play.runCommand("/health 0");
-    const deaths = play.drainDeaths();
-    expect(deaths).toHaveLength(1);
+    expect(play.drainDeaths()).toHaveLength(1);
 
-    expect(deaths[0]!.equipment.charm).toMatchObject({
-      tileId: "mend-stone",
-      cooldownMs: expect.any(Number),
-    });
-    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).not.toContain("mend-stone");
+    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain("mend-stone");
   });
 
   it("leaves the rest of the kit alone", () => {
@@ -1288,6 +1315,26 @@ describe("a bolt thrown at somebody", () => {
     expect(struck[0]!.tileId).toBe("player");
   });
 
+  it("dresses its caster in the stone's caster effect as the spell goes off", () => {
+    const play = session({ charm: "glowing-mend-stone" });
+    play.drainTransitions();
+
+    expect(play.cast(squareSlot("charm"))).toBe(true);
+
+    expect(play.drainTransitions().filter((note) => note.casterEffect)).toMatchObject([
+      { side: "appear", tileId: "player", casterEffect: CASTER_EFFECT },
+    ]);
+  });
+
+  it("dresses nobody for a stone with no caster effect", () => {
+    const play = session({ charm: "mend-stone" });
+    play.drainTransitions();
+
+    expect(play.cast(squareSlot("charm"))).toBe(true);
+
+    expect(play.drainTransitions().filter((note) => note.casterEffect)).toEqual([]);
+  });
+
   it("pays the caster for what it actually did", () => {
     const { play } = boltAt("bolt-stone");
     const before = play.masteryXpOf("local")?.arcane ?? 0;
@@ -1637,6 +1684,18 @@ describe("a cast that takes time", () => {
     run(play, CAST_TICKS);
     expect(play.drainSpeech()).toEqual([]);
     expect(play.drainNoise().map((noise) => noise.text)).toEqual(["whoosh"]);
+  });
+
+  it("plays its caster effect when the bar fills, and nothing at the press", () => {
+    const play = session({ charm: "slow-glowing-mend-stone" });
+    play.drainTransitions();
+
+    play.cast(squareSlot("charm"));
+    run(play, CAST_TICKS - 1);
+    expect(play.drainTransitions().filter((note) => note.casterEffect)).toEqual([]);
+
+    run(play, 1);
+    expect(play.drainTransitions().filter((note) => note.casterEffect)).toHaveLength(1);
   });
 
   it("makes it at once for an instant spell", () => {

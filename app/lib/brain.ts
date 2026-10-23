@@ -116,11 +116,23 @@ export type BrainStateDef = {
 };
 
 export type BrainTransitionDef = {
-  from: string;
+  from: string | string[];
   if: BrainCondition;
   bind?: Record<string, Selector>;
   to: string;
 };
+
+export function leavesFrom(from: BrainTransitionDef["from"], state: string): boolean {
+  if (typeof from === "string") return from === ANY_STATE || from === state;
+  return from.includes(state);
+}
+
+export function fromStates(from: BrainTransitionDef["from"]): readonly string[] {
+  if (typeof from !== "string") return from;
+  return from === ANY_STATE ? NO_STATES : [from];
+}
+
+const NO_STATES: readonly string[] = [];
 
 export type BrainDef = {
   initial: string;
@@ -285,7 +297,7 @@ const brainSchema = v.object({
   ),
   transitions: v.array(
     v.object({
-      from: stateName,
+      from: v.union([stateName, v.pipe(v.array(stateName), v.minLength(1))]),
       if: ifSchema,
       bind: v.optional(v.record(v.pipe(v.string(), v.minLength(1)), selectorSchema)),
       to: stateName,
@@ -295,6 +307,28 @@ const brainSchema = v.object({
 
 function isCoherent(brain: BrainDef): boolean {
   return !validateBrain(brain).some((issue) => issue.severity === "error");
+}
+
+export function brainShapeProblems(raw: unknown): string[] {
+  const parsed = v.safeParse(brainSchema, raw);
+  if (parsed.success) return [];
+  return parsed.issues.map((issue) => {
+    const path = v.getDotPath(issue);
+    return path ? `${path}: ${issue.message}` : issue.message;
+  });
+}
+
+const AUTHORED_ONLY = ["traits", "triggers", "let"] as const;
+
+/**
+ * A brain carrying any of these is still in its authored form, which
+ * `expandBrain` in `./traits` turns into a `BrainDef`. The schema here would
+ * strip them and parse the idle states alone, so `resolveBrain` refuses the
+ * brain instead.
+ */
+export function needsExpansion(raw: unknown): boolean {
+  if (typeof raw !== "object" || raw === null) return false;
+  return AUTHORED_ONLY.some((key) => Object.hasOwn(raw, key));
 }
 
 export type BrainIssue = {
@@ -322,10 +356,11 @@ export function validateBrain(brain: BrainDef): BrainIssue[] {
   }
 
   brain.transitions.forEach((t, i) => {
-    if (t.from !== ANY_STATE && !Object.hasOwn(brain.states, t.from)) {
+    for (const name of fromStates(t.from)) {
+      if (Object.hasOwn(brain.states, name)) continue;
       issues.push({
         severity: "error",
-        message: `Transition ${i + 1}: from "${t.from}", which is not a state.`,
+        message: `Transition ${i + 1}: from "${name}", which is not a state.`,
       });
     }
     if (!Object.hasOwn(brain.states, t.to)) {
@@ -352,7 +387,7 @@ function unreachableStates(brain: BrainDef): string[] {
     grew = false;
     for (const t of brain.transitions) {
       if (!Object.hasOwn(brain.states, t.to) || reached.has(t.to)) continue;
-      const canLeave = t.from === ANY_STATE || reached.has(t.from);
+      const canLeave = t.from === ANY_STATE || fromStates(t.from).some((name) => reached.has(name));
       if (canLeave) {
         reached.add(t.to);
         grew = true;
@@ -384,7 +419,7 @@ export function resolveBrain(def: TileDef): BrainDef | null {
   if (cached !== undefined) return cached;
 
   const raw = def.interactions?.brain;
-  const parsed = raw == null ? null : v.safeParse(brainSchema, raw);
+  const parsed = raw == null || needsExpansion(raw) ? null : v.safeParse(brainSchema, raw);
   const brain =
     parsed?.success && isCoherent(parsed.output as BrainDef) ? (parsed.output as BrainDef) : null;
   brainCache.set(def, brain);

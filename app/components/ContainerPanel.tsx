@@ -1,9 +1,8 @@
-import { IconX } from "@tabler/icons-react";
+import { IconClose } from "./pixelIcons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Equipment } from "../game/equipment";
-import { slotIn, type ContainerRef } from "../game/itemMoves";
+import { slotIn, type ContainerRef, type ContainerView } from "../game/itemMoves";
 import { engravedName } from "../lib/engraving";
-import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
@@ -66,7 +65,7 @@ export function ContainerPanel({
   statusDefs,
   className = "",
 }: {
-  container: ItemInstance;
+  container: ContainerView;
   location: ContainerRef;
   equipment: Equipment;
   tiles: TileDef[];
@@ -96,11 +95,15 @@ export function ContainerPanel({
   const captioned = useCoarsePointer();
 
   const def = tilesById[container.tileId];
-  const size = def ? (resolveContainer(def)?.size ?? 0) : 0;
-  const contents = container.contents ?? [];
+  const { size, contents } = container;
 
+  /**
+   * A depot shares its stash with every placement of its tag, and a smaller
+   * one can be holding more than it has slots for: show it all, so what is
+   * over can still be taken out.
+   */
   const slots: Array<ItemInstance | null> = Array.from(
-    { length: size },
+    { length: Math.max(size, contents.length) },
     (_, i) => contents[i] ?? null,
   );
 
@@ -123,7 +126,7 @@ export function ContainerPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
+        <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">
           {title}
           <span className="ml-1 tabular-nums text-paper/40">
             {contents.length}/{size}
@@ -135,7 +138,7 @@ export function ContainerPanel({
           aria-label={`Close ${title}`}
           className="ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <IconX size={CLOSE_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
+          <IconClose size={CLOSE_ICON_SIZE_PX} aria-hidden="true" />
         </button>
       </div>
 
@@ -167,7 +170,7 @@ export function ContainerPanel({
             {captioned ? (
               <span
                 aria-hidden="true"
-                className="block h-4 truncate text-[11px] leading-4 text-paper/60"
+                className="block h-4 truncate text-detail leading-4 text-paper/60"
               >
                 {slotCaptionFor(instance, tilesById)}
               </span>

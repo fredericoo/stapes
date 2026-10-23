@@ -9,6 +9,7 @@ import {
   isEngravable,
 } from "../lib/engraving";
 import { MAX_REWARD_ITEMS } from "../lib/interactions";
+import { MIN_RATING } from "../lib/mastery";
 import { useEditorStore } from "../editor/store";
 import { Button, Dialog, FieldLabel, Input, OptionalNumberInput, Textarea } from "../ui";
 import { ContainerContentsField } from "./ContainerContentsField";
@@ -51,6 +52,7 @@ export function PlacementSettingsDialog({
   stackIndex,
   wired,
   gives,
+  stashes,
   teleports,
   holds,
   giveable,
@@ -65,6 +67,7 @@ export function PlacementSettingsDialog({
   stackIndex: number;
   wired: boolean;
   gives: boolean;
+  stashes: boolean;
   teleports: boolean;
   holds: number | null;
   giveable: TileDef[];
@@ -80,6 +83,10 @@ export function PlacementSettingsDialog({
   const [engraved, setEngraved] = useState(placed.engraved ?? "");
   const [rewardTag, setRewardTag] = useState(placed.rewardTag ?? "");
   const [rewardTileIds, setRewardTileIds] = useState<string[]>(placed.rewardTileIds ?? []);
+  const [rewardMinRating, setRewardMinRating] = useState<number | undefined>(
+    placed.rewardRequires?.rating,
+  );
+  const [depotTag, setDepotTag] = useState(placed.depotTag ?? "");
   const [teleportTo, setTeleportTo] = useState<TeleportDraft>(() =>
     draftFromCoord(placed.teleportTo),
   );
@@ -90,7 +97,14 @@ export function PlacementSettingsDialog({
   const commitAndClose = () => {
     const store = useEditorStore.getState();
     if (wired) store.setStackChannel(stackIndex, channel);
-    if (gives) store.setStackReward(stackIndex, rewardTag, rewardTileIds);
+    if (gives) {
+      store.setStackReward(stackIndex, {
+        tag: rewardTag,
+        tileIds: rewardTileIds,
+        minRating: rewardMinRating ?? null,
+      });
+    }
+    if (stashes) store.setStackDepotTag(stackIndex, depotTag);
     if (teleports) {
       store.setStackTeleport(stackIndex, readDestination(teleportTo));
     }
@@ -195,7 +209,33 @@ export function PlacementSettingsDialog({
               info={`Up to ${MAX_REWARD_ITEMS}, never a container. The player needs room for all of them at once or is refused.`}
               emptyHint="None — nothing to give means no row is offered."
             />
+
+            <label className="flex flex-col gap-1 text-xs">
+              <FieldLabel info="A player rated below this sees the row but cannot take it, and is told the rating it needs. Leave blank to let anybody take it.">
+                Minimum rating
+              </FieldLabel>
+              <OptionalNumberInput
+                min={MIN_RATING}
+                step={1}
+                placeholder="Anybody"
+                value={rewardMinRating}
+                onChange={setRewardMinRating}
+              />
+            </label>
           </div>
+        ) : null}
+
+        {stashes ? (
+          <label className="flex flex-col gap-1 border-t-2 border-border pt-4 text-xs">
+            <FieldLabel info="Every placement with the same tag opens the same stash. Each account has its own contents, kept through death. Without a tag the depot does not open.">
+              Depot tag
+            </FieldLabel>
+            <Input
+              placeholder="town"
+              value={depotTag}
+              onChange={(e) => setDepotTag(e.target.value)}
+            />
+          </label>
         ) : null}
 
         {holds !== null ? (

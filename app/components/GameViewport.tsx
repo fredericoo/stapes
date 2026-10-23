@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ObjectRef } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
-import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import { containerViewOf, type OpenedContainer, type SlotRef } from "../game/itemMoves";
 import type { CastSlot, SpellButton } from "../game/casting";
 import type { CraftingWindow } from "../game/craft";
 import { itemUseFor } from "../game/itemUse";
@@ -19,6 +19,7 @@ import { ChatBar, ChatButton } from "./ChatBar";
 import { ContainerPanel } from "./ContainerPanel";
 import { DirectionPad, PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
+import { HealthGauge } from "./HealthGauge";
 import { DragLayer } from "./DragLayer";
 import { ConversationPanel } from "./ConversationPanel";
 import { CraftPanel } from "./CraftPanel";
@@ -33,6 +34,7 @@ import type { ActiveStatus, StatusDef } from "../lib/status";
 import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
+import { bagGained, newlyEquipped, statsMood, useNotice } from "./panelNotice";
 
 const NO_STATUSES: ActiveStatus[] = [];
 
@@ -218,6 +220,38 @@ export function GameViewport({
     if (openHand && !equipment[openHand]) setOpenHand(null);
   }, [openHand, equipment]);
 
+  /**
+   * On a phone only one panel shows at a time, and a depot is no use without
+   * the bag to drag into, so opening one opens the bag beside it. The bag is
+   * shut again with the depot only if it was the depot that opened it.
+   */
+  const depotOpen = openedContainer?.location.kind === "depot";
+  const bagOpenedForDepot = useRef(false);
+  useEffect(() => {
+    if (!coarse) return;
+    if (depotOpen && !showBag) {
+      bagOpenedForDepot.current = true;
+      setBagOpen(true);
+      setEquipmentOpen(false);
+      setStatsOpen(false);
+    } else if (!depotOpen && bagOpenedForDepot.current) {
+      bagOpenedForDepot.current = false;
+      setBagOpen(false);
+    }
+  }, [coarse, depotOpen]);
+
+  const live = vitals !== NO_VITALS;
+  const bagNotice = useNotice(equipment.bag, live, (prev, next) =>
+    !showBag && bagGained(prev, next) ? "neutral" : null,
+  );
+  const equipmentNotice = useNotice(equipment, live, (prev, next) =>
+    !showEquipment && newlyEquipped(prev, next) ? "neutral" : null,
+  );
+  const statsReading = useMemo(() => ({ statuses, masteryXp }), [statuses, masteryXp]);
+  const statsNotice = useNotice(statsReading, live, (prev, next) =>
+    showStats ? null : statsMood(prev, next),
+  );
+
   const panelCoversList =
     coarse &&
     (showEquipment || showBag || showStats || heldContainer != null || openedContainer != null);
@@ -235,7 +269,7 @@ export function GameViewport({
       statusDefs={statusDefs}
       onTalk={(action) => onTalk?.(action)}
       hotkeys
-      className="scrolls-past-toolbar min-h-0 w-full flex-1"
+      className="min-h-0 w-full flex-1"
     />
   ) : null;
 
@@ -247,7 +281,7 @@ export function GameViewport({
       onCraft={(recipeIndex) => onCraft?.(crafting.ref, recipeIndex)}
       onClose={() => onCloseCrafting?.()}
       hotkeys
-      className="scrolls-past-toolbar min-h-0 w-full flex-1"
+      className="min-h-0 w-full flex-1"
     />
   ) : null;
   const replacesList = talkPanel ?? craftPanel;
@@ -258,7 +292,7 @@ export function GameViewport({
       tiles={tiles}
       tilesets={tilesets}
       onAct={(option) => {
-        if (option.action === "open") {
+        if (option.action === "open" && !option.far) {
           onOpenContainer?.(option.active ? null : option.ref);
           return;
         }
@@ -266,7 +300,7 @@ export function GameViewport({
       }}
       onHover={coarse ? undefined : onHoverInteraction}
       hotkeys
-      className="scrolls-past-toolbar min-h-0 w-full flex-1"
+      className="min-h-0 w-full flex-1"
     />
   );
 
@@ -283,10 +317,11 @@ export function GameViewport({
           <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
         </>
       ) : null}
-      <StatsToggle open={showStats} onChange={openStats} size={size} />
+      <StatsToggle open={showStats} onChange={openStats} notice={statsNotice} size={size} />
       <EquipmentToggle
         open={showEquipment}
         onChange={openEquipment}
+        notice={equipmentNotice}
         equipment={equipment}
         tilesById={tilesById}
         drag={drag}
@@ -296,6 +331,7 @@ export function GameViewport({
         bag={equipment.bag}
         open={showBag}
         onChange={openBag}
+        notice={bagNotice}
         tilesById={tilesById}
         drag={drag}
         size={size}
@@ -329,7 +365,7 @@ export function GameViewport({
       ) : null}
       {showBag && equipment.bag ? (
         <ContainerPanel
-          container={equipment.bag}
+          container={containerViewOf(equipment.bag, tilesById)}
           location={{ kind: "bag" }}
           equipment={equipment}
           tiles={tiles}
@@ -343,7 +379,7 @@ export function GameViewport({
       ) : null}
       {heldContainer && openHand ? (
         <ContainerPanel
-          container={heldContainer}
+          container={containerViewOf(heldContainer, tilesById)}
           location={{ kind: "hand", hand: openHand }}
           equipment={equipment}
           tiles={tiles}
@@ -357,12 +393,12 @@ export function GameViewport({
       ) : null}
       {openedContainer ? (
         <ContainerPanel
-          container={openedContainer.instance}
-          location={{ kind: "ground", ref: openedContainer.ref }}
+          container={openedContainer}
+          location={openedContainer.location}
           equipment={equipment}
           tiles={tiles}
           tilesets={tilesets}
-          title={tilesById[openedContainer.instance.tileId]?.name ?? "Container"}
+          title={tilesById[openedContainer.tileId]?.name ?? "Container"}
           onClose={() => onOpenContainer?.(null)}
           drag={drag}
           masteryXp={masteryXp}
@@ -396,6 +432,8 @@ export function GameViewport({
           </div>
         </div>
 
+        {coarse ? <HealthGauge vitals={vitals} /> : null}
+
         {coarse ? (
           <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">
             {onSay ? (
@@ -413,7 +451,7 @@ export function GameViewport({
         {coarse ? (
           <div
             className={[
-              "flex w-full min-h-0 flex-1 items-stretch gap-3 px-3",
+              "clears-toolbar flex w-full min-h-0 flex-1 items-stretch gap-3 px-3",
               padSide === "left" ? "flex-row-reverse" : "flex-row",
             ].join(" ")}
           >
@@ -423,7 +461,7 @@ export function GameViewport({
             >
               {replacesList ??
                 (panelCoversList ? (
-                  <div className="scrolls-past-toolbar flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
                     {panels}
                   </div>
                 ) : (
@@ -432,10 +470,7 @@ export function GameViewport({
             </div>
             <div
               className="flex min-w-0 shrink flex-col items-center pb-3"
-              style={{
-                flexBasis: PAD_SIZE_PX,
-                marginBottom: "max(env(safe-area-inset-bottom), calc(100lvh - 100dvh))",
-              }}
+              style={{ flexBasis: PAD_SIZE_PX }}
             >
               <StatusStrip statuses={statuses} interactive={false} tilesets={tilesets} />
               <div className="flex w-full min-h-0 flex-1 flex-col gap-2">
@@ -472,6 +507,7 @@ export function GameViewport({
           style={{ width: INTERACTION_PANEL_WIDTH_PX }}
         >
           <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
+            <HealthGauge vitals={vitals} />
             {readouts ? (
               <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
             ) : null}

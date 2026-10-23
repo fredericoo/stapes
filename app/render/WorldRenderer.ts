@@ -8,6 +8,7 @@ import {
   DEPTH_LEAST_BODY,
   depthBox,
   depthStackBias,
+  PX_PER_HEIGHT,
   spriteWorldOrigin,
   WADE_EDGE_PX,
   WADE_SINK_PX,
@@ -41,6 +42,7 @@ import {
 import {
   admitTransitions,
   placementIdentity,
+  quadsTaken,
   appendTransitionEmitters,
   burstScale,
   fadingLightScale,
@@ -52,7 +54,9 @@ import {
   formerSlot,
   transitionAddress,
   transitionForNote,
-  transitionPose,
+  livePose,
+  movesBox,
+  movesQuad,
   noTransitionUniforms,
   transitionUniforms,
   writeTransitionUniforms,
@@ -123,6 +127,7 @@ import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,
   makeRectOutline,
+  makeCellFill,
   makeSpriteGhost,
   makeSpriteOutline,
   OutlineMaterials,
@@ -170,6 +175,8 @@ type AnimatedInstance = {
 const PROJECTILE_STACK_BIAS = 32;
 
 const WADING_RENDER_ORDER = 0.5;
+
+const AREA_CELL_OPACITY = 0.35;
 
 type ProjectileMesh = {
   mesh: THREE.Mesh;
@@ -227,10 +234,16 @@ type TransitionMesh = {
   tileKey?: string;
 };
 
+function leftInSlot(taken: PlacedTile | undefined, after: PlacedTile | undefined): number {
+  if (!taken || !after || after.tileId !== taken.tileId) return 0;
+  if (placementIdentity(after) !== placementIdentity(taken)) return 0;
+  return countOf(after);
+}
+
 function poseTransitionMesh(
   held: TransitionMesh,
   pose: TransitionPose,
-  dropping: boolean,
+  movesBox: boolean,
   motion: TileMotion | undefined,
 ) {
   const ox = motion?.ox ?? 0;
@@ -250,14 +263,20 @@ function poseTransitionMesh(
   held.mesh.position.set(at.x, at.y, 0);
   held.mesh.updateMatrix();
   held.mesh.updateMatrixWorld(true);
-  if (dropping) {
+  if (movesBox) {
     const up = at.dropLevels * HEIGHT_PER_LEVEL;
     const box = motion
       ? depthBox(motion.box.x, motion.box.y, motion.box.foot, motion.box.top)
       : held.box;
     writeBoxAttr(
       held.mesh.geometry,
-      { ...box, foot: box.foot + up, top: box.top + up },
+      {
+        ...box,
+        eastPx: box.eastPx + at.travelPx.x,
+        southPx: box.southPx + at.travelPx.y,
+        foot: box.foot + up,
+        top: box.top + up,
+      },
       motion ? motion.box.stackBias : held.stackBias,
     );
   }
@@ -344,9 +363,19 @@ export type TileGhostOverlay = {
   alpha: number;
 };
 
-export type OverlaySpec = ObjectOutlineOverlay | TileGhostOverlay;
+/** Ground cells marked with a pulsing fill, such as the area a spell is winding up to cover. */
+export type AreaCellsOverlay = {
+  kind: "areaCells";
+  cells: readonly { x: number; y: number; elevAbs: number }[];
+  color: number;
+};
+
+export type OverlaySpec = ObjectOutlineOverlay | TileGhostOverlay | AreaCellsOverlay;
 
 function overlaySpecKey(spec: OverlaySpec): string {
+  if (spec.kind === "areaCells") {
+    return `a:${spec.color}:${spec.cells.map((c) => `${c.x},${c.y},${c.elevAbs}`).join(";")}`;
+  }
   if (spec.kind === "ghost") {
     return `g:${spec.tileId}@${spec.x},${spec.y},${spec.z}:${spec.alpha}`;
   }
@@ -482,6 +511,7 @@ export class WorldRenderer {
   private debugFrameCalls = 0;
   private debugFrameTriangles = 0;
   private pulsingOutlines: THREE.ShaderMaterial[] = [];
+  private pulsingFills: THREE.MeshBasicMaterial[] = [];
   private outlineMaterials = new OutlineMaterials();
   private followingOutlines: { outline: THREE.Mesh; source: THREE.Mesh }[] = [];
   private pulseElapsedMs = 0;
@@ -734,6 +764,7 @@ export class WorldRenderer {
 
     disposeGroupChildren(this.overlays, this.outlineMaterials);
     this.pulsingOutlines = [];
+    this.pulsingFills = [];
     this.followingOutlines = [];
     for (const spec of specs) this.addOverlay(spec);
     this.applyPulse();
@@ -865,16 +896,23 @@ export class WorldRenderer {
   }
 
   private applyPulse() {
-    if (this.pulsingOutlines.length === 0) return;
+    if (!this.pulses()) return;
     const alpha = pulseAlphaAt(this.pulseElapsedMs);
     for (const material of this.pulsingOutlines) {
       material.uniforms[OUTLINE_ALPHA_UNIFORM]!.value = alpha;
     }
+    for (const material of this.pulsingFills) {
+      material.opacity = AREA_CELL_OPACITY * alpha;
+    }
+  }
+
+  private pulses(): boolean {
+    return this.pulsingOutlines.length > 0 || this.pulsingFills.length > 0;
   }
 
   private overlayKey(spec: OverlaySpec): string {
     const key = overlaySpecKey(spec);
-    if (spec.kind === "ghost") return key;
+    if (spec.kind !== "objectOutline") return key;
     const map = this.view?.map;
     const placed = map && getStack(map, spec.x, spec.y, spec.z)[spec.stackIndex];
     const count = placed ? countOf(placed) : 1;
@@ -899,6 +937,10 @@ export class WorldRenderer {
   private addOverlay(spec: OverlaySpec) {
     if (spec.kind === "ghost") {
       this.addGhost(spec);
+      return;
+    }
+    if (spec.kind === "areaCells") {
+      this.addAreaCells(spec);
       return;
     }
     for (const outline of this.outlinesFor(spec)) {
@@ -937,6 +979,18 @@ export class WorldRenderer {
         peers,
       ),
     );
+  }
+
+  /** A floor at `elevAbs` is drawn shifted up and left by its height, as cabinet projection draws everything. */
+  private addAreaCells(spec: AreaCellsOverlay) {
+    if (spec.cells.length === 0) return;
+    const origins = spec.cells.map((cell) => ({
+      x: cell.x * CELL_SIZE - cell.elevAbs * PX_PER_HEIGHT,
+      y: cell.y * CELL_SIZE - cell.elevAbs * PX_PER_HEIGHT,
+    }));
+    const fill = makeCellFill(origins, CELL_SIZE, spec.color, AREA_CELL_OPACITY);
+    this.pulsingFills.push(fill.material as THREE.MeshBasicMaterial);
+    this.overlays.add(fill);
   }
 
   private addGhost(spec: TileGhostOverlay) {
@@ -1000,7 +1054,7 @@ export class WorldRenderer {
   }
 
   tick(dt: number) {
-    if (this.pulsingOutlines.length > 0) {
+    if (this.pulses()) {
       this.pulseElapsedMs += dt;
       this.applyPulse();
       this.needsRender = true;
@@ -1110,6 +1164,7 @@ export class WorldRenderer {
      * on a stray tick is a use-after-free as far as WebGL is concerned.
      */
     this.pulsingOutlines = [];
+    this.pulsingFills = [];
     this.followingOutlines = [];
     this.renderer.dispose();
     this.lightBaker?.dispose();
@@ -2151,7 +2206,7 @@ export class WorldRenderer {
       const played =
         live.note.side === "appear"
           ? this.markForming(state, view.map) || this.throwBurstWhereItStood(state)
-          : this.playOutCopy(state);
+          : this.playOutCopy(state, view.map);
       if (played) this.liveTransitions.set(live.note.id, state);
     }
   }
@@ -2175,16 +2230,19 @@ export class WorldRenderer {
     return true;
   }
 
-  private playOutCopy(state: TransitionState): boolean {
+  private playOutCopy(state: TransitionState, next: MapFile): boolean {
     const prev = this.prevMap;
     const { note } = state.live;
     if (!prev) return false;
     const stack = getStack(prev, note.x, note.y, note.z);
     const slot = resolveTransitionSlot(stack, note);
     if (slot === undefined) return false;
-    const items = this.cellItems(prev, note.z, note.x, note.y, stack).filter(
+    const inSlot = this.cellItems(prev, note.z, note.x, note.y, stack).filter(
       (item) => item.stackIndex === slot,
     );
+    const items = note.takenBy
+      ? quadsTaken(inSlot, leftInSlot(stack[slot], getStack(next, note.x, note.y, note.z)[slot]))
+      : inSlot;
     state.plume = items.find((item) => item.emitter)?.emitter ?? null;
     for (const item of items) {
       const mesh = this.addQuadMesh(this.transitionGroup, item, item.texture, note.z);
@@ -2266,12 +2324,11 @@ export class WorldRenderer {
     };
     state.meshes.push(held);
     if (!copy) this.transitioningMeshes.add(mesh);
-    const { scale, drop } = state.live.transition;
-    if (scale || drop) {
+    if (movesQuad(state.live)) {
       poseTransitionMesh(
         held,
-        transitionPose(state.live.transition, liveShown(state.live, this.animClock)),
-        Boolean(drop),
+        livePose(state.live, liveShown(state.live, this.animClock)),
+        movesBox(state.live),
         this.motionOf(held),
       );
     }
@@ -2312,11 +2369,10 @@ export class WorldRenderer {
       state.meshes = state.meshes.filter((held) => this.stillDrawn(held));
       const shown = liveShown(state.live, this.animClock);
       if (state.uniforms) state.uniforms.uFxShown.value = shown;
-      const { scale, drop } = state.live.transition;
-      const pose = transitionPose(state.live.transition, shown);
+      const pose = livePose(state.live, shown);
       for (const held of state.meshes) {
-        if (scale || drop) {
-          poseTransitionMesh(held, pose, Boolean(drop), this.motionOf(held));
+        if (movesQuad(state.live)) {
+          poseTransitionMesh(held, pose, movesBox(state.live), this.motionOf(held));
         }
         if (held.copy) held.mesh.visible = !cutHidesWholeLevel(this.roofCut, held.z);
       }
@@ -2355,9 +2411,8 @@ export class WorldRenderer {
       return;
     }
     if (rejoinsBatch(held) || !held.mesh.parent) return;
-    const { scale, drop } = state.live.transition;
-    if (scale || drop) {
-      poseTransitionMesh(held, WHOLE_POSE, Boolean(drop), this.motionOf(held));
+    if (movesQuad(state.live)) {
+      poseTransitionMesh(held, WHOLE_POSE, movesBox(state.live), this.motionOf(held));
     }
     held.mesh.material = this.materialFor(held.texture, held.z);
   }

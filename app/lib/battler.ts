@@ -54,6 +54,7 @@ export type FightingStats = {
   haste: number;
   hitChance: number;
   flee: number;
+  canDodge: boolean;
   reach: Reach;
   projectile: string | null;
   sight: { up: number; down: number };
@@ -179,6 +180,7 @@ export function fightingStats(battler: BattlerDef, weapon: WeaponItem): Fighting
   return {
     maxHp: maxHpFrom(battler.baseHp, masteryLevel(battler.masteries, "toughness")),
     flee: fleeFrom(masteryLevel(battler.masteries, "agility")),
+    canDodge: true,
     damage: Math.round(damage),
     def: weapon.def + bodyDefence(battler),
     resist: NO_RESISTANCES,

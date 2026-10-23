@@ -112,6 +112,9 @@ an agent drives", lists every call.
   CI asks. Markdown is not formatted, and neither are `data/map.json` or
   `data/tiles.json`, whose writers own their shape — `docs/tooling.md` has a
   paragraph on each
+- `bunx changeset add` — write the line this pull request adds to the
+  changelog, for players; `--empty` for one they cannot notice. CI fails a pull
+  request without one. `.changeset/README.md` has how to word it
 - `bun run generate` — overwrite `data/tilesets.json`, `data/tiles.json`,
   `data/map.json` and `data/tilesets/basic.png` with an eight-by-eight test
   world. It replaces the authored world rather than adding to it, so it is not a
@@ -135,6 +138,12 @@ an agent drives", lists every call.
 - `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
   shape and its palette entries live in the script where a diff can read them
+- `bun run generate:spell-projectiles` — redraw `data/tilesets/spell-projectiles.png`,
+  the neutral, water, nature and fire bolts at each of three tiers, cut from
+  `tiny-ranch-tiles.png` and repainted in palette colours, with the thorn, the
+  leaf, the trident and the diagonal flame drawn in the script. Which source pixel takes which palette entry is a
+  table per element in the script; the tiles that fly them are authored in
+  `data/tiles.json`
 - `bun run generate:cave-wall` — redraw `data/tilesets/cave-wall.png` and the
   slices of the cave walls on it: `cave-wall`, rock whose face stands on the half
   line of its cell wherever it meets open ground, so a passage one cell wide
@@ -200,6 +209,22 @@ an agent drives", lists every call.
   `BOT_MEMORY_DIR` (default `.dev/bots`), one SQLite file per world. A server started with `BOTS=n` (`bun dev`, `bun run
   start`) runs `n` of them itself. `docs/notes.md`, "A bot is a player in
   another process", has how it works
+- `bun run bench:bots --b <ref>` — compare how bots play under two versions
+  of the code, A (`--a`, default `origin/main`) and B (`--b`, default `HEAD`).
+  Each version is checked out into a temporary worktree and plays `--bots`
+  bots (6) for `--hours` game-hours (1) on a real `GameServer` with a virtual
+  clock, once per seed for `--seeds` seeds (8), the LLM off. Both versions
+  play the same map file, `--map` (`data/map.json` of the checkout you run
+  it from), on the same seeds, and the runs are measured by this checkout's
+  code. It prints a Markdown table of deaths and kills per bot-hour, the
+  gold, gear worth and top mastery a bot ends with, the share of time spent
+  recovering, and walks back to a death bag made and abandoned per bot-hour:
+  each side's mean with a 95% interval, and B−A over paired seeds, marked
+  significant when its interval leaves out zero. `--jobs` (one fewer than
+  the cores) runs that many at once. A run of six bots for a game-hour took
+  about 55 minutes with eleven at once on a 12-core Mac, so the defaults take
+  two hours there; each run prints its progress to stderr every ten
+  game-minutes. The `bot-bench` skill says when to run it
 - `node scripts/record-hero.ts <client url>` — record the landing page's hero
   video, a walk through town with no interface, into
   `app/components/home/media/` as WebM, MP4 and a poster. Needs `bun dev`
@@ -211,6 +236,32 @@ an agent drives", lists every call.
   An optional seventh argument stacks extra tiles first, as
   `x,y,z,tileId[,direction]` separated by `;`. It re-derives the renderer's
   placement rather than calling it, so the two can disagree
+- `bun run verify <command>` — run the game's own code on this checkout and
+  print what it did, as evidence that a change does what its PR says. It is not
+  a CI gate, and it needs no server, database or account. Every command prints
+  the commit it ran on, and `--json` prints one JSON object on stdout instead
+  of a table. `bun run verify --help` lists the commands; the `verify` skill in
+  `.agents/skills/` says which one goes with which kind of change
+  - `content` loads every tile, status, brain and dialog in `data/` with the
+    game's own resolvers, then checks every id they name and every sprite
+    against its sheet. It exits 1 on an error in tiles, statuses or tilesets;
+    what it finds in `data/map.json` is a warning. `--data <dir>` checks
+    another copy
+  - `battle <a> <b>` fights two sides through the Arena's `Duel` for every
+    seed, both ways round, and reports wins, losses, draws and undecided
+    fights with a 95% interval, time to kill, damage per second each way,
+    each hand's hit, miss, dodge and absorbed rates, and status uptime, with
+    the closed-form figures from `combatMetrics.ts` beside the sampled ones.
+    A side is a battler tile id, optionally with masteries and equipment by
+    slot: `player:sharp=15,agility=15,toughness=15,weapon=knights-sword`.
+    `--seeds`, `--seed`, `--statuses on|off`, `--kit rolled|none` and
+    `--max-seconds` change what is fought, and `--trace <seed>` prints one
+    fight blow by blow instead. `battle --matrix` fights every creature
+    against a player at rungs 10, 15 and 33, holding that rung's sword, as
+    one table. `--against <ref>` runs the same fights on another commit, in
+    a temporary git worktree that borrows this checkout's `node_modules`,
+    and prints the change in each figure: the balance evidence a content PR
+    attaches
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says

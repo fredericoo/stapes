@@ -8,9 +8,8 @@ import {
 } from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { emptyEquipment } from "../game/equipment";
-import { xpForLevel } from "../lib/mastery";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
-import { CHAT_LIFETIME_MS } from "./chat";
+import { CHAT_ARRIVAL_JITTER_MS, CHAT_LIFETIME_MS, CHAT_MIN_INTERVAL_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_GRACE_MS } from "./RemoteSession";
 import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
 import { UNKNOWN_REMAINING_MS } from "../game/statuses";
@@ -553,6 +552,63 @@ describe("RemoteSession chat", () => {
 
     await expect(first).resolves.toEqual(answered);
     await expect(second).resolves.toEqual(refused);
+  });
+
+  it("hangs our own line over our head before the server answers", () => {
+    const { session } = connected();
+    session.say("  hey   there!  ");
+
+    expect(session.getSnapshot().chats).toEqual([
+      expect.objectContaining({ actorId: SELF, text: "hey there!", x: 0, y: 0, z: 0 }),
+    ]);
+  });
+
+  it("swallows the server's copy of a line it already showed", () => {
+    const { socket, session } = connected();
+    session.say("hey there!");
+    socket.deliver(said);
+
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["hey there!"]);
+  });
+
+  it("still shows a line the server speaks in our voice", () => {
+    const { socket, session } = connected();
+    session.say("hello");
+    socket.deliver({ ...said, text: "You are burning." });
+
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["hello", "You are burning."]);
+  });
+
+  it("stops waiting for a copy the server never sent", () => {
+    const { socket, session } = connected();
+    session.say("hey there!");
+    session.update(CHAT_LIFETIME_MS);
+    socket.deliver(said);
+
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["hey there!"]);
+  });
+
+  it("holds back a line the server would drop for coming too soon", () => {
+    let nowMs = 0;
+    const { socket, session } = connected(() => nowMs);
+    session.say("one");
+    nowMs = CHAT_MIN_INTERVAL_MS;
+    session.say("two");
+    const sayings = () => socket.sent.filter((raw) => raw.includes('"say"'));
+    expect(sayings()).toHaveLength(1);
+
+    nowMs = CHAT_MIN_INTERVAL_MS + CHAT_ARRIVAL_JITTER_MS;
+    session.say("three");
+    expect(sayings()).toHaveLength(2);
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["one", "three"]);
+  });
+
+  it("neither shows nor sends a line while the socket is down", () => {
+    const { socket, session } = connected();
+    socket.readyState = 3;
+    session.say("anyone?");
+
+    expect(session.getSnapshot().chats).toHaveLength(0);
   });
 
   it("still says a sentence with a slash inside it", () => {
@@ -1153,6 +1209,19 @@ describe("RemoteSession headcount", () => {
   });
 });
 
+describe("RemoteSession king", () => {
+  it("crowns the body the server names, and nobody once it names none", () => {
+    const { socket, session } = connected();
+    expect(session.selfSnapshot()?.king).toBe(false);
+
+    socket.deliver({ type: "king", actorId: SELF });
+    expect(session.selfSnapshot()?.king).toBe(true);
+
+    socket.deliver({ type: "king", actorId: null });
+    expect(session.selfSnapshot()?.king).toBe(false);
+  });
+});
+
 describe("RemoteSession attack mode", () => {
   it("puts the stance on the wire, once per change", () => {
     const { socket, session } = connected();
@@ -1253,19 +1322,38 @@ describe("RemoteSession death", () => {
     expect(seen).toEqual([true]);
   });
 
-  it("takes what the death cost, and the experience it left, off the death itself", () => {
+  it("takes what the death cost off the death itself", () => {
     const { socket, session } = connected();
-    const cost = { packLeft: true, levelsLost: [{ mastery: "sharp", from: 10, to: 9 }] };
+    const cost = { levelsLost: [{ mastery: "sharp", from: 10, to: 1 }] };
 
-    socket.deliver({ ...died(), masteryXp: { sharp: xpForLevel(9) }, cost });
+    socket.deliver({ ...died(), cost });
 
     expect(session.deathCost()).toEqual(cost);
-    expect(session.getSnapshot().masteryXp).toEqual({ sharp: xpForLevel(9) });
+  });
+
+  it("takes the name the next life plays as off the death", () => {
+    const { socket, session } = connected();
+
+    socket.deliver({ ...died(), rebornAs: "Maren II" });
+
+    expect(session.rebornAs()).toBe("Maren II");
+  });
+
+  it("reads the next life's name off the hello that reports a death while away", () => {
+    const { socket, session } = connected();
+
+    socket.deliver({
+      ...helloAgain(),
+      names: [{ actorId: SELF, name: "Maren II" }],
+      diedAway: { levelsLost: [] },
+    });
+
+    expect(session.rebornAs()).toBe("Maren II");
   });
 
   it("forgets what the death cost on the hello that answers it", () => {
     const { socket, session } = connected();
-    socket.deliver({ ...died(), cost: { packLeft: true, levelsLost: [] } });
+    socket.deliver({ ...died(), cost: { levelsLost: [] } });
 
     socket.deliver(helloAgain());
 
@@ -1337,7 +1425,7 @@ describe("RemoteSession death", () => {
   });
 
   describe("a death while the tab was closed", () => {
-    const cost = { packLeft: true, levelsLost: [{ mastery: "sharp", from: 10, to: 9 }] };
+    const cost = { levelsLost: [{ mastery: "sharp", from: 10, to: 1 }] };
 
     it("is shown from the hello that reports it", () => {
       const { socket, session } = connected();
@@ -1895,15 +1983,14 @@ describe("RemoteSession talk", () => {
     return { socket, session };
   }
 
-  it("holds an opening line back until the server has the step it predicted", () => {
+  it("opens a conversation as soon as the predicted step lands, before the server confirms it", () => {
     const { socket, session } = besideKeeper();
     session.setInput({ directions: ["e"] });
     session.setInput({ directions: [] });
-    session.update(WALK_DURATION_MS);
 
     expect(session.talk({ kind: "open", ref: KEEPER })).toBe(false);
 
-    socket.deliver(patch(stepCommitted, [walkStarted]));
+    session.update(WALK_DURATION_MS);
 
     expect(session.talk({ kind: "open", ref: KEEPER })).toBe(true);
     expect(framesOfType(socket, "talk")).toEqual([

@@ -3,6 +3,7 @@ import type {
   AddStatusInteraction,
   ClimbAbility,
   DecayInteraction,
+  DepotInteraction,
   EmitInteraction,
   ExtractInteraction,
   ExtractSlot,
@@ -12,7 +13,6 @@ import type {
   ReceiveInteraction,
   RemoveStatusInteraction,
   RewardInteraction,
-  SetSpawnInteraction,
   SignalMode,
   SignalValue,
   SwitchInteraction,
@@ -24,6 +24,7 @@ import type {
 import {
   DEFAULT_ADD_STATUS,
   DEFAULT_DECAY,
+  DEFAULT_DEPOT,
   DEFAULT_EMIT,
   DEFAULT_EXTRACT,
   DEFAULT_EXTRACT_VERB,
@@ -32,7 +33,6 @@ import {
   DEFAULT_RECEIVE,
   DEFAULT_REMOVE_STATUS,
   DEFAULT_REWARD,
-  DEFAULT_SET_SPAWN,
   DEFAULT_SWITCH,
   DEFAULT_TELEPORT,
   DEFAULT_CRAFT,
@@ -43,8 +43,10 @@ import {
   hasAnyInteraction,
 } from "../lib/interactions";
 import { DEFAULT_BATTLER } from "../lib/battler";
+import { EXTRACT_SPEEDUP_PER_LEVEL } from "../game/extract";
+import { MASTERIES, MASTERY_LABELS } from "../lib/mastery";
 import { CraftFields } from "./CraftFields";
-import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
+import { DEFAULT_WEAPON, MAX_CONTAINER_SIZE, resolveContainer, resolveItem } from "../lib/item";
 import { DEFAULT_PROJECTILE_SPEED } from "../lib/projectile";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
@@ -100,6 +102,19 @@ const MAX_DECAY_SECONDS = 3600;
 const MAX_DURABILITY = 99;
 
 const MAX_EXTRACT_SECONDS = MAX_DECAY_SECONDS;
+
+const NO_EXTRACT_MASTERY = "none";
+
+const PERCENT = 100;
+
+const EXTRACT_MASTERY_INFO = `Every level of this mastery past the first adds ${EXTRACT_SPEEDUP_PER_LEVEL * PERCENT}% of the authored pace. None: the time never changes and no experience is paid.`;
+
+const MAX_EXTRACT_XP = 999;
+
+const EXTRACT_MASTERY_OPTIONS = [
+  { value: NO_EXTRACT_MASTERY, label: "None" },
+  ...MASTERIES.map((value) => ({ value, label: MASTERY_LABELS[value] })),
+];
 
 const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "prop", label: "Prop" },
@@ -166,12 +181,12 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
   const reward = draft.interactions?.reward;
+  const depot = draft.interactions?.depot;
   const craft = draft.interactions?.craft;
   const extract = draft.interactions?.extract;
   const teleport = draft.interactions?.teleport;
   const addStatus = draft.interactions?.addStatus;
   const removeStatus = draft.interactions?.removeStatus;
-  const setSpawn = draft.interactions?.setSpawn;
   const decay = draft.interactions?.decay;
   const plate = draft.interactions?.pressurePlate;
   const emit = draft.interactions?.emit;
@@ -235,6 +250,10 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
     setReward({ ...reward, ...patch });
   };
 
+  const setDepot = (next: DepotInteraction | undefined) => {
+    patchKind("depot", next ?? null);
+  };
+
   const setCraft = (next: CraftInteraction | undefined) => {
     patchKind("craft", next ?? null);
   };
@@ -270,13 +289,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
 
   const setAddStatus = (next: AddStatusInteraction | undefined) => {
     patchKind("addStatus", next ?? null);
-  };
-  const setSetSpawn = (next: SetSpawnInteraction | undefined) => {
-    patchKind("setSpawn", next ?? null);
-  };
-  const patchSetSpawn = (patch: Partial<SetSpawnInteraction>) => {
-    if (!setSpawn) return;
-    setSetSpawn({ ...setSpawn, ...patch });
   };
 
   const patchAddStatus = (patch: Partial<AddStatusInteraction>) => {
@@ -488,6 +500,37 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionSwitch
+          on={Boolean(depot)}
+          onToggle={(on) => setDepot(on ? { ...DEFAULT_DEPOT } : undefined)}
+          label="Depot"
+          info="A container whose contents belong to whoever opens it, kept through death and shared by an account's characters. Containers cannot go in."
+        />
+        <p className="text-[11px] leading-snug text-muted">
+          The tag is set per placement, in the map editor. Placements with the same tag open the
+          same stash.
+        </p>
+
+        {depot ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <label className="flex flex-col gap-1 text-xs">
+              <FieldLabel info="How many slots the stash has. Two placements sharing a tag should share a size: a smaller one still shows everything, but takes nothing more until there is room.">
+                Size
+              </FieldLabel>
+              <NumberInput
+                min={1}
+                max={MAX_CONTAINER_SIZE}
+                step={1}
+                value={depot.size}
+                onChange={(size) => setDepot({ size })}
+                className="w-20"
+              />
+            </label>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <SectionSwitch
           on={Boolean(craft)}
           onToggle={(on) => setCraft(on ? DEFAULT_CRAFT : undefined)}
           label="Craft"
@@ -562,6 +605,35 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
                   aria-label="Time to extract in seconds"
                 />
               </label>
+
+              <label className="flex flex-col gap-1 text-xs">
+                <FieldLabel info={EXTRACT_MASTERY_INFO}>Mastery</FieldLabel>
+                <Select
+                  value={extract.mastery ?? NO_EXTRACT_MASTERY}
+                  onValueChange={(value) =>
+                    patchExtract({ mastery: MASTERIES.find((mastery) => mastery === value) })
+                  }
+                  options={EXTRACT_MASTERY_OPTIONS}
+                  ariaLabel="Extract mastery"
+                />
+              </label>
+
+              {extract.mastery ? (
+                <label className="flex flex-col gap-1 text-xs">
+                  <FieldLabel info="Experience in the mastery paid for each finished use, whatever its time. A use that is broken off pays nothing. 0 pays nothing.">
+                    Experience
+                  </FieldLabel>
+                  <NumberInput
+                    min={0}
+                    max={MAX_EXTRACT_XP}
+                    step={1}
+                    value={extract.xp ?? 0}
+                    onChange={(xp) => patchExtract({ xp })}
+                    className="w-20"
+                    aria-label="Experience per extract"
+                  />
+                </label>
+              ) : null}
             </div>
 
             <TileIdMultiSelect
@@ -807,38 +879,6 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
                 value={removeStatus.actionName}
                 fallback="Touch"
                 onChange={(actionName) => patchRemoveStatus({ actionName })}
-              />
-            )}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <SectionSwitch
-          on={Boolean(setSpawn)}
-          onToggle={(on) => setSetSpawn(on ? { ...DEFAULT_SET_SPAWN } : undefined)}
-          label="Set respawn"
-          info="Whoever triggers it comes back to this placement's cell when they die, instead of to the world's spawn. Solid is fine — a rebirth bubbles outward to the nearest cell with room, the same way a remembered position does. Players only; a creature comes back where it was authored. Repeatable, and the row reads 'You respawn here' and goes grey on the marker somebody is already anchored to."
-        />
-
-        {setSpawn ? (
-          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            <div className="flex flex-col gap-1 text-xs">
-              <FieldLabel info={TRIGGER_INFO}>Trigger</FieldLabel>
-              <Segmented<ActivationTrigger>
-                value={setSpawn.trigger}
-                onChange={(trigger) => patchSetSpawn({ trigger })}
-                options={TRIGGER_OPTIONS}
-                size="sm"
-                ariaLabel="Respawn trigger"
-              />
-            </div>
-
-            {setSpawn.trigger === "step" ? null : (
-              <ActionLabelField
-                value={setSpawn.actionName}
-                fallback="Mark"
-                onChange={(actionName) => patchSetSpawn({ actionName })}
               />
             )}
           </div>

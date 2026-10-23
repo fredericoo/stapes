@@ -1,6 +1,7 @@
 import type { Element } from "../lib/element";
+import type { ExtractInteraction } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
-import { MASTERIES, type Mastery, type MasteryXp } from "../lib/mastery";
+import { type Mastery, type MasteryXp } from "../lib/mastery";
 import type { AttackOutcome } from "./combat";
 
 export const XP_RATE = 0.5;
@@ -87,13 +88,8 @@ export function casterEarnings(
   return earnings;
 }
 
-export const XP_SHARE_LOST_ON_DEATH = 0.05;
-
-export function experienceAfterDeath(xp: MasteryXp): MasteryXp {
-  const kept: MasteryXp = {};
-  for (const mastery of MASTERIES) {
-    const had = xp[mastery];
-    if (had !== undefined) kept[mastery] = had * (1 - XP_SHARE_LOST_ON_DEATH);
-  }
-  return kept;
+export function extractEarnings(extract: ExtractInteraction): MasteryXp {
+  const { mastery, xp = 0 } = extract;
+  if (!mastery || xp <= 0) return {};
+  return { [mastery]: xp };
 }

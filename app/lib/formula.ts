@@ -48,6 +48,21 @@ export function constantFormula(value: number): Formula {
   return { source: String(value), evaluate: () => rounded };
 }
 
+/** Compiles the formula with a `has_status` that records its id, so only a real call counts. */
+export function statusesNamedIn(source: string): string[] {
+  const named: string[] = [];
+  compileExpression(source, {
+    ...STATUS_GRAMMAR,
+    lookups: {
+      has_status: (id) => {
+        named.push(id);
+        return () => 0;
+      },
+    },
+  });
+  return named;
+}
+
 export function parseFormula(source: string): Formula | null {
   const root = compileExpression(source, STATUS_GRAMMAR);
   if (!root) return null;

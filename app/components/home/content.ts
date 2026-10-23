@@ -1,4 +1,11 @@
 /**
+ * Link previews on Reddit, Instagram and the rest are fetched by crawlers that
+ * need an absolute image URL, and the public pages are prerendered, so the
+ * origin is written down rather than read. @see docs/deploy.md
+ */
+export const CANONICAL_ORIGIN = "https://thelaststones.com";
+
+/**
  * Every file in `./media`, by name, as the URL the build gives it. The build
  * names a file after a hash of its contents, and the server caches anything
  * that is not a page for a year, so a clip recorded again under the same name

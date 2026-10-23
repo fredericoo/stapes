@@ -30,8 +30,11 @@ import {
 import { beats, EFFECTIVENESS_EDGE, type Element, ELEMENTS } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import { projectileTiles, resolveProjectile } from "../lib/projectile";
-import type { TileDef } from "../lib/types";
-import { FieldLabel, Input, Segmented, Select, SwitchField, Toggle } from "../ui";
+import type { TileDef, TilesetDef } from "../lib/types";
+import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
+import { AreaFields } from "./AreaFields";
+import { CasterEffectFields } from "./CasterEffectFields";
+import { StatusCures } from "./StatusCures";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -74,11 +77,13 @@ export function StoneFields({
   stone,
   onChange,
   tiles,
+  tilesets,
   statusDefs = {},
 }: {
   stone: ArcaneStoneItem;
   onChange: (fields: Partial<ArcaneStoneItem>) => void;
   tiles: TileDef[];
+  tilesets?: TilesetDef[];
   statusDefs?: Record<string, StatusDef>;
 }) {
   const effect = stone.effect;
@@ -166,7 +171,7 @@ export function StoneFields({
           </div>
 
           <div className="flex flex-col gap-2">
-            <FieldLabel info="A picture only, drawn as a bow's arrow is: the health has moved before the first frame, so it cannot miss in the air. Nothing flies at the caster.">
+            <FieldLabel info="A picture only, drawn as a bow's arrow is: the health has moved before the first frame, so it cannot miss in the air. Nothing flies at the caster: a spell on the caster shows itself with a caster effect.">
               Projectile
             </FieldLabel>
             <div className="flex flex-wrap items-end gap-4">
@@ -205,7 +210,7 @@ export function StoneFields({
               })
             }
             blank={(id) => ({ id, chance: DEFAULT_STONE_STATUS_CHANCE })}
-            info="Rolled once per entry per cast, on whoever it landed on. Armour eating the damage does not stop it; only a body that is not there, or one the cast killed, escapes. No mastery moves the chance. A bolt needs damage, a status or a cure — with none it will not save."
+            info="Rolled once per entry per cast, on whoever it landed on. Armour eating the damage does not stop it; only a body that is not there, or one the cast killed, escapes. No mastery moves the chance. A bolt needs damage, a status, a cure or an area — with none it will not save."
           />
 
           <StatusCures
@@ -214,6 +219,14 @@ export function StoneFields({
             onChange={(cures) =>
               onChange({ effect: { ...effect, cures: cures.length ? cures : undefined } })
             }
+          />
+
+          <AreaFields
+            area={effect.area}
+            onChange={(area) => onChange({ effect: { ...effect, area } })}
+            statusDefs={statusDefs}
+            tiles={tiles}
+            tilesets={tilesets}
           />
         </div>
       ) : (
@@ -233,6 +246,13 @@ export function StoneFields({
           />
         </label>
       )}
+
+      <CasterEffectFields
+        effect={stone.casterEffect}
+        onChange={(casterEffect) => onChange({ casterEffect })}
+        tiles={tiles}
+        tilesets={tilesets}
+      />
 
       <div className="flex flex-wrap gap-4 border-t-2 border-border pt-3">
         <StatField
@@ -321,7 +341,11 @@ export function StoneFields({
         </FieldLabel>
         <ElementReading
           elements={spellElements(stone.requirements)}
-          harms={stone.effect.kind !== "bolt" || (stone.effect.damage ?? 0) > 0}
+          harms={
+            stone.effect.kind !== "bolt" ||
+            (stone.effect.damage ?? 0) > 0 ||
+            (stone.effect.area?.damage ?? 0) > 0
+          }
         />
         <div className="flex flex-wrap gap-4">
           {MASTERIES.map((mastery) => (
@@ -395,45 +419,5 @@ function ElementReading({ elements, harms }: { elements: Element[]; harms: boole
       A <strong>{named(elements)}</strong> spell: {edge}% harder on {named(strong)} bodies
       {weak.length > 0 ? <>, softer on {named(weak)}</> : null}.
     </p>
-  );
-}
-
-function StatusCures({
-  cures,
-  statusDefs,
-  onChange,
-}: {
-  cures: string[];
-  statusDefs: Record<string, StatusDef>;
-  onChange: (cures: string[]) => void;
-}) {
-  const catalogue = Object.values(statusDefs);
-  const toggle = (id: string, on: boolean) =>
-    onChange(
-      catalogue
-        .map((def) => def.id)
-        .filter((candidate) => (candidate === id ? on : cures.includes(candidate))),
-    );
-
-  return (
-    <div className="flex flex-col gap-1.5 border-t-2 border-border pt-3">
-      <FieldLabel info="Taken off whoever it landed on, after the health moves and before any status above is rolled. A body the cast killed keeps nothing to cure.">
-        Cures
-      </FieldLabel>
-      <div className="flex flex-wrap gap-2">
-        {catalogue.map((def) => (
-          <Toggle
-            key={def.id}
-            size="sm"
-            variant="secondary"
-            pressed={cures.includes(def.id)}
-            onPressedChange={(on) => toggle(def.id, on)}
-            ariaLabel={`Cures ${def.name}`}
-          >
-            {def.name}
-          </Toggle>
-        ))}
-      </div>
-    </div>
   );
 }

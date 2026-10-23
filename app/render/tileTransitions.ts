@@ -10,13 +10,24 @@ import {
   type TileTransitionNote,
   type Transition,
 } from "../lib/tileTransition";
-import { CELL_SIZE, type TileDef } from "../lib/types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import type { ParticleEmitterSpec } from "./particles";
 import { plumeScale } from "./plumeScale";
 
 export const MAX_LIVE_TRANSITIONS = 32;
 
 export const LIGHT_FADE_STEP_MS = 150;
+
+export const TOSS_MS = 300;
+export const TOSS_STAGGER_MS = 100;
+
+export const TOSS_PEAK_LEVELS = 0.5;
+export const TOSS_BOUNCE_LEVELS = 0.2;
+export const TOSS_FIRST_LANDING = 0.72;
+
+export const TAKE_MS = 125;
+export const TAKE_PEAK_LEVELS = 0.4;
+export const TAKE_SHRINK_FROM = 0.6;
 
 export type LiveTransition = {
   note: TileTransitionNote;
@@ -43,7 +54,10 @@ export function transitionForNote(
   note: TileTransitionNote,
   tilesById: Readonly<Record<string, TileDef>>,
 ): Transition | undefined {
+  if (note.tossedFrom) return tossTransition(note.tossedFrom.order);
+  if (note.takenBy) return { durationMs: TAKE_MS };
   if (note.struckBy) return projectileEffect(tilesById[note.struckBy], "hit");
+  if (note.casterEffect) return note.casterEffect;
   if (note.pulled) return pullEffect(tilesById[note.tileId]);
   if (note.crafted) return craftEffect(tilesById[note.tileId], note.crafted);
   return transitionOf(tilesById[note.tileId], note.side);
@@ -51,14 +65,19 @@ export function transitionForNote(
 
 /**
  * A hit is authored once, on the projectile, and plays on whatever body it
- * struck, so it is drawn to that body's size. Every other transition is the
- * tile's own and is drawn as authored.
+ * struck, so it is drawn to that body's size; a spell's caster effect plays on
+ * whoever cast it, the same way. Every other transition is the tile's own and
+ * is drawn as authored.
  */
 export function burstScale(
   note: TileTransitionNote,
   tilesById: Readonly<Record<string, TileDef>>,
 ): number {
-  return note.struckBy ? plumeScale(tilesById[note.tileId]) : 1;
+  return playsOnABody(note) ? plumeScale(tilesById[note.tileId]) : 1;
+}
+
+function playsOnABody(note: TileTransitionNote): boolean {
+  return Boolean(note.struckBy || note.casterEffect);
 }
 
 export type TransitionIntake = {
@@ -102,7 +121,7 @@ export function formerSlot(
   note: TileTransitionNote,
   previousStack: readonly { tileId: string }[],
 ): number | undefined {
-  if (!note.struckBy && !note.pulled) return undefined;
+  if (!playsOnABody(note) && !note.pulled) return undefined;
   return resolveTransitionSlot(previousStack, note);
 }
 
@@ -113,6 +132,7 @@ export function liveShown(live: LiveTransition, clockMs: number): number {
 export type TransitionPose = {
   scale: number;
   dropLevels: number;
+  travel?: { x: number; y: number };
 };
 
 export function transitionPose(transition: Transition, shown: number): TransitionPose {
@@ -120,6 +140,88 @@ export function transitionPose(transition: Transition, shown: number): Transitio
     scale: transition.scale ? shown : 1,
     dropLevels: transition.drop ? transition.drop.levels * (1 - shown) : 0,
   };
+}
+
+/**
+ * The thing travels from `from` to its resting place at a constant speed over
+ * the whole toss, as a bounce keeps its momentum. Its height is two parabolas:
+ * from `from.elev` above its resting place down to it by `TOSS_FIRST_LANDING`,
+ * then one bounce of `TOSS_BOUNCE_LEVELS`. From its own cell that is a hop and
+ * a bounce in place.
+ */
+export function tossPose(
+  note: { x: number; y: number },
+  from: { x: number; y: number; elev: number },
+  shown: number,
+): TransitionPose {
+  const left = 1 - shown;
+  return {
+    scale: 1,
+    dropLevels: tossLift(from.elev / HEIGHT_PER_LEVEL, shown),
+    travel: { x: (from.x - note.x) * left, y: (from.y - note.y) * left },
+  };
+}
+
+function tossLift(startLevels: number, shown: number): number {
+  if (shown < TOSS_FIRST_LANDING) {
+    const t = shown / TOSS_FIRST_LANDING;
+    return startLevels * (1 - t) + TOSS_PEAK_LEVELS * 4 * t * (1 - t);
+  }
+  const u = (shown - TOSS_FIRST_LANDING) / (1 - TOSS_FIRST_LANDING);
+  return TOSS_BOUNCE_LEVELS * 4 * u * (1 - u);
+}
+
+export function tossTransition(order: number): Transition {
+  return { durationMs: TOSS_MS + order * TOSS_STAGGER_MS };
+}
+
+/**
+ * The toss run backwards without the bounce: the thing rises off its resting
+ * place in one arc to `to.elev` over the taker's cell, and shrinks away over
+ * the last stretch, as it goes into their hands.
+ */
+export function takePose(
+  note: { x: number; y: number },
+  to: { x: number; y: number; elev: number },
+  progress: number,
+): TransitionPose {
+  const shrinking = (progress - TAKE_SHRINK_FROM) / (1 - TAKE_SHRINK_FROM);
+  return {
+    scale: 1 - Math.max(0, shrinking),
+    dropLevels:
+      (to.elev / HEIGHT_PER_LEVEL) * progress + TAKE_PEAK_LEVELS * 4 * progress * (1 - progress),
+    travel: { x: (to.x - note.x) * progress, y: (to.y - note.y) * progress },
+  };
+}
+
+/**
+ * Eating one off a pile leaves the rest lying there, and the board redraws
+ * them, so only the quads past the ones `left` behind fly to the taker. The
+ * last quad always does, since a pile draws at most one quad per thing.
+ */
+export function quadsTaken<T>(quads: readonly T[], left: number): T[] {
+  return quads.slice(Math.min(left, quads.length - 1));
+}
+
+const NOT_YET_THROWN: TransitionPose = { scale: 0, dropLevels: 0 };
+
+export function livePose(live: LiveTransition, shown: number): TransitionPose {
+  const { takenBy } = live.note;
+  if (takenBy) return takePose(live.note, takenBy, 1 - shown);
+  const from = live.note.tossedFrom;
+  if (!from) return transitionPose(live.transition, shown);
+  const sinceThrowMs = shown * live.transition.durationMs - from.order * TOSS_STAGGER_MS;
+  if (sinceThrowMs < 0) return NOT_YET_THROWN;
+  return tossPose(live.note, from, Math.min(1, sinceThrowMs / TOSS_MS));
+}
+
+export function movesQuad(live: LiveTransition): boolean {
+  const { scale, drop } = live.transition;
+  return Boolean(scale || drop || live.note.tossedFrom || live.note.takenBy);
+}
+
+export function movesBox(live: LiveTransition): boolean {
+  return Boolean(live.transition.drop || live.note.tossedFrom || live.note.takenBy);
 }
 
 export type PoseableQuad = {
@@ -134,12 +236,21 @@ export type PoseableQuad = {
 export function pixelSnappedQuad(
   quad: PoseableQuad,
   pose: TransitionPose,
-): { scaleX: number; scaleY: number; x: number; y: number; dropLevels: number } {
+): {
+  scaleX: number;
+  scaleY: number;
+  x: number;
+  y: number;
+  dropLevels: number;
+  travelPx: { x: number; y: number };
+} {
   const w = Math.round(quad.w * pose.scale);
   const h = Math.round(quad.h * pose.scale);
   const liftPx = Math.round(levelScreenOffset(pose.dropLevels).x);
-  const centreX = quad.pivotX + (quad.centreX - quad.pivotX) * pose.scale + liftPx;
-  const centreY = quad.pivotY + (quad.centreY - quad.pivotY) * pose.scale + liftPx;
+  const travelX = Math.round((pose.travel?.x ?? 0) * CELL_SIZE);
+  const travelY = Math.round((pose.travel?.y ?? 0) * CELL_SIZE);
+  const centreX = quad.pivotX + (quad.centreX - quad.pivotX) * pose.scale + liftPx + travelX;
+  const centreY = quad.pivotY + (quad.centreY - quad.pivotY) * pose.scale + liftPx + travelY;
   const left = Math.round(centreX - w / 2);
   const top = Math.round(centreY - h / 2);
   return {
@@ -148,6 +259,7 @@ export function pixelSnappedQuad(
     x: left + w / 2,
     y: top + h / 2,
     dropLevels: liftPx === 0 ? 0 : -liftPx / CELL_SIZE,
+    travelPx: { x: travelX, y: travelY },
   };
 }
 

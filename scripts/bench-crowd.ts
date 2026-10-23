@@ -12,7 +12,7 @@ import { GameServer } from "../server/GameServer";
 import { GameSocket, SocketHub, type WorldContext } from "../server/sockets";
 import { WorldStore } from "../server/WorldStore";
 
-const CONTENT = ["map.json", "tiles.json", "statuses.json", "tilesets.json"];
+const CONTENT = ["map.json", "tiles.json", "statuses.json", "traits.json", "tilesets.json"];
 
 const CHECKPOINT_INTERVAL_MS = 2_000;
 
@@ -70,7 +70,6 @@ const SERVER_PHASES = [
   "applyQueuedSteps",
   "processDueRespawns",
   "collectMotionEvents",
-  "flushSpawnMarks",
   "noteDeaths",
   "saveActors",
   "releaseLingerers",

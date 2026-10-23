@@ -89,7 +89,7 @@ export function StatusStrip({
         <li
           role="img"
           aria-label={`${overflow} more`}
-          className="grid shrink-0 place-items-center text-[10px] font-bold tabular-nums text-paper/60"
+          className="grid shrink-0 place-items-center text-2xs font-bold tabular-nums text-paper/60"
           style={{ width: STATUS_CELL_SIZE_PX, height: STATUS_CELL_SIZE_PX }}
         >
           +{overflow}

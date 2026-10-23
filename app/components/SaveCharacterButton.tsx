@@ -1,4 +1,4 @@
-import { IconDeviceFloppy } from "@tabler/icons-react";
+import { IconSave } from "./pixelIcons";
 import { useState } from "react";
 import { MIN_PASSWORD_LENGTH } from "../lib/account";
 import { claimAccount } from "../lib/auth";
@@ -29,7 +29,7 @@ export function SaveCharacterButton({ onSaved }: { onSaved: () => void }) {
   return (
     <>
       <Button variant="ghost-inverse" size="sm" onClick={() => setOpen(true)}>
-        <IconDeviceFloppy size={16} stroke={2} aria-hidden="true" />
+        <IconSave size={16} aria-hidden="true" />
         Save your character
         <AttentionDot />
       </Button>
@@ -67,7 +67,6 @@ export function SaveCharacterButton({ onSaved }: { onSaved: () => void }) {
           </p>
           <Field label="Username">
             <Input
-              className={FINGER_SIZED}
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
@@ -79,7 +78,6 @@ export function SaveCharacterButton({ onSaved }: { onSaved: () => void }) {
           </Field>
           <Field label="Email">
             <Input
-              className={FINGER_SIZED}
               type="email"
               autoComplete="email"
               value={email}
@@ -89,7 +87,6 @@ export function SaveCharacterButton({ onSaved }: { onSaved: () => void }) {
           </Field>
           <Field label={`Password, at least ${MIN_PASSWORD_LENGTH} characters`}>
             <Input
-              className={FINGER_SIZED}
               type="password"
               autoComplete="new-password"
               value={password}
@@ -107,9 +104,6 @@ export function SaveCharacterButton({ onSaved }: { onSaved: () => void }) {
     </>
   );
 }
-
-/** Safari on iOS zooms in on a focused field under 16px and does not zoom back out. */
-const FINGER_SIZED = "pointer-coarse:text-base";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -228,15 +228,27 @@ describe("reporting what is wrong", () => {
     });
   });
 
-  it("flags a transition from a state that does not exist", () => {
+  it.each([["ghost"], [["idle", "ghost"]]])(
+    "flags a transition from a state that does not exist: %j",
+    (from) => {
+      const issues = validateBrain({
+        ...ok,
+        transitions: [{ from, if: { cond: "stuck" }, to: "idle" }],
+      });
+      expect(issues).toContainEqual({
+        severity: "error",
+        message: 'Transition 1: from "ghost", which is not a state.',
+      });
+    },
+  );
+
+  it("counts a state reached from any state on a list as reachable", () => {
     const issues = validateBrain({
-      ...ok,
-      transitions: [{ from: "ghost", if: { cond: "stuck" }, to: "idle" }],
+      initial: "idle",
+      states: { idle: { do: [] }, spare: { do: [] }, bolt: { do: [] } },
+      transitions: [{ from: ["spare", "idle"], if: { cond: "stuck" }, to: "bolt" }],
     });
-    expect(issues).toContainEqual({
-      severity: "error",
-      message: 'Transition 1: from "ghost", which is not a state.',
-    });
+    expect(issues.filter((i) => i.message.includes("bolt"))).toEqual([]);
   });
 
   it("warns about a state nothing can reach", () => {

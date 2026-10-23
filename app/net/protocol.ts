@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { CAST_SQUARES, type CastProgress, type CastSlot } from "../game/casting";
 import { MAX_SPELL_NAME_LENGTH } from "../lib/battler";
 import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../game/deathCost";
+import type { Depots } from "../game/depot";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
 import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
@@ -11,8 +12,16 @@ import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
-import type { Coord, PlacedTile } from "../lib/types";
-import { CRAFT_OUTCOMES, TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
+import type { PlacedTile } from "../lib/types";
+import {
+  CRAFT_OUTCOMES,
+  TRANSITION_SIDES,
+  type TileTransitionNote,
+  transitionSchema,
+} from "../lib/tileTransition";
+import { AREA_SHAPES, MAX_AREA_RADIUS, MIN_AREA_RADIUS } from "../lib/area";
+import { MAX_REACH_HEIGHT, STONE_SUBJECTS, type AreaBurst } from "../lib/item";
+import { particleEmitterSchema } from "../lib/particleVfx";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH, type CommandReply } from "../game/commands";
 
@@ -104,6 +113,19 @@ const castingPatchSchema = v.object({
       durationMs: v.number(),
       slot: castSlotSchema,
       targetId: v.optional(v.string()),
+      area: v.optional(
+        v.object({
+          shape: v.picklist(AREA_SHAPES),
+          radius: v.pipe(
+            v.number(),
+            v.integer(),
+            v.minValue(MIN_AREA_RADIUS),
+            v.maxValue(MAX_AREA_RADIUS),
+          ),
+          height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
+          on: v.picklist(STONE_SUBJECTS),
+        }),
+      ),
     }),
   ),
 });
@@ -151,6 +173,8 @@ const equipmentSchema = v.object({
   footwear: v.optional(v.nullable(itemInstanceSchema), null),
   bag: v.nullable(itemInstanceSchema),
 });
+
+const depotsSchema = v.record(v.string(), v.array(itemInstanceSchema));
 
 const tolerantEquipmentSchema = v.fallback(equipmentSchema, {
   weapon: null,
@@ -278,6 +302,14 @@ export type MotionEvent =
     }
   | ({ kind: "tileTransition" } & TileTransitionNote)
   | {
+      kind: "areaBurst";
+      id: string;
+      x: number;
+      y: number;
+      cells: { x: number; y: number; elevAbs: number }[];
+      burst: AreaBurst;
+    }
+  | {
       kind: "damage";
       id: string;
       targetId: string;
@@ -299,6 +331,10 @@ export type ServerMessage =
       minutesOfDay: number;
     }
   | {
+      type: "king";
+      actorId: string | null;
+    }
+  | {
       type: "hidden";
       on: boolean;
     }
@@ -309,6 +345,7 @@ export type ServerMessage =
       actorIds: string[];
       playerCount?: number;
       minutesOfDay: number;
+      kingId: string | null;
       hps: HpPatch[];
       names: NamePatch[];
       carriedLights: CarriedLightsPatch[];
@@ -319,20 +356,20 @@ export type ServerMessage =
       afflicted: AfflictedPatch[];
       equipment: Equipment;
       tags: string[];
-      spawnAt: Coord | null;
       extracting: Extraction | null;
       nextBlow: Progress | null;
       masteryXp: MasteryXp;
       statuses: StatusPatch[];
+      depots: Depots;
       diedAway?: DeathCost;
     }
+  | { type: "depots"; depots: Depots }
   | {
       type: "equipment";
       equipment: Equipment;
       spellCooldowns: Record<string, number>;
     }
   | { type: "tags"; tags: string[] }
-  | { type: "spawnPoint"; at: Coord }
   | { type: "conversation"; conversation: Conversation | null }
   | { type: "extracting"; extracting: Extraction | null }
   | { type: "nextBlow"; nextBlow: Progress | null }
@@ -373,7 +410,13 @@ export type ServerMessage =
       stackIndex: number;
     }
   | { type: "stepRejected"; seq: number }
-  | { type: "died"; equipment: Equipment; masteryXp: MasteryXp | null; cost: DeathCost }
+  | {
+      type: "died";
+      equipment: Equipment;
+      masteryXp: MasteryXp | null;
+      cost: DeathCost;
+      rebornAs?: string;
+    }
   | { type: "keepalive" }
   | { type: "serverRestarting" }
   | { type: "outdated"; serverVersion: number };
@@ -430,6 +473,11 @@ const inboundSlotRefSchema = v.variant("kind", [
   }),
   v.object({
     kind: v.literal("ground"),
+    ref: inboundRefSchema,
+    index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  }),
+  v.object({
+    kind: v.literal("depot"),
     ref: inboundRefSchema,
     index: v.pipe(v.number(), v.integer(), v.minValue(0)),
   }),
@@ -556,6 +604,7 @@ const serverMessageSchema = v.variant("type", [
     actorIds: v.array(v.string()),
     playerCount: v.optional(v.number()),
     minutesOfDay: v.number(),
+    kingId: v.optional(v.nullable(v.string()), () => null),
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
     carriedLights: v.array(carriedLightsPatchSchema),
@@ -566,12 +615,16 @@ const serverMessageSchema = v.variant("type", [
     afflicted: v.optional(v.array(afflictedPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
-    spawnAt: v.optional(v.nullable(coordSchema), () => null),
     extracting: v.optional(v.nullable(extractionSchema), () => null),
     nextBlow: v.optional(v.nullable(nextBlowSchema), () => null),
     masteryXp: tolerantMasteryXpSchema,
     statuses: v.array(statusPatchSchema),
+    depots: v.optional(depotsSchema, () => ({})),
     diedAway: v.fallback(v.optional(deathCostSchema), undefined),
+  }),
+  v.object({
+    type: v.literal("depots"),
+    depots: depotsSchema,
   }),
   v.object({
     type: v.literal("equipment"),
@@ -581,10 +634,6 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
-  }),
-  v.object({
-    type: v.literal("spawnPoint"),
-    at: coordSchema,
   }),
   v.object({
     type: v.literal("conversation"),
@@ -639,6 +688,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("players"),
     playerCount: v.number(),
+  }),
+  v.object({
+    type: v.literal("king"),
+    actorId: v.nullable(v.string()),
   }),
   v.object({
     type: v.literal("statuses"),
@@ -709,13 +762,37 @@ const serverMessageSchema = v.variant("type", [
           hit: v.boolean(),
         }),
         v.object({
+          kind: v.literal("areaBurst"),
+          id: v.string(),
+          x: v.pipe(v.number(), v.integer()),
+          y: v.pipe(v.number(), v.integer()),
+          cells: v.array(flightPointSchema),
+          burst: v.object({ durationMs: v.number(), particles: particleEmitterSchema }),
+        }),
+        v.object({
           kind: v.literal("tileTransition"),
           id: v.string(),
           side: v.picklist(TRANSITION_SIDES),
           tileId: v.string(),
           struckBy: v.optional(v.string()),
+          casterEffect: v.optional(transitionSchema),
           pulled: v.optional(v.literal(true)),
           crafted: v.optional(v.picklist(CRAFT_OUTCOMES)),
+          tossedFrom: v.optional(
+            v.object({
+              x: v.pipe(v.number(), v.integer()),
+              y: v.pipe(v.number(), v.integer()),
+              elev: v.number(),
+              order: v.pipe(v.number(), v.integer(), v.minValue(0)),
+            }),
+          ),
+          takenBy: v.optional(
+            v.object({
+              x: v.pipe(v.number(), v.integer()),
+              y: v.pipe(v.number(), v.integer()),
+              elev: v.number(),
+            }),
+          ),
           x: v.pipe(v.number(), v.integer()),
           y: v.pipe(v.number(), v.integer()),
           z: v.pipe(v.number(), v.integer()),
@@ -788,6 +865,7 @@ const serverMessageSchema = v.variant("type", [
     equipment: tolerantEquipmentSchema,
     masteryXp: v.fallback(v.nullable(masteryXpBlockSchema), null),
     cost: v.fallback(deathCostSchema, NOTHING_LOST),
+    rebornAs: v.fallback(v.optional(v.string()), undefined),
   }),
   v.object({
     type: v.literal("keepalive"),
@@ -817,7 +895,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 27;
+export const PROTOCOL_VERSION = 34;
 
 export const MAX_STEPS_AHEAD = 8;
 

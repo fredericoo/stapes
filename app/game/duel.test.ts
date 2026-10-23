@@ -15,7 +15,8 @@ import {
   swingWindupMs,
 } from "./combat";
 import { TICK_MS } from "./constants";
-import { Duel, type DuelEvent, type DuelResult, MAX_DUEL_TICKS, runDuel, type Side } from "./duel";
+import { type DuelResult, MAX_DUEL_TICKS, runDuel } from "../verify/duel";
+import { Duel, type DuelEvent, type Side } from "./duel";
 import { Rng } from "./rng";
 
 const tiles = normalizeTiles(tilesJson as unknown[]);

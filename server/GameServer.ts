@@ -7,6 +7,7 @@ import {
   type Death,
 } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
+import { generationalName } from "../app/lib/characterName";
 import {
   BodyGrid,
   INTEREST_REACH_CHUNKS,
@@ -32,7 +33,8 @@ import {
 import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../app/game/deathCost";
 import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
-import { DEFAULT_FACING, listActorOwners } from "../app/game/actors";
+import { DepotLedger, restoredDepots, type Depots } from "../app/game/depot";
+import { listActorOwners } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import type { CommandReply } from "../app/game/commands";
@@ -56,6 +58,7 @@ import {
   type RemovedPlacement,
 } from "../app/lib/validation";
 import { type StatusDef, statusesById } from "../app/lib/status";
+import { brainExpansionIssues, traitsById, type TraitCatalogue } from "../app/lib/traits";
 import type { StatusInstance } from "../app/game/statuses";
 import type {
   ChunkCells,
@@ -65,13 +68,14 @@ import type {
   PlacedTile,
   TileDef,
 } from "../app/lib/types";
-import { MAX_LEVEL, MIN_LEVEL, parseCoordKey, type Coord } from "../app/lib/types";
+import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   CLOSE_REPLACED,
   CLOSE_WORLD_FULL,
   MAX_STEPS_AHEAD,
   parseClientMessage,
+  type ClientMessage,
   type CarriedLightsPatch,
   type AfflictedPatch,
   type CellAffliction,
@@ -106,10 +110,6 @@ const [GROUND_ONLY_HEAD, GROUND_ONLY_TAIL] = (() => {
   const [head, tail] = JSON.stringify(empty).split('"cells":[]');
   return [`${head}"cells":[`, `]${tail}`];
 })();
-
-function sameCell(a: Coord, b: Coord): boolean {
-  return a.x === b.x && a.y === b.y && a.z === b.z;
-}
 
 function cellAfflictionKey(x: number, y: number, z: number): string {
   return `${x},${y},${z}`;
@@ -317,6 +317,7 @@ function castProgressOf(casting: CastProgress): CastProgress {
     durationMs: casting.durationMs,
     slot: casting.slot,
     ...(casting.targetId ? { targetId: casting.targetId } : {}),
+    ...(casting.area ? { area: casting.area } : {}),
   };
 }
 
@@ -334,7 +335,8 @@ const TAGS_KEY_PREFIX = "tags:";
 
 const MASTERIES_KEY_PREFIX = "mast:";
 
-const SPAWN_KEY_PREFIX = "spawn:";
+/** Where a `setSpawn` mark used to send a player. Nothing reads these rows; load deletes them. */
+const RETIRED_SPAWN_KEY_PREFIX = "spawn:";
 
 const STATUSES_KEY_PREFIX = "status:";
 
@@ -345,6 +347,12 @@ const PVP_KEY_PREFIX = "pvp:";
 const HIDDEN_KEY_PREFIX = "hidden:";
 
 const DIED_AWAY_KEY_PREFIX = "diedAway:";
+
+/**
+ * Keyed by account, not character. Never pruned and never cleared by a death:
+ * a depot is the one thing a player keeps across lives.
+ */
+const DEPOT_KEY_PREFIX = "depot:";
 
 export const MAX_REMEMBERED_ACTORS = 1_000;
 
@@ -360,13 +368,13 @@ const TICK_POLL_MS = 1;
 
 type SavedPosition = ActorPosition & { savedAt: number };
 
+type Life = { name: string; generation: number };
+
 type SavedEquipment = { equipment: Equipment; savedAt: number };
 
 type SavedTags = { tags: string[]; savedAt: number };
 
 type SavedMasteries = { masteries: MasteryXp; savedAt: number };
-
-type SavedSpawn = ActorPosition & { savedAt: number };
 
 type SavedStatuses = { statuses: StatusInstance[]; savedAt: number };
 
@@ -385,7 +393,6 @@ export type CharacterSheet = {
   live: boolean;
   dead: boolean;
   position: ActorPosition | null;
-  spawn: ActorPosition | null;
   equipment: Equipment | null;
   masteryXp: MasteryXp;
   statuses: StatusInstance[];
@@ -396,6 +403,7 @@ export type CharacterSheet = {
 };
 
 type SavedDiedAway = { cost: DeathCost; savedAt: number };
+type SavedDepots = { depots: Depots; savedAt: number };
 
 const savedStatusSchema = v.object({
   defId: v.pipe(v.string(), v.minLength(1)),
@@ -406,7 +414,7 @@ const savedStatusSchema = v.object({
 
 const savedStatusesSchema = v.array(savedStatusSchema);
 
-type Attachment = { actorId: string; admin: boolean };
+type Attachment = { actorId: string; admin: boolean; accountId: string };
 
 type WrittenActor = {
   position: ActorPosition | null;
@@ -431,12 +439,34 @@ type QueuedStep = {
   preferDescend: boolean;
 };
 
+type BoardAction = Extract<
+  ClientMessage,
+  { type: "interact" | "pickUp" | "equip" | "moveItem" | "drop" | "consume" | "talk" | "craft" }
+>;
+
+/**
+ * An `act` waits behind the steps queued before it and for the walk they start to
+ * commit, because the client sends it from where its prediction has the body,
+ * which is where those steps end.
+ */
 type QueuedIntent =
   | ({ kind: "step" } & QueuedStep)
   | { kind: "face"; direction: Direction }
-  | { kind: "cast"; slot: CastSlot };
+  | { kind: "cast"; slot: CastSlot }
+  | { kind: "act"; message: BoardAction };
 
 type QueuedAction = Exclude<QueuedIntent, { kind: "step" }>;
+
+function applyBoardAction(session: GameSession, actorId: string, message: BoardAction) {
+  if (message.type === "pickUp") session.pickUp(message.ref, actorId);
+  else if (message.type === "equip") session.equip(message.ref, actorId);
+  else if (message.type === "moveItem") session.moveItem(message.from, message.to, actorId);
+  else if (message.type === "consume") session.consume(message.from, actorId);
+  else if (message.type === "talk") session.talk(message.action, actorId);
+  else if (message.type === "craft") session.craft(message.ref, message.recipe, actorId);
+  else if (message.type === "drop") session.drop(message.from, message.to, actorId);
+  else session.interact(message.ref, actorId);
+}
 
 type Checkpoint = {
   map?: FlatMapFile;
@@ -702,6 +732,7 @@ export class GameServer {
     protected readonly env: {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
+      deathsOf?: (actorId: string) => Promise<number>;
       maxOnlinePlayers?: number;
       manualTicks?: { startAtMs: number };
       seed?: number;
@@ -709,9 +740,18 @@ export class GameServer {
   ) {}
 
   private session: GameSession | null = null;
+  private readonly depots = new DepotLedger();
+  private readonly accountOf = new Map<string, string>();
+  /**
+   * Each seated character's stored name and generation. The generation is
+   * counted from `death` once and then kept here, because a death's row is
+   * only committed with the next checkpoint and a rebirth can come first.
+   */
+  private readonly lives = new Map<string, Life>();
   private clockOffsetMinutes = 0;
   private tiles: TileDef[] = [];
   private statusDefs: Record<string, StatusDef> = {};
+  private traits: TraitCatalogue = {};
   private broadcastMap: MapFile | null = null;
   private sentMotion = new Map<string, SentMotion>();
   private readonly announcedActors = new Map<string, Set<string>>();
@@ -727,6 +767,7 @@ export class GameServer {
   private sentCarriedLights = new Map<string, string>();
   private sentStatusIds = new Map<string, { defIds: string[]; key: string }>();
   private sentPvp = new Map<string, boolean>();
+  private kingId: string | null = null;
   /**
    * These three are compared by identity: the runtime mutates one object in
    * place for a whole pull, wait or cast and replaces it only when one starts
@@ -761,7 +802,6 @@ export class GameServer {
   private pendingDeathWrites = new Map<string, { death: Death; told: boolean }>();
   private silenced = new Set<string>();
   private justDied: Death[] = [];
-  private readonly spawns = new Map<string, ActorPosition>();
   private readonly subscribed = new Map<string, Set<string>>();
   private readonly subscriptionCentre = new WeakMap<Set<string>, string>();
   private readonly lingering = new Map<string, number>();
@@ -789,6 +829,8 @@ export class GameServer {
     this.tiles = await store.readTiles();
     GameServer.warnUnloadableBattlers(this.tiles);
     this.statusDefs = statusesById(await store.readStatuses());
+    this.traits = traitsById(await store.readTraits());
+    GameServer.warnUnloadableBrains(this.tiles, this.traits);
 
     const checkpoint = await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY);
     const board = checkpoint ? await this.checkpointedBoard(checkpoint) : null;
@@ -798,14 +840,19 @@ export class GameServer {
           spawnAt: checkpoint!.spawn,
           seed: checkpoint!.seed,
           statuses: this.statusDefs,
+          traits: this.traits,
           clock: () => this.minutesOfDay(),
+          depots: this.depots,
         })
       : new GameSession(await store.readMap(), this.tiles, {
           actorIds: [],
           seed: this.env.seed,
           statuses: this.statusDefs,
+          traits: this.traits,
           clock: () => this.minutesOfDay(),
+          depots: this.depots,
         });
+    this.session.setKing(this.kingId);
     this.dead = new Set(board ? (checkpoint!.dead ?? []) : []);
     this.broadcastMap = this.session.getMap();
     /**
@@ -889,6 +936,14 @@ export class GameServer {
       if (issues.length === 0) continue;
       console.warn(
         `stapes: tile "${def.id}" is kind battler but its block does not parse, so it has no hit points or spells:\n  ${issues.join("\n  ")}`,
+      );
+    }
+  }
+
+  private static warnUnloadableBrains(tiles: readonly TileDef[], traits: TraitCatalogue) {
+    for (const issue of brainExpansionIssues(tiles, traits)) {
+      console.warn(
+        `stapes: a brain does not expand, so its creature stands still: ${issue.message}`,
       );
     }
   }
@@ -1033,55 +1088,18 @@ export class GameServer {
     return { at, carrying, tagged, earned, statuses, hp, pvp, hidden };
   }
 
-  /**
-   * A row still on the old map's spawn was minted, not chosen, so it is dropped
-   * and re-minted from the new map. Any other row is a `setSpawn` mark and
-   * survives the save, which every deploy makes through `/api/seed`.
-   */
-  private async forgetMintedSpawns(previousSpawn: Coord | null) {
-    const stored = await this.ctx.storage.list<SavedSpawn>({ prefix: SPAWN_KEY_PREFIX });
-    const minted = [...stored]
-      .filter(([, spawn]) => !previousSpawn || sameCell(spawn, previousSpawn))
-      .map(([key]) => key);
-    for (const key of minted) this.spawns.delete(key.slice(SPAWN_KEY_PREFIX.length));
-    if (minted.length === 0) return;
-    await this.ctx.storage.delete(minted);
-  }
-
   private async deleteCheckpointedBoard() {
     const stored = await this.ctx.storage.list({ prefix: CHUNK_KEY_PREFIX });
     if (stored.size === 0) return;
     await this.ctx.storage.delete([...stored.keys()]);
   }
 
-  private spawnKey(actorId: string): string {
-    return `${SPAWN_KEY_PREFIX}${actorId}`;
-  }
-
-  private async rememberSpawn(actorId: string): Promise<void> {
-    if (this.spawns.has(actorId)) return;
-
-    const saved = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
-    if (saved) {
-      this.spawns.set(actorId, {
-        x: saved.x,
-        y: saved.y,
-        z: saved.z,
-        direction: saved.direction,
-      });
-      return;
-    }
-
-    const { x, y, z } = this.session!.getSpawnPoint();
-    const spawn: ActorPosition = { x, y, z, direction: DEFAULT_FACING };
-    this.spawns.set(actorId, spawn);
-    this.ctx.storage
-      .put(this.spawnKey(actorId), { ...spawn, savedAt: this.now() })
-      .catch(GameServer.reportWriteFailure("spawn write"));
-  }
-
   private positionKey(actorId: string): string {
     return `${POSITION_KEY_PREFIX}${actorId}`;
+  }
+
+  private depotKey(accountId: string): string {
+    return `${DEPOT_KEY_PREFIX}${accountId}`;
   }
 
   private equipmentKey(actorId: string): string {
@@ -1204,11 +1222,7 @@ export class GameServer {
   }
 
   async characterSheet(actorId: string): Promise<CharacterSheet> {
-    const spawn = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
-    const common = {
-      dead: this.dead.has(actorId),
-      spawn: spawn ? { x: spawn.x, y: spawn.y, z: spawn.z, direction: spawn.direction } : null,
-    };
+    const common = { dead: this.dead.has(actorId) };
     const session = this.session;
     const at = session?.actorPosition(actorId);
     if (!session || !at) return { ...common, ...(await this.savedSheetOf(actorId)) };
@@ -1231,7 +1245,7 @@ export class GameServer {
    * `restoredEquipment`, which needs the tile catalogue of a loaded world and
    * would hide an item it no longer accepts.
    */
-  private async savedSheetOf(actorId: string): Promise<Omit<CharacterSheet, "dead" | "spawn">> {
+  private async savedSheetOf(actorId: string): Promise<Omit<CharacterSheet, "dead">> {
     const [position, equipment, tags, masteryXp, statuses, hp, pvp, hidden] = await Promise.all([
       this.lastPositionOf(actorId),
       this.ctx.storage.get<SavedEquipment>(this.equipmentKey(actorId)),
@@ -1310,10 +1324,12 @@ export class GameServer {
       | SavedHp
       | SavedPvp
       | SavedDiedAway
+      | SavedDepots
       | Checkpoint
       | ChunkCells
     > = {};
-    for (const actorId of actorIds) {
+    const saving = new Set(actorIds);
+    for (const actorId of saving) {
       const written = force ? undefined : this.writtenActors.get(actorId);
       const equipment = session.equipmentOf(actorId);
       const tags = session.tagsOf(actorId);
@@ -1378,25 +1394,12 @@ export class GameServer {
       });
     }
 
+    for (const [owner, depots] of this.depots.drainUnsaved(saving)) {
+      entries[this.depotKey(owner)] = { depots, savedAt };
+    }
+
     for (const [actorId, { death, told }] of this.pendingDeathWrites) {
-      const spawn = this.spawns.get(actorId);
-      if (spawn) entries[this.positionKey(actorId)] = { ...spawn, savedAt };
-      entries[this.equipmentKey(actorId)] = {
-        equipment: session.rebirthKit(death.equipment),
-        savedAt,
-      };
-      if (death.tags.length > 0) {
-        entries[this.tagsKey(actorId)] = { tags: [...death.tags], savedAt };
-      }
-      if (death.masteryXp) {
-        entries[this.masteriesKey(actorId)] = {
-          masteries: { ...death.masteryXp },
-          savedAt,
-        };
-      }
-      entries[this.hpKey(actorId)] = { hp: null, savedAt };
-      entries[this.statusesKey(actorId)] = { statuses: [], savedAt };
-      this.storedVitals.set(actorId, { hp: null, statuses: null });
+      this.forgetLife(actorId);
       if (!told) {
         entries[this.diedAwayKey(actorId)] = { cost: death.cost ?? NOTHING_LOST, savedAt };
       }
@@ -1423,6 +1426,28 @@ export class GameServer {
       .catch(GameServer.reportWriteFailure("checkpoint write"));
   }
 
+  /**
+   * A death deletes every row the life wrote, so the next seat is a new
+   * character's: the world's spawn, the starting kit, the player tile's
+   * masteries, no tags and PvP off. `hidden:` is an admin setting and stays.
+   * The deletes are tombstones in the same `WorldStore` commit as the
+   * board that dropped the kit.
+   */
+  private forgetLife(actorId: string) {
+    this.ctx.storage
+      .delete([
+        this.positionKey(actorId),
+        this.equipmentKey(actorId),
+        this.tagsKey(actorId),
+        this.masteriesKey(actorId),
+        this.hpKey(actorId),
+        this.statusesKey(actorId),
+        this.pvpKey(actorId),
+      ])
+      .catch(GameServer.reportWriteFailure("death clear"));
+    this.storedVitals.set(actorId, { hp: null, statuses: null });
+  }
+
   private saveActorsIfDue() {
     const session = this.session;
     if (!session) return;
@@ -1439,8 +1464,14 @@ export class GameServer {
     await this.pruneOldest(STATUSES_KEY_PREFIX);
     await this.pruneOldest(HP_KEY_PREFIX);
     await this.pruneOldest(MASTERIES_KEY_PREFIX);
-    await this.pruneOldest(SPAWN_KEY_PREFIX);
     await this.pruneOldest(DIED_AWAY_KEY_PREFIX);
+    await this.deleteRetiredSpawns();
+  }
+
+  private async deleteRetiredSpawns() {
+    const stored = await this.ctx.storage.list({ prefix: RETIRED_SPAWN_KEY_PREFIX });
+    if (stored.size === 0) return;
+    await this.ctx.storage.delete([...stored.keys()]);
   }
 
   private async pruneOldest(prefix: string) {
@@ -1452,7 +1483,12 @@ export class GameServer {
     await this.ctx.storage.delete(doomed);
   }
 
-  async join(socket: GameSocket, actorId: string, { admin }: { admin: boolean }): Promise<void> {
+  /** Without an `accountId` the character is its own account, as in a test. */
+  async join(
+    socket: GameSocket,
+    actorId: string,
+    { admin, accountId = actorId }: { admin: boolean; accountId?: string },
+  ): Promise<void> {
     const done = await this.joinTurn();
     try {
       if (socket.closed) return;
@@ -1460,7 +1496,7 @@ export class GameServer {
         socket.close(CLOSE_WORLD_FULL, "world full");
         return;
       }
-      await this.seatJoiner(socket, actorId, { admin });
+      await this.seatJoiner(socket, actorId, { admin, accountId });
     } finally {
       done();
     }
@@ -1483,11 +1519,11 @@ export class GameServer {
   private async seatJoiner(
     socket: GameSocket,
     actorId: string,
-    { admin }: { admin: boolean },
+    { admin, accountId }: { admin: boolean; accountId: string },
   ): Promise<void> {
     this.displaceSockets(actorId);
     this.ctx.acceptWebSocket(socket);
-    this.seat(socket, { actorId, admin });
+    this.seat(socket, { actorId, admin, accountId });
 
     /**
      * Seated before loading, because loading reaps every checkpointed body with
@@ -1519,6 +1555,7 @@ export class GameServer {
 
   private seat(ws: GameSocket, attachment: Attachment) {
     ws.serializeAttachment(attachment satisfies Attachment);
+    this.accountOf.set(attachment.actorId, attachment.accountId);
     let sockets = this.socketsByActor.get(attachment.actorId);
     if (!sockets) this.socketsByActor.set(attachment.actorId, (sockets = new Set()));
     sockets.add(ws);
@@ -1547,6 +1584,13 @@ export class GameServer {
       ws.serializeAttachment(null);
       ws.close(CLOSE_REPLACED, "replaced");
     }
+  }
+
+  crown(actorId: string | null) {
+    if (actorId === this.kingId) return;
+    this.kingId = actorId;
+    this.session?.setKing(actorId);
+    this.broadcast({ type: "king", actorId });
   }
 
   private playerCount(excluding?: GameSocket): number {
@@ -1592,14 +1636,15 @@ export class GameServer {
       castings: currentCastings(actors),
       afflicted: session.afflictedPlacements().filter((one) => covers(chunks, one.x, one.y)),
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
+      depots: this.depots.of(actorId),
       tags: [...(session.tagsOf(actorId) ?? [])],
-      spawnAt: this.spawnCellOf(actorId),
       extracting: session.extractionOf(actorId),
       nextBlow: this.rememberNextBlow(actorId),
       masteryXp: { ...session.masteryXpOf(actorId) },
       statuses: session.statusPatchesOf(actorId) ?? [],
       ...(attachment?.admin ? { playerCount: this.playerCount() } : {}),
       minutesOfDay: this.minutesOfDay(),
+      kingId: this.kingId,
       ...(diedAway ? { diedAway } : {}),
     };
     const map = mapOfInterestJson(session.getMap(), chunks, held);
@@ -1664,41 +1709,26 @@ export class GameServer {
       if (admin) this.setHidden(actorId, message.enabled);
     } else if (message.type === "attackMode") {
       session.setAttackMode(message.enabled, actorId);
-    } else if (message.type === "pickUp") {
-      session.pickUp(message.ref, actorId);
-    } else if (message.type === "equip") {
-      session.equip(message.ref, actorId);
-    } else if (message.type === "moveItem") {
-      session.moveItem(message.from, message.to, actorId);
-    } else if (message.type === "consume") {
-      session.consume(message.from, actorId);
-    } else if (message.type === "talk") {
-      session.talk(message.action, actorId);
-    } else if (message.type === "craft") {
-      session.craft(message.ref, message.recipe, actorId);
     } else if (message.type === "command") {
       const reply = admin
         ? session.runCommand(message.text, actorId)
         : session.refuseCommand(actorId);
       this.commandReplies.push({ ws, requestId: message.requestId, reply });
-    } else if (message.type === "drop") {
-      session.drop(message.from, message.to, actorId);
     } else {
-      session.interact(message.ref, actorId);
+      this.queueAction(actorId, { kind: "act", message });
     }
 
     this.flushEquipment();
+    this.flushDepots();
     this.flushSounds();
     this.flushBlows();
     this.flushTags();
     this.flushConversations();
     this.flushExtracting();
-    this.flushSpawnMarks();
     /**
      * A message can kill on the spot (a consume, `/health 0`). Left for the tick,
      * a close before it skips the death's rows and a rejoin seats the body from
-     * the rows the death was about to overwrite. After `flushSpawnMarks`, as in
-     * `tick`.
+     * the rows the death was about to overwrite.
      */
     this.noteDeaths(session);
     this.flushNextBlow();
@@ -1768,6 +1798,13 @@ export class GameServer {
           spellCooldowns: session.spellCooldownsOf(actorId) ?? {},
         };
       },
+    );
+  }
+
+  private flushDepots() {
+    this.flushPerActor(
+      () => this.depots.drainChangedActors(),
+      (_session, actorId) => ({ type: "depots", depots: this.depots.of(actorId) }),
     );
   }
 
@@ -1856,30 +1893,6 @@ export class GameServer {
     }
   }
 
-  private flushSpawnMarks() {
-    const session = this.session;
-    if (!session) return;
-
-    for (const { actorId, at } of session.drainSpawnMarks()) {
-      const spawn: ActorPosition = {
-        x: at.x,
-        y: at.y,
-        z: at.z,
-        direction: this.spawns.get(actorId)?.direction ?? DEFAULT_FACING,
-      };
-      this.spawns.set(actorId, spawn);
-      this.ctx.storage
-        .put(this.spawnKey(actorId), { ...spawn, savedAt: this.now() })
-        .catch(GameServer.reportWriteFailure("spawn write"));
-      this.sendTo(actorId, { type: "spawnPoint", at: { ...at } });
-    }
-  }
-
-  private spawnCellOf(actorId: string): { x: number; y: number; z: number } | null {
-    const spawn = this.spawns.get(actorId);
-    return spawn ? { x: spawn.x, y: spawn.y, z: spawn.z } : null;
-  }
-
   private minutesOfDay(): MinutesOfDay {
     return wrapMinutes(minutesOfDayAt(this.now()) + this.clockOffsetMinutes);
   }
@@ -1931,19 +1944,26 @@ export class GameServer {
 
   private queueAction(actorId: string, action: QueuedAction) {
     const queue = this.queuedIntents.get(actorId);
-    if (!queue) {
+    if (!queue && !this.mustWait(actorId, action)) {
       this.applyAction(actorId, action);
       return;
     }
-    if (queue.length >= MAX_QUEUED_INTENTS) return;
-    queue.push(action);
+    const waiting = queue ?? [];
+    if (waiting.length >= MAX_QUEUED_INTENTS) return;
+    waiting.push(action);
+    this.queuedIntents.set(actorId, waiting);
+  }
+
+  private mustWait(actorId: string, action: QueuedAction): boolean {
+    return action.kind === "act" && this.session?.isMoving(actorId) === true;
   }
 
   private applyAction(actorId: string, action: QueuedAction) {
     const session = this.session;
     if (!session) return;
     if (action.kind === "face") session.faceActor(actorId, action.direction);
-    else session.cast(action.slot, actorId);
+    else if (action.kind === "cast") session.cast(action.slot, actorId);
+    else applyBoardAction(session, actorId, action.message);
   }
 
   private applyQueuedSteps() {
@@ -1969,6 +1989,7 @@ export class GameServer {
     while (queue.length > 0) {
       const intent = queue[0]!;
       if (intent.kind !== "step") {
+        if (this.mustWait(actorId, intent)) return;
         queue.shift();
         this.applyAction(actorId, intent);
         continue;
@@ -2196,6 +2217,8 @@ export class GameServer {
 
   private leaveWorld(actorId: string, closing?: GameSocket) {
     this.saveActors([actorId], true);
+    this.depots.unseat(actorId);
+    this.accountOf.delete(actorId);
     const wasHidden = this.session?.hiddenOf(actorId) ?? false;
     this.session?.despawn(actorId);
     if (this.session) this.collectTransitionEvents(this.session);
@@ -2235,17 +2258,16 @@ export class GameServer {
     const tiles = await store.readTiles();
     const tilesById = tilesByIdFromList(tiles);
     const statusDefs = statusesById(await store.readStatuses());
-    const previousSpawn =
-      this.session?.getSpawnPoint() ??
-      (await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY))?.spawn ??
-      null;
+    const traits = traitsById(await store.readTraits());
 
     const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
     const session = new GameSession(map, tiles, {
       actorIds: [],
       seed: this.env.seed,
       statuses: statusDefs,
+      traits,
       clock: () => this.minutesOfDay(),
+      depots: this.depots,
     });
 
     await store.writeMap(map);
@@ -2280,6 +2302,7 @@ export class GameServer {
     }
 
     this.tiles = tiles;
+    this.traits = traits;
     this.session = session;
     this.broadcastMap = this.session.getMap();
     this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesById));
@@ -2295,18 +2318,16 @@ export class GameServer {
     this.writtenActors.clear();
     this.dead.clear();
     this.silenced.clear();
-    await this.forgetMintedSpawns(previousSpawn);
     this.lastSaidAt.clear();
     this.queuedIntents.clear();
     this.events = [];
 
     for (const actorId of present) {
       const kit = carried.get(actorId);
-      await this.rememberSpawn(actorId);
       this.session.spawn(
         actorId,
         {
-          name: (await this.env.nameOf?.(actorId)) ?? null,
+          name: await this.displayNameOf(actorId),
           at: standing.get(actorId),
           carrying: kit ? restoredEquipment(kit, tilesById) : await this.lastEquipmentOf(actorId),
           tagged: taken.get(actorId) ?? (await this.lastTagsOf(actorId)),
@@ -2315,7 +2336,6 @@ export class GameServer {
           hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
           pvp: fighting.has(actorId) || (await this.lastPvpOf(actorId)),
           hidden: await this.lastHiddenOf(actorId),
-          spawnAt: this.spawnCellOf(actorId) ?? undefined,
         },
         { announce: false },
       );
@@ -2359,6 +2379,7 @@ export class GameServer {
 
     this.ctx.storage.sql.exec("DROP TABLE IF EXISTS chat");
     this.ctx.storage.sql.exec("DELETE FROM death");
+    this.lives.clear();
     this.chatLogReady = false;
     await this.ctx.storage.deleteAlarm();
 
@@ -2468,11 +2489,9 @@ export class GameServer {
     this.collectTeleportEvents(session);
     this.collectSwingEvents(session);
     /**
-     * In this order: `noteDeaths` reads `spawns`, which `flushSpawnMarks`
-     * updates, and `releaseLingerers` must not drop a lingering body before
+     * In this order: `releaseLingerers` must not drop a lingering body before
      * `noteDeaths` has recorded its death.
      */
-    this.flushSpawnMarks();
     this.noteDeaths(session);
     this.releaseLingerers();
     this.broadcastSpeech(session, actors);
@@ -2510,6 +2529,7 @@ export class GameServer {
     this.announceDeaths();
 
     this.flushEquipment();
+    this.flushDepots();
     this.flushTags();
     this.flushConversations();
     this.flushExtracting();
@@ -2592,6 +2612,8 @@ export class GameServer {
       const character = connected || this.lingering.has(actorId);
       if (!character) continue;
       this.logDeath(death);
+      const life = this.lives.get(actorId);
+      if (life) this.lives.set(actorId, { ...life, generation: life.generation + 1 });
       this.pendingDeathWrites.set(actorId, { death, told: connected });
       if (connected) this.justDied.push(death);
     }
@@ -2621,32 +2643,62 @@ export class GameServer {
     for (const death of this.justDied) {
       this.sendTo(death.id, {
         type: "died",
-        equipment: death.equipment,
-        masteryXp: death.masteryXp,
+        equipment: emptyEquipment(),
+        masteryXp: null,
         cost: death.cost ?? NOTHING_LOST,
+        ...this.rebornAs(death.id),
       });
       this.silenced.add(death.id);
     }
     this.justDied = [];
   }
 
+  private rebornAs(actorId: string): { rebornAs: string } | null {
+    const life = this.lives.get(actorId);
+    return life ? { rebornAs: generationalName(life.name, life.generation) } : null;
+  }
+
   private async seatActor(actorId: string) {
     this.dead.delete(actorId);
     this.silenced.delete(actorId);
     this.forgetDeathNotice(actorId);
-    await this.rememberSpawn(actorId);
-    const spawn = this.spawns.get(actorId);
     const restored = await this.restoredActor(actorId);
     this.storedVitals.set(actorId, {
       hp: restored.hp ?? null,
       statuses: restored.statuses ?? null,
     });
+    await this.seatDepots(actorId);
     this.session!.spawn(actorId, {
-      name: (await this.env.nameOf?.(actorId)) ?? null,
+      name: await this.displayNameOf(actorId),
       ...restored,
-      ...(spawn ? { spawnAt: { x: spawn.x, y: spawn.y, z: spawn.z } } : {}),
     });
     this.collectTransitionEvents(this.session!);
+  }
+
+  private async seatDepots(actorId: string) {
+    const owner = this.accountOf.get(actorId) ?? actorId;
+    const stored = this.depots.holds(owner) ? undefined : await this.lastDepotsOf(owner);
+    this.depots.seat(actorId, owner, stored);
+  }
+
+  private async lastDepotsOf(owner: string): Promise<Depots> {
+    const saved = await this.ctx.storage.get<SavedDepots>(this.depotKey(owner));
+    return restoredDepots(saved?.depots, tilesByIdFromList(this.tiles));
+  }
+
+  private async displayNameOf(actorId: string): Promise<string | null> {
+    const life = await this.lifeOf(actorId);
+    return life && generationalName(life.name, life.generation);
+  }
+
+  private async lifeOf(actorId: string): Promise<Life | null> {
+    const known = this.lives.get(actorId);
+    if (known) return known;
+    const name = await this.env.nameOf?.(actorId);
+    if (!name) return null;
+    const life = { name, generation: 1 + ((await this.env.deathsOf?.(actorId)) ?? 0) };
+    this.lives.set(actorId, life);
+    return life;
   }
 
   private async rebirth(actorId: string) {
@@ -2696,6 +2748,9 @@ export class GameServer {
   private collectTransitionEvents(session: GameSession) {
     for (const note of session.drainTransitions()) {
       this.events.push({ kind: "tileTransition", ...note });
+    }
+    for (const burst of session.drainAreaBursts()) {
+      this.events.push({ kind: "areaBurst", ...burst });
     }
   }
 

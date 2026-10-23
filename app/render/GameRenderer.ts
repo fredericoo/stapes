@@ -24,13 +24,18 @@ import { sameAttributes } from "../game/attributes";
 import type { Vitals } from "../game/GameSession";
 import type { AfflictedPlacement } from "../game/endure";
 import { statusReading } from "../game/statuses";
-import { type SpellButton, spellReading } from "../game/casting";
+import { type CastSlot, sameSlot, type SpellButton, spellReading } from "../game/casting";
+import { type CastAim, castReaching } from "../game/castApproach";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
+import type { Depots } from "../game/depot";
 import { offeredRecipes, type CraftingWindow } from "../game/craft";
+import { blockedNotice, castRefusalNotice } from "../game/notices";
 import {
   applyInteraction,
+  blockReason,
   interactionText,
+  pointerHintText,
   listInteractionOptions,
   rankedInteractionsAt,
   refOptionsFrom,
@@ -41,14 +46,21 @@ import {
 import { TALK_REACH_CELLS } from "../game/affordances";
 import type { Reaching } from "../game/pathfinding";
 import type { Extraction } from "../game/extract";
+import type { Reach as CastReach } from "../lib/item";
 import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby } from "./nearbyInscriptions";
-import { INTERACTION_COLORS } from "./interactionColors";
+import { BLOCKED_INK, INTERACTION_COLORS } from "./interactionColors";
 import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
-import { type AimAt, flightEmitter, flightLight, projectileViews } from "./projectileMotion";
+import {
+  type AimAt,
+  flightEmitter,
+  flightLight,
+  flightTrail,
+  projectileViews,
+} from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
 import { wadingFor } from "./wadeDepth";
 import { isCellVisible } from "./cameraSight";
@@ -61,6 +73,7 @@ import {
   type HeldDirections,
 } from "../game/heldDirections";
 import { approachStand, WalkTo, type WalkView } from "../game/walkTo";
+import { listFarOptions } from "../game/farInteractions";
 import { resolveDialog } from "../lib/dialog";
 import type { EmitterOverride } from "../lib/lighting";
 import { DEFAULT_PLAY_MINUTES, clockAfter, wrapMinutes, type MinutesOfDay } from "../lib/clock";
@@ -97,7 +110,8 @@ import { taperAt, taperedGlow, taperedTint, type StatusTint } from "../lib/statu
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
 import { type Reach, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
-import { rangedWeaponReaches } from "../game/combat";
+import { areaFloorCells } from "../game/area";
+import { heldWeaponReaches, rangedWeaponReaches, reachPointAt } from "../game/combat";
 import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
@@ -117,6 +131,15 @@ function sameCell(a: Coord, b: Coord): boolean {
   return a.x === b.x && a.y === b.y && a.z === b.z;
 }
 
+function cellText(cell: Coord): string {
+  return `${cell.x},${cell.y},${cell.z}`;
+}
+
+function castAimOf(snap: GameSnapshot): CastAim {
+  const target = snap.targetId ? snap.actors.find((actor) => actor.id === snap.targetId) : null;
+  return { map: snap.map, self: snap.self, target: target ?? null };
+}
+
 function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
   return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight), spanPx);
 }
@@ -127,6 +150,8 @@ const TARGET_COLOR = 0xffffff;
 
 const LOOK_COLOR = 0x3fa9ff;
 
+const AREA_WINDUP_COLOR = 0xe83b3b;
+
 const LOOK_HOLD_MS = DWELL_MS;
 
 const LOOK_HOLD_SLOP_PX = 10;
@@ -134,6 +159,15 @@ const LOOK_HOLD_SLOP_PX = 10;
 const PICK_LEVEL_SLACK = 1;
 
 const APPROACH_PATIENCE_MS = 1000;
+
+const FAR_REFRESH_MS = 250;
+
+/**
+ * How long a spell's "a walk reaches range" answer stands while neither body
+ * moves. Doors and other bodies change it too, and map identity changes on any
+ * commit anywhere, so it is not what the answer is keyed on.
+ */
+const WALKABLE_RECHECK_MS = 500;
 
 /**
  * The most steps apart, on the grid, a cell can be from a thing it still acts
@@ -151,13 +185,22 @@ function interactionInk(option: InteractionOption): string {
   return INTERACTION_COLORS[option.action].ink;
 }
 
+function hintInk(option: InteractionOption): string {
+  return option.blocked ? BLOCKED_INK : interactionInk(option);
+}
+
 function buttonLine(first: InteractionOption, second: InteractionOption | null): LabelLine {
-  const left = { button: "left", text: first.label, color: interactionInk(first) } as const;
+  const left = { button: "left", text: pointerHintText(first), color: hintInk(first) } as const;
   if (!second) return { id: "buttons", hints: [left] };
   return {
     id: "buttons",
-    hints: [left, { button: "right", text: second.label, color: interactionInk(second) }],
+    hints: [left, { button: "right", text: pointerHintText(second), color: hintInk(second) }],
   };
+}
+
+function touchHintText(option: InteractionOption): string {
+  const reason = option.blocked ? blockReason(option.blocked) : null;
+  return reason ? `${interactionText(option)}, ${reason}` : interactionText(option);
 }
 
 const POINTER_NAME_ID = "look:name";
@@ -228,14 +271,14 @@ export class GameRenderer {
   private masteriesSent: MasteryXp | null = null;
   private interactionsEquipment: Equipment | null = null;
   private interactionsTags: readonly string[] | null = null;
-  private interactionsSpawnAt: Coord | null = null;
   private interactionsExtracting: Extraction | null = null;
   private interactionsNextBlow: Progress | null = null;
   private onOpenedContainer: ((container: OpenedContainer | null) => void) | null = null;
   private openedRef: ObjectRef | null = null;
-  private openedItemId: string | null = null;
+  private openedIdentity: string | null = null;
   private openedPlacement: PlacedTile | null = null;
   private openedFrom = "";
+  private openedDepots: Depots | null = null;
   private openedSent: OpenedContainer | null | undefined = undefined;
   private onCrafting: ((window: CraftingWindow | null) => void) | null = null;
   private craftingRef: ObjectRef | null = null;
@@ -257,9 +300,19 @@ export class GameRenderer {
   private interactionsKey = "";
   private interactionsSent: InteractionOption[] = [];
   private interactionsActors: ActorSnapshot[] = [];
+  private farSent: InteractionOption[] = [];
+  private farFrom = "";
+  private farDirty = false;
+  private farAtMs = -Infinity;
   private afarSent: InteractionOption[] | null = null;
   private readonly afarByRef = new Map<string, InteractionOption[]>();
   private approaching: { id: string; label: string; stillSinceMs: number | null } | null = null;
+  private castApproach: { slot: CastSlot; targetId: string; wasFollowing: boolean } | null = null;
+  private castAim: CastAim | null = null;
+  private spellsShown: SpellButton[] = [];
+  private walkableFrom = "";
+  private readonly walkableByReach = new Map<string, { atMs: number; walkable: boolean }>();
+  private explained: string[] = [];
   private listHoverId: string | null = null;
   private dropDrag: { from: SlotRef; tileId: string; point: { x: number; y: number } } | null =
     null;
@@ -282,6 +335,7 @@ export class GameRenderer {
   private notificationLayer: NotificationLayer | null = null;
   private readonly notices = new NoticeQueue();
   private walkTo: WalkTo | null = null;
+  private directions: HeldDirections | null = null;
   private lookMode = false;
   private lookKeyHeld = false;
   private touchLooking = false;
@@ -329,6 +383,7 @@ export class GameRenderer {
   }
 
   setDirections(directions: HeldDirections) {
+    this.directions = directions;
     this.walkTo = new WalkTo(directions);
   }
 
@@ -448,13 +503,117 @@ export class GameRenderer {
     this.spellsSent = null;
   }
 
-  private pushSpells() {
-    if (!this.onSpells) return;
-    const spells = this.session.spells();
+  private pushSpells(snap: GameSnapshot, nowMs: number) {
+    if (!this.onSpells && !this.castApproach) return;
+    this.castAim = castAimOf(snap);
+    const spells = this.session.spells().map((spell) => this.withApproach(spell, snap, nowMs));
+    this.spellsShown = spells;
     const reading = spellReading(spells);
-    if (reading === this.spellsSent) return;
+    if (!this.onSpells || reading === this.spellsSent) return;
     this.spellsSent = reading;
     this.onSpells(spells);
+  }
+
+  private withApproach(spell: SpellButton, snap: GameSnapshot, nowMs: number): SpellButton {
+    const verdict = spell.castability;
+    if (verdict.ok || verdict.reason !== "outOfRange" || !spell.reach) return spell;
+    return { ...spell, approach: this.walksIntoRange(snap, spell.reach, nowMs) };
+  }
+
+  private walksIntoRange(snap: GameSnapshot, reach: CastReach, nowMs: number): boolean {
+    const target = this.castAim?.target;
+    if (!target) return false;
+    const stepping = snap.self.walk ? cellText(snap.self.walk.to) : "";
+    const from = `${cellText(snap.self)}|${stepping}|${cellText(target)}`;
+    if (from !== this.walkableFrom) {
+      this.walkableFrom = from;
+      this.walkableByReach.clear();
+    }
+    const key = `${reach.cells}/${reach.height}/${reach.min ?? 0}`;
+    const known = this.walkableByReach.get(key);
+    if (known && nowMs - known.atMs < WALKABLE_RECHECK_MS) return known.walkable;
+    const view = this.walkView(snap, this.cameraFor(snap));
+    const walkable =
+      view !== null && approachStand(view, target, this.castReaching(reach)) !== null;
+    this.walkableByReach.set(key, { atMs: nowMs, walkable });
+    return walkable;
+  }
+
+  private castReaching(reach: CastReach): Reaching {
+    return castReaching(
+      this.tilesById,
+      reach,
+      () => this.castAim ?? castAimOf(this.session.getSnapshot()),
+    );
+  }
+
+  /**
+   * Casts `slot`, or, when the spell bar offered it as out of range but a walk
+   * away, follows the target until `castReachesFromHere` stops the follow and
+   * `stepCastApproach` casts.
+   */
+  cast(slot: CastSlot): boolean {
+    this.endCastApproach();
+    const spell = this.spellsShown.find((shown) => sameSlot(shown.slot, slot));
+    if (spell?.approach) return this.approachCast(slot);
+    return this.session.cast(slot);
+  }
+
+  private approachCast(slot: CastSlot): boolean {
+    const walkTo = this.walkTo;
+    const snap = this.session.getSnapshot();
+    const targetId = snap.targetId;
+    const view = this.walkView(snap, this.cameraFor(snap));
+    if (!walkTo || !targetId || !view) return false;
+    const wasFollowing = walkTo.followingId === targetId;
+    this.approaching = null;
+    this.castApproach = { slot, targetId, wasFollowing };
+    walkTo.follow(targetId, view);
+    return true;
+  }
+
+  /**
+   * The cast waits for the body to stop, because the server measures range from
+   * where it has the caster standing, which is behind the client's prediction
+   * mid-step. A held key ends it rather than pausing it as it pauses a follow,
+   * so walking away is how a player calls a queued cast off.
+   */
+  private stepCastApproach(snap: GameSnapshot) {
+    const pending = this.castApproach;
+    if (!pending) return;
+    if (this.walkTo?.followingId !== pending.targetId) {
+      this.castApproach = null;
+      return;
+    }
+    const spell = this.spellsShown.find((shown) => sameSlot(shown.slot, pending.slot));
+    if (!spell || snap.targetId !== pending.targetId || this.directions?.pressed) {
+      this.endCastApproach();
+      return;
+    }
+    if (spell.castability.ok) {
+      if (snap.self.walk === null && this.session.cast(pending.slot)) this.endCastApproach();
+      return;
+    }
+    if (spell.approach) return;
+    const notice = castRefusalNotice(spell.castability.reason);
+    if (notice) this.explained.push(notice);
+    this.endCastApproach();
+  }
+
+  private castReachesFromHere(actorId: string): boolean {
+    const pending = this.castApproach;
+    if (pending?.targetId !== actorId) return false;
+    const spell = this.spellsShown.find((shown) => sameSlot(shown.slot, pending.slot));
+    return spell?.castability.ok ?? false;
+  }
+
+  /** Leaves a follow the player had already asked for running after the cast. */
+  private endCastApproach() {
+    const pending = this.castApproach;
+    if (!pending) return;
+    this.castApproach = null;
+    if (pending.wasFollowing || this.walkTo?.followingId !== pending.targetId) return;
+    this.walkTo.cancel();
   }
 
   private pushNotices(nowMs: number) {
@@ -462,6 +621,9 @@ export class GameRenderer {
       this.notices.push(text, nowMs);
     }
     for (const text of this.walkTo?.drainNotices() ?? []) {
+      this.notices.push(text, nowMs);
+    }
+    for (const text of this.explained.splice(0)) {
       this.notices.push(text, nowMs);
     }
     this.notificationLayer?.set(this.notices.live(nowMs));
@@ -489,9 +651,10 @@ export class GameRenderer {
 
   setOpenedContainer(ref: ObjectRef | null) {
     this.openedRef = ref;
-    this.openedItemId = null;
+    this.openedIdentity = null;
     this.openedPlacement = null;
     this.openedFrom = "";
+    this.openedDepots = null;
     this.openedSent = undefined;
   }
 
@@ -549,6 +712,7 @@ export class GameRenderer {
     this.onOpenedContainer = cb;
     this.openedPlacement = null;
     this.openedFrom = "";
+    this.openedDepots = null;
     this.openedSent = undefined;
   }
 
@@ -565,16 +729,30 @@ export class GameRenderer {
 
     const placed = getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex];
     const from = `${snap.self.x},${snap.self.y},${snap.self.z}`;
-    if (placed === this.openedPlacement && from === this.openedFrom) return;
+    if (
+      placed === this.openedPlacement &&
+      from === this.openedFrom &&
+      snap.depots === this.openedDepots
+    ) {
+      return;
+    }
     this.openedPlacement = placed ?? null;
     this.openedFrom = from;
+    this.openedDepots = snap.depots;
 
-    const read = readOpenedContainer(snap.map, this.tilesById, snap.self, ref, this.openedItemId);
+    const read = readOpenedContainer(
+      snap.map,
+      this.tilesById,
+      snap.self,
+      snap.depots,
+      ref,
+      this.openedIdentity,
+    );
     if (read.kind === "closed") {
       this.openedRef = null;
-      this.openedItemId = null;
+      this.openedIdentity = null;
     } else {
-      this.openedItemId = read.itemId;
+      this.openedIdentity = read.identity;
     }
 
     const container = read.kind === "open" ? read.container : null;
@@ -594,6 +772,10 @@ export class GameRenderer {
     this.interactionsExtracting = null;
     this.interactionsNextBlow = null;
     this.interactionsSent = [];
+    this.farSent = [];
+    this.farFrom = "";
+    this.farDirty = false;
+    this.farAtMs = -Infinity;
   }
 
   setListHover(optionId: string | null) {
@@ -602,11 +784,26 @@ export class GameRenderer {
 
   private listHoverOption(): InteractionOption | null {
     if (this.listHoverId === null) return null;
-    return this.listOption(this.listHoverId);
+    return this.listOption(this.listHoverId) ?? this.farOption(this.listHoverId);
   }
 
   listOption(optionId: string): InteractionOption | null {
     return this.interactionsSent.find((o) => o.id === optionId) ?? null;
+  }
+
+  private farOption(optionId: string): InteractionOption | null {
+    return this.farSent.find((o) => o.id === optionId) ?? null;
+  }
+
+  /** Runs a listed row, walking there first when it was listed from afar. */
+  pressListed(optionId: string) {
+    const near = this.listOption(optionId);
+    if (near) {
+      this.runOption(near);
+      return;
+    }
+    const far = this.farOption(optionId);
+    if (far) this.approach(far);
   }
 
   start() {
@@ -897,15 +1094,42 @@ export class GameRenderer {
         if (!this.isWithinView(snap.map, actor, camera)) return null;
         return { x: actor.x, y: actor.y, z: actor.z };
       },
+      strikes: (actorId) =>
+        this.strikesFromHere(snap, actorId) || this.castReachesFromHere(actorId),
     };
   }
 
+  private strikesFromHere(snap: GameSnapshot, actorId: string): boolean {
+    if (!snap.attacking || snap.targetId !== actorId) return false;
+    const target = snap.actors.find((a) => a.id === actorId);
+    if (!target) return false;
+    const masteries = masteriesFromXp(snap.masteryXp);
+    return heldWeaponReaches(
+      snap.map,
+      this.tilesById,
+      snap.equipment,
+      masteries,
+      snap.self,
+      target,
+    );
+  }
+
   private runPointerOption(option: InteractionOption) {
-    if (this.listOption(option.id)) {
+    const near = this.listOption(option.id);
+    if (near?.blocked) {
+      this.explain(near);
+      return;
+    }
+    if (near) {
       this.runOption(option);
       return;
     }
     this.approach(option);
+  }
+
+  private explain(option: InteractionOption) {
+    const text = blockedNotice(option);
+    if (text) this.explained.push(text);
   }
 
   private approach(option: InteractionOption) {
@@ -916,6 +1140,7 @@ export class GameRenderer {
     if (!view) return;
     const offered = (options: readonly InteractionOption[]) =>
       options.some((o) => o.id === option.id && o.label === option.label);
+    this.castApproach = null;
     walkTo.approach(option.ref, this.reaching(option.ref, offered), view);
     this.approaching = walkTo.approaching
       ? { id: option.id, label: option.label, stillSinceMs: null }
@@ -942,6 +1167,11 @@ export class GameRenderer {
     if (!walkTo.arrived || snap.self.walk !== null) return;
     pending.stillSinceMs ??= nowMs;
     if (runnable && this.runOption(runnable)) {
+      this.endApproach();
+      return;
+    }
+    if (ready?.blocked && ready.label === pending.label) {
+      this.explain(ready);
       this.endApproach();
       return;
     }
@@ -1084,7 +1314,7 @@ export class GameRenderer {
       return specs;
     }
 
-    const specs: OverlaySpec[] = [];
+    const specs: OverlaySpec[] = this.areaWindupsFor(snap);
     const ghost = this.dropGhostSpec(snap);
     if (ghost) specs.push(ghost);
     const target = this.targetOutline(snap);
@@ -1101,6 +1331,22 @@ export class GameRenderer {
       specs.push(outline(listed.ref, interactionColor(listed)));
     }
     return specs;
+  }
+
+  /** The windup shows the whole shape and leaves walls out: the burst on landing shows what it reached. */
+  private areaWindupsFor(snap: GameSnapshot): OverlaySpec[] {
+    const out: OverlaySpec[] = [];
+    for (const caster of snap.actors) {
+      const area = caster.casting?.area;
+      if (!area) continue;
+      const centredOn =
+        area.on === "caster" ? caster : snap.actors.find((a) => a.id === caster.casting?.targetId);
+      if (!centredOn) continue;
+      const centre = reachPointAt(snap.map, this.tilesById, centredOn);
+      const cells = areaFloorCells(snap.map, this.tilesById, centre, area);
+      out.push({ kind: "areaCells", cells, color: AREA_WINDUP_COLOR });
+    }
+    return out;
   }
 
   private isVisibleCell(
@@ -1302,7 +1548,6 @@ export class GameRenderer {
       equipment: snap.equipment,
       openedRef: this.openedRef,
       tags: snap.tags,
-      spawnAt: snap.spawnAt,
       extracting: snap.extracting,
       conversation: snap.conversation,
       craftingRef: this.craftingRef,
@@ -1500,8 +1745,8 @@ export class GameRenderer {
         ref: option.ref,
         actorId: option.actorId,
         height,
-        lines: [{ id: "action", text: interactionText(option) }],
-        color: interactionInk(option),
+        lines: [{ id: "action", text: touchHintText(option) }],
+        color: hintInk(option),
       };
     }
     const second = this.pointerOptions()[1] ?? null;
@@ -1538,7 +1783,7 @@ export class GameRenderer {
         kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y - labelHeadroomPx(height),
-        lines: [{ id: actor.id, text: sized }],
+        lines: [{ id: actor.id, text: sized, ...(actor.king ? { crown: true } : {}) }],
         order: drawOrder(
           actor.x,
           actor.y,
@@ -1724,7 +1969,7 @@ export class GameRenderer {
 
     const cut = this.roofCutFor(snap);
 
-    this.pushInteractionOptions(snap, camera, cut);
+    this.pushInteractionOptions(snap, camera, cut, nowMs);
     this.repickPointer(snap, camera);
 
     const seen = this.withClaimedLooks(this.withoutHiddenBodies(snap));
@@ -1759,9 +2004,10 @@ export class GameRenderer {
     this.pushEquipment(snap);
     this.pushConversation(snap);
     this.pushMasteries(snap);
-    this.pushSpells();
+    this.pushSpells(snap, nowMs);
     this.stepWalkTo(snap, camera);
     this.stepApproach(snap, nowMs);
+    this.stepCastApproach(snap);
     this.pushNotices(nowMs);
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);
@@ -1777,9 +2023,34 @@ export class GameRenderer {
     snap: GameSnapshot,
     camera: { x: number; y: number },
     cut: RoofCut | undefined,
+    nowMs: number,
   ) {
     if (!this.onInteractions) return;
+    const near = this.refreshNearOptions(snap, camera, cut);
+    const far = this.refreshFarOptions(snap, camera, nowMs, near !== "unchanged");
+    if (near === "unchanged" && !far) return;
 
+    const nearIds = new Set(this.interactionsSent.map((option) => option.id));
+    const options = [
+      ...this.interactionsSent,
+      ...this.farSent.filter((option) => !nearIds.has(option.id)),
+    ];
+    const key = options
+      .map(
+        (o) =>
+          `${o.id}/${o.label}/${o.active}/${o.far}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`,
+      )
+      .join("|");
+    if (key === this.interactionsKey && near !== "waitChanged") return;
+    this.interactionsKey = key;
+    this.onInteractions(options);
+  }
+
+  private refreshNearOptions(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+    cut: RoofCut | undefined,
+  ): "unchanged" | "changed" | "waitChanged" {
     const box = this.openedRef;
     const opened = box ? `${box.x},${box.y},${box.z},${box.stackIndex}` : "";
     const talking = snap.conversation?.npcId ?? "";
@@ -1790,7 +2061,7 @@ export class GameRenderer {
       : "";
     const unlisted = this.unlistedInDarkness(snap);
     const dark = unlisted.map((a) => a.id).join(" ");
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following},${crafting},${dark}`;
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following},${crafting},${dark},${snap.self.rating}`;
     const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&
@@ -1798,17 +2069,15 @@ export class GameRenderer {
       health === this.interactionsHealth &&
       snap.equipment === this.interactionsEquipment &&
       snap.tags === this.interactionsTags &&
-      snap.spawnAt === this.interactionsSpawnAt &&
       snap.extracting === this.interactionsExtracting &&
       snap.nextBlow === this.interactionsNextBlow
     ) {
-      return;
+      return "unchanged";
     }
     const waitChanged = snap.nextBlow !== this.interactionsNextBlow;
     this.interactionsNextBlow = snap.nextBlow;
     this.interactionsEquipment = snap.equipment;
     this.interactionsTags = snap.tags;
-    this.interactionsSpawnAt = snap.spawnAt;
     this.interactionsExtracting = snap.extracting;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
@@ -1820,12 +2089,43 @@ export class GameRenderer {
       (option) => !unlisted.some((a) => sameRef(option.ref, a)),
     );
     this.interactionsSent = options;
-    const key = options
-      .map((o) => `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`)
-      .join("|");
-    if (key === this.interactionsKey && !waitChanged) return;
-    this.interactionsKey = key;
-    this.onInteractions(options);
+    return waitChanged ? "waitChanged" : "changed";
+  }
+
+  /**
+   * A step always rescans, since what is a short walk away is exactly what a
+   * step changes. Anything else is held to `FAR_REFRESH_MS`: the map is a new
+   * object on any commit anywhere, so in a busy world it changes every frame.
+   */
+  private refreshFarOptions(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+    nowMs: number,
+    nearChanged: boolean,
+  ): boolean {
+    this.farDirty ||= nearChanged;
+    const view = this.walkView(snap, camera);
+    const from = view ? `${cellText(view.at)}>${view.stepping ? cellText(view.stepping) : ""}` : "";
+    const moved = from !== this.farFrom;
+    if (!moved && !(this.farDirty && nowMs - this.farAtMs >= FAR_REFRESH_MS)) return false;
+    this.farFrom = from;
+    this.farAtMs = nowMs;
+    this.farDirty = false;
+    this.farSent = view
+      ? listFarOptions({
+          map: snap.map,
+          tilesById: this.tilesById,
+          statusDefs: this.statusDefs,
+          self: snap.self,
+          from: view.stepping ?? view.at,
+          def: view.def,
+          actors: this.interactionsActors,
+          context: this.refContext(snap),
+          near: this.interactionsSent,
+          shown: (ref) => this.offersFromAfar(snap, ref),
+        })
+      : [];
+    return true;
   }
 
   private optionsFrom(
@@ -1842,7 +2142,6 @@ export class GameRenderer {
       snap.equipment,
       this.openedRef,
       snap.tags,
-      snap.spawnAt,
       snap.attacking,
       snap.extracting,
       snap.conversation,
@@ -2084,10 +2383,15 @@ export class GameRenderer {
     snap: GameSnapshot,
     emitters: ParticleEmitterSpec[] | undefined,
   ): ParticleEmitterSpec[] | undefined {
-    if (snap.flightEffects.length === 0) return emitters;
+    if (snap.flightEffects.length === 0 && snap.projectiles.length === 0) return emitters;
     let out = emitters;
     for (const effect of snap.flightEffects) {
       const spec = flightEmitter(effect);
+      if (spec) (out ??= []).push(spec);
+    }
+    const aimAt = this.aimAt(snap);
+    for (const flight of snap.projectiles) {
+      const spec = flightTrail(flight, this.tilesById[flight.tileId], aimAt);
       if (spec) (out ??= []).push(spec);
     }
     return out;

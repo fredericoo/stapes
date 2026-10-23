@@ -6,6 +6,7 @@ import { Rng } from "../app/game/rng";
 import { changedCellsOnLevel, getStack, parseMap, setStacks } from "../app/lib/mapData";
 import type { StackEdit } from "../app/lib/mapData";
 import { statusesById } from "../app/lib/status";
+import { traitsById, type TraitCatalogue } from "../app/lib/traits";
 import { canPlace, tilesByIdFromList } from "../app/lib/validation";
 import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../app/lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../app/lib/types";
@@ -14,6 +15,7 @@ import type { CellPatch } from "../app/net/protocol";
 const MAP_PATH = "data/map.json";
 const TILES_PATH = "data/tiles.json";
 const STATUSES_PATH = "data/statuses.json";
+const TRAITS_PATH = "data/traits.json";
 
 const DEFAULT_SECONDS = 30;
 
@@ -187,9 +189,10 @@ async function runScenario(
   map: MapFile,
   tiles: TileDef[],
   statuses: ReturnType<typeof statusesById>,
+  traits: TraitCatalogue,
   seconds: number,
 ): Promise<Report> {
-  const session = new GameSession(map, tiles, { actorIds: [], statuses });
+  const session = new GameSession(map, tiles, { actorIds: [], statuses, traits });
   positions.forEach((at, index) => {
     session.spawn(`bench:${index}`, at ? { at } : {});
   });
@@ -294,10 +297,11 @@ async function main() {
     );
   }
   const statuses = statusesById(JSON.parse(await Bun.file(STATUSES_PATH).text()) as unknown[]);
+  const traits = traitsById(JSON.parse(await Bun.file(TRAITS_PATH).text()) as unknown[]);
 
   const rows: Report[] = [];
   for (const [name, positions] of Object.entries(chosen)) {
-    rows.push(await runScenario(name, positions!, map, tiles, statuses, seconds));
+    rows.push(await runScenario(name, positions!, map, tiles, statuses, traits, seconds));
   }
 
   const header = [

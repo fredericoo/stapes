@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import traitsJson from "../data/traits.json";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../app/lib/mapData";
 import type { MapFile } from "../app/lib/types";
 import { PLAYER_TILE_ID } from "../app/game/constants";
@@ -10,12 +11,16 @@ import { createApi } from "./api";
 import type { Blame } from "../app/game/blame";
 import type { DeathRecord } from "./deaths";
 import { FEEDBACK_PER_WINDOW } from "./feedback";
+import { xpForLevel } from "../app/lib/mastery";
+import type { Database } from "./db";
+import type { RealmState } from "./realm";
 import { SEEDED_ADMIN_USERNAME } from "./auth";
 import { ClientBundle } from "./clientBundle";
 import { GameSocket } from "./sockets";
 import { readConfig } from "./config";
 import { World, type PlayerEntry } from "./world";
 import type { CharacterSheet } from "./GameServer";
+import type { GameSession } from "../app/game/GameSession";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -37,6 +42,7 @@ beforeEach(async () => {
   await copyFile("data/tilesets.json", join(seed, "tilesets.json"));
   await copyFile("data/tiles.json", join(seed, "tiles.json"));
   await copyFile("data/statuses.json", join(seed, "statuses.json"));
+  await copyFile("data/traits.json", join(seed, "traits.json"));
   await writeFile(join(seed, "map.json"), serializeMap(startableMap()));
 
   const config = readConfig({ DATA_DIR: join(directory, "data"), SEED_DIR: seed } as never);
@@ -356,7 +362,6 @@ describe("players", () => {
     expect(playing.player.online).toBe(true);
     expect(playing.sheet.live).toBe(true);
     expect(playing.sheet.position).toMatchObject({ x: 0, y: 0, z: 0 });
-    expect(playing.sheet.spawn).toMatchObject({ x: 0, y: 0, z: 0 });
     expect(playing.sheet.equipment).not.toBeNull();
 
     await world.leave(socket);
@@ -482,8 +487,118 @@ describe("a player's deaths and kills", () => {
     ]);
     expect((await page(maren)).kills).toEqual([
       expect.objectContaining({
-        victim: { id: tobin, name: "Tobin Reed", character: true },
+        victim: { id: tobin, name: "Tobin Reed I", character: true },
       }),
     ]);
+  });
+});
+
+describe("the realm", () => {
+  async function character(name: string, sharpLevel: number): Promise<string> {
+    const guest = await startGuest(name);
+    const [made] = (await me(guest)).characters;
+    await world.store.put(`mast:${made!.id}`, {
+      masteries: { sharp: xpForLevel(sharpLevel) },
+      savedAt: Date.now(),
+    });
+    return made!.id;
+  }
+
+  async function realm(): Promise<RealmState> {
+    await world.refreshRealm();
+    const response = await api.handle(new Request("http://localhost/api/realm"));
+    expect(response.status).toBe(200);
+    return (await response.json()) as RealmState;
+  }
+
+  async function reigns() {
+    await world.store.flush();
+    const db = (world as unknown as { db: Database }).db;
+    const select = await db.prepare("SELECT character_id, name, ended_at FROM reign ORDER BY id");
+    return (await select.all()) as {
+      character_id: string;
+      name: string;
+      ended_at: number | null;
+    }[];
+  }
+
+  it("lists the three highest-rated characters to anybody, and crowns the first", async () => {
+    await character("Maren Ormstead", 30);
+    await character("Tobin Reed", 20);
+    await character("Wren Hollis", 40);
+    await character("Ada Finch", 10);
+
+    const { king, leaders } = await realm();
+
+    expect(leaders.map((leader) => leader.name)).toEqual([
+      "Wren Hollis I",
+      "Maren Ormstead I",
+      "Tobin Reed I",
+    ]);
+    expect(leaders[0]!.rating).toBeGreaterThan(leaders[1]!.rating);
+    expect(king).toEqual({ ...leaders[0], since: expect.any(Number) });
+  });
+
+  it("tells everybody in the world who the king is", async () => {
+    const maren = await character("Maren Ormstead", 30);
+    const tobin = await character("Tobin Reed", 20);
+    const heard: unknown[] = [];
+    const socket = new GameSocket({
+      send: (data: string) => heard.push(JSON.parse(data)),
+      close: () => {},
+      closed: false,
+    });
+    await world.join(socket, tobin, { admin: false });
+
+    await realm();
+
+    expect(heard).toContainEqual({ type: "king", actorId: maren });
+  });
+
+  it("passes the crown to the next in line when the king dies, and keeps the old reign", async () => {
+    const maren = await character("Maren Ormstead", 30);
+    const tobin = await character("Tobin Reed", 20);
+    await world.join(openSocket(), maren, { admin: false });
+    expect((await realm()).king?.name).toBe("Maren Ormstead I");
+    const session = (world.server as unknown as { session: GameSession }).session;
+    expect(session.actorSnapshots().find((actor) => actor.id === maren)?.king).toBe(true);
+
+    await killInWorld(maren, { source: "Rusty sword", by: "Tobin Reed", byId: tobin });
+    const after = await realm();
+
+    expect(after.king?.name).toBe("Tobin Reed I");
+    expect(after.leaders.map((leader) => leader.name)).not.toContain("Maren Ormstead I");
+    expect(await reigns()).toEqual([
+      { character_id: maren, name: "Maren Ormstead I", ended_at: expect.any(Number) },
+      { character_id: tobin, name: "Tobin Reed I", ended_at: null },
+    ]);
+  });
+});
+
+describe("the trait catalogue", () => {
+  function saveTraits(traits: unknown[], headers: Record<string, string>): Promise<Response> {
+    return api.handle(
+      new Request("http://localhost/api/traits", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ traits }),
+      }),
+    );
+  }
+
+  it("keeps what an administrator saves", async () => {
+    const saved = [{ id: "howls", name: "Howls" }];
+
+    const response = await saveTraits(saved, { cookie });
+
+    expect(response.ok).toBe(true);
+    expect(await world.blobs.readTraits()).toEqual(saved);
+  });
+
+  it("refuses anybody else and leaves the catalogue as it was", async () => {
+    const response = await saveTraits([{ id: "howls", name: "Howls" }], {});
+
+    expect(response.status).toBe(404);
+    expect(await world.blobs.readTraits()).toEqual(traitsJson);
   });
 });

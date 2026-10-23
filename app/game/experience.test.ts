@@ -23,12 +23,10 @@ import {
   defenderEarnings,
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
-  experienceAfterDeath,
   MIN_DEFENSIVE_DECAY,
   SIGNIFICANT_THREAT_SHARE,
   threatRate,
   XP_PER_DAMAGE,
-  XP_SHARE_LOST_ON_DEATH,
 } from "./experience";
 import { GameSession } from "./GameSession";
 import { FRAME, tile as baseTile } from "../lib/testTile";
@@ -194,14 +192,6 @@ describe("what the defender is wearing", () => {
     expect(defenderEarnings(landed, 1, 1, plated.maxHp)).toEqual(
       defenderEarnings(landed, 1, 1, bare.maxHp),
     );
-  });
-});
-
-describe("what a death takes", () => {
-  it("takes the same share of every mastery's experience", () => {
-    const kept = experienceAfterDeath({ sharp: 400, fire: 4 });
-    expect(kept.sharp).toBeCloseTo(400 * (1 - XP_SHARE_LOST_ON_DEATH), 10);
-    expect(kept.fire).toBeCloseTo(4 * (1 - XP_SHARE_LOST_ON_DEATH), 10);
   });
 });
 

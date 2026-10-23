@@ -13,7 +13,6 @@ import type { Vitals } from "../game/GameSession";
 import { formatCountdown, formatDuration } from "../lib/duration";
 import { bandLabel, HEADINGS, termLabel, type TermKey } from "../lib/terms";
 import type { TilesetDef } from "../lib/types";
-import { healthBarColor, healthFraction } from "../render/healthBar";
 import { secondsLeft } from "../game/statuses";
 import { Tooltip } from "../ui";
 import type { ActiveStatus } from "../lib/status";
@@ -48,7 +47,7 @@ export function StatsPanel({
       className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label="Stats"
     >
-      <h2 className="flex items-baseline gap-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+      <h2 className="flex items-baseline gap-1 text-detail font-bold uppercase tracking-wide text-paper/50">
         {HEADINGS.stats}
         <span className="ml-auto tabular-nums text-paper/70">
           {RATING_GLYPH}
@@ -65,11 +64,9 @@ export function StatsPanel({
           .join(" ")}
         style={scrolls ? { maxHeight: STATS_BODY_MAX_HEIGHT } : undefined}
       >
-        <Health vitals={vitals} />
-
         <Effects statuses={statuses} tilesets={tilesets} />
 
-        <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+        <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
           {HEADINGS.masteries}
         </h3>
         <ul className="flex flex-col gap-1">
@@ -100,10 +97,10 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
 
   return (
     <>
-      <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+      <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
         {HEADINGS.combat}
       </h3>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-detail tabular-nums">
         <Reading term="damage" value={bandLabel(minDamage, maxDamage)} />
         <Reading term="defence" value={`${def}`} />
         <Reading term="swing" value={formatDuration(swingMs)} />
@@ -132,7 +129,7 @@ function Effects({ statuses, tilesets }: { statuses: ActiveStatus[]; tilesets: T
 
   return (
     <>
-      <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+      <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
         {HEADINGS.effects}
       </h3>
       <ul className="flex flex-col gap-0.5">
@@ -167,39 +164,6 @@ function EffectRow({ status, tilesets }: { status: ActiveStatus; tilesets: Tiles
         </span>
       </li>
     </Tooltip>
-  );
-}
-
-function Health({ vitals }: { vitals: Vitals }) {
-  const { hp, maxHp } = vitals;
-  if (hp === null || maxHp === null) {
-    return <p className="px-1 text-xs text-paper/50">No hit points to speak of.</p>;
-  }
-
-  const fraction = healthFraction(hp, maxHp);
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="flex items-baseline gap-1 text-xs">
-        <span className="text-paper/80">{termLabel("health")}</span>
-        <span className="ml-auto tabular-nums text-paper">
-          {hp}
-          <span className="text-paper/40">/{maxHp}</span>
-        </span>
-      </span>
-      <span
-        role="img"
-        aria-label={`${hp} of ${maxHp} health`}
-        className="flex h-1.5 w-full border border-paper/40 bg-ink"
-      >
-        <span
-          style={{
-            width: `${fraction * 100}%`,
-            backgroundColor: healthBarColor(fraction),
-          }}
-        />
-      </span>
-    </div>
   );
 }
 

@@ -2,6 +2,7 @@ import { availableParallelism } from "node:os";
 import { parseArgs } from "node:util";
 import { Worker } from "node:worker_threads";
 import type { FleetConfig } from "./fleet";
+import { Landmarks } from "./memory";
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
@@ -44,6 +45,13 @@ const shares = Array.from({ length: threads }, (_, t) =>
 console.log(
   `[bots] ${count} on ${base}, over ${threads} threads, remembering in ${fleet.memory}, ${fleet.openaiApiKey ? "talking" : "silent: no OPENAI_API_KEY"}`,
 );
+/**
+ * Switching a fresh file to WAL, or recovering one a crash left behind, takes
+ * a lock that SQLite does not wait for even under `busy_timeout`. Doing it
+ * here, before any worker opens the file, means no worker ever has to.
+ */
+new Landmarks(fleet.memory).close();
+
 const entry = new URL("./worker.ts", import.meta.url).href;
 await Promise.all(
   shares.map(

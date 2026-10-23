@@ -3,9 +3,11 @@ import { PLAYER_TILE_ID } from "../app/game/constants";
 import type { CastSlot, SpellButton } from "../app/game/casting";
 import { carriedInstances, type Equipment } from "../app/game/equipment";
 import { walkDurationMsFor } from "../app/game/movement";
+import { carriedCount } from "../app/game/trade";
 import { walkSpeedPercentFrom } from "../app/game/statuses";
 import { hasLineOfSight } from "../app/game/sight";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
+import { capacityOf } from "../app/game/itemMoves";
 import {
   cellGoal,
   NAVIGATION_MAX_NODES,
@@ -24,17 +26,21 @@ import {
   type ArcaneStoneItem,
   type Reach,
 } from "../app/lib/item";
+import type { ItemInstance } from "../app/lib/itemInstance";
 import type { Masteries } from "../app/lib/mastery";
 import { getStack } from "../app/lib/mapData";
+import { stowFits } from "../app/lib/piles";
 import type { StatusDef } from "../app/lib/status";
-import type { Coord, TileDef } from "../app/lib/types";
+import type { Coord, PlacedTile, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
 import { MAX_CHAT_LENGTH } from "../app/net/chat";
 import {
   canHurt,
   choosePrey,
   creaturesAround,
+  healing,
   healingFood,
+  healsAtOnce,
   isMending,
   reach,
   steps,
@@ -58,7 +64,7 @@ import { ALLY_CELLS, alliesBeside, COMPANY_CELLS, companyGoal, leaderOf } from "
 import { nextDressing } from "./dress";
 import { fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
 import { Economy, FOOD_RESERVE, type Deal } from "./economy";
-import { bodyOf, rangedReach } from "./gear";
+import { bodyOf, rangedReach, wornWorth } from "./gear";
 import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
 import {
   describeGoal,
@@ -86,6 +92,12 @@ import {
 import { Recollection } from "./recollection";
 
 export const THINK_EVERY_MS = 30_000;
+
+/**
+ * How often a bot logs its running totals. The counts are since the bot
+ * signed in, so a rate is the difference between two summaries.
+ */
+export const SUMMARY_EVERY_MS = 5 * 60_000;
 
 export const STUCK_AFTER_MS = 4_000;
 
@@ -139,13 +151,32 @@ export const SCARE_MS = 120_000;
 export const DEATH_SCARE_MS = 300_000;
 
 /**
+ * A bag worth less than this, in the currency, is not walked back for from
+ * anywhere: an empty one, or a berry or two. The bot is reborn with a bag.
+ */
+export const KIT_MIN_WORTH = 3;
+
+/** A walk back for a bag asks one more of the currency in it for every this many steps. */
+export const KIT_STEPS_PER_WORTH = 10;
+
+/**
  * A threat this close that walks at least as fast as the bot cannot be
  * escaped, so the bot stands and fights it, and keeps fighting it once it
  * has turned on it: backing away from a wolf only gives it free bites, a bat
  * that veers off comes straight back, and a snake's bolt slows its target to
- * a crawl.
+ * a crawl. Further off, one that has noticed the bot (`noticedBy`) is waited
+ * for where the bot stands for up to `HOLD_GROUND_MS`, neither backed away
+ * from nor walked at.
  */
 export const CORNERED_CELLS = 2.5;
+
+/**
+ * How long the bot stands still for a faster threat that has noticed it. A
+ * wolf nine cells off closes in under two seconds if it is coming; one that
+ * has not come by then is backed away from as before, rather than holding
+ * the bot in place for as long as it stays in sight.
+ */
+export const HOLD_GROUND_MS = 4_000;
 
 /** Remembered dangers further than this from the bot do not shape its routes. */
 export const DANGER_RECALL_CELLS = 60;
@@ -314,9 +345,18 @@ type Course =
   | { readonly kind: "rest"; readonly untilMs: number }
   | { readonly kind: "pause"; readonly untilMs: number };
 
-type Looting = {
+/**
+ * A loose thing worth having. `index` is set when the thing lies inside a bag
+ * on the floor, such as one a dead player dropped, and is taken out of it
+ * rather than picking up the bag.
+ */
+type LootTarget = {
   readonly ref: ObjectRef;
   readonly tileId: string;
+  readonly index: number | null;
+};
+
+type Looting = LootTarget & {
   readonly pilot: Pilot | null;
   readonly sinceMs: number;
 };
@@ -343,6 +383,8 @@ export class Bot {
   private chase: { pilot: Pilot; toward: string; plannedMs: number } | null = null;
   /** A flight backs away from `from`, the nearest danger, which a flame stone is cast at. */
   private flight: { pilot: Pilot; untilMs: number; from: string } | null = null;
+  /** The faster threat the bot last stood still for, and until when. */
+  private holding: { id: string; untilMs: number } | null = null;
   private preySkipped = new Map<string, number>();
   private lastEatMs = -Infinity;
   private recovering = false;
@@ -369,13 +411,15 @@ export class Bot {
   private feared: { key: string; tiles: ReadonlySet<string> } | null = null;
   /** Where the bot stood last decision, which is where its bag lies if it has just died. */
   private lastAt: Coord | null = null;
-  private hadBag = false;
+  /** What the bot wore last decision, which is the bag it left if it has just died. */
+  private lastKit: Pick<GameSnapshot, "equipment" | "masteryXp"> | null = null;
   /**
-   * Where the bot died and left its bag, until a walk back there ends. It is
-   * not cleared on seeing a bag worn: just after coming back, the client
-   * still shows what the bot wore before it died.
+   * Where the bot died and left its bag, and what the bag was worth then
+   * (`Economy.kitWorth`), until a walk back there ends. It is not cleared on
+   * seeing a bag worn: just after coming back, the client still shows what
+   * the bot wore before it died.
    */
-  private lostKitAt: Coord | null = null;
+  private lostKit: LostKit | null = null;
   /** Places the bot backed away from or died in, by `cellOf`, kept until `untilMs`. */
   private scares = new Map<string, Scare>();
   /** The creatures that could hurt in view last decision, which are what killed the bot if it has just died. */
@@ -384,6 +428,9 @@ export class Bot {
   private turnedBack = new Map<string, number>();
   /** The player last walked over to, so joining the same one is told once. */
   private leaderId: string | null = null;
+  private deaths = 0;
+  private kills = 0;
+  private summarizedAtMs: number | null = null;
   private readonly log: (line: string) => void;
   private readonly random: () => number;
   private readonly temperament: Temperament;
@@ -448,7 +495,7 @@ export class Bot {
     this.lastHp = self.hp;
     this.checkRecovery(self);
     this.lastAt = { x: self.x, y: self.y, z: self.z };
-    this.hadBag = snapshot.equipment.bag !== null;
+    this.lastKit = { equipment: snapshot.equipment, masteryXp: snapshot.masteryXp };
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
     this.sizing = body
       ? {
@@ -457,6 +504,7 @@ export class Bot {
           margins: new Map(),
         }
       : null;
+    this.summarize(snapshot, body, nowMs);
     this.remember(snapshot);
     this.dress(snapshot, nowMs);
     this.eat(snapshot, nowMs);
@@ -477,9 +525,10 @@ export class Bot {
       this.flight = null;
       this.looting = null;
       this.recovering = false;
-      if (this.hadBag && this.lastAt) this.lostKitAt = this.lastAt;
+      this.rememberLostKit();
       if (this.lastAt) this.fearDeathPlace(this.lastAt, nowMs);
-      this.happen("you died and will come back where you last set your respawn");
+      this.deaths++;
+      this.happen("you died, dropped everything and will start again in the tutorial");
       this.ask("died", null);
     }
     if (nowMs - this.deadSinceMs >= REBIRTH_AFTER_MS) this.body.rebirth();
@@ -776,6 +825,23 @@ export class Bot {
       return false;
     }
 
+    const coming = threats.find(
+      (a) =>
+        this.noticedBy(snapshot, a) &&
+        !this.outpaces(snapshot, a) &&
+        (this.holding?.id !== a.id || nowMs < this.holding.untilMs),
+    );
+    if (coming) {
+      if (this.holding?.id !== coming.id) {
+        this.happen(`cannot outrun ${nameOf(coming)}; holding ground until it comes`);
+        this.holding = { id: coming.id, untilMs: nowMs + HOLD_GROUND_MS };
+      }
+      this.flight = null;
+      this.course = { kind: "idle" };
+      this.body.setInput({ directions: [] });
+      return true;
+    }
+
     const dangers = threats;
     if (dangers.length === 0) {
       if (this.flight) {
@@ -844,8 +910,18 @@ export class Bot {
 
     const foe = creatures.find((a) => a.id === this.foe!.id);
     if (!foe) {
-      const gone = snapshot.actors.find((a) => a.id === this.foe!.id);
-      this.happen(gone ? `killed ${nameOf(gone)}` : "the creature you fought is gone");
+      const foeId = this.foe!.id;
+      const gone = snapshot.actors.find((a) => a.id === foeId);
+      /**
+       * A creature that dies is despawned in the same tick as the blow, so it
+       * is usually not in `actors` at all. A blow on it still showing as a
+       * damage number is what tells a kill from a creature that walked away.
+       */
+      const struck = snapshot.damage.some((hit) => hit.targetId === foeId && hit.amount > 0);
+      if (gone || struck) this.kills++;
+      if (gone) this.happen(`killed ${nameOf(gone)}`);
+      else if (struck) this.happen("killed the creature you fought");
+      else this.happen("the creature you fought is gone");
       this.disengage();
       return false;
     }
@@ -1027,6 +1103,16 @@ export class Bot {
    */
   private waryOf(creature: ActorSnapshot): number {
     return Math.max(this.temperament.waryCells, noticeCells(this.tilesById[creature.tileId]) + 1);
+  }
+
+  /**
+   * Whether `creature` can see the bot from where it would notice it, so it
+   * is already coming: backing away from one that walks faster only turns the
+   * bot's back to it.
+   */
+  private noticedBy(snapshot: GameSnapshot, creature: ActorSnapshot): boolean {
+    const notice = noticeCells(this.tilesById[creature.tileId]);
+    return reach(snapshot.self, creature) <= notice && sees(snapshot, this.tilesById, creature);
   }
 
   /** Creatures in view that can hurt anybody. */
@@ -1221,29 +1307,60 @@ export class Bot {
     this.scare(at, widest, untilMs);
   }
 
+  private rememberLostKit() {
+    const kit = this.lastKit;
+    const body = kit && bodyOf(this.tilesById, kit.masteryXp);
+    if (!kit?.equipment.bag || !body || !this.lastAt) return;
+    const worth = this.economy.kitWorth(kit.equipment, body);
+    this.lostKit = { at: this.lastAt, worth, told: false };
+  }
+
   /**
-   * Drops a walk back for the bag once something the bot would lose to is
-   * near the bag, keeping where it lies for later. `finish` would forget it.
+   * Drops a walk back for the bag once it is no longer worth it, keeping
+   * where it lies for later. `finish` would forget it. The first ask after
+   * rebirth can read where the bot died as where it stands, so a walk to a
+   * cheap bag far from the respawn is dropped here once the bot has moved.
    */
   private abandonKitWalk(snapshot: GameSnapshot) {
-    const kit = this.lostKitAt;
+    const kit = this.lostKit;
     const goal = this.goal;
-    if (!kit || goal?.goal !== "go_to" || !this.guarded(snapshot, kit)) return;
-    if (goal.x !== kit.x || goal.y !== kit.y || goal.z !== kit.z) return;
+    if (!kit || goal?.goal !== "go_to") return;
+    if (goal.x !== kit.at.x || goal.y !== kit.at.y || goal.z !== kit.at.z) return;
+    const why = this.kitRefusal(snapshot, kit);
+    if (!why) return;
     this.goal = null;
     this.course = { kind: "idle" };
-    this.happen("gave up walking back for your bag: something dangerous is there");
+    this.happen(`gave up walking back for your bag: ${why}`);
     this.ask("failed", null);
   }
 
   /**
-   * Where the bag the bot died with lies, unless something it would lose to
-   * is near the bag. Waiting out `DEATH_SCARE_MS` left the bot without its
-   * kit for minutes, and a second death in that time lost the first bag.
+   * Where the bag the bot died with lies, while it is worth the walk.
+   * Waiting out `DEATH_SCARE_MS` left the bot without its kit for minutes,
+   * and a second death in that time lost the first bag.
    */
   private kitToFetch(snapshot: GameSnapshot): Coord | null {
-    const kit = this.lostKitAt;
-    return kit && !this.guarded(snapshot, kit) ? kit : null;
+    const kit = this.lostKit;
+    if (!kit) return null;
+    const why = this.kitRefusal(snapshot, kit);
+    if (!why) return kit.at;
+    if (!kit.told) this.happen(`left your bag where you died for now: ${why}`);
+    this.lostKit = { ...kit, told: true };
+    return null;
+  }
+
+  /**
+   * Why the bag is not worth going back for, or null when it is: something
+   * the bot would lose to is near it, or what it holds is worth less than
+   * `KIT_MIN_WORTH` plus one for every `KIT_STEPS_PER_WORTH` steps of the
+   * walk. A walk back is a walk towards whatever killed the bot, so a cheap
+   * bag is not worth a long one.
+   */
+  private kitRefusal(snapshot: GameSnapshot, kit: LostKit): string | null {
+    if (this.guarded(snapshot, kit.at)) return "something dangerous is there";
+    const away = steps(snapshot.self, kit.at);
+    if (kit.worth >= KIT_MIN_WORTH + away / KIT_STEPS_PER_WORTH) return null;
+    return `what it holds is worth ${kit.worth} and it is ${away} steps away`;
   }
 
   /**
@@ -1310,7 +1427,8 @@ export class Bot {
   /**
    * A bot recovering above `eatHpShare` still eats whenever nothing is
    * mending it, because without a mending status it gets no health back at
-   * all, however long it rests.
+   * all, however long it rests. While it fights or backs away it eats only
+   * food that heals at once (`healsAtOnce`), and keeps the rest for after.
    */
   private eat(snapshot: GameSnapshot, nowMs: number) {
     const self = snapshot.self;
@@ -1320,7 +1438,13 @@ export class Bot {
     if (!low && !unmended) return;
     if (nowMs - this.lastEatMs < EAT_RETRY_MS) return;
     if (this.mendReady(snapshot)) return;
-    const index = healingFood(snapshot.equipment, this.tilesById, this.statusDefs);
+    const fighting = this.foe !== null || this.flight !== null;
+    const index = healingFood(
+      snapshot.equipment,
+      this.tilesById,
+      this.statusDefs,
+      fighting ? healsAtOnce : healing,
+    );
     if (index === null) return;
     const tileId = snapshot.equipment.bag?.contents?.[index]?.tileId ?? "";
     if (!this.body.consume({ kind: "slot", slot: { kind: "contents", index } })) return;
@@ -1752,13 +1876,11 @@ export class Bot {
 
     if (this.looting) {
       const { ref, tileId, sinceMs } = this.looting;
-      const placed = getStack(snapshot.map, ref.x, ref.y, ref.z)[ref.stackIndex];
-      if (placed?.tileId !== tileId) {
+      if (!stillLies(snapshot, this.looting)) {
         this.looting = null;
         return false;
       }
-      if (this.body.pickUp(ref) || this.body.equip(ref)) {
-        this.happen(`picked up ${this.tilesById[tileId]?.name ?? tileId}`);
+      if (this.take(this.looting)) {
         this.looting = null;
         this.pendingAsk ??= { reason: "timer", outcome: null };
         return true;
@@ -1803,38 +1925,57 @@ export class Bot {
     return true;
   }
 
+  /**
+   * Picks up a loose thing, or moves one out of a bag on the floor into the
+   * bot's own. Returns whether the server was asked.
+   */
+  private take({ ref, tileId, index }: LootTarget): boolean {
+    const name = this.tilesById[tileId]?.name ?? tileId;
+    if (index === null) {
+      if (!this.body.pickUp(ref) && !this.body.equip(ref)) return false;
+      this.happen(`picked up ${name}`);
+      return true;
+    }
+    if (!this.body.moveItem({ kind: "ground", ref, index }, INTO_BAG)) return false;
+    this.happen(`took ${name} out of a bag on the floor`);
+    return true;
+  }
+
   /** The nearest loose thing in sight within `LOOT_CELLS` that is worth picking up. */
-  private lootIn(
-    snapshot: GameSnapshot,
-    body: BattlerDef,
-    nowMs: number,
-  ): { ref: ObjectRef; tileId: string } | null {
+  private lootIn(snapshot: GameSnapshot, body: BattlerDef, nowMs: number): LootTarget | null {
     const self = snapshot.self;
     const wanted = this.economy.wanted(snapshot.equipment, body);
-    let best: { ref: ObjectRef; tileId: string } | null = null;
-    let bestSteps = Infinity;
-    for (let dy = -LOOT_CELLS; dy <= LOOT_CELLS; dy++) {
-      for (let dx = -LOOT_CELLS; dx <= LOOT_CELLS; dx++) {
-        const away = Math.abs(dx) + Math.abs(dy);
-        if (away > LOOT_CELLS || away >= bestSteps) continue;
-        const cell = { x: self.x + dx, y: self.y + dy, z: self.z };
-        const stack = getStack(snapshot.map, cell.x, cell.y, cell.z);
-        for (let stackIndex = stack.length - 1; stackIndex >= 0; stackIndex--) {
-          const placed = stack[stackIndex]!;
-          if (placed.owner || !wanted(placed.tileId)) continue;
-          const def = this.tilesById[placed.tileId];
-          if (!def || !resolveItem(def)) continue;
-          if (coveredBySomething(stack, stackIndex, this.tilesById)) continue;
-          const ref = { ...cell, stackIndex };
-          if ((this.lootSkipped.get(lootKey(ref, placed.tileId)) ?? 0) > nowMs) continue;
-          if (!sees(snapshot, this.tilesById, cell)) continue;
-          best = { ref, tileId: placed.tileId };
-          bestSteps = away;
-          break;
-        }
-      }
+    const fits = bagFits(snapshot.equipment, this.tilesById);
+    for (const [dx, dy] of LOOT_OFFSETS) {
+      const cell = { x: self.x + dx, y: self.y + dy, z: self.z };
+      const found = this.lootInCell(snapshot, cell, wanted, fits, nowMs);
+      if (found) return found;
     }
-    return best;
+    return null;
+  }
+
+  /** The topmost thing in `cell` worth taking, or worth taking something out of, in sight. */
+  private lootInCell(
+    snapshot: GameSnapshot,
+    cell: Coord,
+    wanted: (tileId: string) => boolean,
+    fits: (instance: ItemInstance) => boolean,
+    nowMs: number,
+  ): LootTarget | null {
+    const stack = getStack(snapshot.map, cell.x, cell.y, cell.z);
+    for (let stackIndex = stack.length - 1; stackIndex >= 0; stackIndex--) {
+      const placed = stack[stackIndex]!;
+      const part = placed.owner ? null : worthTaking(placed, wanted, fits);
+      if (!part) continue;
+      const def = this.tilesById[placed.tileId];
+      if (!def || !resolveItem(def)) continue;
+      if (coveredBySomething(stack, stackIndex, this.tilesById)) continue;
+      const ref = { ...cell, stackIndex };
+      if ((this.lootSkipped.get(lootKey(ref, part.tileId)) ?? 0) > nowMs) continue;
+      if (!sees(snapshot, this.tilesById, cell)) return null;
+      return { ref, ...part };
+    }
+    return null;
   }
 
   /** What the planner is told: whether there is anything to buy, sell or gather. */
@@ -1880,7 +2021,7 @@ export class Bot {
 
   private finish(reason: "done" | "failed", outcome: string) {
     this.happen(outcome);
-    if (this.goal?.goal === "go_to") this.lostKitAt = null;
+    if (this.goal?.goal === "go_to") this.lostKit = null;
     this.course =
       reason === "failed"
         ? { kind: "pause", untilMs: this.nowMs + FAILED_PAUSE_MS }
@@ -1965,6 +2106,18 @@ export class Bot {
     this.happen(`you said: "${line}"`);
   }
 
+  private summarize(snapshot: GameSnapshot, body: BattlerDef | null, nowMs: number) {
+    this.summarizedAtMs ??= nowMs;
+    if (nowMs - this.summarizedAtMs < SUMMARY_EVERY_MS) return;
+    this.summarizedAtMs = nowMs;
+    const { currency, taste } = this.economy;
+    const gold = currency ? carriedCount(this.tilesById, snapshot.equipment, currency) : 0;
+    const gear = body ? wornWorth(snapshot.equipment, this.tilesById, body, taste) : 0;
+    this.log(
+      `summary deaths=${this.deaths} kills=${this.kills} gold=${gold} gear=${gear.toFixed(1)}`,
+    );
+  }
+
   private happen(line: string, heard = false) {
     this.log(line);
     this.memory.add(this.nowMs, line, heard);
@@ -2030,6 +2183,9 @@ function holdsSidearm(equipment: Equipment, tilesById: Record<string, TileDef>):
 
 type Zone = { readonly at: Coord; readonly cells: number };
 
+/** `told` is set once the bot has said it is leaving the bag, so it says so once. */
+type LostKit = { readonly at: Coord; readonly worth: number; readonly told: boolean };
+
 type Scare = Zone & {
   readonly untilMs: number;
   /** The tile of the creature scared of, when it was near where the bot died. */
@@ -2042,6 +2198,52 @@ function inZone(zones: readonly Zone[], cell: Coord): boolean {
 
 function lootKey(ref: ObjectRef, tileId: string): string {
   return `${refKey(ref)}:${tileId}`;
+}
+
+/** The worn bag; the server stows the thing wherever it fits, whatever the index. */
+const INTO_BAG = { kind: "contents", index: 0 } as const;
+
+/** Every cell within `LOOT_CELLS` steps, as offsets from the bot, nearest first. */
+const LOOT_OFFSETS: ReadonlyArray<readonly [number, number]> = (() => {
+  const away = ([dx, dy]: readonly [number, number]) => Math.abs(dx) + Math.abs(dy);
+  const offsets: Array<[number, number]> = [];
+  for (let dy = -LOOT_CELLS; dy <= LOOT_CELLS; dy++) {
+    for (let dx = -LOOT_CELLS; dx <= LOOT_CELLS; dx++) offsets.push([dx, dy]);
+  }
+  return offsets.filter((offset) => away(offset) <= LOOT_CELLS).sort((a, b) => away(a) - away(b));
+})();
+
+/**
+ * What of `placed` is worth taking: the thing itself, or else the first thing
+ * inside it that is wanted and fits the bot's bag. A bot wearing a bag sees no
+ * upgrade in another one, so judging a dropped bag only as a bag left
+ * everything a dead player carried on the floor.
+ */
+function worthTaking(
+  placed: PlacedTile,
+  wanted: (tileId: string) => boolean,
+  fits: (instance: ItemInstance) => boolean,
+): { tileId: string; index: number | null } | null {
+  if (wanted(placed.tileId)) return { tileId: placed.tileId, index: null };
+  const contents = placed.contents ?? [];
+  const index = contents.findIndex((inside) => wanted(inside.tileId) && fits(inside));
+  return index === -1 ? null : { tileId: contents[index]!.tileId, index };
+}
+
+function bagFits(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+): (instance: ItemInstance) => boolean {
+  const bag = equipment.bag;
+  if (!bag) return () => false;
+  const capacity = capacityOf(bag, tilesById);
+  return (instance) => stowFits(bag.contents ?? [], instance, capacity, tilesById);
+}
+
+function stillLies(snapshot: GameSnapshot, { ref, tileId, index }: LootTarget): boolean {
+  const placed = getStack(snapshot.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  const there = index === null ? placed : placed?.contents?.[index];
+  return there?.tileId === tileId;
 }
 
 /** How far a kiting bot looks for somewhere to back away to. */

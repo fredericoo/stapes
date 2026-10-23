@@ -751,12 +751,18 @@ describe("a drink that leaves its bottle", () => {
   });
 
   it("refuses a floor drink whose bottle the cell cannot hold", () => {
-    const map = replaceStack(field(), 1, 0, 0, [
+    const piled = replaceStack(field(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "crate" },
       { tileId: "crate" },
       { tileId: "crate" },
       { tileId: "potion" },
+    ]);
+    const map = replaceStack(piled, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "crate" },
+      { tileId: "player", direction: "e" },
     ]);
     const session = new GameSession(map, tiles);
     const before = tilesAt(session, 1, 0);

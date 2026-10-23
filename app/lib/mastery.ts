@@ -8,13 +8,22 @@ export type BodyMastery = "toughness" | "agility";
 
 export type ElementMastery = Element;
 
-export type Mastery = WeaponMastery | BodyMastery | ElementMastery;
+export type GatheringMastery = "mining";
+
+export type Mastery = WeaponMastery | BodyMastery | ElementMastery | GatheringMastery;
 
 export const WEAPON_MASTERIES: WeaponMastery[] = ["fist", "sharp", "blunt", "ranged", "arcane"];
 
 export const BODY_MASTERIES: BodyMastery[] = ["toughness", "agility"];
 
-export const MASTERIES: Mastery[] = [...WEAPON_MASTERIES, ...BODY_MASTERIES, ...ELEMENTS];
+export const GATHERING_MASTERIES: GatheringMastery[] = ["mining"];
+
+export const MASTERIES: Mastery[] = [
+  ...WEAPON_MASTERIES,
+  ...BODY_MASTERIES,
+  ...ELEMENTS,
+  ...GATHERING_MASTERIES,
+];
 
 export const MAGIC_MASTERIES: Mastery[] = ["arcane", ...ELEMENTS];
 
@@ -33,6 +42,7 @@ export const MASTERY_LABELS: Record<Mastery, string> = {
   fire: "Fire",
   water: "Water",
   nature: "Nature",
+  mining: "Mining",
 };
 
 export const MIN_MASTERY = 0;

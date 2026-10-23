@@ -1,33 +1,33 @@
 import {
   IconApple,
-  IconBoxSeam,
-  IconDoorEnter,
+  IconBox,
+  IconDoor,
   IconDroplet,
-  IconFlame,
+  IconFire,
   IconGift,
-  IconHandGrab,
-  IconHandMove,
-  IconMapPin,
-  IconMessageCircle,
-  IconPick,
+  IconHand,
+  IconHuman,
+  IconMove,
+  IconPickaxe,
   IconShirt,
   IconSwitch,
   IconSword,
+  IconTalk,
   IconTarget,
-  IconTransform,
-  IconWalk,
-} from "@tabler/icons-react";
+  IconTools,
+} from "./pixelIcons";
 import { useEffect, useMemo, useRef } from "react";
 import type { Progress } from "../game/progress";
 import type {
   InteractionAction,
   InteractionGroup,
   InteractionOption,
-  OptionBlock,
 } from "../game/interactionOptions";
 import { bindNumberKeys, numberKeyLabel } from "../game/heldDirections";
 import {
   actionRows,
+  blockReason,
+  drawnBlockReason,
   groupInteractionOptions,
   groupSubject,
   interactionText,
@@ -51,21 +51,20 @@ const FRONT = "s" as const;
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,
   attack: IconSword,
-  follow: IconWalk,
-  talk: IconMessageCircle,
-  open: IconBoxSeam,
-  pickUp: IconHandGrab,
+  follow: IconHuman,
+  talk: IconTalk,
+  open: IconBox,
+  pickUp: IconHand,
   equip: IconShirt,
-  push: IconHandMove,
+  push: IconMove,
   switch: IconSwitch,
-  teleport: IconDoorEnter,
-  addStatus: IconFlame,
+  teleport: IconDoor,
+  addStatus: IconFire,
   removeStatus: IconDroplet,
-  setSpawn: IconMapPin,
   consume: IconApple,
   reward: IconGift,
-  craft: IconTransform,
-  extract: IconPick,
+  craft: IconTools,
+  extract: IconPickaxe,
 };
 
 const SPRITE_SIZE_PX = 32;
@@ -160,6 +159,9 @@ function actionClass(option: InteractionOption): string {
     return "border-dashed border-paper/25 text-paper/40";
   }
   if (option.active) return litClass(option);
+  if (option.far) {
+    return "border-paper/15 text-paper/60 hover:border-paper hover:bg-paper/10 hover:text-paper";
+  }
   if (option.action === "reward") {
     return "border-reward/60 text-reward hover:border-reward hover:bg-reward/10";
   }
@@ -233,16 +235,13 @@ function InteractionBox({
   );
 }
 
-export function blockReason(blocked: OptionBlock): string | null {
-  if (blocked.kind === "working") return "working";
-  if (blocked.kind === "taken") return "in use";
-  if (blocked.kind === "here") return null;
-  return "no room";
-}
+const FAR_HINT = "walks there first";
 
-export function drawnBlockReason(blocked: OptionBlock): string | null {
-  if (blocked.kind === "working") return null;
-  return blockReason(blocked);
+function actionLabel(option: InteractionOption): string {
+  const reason = option.blocked ? blockReason(option.blocked) : null;
+  if (reason) return `${interactionText(option)}, ${reason}`;
+  if (option.far) return `${interactionText(option)}, ${FAR_HINT}`;
+  return interactionText(option);
 }
 
 function ProgressFill({ progress, tone }: { progress: Progress; tone: "pull" | "fight" }) {
@@ -295,11 +294,7 @@ function ActionButton({
       onMouseLeave={() => onHover?.(subjectId)}
       onFocus={() => onHover?.(option.id)}
       onBlur={() => onHover?.(null)}
-      aria-label={
-        blocked && blockReason(blocked)
-          ? `${interactionText(option)}, ${blockReason(blocked)}`
-          : interactionText(option)
-      }
+      aria-label={actionLabel(option)}
       aria-disabled={blocked ? true : undefined}
       aria-pressed={
         option.action === "attack" ||
@@ -320,14 +315,14 @@ function ActionButton({
       ) : option.wait ? (
         <ProgressFill progress={option.wait} tone="fight" />
       ) : null}
-      <Icon size={14} stroke={2} aria-hidden="true" className="relative shrink-0" />
-      <span className="relative min-w-0 truncate text-[11px] leading-snug font-medium tracking-tight">
+      <Icon size={14} aria-hidden="true" className="relative shrink-0" />
+      <span className="relative min-w-0 truncate text-detail leading-snug font-medium tracking-tight">
         {option.label}
       </span>
       {blocked && drawnBlockReason(blocked) ? (
         <span
           aria-hidden="true"
-          className="relative ml-auto shrink-0 text-[10px] leading-snug tracking-tight"
+          className="relative ml-auto shrink-0 text-2xs leading-snug tracking-tight"
         >
           {drawnBlockReason(blocked)}
         </span>

@@ -14,6 +14,7 @@ import {
   aimedAt,
   flightEmitter,
   flightLight,
+  flightTrail,
   projectileOctant,
   projectileViews,
   wearsFlightTransition,
@@ -398,5 +399,56 @@ describe("the emitter an effect hangs from", () => {
     };
 
     expect(flightEmitter(dissolving)).toBeNull();
+  });
+});
+
+describe("the trail a flight leaves", () => {
+  const trailing = (particles: Transition["particles"]): TileDef =>
+    normalizeTileDef({
+      id: "ember",
+      name: "Ember",
+      height: 0,
+      type: "simple",
+      kind: "projectile",
+      particles,
+      interactions: { projectile: { cellsPerSecond: 10 } },
+    });
+
+  const flight = (over: Partial<ProjectileFlight> = {}): ProjectileFlight => ({
+    id: "shot-1",
+    tileId: "ember",
+    from: { x: 0, y: 0, elevAbs: 0 },
+    to: { x: 4, y: 0, elevAbs: 0 },
+    durationMs: 400,
+    elapsedMs: 200,
+    hit: true,
+    ...over,
+  });
+
+  it("gives off the tile's own particles from where the shot is now", () => {
+    expect(flightTrail(flight(), trailing(SPARK.particles))).toMatchObject({
+      id: "shot-1:trail",
+      cx: 2 + CELL_CENTRE,
+      cy: CELL_CENTRE,
+      config: SPARK.particles,
+    });
+  });
+
+  it("follows the body the shot is chasing", () => {
+    const spec = flightTrail(flight({ targetId: "rat" }), trailing(SPARK.particles), () => ({
+      x: 4,
+      y: 6,
+      elevAbs: 0,
+    }));
+
+    expect(spec?.cy).toBe(3 + CELL_CENTRE);
+  });
+
+  it("stops giving off once the shot has landed", () => {
+    expect(flightTrail(flight({ elapsedMs: 400 }), trailing(SPARK.particles))).toBeNull();
+  });
+
+  it("leaves nothing behind a tile with no particles", () => {
+    expect(flightTrail(flight(), trailing(undefined))).toBeNull();
   });
 });

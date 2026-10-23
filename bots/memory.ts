@@ -18,6 +18,8 @@ const REWRITE_CELLS = 3;
 
 const REWRITE_MS = 5 * 60_000;
 
+const BUSY_TIMEOUT_MS = 2_000;
+
 type Landmark = Coord & { readonly seenAt: number };
 
 /**
@@ -37,8 +39,8 @@ export class Landmarks {
   constructor(path: string) {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     this.db = new Database(path, { create: true });
+    this.db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
     this.db.exec("PRAGMA journal_mode = WAL");
-    this.db.exec("PRAGMA busy_timeout = 2000");
     this.db.exec(
       `CREATE TABLE IF NOT EXISTS landmark (
          tile_id TEXT NOT NULL,

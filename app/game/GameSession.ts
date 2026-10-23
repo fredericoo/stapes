@@ -4,14 +4,17 @@ import {
   type CraftOutcome,
   type HeldTransition,
   type TileTransitionNote,
+  type Transition,
   type TransitionSide,
 } from "../lib/tileTransition";
+import { absoluteElevation } from "../lib/geometry";
 import {
   absoluteStandingElevation,
   appendTile,
   chunkIndexOf,
   chunkKeyAt,
   chunkKeyFor,
+  elevationAt,
   getStack,
   isPlayerBody,
   removeTileAt,
@@ -25,8 +28,8 @@ import {
   pullEffect,
   resolveAddStatus,
   resolveRemoveStatus,
+  resolveEmit,
   resolveExtract,
-  resolveSetSpawn,
   resolveSwitch,
   resolveTeleport,
 } from "../lib/interactions";
@@ -37,6 +40,8 @@ import {
   isItem,
   isRanged,
   NO_ELEMENTS,
+  resolveContainer,
+  type SpellArea,
   type StatusGrant,
   type StoneEffect,
   UNNAMED_SPELL,
@@ -46,7 +51,16 @@ import {
   resolveConsumable,
   resolveCharm,
 } from "../lib/item";
-import { appendItem, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
+import { affectsBody } from "../lib/area";
+import {
+  appendItem,
+  landingIndex,
+  peelOne,
+  pourInto,
+  stackWithItem,
+  stackWithLanding,
+  stow,
+} from "../lib/piles";
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
@@ -80,23 +94,23 @@ import {
   canRemoveStatusFrom,
   canConsumeFrom,
   canEquipFrom,
-  canSetSpawnFrom,
   canTalkFrom,
   dropDestinationAt,
   canPickUpFrom,
   pickUpDestination,
   canPushFrom,
-  canRewardFrom,
+  canClaimRewardFrom,
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
+  equipSlotsFor,
   interactiveDefAt,
   reachableAddStatusAt,
   reachableRemoveStatusAt,
   reachableRewardAt,
-  reachableSetSpawnAt,
   reachableTeleportAt,
   rewardFits,
+  rewardShortfall,
   teleportFits,
   pushDirectionFrom,
   pushTargetFrom,
@@ -106,20 +120,23 @@ import {
 import {
   castRefusalNotice,
   commandRefusalNotice,
+  brainNotice,
   craftNotice,
   extractNotice,
+  fireNotice,
+  giveNotice,
   masteryNotice,
   otherMasteryNotice,
   otherArrivalNotice,
   healthNotice,
   noRoomToLeaveNotice,
   rewardNotice,
-  spawnMarkNotice,
-  spawnMarkUnchangedNotice,
   spawnNotice,
   despawnNotice,
   statusAcquiredNotice,
   otherStatusNotice,
+  otherStatusRemovedNotice,
+  statusRemovedNotice,
   statusesClearedNotice,
   tileNotice,
   timeNotice,
@@ -130,7 +147,10 @@ import { type Blame, causeOfDeath, possessive } from "./blame";
 import { conjuredName, sparesStander } from "./conjured";
 import { type Combatant, mayHarm } from "./pvp";
 import {
+  BRAIN_COMMAND,
   DESPAWN_COMMAND,
+  FIRE_COMMAND,
+  GIVE_COMMAND,
   GOTO_COMMAND,
   HEALTH_COMMAND,
   MOVE_COMMAND,
@@ -141,11 +161,16 @@ import {
   STATUS_COMMAND,
   TILE_COMMAND,
   TIME_COMMAND,
+  type BrainCommand,
   type Command,
   type CommandOutcome,
   type CommandRefusal,
   type CommandReply,
   type DespawnCommand,
+  type FireCommand,
+  type FlightEnd,
+  type GiveCommand,
+  type GiveSlot,
   type HealthCommand,
   type MasteryCommand,
   type SpawnCommand,
@@ -222,8 +247,8 @@ import {
   fightsWithAHand,
   handToSwing,
   otherHand,
-  packSlots,
   spilled,
+  wornInstances,
   stoneLocked,
   weaponInHand,
   weaponSwungBy,
@@ -237,6 +262,7 @@ import {
   type CastContext,
   type CasterPoint,
   type CastPoint,
+  castAreaOf,
   type CastProgress,
   type CastSlot,
   conjureLanding,
@@ -258,7 +284,7 @@ import {
   defenderEarnings,
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
-  experienceAfterDeath,
+  extractEarnings,
   practiceEarnings,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
@@ -277,17 +303,18 @@ import {
 import { pushedColumn } from "./push";
 import { isSpawnFilled, rollRespawnDelayMs, type RespawnOutcome, type SpawnPoint } from "./respawn";
 import {
-  applyItemMove,
-  canMoveItem,
   capacityOf,
   clearSlot,
   isBodySlot,
   itemInSlot,
   peelSlot,
+  placeInSlot,
+  slotTakes,
   stashInContainer,
   type ItemMoveResult,
   type SlotRef,
 } from "./itemMoves";
+import { applyDepotMove, DepotLedger, type Depots } from "./depot";
 import type { ItemInstance } from "../lib/itemInstance";
 import { instanceFromPlacement, mintItemId, placementFromInstance } from "../lib/itemInstance";
 import {
@@ -324,7 +351,7 @@ import {
   wadesIn,
 } from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
-import { resolveDialog } from "../lib/dialog";
+import { resolveDialog, type SwitchTo } from "../lib/dialog";
 import {
   acceptTrade,
   cancelTrade,
@@ -338,6 +365,7 @@ import {
 import { planTrade } from "./trade";
 import { bodyNameFor } from "./displayName";
 import {
+  enterBrainState,
   initialMemory,
   stepBrain,
   withinSightLevels,
@@ -356,6 +384,7 @@ import type { Extraction, ExtractionProgress } from "./extract";
 import {
   canBeginExtract,
   clearExtractReservations,
+  extractDurationMs,
   extractKey,
   placementAfterPull,
   reachableExtractAt,
@@ -365,10 +394,24 @@ import {
   withoutReservations,
 } from "./extract";
 import { hasLineOfSight, openColumn } from "./sight";
+import {
+  type AreaBurstNote,
+  type AreaCentre,
+  areaBurstEffects,
+  areaFloorCells,
+  reachesInArea,
+} from "./area";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressurePlates";
-import { cellIsWired, findWiredCells, settleSignals, type ExtraEmitter } from "./signals";
+import {
+  cellIsWired,
+  channelPowered,
+  findWiredCells,
+  readChannels,
+  settleSignals,
+  type ExtraEmitter,
+} from "./signals";
 import type { ItemDecay, PlacementDecay } from "./decay";
 import { DecayIndex, applyDecay, applyItemDecay, findDecayCells } from "./decay";
 import {
@@ -384,7 +427,8 @@ import {
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { settleAllSpans, settleSpans, spanAnchor } from "../lib/footprint";
-import { projectileEffect, resolveProjectile } from "../lib/projectile";
+import { withTraits, type TraitCatalogue } from "../lib/traits";
+import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
   applyStatus,
@@ -456,6 +500,7 @@ export type ActorSnapshot = {
   casting: CastProgress | null;
   pvp: boolean;
   hidden: boolean;
+  king: boolean;
 };
 
 export type NoiseEmission = {
@@ -507,7 +552,6 @@ export type GameSnapshot = {
   flightEffects: FlightEffect[];
   equipment: Equipment;
   tags: readonly string[];
-  spawnAt: Coord | null;
   conversation: Conversation | null;
   extracting: Extraction | null;
   nextBlow: Progress | null;
@@ -517,6 +561,7 @@ export type GameSnapshot = {
   chats: ChatBubble[];
   noises: NoiseEmission[];
   afflicted: readonly AfflictedPlacement[];
+  depots: Depots;
 };
 
 export type Vitals = {
@@ -600,11 +645,19 @@ type SlideState = {
 
 type Eaten = { consumable: ConsumableItem; name: string };
 
+type MidBody = { x: number; y: number; elevAbs: number };
+
 type ExtractionRun = {
   progress: Extraction;
   ref: ObjectRef;
   tileId: string;
   from: Coord;
+};
+
+type AreaCast = {
+  area: SpellArea;
+  requirements: Masteries | undefined;
+  masteries: Masteries;
 };
 
 type CastingRun = {
@@ -668,6 +721,7 @@ type ActorRuntime = {
   defensiveDecay: Map<string, { payouts: number; idleMs: number }> | null;
   assailants: Map<string, number> | null;
   brain: BrainMemory | null;
+  brainOff: boolean;
   charmClock: { itemId: string; elapsedMs: number } | null;
   brainDeferredMs: number;
   walkOrder: {
@@ -681,7 +735,6 @@ type ActorRuntime = {
   brainAttentive: boolean;
   conversation: Conversation | null;
   home: Coord | null;
-  spawnMark: Coord | null;
   hp: number | null;
   statuses: readonly StatusInstance[];
   standingStatusMs: number;
@@ -740,9 +793,6 @@ function cooledEquipment(equipment: Equipment, spentMs: number): Equipment {
 
 export type Death = {
   id: string;
-  equipment: Equipment;
-  masteryXp: MasteryXp | null;
-  tags: readonly string[];
   cost: DeathCost | null;
   at: Coord | null;
   name: string | null;
@@ -768,6 +818,7 @@ export class GameSession implements PlaySession {
   private tileIndex: Map<string, string[]> | null = null;
   private readonly spawnAt: Coord & { stackIndex: number };
   private readonly equipmentChanged = new Set<string>();
+  readonly depots: DepotLedger;
   private readonly conversationChanged = new Set<string>();
   private readonly tagsChanged = new Set<string>();
   private readonly extractionChanged = new Set<string>();
@@ -776,6 +827,7 @@ export class GameSession implements PlaySession {
   private readonly clock: () => MinutesOfDay;
   private readonly plateCells = new Map<string, Coord>();
   private readonly wiredCells = new Map<string, Coord>();
+  private kingId: string | null = null;
   private readonly looseGravityCells = new Map<string, Coord>();
   private readonly decay: DecayIndex;
   private readonly afflictCells = new Map<string, Coord>();
@@ -800,6 +852,8 @@ export class GameSession implements PlaySession {
   private liveDamage: DamageNumber[] = [];
   private pendingProjectiles: ProjectileFlight[] = [];
   private pendingTransitions: TileTransitionNote[] = [];
+  private pendingAreaBursts: AreaBurstNote[] = [];
+  private nextAreaId = 0;
   private nextTransitionId = 0;
   private heldForViewer: TileTransitionNote[] = [];
   private liveProjectiles: ProjectileFlight[] = [];
@@ -814,7 +868,6 @@ export class GameSession implements PlaySession {
   private liveNoise: NoiseEmission[] = [];
   private nextNoiseId = 0;
   private pendingDeaths: Death[] = [];
-  private pendingSpawnMarks: { actorId: string; at: Coord }[] = [];
   private settledEmitters = "";
 
   constructor(
@@ -826,18 +879,23 @@ export class GameSession implements PlaySession {
       spawnAt,
       seed,
       statuses: statusDefs = {},
+      traits = {},
       clock = () => DEFAULT_PLAY_MINUTES,
+      depots = new DepotLedger(),
     }: {
       actorIds?: readonly string[];
       names?: Readonly<Record<string, string>>;
       spawnAt?: Coord & { stackIndex: number };
       seed?: number;
       statuses?: Record<string, StatusDef>;
+      traits?: TraitCatalogue;
       clock?: () => MinutesOfDay;
+      depots?: DepotLedger;
     } = {},
   ) {
     this.clock = clock;
-    this.tilesById = tilesByIdFromList(tiles);
+    this.depots = depots;
+    this.tilesById = tilesByIdFromList(withTraits(tiles, traits));
     this.board = settleAllSpans(structuredClone(map), this.tilesById);
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
@@ -919,7 +977,6 @@ export class GameSession implements PlaySession {
       earned?: MasteryXp;
       statuses?: readonly StatusInstance[];
       hp?: number;
-      spawnAt?: Coord;
       pvp?: boolean;
       hidden?: boolean;
     } = {},
@@ -927,7 +984,7 @@ export class GameSession implements PlaySession {
     const resident = opts.resident === true;
     const equipment =
       opts.carrying ?? (opts.bodyTileId ? this.rollKit(opts.bodyTileId) : emptyEquipment());
-    this.decay.armEquipment(equipment, this.tilesById);
+    if (!resident) this.decay.armEquipment(equipment, this.tilesById);
     const actor: ActorRuntime = {
       id,
       name: opts.name ?? null,
@@ -941,6 +998,7 @@ export class GameSession implements PlaySession {
       defensiveDecay: null,
       assailants: null,
       brain: null,
+      brainOff: false,
       brainDeferredMs: 0,
       walkOrder: null,
       failedRoute: null,
@@ -949,7 +1007,6 @@ export class GameSession implements PlaySession {
       brainAttentive: false,
       conversation: null,
       home: residentHome(id),
-      spawnMark: opts.spawnAt ?? null,
       hp: opts.hp === undefined ? null : Math.max(1, opts.hp),
       statuses: resident ? NO_STATUSES : (opts.statuses ?? NO_STATUSES),
       standingStatusMs: 0,
@@ -981,16 +1038,6 @@ export class GameSession implements PlaySession {
     return equipmentForBody(bodyTileId, this.tilesById, () => this.rng.next());
   }
 
-  rebirthKit(owned: Equipment): Equipment {
-    if (packSlots(owned, this.tilesById).length > 0) return owned;
-    const bag = this.rollKit(PLAYER_TILE_ID).bag;
-    /**
-     * Emptied because the player's kit may author a bag with things in it,
-     * and a death must not mint those again.
-     */
-    return { ...owned, bag: bag ? { ...bag, contents: [] } : null };
-  }
-
   private forgetTileIndex() {
     this.tileIndex = null;
   }
@@ -1005,7 +1052,6 @@ export class GameSession implements PlaySession {
       earned?: MasteryXp;
       statuses?: readonly StatusInstance[];
       hp?: number;
-      spawnAt?: Coord;
       pvp?: boolean;
       hidden?: boolean;
     } = {},
@@ -1103,6 +1149,11 @@ export class GameSession implements PlaySession {
 
   hasActor(id: string): boolean {
     return this.actors.has(id);
+  }
+
+  isMoving(id: string): boolean {
+    const actor = this.actors.get(id);
+    return actor !== undefined && !this.idle(actor);
   }
 
   isResident(id: string): boolean {
@@ -1249,9 +1300,19 @@ export class GameSession implements PlaySession {
     return reachPointAt(this.map, this.tilesById, loc);
   }
 
-  private flightPointOf(loc: ActorLocation): FlightPoint {
-    const point = this.reachPointOf(loc);
-    const body = this.tilesById[loc.placed.tileId];
+  /**
+   * A cell is measured as a body put on top of its stack would be, at the
+   * height used for a body whose tile cannot be found.
+   */
+  private flightPointOf(end: ActorLocation | Coord): FlightPoint {
+    const body = "placed" in end ? this.tilesById[end.placed.tileId] : undefined;
+    const point = reachPointAt(
+      this.map,
+      this.tilesById,
+      "placed" in end
+        ? end
+        : { ...end, stackIndex: getStack(this.map, end.x, end.y, end.z).length },
+    );
     return {
       x: point.x,
       y: point.y,
@@ -1287,6 +1348,7 @@ export class GameSession implements PlaySession {
     this.pendingNoise = [];
     this.pendingProjectiles = [];
     this.pendingTransitions = [];
+    this.pendingAreaBursts = [];
     this.pendingTeleports = [];
     this.pendingSwings = [];
     this.ageDamageNumbers(tickMs);
@@ -1342,13 +1404,7 @@ export class GameSession implements PlaySession {
     }
 
     if (items.length > 0) {
-      const rotted = applyItemDecay(
-        this.map,
-        this.actors.values(),
-        items,
-        this.tilesById,
-        mintItemId,
-      );
+      const rotted = applyItemDecay(this.map, this.playerKits(), items, this.tilesById, mintItemId);
       this.map = rotted.map;
       changed.push(...rotted.changed);
       for (const [actorId, equipment] of rotted.equipment) {
@@ -1357,6 +1413,17 @@ export class GameSession implements PlaySession {
     }
 
     this.reindexCells(changed);
+  }
+
+  /**
+   * A resident's kit never rots. An item that reaches one already counting
+   * down is passed over here, and its clock starts fresh from `reindexCells`
+   * once it is dropped.
+   */
+  private *playerKits(): Iterable<ActorRuntime> {
+    for (const actor of this.actors.values()) {
+      if (!actor.resident) yield actor;
+    }
   }
 
   private tickAfflictions(tickMs: number) {
@@ -1611,6 +1678,9 @@ export class GameSession implements PlaySession {
   private partnerViewFor(partner: ActorRuntime): PartnerView {
     return {
       name: () => this.bodyName(partner.id),
+      isKing: () => partner.id === this.kingId,
+      hasTag: (tag) => partner.tags.includes(tag),
+      channelOn: (channel) => this.channelOn(channel),
       attempt: (effects) => this.attemptDialogEffects(partner.id, effects),
     };
   }
@@ -1622,6 +1692,12 @@ export class GameSession implements PlaySession {
     let kit = partner.equipment;
     for (const effect of effects) {
       if (effect.effect === "add_status" && !this.statusDefs[effect.statusId]) {
+        return false;
+      }
+      if (
+        effect.effect === "teleport" &&
+        !teleportFits(this.map, this.tilesById, this.defFor(partner), effect.to)
+      ) {
         return false;
       }
       if (effect.effect !== "trade") continue;
@@ -1647,6 +1723,50 @@ export class GameSession implements PlaySession {
     if (effect.effect === "tag" && !partner.tags.includes(effect.tag)) {
       this.setTags(partner, [...partner.tags, effect.tag]);
     }
+    if (effect.effect === "switch") this.throwSwitches(effect.channel, effect.to);
+    if (effect.effect === "teleport") this.moveThrough(partner, effect.to);
+  }
+
+  /** Read the way a receiver in `any` mode reads it: on while anything on the channel emits on. */
+  private channelOn(channel: string): boolean {
+    const state = readChannels(
+      this.map,
+      this.wiredCells.values(),
+      this.tilesById,
+      this.actorEmitters(),
+    );
+    return channelPowered(state, channel, "any");
+  }
+
+  setKing(actorId: string | null) {
+    this.kingId = actorId;
+  }
+
+  /**
+   * Throws every switch tile on the channel, wherever it is on the board, as
+   * if somebody had used each one. A switch already emitting what `to` asks
+   * for is left alone, so "on" twice is still on; one that emits nothing reads
+   * as off.
+   */
+  private throwSwitches(channel: string, to: SwitchTo) {
+    const changed: Coord[] = [];
+    for (const cell of this.wiredCells.values()) {
+      const stack = getStack(this.map, cell.x, cell.y, cell.z);
+      let touched = false;
+      const next = stack.map((placed) => {
+        if (placed.channel !== channel) return placed;
+        const def = this.tilesById[placed.tileId];
+        const sw = def && resolveSwitch(def);
+        if (!sw) return placed;
+        if (to !== "toggle" && (resolveEmit(def)?.value ?? "off") === to) return placed;
+        touched = true;
+        return { ...placed, tileId: sw.targetTileId };
+      });
+      if (!touched) continue;
+      this.map = replaceStack(this.map, cell.x, cell.y, cell.z, next);
+      changed.push(cell);
+    }
+    if (changed.length > 0) this.reindexCells(changed);
   }
 
   private clearStatus(actor: ActorRuntime, statusId: string) {
@@ -1778,7 +1898,7 @@ export class GameSession implements PlaySession {
     actor.attackOrder = null;
     const loc = this.tryLocate(actor);
     if (!loc) return;
-    if (this.incapacitated(actor)) {
+    if (actor.brainOff || this.incapacitated(actor)) {
       actor.walkOrder = null;
       return;
     }
@@ -1928,6 +2048,12 @@ export class GameSession implements PlaySession {
     return loosed;
   }
 
+  drainAreaBursts(): AreaBurstNote[] {
+    const burst = this.pendingAreaBursts;
+    this.pendingAreaBursts = [];
+    return burst;
+  }
+
   drainTransitions(): TileTransitionNote[] {
     const happened = this.pendingTransitions;
     this.pendingTransitions = [];
@@ -1945,6 +2071,57 @@ export class GameSession implements PlaySession {
     this.raiseTransition({ side, tileId, x: cell.x, y: cell.y, z: cell.z, stackIndex });
   }
 
+  /**
+   * Only a thing that lands as its own placement is tossed: one poured into a
+   * pile already there would fly the whole pile. A thing that fell after
+   * landing is no longer at `at` and is not tossed either.
+   */
+  private noteToss(placed: PlacedTile, at: ObjectRef, from: MidBody, order = 0): boolean {
+    const stack = getStack(this.map, at.x, at.y, at.z);
+    const landed = stack[at.stackIndex];
+    if (landed?.itemId !== placed.itemId || landed?.tileId !== placed.tileId) return false;
+    const restsAt = absoluteElevation(at.z, elevationAt(stack, at.stackIndex, this.tilesById));
+    this.raiseTransition({
+      side: "appear",
+      tileId: placed.tileId,
+      x: at.x,
+      y: at.y,
+      z: at.z,
+      stackIndex: at.stackIndex,
+      tossedFrom: { x: from.x, y: from.y, elev: from.elevAbs - restsAt, order },
+    });
+    return true;
+  }
+
+  /** Raised before `at` is taken off the board, while its resting elevation can still be read. */
+  private noteTake(at: ObjectRef, by: ActorLocation) {
+    const stack = getStack(this.map, at.x, at.y, at.z);
+    const placed = stack[at.stackIndex];
+    if (!placed) return;
+    const restsAt = absoluteElevation(at.z, elevationAt(stack, at.stackIndex, this.tilesById));
+    const to = this.midBody(by);
+    this.raiseTransition({
+      side: "disappear",
+      tileId: placed.tileId,
+      x: at.x,
+      y: at.y,
+      z: at.z,
+      stackIndex: at.stackIndex,
+      takenBy: { x: to.x, y: to.y, elev: to.elevAbs - restsAt },
+    });
+  }
+
+  /**
+   * Halfway up the body, from wherever it stands. Read off the cells below the
+   * body, which a dead body's removal leaves where they were.
+   */
+  private midBody(loc: ActorLocation): MidBody {
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+    const foot = elevationAt(stack, loc.stackIndex, this.tilesById);
+    const body = this.tilesById[loc.placed.tileId]?.height ?? 0;
+    return { x: loc.x, y: loc.y, elevAbs: absoluteElevation(loc.z, foot + body / 2) };
+  }
+
   private strikeBody(targetId: string, projectileTileId: string | null | undefined) {
     if (!projectileTileId) return;
     if (!projectileEffect(this.tilesById[projectileTileId], "hit")) return;
@@ -1960,6 +2137,22 @@ export class GameSession implements PlaySession {
       z: loc.z,
       stackIndex: loc.stackIndex,
       struckBy: projectileTileId,
+    });
+  }
+
+  private dressCaster(caster: ActorRuntime, casterEffect: Transition | undefined) {
+    if (!casterEffect) return;
+    const loc = this.tryLocate(caster);
+    if (!loc) return;
+
+    this.raiseTransition({
+      side: "appear",
+      tileId: loc.placed.tileId,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+      casterEffect,
     });
   }
 
@@ -2014,12 +2207,6 @@ export class GameSession implements PlaySession {
     const died = this.pendingDeaths;
     this.pendingDeaths = [];
     return died;
-  }
-
-  drainSpawnMarks(): { actorId: string; at: Coord }[] {
-    const moved = this.pendingSpawnMarks;
-    this.pendingSpawnMarks = [];
-    return moved;
   }
 
   private advanceCooldowns(tickMs: number) {
@@ -2386,8 +2573,8 @@ export class GameSession implements PlaySession {
 
   private fireProjectile(
     tileId: string | null | undefined,
-    fromBody: ActorLocation,
-    toBody: ActorLocation,
+    fromEnd: ActorLocation | Coord,
+    toEnd: ActorLocation | Coord,
     connected: boolean,
   ): number {
     if (!tileId) return 0;
@@ -2395,15 +2582,16 @@ export class GameSession implements PlaySession {
     const flies = resolveProjectile(def);
     if (!flies) return 0;
 
-    const from = this.flightPointOf(fromBody);
-    const to = this.flightPointOf(toBody);
+    const from = this.flightPointOf(fromEnd);
+    const to = this.flightPointOf(toEnd);
+    const targetId = "placed" in toEnd ? toEnd.placed.owner : undefined;
 
     const flight: ProjectileFlight = {
       id: `shot-${this.nextProjectileId++}`,
       tileId,
       from: { x: from.x, y: from.y, elevAbs: from.elevAbs },
       to: { x: to.x, y: to.y, elevAbs: to.elevAbs },
-      ...(toBody.placed.owner ? { targetId: toBody.placed.owner } : {}),
+      ...(targetId ? { targetId } : {}),
       durationMs: flightDurationMs(from, to, flies),
       elapsedMs: 0,
       hit: connected,
@@ -2667,34 +2855,28 @@ export class GameSession implements PlaySession {
       actor.assailants?.delete(target.id);
     }
 
-    const kept = loc ? this.dropBelongings(target, loc) : target.equipment;
+    if (loc) {
+      const carried = target.resident
+        ? spilled(target.equipment, this.tilesById)
+        : wornInstances(target.equipment);
+      this.dropKit(carried, loc);
+    }
 
     if (loc) this.dropRemains(target, loc, blame);
 
-    this.pendingDeaths.push(this.deathOf(target, kept, loc, blame));
+    this.pendingDeaths.push(this.deathOf(target, loc, blame));
 
     if (loc) this.reindexCells([{ x: loc.x, y: loc.y, z: loc.z }]);
   }
 
   private deathOf(
     target: ActorRuntime,
-    kept: Equipment,
     loc: ActorLocation | null,
     blame: Blame | undefined,
   ): Death {
-    const masteryXp = target.masteryXp && experienceAfterDeath(target.masteryXp);
     return {
       id: target.id,
-      equipment: kept,
-      masteryXp,
-      tags: target.tags,
-      cost: target.resident
-        ? null
-        : deathCost(
-            { equipment: target.equipment, masteryXp: target.masteryXp ?? {} },
-            { equipment: kept, masteryXp: masteryXp ?? {} },
-            this.tilesById,
-          ),
+      cost: target.resident ? null : deathCost(target.masteryXp ?? {}, this.newLifeXp()),
       at: loc && { x: loc.x, y: loc.y, z: loc.z },
       name: loc
         ? bodyNameFor({ tileId: loc.placed.tileId, name: target.name }, this.tilesById)
@@ -2703,34 +2885,22 @@ export class GameSession implements PlaySession {
     };
   }
 
-  private dropBelongings(target: ActorRuntime, at: Coord): Equipment {
-    return target.resident
-      ? this.dropKit(target.equipment, at)
-      : this.dropPacks(target.equipment, at);
+  private newLifeXp(): MasteryXp {
+    const def = this.tilesById[PLAYER_TILE_ID];
+    const authored = def ? resolveBattler(def) : null;
+    return authored ? xpFromMasteries(authored.masteries) : {};
   }
 
-  private dropKit(equipment: Equipment, at: Coord): Equipment {
-    const carried = spilled(equipment, this.tilesById);
-    if (carried.length === 0) return equipment;
-
-    const dropped = this.dropOnFloor(at, carried.map(placementFromInstance));
-    return dropped ? emptyEquipment() : equipment;
+  /**
+   * All or nothing: a floor without room for the whole kit takes none of it,
+   * and the kit is lost with the body rather than half of it left behind.
+   */
+  private dropKit(carried: readonly ItemInstance[], at: ActorLocation) {
+    if (carried.length === 0) return;
+    this.dropOnFloor(at, carried.map(placementFromInstance), this.midBody(at));
   }
 
-  private dropPacks(equipment: Equipment, at: Coord): Equipment {
-    const slots = packSlots(equipment, this.tilesById);
-    const packs = slots.flatMap((slot) => {
-      const held = equipment[slot];
-      return held ? [placementFromInstance(held)] : [];
-    });
-    if (packs.length === 0 || !this.dropOnFloor(at, packs)) return equipment;
-
-    const kept = { ...equipment };
-    for (const slot of slots) kept[slot] = null;
-    return kept;
-  }
-
-  private dropOnFloor(at: Coord, placements: PlacedTile[]): boolean {
+  private dropOnFloor(at: Coord, placements: PlacedTile[], tossedFrom?: MidBody): boolean {
     const stack = getStack(this.map, at.x, at.y, at.z);
     if (walkableElevInStack(stack, this.tilesById) == null) return false;
     const room = canReplaceStack(
@@ -2738,13 +2908,18 @@ export class GameSession implements PlaySession {
       at.x,
       at.y,
       at.z,
-      [...stack, ...placements],
+      placements.reduce(stackWithLanding, stack),
       this.tilesById,
     );
     if (!room.ok) return false;
 
+    let tossed = 0;
     for (const placed of placements) {
+      const stackIndex = landingIndex(getStack(this.map, at.x, at.y, at.z));
       this.map = appendItem(this.map, at.x, at.y, at.z, placed, this.tilesById);
+      if (tossedFrom && this.noteToss(placed, { ...at, stackIndex }, tossedFrom, tossed)) {
+        tossed++;
+      }
     }
     return true;
   }
@@ -3064,11 +3239,18 @@ export class GameSession implements PlaySession {
     this.cancelExtraction(actor);
     const aimed = needsTarget(stone);
     const targetId = castTargetOf(actor, aimed);
+    const area = castAreaOf(stone);
     actor.casting = {
       itemId: held?.id ?? null,
       uninterruptible: stone.uninterruptible === true,
       aimed,
-      progress: { remainingMs: durationMs, durationMs, slot, ...(targetId ? { targetId } : {}) },
+      progress: {
+        remainingMs: durationMs,
+        durationMs,
+        slot,
+        ...(targetId ? { targetId } : {}),
+        ...(area ? { area } : {}),
+      },
     };
     return true;
   }
@@ -3152,6 +3334,7 @@ export class GameSession implements PlaySession {
 
     this.spendCooldown(actor, slot, stone);
     this.grantExperience(actor, practiceEarnings(elements));
+    this.dressCaster(actor, stone.casterEffect);
 
     if (stone.effect.kind === "bolt") {
       this.castBolt(actor, slot, stone, stone.effect, elements);
@@ -3229,7 +3412,7 @@ export class GameSession implements PlaySession {
     const spell = this.spellName(actor, slot);
     const caster = this.bodyName(actor.id);
 
-    const move = this.rollHealthMove(subject, stone, effect, elements, {
+    const move = this.rollHealthMove(subject, effect, stone.requirements, elements, {
       stats,
       masteries: body.masteries,
     });
@@ -3256,6 +3439,15 @@ export class GameSession implements PlaySession {
         spell,
         caster,
         blame: { source: spell, ...(caster ? { by: caster } : {}), byId: casterId },
+        ...(effect.area
+          ? {
+              area: {
+                area: effect.area,
+                requirements: stone.requirements,
+                masteries: body.masteries,
+              },
+            }
+          : {}),
       }),
     );
   }
@@ -3272,6 +3464,7 @@ export class GameSession implements PlaySession {
     spell: string;
     caster: string | null;
     blame: Blame;
+    area?: AreaCast;
   }): void {
     const subject = this.actors.get(bolt.subjectId);
     if (!subject) return;
@@ -3281,32 +3474,137 @@ export class GameSession implements PlaySession {
 
     this.strikeBody(bolt.subjectId, bolt.projectile);
 
+    /** Read before the hit: a hit that kills takes the subject off the board, and its area still lands. */
+    const centre = bolt.area ? this.areaCentreOf(subject) : null;
+
     const harmless = bolt.move?.kind === "harm" && actor && !this.mayHarm(actor, subject);
     if (bolt.move && !harmless) {
       this.applyHealthMove(bolt.move, subject, actor, bolt);
     }
 
-    if ((this.hpOf(subject) ?? 0) <= 0) return;
-    for (const statusId of bolt.cures) this.clearStatus(subject, statusId);
-    for (const grant of bolt.grants) {
-      this.grantStatus(subject, grant, bolt.casterId, bolt.elements, {
+    if ((this.hpOf(subject) ?? 0) > 0) this.afflict(subject, bolt.grants, bolt.cures, bolt);
+    if (bolt.area && centre) this.landArea(centre, bolt.area, bolt);
+  }
+
+  private areaCentreOf(actor: ActorRuntime): AreaCentre | null {
+    const loc = this.tryLocate(actor);
+    return loc ? reachPointAt(this.map, this.tilesById, loc) : null;
+  }
+
+  private afflict(
+    subject: ActorRuntime,
+    grants: readonly StatusGrant[],
+    cures: readonly string[],
+    from: { casterId: string; caster: string | null; spell: string; elements: readonly Element[] },
+  ) {
+    for (const statusId of cures) this.clearStatus(subject, statusId);
+    for (const grant of grants) {
+      this.grantStatus(subject, grant, from.casterId, from.elements, {
         source: this.statusName(grant.id),
-        by: possessive(bolt.caster, bolt.spell),
-        byId: bolt.casterId,
+        by: possessive(from.caster, from.spell),
+        byId: from.casterId,
       });
     }
   }
 
+  /**
+   * Centred on where the bolt landed, so the subject is inside its own area
+   * and takes both the single hit and the area's share when `affects` lets it.
+   * A harmful area whose caster has gone hurts nobody else, because nothing is
+   * left to ask whether it may.
+   */
+  private landArea(
+    centre: AreaCentre,
+    cast: AreaCast,
+    from: {
+      casterId: string;
+      caster: string | null;
+      spell: string;
+      elements: readonly Element[];
+      blame: Blame;
+    },
+  ) {
+    const { area } = cast;
+    const actor = this.actors.get(from.casterId);
+    const harmful = this.areaHarms(area);
+
+    for (const body of this.actors.values()) {
+      const isCaster = body.id === from.casterId;
+      if (!affectsBody(area.affects, isCaster)) continue;
+      if (harmful && !isCaster && !(actor && this.mayHarm(actor, body))) continue;
+      const at = this.tryLocate(body);
+      if (!at) continue;
+      const point = reachPointAt(this.map, this.tilesById, at);
+      if (!reachesInArea(this.map, this.tilesById, centre, point, area)) continue;
+      this.strikeInArea(body, actor, isCaster, cast, from);
+    }
+
+    this.raiseAreaBurst(centre, area);
+  }
+
+  private areaHarms(area: SpellArea): boolean {
+    if ((area.damage ?? 0) > 0) return true;
+    return (area.statuses ?? []).some((grant) => this.statusDefs[grant.id]?.tone === "bad");
+  }
+
+  private strikeInArea(
+    body: ActorRuntime,
+    actor: ActorRuntime | undefined,
+    isCaster: boolean,
+    cast: AreaCast,
+    from: {
+      casterId: string;
+      caster: string | null;
+      spell: string;
+      elements: readonly Element[];
+      blame: Blame;
+    },
+  ) {
+    const stats = this.battlerOf(body);
+    if (!stats || (this.hpOf(body) ?? 0) <= 0) return;
+
+    const move = this.rollHealthMove(body, cast.area, cast.requirements, from.elements, {
+      stats,
+      masteries: cast.masteries,
+    });
+    if (move) {
+      if (move.kind === "harm" && !isCaster && actor) {
+        this.notePendingHurt(body.id, actor.id);
+        this.flagCombat(actor);
+        this.flagCombat(body);
+      }
+      this.applyHealthMove(move, body, actor, { ...from, atSomebodyElse: !isCaster });
+    }
+
+    if ((this.hpOf(body) ?? 0) <= 0) return;
+    this.afflict(body, this.boltInflicts(cast.area.statuses), cast.area.cures ?? [], from);
+  }
+
+  private raiseAreaBurst(centre: AreaCentre, area: SpellArea) {
+    if (!area.burst) return;
+    const cells = areaFloorCells(this.map, this.tilesById, centre, area);
+    if (cells.length === 0) return;
+    const burst: AreaBurstNote = {
+      id: `area-${this.nextAreaId++}`,
+      x: centre.x,
+      y: centre.y,
+      cells,
+      burst: area.burst,
+    };
+    this.pendingAreaBursts.push(burst);
+    this.liveFlightEffects.push(...areaBurstEffects(burst.id, cells, area.burst));
+  }
+
   private rollHealthMove(
     subject: ActorRuntime,
-    stone: ArcaneStoneItem,
-    effect: Extract<StoneEffect, { kind: "bolt" }>,
+    effect: { damage?: number; variance?: number },
+    requirements: Masteries | undefined,
     elements: readonly Element[],
     context: { stats: FightingStats; masteries: Masteries },
   ): HealthMove | null {
     if (!effect.damage) return null;
 
-    const power = spellPower(effect.damage, stone.requirements, context.masteries);
+    const power = spellPower(effect.damage, requirements, context.masteries);
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
@@ -4114,7 +4412,7 @@ export class GameSession implements PlaySession {
     if (!destination) return false;
 
     if (destination.kind === "slot") {
-      const instance = this.takeFromBoard(ref);
+      const instance = this.takeFromBoard(ref, actor);
       if (!instance) return false;
       this.setEquipment(actor, {
         ...actor.equipment,
@@ -4137,7 +4435,7 @@ export class GameSession implements PlaySession {
     );
     if (!contents) return false;
 
-    if (!this.takeFromBoard(ref)) return false;
+    if (!this.takeFromBoard(ref, actor)) return false;
     this.setEquipment(actor, { ...actor.equipment, bag: { ...bag, contents } });
     return true;
   }
@@ -4155,18 +4453,19 @@ export class GameSession implements PlaySession {
     const slot = equipSlotFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
     if (!slot) return false;
 
-    const instance = this.takeFromBoard(ref);
+    const instance = this.takeFromBoard(ref, actor);
     if (!instance) return false;
 
     this.setEquipment(actor, { ...actor.equipment, [slot]: instance });
     return true;
   }
 
-  private takeFromBoard(ref: ObjectRef): ItemInstance | null {
+  private takeFromBoard(ref: ObjectRef, by: ActorRuntime): ItemInstance | null {
     const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
     const instance = placed && instanceFromPlacement(placed);
     if (!instance) return null;
 
+    this.noteTake(ref, this.locate(by));
     this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return instance;
@@ -4228,6 +4527,7 @@ export class GameSession implements PlaySession {
       : stack.filter((_, i) => i !== ref.stackIndex);
     const next = this.cellAfterLeaving(actor, ref, spent, consumable);
     if (!next) return null;
+    this.noteTake(ref, loc);
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return { consumable, name: def.name };
@@ -4295,7 +4595,8 @@ export class GameSession implements PlaySession {
     if (!actor || this.incapacitated(actor)) return false;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
-    return canMoveItem(this.map, this.tilesById, loc, actor.equipment, from, to);
+    const depots = this.depots.of(actor.id);
+    return applyDepotMove(this.map, this.tilesById, loc, actor.equipment, depots, from, to) != null;
   }
 
   moveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
@@ -4307,13 +4608,15 @@ export class GameSession implements PlaySession {
     if (this.noteCoolingRefusal(actor, loc, from)) return false;
     if (isBodySlot(to) && this.noteCoolingRefusal(actor, loc, to)) return false;
 
-    const moved = applyItemMove(this.map, this.tilesById, loc, actor.equipment, from, to);
+    const depots = this.depots.of(actor.id);
+    const moved = applyDepotMove(this.map, this.tilesById, loc, actor.equipment, depots, from, to);
     if (!moved) return false;
 
     this.map = moved.map;
     if (moved.equipment !== actor.equipment) {
       this.setEquipment(actor, moved.equipment);
     }
+    if (moved.depots !== depots) this.depots.write(actor.id, moved.depots);
     return true;
   }
 
@@ -4362,8 +4665,10 @@ export class GameSession implements PlaySession {
     const candidate = this.dropCandidate(from, to, id);
     if (!candidate) return false;
     const { actor, instance, destination } = candidate;
+    const thrownFrom = this.locate(actor);
+    const origin = this.midBody(thrownFrom);
 
-    const emptied = clearSlot(this.map, this.tilesById, this.locate(actor), actor.equipment, from);
+    const emptied = clearSlot(this.map, this.tilesById, thrownFrom, actor.equipment, from);
     if (!emptied) return false;
 
     const landed =
@@ -4386,15 +4691,17 @@ export class GameSession implements PlaySession {
 
     if (destination.kind === "contents") return true;
 
+    const stackIndex = landingIndex(getStack(emptied.map, to.x, to.y, to.z));
     this.reindexCells([to]);
     this.settleBoardNow();
+    this.noteToss(placementFromInstance(instance), { ...to, stackIndex }, origin);
     return true;
   }
 
   private setEquipment(actor: ActorRuntime, next: Equipment) {
     actor.equipment = next;
     actor.carriedLights = carriedLightTileIds(next, this.tilesById);
-    this.decay.armEquipment(next, this.tilesById);
+    if (!actor.resident) this.decay.armEquipment(next, this.tilesById);
     this.equipmentChanged.add(actor.id);
   }
 
@@ -4442,13 +4749,14 @@ export class GameSession implements PlaySession {
   canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
-    return canRewardFrom(
+    return canClaimRewardFrom(
       this.map,
       this.tilesById,
       this.locate(actor),
       ref,
       actor.equipment,
       actor.tags,
+      this.ratingOf(actor),
     );
   }
 
@@ -4461,6 +4769,7 @@ export class GameSession implements PlaySession {
     if (!reward) return false;
     if (actor.tags.includes(reward.tag)) return false;
     if (!rewardFits(reward, this.tilesById, actor.equipment)) return false;
+    if (rewardShortfall(reward, this.ratingOf(actor))) return false;
 
     const giverDef = this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
     if (!giverDef) return false;
@@ -4537,18 +4846,19 @@ export class GameSession implements PlaySession {
     this.cancelExtraction(actor);
     this.cancelCasting(actor);
 
+    const durationMs = extractDurationMs(extract, this.bodyOf(actor)?.masteries ?? {});
     const run: ExtractionRun = {
       ref,
       tileId: placed.tileId,
       from: at,
       progress: {
         key: extractKey(ref, placed.tileId),
-        remainingMs: extract.durationMs,
-        durationMs: extract.durationMs,
+        remainingMs: durationMs,
+        durationMs,
       },
     };
 
-    if (extract.durationMs <= 0) return this.finishExtraction(actor, run);
+    if (durationMs <= 0) return this.finishExtraction(actor, run);
 
     this.reserve(run);
     this.setExtraction(actor, run);
@@ -4577,6 +4887,7 @@ export class GameSession implements PlaySession {
     this.notePull(placed.tileId, run.ref);
     if (yielded.length > 0) this.giveExtracted(actor, yielded);
     if (actor.extraction === run) this.setExtraction(actor, null);
+    this.grantExperience(actor, extractEarnings(extract));
 
     this.say(actor.id, extractNotice(extract, def, yielded, this.tilesById));
     return true;
@@ -4680,6 +4991,12 @@ export class GameSession implements PlaySession {
         return this.runSpawnCommand(command, id);
       case DESPAWN_COMMAND:
         return this.runDespawnCommand(command, id);
+      case GIVE_COMMAND:
+        return this.runGiveCommand(command, id);
+      case BRAIN_COMMAND:
+        return this.runBrainCommand(command, id);
+      case FIRE_COMMAND:
+        return this.runFireCommand(command, id);
     }
   }
 
@@ -4841,6 +5158,187 @@ export class GameSession implements PlaySession {
     return { ok: true, data: { command: DESPAWN_COMMAND, target: actor.id, at } };
   }
 
+  private runGiveCommand(command: GiveCommand, id: string): CommandOutcome {
+    const targetId = command.target ?? id;
+    const actor = this.actors.get(targetId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
+    const name = this.bodyName(actor.id) ?? actor.id;
+    const body = this.tilesById[loc.placed.tileId];
+    if (!body || !resolveBattler(body)) {
+      return { ok: false, refusal: { kind: "noEquipment", name } };
+    }
+
+    const def = this.tilesById[command.tileId];
+    if (!def) return { ok: false, refusal: { kind: "unknownTile", typed: command.tileId } };
+    if (!isItem(def)) return { ok: false, refusal: { kind: "notAnItem", typed: command.tileId } };
+
+    const slot = giveSlot(def, command.square);
+    const instance: ItemInstance = { id: mintItemId(), tileId: def.id };
+    const { equipment } = actor;
+    const into: SlotRef = slot === "contents" ? { kind: "contents", index: 0 } : { kind: slot };
+    const placed = placeInSlot(this.map, this.tilesById, loc, equipment, into, instance);
+    if (!placed) return { ok: false, refusal: this.refusedGift(equipment, name, def, slot) };
+
+    /**
+     * An item that piles onto one of its own kind becomes part of that pile, as
+     * one picked up does. Either way it is what the square now holds, or the one
+     * bag entry the placement added or replaced, and that is the id handed back.
+     */
+    const landed =
+      slot === "contents"
+        ? placed.equipment.bag?.contents?.find((held) => !equipment.bag?.contents?.includes(held))
+        : placed.equipment[slot];
+    this.setEquipment(actor, placed.equipment);
+    this.say(actor.id, giveNotice(def.name, slot, null));
+    if (actor.id !== id) this.say(id, giveNotice(def.name, slot, name));
+    return {
+      ok: true,
+      data: {
+        command: GIVE_COMMAND,
+        target: actor.id,
+        tileId: def.id,
+        itemId: (landed ?? instance).id,
+        slot,
+      },
+    };
+  }
+
+  private refusedGift(
+    equipment: Equipment,
+    name: string,
+    def: TileDef,
+    slot: GiveSlot,
+  ): CommandRefusal {
+    if (!slotTakes(slot, def)) return { kind: "wrongSquare", item: def.name, slot };
+    if (slot === "contents") {
+      return equipment.bag ? { kind: "bagFull", name } : { kind: "noBag", name };
+    }
+
+    /**
+     * An empty hand is refused only when the other hand is in the way: it holds
+     * a two-handed weapon, or the item is one and needs both.
+     */
+    const square =
+      !equipment[slot] && (slot === "weapon" || slot === "offhand") ? otherHand(slot) : slot;
+    const holding = equipment[square];
+    if (!holding) return { kind: "wrongSquare", item: def.name, slot };
+    return {
+      kind: "squareTaken",
+      name,
+      square,
+      holding: this.tilesById[holding.tileId]?.name ?? holding.tileId,
+    };
+  }
+
+  private runBrainCommand(command: BrainCommand, id: string): CommandOutcome {
+    const targetId = command.target ?? id;
+    const actor = this.actors.get(targetId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
+    const name = this.bodyName(actor.id) ?? actor.id;
+    const def = this.tilesById[loc.placed.tileId];
+    const brain = def ? resolveBrain(def) : null;
+    if (!brain) return { ok: false, refusal: { kind: "brainless", name } };
+
+    const { change } = command;
+    if (change.kind === "state") {
+      if (!Object.hasOwn(brain.states, change.state)) {
+        return {
+          ok: false,
+          refusal: {
+            kind: "unknownState",
+            typed: change.state,
+            name,
+            known: Object.keys(brain.states),
+          },
+        };
+      }
+      actor.brain ??= initialMemory(brain);
+      enterBrainState(actor.brain, change.state);
+      /** A state can `emit` a signal, and wired tiles read it when the board settles. */
+      this.settleBoardNow();
+    }
+
+    actor.brainOff = change.kind === "off";
+    if (actor.brainOff) {
+      /**
+       * Dropped now rather than on the brain's next turn, which can be most of
+       * a round away: `pressAttackOrders` swings every tick until then.
+       */
+      actor.walkOrder = null;
+      actor.attackOrder = null;
+      this.cancelCasting(actor);
+      this.cancelExtraction(actor);
+    }
+
+    const on = !actor.brainOff;
+    const state = actor.brain?.state ?? brain.initial;
+    this.say(id, brainNotice(name, on, state));
+    return { ok: true, data: { command: BRAIN_COMMAND, target: actor.id, on, state } };
+  }
+
+  private runFireCommand(command: FireCommand, id: string): CommandOutcome {
+    const def = this.tilesById[command.tileId];
+    if (!def) return { ok: false, refusal: { kind: "unknownTile", typed: command.tileId } };
+    if (!resolveProjectile(def)) {
+      const known = projectileTiles(Object.values(this.tilesById)).map((tile) => tile.id);
+      return { ok: false, refusal: { kind: "notAProjectile", typed: command.tileId, known } };
+    }
+
+    const from = this.flightEnd(command.from, id);
+    if (!from.ok) return from;
+    const to = this.flightEnd(command.to, id);
+    if (!to.ok) return to;
+
+    /** `connected` says whether a blow landed, and no blow travels with this flight. */
+    const flightMs = this.fireProjectile(def.id, from.end, to.end, false);
+    this.say(id, fireNotice(def.name, from.name, to.name));
+    return {
+      ok: true,
+      data: {
+        command: FIRE_COMMAND,
+        tileId: def.id,
+        from: from.at,
+        to: to.at,
+        target: to.target,
+        flightMs,
+      },
+    };
+  }
+
+  private flightEnd(
+    end: FlightEnd,
+    authorId: string,
+  ):
+    | {
+        ok: true;
+        end: ActorLocation | Coord;
+        at: Coord;
+        name: string | Coord;
+        target: string | null;
+      }
+    | { ok: false; refusal: CommandRefusal } {
+    if (end.kind === "cell") {
+      const level = end.at.z ?? this.levelOf(authorId);
+      if (level === null) return { ok: false, refusal: { kind: "nowhereToPlace" } };
+      const at = { x: end.at.x, y: end.at.y, z: level };
+      return { ok: true, end: at, at, name: at, target: null };
+    }
+
+    const bodyId = end.target ?? authorId;
+    const actor = this.actors.get(bodyId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: bodyId } };
+    return {
+      ok: true,
+      end: loc,
+      at: { x: loc.x, y: loc.y, z: loc.z },
+      name: this.bodyName(actor.id) ?? actor.id,
+      target: actor.id,
+    };
+  }
+
   private levelOf(id: string): number | null {
     const actor = this.actors.get(id);
     const loc = actor ? this.tryLocate(actor) : null;
@@ -4939,6 +5437,7 @@ export class GameSession implements PlaySession {
         refusal: { kind: "unknownStatus", typed: statusId, known: Object.keys(this.statusDefs) },
       };
     }
+    if (command.off) return this.takeStatusOff(actor, def, authorId);
 
     const outcome = this.grantStatus(actor, { id: def.id });
     if (outcome === "refused") {
@@ -4959,6 +5458,25 @@ export class GameSession implements PlaySession {
     return {
       ok: true,
       data: { command: STATUS_COMMAND, target: actor.id, statusId: def.id, outcome },
+    };
+  }
+
+  private takeStatusOff(actor: ActorRuntime, def: StatusDef, authorId: string): CommandOutcome {
+    const name = this.bodyName(actor.id) ?? actor.id;
+    if (!actor.statuses.some((instance) => instance.defId === def.id)) {
+      return { ok: false, refusal: { kind: "statusAbsent", name, status: def.name } };
+    }
+
+    this.clearStatus(actor, def.id);
+    this.say(
+      authorId,
+      actor.id === authorId
+        ? statusRemovedNotice(def.name)
+        : otherStatusRemovedNotice(name, def.name),
+    );
+    return {
+      ok: true,
+      data: { command: STATUS_COMMAND, target: actor.id, statusId: def.id, outcome: "removed" },
     };
   }
 
@@ -5111,56 +5629,6 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  canSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    const actor = this.actor(id);
-    if (!this.readyToAct(actor)) return false;
-    if (actor.resident) return false;
-    return canSetSpawnFrom(this.map, this.tilesById, this.locate(actor), ref);
-  }
-
-  activateSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    const actor = this.actor(id);
-    if (!this.readyToAct(actor)) return false;
-    if (actor.resident) return false;
-
-    const loc = this.locate(actor);
-    if (!reachableSetSpawnAt(this.map, this.tilesById, loc, ref)) return false;
-
-    if (!this.markSpawn(actor, ref)) {
-      this.say(actor.id, spawnMarkUnchangedNotice());
-    }
-    return true;
-  }
-
-  private markSpawn(actor: ActorRuntime, at: Coord): boolean {
-    const cell = { x: at.x, y: at.y, z: at.z };
-    const mark = actor.spawnMark;
-    if (mark && mark.x === cell.x && mark.y === cell.y && mark.z === cell.z) {
-      return false;
-    }
-    actor.spawnMark = cell;
-    this.pendingSpawnMarks.push({ actorId: actor.id, at: cell });
-    this.say(actor.id, spawnMarkNotice());
-    return true;
-  }
-
-  private spawnMarkOnArrival(actor: ActorRuntime) {
-    if (actor.resident) return;
-
-    const loc = this.locate(actor);
-    const stack = getStack(this.map, loc.x, loc.y, loc.z);
-
-    for (let i = stack.length - 1; i >= 0; i--) {
-      if (i >= loc.stackIndex) continue;
-      const placed = stack[i]!;
-      const def = this.tilesById[placed.tileId];
-      const setSpawn = def ? resolveSetSpawn(def) : null;
-      if (!setSpawn || setSpawn.trigger !== "step") continue;
-      this.markSpawn(actor, { x: loc.x, y: loc.y, z: loc.z });
-      return;
-    }
-  }
-
   private statusOnArrival(actor: ActorRuntime) {
     actor.standingStatusMs = 0;
     this.clearStandingStatus(actor);
@@ -5275,7 +5743,6 @@ export class GameSession implements PlaySession {
       this.activateSwitch(ref, id) ||
       this.activateAddStatus(ref, id) ||
       this.activateRemoveStatus(ref, id) ||
-      this.activateSetSpawn(ref, id) ||
       this.extract(ref, id) ||
       this.equip(ref, id) ||
       this.pickUp(ref, id) ||
@@ -5293,7 +5760,6 @@ export class GameSession implements PlaySession {
       this.canSwitch(ref, id) ||
       this.canAddStatus(ref, id) ||
       this.canRemoveStatus(ref, id) ||
-      this.canSetSpawn(ref, id) ||
       this.canExtract(ref, id) ||
       this.canEquip(ref, id) ||
       this.canPickUp(ref, id) ||
@@ -5319,7 +5785,6 @@ export class GameSession implements PlaySession {
 
   private arriveIn(actor: ActorRuntime) {
     this.statusOnArrival(actor);
-    this.spawnMarkOnArrival(actor);
     this.teleportOnArrival(actor);
   }
 
@@ -5388,6 +5853,7 @@ export class GameSession implements PlaySession {
       casting: actor.casting?.progress ?? null,
       pvp: actor.pvp,
       hidden: actor.hidden,
+      king: actor.id === this.kingId,
     };
   }
 
@@ -5420,7 +5886,6 @@ export class GameSession implements PlaySession {
       attacking: self.attacking,
       equipment: self.equipment,
       tags: self.tags,
-      spawnAt: self.spawnMark,
       conversation: self.conversation,
       extracting: this.extractionOf(self.id),
       nextBlow: this.nextBlowOf(self.id),
@@ -5430,6 +5895,7 @@ export class GameSession implements PlaySession {
       chats: [],
       noises: this.liveNoise,
       afflicted: this.afflictedPlacements(),
+      depots: this.depots.of(self.id),
       damage: this.liveDamage,
       projectiles: this.liveProjectiles,
       flightEffects: this.liveFlightEffects,
@@ -5699,6 +6165,16 @@ export class GameSession implements PlaySession {
     }
     this.map = next;
   }
+}
+
+/**
+ * Named `bag`, a bag goes on the back and anything else goes into the bag.
+ * Named nothing, an item goes where `equipSlotsFor` wears it first, or into the bag.
+ */
+function giveSlot(def: TileDef, square: GiveCommand["square"]): GiveSlot {
+  if (square === null) return equipSlotsFor(def)[0] ?? "contents";
+  if (square === "bag" && !resolveContainer(def)) return "contents";
+  return square;
 }
 
 function slotsAfterInsert(slots: readonly number[], at: number): number[] {

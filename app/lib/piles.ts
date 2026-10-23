@@ -71,12 +71,24 @@ export function peelOne<T extends Pile>(thing: T): T | null {
   return left <= 0 ? null : withCount(thing, left);
 }
 
+/** Bodies stand on whatever lands in their cell, so a new item goes beneath any at the top. */
+export function landingIndex(stack: readonly PlacedTile[]): number {
+  let i = stack.length;
+  while (i > 0 && stack[i - 1]!.owner) i--;
+  return i;
+}
+
+export function stackWithLanding(stack: readonly PlacedTile[], placed: PlacedTile): PlacedTile[] {
+  const at = landingIndex(stack);
+  return [...stack.slice(0, at), placed, ...stack.slice(at)];
+}
+
 export function stackWithItem(
   stack: readonly PlacedTile[],
   placed: PlacedTile,
   tilesById: Record<string, TileDef>,
 ): PlacedTile[] {
-  return pourInto(stack, placed, tilesById) ?? [...stack, placed];
+  return pourInto(stack, placed, tilesById) ?? stackWithLanding(stack, placed);
 }
 
 export function appendItem(

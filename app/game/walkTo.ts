@@ -21,6 +21,7 @@ export type WalkView = {
   tilesById: Record<string, TileDef>;
   statusDefs: Record<string, StatusDef>;
   bodyAt: (actorId: string) => Coord | null;
+  strikes: (actorId: string) => boolean;
 };
 
 type Errand =
@@ -142,6 +143,11 @@ export class WalkTo {
       return null;
     }
 
+    if (errand.kind === "body" && view.strikes(errand.actorId)) {
+      this.standInReach();
+      return null;
+    }
+
     const from = view.stepping ?? view.at;
 
     if (
@@ -187,6 +193,16 @@ export class WalkTo {
 
     this.input.setAuto(leg.direction);
     return null;
+  }
+
+  /**
+   * Forgetting the last search is what sets the follow off again once the body
+   * steps out of reach: the cache would otherwise read the same two cells as a
+   * route already handed over.
+   */
+  private standInReach() {
+    this.forget();
+    this.input.setAuto(null);
   }
 
   /** Stops short where it is, keeping an approach's errand for `cancel` to end. */

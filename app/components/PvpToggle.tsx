@@ -1,4 +1,4 @@
-import { IconSkull } from "@tabler/icons-react";
+import { IconSkull } from "./pixelIcons";
 import { useState } from "react";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -51,7 +51,7 @@ export function PvpToggle({
             changeable ? "" : "opacity-40",
           ].join(" ")}
         >
-          <IconSkull size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
+          <IconSkull size={size === "touch" ? 24 : 18} aria-hidden="true" />
         </button>
       </Tooltip>
 

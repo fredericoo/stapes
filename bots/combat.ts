@@ -83,18 +83,20 @@ export function choosePrey<T extends Rated>(
 /**
  * The bag slot of the food that heals most without risking a bad status:
  * raw meat and anything stale can poison, so they are never eaten to heal.
+ * `worth` is `healing`, or `healsAtOnce` in a fight.
  */
 export function healingFood(
   equipment: Equipment,
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
+  worth: (def: TileDef, statusDefs: Record<string, StatusDef>) => number = healing,
 ): number | null {
   const bag = equipment.bag?.contents ?? [];
   let bestIndex: number | null = null;
   let bestHp = 0;
   for (let index = 0; index < bag.length; index++) {
     const def = tilesById[bag[index]!.tileId];
-    const hp = def ? healing(def, statusDefs) : 0;
+    const hp = def ? worth(def, statusDefs) : 0;
     if (hp <= bestHp) continue;
     bestIndex = index;
     bestHp = hp;
@@ -120,6 +122,19 @@ export function healing(def: TileDef, statusDefs: Record<string, StatusDef>): nu
   if (grants.some((grant) => statusDefs[grant.id]?.tone === "bad")) return 0;
   const mending = grants.filter((grant) => mends(statusDefs[grant.id])).length;
   return Math.max(0, food.hp) + mending * MENDING_STATUS_HP;
+}
+
+/**
+ * Health a food gives the moment it is eaten, or 0 for food that risks a bad
+ * status. In a fight this is all a food is worth: while it fights, `fed`
+ * mends a character's whole health over five minutes, far slower than
+ * anything that can hurt it deals damage.
+ */
+export function healsAtOnce(def: TileDef, statusDefs: Record<string, StatusDef>): number {
+  const food = resolveConsumable(def);
+  if (!food) return 0;
+  if ((food.statuses ?? []).some((grant) => statusDefs[grant.id]?.tone === "bad")) return 0;
+  return Math.max(0, food.hp);
 }
 
 function mends(status: StatusDef | undefined): boolean {

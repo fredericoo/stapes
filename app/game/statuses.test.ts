@@ -495,4 +495,11 @@ describe("incapacitating, and ending on damage", () => {
     const fedOnly = applyStatus([], fed, rng);
     expect(endOnDamage(fedOnly, defs)).toBe(fedOnly);
   });
+
+  it("leaves a body that cannot act no way to dodge", () => {
+    const base = fightingStats(DEFAULT_BATTLER, DEFAULT_WEAPON);
+    const asleep = withStatusModifiers(base, applyStatus([], sleep, rng), defs, 8);
+    expect(asleep.flee).toBe(0);
+    expect(asleep.canDodge).toBe(false);
+  });
 });

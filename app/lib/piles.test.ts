@@ -268,6 +268,15 @@ describe("landing on a cell", () => {
     ]);
   });
 
+  it("goes beneath a body standing on top of the stack", () => {
+    const stack = [{ tileId: "grass" }, { tileId: "player", owner: "a" }];
+    expect(stackWithItem(stack, { tileId: "sword" }, tilesById)).toEqual([
+      { tileId: "grass" },
+      { tileId: "sword" },
+      { tileId: "player", owner: "a" },
+    ]);
+  });
+
   it("writes the poured stack back to the map", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },

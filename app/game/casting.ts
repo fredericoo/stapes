@@ -1,5 +1,6 @@
 import type { NaturalSpell } from "../lib/battler";
-import type { ArcaneStoneItem } from "../lib/item";
+import type { AreaShape } from "../lib/area";
+import type { ArcaneStoneItem, Reach, StoneSubject } from "../lib/item";
 import { reachOf, resolveStone } from "../lib/item";
 import {
   type Masteries,
@@ -76,7 +77,23 @@ export type CasterPoint = CastPoint & {
 export type CastProgress = Progress & {
   slot: CastSlot;
   targetId?: string;
+  area?: CastArea;
 };
+
+/** The shape a cast will cover, shown while it winds up; `on` names its centre. */
+export type CastArea = {
+  shape: AreaShape;
+  radius: number;
+  height: number;
+  on: StoneSubject;
+};
+
+export function castAreaOf(stone: ArcaneStoneItem): CastArea | undefined {
+  const effect = stone.effect;
+  if (effect.kind !== "bolt" || !effect.area) return undefined;
+  const { shape, radius, height } = effect.area;
+  return { shape, radius, height, on: effect.on };
+}
 
 export type CastContext = {
   map: MapFile;
@@ -132,8 +149,6 @@ function reachability(context: CastContext, stone: ArcaneStoneItem): Castability
   const target = context.target;
   if (!target && stone.effect.kind !== "conjure") return refused("noTarget");
 
-  if (!targetInReach(context, stone)) return refused("outOfRange");
-
   if (target && harmsOnLanding(stone) && context.mayHarmTarget === false) {
     return refused("peaceful");
   }
@@ -141,6 +156,13 @@ function reachability(context: CastContext, stone: ArcaneStoneItem): Castability
   if (stone.effect.kind === "conjure" && !conjureLanding(context, stone.effect.tileId)) {
     return refused("blocked");
   }
+
+  /**
+   * Last, so `outOfRange` means distance is all that stands in the way: the renderer
+   * walks a player into range on that refusal, and must not walk them up to a cast
+   * that would be refused on arrival.
+   */
+  if (!targetInReach(context, stone)) return refused("outOfRange");
   return CASTABLE;
 }
 
@@ -221,6 +243,10 @@ export type SpellButton = {
   cooldownTotalMs: number;
   castTimeMs: number;
   castability: Castability;
+  /** Null for a stone that lands on its caster, which no walk brings closer. */
+  reach: Reach | null;
+  /** Out of range, and a walk reaches a cell in range: pressing it walks there and casts. */
+  approach: boolean;
 };
 
 export function castableSpells(context: CastContext): SpellButton[] {
@@ -244,6 +270,8 @@ export function castableSpells(context: CastContext): SpellButton[] {
       cooldownTotalMs: stone.cooldownMs,
       castTimeMs: castDurationMs(stone, context.masteries),
       castability: castability(context, slot),
+      reach: needsTarget(stone) ? reachOf(stone) : null,
+      approach: false,
     });
   }
 
@@ -260,6 +288,8 @@ export function castableSpells(context: CastContext): SpellButton[] {
       cooldownTotalMs: spell.cooldownMs,
       castTimeMs: castDurationMs(spell, context.masteries),
       castability: castability(context, slot),
+      reach: needsTarget(spell) ? reachOf(spell) : null,
+      approach: false,
     });
   }
   return buttons;
@@ -279,7 +309,8 @@ export function spellReading(buttons: readonly SpellButton[]): string {
     .map((button) => {
       const refusal = button.castability.ok ? "" : button.castability.reason;
       const seconds = Math.ceil(button.cooldownMs / MS_PER_SECOND);
-      return `${button.key}:${slotReading(button.slot)}:${seconds}:${button.castTimeMs}:${refusal}`;
+      const approach = button.approach ? "approach" : "";
+      return `${button.key}:${slotReading(button.slot)}:${seconds}:${button.castTimeMs}:${refusal}:${approach}`;
     })
     .join("|");
 }
@@ -297,10 +328,16 @@ export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   peaceful: "they are not in the fighting",
 };
 
-export type SpellPress = "cast" | "stop";
+export const APPROACH_NOTE = "out of range, walks there first";
 
-export function spellPress(castability: Castability): SpellPress | null {
+export type SpellPress = "cast" | "approach" | "stop";
+
+export function spellPress({
+  castability,
+  approach,
+}: Pick<SpellButton, "castability" | "approach">): SpellPress | null {
   if (castability.ok) return "cast";
+  if (approach) return "approach";
   if (castability.reason === "noTarget") return "cast";
   if (castability.reason === "underway") return "stop";
   return null;

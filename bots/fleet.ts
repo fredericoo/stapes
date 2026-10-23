@@ -1,9 +1,11 @@
 import { randomCharacterName } from "../app/lib/randomCharacterName";
 import { MAX_USERNAME_LENGTH } from "../app/lib/account";
+import { RATING_GLYPH } from "../app/lib/mastery";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { RemoteSession } from "../app/net/RemoteSession";
+import { CLOSE_OUTDATED_CLIENT, CLOSE_REPLACED } from "../app/net/protocol";
 import type { ClientSocket } from "../app/net/socket";
-import { takeSeat, type BotAccount } from "./account";
+import { Refused, takeSeat, type BotAccount } from "./account";
 import { openaiPlanner } from "./LlmPlanner";
 import { Bot } from "./Bot";
 import type { Goal } from "./goals";
@@ -23,9 +25,13 @@ const DECIDE_MS = 200;
 
 const RECONNECT_MS = 5_000;
 
-const CLOSE_OUTDATED = 4001;
-
-const CLOSE_REPLACED = 4002;
+/**
+ * A server on another protocol turns the bot away until one side is
+ * deployed again. Production runs release tags and a bot may run from `main`,
+ * so either side can be the newer, and the bot waits for the other rather
+ * than exiting.
+ */
+const OUTDATED_RETRY_MS = 60_000;
 
 /**
  * A server starts all its bots at once, and bots that join in the same
@@ -74,23 +80,19 @@ function accountFor(index: number, attempt: number, password: string): BotAccoun
   return { username, password, character };
 }
 
-/** A refusal about the account or the name, rather than the world being down. */
-function refused(error: unknown): boolean {
-  return /could not (create|sign in or sign up)/.test(String(error));
-}
-
 async function play(
   fleet: FleetConfig,
   account: BotAccount,
   landmarks: Landmarks,
-  log: (line: string) => void,
-): Promise<"again" | "stop"> {
+  logLine: (line: string) => void,
+): Promise<"again" | "outdated" | "stop"> {
   const { base, origin } = fleet;
   const seat = await takeSeat(base, origin, account);
   const socket = new BunWebSocket(seat.socketUrl, {
     headers: { Cookie: seat.cookie, Origin: origin },
   });
   const remote = new RemoteSession(socket, seat.tiles, seat.statusDefs);
+  const log = (line: string) => logLine(`${standing(remote)} ${line}`);
   const temperament = drawTemperament(seededRandom(account.character));
   log(`plays ${temperament.style}`);
   const progress = new ProgressPlanner(OPENING);
@@ -121,27 +123,49 @@ async function play(
       clearInterval(frame);
       remote.dispose();
       log(`socket closed: ${event.code} ${event.reason}`);
-      resolve(event.code === CLOSE_REPLACED || event.code === CLOSE_OUTDATED ? "stop" : "again");
+      resolve(closing(event.code));
     });
   });
 }
 
+function closing(code: number): "again" | "outdated" | "stop" {
+  if (code === CLOSE_REPLACED) return "stop";
+  if (code === CLOSE_OUTDATED_CLIENT) return "outdated";
+  return "again";
+}
+
 /**
- * Plays bot `index` until the server replaces or outdates it, signing in again
- * after every other disconnection.
+ * The bot's health, rating and cell, put on every line it logs so that a
+ * night's log can be read for how hurt a bot was and where, not only what it
+ * did. A bot that is dead or not yet placed has no body to read.
+ */
+function standing(remote: RemoteSession): string {
+  const self = remote.selfSnapshot();
+  if (!self) return "-";
+  const rating = self.rating === null ? "" : ` ${RATING_GLYPH}${self.rating}`;
+  return `hp ${self.hp ?? "?"}/${self.maxHp ?? "?"}${rating} at ${self.x},${self.y},${self.z}`;
+}
+
+/**
+ * Plays bot `index` until the server replaces it, signing in again after
+ * every other disconnection.
  */
 export async function runBot(fleet: FleetConfig, index: number, landmarks: Landmarks) {
   await new Promise((resolve) => setTimeout(resolve, between(Math.random, 0, START_JITTER_MS)));
   for (let attempt = 0; attempt < NAME_ATTEMPTS;) {
     const account = accountFor(index, attempt, fleet.password);
-    const log = (line: string) => console.log(`[${account.character}] ${line}`);
+    const log = (line: string) =>
+      console.log(`${new Date().toISOString()} [${account.character}] ${line}`);
+    let waitMs = RECONNECT_MS;
     try {
-      if ((await play(fleet, account, landmarks, log)) === "stop") return;
+      const ended = await play(fleet, account, landmarks, log);
+      if (ended === "stop") return;
+      if (ended === "outdated") waitMs = OUTDATED_RETRY_MS;
     } catch (error) {
       log(String(error));
-      if (refused(error)) attempt++;
+      if (error instanceof Refused) attempt++;
     }
-    await new Promise((resolve) => setTimeout(resolve, RECONNECT_MS));
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
   console.error(`[bots] bot ${index} found no name to play under`);
 }

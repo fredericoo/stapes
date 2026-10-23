@@ -20,6 +20,12 @@ export type ParticleEmitterSpec = {
    * lifetime and the emission rate are left as authored.
    */
   scale: number;
+  /**
+   * The part of a particle already owed when the emitter is born. Emitters that
+   * share out one small rate, as an area burst's cells do, would otherwise each
+   * wait for a whole particle of their own and many would never spawn one.
+   */
+  startDebt?: number;
 };
 
 type EmitterState = {
@@ -90,7 +96,7 @@ export class ParticleSystem {
           spec,
           ramp: compileRamp(spec.config.ramp),
           offsets: compileOffsets(spec.config),
-          spawnDebt: 0,
+          spawnDebt: spec.startDebt ?? 0,
           retired: false,
           refs: 0,
         });

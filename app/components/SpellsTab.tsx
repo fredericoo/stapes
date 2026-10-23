@@ -150,6 +150,7 @@ export function SpellsTab({
               stone={spell}
               onChange={(fields) => patchSpell(index, fields)}
               tiles={tiles}
+              tilesets={tilesets}
               statusDefs={statusDefs}
             />
           </div>

@@ -437,5 +437,197 @@
       "light": null,
       "taperMs": 1500
     }
+  },
+  {
+    "id": "dazed",
+    "name": "Dazed",
+    "description": "The ground went out from under you: slow, off-aim and in no state to dodge.",
+    "tone": "bad",
+    "fromMs": 6000,
+    "toMs": 7000,
+    "stacks": false,
+    "maxMs": 7000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {
+      "accuracy": "-15",
+      "flee": "-40"
+    },
+    "walkSpeedPercent": -50,
+    "vfx": {
+      "tint": {
+        "color": "#c2a878",
+        "strength": 0.45,
+        "keepLuma": 0.85
+      },
+      "particles": null,
+      "light": null,
+      "taperMs": 1000
+    }
+  },
+  {
+    "id": "enraged",
+    "name": "Enraged",
+    "description": "Blind with fury: faster and harder-hitting, but careless.",
+    "tone": "good",
+    "fromMs": 30000,
+    "toMs": 30000,
+    "stacks": false,
+    "maxMs": 30000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {
+      "damage": "5",
+      "spd": "10",
+      "def": "-5"
+    },
+    "walkSpeedPercent": 25,
+    "vfx": {
+      "tint": {
+        "color": "#e83b3b",
+        "strength": 0.55,
+        "keepLuma": 0.8
+      },
+      "particles": null,
+      "light": null,
+      "taperMs": 2000
+    }
+  },
+  {
+    "id": "crystallised",
+    "name": "Crystallised",
+    "description": "Cased in ice: harder to hurt, slower on your feet.",
+    "tone": "good",
+    "icon": {
+      "tilesetId": "ultima-vi",
+      "rect": {
+        "x": 28,
+        "y": 72,
+        "w": 2,
+        "h": 2
+      },
+      "base": {
+        "x": 1,
+        "y": 1
+      }
+    },
+    "fromMs": 30000,
+    "toMs": 30000,
+    "stacks": false,
+    "maxMs": 30000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {
+      "def": "10"
+    },
+    "walkSpeedPercent": -25,
+    "vfx": {
+      "tint": {
+        "color": "#bfe6ff",
+        "strength": 0.7,
+        "keepLuma": 0.9
+      },
+      "particles": {
+        "ratePerSecond": 2,
+        "ttlFromMs": 700,
+        "ttlToMs": 1500,
+        "spawnRadiusCells": 0.35,
+        "spawnElevFrom": 0,
+        "spawnElevTo": 4,
+        "riseFrom": -1,
+        "riseTo": 1,
+        "driftCellsPerSecond": 0.15,
+        "gravity": 1.2,
+        "radiusFromPx": 1,
+        "radiusToPx": 1,
+        "alphaFrom": 0.9,
+        "alphaTo": 0,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#ffffff"
+          },
+          {
+            "at": 0.5,
+            "color": "#8ecbff"
+          },
+          {
+            "at": 1,
+            "color": "#1d2b53"
+          }
+        ],
+        "lit": true
+      },
+      "light": null,
+      "taperMs": 3000
+    }
+  },
+  {
+    "id": "blossoming",
+    "name": "Blossoming",
+    "description": "Mending fast while you flower: slower to walk and to strike, and easier to hurt.",
+    "tone": "good",
+    "icon": {
+      "tilesetId": "tiny-ranch-tiles",
+      "rect": {
+        "x": 5,
+        "y": 19,
+        "w": 1,
+        "h": 1
+      },
+      "base": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "fromMs": 30000,
+    "toMs": 30000,
+    "stacks": false,
+    "maxMs": 30000,
+    "everyMs": 1000,
+    "effects": {
+      "hp": "ceil(MAX_HP / 40)"
+    },
+    "modifiers": {
+      "spd": "-10",
+      "def": "-10"
+    },
+    "walkSpeedPercent": -25,
+    "vfx": {
+      "tint": {
+        "color": "#7fd65a",
+        "strength": 0.45,
+        "keepLuma": 0.9
+      },
+      "particles": {
+        "ratePerSecond": 2,
+        "ttlFromMs": 700,
+        "ttlToMs": 1500,
+        "spawnRadiusCells": 0.35,
+        "spawnElevFrom": 0,
+        "spawnElevTo": 4,
+        "riseFrom": -1,
+        "riseTo": 1,
+        "driftCellsPerSecond": 0.15,
+        "gravity": -0.8,
+        "radiusFromPx": 1,
+        "radiusToPx": 1,
+        "alphaFrom": 0.9,
+        "alphaTo": 0,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#ffd1e8"
+          },
+          {
+            "at": 1,
+            "color": "#3c791b"
+          }
+        ],
+        "lit": true
+      },
+      "light": null,
+      "taperMs": 3000
+    }
   }
 ]

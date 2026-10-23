@@ -236,6 +236,69 @@ describe("putting a pile down", () => {
   });
 });
 
+describe("putting a thing down where you stand", () => {
+  it("lands beneath you rather than on your head", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "sword" }]));
+
+    expect(session.drop(BAG_SLOT, HERE, WHO)).toBe(true);
+    const stack = getStack(session.getMap(), HERE.x, HERE.y, HERE.z);
+    expect(stack.map((placed) => placed.tileId)).toEqual(["grass", "sword", "player"]);
+    expect(stack[2]?.owner).toBe(WHO);
+    expect(session.drainTransitions().filter((note) => note.tossedFrom)).toMatchObject([
+      { side: "appear", tileId: "sword", ...HERE, stackIndex: 1 },
+    ]);
+  });
+});
+
+describe("a thing put down on the floor", () => {
+  function tosses(session: GameSession) {
+    return session.drainTransitions().filter((note) => note.tossedFrom);
+  }
+
+  it("is tossed from halfway up whoever put it down", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "berry" }]));
+
+    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(tosses(session)).toMatchObject([
+      {
+        side: "appear",
+        tileId: "berry",
+        ...ASIDE,
+        tossedFrom: { x: HERE.x, y: HERE.y, elev: 2, order: 0 },
+      },
+    ]);
+  });
+
+  it("is not tossed when it pours into a pile already lying there", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "berry" }]), {
+      tileId: "berry",
+      itemId: "itm_b",
+    });
+
+    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(tosses(session)).toEqual([]);
+  });
+});
+
+describe("a thing taken off the floor", () => {
+  const INTO_HANDS = { side: "disappear", tileId: "berry", ...ASIDE };
+  const BY_WHO = { x: HERE.x, y: HERE.y, elev: 2 };
+
+  it("flies to halfway up whoever picked it up", () => {
+    const session = world(carrying([]), { tileId: "berry", itemId: "itm_b" });
+
+    expect(session.pickUp(ASIDE, WHO)).toBe(true);
+    expect(session.drainTransitions()).toMatchObject([{ ...INTO_HANDS, takenBy: BY_WHO }]);
+  });
+
+  it("flies to whoever ate it off the floor, even one off a pile", () => {
+    const session = world(carrying([]), { tileId: "berry", itemId: "itm_b", count: 2 });
+
+    expect(session.consume({ kind: "floor", ref: ASIDE }, WHO)).toBe(true);
+    expect(session.drainTransitions()).toMatchObject([{ ...INTO_HANDS, takenBy: BY_WHO }]);
+  });
+});
+
 describe("summoning one with /tile", () => {
   it("pours into a pile already in that cell, like a drop", () => {
     const session = world(carrying([]), {

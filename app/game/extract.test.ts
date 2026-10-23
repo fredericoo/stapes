@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { extractsLeft, interactionsForSave, pullEffect, resolveExtract } from "../lib/interactions";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import type { Masteries } from "../lib/mastery";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../lib/mapData";
 import { DEFAULT_IMPACT } from "../lib/particleVfx";
 import { statusesById } from "../lib/status";
@@ -20,7 +21,7 @@ import {
   rollExtract,
   type Extraction,
 } from "./extract";
-import { GameSession } from "./GameSession";
+import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { listInteractionOptions, topInteractionAt } from "./interactionOptions";
 
 const BAG_TILE_ID = "basic-bag";
@@ -56,6 +57,10 @@ const BURNING = statusesById([
 
 const QUICK_PULL_MS = 2_000;
 
+const TWICE_AS_QUICK_MINING = 51;
+
+const VEIN_XP = 7;
+
 const WILT_MS = 1_000;
 
 const CHIPS = { durationMs: 200, particles: DEFAULT_IMPACT };
@@ -65,9 +70,8 @@ const FADE = {
   dissolve: { pattern: "noise", edgeColor: "#ffffff", edgeWidth: 0.1 },
 };
 
-const tiles = [
-  tile({ id: "grass" }),
-  tile({
+function playerTile(masteries: Masteries = { toughness: 8 }): TileDef {
+  return tile({
     id: "player",
     height: 4,
     kind: "battler",
@@ -75,12 +79,17 @@ const tiles = [
     interactions: {
       battler: {
         baseHp: 8,
-        masteries: { toughness: 8 },
+        masteries,
         naturalWeapon: DEFAULT_WEAPON,
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
       },
     },
-  }),
+  });
+}
+
+const tiles = [
+  tile({ id: "grass" }),
+  playerTile(),
   tile({
     id: "berry",
     kind: "item",
@@ -186,10 +195,41 @@ const tiles = [
     },
   }),
   tile({ id: "cut-herb", height: 2, transitions: { appear: FADE } }),
+  tile({
+    id: "nimble-bush",
+    height: 2,
+    interactions: {
+      extract: {
+        durability: 2,
+        tileId: "picked-bush",
+        durationMs: EXTRACT_MS,
+        slots: [{ tileId: "berry", chance: 100 }],
+        mastery: "agility",
+      },
+    },
+  }),
+  tile({
+    id: "vein",
+    height: 4,
+    interactions: {
+      extract: {
+        durability: 2,
+        tileId: "",
+        durationMs: EXTRACT_MS,
+        slots: [{ tileId: "shard", chance: 100 }],
+        mastery: "mining",
+        xp: VEIN_XP,
+      },
+    },
+  }),
 ];
 const tilesById = tilesByIdFromList(tiles);
 
-const ME = { x: 0, y: 0, z: 0 };
+const minersTiles = tiles.map((def) =>
+  def.id === "player" ? playerTile({ mining: TWICE_AS_QUICK_MINING }) : def,
+);
+
+const ME = { x: 0, y: 0, z: 0, stackIndex: 0 };
 const BUSH: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const NOTHING_EXTRACTING: Extraction | null = null;
 
@@ -689,6 +729,51 @@ describe("making a pull", () => {
   });
 });
 
+describe("the mastery a pull trains", () => {
+  it("takes the authored time from somebody who has never done it", () => {
+    const session = new GameSession(board("vein"), tiles);
+    session.interact(BUSH);
+
+    expect(session.getSnapshot().self.extracting?.durationMs).toBe(EXTRACT_MS);
+  });
+
+  it("goes quicker for somebody practised in it", () => {
+    const session = new GameSession(board("vein"), minersTiles);
+    session.interact(BUSH);
+
+    expect(session.getSnapshot().self.extracting?.durationMs).toBe(EXTRACT_MS / 2);
+  });
+
+  it("pays the mastery what the extract says once the pull lands", () => {
+    const session = new GameSession(board("vein"), tiles);
+    const before = session.masteryXpOf(LOCAL_ACTOR_ID)?.mining ?? 0;
+    session.interact(BUSH);
+    session.tick(EXTRACT_MS);
+
+    expect(session.masteryXpOf(LOCAL_ACTOR_ID)?.mining).toBeCloseTo(before + VEIN_XP);
+  });
+
+  it("teaches nothing when the extract pays no experience", () => {
+    const session = new GameSession(board("nimble-bush"), tiles);
+    const before = session.masteryXpOf(LOCAL_ACTOR_ID)?.agility ?? 0;
+    session.interact(BUSH);
+    session.tick(EXTRACT_MS);
+
+    expect(bagTileIds(session)).toEqual(["berry"]);
+    expect(session.masteryXpOf(LOCAL_ACTOR_ID)?.agility ?? 0).toBe(before);
+  });
+
+  it("pays nothing for a pull that is broken off", () => {
+    const session = new GameSession(board("vein"), tiles);
+    const before = session.masteryXpOf(LOCAL_ACTOR_ID)?.mining ?? 0;
+    session.interact(BUSH);
+    session.setInput({ directions: ["w"] });
+    session.tick(EXTRACT_MS);
+
+    expect(session.masteryXpOf(LOCAL_ACTOR_ID)?.mining ?? 0).toBe(before);
+  });
+});
+
 describe("losing a pull", () => {
   it("gives the vein its pull back when the player steps away", () => {
     const session = new GameSession(board(), tiles);
@@ -943,7 +1028,6 @@ describe("the row it offers", () => {
       equipment ?? snap.equipment,
       null,
       snap.tags,
-      null,
       false,
       snap.extracting,
     );
@@ -1016,7 +1100,6 @@ describe("the row it offers", () => {
       snap.equipment,
       null,
       snap.tags,
-      null,
       false,
       null,
     ).filter((option) => option.action === "extract");
@@ -1064,21 +1147,23 @@ describe("the row it offers", () => {
     );
   });
 
-  it("is passed over by the tap while the bag is full", () => {
+  it("stays first for the tap while the bag is full, so the tap can say why", () => {
     const session = new GameSession(board(), tiles);
 
-    expect(topInteractionAt(optionsFor(session, bagWith(4)), BUSH)).toBeNull();
+    expect(topInteractionAt(optionsFor(session, bagWith(4)), BUSH)?.blocked).toEqual({
+      kind: "noRoom",
+    });
   });
 
-  it("is passed over by the tap while the pull is being made", () => {
+  it("stays first for the tap while the pull is being made, blocked until it lands", () => {
     const session = new GameSession(board(), tiles);
-    expect(topInteractionAt(optionsFor(session), BUSH)?.action).toBe("extract");
+    expect(topInteractionAt(optionsFor(session), BUSH)?.blocked).toBeNull();
 
     session.interact(BUSH);
-    expect(topInteractionAt(optionsFor(session), BUSH)).toBeNull();
+    expect(topInteractionAt(optionsFor(session), BUSH)?.blocked?.kind).toBe("working");
 
     session.tick(EXTRACT_MS);
-    expect(topInteractionAt(optionsFor(session), BUSH)?.action).toBe("extract");
+    expect(topInteractionAt(optionsFor(session), BUSH)?.blocked).toBeNull();
   });
 
   it("keeps the pull's identity while it merely runs down", () => {
@@ -1165,6 +1250,21 @@ describe("saving an extract", () => {
     });
 
     expect(saved?.extract?.pulled).toEqual(CHIPS);
+  });
+
+  it("keeps the mastery a pull trains", () => {
+    const saved = interactionsForSave({
+      extract: {
+        durability: 1,
+        tileId: "",
+        durationMs: 0,
+        slots: [{ tileId: "shard", chance: 100 }],
+        mastery: "mining",
+        xp: VEIN_XP,
+      },
+    });
+
+    expect(saved?.extract).toMatchObject({ mastery: "mining", xp: VEIN_XP });
   });
 });
 

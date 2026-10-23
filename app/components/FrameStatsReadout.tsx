@@ -59,7 +59,7 @@ export function FrameStatsReadout({ stats }: { stats: FrameStats | null }) {
             nested={NESTED_PHASES.has(phase)}
           />
         ))}
-        <p className="mt-2 text-[10px] leading-tight text-paper/50">
+        <p className="mt-2 text-2xs leading-tight text-paper/50">
           Indented phases are inside <code>view</code>. <code>draw</code> is CPU submit only — GPU
           time lands after it returns.
         </p>

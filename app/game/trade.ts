@@ -1,4 +1,4 @@
-import type { TradeSide } from "../lib/dialog";
+import type { DialogTrade, TradeSide } from "../lib/dialog";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { countOf, fuses, stow, withCount } from "../lib/piles";
@@ -52,6 +52,33 @@ export function planTrade(
     }
   }
   return kit;
+}
+
+/**
+ * The price caps the scan, then each amount below it is planned in full, since
+ * room for what is given is not monotone: paying can empty a square.
+ */
+export function largestTradeAmount(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  trade: Pick<DialogTrade, "take" | "give" | "min" | "max">,
+  mintId: () => string,
+): number | null {
+  let ceiling = trade.max;
+  for (const side of trade.take) {
+    const affordable = Math.floor(carriedCount(tilesById, equipment, side.tileId) / side.count);
+    ceiling = Math.min(ceiling, affordable);
+  }
+  const times = (amount: number) => (side: TradeSide) => ({
+    tileId: side.tileId,
+    count: side.count * amount,
+  });
+  for (let amount = ceiling; amount >= trade.min; amount--) {
+    const take = trade.take.map(times(amount));
+    const give = trade.give.map(times(amount));
+    if (planTrade(tilesById, equipment, take, give, mintId)) return amount;
+  }
+  return null;
 }
 
 export function hasRoomFor(

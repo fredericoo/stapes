@@ -8,12 +8,13 @@ import {
   replaceStack,
   serializeMap,
   updatePlacedReward,
+  type RewardDraft,
 } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
-import { canRewardFrom, rewardFits } from "./affordances";
+import { canRewardFrom, rewardFits, rewardShortfall } from "./affordances";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession } from "./GameSession";
 import { listInteractionOptions } from "./interactionOptions";
@@ -65,7 +66,7 @@ const tiles = [
 ];
 const tilesById = tilesByIdFromList(tiles);
 
-const ME = { x: 0, y: 0, z: 0 };
+const ME = { x: 0, y: 0, z: 0, stackIndex: 0 };
 const CHEST: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const OTHER: ObjectRef = { x: 1, y: 1, z: 0, stackIndex: 1 };
 
@@ -97,6 +98,14 @@ function board(
     { tileId: "quest-chest", rewardTag: REWARD_TAG, rewardTileIds: ["sword"] },
   ]);
   return map;
+}
+
+function draft(tag: string, tileIds: string[], minRating: number | null = null): RewardDraft {
+  return { tag, tileIds, minRating };
+}
+
+function requiring(minRating: number): MapFile {
+  return updatePlacedReward(board(), 1, 0, 0, 1, draft(REWARD_TAG, ["torch", "sword"], minRating));
 }
 
 function rewardAt(map: MapFile, x: number, y: number) {
@@ -148,6 +157,7 @@ describe("resolving a reward", () => {
       actionName: "Open",
       tag: REWARD_TAG,
       itemTileIds: ["torch", "sword"],
+      requires: {},
     });
   });
 
@@ -299,10 +309,36 @@ describe("taking a reward", () => {
   });
 });
 
+describe("a reward the taker has no room for", () => {
+  const rowsCarrying = (equipment: Equipment, map = board()) => {
+    const snap = new GameSession(map, tiles).getSnapshot();
+    return listInteractionOptions(snap.map, tilesById, snap.self, [], null, equipment, null, []);
+  };
+  const chestRow = (rows: ReturnType<typeof rowsCarrying>) =>
+    rows.find((o) => o.action === "reward" && o.ref.x === CHEST.x && o.ref.y === CHEST.y);
+
+  it("stays listed, blocked for want of room", () => {
+    expect(chestRow(rowsCarrying(bagWith(3)))?.blocked).toEqual({ kind: "noRoom" });
+  });
+
+  it("names the rating it needs before the room, since emptying the bag would not open it", () => {
+    const short = new GameSession(board(), tiles).getSnapshot().self.rating! + 1;
+    expect(chestRow(rowsCarrying(bagWith(3), requiring(short)))?.blocked).toEqual({
+      kind: "needs",
+      rating: short,
+    });
+  });
+
+  it("is not listed when it names an item that no longer exists", () => {
+    const map = board("quest-chest", REWARD_TAG, ["ghost-item"]);
+    expect(chestRow(rowsCarrying(bagWith(0), map))).toBeUndefined();
+  });
+});
+
 describe("a reward the actor cannot reach", () => {
   it("is not offered from two cells away", () => {
     const map = board();
-    const far = { x: 3, y: 3, z: 0 };
+    const far = { x: 3, y: 3, z: 0, stackIndex: 0 };
 
     expect(canRewardFrom(map, tilesById, far, CHEST, bagWith(0), [])).toBe(false);
   });
@@ -327,7 +363,7 @@ describe("writing a reward onto a placement", () => {
   const at = (map: MapFile) => getStack(map, 1, 0, 0)[1]!;
 
   it("writes the pair together", () => {
-    const next = updatePlacedReward(board("quest-chest", ""), 1, 0, 0, 1, "t", ["sword"]);
+    const next = updatePlacedReward(board("quest-chest", ""), 1, 0, 0, 1, draft("t", ["sword"]));
 
     expect(at(next).rewardTag).toBe("t");
     expect(at(next).rewardTileIds).toEqual(["sword"]);
@@ -335,11 +371,13 @@ describe("writing a reward onto a placement", () => {
 
   it("returns the same map when nothing changed", () => {
     const before = board();
-    expect(updatePlacedReward(before, 1, 0, 0, 1, REWARD_TAG, ["torch", "sword"])).toBe(before);
+    expect(updatePlacedReward(before, 1, 0, 0, 1, draft(REWARD_TAG, ["torch", "sword"]))).toBe(
+      before,
+    );
   });
 
   it("clears both halves when either is emptied", () => {
-    const cleared = updatePlacedReward(board(), 1, 0, 0, 1, "", ["sword"]);
+    const cleared = updatePlacedReward(board(), 1, 0, 0, 1, draft("", ["sword"]));
 
     expect(at(cleared).rewardTag).toBeUndefined();
     expect(at(cleared).rewardTileIds).toBeUndefined();
@@ -353,6 +391,85 @@ describe("writing a reward onto a placement", () => {
       actionName: "Open",
       tag: REWARD_TAG,
       itemTileIds: ["torch", "sword"],
+      requires: {},
     });
+  });
+});
+
+describe("a reward that asks for a rating", () => {
+  const playerRating = new GameSession(board(), tiles).getSnapshot().self.rating!;
+  const rows = (session: GameSession) => {
+    const snap = session.getSnapshot();
+    return listInteractionOptions(
+      snap.map,
+      tilesById,
+      snap.self,
+      [],
+      null,
+      snap.equipment,
+      null,
+      snap.tags,
+    );
+  };
+
+  it("is written on the placement and cleared with the reward", () => {
+    const map = requiring(10);
+    expect(getStack(map, 1, 0, 0)[1]?.rewardRequires).toEqual({ rating: 10 });
+
+    const cleared = updatePlacedReward(map, 1, 0, 0, 1, draft("", ["sword"], 10));
+    expect(getStack(cleared, 1, 0, 0)[1]?.rewardRequires).toBeUndefined();
+  });
+
+  it("asks only of its own placement, not of others of the same tile", () => {
+    const map = requiring(10);
+    expect(rewardAt(map, 1, 0)?.requires).toEqual({ rating: 10 });
+    expect(rewardAt(map, 1, 1)?.requires).toEqual({});
+  });
+
+  it("asks nothing when the written requirement is malformed", () => {
+    const map = replaceStack(board(), 1, 0, 0, [
+      { tileId: "grass" },
+      {
+        tileId: "quest-chest",
+        rewardTag: REWARD_TAG,
+        rewardTileIds: ["sword"],
+        rewardRequires: { rating: -3 },
+      },
+    ]);
+    expect(rewardAt(map, 1, 0)?.requires).toEqual({});
+  });
+
+  it("is met at exactly the rating it names, and not by an unknown one", () => {
+    const reward = rewardAt(requiring(10), 1, 0)!;
+
+    expect(rewardShortfall(reward, 10)).toBeNull();
+    expect(rewardShortfall(reward, 9)).toEqual({ rating: 10 });
+    expect(rewardShortfall(reward, null)).toEqual({ rating: 10 });
+  });
+
+  it("shows a player rated too low the row, blocked with the rating it needs", () => {
+    const needed = playerRating + 1;
+    const session = new GameSession(requiring(needed), tiles);
+
+    const offered = rows(session).find(
+      (o) => o.action === "reward" && o.ref.x === CHEST.x && o.ref.y === CHEST.y,
+    );
+    expect(offered?.blocked).toEqual({ kind: "needs", rating: needed });
+  });
+
+  it("refuses a player rated too low, and gives them nothing", () => {
+    const session = new GameSession(requiring(playerRating + 1), tiles);
+
+    expect(session.canTakeReward(CHEST)).toBe(false);
+    expect(session.interact(CHEST)).toBe(false);
+    expect(session.getSnapshot().tags).toEqual([]);
+    expect(session.getSnapshot().equipment.bag?.contents ?? []).toHaveLength(0);
+  });
+
+  it("opens for a player at the rating", () => {
+    const session = new GameSession(requiring(playerRating), tiles);
+
+    expect(rows(session).find((o) => o.action === "reward")?.blocked).toBeNull();
+    expect(session.interact(CHEST)).toBe(true);
   });
 });

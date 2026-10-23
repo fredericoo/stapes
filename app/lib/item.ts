@@ -1,4 +1,12 @@
 import * as v from "valibot";
+import {
+  AREA_SHAPES,
+  AREA_SUBJECTS,
+  type AreaShape,
+  type AreaSubject,
+  MAX_AREA_RADIUS,
+  MIN_AREA_RADIUS,
+} from "./area";
 import { type Element, ELEMENTS } from "./element";
 import {
   type Masteries,
@@ -7,6 +15,15 @@ import {
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "./mastery";
+import { type ParticleEmitterDef, particleEmitterSchema } from "./particleVfx";
+import {
+  burstParticleCount,
+  MAX_BURST_PARTICLES,
+  MAX_TRANSITION_MS,
+  MIN_TRANSITION_MS,
+  type Transition,
+  transitionSchema,
+} from "./tileTransition";
 import { HEIGHT_PER_LEVEL, type TileDef } from "./types";
 
 export type Reach = {
@@ -106,8 +123,29 @@ export type StoneEffect =
       projectile?: string;
       statuses?: WeaponStatus[];
       cures?: string[];
+      area?: SpellArea;
     }
   | { kind: "conjure"; tileId: string };
+
+/**
+ * What a bolt does to every body in a shape around where it lands, on top of
+ * its own single hit. `burst.particles.ratePerSecond` is for the whole area
+ * and is shared between its cells.
+ */
+export type SpellArea = {
+  shape: AreaShape;
+  radius: number;
+  height: number;
+  affects: AreaSubject;
+  throughWalls: boolean;
+  damage?: number;
+  variance?: number;
+  statuses?: WeaponStatus[];
+  cures?: string[];
+  burst?: AreaBurst;
+};
+
+export type AreaBurst = { durationMs: number; particles: ParticleEmitterDef };
 
 export type StoneSubject = "caster" | "target";
 
@@ -127,6 +165,7 @@ export type ArcaneStoneItem = {
   requirements?: Masteries;
   reach?: Reach;
   elements?: Element[];
+  casterEffect?: Transition;
 };
 
 export type CharmItem = {
@@ -397,30 +436,76 @@ const shieldSchema = v.object({
   elements: v.optional(elementsSchema),
 });
 
-const EMPTY_BOLT_MESSAGE = "A bolt has to move health, leave a status behind or cure one.";
+const EMPTY_BOLT_MESSAGE =
+  "A bolt has to move health, leave a status behind, cure one or reach an area.";
+
+const EMPTY_AREA_MESSAGE = "An area has to move health, leave a status behind or cure one.";
+
+const spellDamage = v.pipe(
+  v.number(),
+  v.integer(),
+  v.minValue(-MAX_SPELL_DAMAGE),
+  v.maxValue(MAX_SPELL_DAMAGE),
+  v.check((damage) => damage !== 0, "A bolt of zero moves no health."),
+);
+
+const curesSchema = v.array(v.pipe(v.string(), v.trim(), v.minLength(1)));
+
+const areaBurstSchema = v.pipe(
+  v.object({
+    durationMs: v.pipe(v.number(), v.minValue(MIN_TRANSITION_MS), v.maxValue(MAX_TRANSITION_MS)),
+    particles: particleEmitterSchema,
+  }),
+  v.check(
+    (burst) =>
+      burstParticleCount(burst.particles.ratePerSecond, burst.durationMs) <= MAX_BURST_PARTICLES,
+    "the burst spends more particles than one burst may",
+  ),
+);
+
+const spellAreaSchema = v.pipe(
+  v.object({
+    shape: v.picklist(AREA_SHAPES),
+    radius: v.pipe(
+      v.number(),
+      v.integer(),
+      v.minValue(MIN_AREA_RADIUS),
+      v.maxValue(MAX_AREA_RADIUS),
+    ),
+    height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
+    affects: v.picklist(AREA_SUBJECTS),
+    throughWalls: v.boolean(),
+    damage: v.optional(spellDamage),
+    variance: v.optional(percent),
+    statuses: v.optional(v.array(weaponStatusSchema)),
+    cures: v.optional(curesSchema),
+    burst: v.optional(areaBurstSchema),
+  }),
+  v.check(
+    (raw) =>
+      raw.damage !== undefined || (raw.statuses?.length ?? 0) > 0 || (raw.cures?.length ?? 0) > 0,
+    EMPTY_AREA_MESSAGE,
+  ),
+);
 
 const stoneEffectSchema = v.variant("kind", [
   v.pipe(
     v.object({
       kind: v.literal("bolt"),
-      damage: v.optional(
-        v.pipe(
-          v.number(),
-          v.integer(),
-          v.minValue(-MAX_SPELL_DAMAGE),
-          v.maxValue(MAX_SPELL_DAMAGE),
-          v.check((damage) => damage !== 0, "A bolt of zero moves no health."),
-        ),
-      ),
+      damage: v.optional(spellDamage),
       on: v.picklist(STONE_SUBJECTS),
       variance: v.optional(percent),
       projectile: v.optional(projectileSchema),
       statuses: v.optional(v.array(weaponStatusSchema)),
-      cures: v.optional(v.array(v.pipe(v.string(), v.trim(), v.minLength(1)))),
+      cures: v.optional(curesSchema),
+      area: v.optional(spellAreaSchema),
     }),
     v.check(
       (raw) =>
-        raw.damage !== undefined || (raw.statuses?.length ?? 0) > 0 || (raw.cures?.length ?? 0) > 0,
+        raw.damage !== undefined ||
+        (raw.statuses?.length ?? 0) > 0 ||
+        (raw.cures?.length ?? 0) > 0 ||
+        raw.area !== undefined,
       EMPTY_BOLT_MESSAGE,
     ),
   ),
@@ -447,6 +532,7 @@ export const stoneSchema = v.object({
   requirements: v.optional(masteriesSchema),
   reach: v.optional(reachEntries),
   elements: v.optional(elementsSchema),
+  casterEffect: v.optional(transitionSchema),
 });
 
 const charmSchema = v.object({
@@ -708,7 +794,7 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     return { kind: "conjure", tileId: effect.tileId.trim() };
   }
   const statuses = statusGrantsForSave(effect.statuses);
-  const cures = [...new Set(effect.cures?.map((id) => id.trim()).filter(Boolean))];
+  const cures = curesForSave(effect.cures);
   return {
     kind: "bolt",
     on: effect.on,
@@ -716,6 +802,29 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     ...(effect.variance ? { variance: Math.round(effect.variance) } : {}),
     ...(effect.projectile?.trim() ? { projectile: effect.projectile.trim() } : {}),
     ...(statuses ? { statuses } : {}),
-    ...(cures.length > 0 ? { cures } : {}),
+    ...(cures ? { cures } : {}),
+    ...(effect.area ? { area: areaForSave(effect.area) } : {}),
+  };
+}
+
+function curesForSave(cures: string[] | undefined): string[] | undefined {
+  const kept = [...new Set(cures?.map((id) => id.trim()).filter(Boolean))];
+  return kept.length > 0 ? kept : undefined;
+}
+
+function areaForSave(area: SpellArea): SpellArea {
+  const statuses = statusGrantsForSave(area.statuses);
+  const cures = curesForSave(area.cures);
+  return {
+    shape: area.shape,
+    radius: Math.round(area.radius),
+    height: area.height,
+    affects: area.affects,
+    throughWalls: area.throughWalls,
+    ...(area.damage ? { damage: Math.round(area.damage) } : {}),
+    ...(area.variance ? { variance: Math.round(area.variance) } : {}),
+    ...(statuses ? { statuses } : {}),
+    ...(cures ? { cures } : {}),
+    ...(area.burst ? { burst: area.burst } : {}),
   };
 }

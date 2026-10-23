@@ -8,6 +8,8 @@ export function audienceOf(event: MotionEvent): Audience {
   switch (event.kind) {
     case "projectileFired":
       return { kind: "cell", x: event.from.x, y: event.from.y };
+    case "areaBurst":
+      return { kind: "cell", x: event.x, y: event.y };
     case "damage":
     case "tileTransition":
       return { kind: "cell", x: event.x, y: event.y };

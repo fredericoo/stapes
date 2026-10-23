@@ -16,9 +16,12 @@ import {
   type ItemDef,
   type Reach,
   type ShieldItem,
+  type SpellArea,
   type StatusGrant,
+  type StoneSubject,
   type WeaponItem,
 } from "../lib/item";
+import type { AreaShape, AreaSubject } from "../lib/area";
 import type { Element } from "../lib/element";
 import { engravedName } from "../lib/engraving";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -37,6 +40,7 @@ import {
   physicalShortfall,
   WEAPON_MASTERIES,
   type WeaponMastery,
+  xpFromMasteries,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import { bandLabel, HEADINGS, termSpoken, type TermKey } from "../lib/terms";
@@ -53,10 +57,11 @@ export type ItemCardStat = {
   tone: ItemCardTone;
 };
 
+/** `have` is null on a card that is not read by anybody in particular. */
 export type ItemCardRequirement = {
   mastery: Mastery;
   required: number;
-  have: number;
+  have: number | null;
   met: boolean;
 };
 
@@ -155,7 +160,7 @@ function requirementsFrom(
     const have = masteryLevel(masteries, mastery);
     rows.push({ mastery, required, have, met: have >= required });
   }
-  const missing = (row: ItemCardRequirement) => Math.max(0, row.required - row.have);
+  const missing = (row: ItemCardRequirement) => Math.max(0, row.required - (row.have ?? 0));
   return rows.sort((a, b) => missing(b) - missing(a));
 }
 
@@ -329,7 +334,7 @@ function kindOf(item: ItemDef): string {
   if (item.type === "shield") return "Either hand";
   if (item.type === "stone") return "Arcane stone";
   if (item.type === "charm") return "Charm";
-  if (item.type === "artifact") return "Carried";
+  if (item.type === "artifact") return "Object";
   if (item.type === "consumable") return consumeVerb(item);
   return "Container";
 }
@@ -357,7 +362,9 @@ function demandsOf(item: ItemDef): Masteries | undefined {
 function grantsOn(item: ItemDef): readonly (StatusGrant & { chance?: number })[] | undefined {
   if (item.type === "weapon" || item.type === "consumable") return item.statuses;
   if (item.type === "charm") return item.statuses;
-  if (item.type === "stone" && item.effect.kind === "bolt") return item.effect.statuses;
+  if (item.type === "stone" && item.effect.kind === "bolt") {
+    return [...(item.effect.statuses ?? []), ...(item.effect.area?.statuses ?? [])];
+  }
   return undefined;
 }
 
@@ -408,7 +415,10 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
       value: on === "caster" ? "You" : "Your target",
       tone: "plain",
     });
-    const cures = (stone.effect.cures ?? []).map((id) => statusDefs[id]?.name ?? id);
+    const area = stone.effect.area;
+    if (area) stats.push(...areaStats(area, on));
+    const cureIds = new Set([...(stone.effect.cures ?? []), ...(area?.cures ?? [])]);
+    const cures = [...cureIds].map((id) => statusDefs[id]?.name ?? id);
     if (cures.length > 0) {
       stats.push({ term: "cures", value: cures.join(", "), tone: "good" });
     }
@@ -429,6 +439,40 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
     term: "range",
     value: reachLine(stone),
     tone: "plain",
+  });
+  return stats;
+}
+
+const AREA_SHAPE_LABELS: Record<AreaShape, string> = {
+  circle: "Circle",
+  square: "Square",
+  cross: "Cross",
+  "diagonal-cross": "Diagonal cross",
+};
+
+const AREA_AFFECTS_LABELS: Record<AreaSubject, string> = {
+  others: "everyone else",
+  self: "you alone",
+  both: "everyone",
+};
+
+function areaStats(area: SpellArea, on: StoneSubject): ItemCardStat[] {
+  const around = on === "caster" ? "you" : "your target";
+  const stats: ItemCardStat[] = [
+    {
+      term: "area",
+      value: `${AREA_SHAPE_LABELS[area.shape]} of ${area.radius} around ${around}, on ${AREA_AFFECTS_LABELS[area.affects]}`,
+      tone: "plain",
+    },
+  ];
+  const damage = area.damage ?? 0;
+  if (damage === 0) return stats;
+  const band = damageBandOf(Math.abs(damage), area.variance ?? 0);
+  const mending = damage < 0;
+  stats.push({
+    term: mending ? "areaHeal" : "areaDamage",
+    value: bandLabel(band.min, band.max),
+    tone: mending ? "good" : "plain",
   });
   return stats;
 }
@@ -466,6 +510,26 @@ export function itemCard(
   return { ...card, speech: speak(card) };
 }
 
+/**
+ * The card read by somebody who has exactly met the item's requirements, so
+ * every figure is the item's own and nothing is dormant, with no level of the
+ * reader's beside a requirement.
+ */
+export function catalogueCard(
+  def: TileDef,
+  statusDefs: Record<string, StatusDef> = {},
+): ItemCard | null {
+  const item = resolveItem(def);
+  if (!item) return null;
+  const card = itemCard(def, null, xpFromMasteries(asEarned(demandsOf(item) ?? {})), statusDefs);
+  if (!card) return null;
+  const anonymous: ItemCard = {
+    ...card,
+    requirements: card.requirements.map((row) => ({ ...row, have: null, met: true })),
+  };
+  return { ...anonymous, speech: speak(anonymous) };
+}
+
 function clause(line: string): string {
   return line.replace(/[.\s]+$/, "");
 }
@@ -497,7 +561,11 @@ function speak(card: ItemCard): string {
     );
   }
   for (const row of card.requirements) {
-    lines.push(`Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`);
+    lines.push(
+      row.have === null
+        ? `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}`
+        : `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
+    );
   }
   for (const effect of card.effects) {
     lines.push(

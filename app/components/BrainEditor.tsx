@@ -3,16 +3,16 @@ import {
   ATTACKER_SELECTOR,
   HOME_SELECTOR,
   SPEAKER_SELECTOR,
+  fromStates,
   isSelector,
   isSpeakerFilter,
   nearest,
+  needsExpansion,
   slot,
   slotTiles,
   thing,
   tilesNamedBy,
-  validateBrain,
   type BrainActionDef,
-  type BrainCondition,
   type BrainConditionDef,
   type BrainDef,
   type BrainEffectDef,
@@ -33,6 +33,30 @@ import {
   type ParamSpec,
   type TileFilter,
 } from "../lib/brainCatalog";
+import {
+  BANDS,
+  KIND_LABELS,
+  PARAM_KINDS,
+  REST_STATE,
+  checkBrain,
+  expandBrain,
+  fits,
+  isArgRef,
+  isCall,
+  type ArgRef,
+  type AuthoredBrain,
+  type AuthoredCondition,
+  type AuthoredStateDef,
+  type AuthoredTransitionDef,
+  type Band,
+  type BrainTriggerDef,
+  type ParamKind,
+  type TraitCall,
+  type TraitCatalogue,
+  type TraitContext,
+  type TraitLet,
+  type TraitParam,
+} from "../lib/traits";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { resolveActor, type TileDef } from "../lib/types";
 import { resolveBattler, type NaturalSpell } from "../lib/battler";
@@ -41,6 +65,13 @@ import type { StatusDef } from "../lib/status";
 import { resolveConsumable, resolveItem } from "../lib/item";
 import { resolveExtract } from "../lib/interactions";
 import { DragDropProvider } from "@dnd-kit/react";
+import {
+  describeActions,
+  describeCondition,
+  describeEffects,
+  describeFrom,
+  describeSelector,
+} from "./brainText";
 import { ConditionTreeEditor } from "./ConditionTreeEditor";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
@@ -48,20 +79,23 @@ import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { Button, Input, NumberInput, OptionalNumberInput, Segmented, Select, Switch } from "../ui";
 
 type Props = {
-  brain: BrainDef | undefined;
+  brain: AuthoredBrain | undefined;
   tiles: TileDef[];
   statusDefs: Record<string, StatusDef>;
   spells?: readonly BrainSpell[];
-  onChange: (next: BrainDef | undefined) => void;
+  traits?: TraitCatalogue;
+  onChange: (next: AuthoredBrain | undefined) => void;
 };
 
 type BrainSpell = Pick<NaturalSpell, "name" | "effect">;
 
-const EMPTY_BRAIN: BrainDef = {
+const EMPTY_BRAIN: AuthoredBrain = {
   initial: "idle",
   states: { idle: { do: [{ action: "hold" }] } },
   transitions: [],
 };
+
+const NO_TRAITS: TraitCatalogue = {};
 
 export function bodyTileIds(tiles: TileDef[]): string[] {
   const ids = tiles
@@ -128,11 +162,33 @@ function tileOption(tile: TileDef): TileOption {
   return { tileId: tile.id, label: tile.name || tile.id };
 }
 
+export function traitContext(
+  tiles: TileDef[],
+  statusDefs: Record<string, StatusDef>,
+  spells: readonly unknown[] = [],
+): TraitContext {
+  const options = tileOptions(tiles);
+  return {
+    bodies: new Set(bodyTileIds(tiles)),
+    things: new Set(thingTileIds(tiles)),
+    items: new Set(options.item.map((one) => one.tileId)),
+    consumables: new Set(options.consumable.map((one) => one.tileId)),
+    statuses: new Set(Object.keys(statusDefs)),
+    spells: spells.length,
+  };
+}
+
+/**
+ * `slotNames` is for a brain built from traits: `brain` is then its expanded
+ * table, whose binds say what a slot holds but also carry every call's private
+ * slots, which the brain itself cannot name.
+ */
 export function selectorVocabulary(
   brain: BrainDef,
   tiles: TileDef[],
   statusDefs: Record<string, StatusDef> = {},
   spells: readonly BrainSpell[] = [],
+  slotNames?: Iterable<string>,
 ): Vocabulary {
   const named = new Map(tiles.map((tile) => [tile.id, tile.name || tile.id]));
   const nameOf = (tileId: string) => named.get(tileId) ?? tileId;
@@ -163,9 +219,11 @@ export function selectorVocabulary(
     { key: "home", label: "home", make: () => HOME_SELECTOR, tiles: [] },
   ];
 
-  const slots = new Set<string>();
-  for (const t of brain.transitions) {
-    for (const name of Object.keys(t.bind ?? {})) slots.add(name);
+  const slots = new Set<string>(slotNames);
+  if (slotNames === undefined) {
+    for (const t of brain.transitions) {
+      for (const name of Object.keys(t.bind ?? {})) slots.add(name);
+    }
   }
   for (const name of slots) {
     kinds.push({
@@ -225,24 +283,128 @@ function onSortEnd<T>(
   apply(arrayMove(list, initialIndex, index));
 }
 
-export function renamedState(brain: BrainDef, oldName: string, newName: string): BrainDef {
-  const states: Record<string, BrainStateDef> = {};
+function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
+function mapValues(
+  record: Record<string, unknown>,
+  map: (value: unknown) => unknown,
+): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, map(value)]));
+}
+
+export function renamedState(
+  brain: AuthoredBrain,
+  oldName: string,
+  newName: string,
+  catalogue: TraitCatalogue = NO_TRAITS,
+): AuthoredBrain {
+  const states: Record<string, AuthoredStateDef> = {};
   for (const [name, state] of Object.entries(brain.states)) {
     states[name === oldName ? newName : name] = state;
   }
   const remap = (n: string) => (n === oldName ? newName : n);
+  const remapFrom = (from: BrainTransitionDef["from"]) => {
+    if (typeof from !== "string") return from.map(remap);
+    return from === ANY_STATE ? from : remap(from);
+  };
+  const remapState = (value: unknown): unknown => {
+    if (typeof value === "string") return remap(value);
+    return isCall(value) ? remapCall(value) : value;
+  };
+  const remapCall = (call: TraitCall): TraitCall => {
+    const def = own(catalogue, call.trait);
+    if (!def || !call.with) return call;
+    const args = Object.fromEntries(
+      Object.entries(call.with).map(([name, value]) => [
+        name,
+        own(def.params, name)?.kind === "state" ? remapState(value) : value,
+      ]),
+    );
+    return { ...call, with: args };
+  };
+  const lets = brain.let
+    ? Object.fromEntries(
+        Object.entries(brain.let).map(([name, bound]) => [
+          name,
+          bound.kind === "state" ? { ...bound, value: remapState(bound.value) } : bound,
+        ]),
+      )
+    : undefined;
   return {
+    ...brain,
     initial: remap(brain.initial),
     states,
-    transitions: brain.transitions.map((t) => ({
-      ...t,
-      from: t.from === ANY_STATE ? t.from : remap(t.from),
-      to: remap(t.to),
-    })),
+    transitions: brain.transitions.map((t) => ({ ...t, from: remapFrom(t.from), to: remap(t.to) })),
+    ...(brain.triggers ? { triggers: brain.triggers.map((t) => ({ ...t, to: remap(t.to) })) } : {}),
+    ...(brain.traits ? { traits: brain.traits.map(remapCall) } : {}),
+    ...(lets ? { let: lets } : {}),
   };
 }
 
-export function BrainEditor({ brain, tiles, statusDefs, spells = [], onChange }: Props) {
+/**
+ * Walks every value in the brain rather than the positions a let may stand
+ * in, because a let is named by `{ arg }` anywhere a value goes. A call's
+ * `with` is itself a record of names, so only the values inside it are read.
+ */
+export function renamedLet(brain: AuthoredBrain, oldName: string, newName: string): AuthoredBrain {
+  const swap = (value: unknown): unknown => {
+    if (isArgRef(value)) return value.arg === oldName ? { arg: newName } : value;
+    if (Array.isArray(value)) return value.map(swap);
+    if (typeof value !== "object" || value === null) return value;
+    if (isCall(value)) return value.with ? { ...value, with: mapValues(value.with, swap) } : value;
+    return mapValues(value as Record<string, unknown>, swap);
+  };
+  const lets = Object.fromEntries(
+    Object.entries(brain.let ?? {}).map(([name, bound]) => [
+      name === oldName ? newName : name,
+      { ...bound, value: swap(bound.value) },
+    ]),
+  );
+  const { let: _lets, ...rest } = brain;
+  return { ...(swap(rest) as AuthoredBrain), let: lets };
+}
+
+function brainSlots(brain: AuthoredBrain, catalogue: TraitCatalogue): string[] {
+  const names = new Set<string>();
+  for (const row of [...brain.transitions, ...(brain.triggers ?? [])]) {
+    for (const name of Object.keys(row.bind ?? {})) names.add(name);
+  }
+  const visit = (call: TraitCall) => {
+    const def = own(catalogue, call.trait);
+    if (!def) return;
+    for (const [name, value] of Object.entries(call.with ?? {})) {
+      const kind = own(def.params, name)?.kind;
+      if (kind === "slot" && typeof value === "string") names.add(value);
+      if (kind === "state" && isCall(value)) visit(value);
+    }
+  };
+  for (const call of brain.traits ?? []) visit(call);
+  for (const bound of Object.values(brain.let ?? {})) {
+    if (bound.kind === "state" && isCall(bound.value)) visit(bound.value);
+  }
+  return [...names];
+}
+
+type ArgScope = {
+  catalogue: TraitCatalogue;
+  states: string[];
+  lets: Record<string, TraitLet>;
+};
+
+function conditionLets(lets: Record<string, TraitLet>): string[] {
+  return Object.keys(lets).filter((name) => lets[name]!.kind === "condition");
+}
+
+export function BrainEditor({
+  brain,
+  tiles,
+  statusDefs,
+  spells = [],
+  traits = NO_TRAITS,
+  onChange,
+}: Props) {
   if (!brain) {
     return (
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
@@ -258,11 +420,32 @@ export function BrainEditor({ brain, tiles, statusDefs, spells = [], onChange }:
   }
 
   const stateNames = Object.keys(brain.states);
-  const vocab = selectorVocabulary(brain, tiles, statusDefs, spells);
-  const issues = validateBrain(brain);
+  const built = needsExpansion(brain);
+  const expansion = built ? expandBrain(brain, traits) : null;
+  const table = expansion?.table ?? (brain as BrainDef);
+  const vocab = selectorVocabulary(
+    table,
+    tiles,
+    statusDefs,
+    spells,
+    built ? brainSlots(brain, traits) : undefined,
+  );
+  const issues = checkBrain(brain, traits, traitContext(tiles, statusDefs, spells));
+  const lets = brain.let ?? {};
+  const scope: ArgScope = { catalogue: traits, states: [...stateNames, REST_STATE], lets };
+  const offersTraits = Object.keys(traits).length > 0 || (brain.traits ?? []).length > 0;
 
-  const setState = (name: string, next: BrainStateDef) => {
+  const setState = (name: string, next: AuthoredStateDef) => {
     onChange({ ...brain, states: { ...brain.states, [name]: next } });
+  };
+
+  const setOptional = <K extends "traits" | "triggers" | "let">(
+    key: K,
+    next: AuthoredBrain[K] | undefined,
+  ) => {
+    const { [key]: _drop, ...rest } = brain;
+    const empty = next === undefined || Object.keys(next).length === 0;
+    onChange((empty ? rest : { ...rest, [key]: next }) as AuthoredBrain);
   };
 
   const addState = () => {
@@ -291,6 +474,23 @@ export function BrainEditor({ brain, tiles, statusDefs, spells = [], onChange }:
         />
       </label>
 
+      {offersTraits ? (
+        <TraitCallList
+          calls={brain.traits ?? []}
+          scope={scope}
+          vocab={vocab}
+          onChange={(next) => setOptional("traits", next)}
+        />
+      ) : null}
+
+      <LetList
+        lets={lets}
+        scope={scope}
+        vocab={vocab}
+        onChange={(next) => setOptional("let", next)}
+        onRename={(from, to) => onChange(renamedLet(brain, from, to))}
+      />
+
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase text-muted">States</span>
@@ -304,20 +504,32 @@ export function BrainEditor({ brain, tiles, statusDefs, spells = [], onChange }:
             name={name}
             state={brain.states[name]!}
             vocab={vocab}
-            taken={stateNames}
-            onRename={(next) => onChange(renamedState(brain, name, next))}
+            taken={[...stateNames, REST_STATE]}
+            showBand={built}
+            held={expansion?.bands[name]}
+            onRename={(next) => onChange(renamedState(brain, name, next, traits))}
             onChange={(next) => setState(name, next)}
             onRemove={stateNames.length > 1 ? () => removeState(name) : undefined}
           />
         ))}
       </div>
 
+      <TriggerList
+        triggers={brain.triggers ?? []}
+        scope={scope}
+        vocab={vocab}
+        onChange={(next) => setOptional("triggers", next)}
+      />
+
       <TransitionsTable
         brain={brain}
         stateNames={stateNames}
+        lets={conditionLets(lets)}
         vocab={vocab}
         onChange={(transitions) => onChange({ ...brain, transitions })}
       />
+
+      {expansion ? <ExpandedTable table={expansion.table} bands={expansion.bands} /> : null}
 
       <Button size="sm" variant="danger" className="w-fit" onClick={() => onChange(undefined)}>
         Remove brain
@@ -331,16 +543,20 @@ function StateCard({
   state,
   vocab,
   taken,
+  showBand,
+  held,
   onRename,
   onChange,
   onRemove,
 }: {
   name: string;
-  state: BrainStateDef;
+  state: AuthoredStateDef;
   vocab: Vocabulary;
   taken: string[];
+  showBand: boolean;
+  held?: Band;
   onRename: (next: string) => void;
-  onChange: (next: BrainStateDef) => void;
+  onChange: (next: AuthoredStateDef) => void;
   onRemove?: () => void;
 }) {
   const rename = (next: string) => {
@@ -349,15 +565,40 @@ function StateCard({
     onRename(clean);
   };
 
+  const setBand = (band: string | null) => {
+    const { band: _drop, ...rest } = state;
+    onChange(band && band !== "idle" ? { ...rest, band: band as Band } : rest);
+  };
+
   return (
     <div className="flex flex-col gap-2 border-2 border-border bg-paper p-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Input
           defaultValue={name}
           onBlur={(e) => rename(e.target.value)}
           className="w-40 font-bold"
           aria-label="State name"
         />
+        {showBand ? (
+          <label
+            className="flex items-center gap-1 text-[10px] uppercase text-muted"
+            title="A trigger takes the body out of this state only if it fires at a higher band."
+          >
+            band
+            <Select
+              value={state.band ?? "idle"}
+              onValueChange={setBand}
+              options={BANDS.map((band) => ({ value: band, label: band }))}
+              className="min-w-[6rem]"
+              ariaLabel="Band this state holds at"
+            />
+          </label>
+        ) : null}
+        {showBand && held && held !== (state.band ?? "idle") ? (
+          <span className="text-[10px] text-muted">
+            holds at {held}: a trait it is handed to raises it
+          </span>
+        ) : null}
         {onRemove ? (
           <Button size="sm" variant="danger" className="ml-auto" onClick={onRemove}>
             Remove
@@ -542,13 +783,15 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
 function TransitionsTable({
   brain,
   stateNames,
+  lets,
   vocab,
   onChange,
 }: {
-  brain: BrainDef;
+  brain: AuthoredBrain;
   stateNames: string[];
+  lets: readonly string[];
   vocab: Vocabulary;
-  onChange: (next: BrainTransitionDef[]) => void;
+  onChange: (next: AuthoredTransitionDef[]) => void;
 }) {
   const items = brain.transitions;
   const add = () =>
@@ -556,7 +799,7 @@ function TransitionsTable({
       ...items,
       { from: ANY_STATE, if: CONDITIONS.after.make(), to: brain.initial || stateNames[0] || "" },
     ]);
-  const set = (i: number, next: BrainTransitionDef) =>
+  const set = (i: number, next: AuthoredTransitionDef) =>
     onChange(items.map((t, j) => (j === i ? next : t)));
 
   return (
@@ -578,6 +821,7 @@ function TransitionsTable({
               index={i}
               transition={t}
               stateNames={stateNames}
+              lets={lets}
               vocab={vocab}
               onChange={(next) => set(i, next)}
               onRemove={() => onChange(items.filter((_, j) => j !== i))}
@@ -594,20 +838,21 @@ function TransitionRow({
   index,
   transition,
   stateNames,
+  lets,
   vocab,
   onChange,
   onRemove,
 }: {
   id: string;
   index: number;
-  transition: BrainTransitionDef;
+  transition: AuthoredTransitionDef;
   stateNames: string[];
+  lets: readonly string[];
   vocab: Vocabulary;
-  onChange: (next: BrainTransitionDef) => void;
+  onChange: (next: AuthoredTransitionDef) => void;
   onRemove: () => void;
 }) {
   const { ref, handleRef, isDragging } = useSortable({ id, index });
-  const fromOptions = [ANY_STATE, ...stateNames].map((n) => ({ value: n, label: n }));
   const toOptions = stateNames.map((n) => ({ value: n, label: n }));
 
   return (
@@ -619,11 +864,10 @@ function TransitionRow({
         <DragHandle handleRef={handleRef} label={`Drag to reorder transition ${index + 1}`} />
         <span className="w-5 text-center font-mono text-[11px] text-muted">{index + 1}</span>
         <span className="text-[10px] uppercase text-muted">from</span>
-        <Select
-          value={transition.from}
-          onValueChange={(v) => v && onChange({ ...transition, from: v })}
-          options={fromOptions}
-          className="min-w-[6rem]"
+        <FromField
+          from={transition.from}
+          stateNames={stateNames}
+          onChange={(from) => onChange({ ...transition, from })}
         />
         <BindField transition={transition} vocab={vocab} onChange={onChange} />
         <span className="text-[10px] uppercase text-muted">to</span>
@@ -642,6 +886,7 @@ function TransitionRow({
         <span className="pt-1.5 text-[10px] uppercase text-muted">if</span>
         <ConditionTree
           root={transition.if}
+          lets={lets}
           vocab={vocab}
           onChange={(next) => onChange({ ...transition, if: next })}
         />
@@ -650,65 +895,153 @@ function TransitionRow({
   );
 }
 
+function FromField({
+  from,
+  stateNames,
+  onChange,
+}: {
+  from: BrainTransitionDef["from"];
+  stateNames: string[];
+  onChange: (next: BrainTransitionDef["from"]) => void;
+}) {
+  const ADD = "";
+  const listed = fromStates(from);
+  const spare = stateNames.filter((name) => !listed.includes(name));
+  const adder =
+    from !== ANY_STATE && spare.length > 0 ? (
+      <Select
+        value={ADD}
+        onValueChange={(name) => name && onChange([...listed, name])}
+        options={[
+          { value: ADD, label: "+ state" },
+          ...spare.map((name) => ({ value: name, label: name })),
+        ]}
+        className="min-w-[5rem]"
+        placeholder="+ state"
+        ariaLabel="Add a state this transition leaves from"
+      />
+    ) : null;
+
+  if (typeof from === "string") {
+    return (
+      <>
+        <Select
+          value={from}
+          onValueChange={(v) => v && onChange(v)}
+          options={[ANY_STATE, ...stateNames].map((n) => ({ value: n, label: n }))}
+          className="min-w-[6rem]"
+        />
+        {adder}
+      </>
+    );
+  }
+
+  const remove = (name: string) => {
+    const kept = from.filter((one) => one !== name);
+    onChange(kept.length === 1 ? kept[0]! : kept);
+  };
+
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {from.map((name) => (
+        <button
+          key={name}
+          type="button"
+          onClick={() => remove(name)}
+          disabled={from.length === 1}
+          className="border-2 border-border bg-paper px-1 text-[11px] disabled:opacity-60"
+          aria-label={
+            from.length === 1
+              ? `${name} — the only state, so it cannot be removed`
+              : `Stop leaving from ${name}`
+          }
+        >
+          {name}
+          {from.length > 1 ? " ✕" : ""}
+        </button>
+      ))}
+      {adder}
+    </span>
+  );
+}
+
 function ConditionTree({
   root,
+  lets,
   vocab,
   onChange,
 }: {
-  root: BrainCondition;
+  root: AuthoredCondition;
+  lets: readonly string[];
   vocab: Vocabulary;
-  onChange: (next: BrainCondition) => void;
+  onChange: (next: AuthoredCondition) => void;
 }) {
   return (
-    <ConditionTreeEditor<BrainConditionDef>
+    <ConditionTreeEditor<BrainConditionDef | ArgRef>
       root={root}
       onChange={onChange}
       leaf={{
-        render: (leaf, set) => <LeafFields leaf={leaf} vocab={vocab} onChange={set} />,
+        render: (leaf, set) => <LeafFields leaf={leaf} lets={lets} vocab={vocab} onChange={set} />,
         fresh: () => CONDITIONS.after.make(),
       }}
     />
   );
 }
 
+const LET_OPTION = "let:";
+
 function LeafFields({
   leaf,
+  lets,
   vocab,
   onChange,
 }: {
-  leaf: BrainConditionDef;
+  leaf: BrainConditionDef | ArgRef;
+  lets: readonly string[];
   vocab: Vocabulary;
-  onChange: (next: BrainConditionDef) => void;
+  onChange: (next: BrainConditionDef | ArgRef) => void;
 }) {
+  const missing = isArgRef(leaf) && !lets.includes(leaf.arg) ? [leaf.arg] : [];
+  const letOptions = [...lets, ...missing].map((name) => ({
+    value: `${LET_OPTION}${name}`,
+    label: missing.includes(name) ? `${name} (missing)` : `let ${name}`,
+  }));
+
   return (
     <>
       <Select
-        value={leaf.cond}
-        onValueChange={(v) => v && onChange(CONDITIONS[v as BrainConditionDef["cond"]].make())}
-        options={CONDITION_NAMES.map((n) => ({
-          value: n,
-          label: CONDITIONS[n].label,
-        }))}
+        value={isArgRef(leaf) ? `${LET_OPTION}${leaf.arg}` : leaf.cond}
+        onValueChange={(v) => {
+          if (!v) return;
+          if (v.startsWith(LET_OPTION)) onChange({ arg: v.slice(LET_OPTION.length) });
+          else onChange(CONDITIONS[v as BrainConditionDef["cond"]].make());
+        }}
+        options={[
+          ...CONDITION_NAMES.map((n) => ({ value: n, label: CONDITIONS[n].label })),
+          ...letOptions,
+        ]}
         className="min-w-[7rem]"
       />
-      <ParamFields
-        item={leaf as unknown as Record<string, unknown>}
-        params={CONDITIONS[leaf.cond].params}
-        vocab={vocab}
-        onChange={(next) => onChange(next as unknown as BrainConditionDef)}
-      />
+      {isArgRef(leaf) ? null : (
+        <ParamFields
+          item={leaf as unknown as Record<string, unknown>}
+          params={CONDITIONS[leaf.cond].params}
+          vocab={vocab}
+          onChange={(next) => onChange(next as unknown as BrainConditionDef)}
+        />
+      )}
     </>
   );
 }
 
-function BindField({
+function BindField<Row extends { bind?: Record<string, Selector> }>({
   transition,
   vocab,
   onChange,
 }: {
-  transition: BrainTransitionDef;
+  transition: Row;
   vocab: Vocabulary;
-  onChange: (next: BrainTransitionDef) => void;
+  onChange: (next: Row) => void;
 }) {
   const entry = Object.entries(transition.bind ?? {})[0];
   const slotName = entry?.[0] ?? "";
@@ -718,10 +1051,10 @@ function BindField({
     const clean = nextSlot.trim();
     const { bind: _drop, ...rest } = transition;
     if (!clean) {
-      onChange(rest);
+      onChange(rest as Row);
       return;
     }
-    onChange({ ...rest, bind: { [clean]: nextSource } });
+    onChange({ ...rest, bind: { [clean]: nextSource } } as Row);
   };
 
   return (
@@ -1162,5 +1495,783 @@ function SpeakerFilterField({
         />
       ) : null}
     </label>
+  );
+}
+
+const ADD_OPTION = "";
+
+function TraitCallList({
+  calls,
+  scope,
+  vocab,
+  onChange,
+}: {
+  calls: TraitCall[];
+  scope: ArgScope;
+  vocab: Vocabulary;
+  onChange: (next: TraitCall[]) => void;
+}) {
+  const traits = Object.values(scope.catalogue).sort((a, b) => a.name.localeCompare(b.name));
+  const set = (i: number, next: TraitCall) => onChange(calls.map((c, j) => (j === i ? next : c)));
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className="text-xs font-bold uppercase text-muted"
+          title="When two triggers fire at the same band, the one from the earlier trait wins."
+        >
+          Traits (earlier wins a tie)
+        </span>
+        <Select
+          value={ADD_OPTION}
+          placeholder="Add trait"
+          onValueChange={(id) => id && onChange([...calls, { trait: id }])}
+          options={[
+            { value: ADD_OPTION, label: "Add trait" },
+            ...traits.map((def) => ({ value: def.id, label: def.name })),
+          ]}
+          className="min-w-[8rem]"
+          ariaLabel="Add a trait"
+        />
+      </div>
+      {calls.length === 0 ? (
+        <p className="text-[11px] leading-snug text-muted">
+          None. A trait brings its own states and the triggers that enter them, so a brain can fight
+          back or sleep at night without writing either out.
+        </p>
+      ) : null}
+      <DragDropProvider onDragEnd={(event) => onSortEnd(event, calls, onChange)}>
+        <div className="flex flex-col gap-1">
+          {calls.map((call, i) => (
+            <TraitCallCard
+              key={i}
+              id={String(i)}
+              index={i}
+              call={call}
+              scope={scope}
+              vocab={vocab}
+              onChange={(next) => set(i, next)}
+              onRemove={() => onChange(calls.filter((_, j) => j !== i))}
+            />
+          ))}
+        </div>
+      </DragDropProvider>
+    </div>
+  );
+}
+
+function TraitCallCard({
+  id,
+  index,
+  call,
+  scope,
+  vocab,
+  onChange,
+  onRemove,
+}: {
+  id: string;
+  index: number;
+  call: TraitCall;
+  scope: ArgScope;
+  vocab: Vocabulary;
+  onChange: (next: TraitCall) => void;
+  onRemove: () => void;
+}) {
+  const { ref, handleRef, isDragging } = useSortable({ id, index });
+  const def = own(scope.catalogue, call.trait);
+  const known = def !== undefined;
+  const options = Object.values(scope.catalogue)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((one) => ({ value: one.id, label: one.name }));
+
+  const pick = (next: string | null) => {
+    const nextDef = next ? own(scope.catalogue, next) : undefined;
+    if (!nextDef) return;
+    const kept = Object.entries(call.with ?? {}).filter(
+      ([name]) => own(nextDef.params, name)?.kind === own(def?.params ?? {}, name)?.kind,
+    );
+    onChange(
+      kept.length > 0
+        ? { trait: nextDef.id, with: Object.fromEntries(kept) }
+        : { trait: nextDef.id },
+    );
+  };
+
+  const setArg = (name: string, value: unknown) => {
+    const args = { ...call.with };
+    if (value === undefined) delete args[name];
+    else args[name] = value;
+    onChange(Object.keys(args).length > 0 ? { ...call, with: args } : { trait: call.trait });
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={["flex flex-col gap-1.5 bg-panel p-1.5", isDragging ? "opacity-60" : ""].join(" ")}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <DragHandle handleRef={handleRef} label={`Drag to reorder trait ${index + 1}`} />
+        <span className="w-5 text-center font-mono text-[11px] text-muted">{index + 1}</span>
+        <Select
+          value={call.trait}
+          onValueChange={pick}
+          options={
+            known ? options : [{ value: call.trait, label: `${call.trait} (missing)` }, ...options]
+          }
+          className="min-w-[10rem]"
+          ariaLabel="Trait"
+        />
+        <Button size="sm" variant="danger" onClick={onRemove} aria-label="Remove trait">
+          ✕
+        </Button>
+      </div>
+      {def ? (
+        <>
+          {def.hint ? <p className="pl-7 text-[11px] leading-snug text-muted">{def.hint}</p> : null}
+          <div className="flex flex-col gap-1 pl-7">
+            {Object.entries(def.params).map(([name, param]) => (
+              <ArgField
+                key={name}
+                name={name}
+                param={param}
+                value={call.with?.[name]}
+                scope={scope}
+                vocab={vocab}
+                onChange={(value) => setArg(name, value)}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="pl-7 text-[11px] leading-snug text-danger">
+          There is no trait called {call.trait}. Pick another, or remove the call.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const OWN_VALUE = "";
+
+function ArgField({
+  name,
+  param,
+  value,
+  scope,
+  vocab,
+  onChange,
+}: {
+  name: string;
+  param: TraitParam;
+  value: unknown;
+  scope: ArgScope;
+  vocab: Vocabulary;
+  onChange: (next: unknown) => void;
+}) {
+  const label = param.label ?? name;
+  const named = param.kind === "state" || param.kind === "slot" || param.kind === "condition";
+  const fitting = named
+    ? []
+    : Object.keys(scope.lets).filter((one) => fits(scope.lets[one]!.kind, param.kind));
+  const settled = Object.hasOwn(param, "default") || param.optional === true;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span
+        className="min-w-[6rem] text-[10px] uppercase text-muted"
+        title={`${name}: ${KIND_LABELS[param.kind]}${param.optional ? ", optional" : ""}`}
+      >
+        {label}
+      </span>
+      {fitting.length > 0 ? (
+        <Select
+          value={isArgRef(value) ? value.arg : OWN_VALUE}
+          onValueChange={(pick) => onChange(pick ? { arg: pick } : undefined)}
+          options={[
+            { value: OWN_VALUE, label: "own value" },
+            ...fitting.map((one) => ({ value: one, label: `let ${one}` })),
+          ]}
+          className="min-w-[6rem]"
+          ariaLabel={`Where ${label} comes from`}
+        />
+      ) : null}
+      {isArgRef(value) && fitting.length > 0 ? null : (
+        <ArgValue
+          param={param}
+          value={value}
+          scope={scope}
+          vocab={vocab}
+          onChange={onChange}
+          ariaLabel={label}
+        />
+      )}
+      {value !== undefined && settled ? (
+        <Button size="sm" variant="secondary" onClick={() => onChange(undefined)}>
+          {Object.hasOwn(param, "default") ? "Use default" : "Clear"}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+const NUMBER_BOUNDS: Partial<Record<ParamKind, { min?: number; max?: number }>> = {
+  cells: { min: 0 },
+  ms: { min: 0 },
+  percent: { min: 0, max: 100 },
+  hour: { min: 0, max: 23 },
+  level: {},
+  steps: { min: 1 },
+};
+
+function ArgValue({
+  param,
+  value,
+  scope,
+  vocab,
+  onChange,
+  ariaLabel,
+}: {
+  param: Pick<TraitParam, "kind" | "default">;
+  value: unknown;
+  scope: ArgScope;
+  vocab: Vocabulary;
+  onChange: (next: unknown) => void;
+  ariaLabel: string;
+}) {
+  const fallback = param.default;
+  const hint = fallback === undefined ? "Pick one…" : String(fallback);
+  const bounds = NUMBER_BOUNDS[param.kind];
+
+  if (bounds) {
+    return (
+      <OptionalNumberInput
+        value={typeof value === "number" ? value : undefined}
+        onChange={onChange}
+        min={bounds.min}
+        max={bounds.max}
+        step={1}
+        placeholder={typeof fallback === "number" ? String(fallback) : ""}
+        className="w-20"
+        aria-label={ariaLabel}
+      />
+    );
+  }
+
+  switch (param.kind) {
+    case "boolean":
+      return (
+        <Switch
+          checked={typeof value === "boolean" ? value : fallback === true}
+          onCheckedChange={onChange}
+          ariaLabel={ariaLabel}
+        />
+      );
+    case "text":
+      return (
+        <Input
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => onChange(e.target.value || undefined)}
+          placeholder={typeof fallback === "string" ? fallback : "none"}
+          className="w-28"
+          aria-label={ariaLabel}
+        />
+      );
+    case "bodies":
+    case "things": {
+      const key = param.kind === "bodies" ? "nearest" : "thing";
+      return (
+        <TileChips
+          picked={Array.isArray(value) ? value : []}
+          options={vocab.kinds.find((one) => one.key === key)?.tiles ?? []}
+          onChange={(tileIds) => onChange(tileIds.length > 0 ? tileIds : undefined)}
+        />
+      );
+    }
+    case "item":
+    case "consumable":
+      return (
+        <Select
+          value={typeof value === "string" ? value : null}
+          onValueChange={(next) => onChange(next ?? undefined)}
+          options={vocab.tiles[param.kind].map((one) => ({ value: one.tileId, label: one.label }))}
+          placeholder={hint}
+          className="min-w-[7rem]"
+          ariaLabel={ariaLabel}
+        />
+      );
+    case "status":
+      return (
+        <Select
+          value={typeof value === "string" ? value : null}
+          onValueChange={(next) => onChange(next ?? undefined)}
+          options={vocab.statuses}
+          placeholder={hint}
+          className="min-w-[7rem]"
+          ariaLabel={ariaLabel}
+        />
+      );
+    case "spell":
+      if (vocab.spells.length === 0) {
+        return <span className="text-[10px] uppercase text-muted">no spells on this body</span>;
+      }
+      return (
+        <Select
+          value={typeof value === "number" ? String(value) : null}
+          onValueChange={(next) => onChange(next ? Number(next) : undefined)}
+          options={vocab.spells}
+          placeholder={hint}
+          className="min-w-[7rem]"
+          ariaLabel={ariaLabel}
+        />
+      );
+    case "band":
+      return (
+        <Select
+          value={typeof value === "string" ? value : null}
+          onValueChange={(next) => onChange(next ?? undefined)}
+          options={BANDS.map((band) => ({ value: band, label: band }))}
+          placeholder={hint}
+          className="min-w-[6rem]"
+          ariaLabel={ariaLabel}
+        />
+      );
+    case "state":
+      if (isCall(value)) {
+        const routine = own(scope.catalogue, value.trait);
+        return <span className="text-[11px]">runs {routine?.name ?? value.trait}</span>;
+      }
+      return (
+        <Select
+          value={typeof value === "string" ? value : null}
+          onValueChange={(next) => onChange(next ?? undefined)}
+          options={scope.states.map((name) => ({ value: name, label: name }))}
+          placeholder={hint}
+          className="min-w-[7rem]"
+          ariaLabel={ariaLabel}
+        />
+      );
+    case "slot":
+      return (
+        <Input
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => onChange(e.target.value.trim() || undefined)}
+          placeholder="its own"
+          className="w-24"
+          aria-label={ariaLabel}
+        />
+      );
+    case "selector":
+      if (!isSelector(value)) {
+        return (
+          <Button size="sm" variant="secondary" onClick={() => onChange(DEFAULT_SELECTOR)}>
+            Pick a target
+          </Button>
+        );
+      }
+      return <SelectorPicker value={value} vocab={vocab} onChange={onChange} />;
+    case "condition":
+      if (value === undefined) {
+        return (
+          <Button size="sm" variant="secondary" onClick={() => onChange(CONDITIONS.after.make())}>
+            Add condition
+          </Button>
+        );
+      }
+      return (
+        <ConditionTree
+          root={value as AuthoredCondition}
+          lets={conditionLets(scope.lets)}
+          vocab={vocab}
+          onChange={onChange}
+        />
+      );
+    case "actions":
+      if (!Array.isArray(value)) {
+        const standing = Array.isArray(fallback) ? fallback : [{ action: "hold" }];
+        return (
+          <>
+            <span className="text-[11px] text-muted">{describeActions(standing)}</span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => onChange(structuredClone(standing))}
+            >
+              Change
+            </Button>
+          </>
+        );
+      }
+      return (
+        <VerbList
+          title="In priority order"
+          items={value as BrainActionDef[]}
+          names={ACTION_NAMES}
+          registry={ACTIONS}
+          discriminant="action"
+          vocab={vocab}
+          onChange={onChange}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+const LET_KINDS = PARAM_KINDS.filter((kind) => kind !== "slot");
+
+const LET_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+function freshValue(kind: ParamKind, scope: ArgScope, vocab: Vocabulary): unknown {
+  switch (kind) {
+    case "cells":
+    case "steps":
+    case "spell":
+      return 1;
+    case "ms":
+      return 1000;
+    case "percent":
+      return 50;
+    case "hour":
+      return 12;
+    case "level":
+      return 0;
+    case "boolean":
+      return false;
+    case "text":
+      return "";
+    case "bodies":
+      return [PLAYER_TILE_ID];
+    case "things":
+      return [vocab.kinds.find((one) => one.key === "thing")?.tiles[0]?.tileId ?? PLAYER_TILE_ID];
+    case "item":
+    case "consumable":
+      return vocab.tiles[kind][0]?.tileId ?? "";
+    case "status":
+      return vocab.statuses[0]?.value ?? "";
+    case "selector":
+      return HOME_SELECTOR;
+    case "condition":
+      return CONDITIONS.after.make();
+    case "actions":
+      return [{ action: "hold" }];
+    case "band":
+      return "idle";
+    case "state":
+      return scope.states[0] ?? REST_STATE;
+    case "slot":
+      return "target";
+  }
+}
+
+function LetList({
+  lets,
+  scope,
+  vocab,
+  onChange,
+  onRename,
+}: {
+  lets: Record<string, TraitLet>;
+  scope: ArgScope;
+  vocab: Vocabulary;
+  onChange: (next: Record<string, TraitLet>) => void;
+  onRename: (from: string, to: string) => void;
+}) {
+  const names = Object.keys(lets);
+  const add = () => {
+    let name = "when";
+    for (let i = 2; Object.hasOwn(lets, name); i++) name = `when_${i}`;
+    onChange({ ...lets, [name]: { kind: "condition", value: CONDITIONS.after.make() } });
+  };
+  const remove = (name: string) => {
+    const next = { ...lets };
+    delete next[name];
+    onChange(next);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <span
+          className="text-xs font-bold uppercase text-muted"
+          title="A let names a value once, for the brain's states, rows, triggers and traits to use."
+        >
+          Lets
+        </span>
+        <Button size="sm" variant="secondary" onClick={add}>
+          Add let
+        </Button>
+      </div>
+      {names.map((name, i) => (
+        <LetRow
+          key={name}
+          name={name}
+          bound={lets[name]!}
+          taken={names}
+          scope={{
+            ...scope,
+            lets: Object.fromEntries(names.slice(0, i).map((one) => [one, lets[one]!])),
+          }}
+          vocab={vocab}
+          onRename={(to) => onRename(name, to)}
+          onChange={(next) => onChange({ ...lets, [name]: next })}
+          onRemove={() => remove(name)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function LetRow({
+  name,
+  bound,
+  taken,
+  scope,
+  vocab,
+  onRename,
+  onChange,
+  onRemove,
+}: {
+  name: string;
+  bound: TraitLet;
+  taken: string[];
+  scope: ArgScope;
+  vocab: Vocabulary;
+  onRename: (next: string) => void;
+  onChange: (next: TraitLet) => void;
+  onRemove: () => void;
+}) {
+  const rename = (next: string) => {
+    const clean = next.trim();
+    if (clean === name || taken.includes(clean) || !LET_NAME.test(clean)) return;
+    onRename(clean);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 bg-panel p-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          defaultValue={name}
+          onBlur={(e) => rename(e.target.value)}
+          className="w-32 font-bold"
+          aria-label="Let name"
+        />
+        <Select
+          value={bound.kind}
+          onValueChange={(kind) =>
+            kind &&
+            onChange({
+              kind: kind as ParamKind,
+              value: freshValue(kind as ParamKind, scope, vocab),
+            })
+          }
+          options={LET_KINDS.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))}
+          className="min-w-[9rem]"
+          ariaLabel="What the let holds"
+        />
+        <Button
+          size="sm"
+          variant="danger"
+          className="ml-auto"
+          onClick={onRemove}
+          aria-label={`Remove ${name}`}
+        >
+          ✕
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 pl-1">
+        <ArgValue
+          param={{ kind: bound.kind }}
+          value={bound.value}
+          scope={scope}
+          vocab={vocab}
+          onChange={(value) => onChange({ ...bound, value })}
+          ariaLabel={name}
+        />
+      </div>
+    </div>
+  );
+}
+
+const STATE_BAND = "";
+
+function TriggerList({
+  triggers,
+  scope,
+  vocab,
+  onChange,
+}: {
+  triggers: BrainTriggerDef[];
+  scope: ArgScope;
+  vocab: Vocabulary;
+  onChange: (next: BrainTriggerDef[]) => void;
+}) {
+  const add = () =>
+    onChange([...triggers, { if: CONDITIONS.after.make(), to: scope.states[0] ?? REST_STATE }]);
+  const set = (i: number, next: BrainTriggerDef) =>
+    onChange(triggers.map((t, j) => (j === i ? next : t)));
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <span
+          className="text-xs font-bold uppercase text-muted"
+          title="A trigger leaves from every state that holds at a lower band than it fires at. Higher bands are asked first."
+        >
+          Triggers (higher band first)
+        </span>
+        <Button size="sm" variant="secondary" onClick={add}>
+          Add trigger
+        </Button>
+      </div>
+      <DragDropProvider onDragEnd={(event) => onSortEnd(event, triggers, onChange)}>
+        <div className="flex flex-col gap-1">
+          {triggers.map((trigger, i) => (
+            <TriggerRow
+              key={i}
+              id={String(i)}
+              index={i}
+              trigger={trigger}
+              scope={scope}
+              vocab={vocab}
+              onChange={(next) => set(i, next)}
+              onRemove={() => onChange(triggers.filter((_, j) => j !== i))}
+            />
+          ))}
+        </div>
+      </DragDropProvider>
+    </div>
+  );
+}
+
+function TriggerRow({
+  id,
+  index,
+  trigger,
+  scope,
+  vocab,
+  onChange,
+  onRemove,
+}: {
+  id: string;
+  index: number;
+  trigger: BrainTriggerDef;
+  scope: ArgScope;
+  vocab: Vocabulary;
+  onChange: (next: BrainTriggerDef) => void;
+  onRemove: () => void;
+}) {
+  const { ref, handleRef, isDragging } = useSortable({ id, index });
+
+  const setBand = (band: string | null) => {
+    const { band: _drop, ...rest } = trigger;
+    onChange(band ? { ...rest, band: band as Band } : rest);
+  };
+  const setRetarget = (on: boolean) => {
+    const { retarget: _drop, ...rest } = trigger;
+    onChange(on ? { ...rest, retarget: true } : rest);
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={["flex flex-col gap-1.5 bg-panel p-1.5", isDragging ? "opacity-60" : ""].join(" ")}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <DragHandle handleRef={handleRef} label={`Drag to reorder trigger ${index + 1}`} />
+        <span className="w-5 text-center font-mono text-[11px] text-muted">{index + 1}</span>
+        <span className="text-[10px] uppercase text-muted">band</span>
+        <Select
+          value={typeof trigger.band === "string" ? trigger.band : STATE_BAND}
+          onValueChange={setBand}
+          options={[
+            { value: STATE_BAND, label: "its state's" },
+            ...BANDS.map((band) => ({ value: band, label: band })),
+          ]}
+          className="min-w-[6rem]"
+          ariaLabel="Band this trigger fires at"
+        />
+        <label
+          className="flex items-center gap-1 text-[10px] uppercase text-muted"
+          title="Fire again while already in its state, to bind a new target."
+        >
+          <Switch
+            checked={trigger.retarget === true}
+            onCheckedChange={setRetarget}
+            ariaLabel="Fire again while in its state"
+          />
+          re-point
+        </label>
+        <BindField transition={trigger} vocab={vocab} onChange={onChange} />
+        <span className="text-[10px] uppercase text-muted">to</span>
+        <Select
+          value={trigger.to || null}
+          onValueChange={(v) => v && onChange({ ...trigger, to: v })}
+          options={scope.states.map((name) => ({ value: name, label: name }))}
+          className="min-w-[6rem]"
+          placeholder="…"
+        />
+        <Button size="sm" variant="danger" onClick={onRemove} aria-label="Remove trigger">
+          ✕
+        </Button>
+      </div>
+      <div className="flex items-start gap-2 pl-7">
+        <span className="pt-1.5 text-[10px] uppercase text-muted">if</span>
+        <ConditionTree
+          root={trigger.if}
+          lets={conditionLets(scope.lets)}
+          vocab={vocab}
+          onChange={(next) => onChange({ ...trigger, if: next })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ExpandedTable({ table, bands }: { table: BrainDef; bands: Record<string, Band> }) {
+  const names = Object.keys(table.states);
+
+  return (
+    <details className="border-2 border-border bg-paper p-2">
+      <summary className="cursor-pointer text-xs font-bold uppercase text-muted">
+        What it runs: {names.length} states, {table.transitions.length} rows
+      </summary>
+      <div className="mt-2 flex flex-col gap-2 text-[11px] leading-snug">
+        <ul className="flex flex-col gap-1">
+          {names.map((name) => {
+            const state = table.states[name]!;
+            const entered = describeEffects(state.onEnter);
+            return (
+              <li key={name}>
+                <span className="font-bold">{name}</span>
+                <span className="text-muted"> at {bands[name] ?? "idle"}</span>
+                {entered ? <span className="text-muted"> · on enter </span> : null}
+                {entered}
+                <span className="text-muted"> · does </span>
+                {describeActions(state.do)}
+              </li>
+            );
+          })}
+        </ul>
+        <ol className="flex flex-col gap-1">
+          {table.transitions.map((row, i) => (
+            <li key={i}>
+              <span className="font-mono text-muted">{i + 1}.</span> {describeFrom(row.from)} →{" "}
+              <span className="font-bold">{row.to}</span>
+              <span className="text-muted"> if </span>
+              {describeCondition(row.if)}
+              {row.bind ? (
+                <>
+                  <span className="text-muted"> binding </span>
+                  {Object.entries(row.bind)
+                    .map(([name, source]) => `$${name} to ${describeSelector(source)}`)
+                    .join(", ")}
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </details>
   );
 }

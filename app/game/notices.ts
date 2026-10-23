@@ -1,15 +1,18 @@
 import { formatClock, type MinutesOfDay } from "../lib/clock";
 import type { CraftInteraction, ExtractInteraction, PlacedReward } from "../lib/interactions";
 import { DEFAULT_CRAFT_VERB, DEFAULT_EXTRACT_VERB } from "../lib/interactions";
+import { EQUIP_SLOTS } from "../lib/kit";
 import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
 import type { CastRefusal } from "./casting";
+import type { InteractionOption } from "./interactionOptions";
 import {
   COMMAND_PREFIX,
   COMMAND_USAGE,
   MAX_TILE_COUNT,
   TILE_COMMAND,
   type CommandRefusal,
+  type GiveSlot,
 } from "./commands";
 import type { PathRefusal } from "./pathfinding";
 
@@ -33,6 +36,23 @@ function sentenceVerb(authored: string | undefined, fallback: string): string {
   const verb = authored?.trim();
   if (!verb) return fallback;
   return verb[0].toLowerCase() + verb.slice(1);
+}
+
+const DEFAULT_BLOCKED_VERB = "use";
+
+/**
+ * Why a click on a blocked thing did nothing. A pull already under way says
+ * nothing: its progress is already on screen.
+ */
+export function blockedNotice(
+  option: Pick<InteractionOption, "label" | "name" | "blocked">,
+): string | null {
+  const blocked = option.blocked;
+  if (!blocked || blocked.kind === "working") return null;
+  const doing = `${sentenceVerb(option.label, DEFAULT_BLOCKED_VERB)} ${option.name}`;
+  if (blocked.kind === "needs") return `You need a rating of ${blocked.rating} to ${doing}`;
+  if (blocked.kind === "taken") return `${option.name} is in use`;
+  return `You have no room to ${doing}`;
 }
 
 function verbOf(reward: PlacedReward): string {
@@ -127,6 +147,32 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return `"${refusal.typed}" is not a body. Put it down with ${COMMAND_PREFIX}${TILE_COMMAND}`;
     case "playerBody":
       return `${refusal.name} is a player, and leaves the board only by leaving the world`;
+    case "notAnItem":
+      return `"${refusal.typed}" is not an item. Put it down with ${COMMAND_PREFIX}${TILE_COMMAND}`;
+    case "unknownSquare":
+      return `"${refusal.typed}" is not a square. Try ${EQUIP_SLOTS.join(", ")}`;
+    case "noEquipment":
+      return `${refusal.name} has no equipment`;
+    case "wrongSquare":
+      return refusal.slot === "contents"
+        ? `${refusal.item} does not go in a bag`
+        : `${refusal.item} does not go in the ${refusal.slot} square`;
+    case "squareTaken":
+      return `${refusal.name}'s ${refusal.square} square holds ${refusal.holding}`;
+    case "noBag":
+      return `${refusal.name} has no bag`;
+    case "bagFull":
+      return `${refusal.name}'s bag is full`;
+    case "statusAbsent":
+      return `${refusal.name} is not ${statusInSentence(refusal.status)}`;
+    case "brainless":
+      return `${refusal.name} is not driven by a brain`;
+    case "unknownState":
+      return `No state called "${refusal.typed}" in ${refusal.name}'s brain. Try ${refusal.known.join(", ")}`;
+    case "notAProjectile":
+      return refusal.known.length === 0
+        ? `"${refusal.typed}" is not a projectile, and this world authored none`
+        : `"${refusal.typed}" is not a projectile. Try ${refusal.known.join(", ")}`;
   }
 }
 
@@ -141,6 +187,21 @@ export function tileNotice(name: string, at: Coord, count = 1): string {
 
 export function spawnNotice(name: string, at: Coord, id: string): string {
   return `${tileNotice(name, at)} as ${id}`;
+}
+
+export function giveNotice(item: string, slot: GiveSlot, owner: string | null): string {
+  const whose = owner === null ? "your" : `${owner}'s`;
+  const into = slot === "contents" ? "bag" : `${slot} square`;
+  return `${item} appears in ${whose} ${into}`;
+}
+
+export function brainNotice(name: string, on: boolean, state: string): string {
+  return `${name}'s brain is ${on ? "on" : "off"}, in the ${state} state`;
+}
+
+export function fireNotice(projectile: string, from: string | Coord, to: string | Coord): string {
+  const named = (end: string | Coord) => (typeof end === "string" ? end : cellName(end));
+  return `${projectile} flies from ${named(from)} to ${named(to)}`;
 }
 
 export function otherArrivalNotice(name: string, at: Coord): string {
@@ -182,12 +243,12 @@ export function otherStatusNotice(name: string, status: string): string {
   return `${name} is ${statusInSentence(status)}`;
 }
 
-export function spawnMarkNotice(): string {
-  return "You will respawn here.";
+export function statusRemovedNotice(status: string): string {
+  return `You are no longer ${statusInSentence(status)}`;
 }
 
-export function spawnMarkUnchangedNotice(): string {
-  return "You already respawn here.";
+export function otherStatusRemovedNotice(name: string, status: string): string {
+  return `${name} is no longer ${statusInSentence(status)}`;
 }
 
 export function statusesClearedNotice(): string {

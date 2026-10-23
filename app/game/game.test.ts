@@ -88,6 +88,13 @@ const tiles: TileDef[] = [
     actor: true,
     affectedByGravity: true,
   }),
+  tile({
+    id: "giant",
+    height: 8,
+    walkable: false,
+    actor: true,
+    affectedByGravity: true,
+  }),
   tile({ id: "tree", height: 4, walkable: false }),
   tile({ id: "bush", height: 2, walkable: false }),
   tile({ id: "fence", height: 2, walkable: false }),
@@ -475,6 +482,37 @@ describe("canReplaceStack", () => {
         false,
       );
     });
+  });
+});
+
+describe("a body taller than a level", () => {
+  function rowWithCeilingOver(x: number, body: string): MapFile {
+    let map = emptyMap();
+    for (let i = 0; i < 2; i++) {
+      map = replaceStack(map, i, 0, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: body, direction: "s" }]);
+    return replaceStack(map, x, 0, 1, [{ tileId: "roof" }]);
+  }
+
+  it("walks where nothing is overhead", () => {
+    const map = rowWithCeilingOver(-1, "giant");
+    const walk = canWalk(
+      map,
+      { x: 0, y: 0, z: 0, stackIndex: 1 },
+      "e",
+      tilesById.giant!,
+      tilesById,
+    );
+    expect(walk).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+  });
+
+  it("is stopped by a ceiling a level-tall body walks under", () => {
+    const giant = rowWithCeilingOver(1, "giant");
+    const deer = rowWithCeilingOver(1, "deer");
+    const from = { x: 0, y: 0, z: 0, stackIndex: 1 };
+    expect(canWalk(giant, from, "e", tilesById.giant!, tilesById).ok).toBe(false);
+    expect(canWalk(deer, from, "e", tilesById.deer!, tilesById).ok).toBe(true);
   });
 });
 
@@ -1334,11 +1372,11 @@ describe("GameSession canInteract", () => {
     expect(session.canInteract({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
   });
 
-  it("hovers an interactive object one floor above", () => {
+  it("ignores an interactive object a whole floor above", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
     const session = new GameSession(map, tiles);
-    expect(session.canInteract({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(true);
+    expect(session.canInteract({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(false);
   });
 
   it("ignores a switch a floor below the ground it is standing on", () => {
@@ -1463,19 +1501,14 @@ describe("GameSession push", () => {
     expect(session.push({ x: 1, y: 1, z: 0, stackIndex: 1 })).toBe(false);
   });
 
-  it("pushes an object standing one floor below", () => {
+  it("refuses an object a whole floor below, down a hole", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 0, []);
     map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 2, 0, -1, [{ tileId: "grass" }]);
     map = replaceStack(map, 2, 0, 0, []);
     const session = new GameSession(map, tiles);
-    expect(session.push({ x: 1, y: 0, z: -1, stackIndex: 1 })).toBe(true);
-    runSlide(session);
-    expect(getStack(session.getSnapshot().map, 2, 0, -1).map((p) => p.tileId)).toEqual([
-      "grass",
-      "crate",
-    ]);
+    expect(session.push({ x: 1, y: 0, z: -1, stackIndex: 1 })).toBe(false);
   });
 
   it("refuses an object two floors away", () => {

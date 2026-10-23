@@ -22,6 +22,7 @@ function statsOf(over: Partial<FightingStats>): FightingStats {
     haste: 1,
     hitChance: 0.8,
     flee: 30,
+    canDodge: true,
     reach: MELEE_REACH,
     projectile: null,
     sight: { up: 0, down: 0 },
@@ -121,6 +122,14 @@ describe("swing odds", () => {
     expect(observed.connected).toBeCloseTo(predicted.connected, 2);
     expect(observed.absorbed).toBeCloseTo(predicted.absorbed, 2);
     expect(observed.meanSwingDamage).toBeCloseTo(predicted.meanSwingDamage, 1);
+  });
+
+  it("gives a body that cannot dodge no chance of dodging", () => {
+    const attacker = statsOf({ hitChance: 0.72 });
+    const defender = statsOf({ flee: 100, canDodge: false });
+
+    expect(swingOdds(attacker, defender).dodged).toBe(0);
+    expect(sampled(attacker, defender).dodged).toBe(0);
   });
 
   it("counts a blow armour swallowed as absorbed rather than as a wound", () => {

@@ -1,6 +1,6 @@
 import {
-  ANY_STATE,
   MAX_HEALTH_PERCENT,
+  leavesFrom,
   type BrainCondition,
   type BrainActionDef,
   type BrainConditionDef,
@@ -108,6 +108,23 @@ export function initialMemory(brain: BrainDef): BrainMemory {
     heardFrom: null,
     hurtBy: null,
   };
+}
+
+/**
+ * Enters `state` as a transition does, except that `onEnter` is left for the
+ * next `stepBrain` to run: `started` is false, and its effects need a context.
+ */
+export function enterBrainState(memory: BrainMemory, state: string): void {
+  changeState(memory, state);
+  memory.started = false;
+}
+
+function changeState(memory: BrainMemory, state: string) {
+  memory.state = state;
+  memory.msInState = 0;
+  memory.patience = null;
+  memory.stuck = false;
+  memory.scratch = {};
 }
 
 const SLOT_PLACEHOLDER = /\{([A-Za-z0-9_]+)\}/g;
@@ -440,9 +457,7 @@ function firstMatch(
   ctx: BrainContext,
 ): BrainTransitionDef | null {
   for (const transition of brain.transitions) {
-    if (transition.from !== ANY_STATE && transition.from !== memory.state) {
-      continue;
-    }
+    if (!leavesFrom(transition.from, memory.state)) continue;
     if (holds(transition.if, memory, ctx)) return transition;
   }
   return null;
@@ -486,11 +501,7 @@ export function stepBrain(
   if (transition) {
     applyBind(transition, memory, ctx);
     if (transition.to !== memory.state) {
-      memory.state = transition.to;
-      memory.msInState = 0;
-      memory.patience = null;
-      memory.stuck = false;
-      memory.scratch = {};
+      changeState(memory, transition.to);
       runOnEnter(brain, memory, ctx);
     }
   }

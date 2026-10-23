@@ -4,6 +4,7 @@ import type { DeathRecord } from "../../server/deaths";
 import type { FeedbackEntry } from "../../server/feedback";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { PlayerEntry } from "../../server/world";
+import type { RealmState } from "../../server/realm";
 import type { CharacterSheet } from "../../server/GameServer";
 import type { TileDef, TilesetDef } from "./types";
 import type { RemovedPlacement } from "./validation";
@@ -45,6 +46,10 @@ export async function fetchStatuses(): Promise<unknown[]> {
   return unwrap(await client.api.statuses.get()).statuses;
 }
 
+export async function fetchTraits(): Promise<unknown[]> {
+  return unwrap(await client.api.traits.get()).traits;
+}
+
 export async function fetchTilesets(): Promise<TilesetDef[]> {
   return unwrap(await client.api.tilesets.get()).tilesets as TilesetDef[];
 }
@@ -59,6 +64,10 @@ export async function saveTiles(tiles: TileDef[]): Promise<void> {
 
 export async function saveStatuses(statuses: unknown[]): Promise<void> {
   unwrap(await client.api.statuses.post({ statuses }));
+}
+
+export async function saveTraits(traits: unknown[]): Promise<void> {
+  unwrap(await client.api.traits.post({ traits }));
 }
 
 export async function saveMapText(map: string): Promise<RemovedPlacement[]> {
@@ -79,6 +88,10 @@ export async function uploadTilesetBytes(name: string, bytes: Uint8Array): Promi
 
 export async function fetchMaintenance(): Promise<MaintenanceState | null> {
   return unwrap(await client.api.maintenance.get()).maintenance;
+}
+
+export async function fetchRealm(): Promise<RealmState> {
+  return unwrap(await client.api.realm.get());
 }
 
 export async function saveMaintenance(

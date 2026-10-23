@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
+import traitsJson from "../data/traits.json";
 import { PLAYER_TILE_ID, TICK_MS } from "../app/game/constants";
 import { carriedInstances } from "../app/game/equipment";
 import { fixtureTutorial } from "../app/lib/fixtureTutorial";
 import { statusesById } from "../app/lib/status";
+import { traitsById, withTraits } from "../app/lib/traits";
 import {
   MAP_FILE_VERSION,
   normalizeTileDef,
@@ -26,13 +28,18 @@ import {
 import { DEFAULT_TEMPERAMENT } from "./temperament";
 
 const JSON_TYPE = "application/json";
-const tiles: TileDef[] = (tilesJson as TileDef[]).map(normalizeTileDef);
+const tiles: TileDef[] = withTraits(
+  (tilesJson as TileDef[]).map(normalizeTileDef),
+  traitsById(traitsJson as unknown[]),
+);
 const tilesById = tilesByIdFromList(tiles);
 const statuses = statusesById(statusesJson as unknown[]);
 
 const NOON_MS = 12 * 60 * 60 * 1000;
 const FRAME_MS = 50;
 const GIVE_UP_MS = 120_000;
+/** Well over `KIT_MIN_WORTH`, so a bag holding this many is fetched from anywhere in a test world. */
+const SHARDS_WORTH_THE_WALK = 20;
 
 function tutorialWorld(): FlatMapFile {
   const levels: Record<string, Record<string, PlacedTile[]>> = {};
@@ -87,6 +94,21 @@ function armouryWorld(): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
+/** A field with the bot and, a few cells east, a dropped bag like the one it wears, holding shards. */
+function droppedBagWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 12; x++) {
+    for (let y = 0; y < 7; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["1,3"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  cells["5,3"]!.push({
+    tileId: "basic-bag",
+    itemId: "dropped",
+    contents: [{ id: "shards", tileId: "arcane-shard", count: 12 }],
+  });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
 /** A field with the bot, a chest of `rewards` beside it, and the stone forge a few cells east. */
 function forgeWorld(rewards: string[]): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
@@ -105,6 +127,7 @@ beforeEach(async () => {
   harness = await Harness.create({}, { manualTicks: { startAtMs: NOON_MS } });
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
+  await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
   await harness.blobs.put("map.json", JSON.stringify(tutorialWorld()), JSON_TYPE);
 });
 
@@ -212,6 +235,31 @@ it("turns on a creature it fears but cannot outrun, rather than being chased dow
   expect(batGone()).toBe(true);
 });
 
+it("waits for a faster creature that has seen it, rather than backing away", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(armouryWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot(true);
+  const lines: string[] = [];
+  const bot = new Bot(
+    remote,
+    new ScriptedPlanner([{ goal: "rest", seconds: 300 }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread: 8 },
+      log: (line) => lines.push(line),
+    },
+  );
+  await play(bot, remote, () => !!remote.getSnapshot().equipment.weapon, clock);
+  const { self } = remote.getSnapshot();
+  void remote.command(`/spawn wolf ${self.x + 6} ${self.y} ${self.z}`);
+  const decided = () => lines.some((line) => /backing away|cannot outrun/.test(line));
+
+  await play(bot, remote, decided, clock);
+
+  expect(lines.find((line) => /backing away|cannot outrun/.test(line))).toContain("cannot outrun");
+});
+
 /** Answers every ask with `rest`, and keeps what it was asked. */
 class Recorder implements Planner {
   readonly asked: Observation[] = [];
@@ -230,8 +278,13 @@ class Recorder implements Planner {
 async function bagToldAfterDying(
   dread: number,
   before: (remote: RemoteSession, clock: { ms: number }, bot: Bot) => Promise<void>,
+  shards = SHARDS_WORTH_THE_WALK,
 ) {
-  await harness.blobs.put("map.json", JSON.stringify(armouryWorld()), JSON_TYPE);
+  const world = armouryWorld();
+  if (shards > 0) {
+    world.levels["0"]!["14,15"]!.push({ tileId: "arcane-shard", itemId: "shards", count: shards });
+  }
+  await harness.blobs.put("map.json", JSON.stringify(world), JSON_TYPE);
   const pair = new Pair();
   pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
   const clock = { ms: 0 };
@@ -243,7 +296,10 @@ async function bagToldAfterDying(
     temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread },
   });
   const askedAfterDying = () => planner.asked.find((ask) => ask.reason === "died");
-  await play(bot, remote, () => remote.getSnapshot().equipment.bag !== null, clock);
+  const packed = () =>
+    remote.getSnapshot().equipment.bag !== null &&
+    (shards === 0 || carried(remote).includes("arcane-shard"));
+  await play(bot, remote, packed, clock);
   await before(remote, clock, bot);
 
   void remote.command("/health 0");
@@ -265,6 +321,12 @@ it("leaves its bag while a creature it fears killed it beside it", async () => {
     const batSeen = () => remote.getSnapshot().actors.some((a) => a.tileId === "bat");
     await play(bot, remote, batSeen, clock);
   });
+
+  expect(situation?.lostKitAt).toBeNull();
+});
+
+it("leaves a bag that holds nothing worth the walk", async () => {
+  const situation = await bagToldAfterDying(DEFAULT_TEMPERAMENT.dread, async () => {}, 0);
 
   expect(situation?.lostKitAt).toBeNull();
 });
@@ -362,6 +424,23 @@ function carried(remote: RemoteSession): string[] {
   const { equipment } = remote.getSnapshot();
   return carriedInstances(equipment).map((instance) => instance.tileId);
 }
+
+it("takes the shards out of a dropped bag when it already wears one like it", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(droppedBagWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot();
+  const bot = new Bot(
+    remote,
+    new ScriptedPlanner([{ goal: "rest", seconds: 300 }]),
+    tilesById,
+    statuses,
+    { random: () => 0.5, temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 } },
+  );
+
+  await play(bot, remote, () => carried(remote).includes("arcane-shard"), clock);
+
+  expect(remote.getSnapshot().equipment.bag?.tileId).toBe("basic-bag");
+  expect(carried(remote)).toContain("arcane-shard");
+});
 
 it("forges the blank stone from the chest at the stone forge", async () => {
   await harness.blobs.put("map.json", JSON.stringify(forgeWorld(["arcane-stone"])), JSON_TYPE);

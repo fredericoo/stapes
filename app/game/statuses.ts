@@ -207,7 +207,17 @@ export function withStatusModifiers(
   hp: number,
 ): FightingStats {
   if (statuses.length === 0) return stats;
+  const modified = withModifierDeltas(stats, statuses, catalogue, hp);
+  if (!incapacitated(statuses, catalogue)) return modified;
+  return { ...modified, flee: 0, canDodge: false };
+}
 
+function withModifierDeltas(
+  stats: FightingStats,
+  statuses: readonly StatusInstance[],
+  catalogue: Record<string, StatusDef>,
+  hp: number,
+): FightingStats {
   const deltas: Record<string, number> = {};
   let any = false;
 

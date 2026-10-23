@@ -1,5 +1,6 @@
 {
   "name": "the-last-stones",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,6 +15,7 @@
     "generate:figure": "bun scripts/generate-figure.ts",
     "figure-parts": "bun scripts/figure-parts.ts",
     "generate:respawn": "bun scripts/generate-respawn-tileset.ts",
+    "generate:spell-projectiles": "bun scripts/generate-spell-projectiles.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
     "generate:grass": "bun scripts/generate-grass-tileset.ts",
     "generate:low-roofs": "bun scripts/generate-low-roofs.ts",
@@ -22,7 +24,9 @@
     "carve:caves": "bun scripts/carve-caves.ts",
     "bench:server": "bun scripts/bench-server.ts",
     "bench:crowd": "bun scripts/bench-crowd.ts",
+    "bench:bots": "bun scripts/bench-bots.ts",
     "bots": "bun bots/index.ts",
+    "verify": "bun scripts/verify.ts",
     "test": "bun run test:unit && bun run test:server && bun run test:perf",
     "test:unit": "vitest run",
     "test:server": "bun test server/ bots/",
@@ -39,10 +43,12 @@
     "better-auth": "^1.7.5",
     "elysia": "1.4.29",
     "kysely": "^0.29.6",
+    "pixelarticons": "2.4.1",
     "valibot": "^1.4.2"
   },
   "devDependencies": {
     "@base-ui/react": "^1.6.0",
+    "@changesets/cli": "3.0.3",
     "@dnd-kit/react": "^0.5.0",
     "@elysiajs/eden": "1.4.9",
     "@playwright/test": "^1.62.1",

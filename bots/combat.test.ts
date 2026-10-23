@@ -7,7 +7,14 @@ import { rating } from "../app/lib/mastery";
 import { statusesById } from "../app/lib/status";
 import { normalizeTileDef, type TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
-import { choosePrey, creaturesAround, healingFood, type PreyChoice, type Rated } from "./combat";
+import {
+  choosePrey,
+  creaturesAround,
+  healingFood,
+  healsAtOnce,
+  type PreyChoice,
+  type Rated,
+} from "./combat";
 import { bodyOf } from "./gear";
 import { fightOdds, swingsOf, type Fighter } from "./odds";
 import { DEFAULT_TEMPERAMENT } from "./temperament";
@@ -108,6 +115,44 @@ describe("fightOdds", () => {
     expect(odds("snake")).toBeLessThan(odds("harmless-snake") * 0.8);
   });
 
+  it("weighs a spell's area that reaches the bot, even one centred on its caster", () => {
+    const wolf = tilesById.wolf!;
+    const battler = wolf.interactions!.battler!;
+    const stomping: TileDef = {
+      ...wolf,
+      id: "stomping-wolf",
+      interactions: {
+        ...wolf.interactions,
+        battler: {
+          ...battler,
+          spells: [
+            {
+              type: "stone",
+              name: "Stomp",
+              cooldownMs: 5_000,
+              effect: {
+                kind: "bolt",
+                on: "caster",
+                area: {
+                  shape: "circle",
+                  radius: 2,
+                  height: 2,
+                  affects: "others",
+                  throughWalls: true,
+                  damage: 10,
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+    const withStomping = { ...tilesById, [stomping.id]: stomping };
+    const odds = (tileId: string) =>
+      fightOdds(newcomerSwings, fresh, [foe(tileId)], withStomping, statusDefs)!.margin;
+    expect(odds("stomping-wolf")).toBeLessThan(odds("wolf"));
+  });
+
   it("counts the poison already in the bot against the fight ahead", () => {
     const poisoned = {
       ...fresh,
@@ -168,5 +213,13 @@ describe("healingFood", () => {
 
   it("counts a berry, which heals only through the status it gives", () => {
     expect(healingFood(bagOf("raw-meat", "berry"), tilesById, statusDefs)).toBe(1);
+  });
+
+  it("in a fight, eats only food that heals at once", () => {
+    const fighting = (...tileIds: string[]) =>
+      healingFood(bagOf(...tileIds), tilesById, statusDefs, healsAtOnce);
+
+    expect(fighting("berry", "bread")).toBeNull();
+    expect(fighting("berry", "cheese")).toBe(1);
   });
 });

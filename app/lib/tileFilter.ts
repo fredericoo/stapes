@@ -1,4 +1,4 @@
-import { resolveBrain } from "./brain";
+import { hasBrain } from "./traits";
 import type { TileDef } from "./types";
 
 export type TileFilterKind = "all" | "battler" | "npc" | "item";
@@ -12,7 +12,7 @@ export const TILE_FILTER_KINDS: { value: TileFilterKind; label: string }[] = [
 
 export function matchesTileFilter(def: TileDef, filter: TileFilterKind): boolean {
   if (filter === "all") return true;
-  if (filter === "npc") return resolveBrain(def) !== null;
+  if (filter === "npc") return hasBrain(def);
   return def.kind === filter;
 }
 

@@ -31,7 +31,47 @@ export function emptyMap(): MapFile {
 }
 
 export function getStack(map: MapFile, x: number, y: number, z: number): PlacedTile[] {
-  return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)]?.[coordKey(x, y)] ?? [];
+  const chunk = map.levels[levelKey(z)]?.[chunkKeyFor(x, y)];
+  if (!chunk) return [];
+  if (!isWholeCell(x, y)) return chunk[coordKey(x, y)] ?? [];
+  return cellIndexOf(chunk)[cellSlot(x, y)] ?? [];
+}
+
+type CellIndex = Array<PlacedTile[] | undefined>;
+
+const CHUNK_CELLS = CHUNK_SIZE * CHUNK_SIZE;
+const CHUNK_MASK = CHUNK_SIZE - 1;
+
+/**
+ * Chunks are never written after `setStacks` returns them, so a chunk's stacks
+ * can be filed once by slot and read without building a cell-key string.
+ * `setStacks` hands a copied chunk its source's index with the edits applied.
+ */
+const cellIndexByChunk = new WeakMap<ChunkCells, CellIndex>();
+
+/** `| 0` also rejects coordinates past 32 bits, which the mask below would wrap. */
+function isWholeCell(x: number, y: number): boolean {
+  return (x | 0) === x && (y | 0) === y;
+}
+
+/**
+ * `CHUNK_SIZE` is a power of two, so masking the two's-complement coordinate
+ * gives the cell's offset inside its chunk for negative coordinates too.
+ */
+function cellSlot(x: number, y: number): number {
+  return (x & CHUNK_MASK) * CHUNK_SIZE + (y & CHUNK_MASK);
+}
+
+function cellIndexOf(chunk: ChunkCells): CellIndex {
+  const cached = cellIndexByChunk.get(chunk);
+  if (cached) return cached;
+  const index: CellIndex = Array.from({ length: CHUNK_CELLS });
+  for (const key in chunk) {
+    const { x, y } = parseCoordKey(key);
+    if (isWholeCell(x, y)) index[cellSlot(x, y)] = chunk[key];
+  }
+  cellIndexByChunk.set(chunk, index);
+  return index;
 }
 
 export function stackOnLevel(
@@ -499,16 +539,21 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
       if (source) lineage.set(chunk, { parent: new WeakRef(source), keys });
       const ids = source && tileIdsByChunk.get(source);
       if (ids) inherited.set(chunk, { ids, written: [] });
+      const sourceIndex = source && cellIndexByChunk.get(source);
+      if (sourceIndex) cellIndexByChunk.set(chunk, sourceIndex.slice());
     }
     inherited.get(chunk)?.written.push(edit.stack);
 
     const ck = coordKey(edit.x, edit.y);
     writtenInto.get(chunk)!.push(ck);
+    const index = isWholeCell(edit.x, edit.y) ? cellIndexByChunk.get(chunk) : undefined;
     if (edit.stack.length === 0) {
       delete chunk[ck];
+      if (index) index[cellSlot(edit.x, edit.y)] = undefined;
       deleted = true;
     } else {
       chunk[ck] = edit.stack;
+      if (index) index[cellSlot(edit.x, edit.y)] = edit.stack;
     }
   }
 
@@ -744,33 +789,68 @@ export function updatePlacedFoot(
   return setStack(map, x, y, z, stack);
 }
 
+export type RewardDraft = {
+  tag: string;
+  tileIds: readonly string[];
+  minRating: number | null;
+};
+
 export function updatePlacedReward(
   map: MapFile,
   x: number,
   y: number,
   z: number,
   stackIndex: number,
-  tag: string,
-  tileIds: readonly string[],
+  draft: RewardDraft,
 ): MapFile {
   const current = getStack(map, x, y, z);
   const placed = current[stackIndex];
   if (!placed) return map;
 
-  const trimmedTag = tag.trim();
-  const kept = tileIds.filter((id) => id.trim());
+  const trimmedTag = draft.tag.trim();
+  const kept = draft.tileIds.filter((id) => id.trim());
   const live = trimmedTag !== "" && kept.length > 0;
   const nextTag = live ? trimmedTag : undefined;
   const nextIds = live ? kept : undefined;
+  const nextRating = live && draft.minRating !== null ? draft.minRating : undefined;
 
-  if (placed.rewardTag === nextTag && sameIds(placed.rewardTileIds, nextIds)) {
+  if (
+    placed.rewardTag === nextTag &&
+    sameIds(placed.rewardTileIds, nextIds) &&
+    placed.rewardRequires?.rating === nextRating
+  ) {
     return map;
   }
 
   const stack = current.map((p, i) => {
     if (i !== stackIndex) return { ...p };
-    const { rewardTag: _tag, rewardTileIds: _ids, ...rest } = p;
-    return live ? { ...rest, rewardTag: nextTag, rewardTileIds: nextIds } : rest;
+    const { rewardTag: _tag, rewardTileIds: _ids, rewardRequires: _requires, ...rest } = p;
+    if (!live) return rest;
+    const requires = nextRating === undefined ? {} : { rewardRequires: { rating: nextRating } };
+    return { ...rest, rewardTag: nextTag, rewardTileIds: nextIds, ...requires };
+  });
+  return setStack(map, x, y, z, stack);
+}
+
+export function updatePlacedDepotTag(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  tag: string,
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const placed = current[stackIndex];
+  if (!placed) return map;
+
+  const next = tag.trim() || undefined;
+  if (placed.depotTag === next) return map;
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { depotTag: _tag, ...rest } = p;
+    return next ? { ...rest, depotTag: next } : rest;
   });
   return setStack(map, x, y, z, stack);
 }

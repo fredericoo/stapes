@@ -1,5 +1,6 @@
 import type { MinutesOfDay } from "../lib/clock";
 import { MAX_CONSUMABLE_HP_SHIFT } from "../lib/item";
+import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord } from "../lib/types";
 
@@ -22,8 +23,14 @@ export const MOVE_COMMAND = "move";
 export const TIME_COMMAND = "time";
 export const SPAWN_COMMAND = "spawn";
 export const DESPAWN_COMMAND = "despawn";
+export const GIVE_COMMAND = "give";
+export const BRAIN_COMMAND = "brain";
+export const FIRE_COMMAND = "fire";
 
 export const STATUS_CLEAR_ARGUMENT = "clear";
+export const STATUS_OFF_ARGUMENT = "off";
+export const BRAIN_OFF_ARGUMENT = "off";
+export const BRAIN_ON_ARGUMENT = "on";
 
 export type CommandName =
   | typeof MASTERY_COMMAND
@@ -34,18 +41,24 @@ export type CommandName =
   | typeof MOVE_COMMAND
   | typeof TIME_COMMAND
   | typeof SPAWN_COMMAND
-  | typeof DESPAWN_COMMAND;
+  | typeof DESPAWN_COMMAND
+  | typeof GIVE_COMMAND
+  | typeof BRAIN_COMMAND
+  | typeof FIRE_COMMAND;
 
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_EARNED_MASTERY}-${MAX_MASTERY}> [player id]`,
   [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [xN] [x] [y] [z]`,
-  [STATUS_COMMAND]: `${COMMAND_PREFIX}${STATUS_COMMAND} <status id | ${STATUS_CLEAR_ARGUMENT}> [player id]`,
+  [STATUS_COMMAND]: `${COMMAND_PREFIX}${STATUS_COMMAND} <status id [${STATUS_OFF_ARGUMENT}] | ${STATUS_CLEAR_ARGUMENT}> [player id]`,
   [HEALTH_COMMAND]: `${COMMAND_PREFIX}${HEALTH_COMMAND} <n | +n | -n> [player id]`,
   [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z] [body]`,
   [MOVE_COMMAND]: `${COMMAND_PREFIX}${MOVE_COMMAND} <east> <south> [up]`,
   [TIME_COMMAND]: `${COMMAND_PREFIX}${TIME_COMMAND} <hh:mm>`,
   [SPAWN_COMMAND]: `${COMMAND_PREFIX}${SPAWN_COMMAND} <tile> <x> <y> [z]`,
   [DESPAWN_COMMAND]: `${COMMAND_PREFIX}${DESPAWN_COMMAND} <body>`,
+  [GIVE_COMMAND]: `${COMMAND_PREFIX}${GIVE_COMMAND} <item> [square] [body]`,
+  [BRAIN_COMMAND]: `${COMMAND_PREFIX}${BRAIN_COMMAND} <body> <${BRAIN_OFF_ARGUMENT} | ${BRAIN_ON_ARGUMENT} | state>`,
+  [FIRE_COMMAND]: `${COMMAND_PREFIX}${FIRE_COMMAND} <projectile> <body | x,y[,z]> <body | x,y[,z]>`,
 };
 
 export type Coordinate = { kind: "absolute"; value: number } | { kind: "relative"; offset: number };
@@ -85,6 +98,7 @@ export type Command =
   | {
       name: typeof STATUS_COMMAND;
       statusId: string | null;
+      off: boolean;
       target: string | null;
     }
   | {
@@ -104,6 +118,23 @@ export type Command =
   | {
       name: typeof DESPAWN_COMMAND;
       target: string | null;
+    }
+  | {
+      name: typeof GIVE_COMMAND;
+      tileId: string;
+      square: EquipSlot | null;
+      target: string | null;
+    }
+  | {
+      name: typeof BRAIN_COMMAND;
+      target: string | null;
+      change: BrainChange;
+    }
+  | {
+      name: typeof FIRE_COMMAND;
+      tileId: string;
+      from: FlightEnd;
+      to: FlightEnd;
     };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
@@ -113,6 +144,17 @@ export type HealthCommand = Extract<Command, { name: typeof HEALTH_COMMAND }>;
 export type TimeCommand = Extract<Command, { name: typeof TIME_COMMAND }>;
 export type SpawnCommand = Extract<Command, { name: typeof SPAWN_COMMAND }>;
 export type DespawnCommand = Extract<Command, { name: typeof DESPAWN_COMMAND }>;
+export type GiveCommand = Extract<Command, { name: typeof GIVE_COMMAND }>;
+export type BrainCommand = Extract<Command, { name: typeof BRAIN_COMMAND }>;
+
+export type BrainChange = { kind: "off" } | { kind: "on" } | { kind: "state"; state: string };
+
+export type FireCommand = Extract<Command, { name: typeof FIRE_COMMAND }>;
+
+export type FlightEnd = { kind: "body"; target: string | null } | { kind: "cell"; at: MapCell };
+
+/** `contents` is inside the bag; `bag` is the square the bag itself is worn in. */
+export type GiveSlot = EquipSlot | "contents";
 
 export type HealthChange = { kind: "set"; hp: number } | { kind: "shift"; by: number };
 
@@ -136,7 +178,18 @@ export type CommandRefusal =
   | { kind: "unharmableTarget"; name: string }
   | { kind: "immuneTarget"; name: string; status: string }
   | { kind: "notABody"; typed: string }
-  | { kind: "playerBody"; name: string };
+  | { kind: "playerBody"; name: string }
+  | { kind: "notAnItem"; typed: string }
+  | { kind: "unknownSquare"; typed: string }
+  | { kind: "noEquipment"; name: string }
+  | { kind: "wrongSquare"; item: string; slot: GiveSlot }
+  | { kind: "squareTaken"; name: string; square: EquipSlot; holding: string }
+  | { kind: "noBag"; name: string }
+  | { kind: "bagFull"; name: string }
+  | { kind: "statusAbsent"; name: string; status: string }
+  | { kind: "brainless"; name: string }
+  | { kind: "unknownState"; typed: string; name: string; known: readonly string[] }
+  | { kind: "notAProjectile"; typed: string; known: readonly string[] };
 
 export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
@@ -146,14 +199,30 @@ export type CommandData =
       command: typeof STATUS_COMMAND;
       target: string;
       statusId: string | null;
-      outcome: "acquired" | "refreshed" | "cleared";
+      outcome: "acquired" | "refreshed" | "cleared" | "removed";
     }
   | { command: typeof HEALTH_COMMAND; target: string; hp: number; maxHp: number }
   | { command: typeof MASTERY_COMMAND; target: string; mastery: Mastery; level: number }
   | { command: typeof GOTO_COMMAND | typeof MOVE_COMMAND; target: string; at: Coord }
   | { command: typeof TIME_COMMAND; minutes: MinutesOfDay }
   | { command: typeof SPAWN_COMMAND; tileId: string; at: Coord }
-  | { command: typeof DESPAWN_COMMAND; target: string; at: Coord };
+  | { command: typeof DESPAWN_COMMAND; target: string; at: Coord }
+  | {
+      command: typeof GIVE_COMMAND;
+      target: string;
+      tileId: string;
+      itemId: string;
+      slot: GiveSlot;
+    }
+  | { command: typeof BRAIN_COMMAND; target: string; on: boolean; state: string }
+  | {
+      command: typeof FIRE_COMMAND;
+      tileId: string;
+      from: Coord;
+      to: Coord;
+      target: string | null;
+      flightMs: number;
+    };
 
 export type CommandOutcome =
   | { ok: true; data: CommandData; ids?: readonly string[] }
@@ -193,6 +262,12 @@ export function parseCommand(raw: string): CommandParse {
       return parseSpawnArguments(args);
     case DESPAWN_COMMAND:
       return parseDespawnArguments(args);
+    case GIVE_COMMAND:
+      return parseGiveArguments(args);
+    case BRAIN_COMMAND:
+      return parseBrainArguments(args);
+    case FIRE_COMMAND:
+      return parseFireArguments(args);
     default:
       return {
         ok: false,
@@ -291,22 +366,24 @@ const MIN_STATUS_ARGUMENTS = 1;
 const MAX_STATUS_ARGUMENTS = 2;
 
 function parseStatusArguments(args: string[]): CommandParse {
-  if (args.length < MIN_STATUS_ARGUMENTS || args.length > MAX_STATUS_ARGUMENTS) {
+  const [statusToken = "", second, third] = args;
+  const clearing = statusToken.toLowerCase() === STATUS_CLEAR_ARGUMENT;
+  const off = !clearing && second?.toLowerCase() === STATUS_OFF_ARGUMENT;
+  const most = off ? MAX_STATUS_ARGUMENTS + 1 : MAX_STATUS_ARGUMENTS;
+  if (args.length < MIN_STATUS_ARGUMENTS || args.length > most) {
     return {
       ok: false,
       refusal: { kind: "badArguments", command: STATUS_COMMAND },
     };
   }
 
-  const [statusToken = "", targetToken] = args;
-  const clearing = statusToken.toLowerCase() === STATUS_CLEAR_ARGUMENT;
-
   return {
     ok: true,
     command: {
       name: STATUS_COMMAND,
       statusId: clearing ? null : statusToken,
-      target: targetOf(targetToken),
+      off,
+      target: targetOf(off ? third : second),
     },
   };
 }
@@ -428,6 +505,83 @@ function parseDespawnArguments(args: string[]): CommandParse {
     return { ok: false, refusal: { kind: "badArguments", command: DESPAWN_COMMAND } };
   }
   return { ok: true, command: { name: DESPAWN_COMMAND, target: targetOf(args[0]) } };
+}
+
+const MIN_GIVE_ARGUMENTS = 1;
+const MAX_GIVE_ARGUMENTS = 3;
+
+function parseGiveArguments(args: string[]): CommandParse {
+  if (args.length < MIN_GIVE_ARGUMENTS || args.length > MAX_GIVE_ARGUMENTS) {
+    return { ok: false, refusal: { kind: "badArguments", command: GIVE_COMMAND } };
+  }
+
+  const [itemToken = "", second, third] = args;
+  const square = second === undefined ? null : squareOf(second);
+  if (third !== undefined && square === null) {
+    return { ok: false, refusal: { kind: "unknownSquare", typed: second ?? "" } };
+  }
+
+  return {
+    ok: true,
+    command: {
+      name: GIVE_COMMAND,
+      tileId: itemToken.toLowerCase(),
+      square,
+      target: targetOf(third ?? (square === null ? second : undefined)),
+    },
+  };
+}
+
+function squareOf(token: string): EquipSlot | null {
+  return EQUIP_SLOTS.find((square) => square === token.toLowerCase()) ?? null;
+}
+
+function parseBrainArguments(args: string[]): CommandParse {
+  if (args.length !== 2) {
+    return { ok: false, refusal: { kind: "badArguments", command: BRAIN_COMMAND } };
+  }
+
+  const [bodyToken, word = ""] = args;
+  return {
+    ok: true,
+    command: { name: BRAIN_COMMAND, target: targetOf(bodyToken), change: brainChangeOf(word) },
+  };
+}
+
+function brainChangeOf(word: string): BrainChange {
+  const lower = word.toLowerCase();
+  if (lower === BRAIN_OFF_ARGUMENT) return { kind: "off" };
+  if (lower === BRAIN_ON_ARGUMENT) return { kind: "on" };
+  return { kind: "state", state: word };
+}
+
+function parseFireArguments(args: string[]): CommandParse {
+  const [tileToken, fromToken, toToken] = args;
+  if (args.length !== 3 || !tileToken || !fromToken || !toToken) {
+    return { ok: false, refusal: { kind: "badArguments", command: FIRE_COMMAND } };
+  }
+
+  return {
+    ok: true,
+    command: {
+      name: FIRE_COMMAND,
+      tileId: tileToken.toLowerCase(),
+      from: flightEndOf(fromToken),
+      to: flightEndOf(toToken),
+    },
+  };
+}
+
+const CELL_PATTERN = /^([+-]?\d+),([+-]?\d+)(?:,([+-]?\d+))?$/;
+
+function flightEndOf(token: string): FlightEnd {
+  const match = CELL_PATTERN.exec(token);
+  if (!match) return { kind: "body", target: targetOf(token) };
+  const [, x = "", y = "", z] = match;
+  return {
+    kind: "cell",
+    at: { x: Number(x), y: Number(y), z: z === undefined ? null : Number(z) },
+  };
 }
 
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;

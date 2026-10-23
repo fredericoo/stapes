@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Harness, Pair } from "./testHarness";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
+import traitsJson from "../data/traits.json";
 import { RemoteSession } from "../app/net/RemoteSession";
 import { MAP_FILE_VERSION, normalizeTileDef } from "../app/lib/types";
 import { getStack, listCoords } from "../app/lib/mapData";
@@ -39,6 +40,7 @@ beforeEach(async () => {
   harness = await Harness.create({}, { manualTicks: { startAtMs: NOON_MS } });
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
+  await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
   await harness.blobs.put("map.json", JSON.stringify(strip()), JSON_TYPE);
 });
 

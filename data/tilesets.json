@@ -138,5 +138,12 @@
     "file": "grass.png",
     "width": 8,
     "height": 2048
+  },
+  {
+    "id": "spell-projectiles",
+    "name": "Spell Projectiles",
+    "file": "spell-projectiles.png",
+    "width": 192,
+    "height": 112
   }
 ]

@@ -30,8 +30,12 @@ an oblique cabinet projection with Three.js.
   and the costs already measured. Read the relevant section before changing that
   subsystem, and add to it when you learn something the next person would repeat.
 - **`.agents/skills/`** — skills that load on demand (renderer performance,
-  React Router, generating character sprites). Claude Code reads skills only from `.claude/skills/`, so each
+  React Router, generating character sprites, and `verify`: which
+  `bun run verify` command shows that a change works, and how to hand that
+  evidence over). Claude Code reads skills only from `.claude/skills/`, so each
   one here is symlinked there; a new one needs its link too.
+- **`.agents/skills/bot-bench/`** — when bot code changes, bench the branch
+  against `origin/main` with `bun run bench:bots` and put the table in the PR.
 - **`.claude/skills/pull-request-standards/`** — how to write a PR description here.
 - **`.claude/skills/better-ui/` and `.claude/skills/ux-writing/`** — third-party
   skills for interface detail (radii, shadows, icons, motion) and for interface
@@ -147,6 +151,20 @@ and the PR stays marked ready.
 
 The description is a different document with its own rules — see the
 `pull-request-standards` skill in `.claude/skills/`.
+
+### Every PR carries a changeset
+
+`CHANGELOG.md` is read by players, so the PR title is not what goes in it. Each
+PR adds a file under `.changeset/` with `bunx changeset add`, written for
+somebody playing rather than somebody reading the diff, or
+`bunx changeset add --empty` when a player could not notice the change. CI's
+`changeset` job fails without one. `.changeset/README.md` has the wording.
+
+Merging to `main` keeps a draft release PR up to date
+(`chore(release): …`, opened by `.github/workflows/release.yml`). Merging that
+PR bumps `package.json`, writes `CHANGELOG.md`, tags `v<version>`, creates
+the GitHub Release, deploys production and then posts the notes to Discord. Every other merge to `main` deploys
+staging only.
 
 ### Commit messages
 

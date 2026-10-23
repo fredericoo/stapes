@@ -1,0 +1,1977 @@
+[
+  {
+    "id": "serves-while-talking",
+    "name": "Serves while talking",
+    "hint": "Stands still for as long as somebody is talking to it, and says its greeting when they start. Serving comes before errands and a walk home.",
+    "params": {
+      "greeting": {
+        "kind": "text",
+        "label": "greeting",
+        "optional": true
+      }
+    },
+    "states": {
+      "serving": {
+        "band": "need",
+        "onEnter": [
+          {
+            "effect": "say",
+            "text": {
+              "arg": "greeting"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "cond": "talking"
+        },
+        "to": "serving"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "serving",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "talking"
+            }
+          ]
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "fights-back",
+    "name": "Fights back",
+    "hint": "Turns on whoever hit it, whatever it was doing, and on whoever hits it next. Gives up once its target is further off than calm.",
+    "params": {
+      "fight": {
+        "kind": "state",
+        "band": "fight",
+        "label": "fights in"
+      },
+      "target": {
+        "kind": "slot",
+        "holds": "body",
+        "label": "target"
+      },
+      "calm": {
+        "kind": "cells",
+        "default": 12,
+        "label": "gives up at"
+      },
+      "until": {
+        "kind": "condition",
+        "optional": true,
+        "label": "also gives up when"
+      }
+    },
+    "triggers": [
+      {
+        "band": "danger",
+        "retarget": true,
+        "if": {
+          "cond": "attacked"
+        },
+        "bind": {
+          "target": {
+            "type": "attacker"
+          }
+        },
+        "to": "fight"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "fight",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "target"
+            }
+          },
+          "cells": {
+            "arg": "calm"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "fight",
+        "if": {
+          "arg": "until"
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "hunts-on-sight",
+    "name": "Hunts on sight",
+    "hint": "Goes for the nearest of its prey it can see, and turns to a nearer one while it hunts. Gives up once its target is further off than calm.",
+    "params": {
+      "prey": {
+        "kind": "bodies",
+        "label": "prey"
+      },
+      "within": {
+        "kind": "cells",
+        "label": "sees within"
+      },
+      "fight": {
+        "kind": "state",
+        "band": "fight",
+        "label": "fights in"
+      },
+      "target": {
+        "kind": "slot",
+        "holds": "body",
+        "label": "target"
+      },
+      "calm": {
+        "kind": "cells",
+        "default": 12,
+        "label": "gives up at"
+      },
+      "when": {
+        "kind": "condition",
+        "optional": true,
+        "label": "only when"
+      },
+      "until": {
+        "kind": "condition",
+        "optional": true,
+        "label": "also gives up when"
+      }
+    },
+    "triggers": [
+      {
+        "band": "fight",
+        "retarget": true,
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "arg": "when"
+            },
+            {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": {
+                    "arg": "prey"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "bind": {
+          "target": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "prey"
+              }
+            }
+          }
+        },
+        "to": "fight"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "fight",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "target"
+            }
+          },
+          "cells": {
+            "arg": "calm"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "fight",
+        "if": {
+          "arg": "until"
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "predator",
+    "name": "Predator",
+    "hint": "Fights back, hunts what it can see, and keeps to a leash around where it was placed.",
+    "params": {
+      "fight": {
+        "kind": "state",
+        "band": "fight",
+        "label": "fights in"
+      },
+      "prey": {
+        "kind": "bodies",
+        "label": "prey"
+      },
+      "within": {
+        "kind": "cells",
+        "label": "sees within"
+      },
+      "calm": {
+        "kind": "cells",
+        "default": 12,
+        "label": "gives up at"
+      },
+      "leash": {
+        "kind": "cells",
+        "label": "leash"
+      },
+      "drops": {
+        "kind": "boolean",
+        "default": false,
+        "label": "drops on the way home"
+      },
+      "target": {
+        "kind": "slot",
+        "holds": "body",
+        "label": "target"
+      },
+      "when": {
+        "kind": "condition",
+        "optional": true,
+        "label": "hunts only when"
+      }
+    },
+    "traits": [
+      {
+        "trait": "fights-back",
+        "with": {
+          "fight": "fight",
+          "target": "target",
+          "calm": {
+            "arg": "calm"
+          }
+        }
+      },
+      {
+        "trait": "hunts-on-sight",
+        "with": {
+          "prey": {
+            "arg": "prey"
+          },
+          "within": {
+            "arg": "within"
+          },
+          "fight": "fight",
+          "target": "target",
+          "calm": {
+            "arg": "calm"
+          },
+          "when": {
+            "arg": "when"
+          }
+        }
+      },
+      {
+        "trait": "returns-home",
+        "with": {
+          "leash": {
+            "arg": "leash"
+          },
+          "drops": {
+            "arg": "drops"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "returns-home",
+    "name": "Returns home",
+    "hint": "Walks back once it has strayed further than the leash from where it was placed, and stops within near of it. The walk home gives way to anything it starts on the way, a sound included.",
+    "params": {
+      "leash": {
+        "kind": "cells",
+        "label": "leash"
+      },
+      "near": {
+        "kind": "cells",
+        "default": 2,
+        "label": "home within"
+      },
+      "drops": {
+        "kind": "boolean",
+        "default": false,
+        "label": "allow drops"
+      }
+    },
+    "states": {
+      "homing": {
+        "band": "roam",
+        "do": [
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "home"
+            },
+            "allowDrops": {
+              "arg": "drops"
+            }
+          },
+          {
+            "action": "step_random",
+            "allowDrops": {
+              "arg": "drops"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "band": "errand",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "home"
+          },
+          "cells": {
+            "arg": "leash"
+          }
+        },
+        "to": "homing"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "homing",
+        "if": {
+          "cond": "in_range",
+          "of": {
+            "type": "home"
+          },
+          "cells": {
+            "arg": "near"
+          }
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "investigates-noises",
+    "name": "Investigates noises",
+    "hint": "Goes to look at a sound it heard, round corners and through walls. Gives up when the source is further off than lose, or after its patience runs out.",
+    "params": {
+      "within": {
+        "kind": "cells",
+        "label": "hears within"
+      },
+      "lose": {
+        "kind": "cells",
+        "label": "loses it at"
+      },
+      "patience": {
+        "kind": "ms",
+        "default": 10000,
+        "label": "gives up after"
+      },
+      "wander": {
+        "kind": "steps",
+        "default": 1,
+        "label": "then wanders"
+      },
+      "cry": {
+        "kind": "text",
+        "optional": true,
+        "label": "noise as it goes"
+      }
+    },
+    "slots": {
+      "source": "body"
+    },
+    "states": {
+      "investigating": {
+        "band": "errand",
+        "onEnter": [
+          {
+            "effect": "noise",
+            "text": {
+              "arg": "cry"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "source"
+              }
+            }
+          },
+          {
+            "action": "walk_n_steps",
+            "steps": {
+              "arg": "wander"
+            }
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "cond": "heard_noise",
+          "cells": {
+            "arg": "within"
+          }
+        },
+        "bind": {
+          "source": {
+            "type": "speaker"
+          }
+        },
+        "to": "investigating"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "investigating",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "source"
+            }
+          },
+          "cells": {
+            "arg": "lose"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "investigating",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "patience"
+          }
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "unsticks",
+    "name": "Casts about when stuck",
+    "hint": "When everything it was doing has failed, does this for a while and starts over. Its urge is the band being stuck fires at: at need it never interrupts eating, sleeping or a fight, and at roam it interrupts only what the brain holds at idle.",
+    "params": {
+      "pause": {
+        "kind": "ms",
+        "default": 900,
+        "label": "for"
+      },
+      "doing": {
+        "kind": "actions",
+        "default": [
+          {
+            "action": "walk_n_steps",
+            "steps": 1
+          }
+        ],
+        "label": "does"
+      },
+      "urge": {
+        "kind": "band",
+        "default": "need",
+        "label": "urge"
+      }
+    },
+    "states": {
+      "casting": {
+        "band": "roam",
+        "do": {
+          "arg": "doing"
+        }
+      }
+    },
+    "triggers": [
+      {
+        "band": {
+          "arg": "urge"
+        },
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "casting"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "casting",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "pause"
+          }
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "sleeps",
+    "name": "Sleeps",
+    "hint": "Puts itself to sleep with one of its own spells for as long as the condition holds, and wakes when it stops holding. Never sleeps through a fight.",
+    "params": {
+      "while": {
+        "kind": "condition",
+        "label": "while"
+      },
+      "spell": {
+        "kind": "spell",
+        "label": "with spell"
+      }
+    },
+    "states": {
+      "sleeping": {
+        "band": "rest",
+        "do": [
+          {
+            "action": "cast",
+            "spell": {
+              "arg": "spell"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "arg": "while"
+        },
+        "to": "sleeping"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "sleeping",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "arg": "while"
+            }
+          ]
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "eats-when-hungry",
+    "name": "Eats when hungry",
+    "hint": "Goes for food it can see lying about once it is no longer full, and eats it where it lies. Its urge is the band that hunger fires at: at danger it drops a fight for food.",
+    "params": {
+      "food": {
+        "kind": "things",
+        "label": "food"
+      },
+      "within": {
+        "kind": "cells",
+        "default": 9,
+        "label": "sees within"
+      },
+      "lose": {
+        "kind": "cells",
+        "default": 9,
+        "label": "loses it at"
+      },
+      "full": {
+        "kind": "ms",
+        "default": 120000,
+        "label": "full with fed left"
+      },
+      "urge": {
+        "kind": "band",
+        "default": "need",
+        "label": "urge"
+      },
+      "cry": {
+        "kind": "text",
+        "optional": true,
+        "label": "noise as it goes"
+      },
+      "when": {
+        "kind": "condition",
+        "optional": true,
+        "label": "only when"
+      },
+      "until": {
+        "kind": "condition",
+        "optional": true,
+        "label": "also gives up when"
+      }
+    },
+    "slots": {
+      "meal": "thing"
+    },
+    "states": {
+      "feeding": {
+        "band": "need",
+        "onEnter": [
+          {
+            "effect": "noise",
+            "text": {
+              "arg": "cry"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "consume",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "meal"
+              }
+            }
+          },
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "meal"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "band": {
+          "arg": "urge"
+        },
+        "retarget": true,
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "arg": "when"
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "status",
+                  "id": "fed",
+                  "atLeastMs": {
+                    "arg": "full"
+                  }
+                }
+              ]
+            },
+            {
+              "cond": "in_los",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": {
+                    "arg": "food"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "bind": {
+          "meal": {
+            "type": "thing",
+            "data": {
+              "tileIds": {
+                "arg": "food"
+              }
+            }
+          }
+        },
+        "to": "feeding"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "feeding",
+        "if": {
+          "cond": "out_of_los",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "meal"
+            }
+          },
+          "cells": {
+            "arg": "lose"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "feeding",
+        "if": {
+          "cond": "status",
+          "id": "fed",
+          "atLeastMs": {
+            "arg": "full"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "feeding",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "feeding",
+        "if": {
+          "arg": "until"
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "forages",
+    "name": "Forages",
+    "hint": "Picks a bush it can see into its bag, out of a fight, and eats what it picked. A body with no bag can stand beside a bush and not touch it.",
+    "params": {
+      "bush": {
+        "kind": "things",
+        "label": "picks"
+      },
+      "berry": {
+        "kind": "consumable",
+        "label": "eats"
+      },
+      "within": {
+        "kind": "cells",
+        "default": 10,
+        "label": "sees within"
+      },
+      "lose": {
+        "kind": "cells",
+        "default": 10,
+        "label": "loses it at"
+      },
+      "when": {
+        "kind": "condition",
+        "optional": true,
+        "label": "only when"
+      },
+      "until": {
+        "kind": "condition",
+        "optional": true,
+        "label": "also gives up when"
+      }
+    },
+    "slots": {
+      "patch": "thing"
+    },
+    "states": {
+      "browsing": {
+        "band": "errand",
+        "do": [
+          {
+            "action": "extract",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "patch"
+              }
+            }
+          },
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "patch"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "chewing": {
+        "band": "need",
+        "do": [
+          {
+            "action": "consume",
+            "tileId": {
+              "arg": "berry"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "cond": "carrying",
+          "tileId": {
+            "arg": "berry"
+          }
+        },
+        "to": "chewing"
+      },
+      {
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "arg": "when"
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "status",
+                  "id": "combat"
+                }
+              ]
+            },
+            {
+              "cond": "in_los",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": {
+                    "arg": "bush"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "bind": {
+          "patch": {
+            "type": "thing",
+            "data": {
+              "tileIds": {
+                "arg": "bush"
+              }
+            }
+          }
+        },
+        "to": "browsing"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "chewing",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "carrying",
+              "tileId": {
+                "arg": "berry"
+              }
+            }
+          ]
+        },
+        "to": "rest"
+      },
+      {
+        "from": "browsing",
+        "if": {
+          "cond": "status",
+          "id": "combat"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "browsing",
+        "if": {
+          "cond": "out_of_los",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "patch"
+            }
+          },
+          "cells": {
+            "arg": "lose"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "browsing",
+        "if": {
+          "arg": "until"
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "skittish",
+    "name": "Skittish",
+    "hint": "Bolts from whoever hits it, and from any threat it can see, until they are safe cells away. Backed into a corner, it holds still, and bolts again the moment it has something to bolt from.",
+    "params": {
+      "threats": {
+        "kind": "bodies",
+        "label": "runs from"
+      },
+      "sight": {
+        "kind": "cells",
+        "label": "sees within"
+      },
+      "safe": {
+        "kind": "cells",
+        "default": 8,
+        "label": "safe at"
+      },
+      "cry": {
+        "kind": "text",
+        "default": "!",
+        "label": "noise as it bolts"
+      }
+    },
+    "slots": {
+      "spooked": "body"
+    },
+    "states": {
+      "flee": {
+        "band": "danger",
+        "onEnter": [
+          {
+            "effect": "noise",
+            "text": {
+              "arg": "cry"
+            }
+          }
+        ],
+        "emit": {
+          "channel": "alarm",
+          "value": "on"
+        },
+        "do": [
+          {
+            "action": "step_away_from",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "spooked"
+              }
+            },
+            "allowDrops": true
+          }
+        ]
+      },
+      "cornered": {
+        "band": "fight",
+        "do": [
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "retarget": true,
+        "if": {
+          "cond": "attacked"
+        },
+        "bind": {
+          "spooked": {
+            "type": "attacker"
+          }
+        },
+        "to": "flee"
+      },
+      {
+        "retarget": true,
+        "if": {
+          "cond": "in_los",
+          "of": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "threats"
+              }
+            }
+          },
+          "cells": {
+            "arg": "sight"
+          }
+        },
+        "bind": {
+          "spooked": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "threats"
+              }
+            }
+          }
+        },
+        "to": "flee"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "flee",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "cornered"
+      },
+      {
+        "from": "flee",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "spooked"
+            }
+          },
+          "cells": {
+            "arg": "safe"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "cornered",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "spooked"
+            }
+          },
+          "cells": {
+            "arg": "safe"
+          }
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "flees-when-hurt",
+    "name": "Flees when hurt",
+    "hint": "Breaks off and backs away once it is down to this share of its health with the threat still near. Healed, it goes back to what it was doing; clear, it rests.",
+    "params": {
+      "threat": {
+        "kind": "slot",
+        "holds": "body",
+        "label": "from"
+      },
+      "below": {
+        "kind": "percent",
+        "label": "at or below"
+      },
+      "near": {
+        "kind": "cells",
+        "label": "while within"
+      },
+      "back": {
+        "kind": "state",
+        "default": "rest",
+        "label": "healed, goes back to"
+      },
+      "cry": {
+        "kind": "text",
+        "optional": true,
+        "label": "noise as it goes"
+      }
+    },
+    "states": {
+      "slinking": {
+        "band": "danger",
+        "onEnter": [
+          {
+            "effect": "noise",
+            "text": {
+              "arg": "cry"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "step_away_from",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "threat"
+              }
+            },
+            "allowDrops": true
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "health",
+              "atMostPercent": {
+                "arg": "below"
+              }
+            },
+            {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": {
+                "arg": "near"
+              }
+            }
+          ]
+        },
+        "to": "slinking"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "slinking",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "threat"
+            }
+          },
+          "cells": {
+            "arg": "near"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "slinking",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "health",
+              "atMostPercent": {
+                "arg": "below"
+              }
+            }
+          ]
+        },
+        "to": "back"
+      }
+    ]
+  },
+  {
+    "id": "follows-its-kind",
+    "name": "Follows its kind",
+    "hint": "Tags along after the nearest of its company it can see while nothing else is going on, and loses them past lose. Given settle and stray, it loiters close by and catches up when they get ahead.",
+    "params": {
+      "company": {
+        "kind": "bodies",
+        "label": "follows"
+      },
+      "within": {
+        "kind": "cells",
+        "label": "sees within"
+      },
+      "lose": {
+        "kind": "cells",
+        "label": "loses them at"
+      },
+      "wander": {
+        "kind": "steps",
+        "default": 2,
+        "label": "wanders"
+      },
+      "settle": {
+        "kind": "cells",
+        "optional": true,
+        "label": "loiters within"
+      },
+      "stray": {
+        "kind": "cells",
+        "optional": true,
+        "label": "catches up past"
+      }
+    },
+    "slots": {
+      "leader": "body"
+    },
+    "states": {
+      "following": {
+        "band": "roam",
+        "do": [
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "leader"
+              }
+            }
+          },
+          {
+            "action": "walk_n_steps",
+            "steps": {
+              "arg": "wander"
+            }
+          }
+        ]
+      },
+      "loitering": {
+        "band": "roam",
+        "do": [
+          {
+            "action": "walk_n_steps",
+            "steps": 3
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "cond": "in_los",
+          "of": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "company"
+              }
+            }
+          },
+          "cells": {
+            "arg": "within"
+          }
+        },
+        "bind": {
+          "leader": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "company"
+              }
+            }
+          }
+        },
+        "to": "following"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "following",
+        "if": {
+          "cond": "out_of_los",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "leader"
+            }
+          },
+          "cells": {
+            "arg": "lose"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "following",
+        "if": {
+          "cond": "in_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "leader"
+            }
+          },
+          "cells": {
+            "arg": "settle"
+          }
+        },
+        "to": "loitering"
+      },
+      {
+        "from": "loitering",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "leader"
+            }
+          },
+          "cells": {
+            "arg": "stray"
+          }
+        },
+        "to": "following"
+      }
+    ]
+  },
+  {
+    "id": "townsfolk-flee",
+    "name": "Townsfolk who flee",
+    "hint": "Runs from whoever hits it, walks home once they are out of reach or it has run long enough, and snacks with a spell of its own whenever it is not fed and nobody is talking to it. Given a state to listen in, it goes there whenever somebody talks to it, and comes back to rest from a walk home or a snack the same way.",
+    "params": {
+      "cry": {
+        "kind": "text",
+        "default": "Please, don't hurt me!",
+        "label": "says as it runs"
+      },
+      "snack": {
+        "kind": "spell",
+        "label": "snacks with"
+      },
+      "talk": {
+        "kind": "state",
+        "optional": true,
+        "label": "listens in"
+      },
+      "calm": {
+        "kind": "cells",
+        "default": 10,
+        "label": "runs while within"
+      },
+      "panic": {
+        "kind": "ms",
+        "default": 12000,
+        "label": "runs for at most"
+      },
+      "recover": {
+        "kind": "ms",
+        "default": 20000,
+        "label": "walks home for at most"
+      }
+    },
+    "slots": {
+      "threat": "body"
+    },
+    "let": {
+      "hungry": {
+        "kind": "condition",
+        "value": {
+          "combinator": "and",
+          "rules": [
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "status",
+                  "id": "fed"
+                }
+              ]
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "states": {
+      "panicking": {
+        "band": "danger",
+        "onEnter": [
+          {
+            "effect": "say",
+            "text": {
+              "arg": "cry"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "step_away_from",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "threat"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "recovering": {
+        "band": "need",
+        "do": [
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "home"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "snacking": {
+        "band": "need",
+        "do": [
+          {
+            "action": "cast",
+            "spell": {
+              "arg": "snack"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "band": "danger",
+        "retarget": true,
+        "if": {
+          "cond": "attacked"
+        },
+        "bind": {
+          "threat": {
+            "type": "attacker"
+          }
+        },
+        "to": "panicking"
+      },
+      {
+        "band": "need",
+        "retarget": true,
+        "if": {
+          "arg": "hungry"
+        },
+        "to": "snacking"
+      },
+      {
+        "band": "roam",
+        "retarget": true,
+        "if": {
+          "cond": "talking"
+        },
+        "to": "talk"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "panicking",
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": {
+                "arg": "calm"
+              }
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": {
+                    "arg": "panic"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "to": "panicking"
+      },
+      {
+        "from": "panicking",
+        "if": {
+          "cond": "after",
+          "ms": 0
+        },
+        "to": "recovering"
+      },
+      {
+        "from": "recovering",
+        "if": {
+          "cond": "in_range",
+          "of": {
+            "type": "home"
+          },
+          "cells": 1
+        },
+        "to": "rest"
+      },
+      {
+        "from": "recovering",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "recover"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "recovering",
+        "if": {
+          "arg": "hungry"
+        },
+        "to": "snacking"
+      },
+      {
+        "from": "recovering",
+        "if": {
+          "cond": "talking"
+        },
+        "to": "talk"
+      },
+      {
+        "from": "snacking",
+        "if": {
+          "cond": "status",
+          "id": "fed"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "snacking",
+        "if": {
+          "cond": "talking"
+        },
+        "to": "talk"
+      }
+    ]
+  },
+  {
+    "id": "townsfolk-fight",
+    "name": "Townsfolk who fight",
+    "hint": "Fights whoever hits it while they stay near and it stays within the leash of home, heals itself with a spell of its own once it is down to a share of its health, then walks home. Snacks with another spell whenever it is not fed and nobody is talking to it.",
+    "params": {
+      "leash": {
+        "kind": "cells",
+        "label": "fights within"
+      },
+      "heal": {
+        "kind": "spell",
+        "label": "heals with"
+      },
+      "snack": {
+        "kind": "spell",
+        "label": "snacks with"
+      },
+      "calm": {
+        "kind": "cells",
+        "default": 10,
+        "label": "gives up at"
+      },
+      "below": {
+        "kind": "percent",
+        "default": 40,
+        "label": "heals at or below"
+      },
+      "healFor": {
+        "kind": "ms",
+        "default": 2500,
+        "label": "heals for"
+      },
+      "recover": {
+        "kind": "ms",
+        "default": 20000,
+        "label": "walks home for at most"
+      }
+    },
+    "slots": {
+      "threat": "body"
+    },
+    "let": {
+      "hungry": {
+        "kind": "condition",
+        "value": {
+          "combinator": "and",
+          "rules": [
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "status",
+                  "id": "fed"
+                }
+              ]
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "states": {
+      "fighting": {
+        "band": "danger",
+        "do": [
+          {
+            "action": "attack",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "threat"
+              }
+            }
+          },
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "threat"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "recovering": {
+        "band": "danger",
+        "do": [
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "home"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "healing": {
+        "band": "danger",
+        "do": [
+          {
+            "action": "cast",
+            "spell": {
+              "arg": "heal"
+            }
+          },
+          {
+            "action": "attack",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "threat"
+              }
+            }
+          },
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "threat"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "snacking": {
+        "band": "need",
+        "do": [
+          {
+            "action": "cast",
+            "spell": {
+              "arg": "snack"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "band": "danger",
+        "if": {
+          "cond": "attacked"
+        },
+        "bind": {
+          "threat": {
+            "type": "attacker"
+          }
+        },
+        "to": "fighting"
+      },
+      {
+        "band": "need",
+        "retarget": true,
+        "if": {
+          "arg": "hungry"
+        },
+        "to": "snacking"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "healing",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "after",
+              "ms": {
+                "arg": "healFor"
+              }
+            }
+          ]
+        },
+        "to": "healing"
+      },
+      {
+        "from": "healing",
+        "if": {
+          "cond": "in_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "threat"
+            }
+          },
+          "cells": {
+            "arg": "calm"
+          }
+        },
+        "to": "fighting"
+      },
+      {
+        "from": "healing",
+        "if": {
+          "cond": "after",
+          "ms": 0
+        },
+        "to": "recovering"
+      },
+      {
+        "from": ["fighting", "recovering"],
+        "if": {
+          "cond": "health",
+          "atMostPercent": {
+            "arg": "below"
+          }
+        },
+        "to": "healing"
+      },
+      {
+        "from": ["fighting", "recovering"],
+        "if": {
+          "cond": "attacked"
+        },
+        "bind": {
+          "threat": {
+            "type": "attacker"
+          }
+        },
+        "to": "fighting"
+      },
+      {
+        "from": "fighting",
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": {
+                "arg": "leash"
+              }
+            },
+            {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": {
+                "arg": "calm"
+              }
+            }
+          ]
+        },
+        "to": "fighting"
+      },
+      {
+        "from": "fighting",
+        "if": {
+          "combinator": "or",
+          "rules": [
+            {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": {
+                "arg": "leash"
+              }
+            },
+            {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": {
+                "arg": "calm"
+              }
+            }
+          ]
+        },
+        "to": "recovering"
+      },
+      {
+        "from": "recovering",
+        "if": {
+          "cond": "in_range",
+          "of": {
+            "type": "home"
+          },
+          "cells": 1
+        },
+        "to": "rest"
+      },
+      {
+        "from": "recovering",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "recover"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": ["fighting", "recovering"],
+        "if": {
+          "arg": "hungry"
+        },
+        "to": "snacking"
+      },
+      {
+        "from": "snacking",
+        "if": {
+          "cond": "status",
+          "id": "fed"
+        },
+        "to": "rest"
+      }
+    ]
+  }
+]

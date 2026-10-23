@@ -186,6 +186,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
 
     .get("/tiles", async () => ({ tiles: await store.readTiles() }))
     .get("/statuses", async () => ({ statuses: await store.readStatuses() }))
+    .get("/traits", async () => ({ traits: await store.readTraits() }))
     .get("/tilesets", async () => ({ tilesets: await store.readTilesets() }))
     .get("/map", async ({ request, status }) => {
       if (!(await admin(request))) return status(404, "Not found");
@@ -241,6 +242,16 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       { body: t.Object({ statuses: t.Array(t.Unknown()) }) },
     )
     .post(
+      "/traits",
+      async ({ body, request, status }) => {
+        if (!(await admin(request))) return status(404, "Not found");
+        await store.writeTraits(body.traits);
+        await world.server.reloadContent();
+        return { ok: true as const };
+      },
+      { body: t.Object({ traits: t.Array(t.Unknown()) }) },
+    )
+    .post(
       "/map",
       async ({ body, request, status }) => {
         if (!(await admin(request))) return status(404, "Not found");
@@ -278,6 +289,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       maintenance: world.maintenance.state !== null,
     }))
     .get("/maintenance", () => ({ maintenance: world.maintenance.state }))
+    .get("/realm", () => world.realmState)
     .guard({ headers: t.Object({ authorization: t.Optional(t.String()) }) })
     .post(
       "/reset",
@@ -285,7 +297,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         if (!(await authorized(headers.authorization, config))) {
           return status(404, "Not found");
         }
-        await world.server.resetWorld();
+        await world.resetWorld();
         return { ok: true as const };
       },
       { detail: { summary: "Destroy every position, kit, reward and mastery" } },

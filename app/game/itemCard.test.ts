@@ -9,7 +9,7 @@ import { bandLabel, termLabel, type TermKey } from "../lib/terms";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import type { TileDef } from "../lib/types";
 import { attackIntervalMs, damageBand, damageBandOf, swingIntervalMs } from "./combat";
-import { itemCard, type ItemCardStat } from "./itemCard";
+import { catalogueCard, itemCard, type ItemCardStat } from "./itemCard";
 
 const SWORD: WeaponItem = {
   type: "weapon",
@@ -503,7 +503,7 @@ describe("itemCard", () => {
 
     it("gives an artifact a name and nothing else", () => {
       const card = itemCard(tileWith({ type: "artifact" }), null, NOTHING_LEARNT)!;
-      expect(card.kind).toBe("Carried");
+      expect(card.kind).toBe("Object");
       expect(card.stats).toEqual([]);
     });
 
@@ -542,6 +542,34 @@ describe("itemCard", () => {
         tone: "good",
       });
       expect(statAt(card.stats, "subject").value).toBe("You");
+    });
+
+    it("says where an area lands, who it is for and what it does there", () => {
+      const card = itemCard(
+        tileWith({
+          type: "stone",
+          cooldownMs: 12_000,
+          effect: {
+            kind: "bolt",
+            on: "caster",
+            area: {
+              shape: "circle",
+              radius: 5,
+              height: 2,
+              affects: "others",
+              throughWalls: true,
+              damage: 30,
+              variance: 20,
+            },
+          },
+        }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      const stomp = damageBandOf(30, 20);
+      expect(statAt(card.stats, "area").value).toBe("Circle of 5 around you, on everyone else");
+      expect(statAt(card.stats, "areaDamage").value).toBe(bandLabel(stomp.min, stomp.max));
+      expect(card.stats.some((stat) => stat.term === "damage")).toBe(false);
     });
 
     it("heads the list with the act that causes it", () => {
@@ -742,5 +770,28 @@ describe("itemCard", () => {
     expect(card.speech).toContain(
       `where somebody who has just earned it gets ${bandLabel(fresh.min, fresh.max)}`,
     );
+  });
+});
+
+describe("catalogueCard", () => {
+  it("reads every figure as the item's own, with nothing struck through", () => {
+    const card = catalogueCard(tileWith(SWORD))!;
+    expect(card.stats.every((stat) => stat.base === undefined)).toBe(true);
+    const fresh = damageBand(fightingStats(bodyWith({ sharp: xpForLevel(GATE) }), SWORD));
+    expect(statAt(card.stats, "damage").value).toBe(bandLabel(fresh.min, fresh.max));
+  });
+
+  it("lists a requirement without a level of the reader's beside it", () => {
+    const card = catalogueCard(tileWith(SWORD))!;
+    expect(card.requirements).toEqual([
+      { mastery: "sharp", required: GATE, have: null, met: true },
+    ]);
+    expect(card.speech).toContain(`Requires Sharp ${GATE}`);
+    expect(card.speech).not.toContain("you have");
+  });
+
+  it("never calls a magic item dormant", () => {
+    const tunic = tileWith({ type: "armor", def: 2, requirements: { arcane: 8, fire: 5 } });
+    expect(catalogueCard(tunic)!.dormant).toBeNull();
   });
 });

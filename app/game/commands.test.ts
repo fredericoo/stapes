@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_CONTAINER, DEFAULT_SHIELD, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { MASTERIES, xpForLevel } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
@@ -6,6 +7,7 @@ import { COMMAND_USAGE, MAX_COMMAND_HP, isCommand, parseCommand } from "./comman
 import { constantFormula } from "../lib/formula";
 import { NO_VFX } from "../lib/statusVfx";
 import type { StatusDef } from "../lib/status";
+import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
@@ -76,15 +78,15 @@ describe("reading a typed line", () => {
   it("reads a status by the id it was written with", () => {
     expect(parseCommand("/status Poison")).toEqual({
       ok: true,
-      command: { name: "status", statusId: "Poison", target: null },
+      command: { name: "status", statusId: "Poison", off: false, target: null },
     });
     expect(parseCommand("/status burned somebody")).toEqual({
       ok: true,
-      command: { name: "status", statusId: "burned", target: "somebody" },
+      command: { name: "status", statusId: "burned", off: false, target: "somebody" },
     });
     expect(parseCommand("/status burned self")).toEqual({
       ok: true,
-      command: { name: "status", statusId: "burned", target: null },
+      command: { name: "status", statusId: "burned", off: false, target: null },
     });
   });
 
@@ -92,9 +94,20 @@ describe("reading a typed line", () => {
     for (const line of ["/status clear", "/status CLEAR"]) {
       expect(parseCommand(line)).toEqual({
         ok: true,
-        command: { name: "status", statusId: null, target: null },
+        command: { name: "status", statusId: null, off: false, target: null },
       });
     }
+  });
+
+  it("reads off after a status as taking that one off, and a body after that", () => {
+    expect(parseCommand("/status burned OFF npc:1,0,0,1")).toEqual({
+      ok: true,
+      command: { name: "status", statusId: "burned", off: true, target: "npc:1,0,0,1" },
+    });
+    expect(parseCommand("/status burned off")).toEqual({
+      ok: true,
+      command: { name: "status", statusId: "burned", off: true, target: null },
+    });
   });
 
   it("hands back the status grammar for a status line, not the mastery one", () => {
@@ -317,6 +330,64 @@ const tiles: TileDef[] = [
       appear: {
         durationMs: 300,
         dissolve: { pattern: "noise", edgeColor: "#8ce6ff", edgeWidth: 0.1 },
+      },
+    },
+  }),
+  tile({
+    id: "sword",
+    name: "Sword",
+    height: 0,
+    kind: "item",
+    interactions: { item: { ...DEFAULT_WEAPON } },
+  }),
+  tile({
+    id: "greatsword",
+    name: "Greatsword",
+    height: 0,
+    kind: "item",
+    interactions: { item: { ...DEFAULT_WEAPON, twoHanded: true } },
+  }),
+  tile({
+    id: "shield",
+    name: "Shield",
+    height: 0,
+    kind: "item",
+    interactions: { item: { ...DEFAULT_SHIELD } },
+  }),
+  tile({
+    id: "bag",
+    name: "Bag",
+    height: 0,
+    kind: "item",
+    interactions: { item: { ...DEFAULT_CONTAINER, size: 1 } },
+  }),
+  tile({ id: "keeper", name: "Keeper", height: 2, actor: true, walkable: false }),
+  tile({
+    id: "bolt",
+    name: "Bolt",
+    height: 1,
+    kind: "projectile",
+    interactions: {
+      projectile: {
+        cellsPerSecond: 20,
+        hit: {
+          durationMs: 100,
+          dissolve: { pattern: "noise", edgeColor: "#8ce6ff", edgeWidth: 0.1 },
+        },
+      },
+    },
+  }),
+  tile({
+    id: "hound",
+    name: "Hound",
+    height: 2,
+    walkable: false,
+    interactions: {
+      battler: { baseHp: 8, masteries: AUTHORED, naturalWeapon: claws },
+      brain: {
+        initial: "roam",
+        states: { roam: { do: [{ action: "step_random" }] }, sit: { do: [{ action: "hold" }] } },
+        transitions: [],
       },
     },
   }),
@@ -679,6 +750,34 @@ describe("putting a status on by hand", () => {
     expect(session.getSnapshot("you").self.statuses[0]?.defId).toBe("burned");
     expect(session.getSnapshot("me").self.statuses).toEqual([]);
   });
+
+  it("takes one status off and leaves the others on", () => {
+    const session = new GameSession(field(), tiles, {
+      actorIds: ["me"],
+      seed: 1,
+      statuses: { burned: BURN, chilled: { ...BURN, id: "chilled", name: "Chilled" } },
+    });
+    session.runCommand("/status burned", "me");
+    session.runCommand("/status chilled", "me");
+    const reply = session.runCommand("/status burned off", "me");
+
+    expect(session.getSnapshot("me").self.statuses.map((running) => running.defId)).toEqual([
+      "chilled",
+    ]);
+    expect(reply).toEqual({
+      ok: true,
+      notice: "You are no longer burned",
+      ids: [],
+      data: { command: "status", target: "me", statusId: "burned", outcome: "removed" },
+    });
+  });
+
+  it("refuses to take off a status the body does not have, naming both", () => {
+    const session = statusWorld();
+    session.runCommand("/status burned off npc:1,0,0,1", "me");
+
+    expect(session.drainNotices("me")).toEqual(["Deer is not burned"]);
+  });
 });
 
 describe("moving health by hand", () => {
@@ -1019,6 +1118,251 @@ describe("taking a body off the board", () => {
       ok: false,
       refusal: { kind: "badArguments", command: "despawn" },
     });
+  });
+});
+
+describe("giving a body something to carry", () => {
+  it("reads an item, then a square if the next word is one, then a body", () => {
+    expect(parseCommand("/give Sword weapon npc:1,0,0,1")).toEqual({
+      ok: true,
+      command: { name: "give", tileId: "sword", square: "weapon", target: "npc:1,0,0,1" },
+    });
+    expect(parseCommand("/give apple npc:1,0,0,1")).toEqual({
+      ok: true,
+      command: { name: "give", tileId: "apple", square: null, target: "npc:1,0,0,1" },
+    });
+    expect(parseCommand("/give apple hat self")).toEqual({
+      ok: false,
+      refusal: { kind: "unknownSquare", typed: "hat" },
+    });
+  });
+
+  it("mints an item into the square it is worn in, and hands back its id", () => {
+    const session = world();
+    const reply = session.runCommand("/give sword", "me");
+
+    const held = session.equipmentOf("me")?.weapon;
+    expect(held?.id).toMatch(/^itm_/);
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Sword appears in your weapon square",
+      ids: [],
+      data: { command: "give", target: "me", tileId: "sword", itemId: held?.id, slot: "weapon" },
+    });
+  });
+
+  it("reaches somebody else by their id, and tells them both", () => {
+    const session = world(["me", "you"]);
+    session.runCommand("/give sword weapon you", "me");
+
+    expect(session.equipmentOf("you")?.weapon?.tileId).toBe("sword");
+    expect(session.equipmentOf("me")?.weapon).toBeNull();
+    expect(session.drainNotices("you")).toEqual(["Sword appears in your weapon square"]);
+    expect(session.drainNotices("me")).toEqual(["Sword appears in Yorick's weapon square"]);
+  });
+
+  it("puts anything but a bag into the bag, piled with its own kind, until it is full", () => {
+    const session = world();
+    session.runCommand("/give bag", "me");
+    const first = session.runCommand("/give apple", "me");
+    const second = session.runCommand("/give apple bag", "me");
+    session.runCommand("/give sword bag", "me");
+
+    const contents = session.equipmentOf("me")?.bag?.contents;
+    expect(contents).toEqual([{ id: expect.stringMatching(/^itm_/), tileId: "apple", count: 2 }]);
+    expect(first).toMatchObject({ data: { slot: "contents", itemId: contents?.[0]?.id } });
+    expect(second).toMatchObject({ data: { slot: "contents", itemId: contents?.[0]?.id } });
+    expect(session.drainNotices("me").at(-1)).toBe("Mira's bag is full");
+  });
+
+  it("refuses a taken square by what is in it, and destroys nothing", () => {
+    const session = world();
+    session.runCommand("/give shield offhand", "me");
+    const kept = session.equipmentOf("me")?.offhand;
+    session.drainNotices("me");
+    session.runCommand("/give sword offhand", "me");
+    session.runCommand("/give greatsword", "me");
+
+    expect(session.drainNotices("me")).toEqual([
+      "Mira's offhand square holds Shield",
+      "Mira's offhand square holds Shield",
+    ]);
+    expect(session.equipmentOf("me")?.offhand).toBe(kept);
+    expect(session.equipmentOf("me")?.weapon).toBeNull();
+  });
+
+  it("says what it could not give, and to whom", () => {
+    const session = world();
+    session.runCommand("/spawn keeper 2 2", "me");
+    session.drainNotices("me");
+    for (const line of [
+      "/give apple head",
+      "/give apple",
+      "/give grass",
+      "/give apple bag nobody",
+      "/give apple bag npc:2,2,0,1",
+    ]) {
+      session.runCommand(line, "me");
+    }
+
+    expect(session.drainNotices("me")).toEqual([
+      "Apple does not go in the head square",
+      "Mira has no bag",
+      '"grass" is not an item. Put it down with /tile',
+      'Nobody here answers to "nobody"',
+      "Keeper has no equipment",
+    ]);
+  });
+});
+
+const A_FEW_BRAIN_TURNS_MS = 2_000;
+
+function cellAfter(session: GameSession, id: string, ms: number) {
+  for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
+  const at = session.actorPosition(id);
+  return at && { x: at.x, y: at.y };
+}
+
+describe("switching a brain", () => {
+  it("reads a body, then off, on or the name of a state", () => {
+    expect(parseCommand("/brain npc:2,2,0,1 OFF")).toEqual({
+      ok: true,
+      command: { name: "brain", target: "npc:2,2,0,1", change: { kind: "off" } },
+    });
+    expect(parseCommand("/brain npc:2,2,0,1 to_fire")).toEqual({
+      ok: true,
+      command: {
+        name: "brain",
+        target: "npc:2,2,0,1",
+        change: { kind: "state", state: "to_fire" },
+      },
+    });
+    expect(parseCommand("/brain npc:2,2,0,1")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "brain" },
+    });
+  });
+
+  it("keeps a body standing while its brain is off, and lets it wander once it is on", () => {
+    const session = world();
+    session.runCommand("/spawn hound 2 2", "me");
+    const reply = session.runCommand("/brain npc:2,2,0,1 off", "me");
+
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Hound's brain is off, in the roam state",
+      ids: [],
+      data: { command: "brain", target: "npc:2,2,0,1", on: false, state: "roam" },
+    });
+    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).toEqual({ x: 2, y: 2 });
+
+    session.runCommand("/brain npc:2,2,0,1 on", "me");
+    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).not.toEqual({ x: 2, y: 2 });
+  });
+
+  it("puts a brain in the state named, and switches it on", () => {
+    const session = world();
+    session.runCommand("/spawn hound 2 2", "me");
+    session.runCommand("/brain npc:2,2,0,1 off", "me");
+    const reply = session.runCommand("/brain npc:2,2,0,1 sit", "me");
+
+    expect(reply).toMatchObject({
+      ok: true,
+      notice: "Hound's brain is on, in the sit state",
+      data: { on: true, state: "sit" },
+    });
+    expect(cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS)).toEqual({ x: 2, y: 2 });
+  });
+
+  it("refuses a body with no brain, and a state its brain does not have", () => {
+    const session = world();
+    session.runCommand("/spawn hound 2 2", "me");
+    session.drainNotices("me");
+    session.runCommand("/brain npc:1,0,0,1 off", "me");
+    session.runCommand("/brain npc:2,2,0,1 fetch", "me");
+
+    expect(session.drainNotices("me")).toEqual([
+      "Deer is not driven by a brain",
+      'No state called "fetch" in Hound\'s brain. Try roam, sit',
+    ]);
+  });
+});
+
+describe("firing a projectile", () => {
+  it("reads an end as a cell when it is numbers and commas, and as a body otherwise", () => {
+    expect(parseCommand("/fire Bolt npc:1,0,0,1 -3,12,0")).toEqual({
+      ok: true,
+      command: {
+        name: "fire",
+        tileId: "bolt",
+        from: { kind: "body", target: "npc:1,0,0,1" },
+        to: { kind: "cell", at: { x: -3, y: 12, z: 0 } },
+      },
+    });
+    expect(parseCommand("/fire bolt self 2,2")).toMatchObject({
+      ok: true,
+      command: {
+        from: { kind: "body", target: null },
+        to: { kind: "cell", at: { x: 2, y: 2, z: null } },
+      },
+    });
+    expect(parseCommand("/fire bolt self")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "fire" },
+    });
+  });
+
+  it("sends a flight from a body to a cell, and answers with how long it flies", () => {
+    const session = world();
+    const reply = session.runCommand("/fire bolt npc:1,0,0,1 -2,2,0", "me");
+
+    const [flight] = session.drainProjectiles();
+    expect(flight).toMatchObject({ tileId: "bolt", from: { x: 1, y: 0 }, to: { x: -2, y: 2 } });
+    expect(flight?.targetId).toBeUndefined();
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Bolt flies from Deer to -2, 2, 0",
+      ids: [],
+      data: {
+        command: "fire",
+        tileId: "bolt",
+        from: { x: 1, y: 0, z: 0 },
+        to: { x: -2, y: 2, z: 0 },
+        target: null,
+        flightMs: flight?.durationMs,
+      },
+    });
+  });
+
+  it("follows a body at its far end, and does nothing to it when it lands", () => {
+    const session = world();
+    const hp = session.getSnapshot("me").self.hp;
+    session.runCommand("/fire bolt 2,2,0 self", "me");
+    const [flight] = session.drainProjectiles();
+    expect(flight?.targetId).toBe("me");
+
+    const struck: string[] = [];
+    let receipts = 0;
+    for (let elapsed = 0; elapsed <= (flight?.durationMs ?? 0) * 2; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      struck.push(...session.drainTransitions().flatMap((note) => note.struckBy ?? []));
+      receipts += session.drainDamage().length;
+    }
+    expect(struck).toEqual([]);
+    expect(receipts).toBe(0);
+    expect(session.getSnapshot("me").self.hp).toBe(hp);
+    expect(session.getSnapshot("me").self.statuses).toEqual([]);
+  });
+
+  it("refuses a tile that does not fly, and a body that is not there", () => {
+    const session = world();
+    session.runCommand("/fire apple self 1,1,0", "me");
+    session.runCommand("/fire bolt nobody 1,1,0", "me");
+
+    expect(session.drainNotices("me")).toEqual([
+      '"apple" is not a projectile. Try bolt',
+      'Nobody here answers to "nobody"',
+    ]);
   });
 });
 

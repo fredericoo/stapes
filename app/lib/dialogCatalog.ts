@@ -38,6 +38,21 @@ export const DIALOG_COMMANDS: Record<DialogCommandKind, CatalogEntry> = {
       cancel: [],
     }),
   },
+  if: {
+    label: "if",
+    hint: "Run one list when the conditions hold and the other when they do not.",
+    make: () => ({ kind: "if", when: { cond: "king" }, then: [], else: [] }),
+  },
+  switch: {
+    label: "switch",
+    hint: "Throw every switch wired to a channel, wherever it stands: toggle it, or set it on or off.",
+    make: () => ({ kind: "switch", channel: "", to: "toggle" }),
+  },
+  teleport: {
+    label: "teleport",
+    hint: "Move the player to a cell, as a teleport tile would. Nothing happens if their body does not fit there.",
+    make: () => ({ kind: "teleport", to: { x: 0, y: 0, z: 0 } }),
+  },
   anchor: {
     label: "anchor",
     hint: "A named place a goto can come back to — put one before the menu.",

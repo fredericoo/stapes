@@ -1,3 +1,4 @@
+import { areaBurstEffects } from "../game/area";
 import {
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
@@ -41,11 +42,10 @@ import {
   canEquipFrom,
   canPickUpFrom,
   canPushFrom,
-  canRewardFrom,
+  canClaimRewardFrom,
   canSwitchFrom,
   canAddStatusFrom,
   canRemoveStatusFrom,
-  canSetSpawnFrom,
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
@@ -69,7 +69,8 @@ import { castRefusalNotice } from "../game/notices";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { type NaturalSpell, resolveBattler } from "../lib/battler";
 import type { StatusDef } from "../lib/status";
-import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
+import { itemInSlot, type SlotRef } from "../game/itemMoves";
+import { applyDepotMove, NO_DEPOTS, type Depots } from "../game/depot";
 import type { ConsumeSource } from "../game/itemUse";
 import { canCraftFrom } from "../game/craft";
 import { resolveConsumable } from "../lib/item";
@@ -99,7 +100,13 @@ import {
 } from "../lib/mapData";
 import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { CHAT_LIFETIME_MS, MAX_CHAT_LENGTH, MAX_CHATS_PER_CELL } from "./chat";
+import {
+  CHAT_ARRIVAL_JITTER_MS,
+  CHAT_LIFETIME_MS,
+  CHAT_MIN_INTERVAL_MS,
+  MAX_CHATS_PER_CELL,
+  sanitizeChatText,
+} from "./chat";
 import { MAX_COMMAND_LENGTH, isCommand, type CommandReply } from "../game/commands";
 import { SOCKET_OPEN, type ClientSocket } from "./socket";
 import {
@@ -120,6 +127,9 @@ import {
 } from "./protocol";
 
 type LiveChat = ChatBubble & { elapsedMs: number };
+
+/** A line already hung over our own head, waiting for the server's copy of it to swallow. */
+type Echo = { text: string; elapsedMs: number };
 
 type RemoteMotion = {
   walk: WalkState | null;
@@ -170,6 +180,8 @@ export class RemoteSession implements PlaySession {
   private serverSeen: ActorLocation | null = null;
   private chats: LiveChat[] = [];
   private nextChatId = 0;
+  private echoes: Echo[] = [];
+  private lastSaidAtMs: number | null = null;
   private noises: NoiseEmission[] = [];
   private readonly hps = new Map<string, { hp: number; maxHp: number; rating: number }>();
   private readonly names = new Map<string, string>();
@@ -177,12 +189,13 @@ export class RemoteSession implements PlaySession {
   private readonly statusesById = new Map<string, StatusInstance[]>();
   private readonly extractionsById = new Map<string, ExtractionProgress>();
   private readonly pvpOn = new Set<string>();
+  private kingId: string | null = null;
   private readonly castingsById = new Map<string, CastProgress>();
   private equipment: Equipment = emptyEquipment();
+  private depots: Depots = NO_DEPOTS;
   private spellCooldowns: Readonly<Record<string, number>> = {};
   private pendingNotices: string[] = [];
   private tags: readonly string[] = NO_TAGS;
-  private spawnAt: Coord | null = null;
   private conversation: Conversation | null = null;
   private extracting: Extraction | null = null;
   private nextBlow: Progress | null = null;
@@ -198,6 +211,7 @@ export class RemoteSession implements PlaySession {
   private onReady: (() => void) | null = null;
   private dead = false;
   private death: DeathCost | null = null;
+  private rebornAsName: string | null = null;
   private diedAway = false;
   private onDead: ((dead: boolean) => void) | null = null;
   private onRestarting: (() => void) | null = null;
@@ -251,6 +265,11 @@ export class RemoteSession implements PlaySession {
     return this.death;
   }
 
+  /** The name, generation included, the next life plays as. */
+  rebornAs(): string | null {
+    return this.rebornAsName;
+  }
+
   wasAwayForDeath(): boolean {
     return this.diedAway;
   }
@@ -296,6 +315,7 @@ export class RemoteSession implements PlaySession {
 
   private clearDeath() {
     this.death = null;
+    this.rebornAsName = null;
     this.diedAway = false;
     this.setDead(false);
   }
@@ -368,9 +388,15 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (message.type === "king") {
+      this.kingId = message.actorId;
+      return;
+    }
+
     if (message.type === "hello") {
       this.selfId = message.selfId;
       this.setClock(message.minutesOfDay);
+      this.kingId = message.kingId;
       this.serverMap = chunkifyMap(message.map as FlatMapFile);
       this.map = this.serverMap;
       this.pending = [];
@@ -380,6 +406,7 @@ export class RemoteSession implements PlaySession {
       this.lastSelf = null;
       this.motions.clear();
       this.chats = [];
+      this.echoes = [];
       this.damage = [];
       this.projectiles = [];
       this.flightEffects = [];
@@ -393,9 +420,9 @@ export class RemoteSession implements PlaySession {
       this.extractionsById.clear();
       this.castingsById.clear();
       this.equipment = message.equipment;
+      this.depots = message.depots;
       this.spellCooldowns = {};
       this.tags = message.tags;
-      this.spawnAt = message.spawnAt;
       this.setExtracting(message.extracting);
       this.nextBlow = message.nextBlow ? { ...message.nextBlow } : null;
       this.masteryXp = message.masteryXp;
@@ -417,6 +444,7 @@ export class RemoteSession implements PlaySession {
       this.resetAfflicted(message.afflicted);
       this.setPlayers(message.playerCount ?? null);
       this.death = message.diedAway ?? null;
+      this.rebornAsName = message.diedAway ? (this.names.get(message.selfId) ?? null) : null;
       this.diedAway = message.diedAway !== undefined;
       this.setDead(this.diedAway);
       this.ready = true;
@@ -425,19 +453,8 @@ export class RemoteSession implements PlaySession {
     }
 
     if (message.type === "chat") {
-      this.chats.push({
-        id: `chat-${this.nextChatId++}`,
-        actorId: message.actorId,
-        tileId: message.tileId,
-        name: message.name,
-        text: message.text,
-        x: message.x,
-        y: message.y,
-        z: message.z,
-        stackIndex: message.stackIndex,
-        elapsedMs: 0,
-      });
-      this.evictOldestAtCell(message);
+      if (this.swallowEcho(message)) return;
+      this.hangChat(message);
       return;
     }
 
@@ -461,11 +478,6 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "tags") {
       this.tags = message.tags;
-      return;
-    }
-
-    if (message.type === "spawnPoint") {
-      this.spawnAt = message.at;
       return;
     }
 
@@ -510,6 +522,7 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "died") {
       this.death = message.cost;
+      this.rebornAsName = message.rebornAs ?? null;
       this.diedAway = false;
       this.equipment = message.equipment;
       if (message.masteryXp) this.masteryXp = message.masteryXp;
@@ -525,6 +538,11 @@ export class RemoteSession implements PlaySession {
     if (message.type === "equipment") {
       this.equipment = message.equipment;
       this.spellCooldowns = message.spellCooldowns;
+      return;
+    }
+
+    if (message.type === "depots") {
+      this.depots = message.depots;
       return;
     }
 
@@ -813,6 +831,11 @@ export class RemoteSession implements PlaySession {
     if (event.kind === "tileTransition") {
       const { kind: _kind, ...note } = event;
       this.holdTransition(note);
+      return;
+    }
+
+    if (event.kind === "areaBurst") {
+      this.flightEffects.push(...areaBurstEffects(event.id, event.cells, event.burst));
       return;
     }
 
@@ -1133,6 +1156,24 @@ export class RemoteSession implements PlaySession {
     this.map = this.serverMap;
   }
 
+  private hangChat(chat: Omit<ChatBubble, "id">) {
+    this.chats.push({ ...chat, id: `chat-${this.nextChatId++}`, elapsedMs: 0 });
+    this.evictOldestAtCell(chat);
+  }
+
+  /**
+   * Matched by text rather than by author alone, because the server also speaks
+   * in our own voice — a status taking hold, a mastery rising — and those lines
+   * were never echoed.
+   */
+  private swallowEcho(chat: { actorId: string; text: string }): boolean {
+    if (chat.actorId !== this.selfId) return false;
+    const at = this.echoes.findIndex((echo) => echo.text === chat.text);
+    if (at < 0) return false;
+    this.echoes.splice(at, 1);
+    return true;
+  }
+
   private evictOldestAtCell(at: { x: number; y: number; z: number }) {
     const here = this.chats.filter((chat) => chat.x === at.x && chat.y === at.y && chat.z === at.z);
     if (here.length <= MAX_CHATS_PER_CELL) return;
@@ -1141,6 +1182,7 @@ export class RemoteSession implements PlaySession {
   }
 
   private expireChats(dtMs: number) {
+    this.expireEchoes(dtMs);
     if (this.chats.length === 0) return;
     let expired = false;
     for (const chat of this.chats) {
@@ -1150,6 +1192,13 @@ export class RemoteSession implements PlaySession {
     if (expired) {
       this.chats = this.chats.filter((chat) => chat.elapsedMs < CHAT_LIFETIME_MS);
     }
+  }
+
+  /** An echo the server never answered was dropped on its side; it must not swallow a later line. */
+  private expireEchoes(dtMs: number) {
+    if (this.echoes.length === 0) return;
+    for (const echo of this.echoes) echo.elapsedMs += dtMs;
+    this.echoes = this.echoes.filter((echo) => echo.elapsedMs < CHAT_LIFETIME_MS);
   }
 
   private expireNoises(dtMs: number) {
@@ -1164,14 +1213,46 @@ export class RemoteSession implements PlaySession {
     }
   }
 
-  say(text: string) {
-    const trimmed = text.trim();
+  say(typed: string) {
+    const trimmed = typed.trim();
     if (trimmed.length === 0) return;
     if (isCommand(trimmed)) {
       this.command(trimmed).catch(ignoreUnanswered);
       return;
     }
-    this.send({ type: "say", text: trimmed.slice(0, MAX_CHAT_LENGTH) });
+    const text = sanitizeChatText(trimmed);
+    if (!text || this.saidTooRecently()) return;
+    if (this.socket.readyState !== SOCKET_OPEN) return;
+    this.lastSaidAtMs = this.now();
+    this.echoSaid(text);
+    this.send({ type: "say", text });
+  }
+
+  /**
+   * Stricter than the server by the jitter allowance: two lines sent just over
+   * the interval apart can arrive just under it, and the server would drop a
+   * line this side has already shown.
+   */
+  private saidTooRecently(): boolean {
+    if (this.lastSaidAtMs === null) return false;
+    return this.now() - this.lastSaidAtMs < CHAT_MIN_INTERVAL_MS + CHAT_ARRIVAL_JITTER_MS;
+  }
+
+  private echoSaid(text: string) {
+    const motion = this.motions.get(this.selfId);
+    const loc = motion && this.locate(this.selfId, motion);
+    if (!loc) return;
+    this.echoes.push({ text, elapsedMs: 0 });
+    this.hangChat({
+      actorId: this.selfId,
+      tileId: loc.placed.tileId,
+      name: this.names.get(this.selfId) ?? null,
+      text,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+    });
   }
 
   /**
@@ -1256,6 +1337,7 @@ export class RemoteSession implements PlaySession {
       casting: this.castingsById.get(id) ?? null,
       pvp: this.pvpOn.has(id),
       hidden: id === this.selfId && this.hidden,
+      king: id === this.kingId,
     };
   }
 
@@ -1285,7 +1367,6 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       tags: this.tags,
-      spawnAt: this.spawnAt,
       conversation: this.conversation,
       extracting: this.extracting,
       nextBlow: this.nextBlow,
@@ -1295,6 +1376,7 @@ export class RemoteSession implements PlaySession {
       chats: this.chats,
       noises: this.noises,
       afflicted: this.afflicted,
+      depots: this.depots,
       damage: this.damage,
       projectiles: this.projectiles,
       flightEffects: this.flightEffects,
@@ -1433,16 +1515,22 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     return (
-      canRewardFrom(this.map, this.tilesById, loc, ref, this.equipment, this.tags) ||
+      canClaimRewardFrom(
+        this.map,
+        this.tilesById,
+        loc,
+        ref,
+        this.equipment,
+        this.tags,
+        this.hps.get(this.selfId)?.rating ?? null,
+      ) ||
       this.canTeleport(loc, ref) ||
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
       canRemoveStatusFrom(this.map, this.tilesById, loc, ref) ||
-      canSetSpawnFrom(this.map, this.tilesById, loc, ref) ||
       canBeginExtract(this.map, this.tilesById, loc, this.equipment, ref, this.extracting) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
@@ -1467,7 +1555,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
@@ -1482,7 +1569,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
@@ -1501,7 +1587,6 @@ export class RemoteSession implements PlaySession {
 
     if (from.kind === "floor") {
       if (motion.walk || motion.fall || motion.slide) return false;
-      if (this.pending.length > 0) return false;
       if (!canConsumeFrom(this.map, this.tilesById, loc, from.ref)) return false;
     } else {
       const instance = itemInSlot(this.map, this.tilesById, loc, this.equipment, from.slot);
@@ -1516,13 +1601,9 @@ export class RemoteSession implements PlaySession {
   talk(action: TalkAction): boolean {
     if (action.kind !== "close" && this.incapacitated()) return false;
     if (action.kind === "open") {
-      /**
-       * The server measures talking reach from where it has the body, which is
-       * a step behind while a predicted step is unacknowledged.
-       */
-      if (this.pending.length > 0) return false;
       const motion = this.motions.get(this.selfId);
-      const loc = motion && this.locate(this.selfId, motion);
+      if (!motion || motion.walk || motion.fall || motion.slide) return false;
+      const loc = this.locate(this.selfId, motion);
       if (!loc) return false;
       if (!canTalkFrom(this.map, this.tilesById, loc, action.ref)) return false;
     } else if (!this.conversation) {
@@ -1537,7 +1618,6 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
-    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canCraftFrom(this.map, this.tilesById, loc, this.equipment, ref, recipe)) {
@@ -1553,7 +1633,8 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     const loc = motion && this.locate(this.selfId, motion);
     if (!loc) return false;
-    return canMoveItem(this.map, this.tilesById, loc, this.equipment, from, to);
+    const { map, tilesById, equipment, depots } = this;
+    return applyDepotMove(map, tilesById, loc, equipment, depots, from, to) != null;
   }
 
   moveItem(from: SlotRef, to: SlotRef): boolean {
@@ -1643,5 +1724,6 @@ function offscreenActor(id: string): ActorSnapshot {
     casting: null,
     pvp: false,
     hidden: false,
+    king: false,
   };
 }

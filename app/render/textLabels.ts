@@ -11,7 +11,9 @@ export type MouseButton = "left" | "right";
 
 export type ButtonHint = { button: MouseButton; text: string; color?: string };
 
-export type LabelLine = { id: string; text: string } | { id: string; hints: ButtonHint[] };
+export type LabelLine =
+  | { id: string; text: string; crown?: boolean }
+  | { id: string; hints: ButtonHint[] };
 
 export type WorldLabel = {
   id: string;
@@ -50,6 +52,8 @@ const RESERVED_BAR_CLASS = `${BAR_CLASS}--reserved`;
 const BRICKS_PER_EM = 10;
 
 const MOUSE_CLASS = "world-label__mouse";
+const CROWN_CLASS = "world-label__crown";
+const CROWNED_LINE_CLASS = "world-label__line--crowned";
 const HINTS_LINE_CLASS = "world-label__line--hints";
 const HINT_CLASS = "world-label__hint";
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -71,17 +75,27 @@ const MOUSE_PIXELS = [
   ".#####.",
 ];
 
+const CROWN_PIXELS = ["#..#..#", "##.#.##", "#######", "#######"];
+
 function mouseIcon(button: MouseButton): SVGSVGElement {
   const pressed = button === "left" ? "L" : "R";
+  return pixelIcon(MOUSE_CLASS, MOUSE_PIXELS, (pixel) => pixel === "#" || pixel === pressed);
+}
+
+function pixelIcon(
+  className: string,
+  pixels: readonly string[],
+  filled: (pixel: string) => boolean = (pixel) => pixel === "#",
+): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("class", MOUSE_CLASS);
-  svg.setAttribute("viewBox", `0 0 ${MOUSE_PIXELS[0]!.length} ${MOUSE_PIXELS.length}`);
+  svg.setAttribute("class", className);
+  svg.setAttribute("viewBox", `0 0 ${pixels[0]!.length} ${pixels.length}`);
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("shape-rendering", "crispEdges");
   svg.setAttribute("fill", "currentColor");
-  for (const [y, row] of MOUSE_PIXELS.entries()) {
+  for (const [y, row] of pixels.entries()) {
     for (const [x, pixel] of [...row].entries()) {
-      if (pixel !== "#" && pixel !== pressed) continue;
+      if (!filled(pixel)) continue;
       const rect = document.createElementNS(SVG_NS, "rect");
       rect.setAttribute("x", String(x));
       rect.setAttribute("y", String(y));
@@ -105,6 +119,13 @@ function hintSpan(hint: ButtonHint): HTMLElement {
 
 function lineRow(line: LabelLine): HTMLElement {
   const row = document.createElement("div");
+  if ("text" in line && line.crown) {
+    row.className = CROWNED_LINE_CLASS;
+    const text = document.createElement("span");
+    text.textContent = line.text;
+    row.append(pixelIcon(CROWN_CLASS, CROWN_PIXELS), text);
+    return row;
+  }
   if ("text" in line) {
     row.textContent = line.text;
     return row;
@@ -115,7 +136,7 @@ function lineRow(line: LabelLine): HTMLElement {
 }
 
 function lineSignature(line: LabelLine): string {
-  if ("text" in line) return line.text;
+  if ("text" in line) return line.crown ? `\u0004${line.text}` : line.text;
   return line.hints
     .map((hint) => `${hint.button}\u0002${hint.text}\u0002${hint.color ?? ""}`)
     .join("\u0003");

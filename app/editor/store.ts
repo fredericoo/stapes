@@ -20,9 +20,11 @@ import {
   updatePlacedInscription,
   updatePlacedEngraving,
   updatePlacedReward,
+  updatePlacedDepotTag,
   updatePlacedTeleport,
   updatePlacedDirection,
   updatePlacedFoot,
+  type RewardDraft,
   updatePlacedVariant,
 } from "../lib/mapData";
 import {
@@ -33,6 +35,7 @@ import {
   tilesByIdFromList,
   type RemovedPlacement,
 } from "../lib/validation";
+import { settleGravity } from "../game/gravity";
 import type { Rect } from "./generator";
 import { activeConfig, planProcedural, type ProceduralSettings } from "./procedural";
 import {
@@ -154,7 +157,8 @@ export type EditorStore = {
   setStackInscription: (stackIndex: number, inscription: string) => void;
   setStackDescription: (stackIndex: number, description: string) => void;
   setStackEngraving: (stackIndex: number, engraved: string) => void;
-  setStackReward: (stackIndex: number, tag: string, tileIds: readonly string[]) => void;
+  setStackReward: (stackIndex: number, draft: RewardDraft) => void;
+  setStackDepotTag: (stackIndex: number, tag: string) => void;
   setStackTeleport: (stackIndex: number, to: Coord | null) => void;
   setStackContents: (stackIndex: number, contents: readonly ItemInstance[]) => void;
 };
@@ -164,6 +168,21 @@ function armedPlacement(def: TileDef, variant: string | null): PlacedTile {
   if (isDirectional(def)) placed.direction = "s";
   if (def.type === "variant" && variant) placed.variant = variant;
   return placed;
+}
+
+/**
+ * A tile the world would drop lands as it is placed, so the editor never shows
+ * a box hovering over a hole or a ramp that the next world load moves.
+ */
+function placeArmed(
+  map: MapFile,
+  at: Coord,
+  placed: PlacedTile,
+  def: TileDef,
+  tilesById: Record<string, TileDef>,
+): MapFile {
+  const next = appendTile(map, at.x, at.y, at.z, placed);
+  return def.affectedByGravity ? settleGravity(next, [at], tilesById).map : next;
 }
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
@@ -396,7 +415,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const placed = armedPlacement(def, armedVariant);
     const check = canPlace(map, x, y, currentLevel, def, tilesById, placed.direction);
     if (!check.ok) return { skipped: true, reason: check.reason };
-    get().commitMap(appendTile(map, x, y, currentLevel, placed), {
+    get().commitMap(placeArmed(map, { x, y, z: currentLevel }, placed, def, tilesById), {
       coalesceInStroke: true,
     });
     return { skipped: false };
@@ -435,7 +454,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           reason = check.reason;
           continue;
         }
-        map = appendTile(map, x, y, currentLevel, { ...placed });
+        map = placeArmed(map, { x, y, z: currentLevel }, { ...placed }, def, tilesById);
         wrote = true;
       }
     }
@@ -461,7 +480,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       placed.direction,
     );
     if (!check.ok) return { ok: false, reason: check.reason };
-    get().commitMap(appendTile(map, selected.x, selected.y, currentLevel, placed));
+    get().commitMap(
+      placeArmed(map, { x: selected.x, y: selected.y, z: currentLevel }, placed, def, tilesById),
+    );
     return { ok: true };
   },
 
@@ -562,11 +583,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     );
   },
 
-  setStackReward: (stackIndex, tag, tileIds) => {
+  setStackReward: (stackIndex, draft) => {
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedReward(map, selected.x, selected.y, currentLevel, stackIndex, tag, tileIds),
+      updatePlacedReward(map, selected.x, selected.y, currentLevel, stackIndex, draft),
+    );
+  },
+
+  setStackDepotTag: (stackIndex, tag) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedDepotTag(map, selected.x, selected.y, currentLevel, stackIndex, tag),
     );
   },
 

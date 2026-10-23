@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import {
+  APPROACH_NOTE,
   CAST_REFUSAL_NOTES,
-  type Castability,
   type CastSlot,
   COOLDOWN_STEP_MS,
   type SpellButton,
@@ -38,8 +38,11 @@ function arcOffset(share: number): number {
 
 export type SpellAppearance = "ready" | "cooling" | "unavailable" | "casting";
 
-export function spellAppearance(castability: Castability): SpellAppearance {
-  if (castability.ok) return "ready";
+export function spellAppearance({
+  castability,
+  approach,
+}: Pick<SpellButton, "castability" | "approach">): SpellAppearance {
+  if (castability.ok || approach) return "ready";
   if (castability.reason === "cooling") return "cooling";
   if (castability.reason === "noTarget") return "ready";
   if (castability.reason === "underway") return "casting";
@@ -111,20 +114,22 @@ function SpellSquare({
   tilesets: TilesetDef[];
 }) {
   const verdict = spell.castability;
-  const appearance = spellAppearance(verdict);
-  const press = spellPress(verdict);
+  const appearance = spellAppearance(spell);
+  const press = spellPress(spell);
   const key = castKeyLabel(index);
 
   const tap = useTap(() => {
     if (press === "stop") onStopCast();
-    else if (press === "cast") onCast(spell.slot);
+    else if (press) onCast(spell.slot);
   });
 
   const refusal = verdict.ok
     ? key
       ? `ready, key ${key}`
       : "ready"
-    : CAST_REFUSAL_NOTES[verdict.reason];
+    : spell.approach
+      ? APPROACH_NOTE
+      : CAST_REFUSAL_NOTES[verdict.reason];
   const cast = castTimeNote(spell.castTimeMs);
   const state = cast ? `${refusal}, ${cast}` : refusal;
 

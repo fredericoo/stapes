@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { AppShell, type Destination, MenuRow } from "./AppShell";
+import { ChangelogButton } from "./ChangelogButton";
+import { hasUnseenRelease, loadSeenVersion, saveSeenVersion } from "./changelogSeen";
 import { InvisibleToggle } from "./InvisibleToggle";
 import { DeathScreen } from "./DeathScreen";
 import { FeedbackButton } from "./FeedbackButton";
@@ -24,6 +26,7 @@ import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirectio
 import { applyInteraction, type InteractionOption } from "../game/interactionOptions";
 import { activeStatuses, COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
+import { LATEST_VERSION } from "./releaseNotes";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
@@ -47,6 +50,8 @@ import type { FrameStats } from "../render/frameProfile";
 import { GameRenderer } from "../render/GameRenderer";
 import { debugViewRequested } from "../render/debugView";
 import { installStapes, StapesEventLog } from "./stapes";
+
+const PIXEL_UI_CLASS = "pixel-ui";
 
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
@@ -95,6 +100,13 @@ export function WorldPage({
   onRefused?: () => void;
 }) {
   const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
+  const [seenVersion, setSeenVersion] = useState(loadSeenVersion);
+  const changelogUnseen = hasUnseenRelease(seenVersion);
+  const viewChangelog = () => {
+    if (LATEST_VERSION === null) return;
+    saveSeenVersion(LATEST_VERSION);
+    setSeenVersion(LATEST_VERSION);
+  };
   const assetsReady = useGameAssets(tilesets);
   const [painted, setPainted] = useState(false);
   const reloadedKey = `${RELOADED_FOR_VERSION}:${link.id}`;
@@ -112,9 +124,11 @@ export function WorldPage({
   }, []);
   const act = useCallback((option: InteractionOption) => {
     const renderer = rendererRef.current;
-    const current = renderer ? renderer.listOption(option.id) : option;
-    if (!current) return;
-    applyInteraction(sessionRef.current, current, renderer);
+    if (renderer) {
+      renderer.pressListed(option.id);
+      return;
+    }
+    applyInteraction(sessionRef.current, option, renderer);
   }, []);
   const talk = useCallback((action: TalkAction) => sessionRef.current?.talk(action), []);
   const craft = useCallback(
@@ -132,6 +146,7 @@ export function WorldPage({
   const [status, setStatus] = useState<Status>("connecting");
   const [dead, setDead] = useState(false);
   const [death, setDeath] = useState<DeathCost | null>(null);
+  const [rebornAs, setRebornAs] = useState<string | null>(null);
   const [diedAway, setDiedAway] = useState(false);
   const [rebirthing, setRebirthing] = useState(false);
   const rebirth = useCallback(() => {
@@ -169,7 +184,7 @@ export function WorldPage({
     sessionRef.current?.consume({ kind: "slot", slot });
   }, []);
   const cast = useCallback((slot: CastSlot) => {
-    sessionRef.current?.cast(slot);
+    rendererRef.current?.cast(slot);
   }, []);
   const stopCast = useCallback(() => {
     sessionRef.current?.cancelCast();
@@ -229,6 +244,12 @@ export function WorldPage({
   );
 
   useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add(PIXEL_UI_CLASS);
+    return () => root.classList.remove(PIXEL_UI_CLASS);
+  }, []);
+
+  useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
   }, [lightingEnabled]);
 
@@ -255,8 +276,8 @@ export function WorldPage({
     const unbindCast = bindCastKeys((index) => {
       const spell = spellsRef.current[index];
       if (!spell) return;
-      if (spellPress(spell.castability) === "stop") sessionRef.current?.cancelCast();
-      else sessionRef.current?.cast(spell.slot);
+      if (spellPress(spell) === "stop") sessionRef.current?.cancelCast();
+      else rendererRef.current?.cast(spell.slot);
     });
 
     const teardownRenderer = () => {
@@ -277,6 +298,7 @@ export function WorldPage({
       setPainted(false);
       setDead(false);
       setDeath(null);
+      setRebornAs(null);
       setDiedAway(false);
       setRebirthing(false);
     };
@@ -303,6 +325,7 @@ export function WorldPage({
       remote.setOnDead((isDead) => {
         setDead(isDead);
         setDeath(remote.deathCost());
+        setRebornAs(remote.rebornAs());
         setDiedAway(remote.wasAwayForDeath());
         if (isDead) return;
         if (!rendererRef.current) {
@@ -492,6 +515,9 @@ export function WorldPage({
               ) : null}
               {menuExtras}
               <div className="py-2">
+                <ChangelogButton unseen={changelogUnseen} onView={viewChangelog} />
+              </div>
+              <div className="py-2">
                 <FeedbackButton gameContext={gameContext} />
               </div>
               {onLeave ? (
@@ -505,7 +531,7 @@ export function WorldPage({
             </>
           }
           menuInPage
-          menuAttention={menuAttention}
+          menuAttention={menuAttention || changelogUnseen}
         >
           <InkDocument />
           <div className="relative h-full w-full">
@@ -568,7 +594,13 @@ export function WorldPage({
       </div>
 
       {dead || rebirthing ? (
-        <DeathScreen onRebirth={rebirth} pending={rebirthing} cost={death} away={diedAway} />
+        <DeathScreen
+          onRebirth={rebirth}
+          pending={rebirthing}
+          cost={death}
+          rebornAs={rebornAs}
+          away={diedAway}
+        />
       ) : null}
     </>
   );

@@ -19,6 +19,7 @@ export function itemUseFor(
 ): ItemUse | null {
   const def = tilesById[instance.tileId];
   if (!def) return null;
+  if (slot.kind === "depot") return { type: "move", to: FIRST_BAG_SLOT };
 
   if (resolveContainer(def)) {
     return slot.kind === "bag" || slot.kind === "weapon" || slot.kind === "offhand"

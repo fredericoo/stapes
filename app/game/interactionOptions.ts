@@ -6,14 +6,14 @@ import {
   resolveRemoveStatus,
   resolveExtract,
   resolveRewardDef,
-  resolveSetSpawn,
   resolveSwitch,
   resolveTeleportDef,
   craftVerb,
   DEFAULT_CRAFT_VERB,
 } from "../lib/interactions";
 import { consumeVerb, EQUIP_FALLBACK_VERB, equipVerb, resolveConsumable } from "../lib/item";
-import type { Coord, MapFile, TileDef } from "../lib/types";
+import { RATING_GLYPH } from "../lib/mastery";
+import type { MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Progress } from "./progress";
 import {
@@ -24,8 +24,12 @@ import {
   canOpenFrom,
   canPickUpFrom,
   canPushFrom,
-  canRewardFrom,
-  canSetSpawnFrom,
+  reachableRewardAt,
+  rewardFits,
+  rewardOfferedAt,
+  rewardShortfall,
+  reachableItemDefAt,
+  carriable,
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
@@ -35,6 +39,7 @@ import {
   type ObjectRef,
 } from "./affordances";
 import { conjuredName } from "./conjured";
+import { depotAt } from "./depot";
 import { combatantOf, mayHarm } from "./pvp";
 import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
@@ -72,6 +77,7 @@ export type InteractionOption = {
   name: string;
   health: { hp: number; maxHp: number } | null;
   active: boolean;
+  far: boolean;
   blocked: OptionBlock | null;
   wait: Progress | null;
 };
@@ -80,7 +86,7 @@ export type OptionBlock =
   | { kind: "working"; extraction: Extraction }
   | { kind: "noRoom" }
   | { kind: "taken" }
-  | { kind: "here" };
+  | { kind: "needs"; rating: number };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
@@ -97,7 +103,6 @@ const LABELS: Record<InteractionAction, string> = {
   teleport: "Enter",
   addStatus: "Touch",
   removeStatus: "Touch",
-  setSpawn: "Mark",
   extract: DEFAULT_EXTRACT_VERB,
   craft: DEFAULT_CRAFT_VERB,
 };
@@ -110,6 +115,26 @@ export function interactionText(option: InteractionOption): string {
   return `${option.label} ${option.name}`;
 }
 
+export function blockReason(blocked: OptionBlock): string | null {
+  if (blocked.kind === "working") return "working";
+  if (blocked.kind === "taken") return "in use";
+  if (blocked.kind === "needs") return `needs rating ${blocked.rating}`;
+  return "no room";
+}
+
+export function drawnBlockReason(blocked: OptionBlock): string | null {
+  if (blocked.kind === "working") return null;
+  if (blocked.kind === "needs") return `needs ${RATING_GLYPH}${blocked.rating}`;
+  return blockReason(blocked);
+}
+
+/** What a pointer hint says for `option`: its verb, or why it cannot be done right now. */
+export function pointerHintText(option: Pick<InteractionOption, "label" | "blocked">): string {
+  const reason = option.blocked ? drawnBlockReason(option.blocked) : null;
+  if (!reason) return option.label;
+  return reason[0].toUpperCase() + reason.slice(1);
+}
+
 const ACTION_ORDER: Record<InteractionAction, number> = {
   talk: 0,
   attack: 1,
@@ -120,23 +145,26 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   switch: 6,
   addStatus: 7,
   removeStatus: 8,
-  setSpawn: 9,
-  craft: 10,
-  extract: 11,
-  equip: 12,
-  open: 13,
-  pickUp: 14,
-  consume: 15,
+  craft: 9,
+  extract: 10,
+  equip: 11,
+  open: 12,
+  pickUp: 13,
+  consume: 14,
   push: 16,
 };
 
+/**
+ * Blocked verbs keep their place, so a mouse button always means the same verb
+ * on a thing and the pointer can say why it will not happen.
+ */
 export function rankedInteractionsAt(
   options: readonly InteractionOption[],
   ref: ObjectRef,
 ): InteractionOption[] {
   const key = refKey(ref);
   return options
-    .filter((option) => !option.blocked && refKey(option.ref) === key)
+    .filter((option) => refKey(option.ref) === key)
     .sort((a, b) => ACTION_ORDER[a.action] - ACTION_ORDER[b.action]);
 }
 
@@ -168,7 +196,6 @@ export function listInteractionOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null = null,
   tags: readonly string[] = [],
-  spawnAt: Coord | null = null,
   attacking: boolean = false,
   extracting: Extraction | null = NOTHING_EXTRACTING,
   conversation: Conversation | null = null,
@@ -192,7 +219,6 @@ export function listInteractionOptions(
       equipment,
       openedRef,
       tags,
-      spawnAt,
       extracting,
       craftingRef,
     ),
@@ -227,7 +253,6 @@ export type RefContext = {
   equipment: Equipment;
   openedRef: ObjectRef | null;
   tags: readonly string[];
-  spawnAt: Coord | null;
   extracting: Extraction | null;
   conversation: Conversation | null;
   craftingRef: ObjectRef | null;
@@ -265,7 +290,6 @@ export function refOptionsFrom(
       ref,
       context.openedRef,
       context.tags,
-      context.spawnAt,
       context.extracting,
       context.craftingRef,
     ),
@@ -486,7 +510,6 @@ function objectOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null,
   tags: readonly string[],
-  spawnAt: Coord | null,
   extracting: Extraction | null,
   craftingRef: ObjectRef | null,
 ): InteractionOption[] {
@@ -513,7 +536,6 @@ function objectOptions(
               { x, y, z, stackIndex },
               openedRef,
               tags,
-              spawnAt,
               extracting,
               craftingRef,
             ),
@@ -536,7 +558,6 @@ function slotOptions(
   ref: ObjectRef,
   openedRef: ObjectRef | null,
   tags: readonly string[],
-  spawnAt: Coord | null,
   extracting: Extraction | null,
   craftingRef: ObjectRef | null,
 ): InteractionOption[] {
@@ -574,6 +595,7 @@ function slotOptions(
       actorId: body?.id ?? null,
       blocked,
       wait: null,
+      far: false,
       tileId: placed.tileId,
       name,
       health: body ? healthOf(body) : null,
@@ -585,25 +607,17 @@ function slotOptions(
   const stow = pickUpDestination(map, tilesById, self, ref, equipment) != null;
   const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
   if (action) {
-    const blocked =
-      action === "extract"
-        ? extractBlock(map, tilesById, self, equipment, ref, extracting)
-        : action === "setSpawn"
-          ? spawnBlock(ref, spawnAt)
-          : null;
     add(
       action,
-      blocked?.kind === "here"
-        ? SPAWN_HERE_LABEL
-        : objectActionLabel(action, tilesById[placed.tileId]),
+      objectActionLabel(action, tilesById[placed.tileId]),
       false,
-      blocked,
+      actionBlock(action, map, tilesById, self, equipment, ref, extracting),
     );
   }
 
   if (action === "equip" && stow) add("pickUp", LABELS.pickUp);
 
-  if (canOpenFrom(map, tilesById, self, ref)) {
+  if (canOpenFrom(map, tilesById, self, ref) || depotAt(map, tilesById, self, ref)) {
     const isOpen = openedRef != null && refKey(openedRef) === refKey(ref);
     add("open", isOpen ? CLOSE_LABEL : LABELS.open, isOpen);
   }
@@ -621,6 +635,38 @@ function slotOptions(
   }
 
   return out;
+}
+
+function actionBlock(
+  action: InteractionAction,
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  equipment: Equipment,
+  ref: ObjectRef,
+  extracting: Extraction | null,
+): OptionBlock | null {
+  if (action === "extract") return extractBlock(map, tilesById, self, equipment, ref, extracting);
+  if (action === "reward") return rewardBlock(map, tilesById, self, equipment, ref);
+  if (action === "pickUp" && !canPickUpFrom(map, tilesById, self, ref, equipment)) {
+    return { kind: "noRoom" };
+  }
+  return null;
+}
+
+function rewardBlock(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  equipment: Equipment,
+  ref: ObjectRef,
+): OptionBlock | null {
+  const reward = reachableRewardAt(map, tilesById, self, ref);
+  if (!reward) return null;
+  const short = rewardShortfall(reward, self.rating);
+  if (short) return { kind: "needs", rating: short.rating };
+  if (!rewardFits(reward, tilesById, equipment)) return { kind: "noRoom" };
+  return null;
 }
 
 function extractBlock(
@@ -649,7 +695,7 @@ function objectAction(
   tags: readonly string[],
   equipSlot: EquipSlot | null,
 ): InteractionAction | null {
-  if (canRewardFrom(map, tilesById, self, ref, equipment, tags)) return "reward";
+  if (rewardOfferedAt(map, tilesById, self, ref, tags)) return "reward";
   const selfDef = tilesById[self.tileId];
   if (selfDef && canTeleportFrom(map, tilesById, self, ref, selfDef)) {
     return "teleport";
@@ -657,11 +703,13 @@ function objectAction(
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
   if (canRemoveStatusFrom(map, tilesById, self, ref)) return "removeStatus";
-  if (canSetSpawnFrom(map, tilesById, self, ref)) return "setSpawn";
   if (extractOfferedAt(map, tilesById, self, ref)) return "extract";
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
+  /** An item with nowhere to go is still offered, blocked, so the full bag is what the player sees. */
+  const item = reachableItemDefAt(map, tilesById, self, ref);
+  if (item && carriable(item)) return "pickUp";
   return null;
 }
 
@@ -683,21 +731,10 @@ function objectActionLabel(action: InteractionAction, def: TileDef | undefined):
   if (action === "removeStatus") {
     return resolveRemoveStatus(def)?.actionName?.trim() || LABELS.removeStatus;
   }
-  if (action === "setSpawn") {
-    return resolveSetSpawn(def)?.actionName?.trim() || LABELS.setSpawn;
-  }
   if (action === "extract") {
     return resolveExtract(def)?.actionName?.trim() || LABELS.extract;
   }
   return LABELS[action];
-}
-
-const SPAWN_HERE_LABEL = "You respawn here";
-
-function spawnBlock(ref: ObjectRef, spawnAt: Coord | null): OptionBlock | null {
-  if (!spawnAt) return null;
-  const here = ref.x === spawnAt.x && ref.y === spawnAt.y && ref.z === spawnAt.z;
-  return here ? { kind: "here" } : null;
 }
 
 function talkOptions(
@@ -719,6 +756,7 @@ function talkOptions(
       actorId: actor.id,
       blocked: null,
       wait: null,
+      far: false,
       tileId: actor.tileId,
       name: bodyNameFor(actor, tilesById),
       health: healthOf(actor),
@@ -763,6 +801,7 @@ function battlerOptions(
         actorId: actor.id,
         blocked: null,
         wait: fighting ? nextBlow : null,
+        far: false,
         tileId: actor.tileId,
         name,
         health,
@@ -777,6 +816,7 @@ function battlerOptions(
       actorId: actor.id,
       blocked: null,
       wait: null,
+      far: false,
       tileId: actor.tileId,
       name,
       health,
@@ -790,6 +830,7 @@ function battlerOptions(
       actorId: actor.id,
       blocked: null,
       wait: null,
+      far: false,
       tileId: actor.tileId,
       name,
       health,

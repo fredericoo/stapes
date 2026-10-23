@@ -74,6 +74,14 @@ export function levelGoal(z: number): NavGoal {
  * Where a body put at `at` comes to rest: the surface at the top of that
  * level's band if there is one, else the highest one below it.
  */
+/**
+ * A route's cell as the body on it. The board a route is planned over has its
+ * bodies taken off, so the traveller would stand on top of the whole stack.
+ */
+export function standingIn(board: MapFile, cell: Coord): ObjectRef {
+  return { ...cell, stackIndex: getStack(board, cell.x, cell.y, cell.z).length };
+}
+
 export function settleAt(world: NavWorld, at: Coord): Coord | null {
   const surfaces = listStandingSurfaces(world.board, at.x, at.y, world.tilesById);
   const ceiling = (at.z + 1) * HEIGHT_PER_LEVEL;
@@ -200,6 +208,7 @@ function useLegs(world: NavWorld, at: Coord): NavLeg[] {
     const { dx, dy } = DIR_DELTA[direction];
     cells.push({ x: at.x + dx, y: at.y + dy });
   }
+  const self = standingIn(world.board, at);
   for (const { x, y } of cells) {
     for (const z of [at.z - 1, at.z, at.z + 1]) {
       const stack = getStack(world.board, x, y, z);
@@ -208,7 +217,7 @@ function useLegs(world: NavWorld, at: Coord): NavLeg[] {
         const ref = { x, y, z, stackIndex };
         const teleport = resolveTeleport(placed, world.tilesById[placed.tileId], ref);
         if (!teleport || teleport.trigger === "step") continue;
-        if (!canTeleportFrom(world.board, world.tilesById, at, ref, world.traveller)) continue;
+        if (!canTeleportFrom(world.board, world.tilesById, self, ref, world.traveller)) continue;
         const to = settleAt(world, teleport.to);
         if (to) out.push({ kind: "use", ref, to });
       }

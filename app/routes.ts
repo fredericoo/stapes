@@ -2,6 +2,8 @@ import { type RouteConfig, index, layout, prefix, route } from "@react-router/de
 
 export default [
   index("routes/home.tsx"),
+  route("changelog", "routes/changelog.tsx"),
+  route("items", "routes/items.tsx"),
   layout("routes/player.tsx", [
     route("online", "routes/game.tsx"),
     route("sign-in", "routes/signIn.tsx"),
@@ -17,6 +19,7 @@ export default [
     route("map", "routes/admin/map.tsx"),
     route("tiles", "routes/admin/tiles.tsx"),
     route("statuses", "routes/admin/statuses.tsx"),
+    route("traits", "routes/admin/traits.tsx"),
     route("play", "routes/admin/play.tsx"),
     route("arena", "routes/admin/arena.tsx"),
     route("voxel", "routes/admin/voxel.tsx"),

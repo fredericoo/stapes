@@ -22,6 +22,7 @@ export type FlightEffect = {
   at: FlightPoint;
   transition: Transition;
   elapsedMs: number;
+  startDebt?: number;
 };
 
 /**

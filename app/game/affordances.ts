@@ -6,7 +6,6 @@ import type {
   PlacedReward,
   PlacedTeleport,
   RemoveStatusInteraction,
-  SetSpawnInteraction,
   CraftInteraction,
 } from "../lib/interactions";
 import {
@@ -15,16 +14,22 @@ import {
   resolvePush,
   resolveRemoveStatus,
   resolveReward,
-  resolveSetSpawn,
   resolveSwitch,
   resolveTeleport,
   resolveCraft,
 } from "../lib/interactions";
 import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
-import { stowFits } from "../lib/piles";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { footprintOf, physicalHeight } from "../lib/types";
+import { stackWithLanding, stowFits } from "../lib/piles";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  RewardRequirements,
+  TileDef,
+} from "../lib/types";
+import { footprintOf, HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
 import { handAccepts, handHasRoomFor, wornAccepts, type Equipment } from "./equipment";
@@ -32,17 +37,26 @@ import { pushDestination } from "./push";
 
 export type ObjectRef = Coord & { stackIndex: number };
 
-export type Actor = Coord;
+export type Actor = ObjectRef;
 
 export const INTERACT_LEVEL_SLACK = 1;
+
+/**
+ * In height units, from the feet of the one reaching to the floor under the
+ * thing reached. Anything short of a whole level, so the top of a barrel is in
+ * reach and the rim of a hole you have fallen into is not.
+ */
+export const INTERACT_HEIGHT_SLACK = HEIGHT_PER_LEVEL - 1;
 
 function reachesAcrossFloors(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   actor: Actor,
-  to: Coord,
+  to: ObjectRef,
 ): boolean {
-  if (Math.abs(to.z - actor.z) > INTERACT_LEVEL_SLACK) return false;
+  const rise =
+    standingElevationUnder(map, tilesById, to) - standingElevationUnder(map, tilesById, actor);
+  if (Math.abs(rise) > INTERACT_HEIGHT_SLACK) return false;
   return hasLineOfSight(map, tilesById, actor, to);
 }
 
@@ -335,6 +349,11 @@ export function pickUpDestination(
   return null;
 }
 
+/** A fixed container, such as a chest, is an item no amount of room lets anybody carry. */
+export function carriable(def: TileDef): boolean {
+  return !resolveContainer(def) || handAccepts(def);
+}
+
 export function canPickUpFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -394,7 +413,7 @@ export function dropDestinationAt(
 
   if (walkableElevInStack(stack, tilesById) == null) return null;
 
-  const next = [...stack, { tileId: def.id }];
+  const next = stackWithLanding(stack, { tileId: def.id });
   if (!canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok) return null;
   return { kind: "stack" };
 }
@@ -444,12 +463,32 @@ export function rewardFits(
   const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
   const free = size - (bag.contents?.length ?? 0);
   if (reward.itemTileIds.length > free) return false;
+  return rewardGivable(reward, tilesById);
+}
 
+/** Whether every item `reward` names still exists and is something a bag can hold. */
+function rewardGivable(reward: PlacedReward, tilesById: Record<string, TileDef>): boolean {
   return reward.itemTileIds.every((tileId) => {
     const def = tilesById[tileId];
     if (!def) return false;
     return resolveItem(def) != null && resolveContainer(def) == null;
   });
+}
+
+/**
+ * A reward within reach that the holder of `tags` has not taken, whether or
+ * not they can take it right now: the interaction list shows it blocked.
+ */
+export function rewardOfferedAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  tags: readonly string[],
+): PlacedReward | null {
+  const reward = reachableRewardAt(map, tilesById, actor, ref);
+  if (!reward || tags.includes(reward.tag)) return null;
+  return rewardGivable(reward, tilesById) ? reward : null;
 }
 
 export function canRewardFrom(
@@ -460,10 +499,36 @@ export function canRewardFrom(
   equipment: Equipment,
   tags: readonly string[],
 ): boolean {
+  const reward = rewardOfferedAt(map, tilesById, actor, ref, tags);
+  return reward !== null && rewardFits(reward, tilesById, equipment);
+}
+
+/**
+ * The criteria of `reward` that a taker rated `rating` falls short of, or null
+ * when they meet them all. An unknown rating meets nothing that asks for one.
+ */
+export function rewardShortfall(
+  reward: PlacedReward,
+  rating: number | null,
+): Required<RewardRequirements> | null {
+  const needed = reward.requires.rating;
+  if (needed === undefined) return null;
+  if (rating !== null && rating >= needed) return null;
+  return { rating: needed };
+}
+
+export function canClaimRewardFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  equipment: Equipment,
+  tags: readonly string[],
+  rating: number | null,
+): boolean {
+  if (!canRewardFrom(map, tilesById, actor, ref, equipment, tags)) return false;
   const reward = reachableRewardAt(map, tilesById, actor, ref);
-  if (!reward) return false;
-  if (tags.includes(reward.tag)) return false;
-  return rewardFits(reward, tilesById, equipment);
+  return reward !== null && rewardShortfall(reward, rating) === null;
 }
 
 export function reachableCraftAt(
@@ -588,37 +653,6 @@ export function canRemoveStatusFrom(
   ref: ObjectRef,
 ): boolean {
   return reachableRemoveStatusAt(map, tilesById, actor, ref) != null;
-}
-
-export function reachableSetSpawnAt(
-  map: MapFile,
-  tilesById: Record<string, TileDef>,
-  actor: Actor,
-  ref: ObjectRef,
-): SetSpawnInteraction | null {
-  const def = interactiveDefAt(map, tilesById, actor, ref);
-  if (!def) return null;
-
-  const setSpawn = resolveSetSpawn(def);
-  if (!setSpawn) return null;
-
-  if (setSpawn.trigger === "interact") {
-    return pushDirectionFrom(actor, ref) ? setSpawn : null;
-  }
-  if (setSpawn.trigger === "interactOver") {
-    const over = actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
-    return over ? setSpawn : null;
-  }
-  return null;
-}
-
-export function canSetSpawnFrom(
-  map: MapFile,
-  tilesById: Record<string, TileDef>,
-  actor: Actor,
-  ref: ObjectRef,
-): boolean {
-  return reachableSetSpawnAt(map, tilesById, actor, ref) != null;
 }
 
 export function canOpenFrom(

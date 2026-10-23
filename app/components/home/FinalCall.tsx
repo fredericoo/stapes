@@ -31,7 +31,7 @@ export function FinalCall() {
           <DoorLogo />
         </h2>
         <p className="home-pixel home-tagline home-outline">
-          A small MMO that runs in your browser.
+          A hardcore retro MMORPG that runs in your browser.
         </p>
         <PlayButtons />
         <div className="home-final-alpha">

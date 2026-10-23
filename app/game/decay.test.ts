@@ -543,7 +543,7 @@ describe("GameSession transitions", () => {
     ]);
   });
 
-  it("announces nothing when an authored thing is merely picked up", () => {
+  it("plays nothing of its own when an authored thing is picked up or tossed down", () => {
     const glowcap = tile({
       id: "glowcap",
       height: 0,
@@ -568,12 +568,15 @@ describe("GameSession transitions", () => {
     const session = new GameSession(map, [...tiles, glowcap]);
 
     expect(session.pickUp({ x: 9, y: 10, z: 0, stackIndex: 1 })).toBe(true);
-    expect(session.drainTransitions()).toEqual([]);
+    expect(session.drainTransitions()).toEqual([
+      expect.objectContaining({ tileId: "glowcap", takenBy: expect.any(Object) }),
+    ]);
     expect(runHearing(session, TICK_MS)).toEqual([]);
 
     expect(session.drop({ kind: "contents", index: 0 }, { x: 9, y: 10, z: 0 })).toBe(true);
-    expect(session.drainTransitions()).toEqual([]);
-    expect(session.takeTransitions()).toEqual([]);
+    expect(session.drainTransitions()).toEqual([
+      expect.objectContaining({ tileId: "glowcap", tossedFrom: expect.any(Object) }),
+    ]);
   });
 
   it("plays each one out of the slot a viewer last saw it in", () => {
@@ -895,12 +898,13 @@ describe("what a dead battler leaves on the floor", () => {
     ]);
   });
 
-  it("goes off on the clock it started in the kit, not the one it fell on", () => {
+  it("starts going off when it falls, however long the body carried it", () => {
     const session = withScarecrow();
-    const diedAtMs = killBeside(session);
+    run(session, GOURD_MS);
+    killBeside(session);
 
-    run(session, GOURD_MS - diedAtMs);
-
+    expect(stackIds(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z)).toEqual(["grass", "gourd"]);
+    run(session, GOURD_MS);
     expect(stackIds(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z)).toEqual([
       "grass",
       "rotten-berry",

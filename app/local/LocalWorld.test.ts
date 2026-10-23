@@ -1,6 +1,7 @@
 import { describe, expect, it, afterEach } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import statusesJson from "../../data/statuses.json";
+import traitsJson from "../../data/traits.json";
 import { GameSocket } from "../../server/sockets";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { DataStore, type Blobs } from "../lib/dataStore";
@@ -23,6 +24,7 @@ class MemoryBlobs implements Blobs {
   constructor() {
     this.entries.set("tiles.json", JSON.stringify(tilesJson));
     this.entries.set("statuses.json", JSON.stringify(statusesJson));
+    this.entries.set("traits.json", JSON.stringify(traitsJson));
     this.entries.set("map.json", JSON.stringify(authoredMap()));
   }
 

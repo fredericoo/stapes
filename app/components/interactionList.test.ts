@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { blockReason, drawnBlockReason, fillElapsedMs } from "./InteractionList";
+import { blockReason, drawnBlockReason, pointerHintText } from "../game/interactionOptions";
+import { fillElapsedMs } from "./InteractionList";
 
 function pull(remainingMs: number, durationMs = 5_000) {
   return { key: "0:1,0|bush", remainingMs, durationMs };
@@ -64,13 +65,20 @@ describe("why a blocked row is grey", () => {
     expect(drawnBlockReason({ kind: "taken" })).toBe("in use");
   });
 
+  it("draws the rating a reward needs with the glyph, and announces it in words", () => {
+    expect(drawnBlockReason({ kind: "needs", rating: 10 })).toBe("needs *10");
+    expect(blockReason({ kind: "needs", rating: 10 })).toBe("needs rating 10");
+  });
+
+  it("puts the reason where the pointer hint's verb would be", () => {
+    const chest = { label: "Open", blocked: null };
+    expect(pointerHintText(chest)).toBe("Open");
+    expect(pointerHintText({ ...chest, blocked: { kind: "needs", rating: 10 } })).toBe("Needs *10");
+    expect(pointerHintText({ ...chest, blocked: { kind: "noRoom" } })).toBe("No room");
+  });
+
   it("draws nothing for a pull in progress, and still announces it", () => {
     expect(drawnBlockReason(WORKING)).toBeNull();
     expect(blockReason(WORKING)).toBe("working");
-  });
-
-  it("says nothing either way on the respawn point you are anchored to", () => {
-    expect(drawnBlockReason({ kind: "here" })).toBeNull();
-    expect(blockReason({ kind: "here" })).toBeNull();
   });
 });

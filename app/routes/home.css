@@ -307,7 +307,15 @@
   outline-offset: 2px;
 }
 
-.home-dangers {
+.home-hero-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.home-dangers,
+.home-permadeath {
   scroll-margin-top: var(--home-nav-h);
 }
 
@@ -849,6 +857,90 @@
 
 /* The sprites are drawn at `--cell` per game cell, so a rat and a piece of
    meat keep the sizes they have beside each other in the world. */
+.home-realm {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 112px 16px 0;
+  scroll-margin-top: var(--home-nav-h);
+}
+
+.home-realm-lede {
+  max-width: 38rem;
+  margin-top: 16px;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--home-text);
+}
+
+.home-realm-list {
+  display: grid;
+  gap: 12px;
+  max-width: 38rem;
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-realm-entry {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 2px solid var(--home-rule-faint);
+  background: var(--home-deep);
+}
+
+.home-realm-entry[data-king="true"] {
+  border-color: var(--color-label);
+}
+
+.home-realm-rank {
+  width: 1ch;
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--home-text-faint);
+}
+
+.home-realm-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.home-realm-name {
+  overflow: hidden;
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--color-paper);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-realm-entry[data-king="true"] .home-realm-name {
+  color: var(--color-label);
+}
+
+.home-realm-title {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--home-text-quiet);
+}
+
+.home-realm-rating {
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--home-text);
+}
+
+@media (min-width: 1024px) {
+  .home-realm {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+}
+
 .home-dangers {
   --cell: 40px;
   max-width: 76rem;
@@ -860,8 +952,7 @@
   color: var(--color-danger-on-ink);
 }
 
-.home-dangers-lede,
-.home-dangers-death {
+.home-dangers-lede {
   max-width: 38rem;
   font-size: 0.9375rem;
   line-height: 1.7;
@@ -911,10 +1002,6 @@
   color: var(--home-text-quiet);
 }
 
-.home-dangers-death {
-  margin-top: 24px;
-}
-
 @media (min-width: 768px) {
   .home-dangers-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -924,6 +1011,68 @@
 
 @media (min-width: 1024px) {
   .home-dangers {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+}
+
+.home-permadeath {
+  --cell: 40px;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 112px 16px 0;
+}
+
+.home-permadeath .home-section-title {
+  color: var(--color-danger-on-ink);
+}
+
+.home-permadeath-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.home-permadeath-art {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+}
+
+.home-permadeath-art img {
+  width: var(--cell);
+  height: var(--cell);
+}
+
+.home-permadeath-art figcaption {
+  font-size: 0.8125rem;
+  color: var(--home-text-quiet);
+}
+
+.home-permadeath-text {
+  max-width: 38rem;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--home-text);
+}
+
+.home-permadeath-text p + p {
+  margin-top: 16px;
+}
+
+@media (min-width: 768px) {
+  .home-permadeath-body {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-permadeath {
     padding-right: 32px;
     padding-left: 32px;
   }
@@ -1289,6 +1438,96 @@ html:has(.home-lightbox[open]) {
 .home-footer a:focus-visible {
   outline: 2px solid var(--home-arcane);
   outline-offset: 2px;
+}
+
+.home-changelog {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: calc(var(--home-nav-h) + 48px) 16px 64px;
+}
+
+.home-changelog-empty {
+  margin-top: 24px;
+  color: var(--home-text-quiet);
+}
+
+.home-changelog-release {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 2px solid var(--home-rule-faint);
+}
+
+.home-changelog-version {
+  font-size: 30px;
+  line-height: 30px;
+  color: var(--color-label);
+}
+
+.home-changelog-date {
+  display: block;
+  margin-top: 8px;
+  color: var(--home-text-faint);
+}
+
+.home-changelog-kind {
+  margin-top: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--home-text-faint);
+}
+
+.home-changelog-entries {
+  margin-top: 8px;
+  padding-left: 1.25em;
+  list-style: square;
+  color: var(--home-text);
+  line-height: 1.6;
+}
+
+.home-changelog-entries li {
+  white-space: pre-line;
+}
+
+.home-changelog-entries li + li {
+  margin-top: 6px;
+}
+
+.home-changelog .home-buttons {
+  margin-top: 48px;
+}
+
+.home-items {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: calc(var(--home-nav-h) + 48px) 16px 64px;
+}
+
+.home-items-lede {
+  max-width: 40rem;
+  margin: 16px 0 24px;
+  color: var(--home-text);
+  line-height: 1.6;
+}
+
+.home-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+/* The card is reached by an item link or a shared `#id`, and is offset so the
+   fixed bar does not cover its top edge. */
+.home-items-card {
+  scroll-margin-top: calc(var(--home-nav-h) + 16px);
+}
+
+.home-items-card:focus-visible,
+.home-items-card[data-picked="true"] {
+  outline: 2px solid var(--color-interact);
+  outline-offset: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
