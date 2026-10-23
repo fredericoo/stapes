@@ -156,6 +156,14 @@ an agent drives", lists every call.
   and `flagstone-floor` and `slate-floor`, each with an `-inner` variant cut by
   the wooden floor's masks for use under a half wall. New tiles are appended to
   `data/tiles.json`; a tile already there has only its sprite fields rewritten
+- `bun run generate:swamp-trees` — redraw `data/tilesets/swamp-trees.png`:
+  `dead-tree`, `dead-tree-twisted`, `mossy-dead-tree` and `dead-snag`, leafless
+  trees grown from a seed per species and cast through the game's projection.
+  The growth settings and seeds are constants in the script
+- `bun run generate:waterfall` — redraw `data/tilesets/waterfall.png`:
+  `waterfall-top`, `-middle` and `-base`, half a level each and eight frames,
+  a sheet of water on the north edge of its cell that stacks without a seam
+  against the cliff north of it, with a heap of foam at the base
 - `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
   spinner: a crystal modelled in Three.js, rendered in headless Chromium and
   snapped to the logo's sixteen colours. Shape, light and timing are constants

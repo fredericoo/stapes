@@ -13188,6 +13188,32 @@ where the wood's is cut, and their `-inner` tiles are the complement, as
 the script runs. The joints are broken and one palette step from the stone:
 a floor with more contrast than that competes with whatever is standing on it.
 
+## Swamp trees are grown, and a waterfall leans on the cliff behind it
+
+`bun run generate:swamp-trees` grows each leafless tree from a seed: a trunk
+in a few kinked pieces, forking into thinner limbs that spread mostly
+sideways, because in this projection height is drawn up and to the left and a
+crown that grows upward reads as a diagonal stick. The sprite is three cells
+square with the tree in the south-east one, so the crown has room to spread
+north and west. The tiles are one level tall and let light through, like a
+tree whose crown is mostly gaps. `mossy-dead-tree` hangs strands of pale moss
+from its outer limbs.
+
+`bun run generate:waterfall` draws a sheet of falling water standing on the
+north edge of its cell, so a waterfall goes in the cells south of a cliff and
+covers the cliff's face. Every streak repeats every four pixels of height, the
+height of a segment, which is what lets any number of `waterfall-middle`
+stack seamlessly. Each streak moves one or two pixels a frame, and eight
+frames bring every streak back to where it started. `waterfall-top` starts at
+a strip of shimmer on the cliff's edge. The cliff's top edge draws a row of
+outline and a row of stone between the river and the fall, so the top segment
+lays two rows of water over them, one of them a pixel into the cell north of
+it, and the animated `water` above runs straight into the shimmer. `waterfall-base` throws a
+heap of bubbles south out of the foot of the fall, each living one cycle, so
+the heap churns without ever restarting all at once. The segments are phased
+three frames apart per cell along x, so a wide fall is not one column stamped
+side by side.
+
 ## A forest is a path and what grows either side of it
 
 The forest generator (`app/editor/forest.ts`) lays a ground tile over the whole
