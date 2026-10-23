@@ -13157,6 +13157,37 @@ of each wall cell shows ground, but a cave generated from any of them comes out
 as open caverns rather than narrow passages. A passage one cell wide is carved
 by hand for now.
 
+## A marble pillar is cut out of a whole column
+
+`bun run generate:masonry` draws `marble-pillar-bottom`, `-middle` and `-top`,
+two units each, so two make a storey and a column is any number of middles
+between a bottom and a top. **Each segment is drawn as part of a column, not on
+its own**: the shaft is carried on above and below it, the view ray is cast
+through that, and the segment keeps the pixels whose stone is its own. Drawn
+alone, a segment outlines its own bottom edge and shades the pixels at its
+lower corners as an end, and stacking them shows a line and two grey notches
+at every joint. Cut from one picture, a stack of them is that picture.
+
+The only pixels taken from the segment drawn alone are its cap, which the
+segment above covers. That is what lets a bottom or a middle end a column
+without a hole in its top.
+
+**Cracks are drawn on the stone, not on the sprite.** Each one is a line in
+angle round the shaft and height, so it follows the curve, and only the stone a
+segment owns can carry it. A crack that reaches a joint stops there, and the
+cracked segments stack with the intact ones the same way. The visible side of
+a middle segment is a strip about four pixels wide once the next segment covers
+its cap, which is why its cracks are short. `marble-pillar-broken` is a shaft
+whose top height varies round the centre, shaded darker the further down it
+broke.
+
+**The stone floors use the wooden floor's masks.** `flagstone-floor` and
+`slate-floor` copy `wooden-floor`'s slices and cut each slice of their sheet
+where the wood's is cut, and their `-inner` tiles are the complement, as
+`wooden-floor-inner` is. A change to the wood's sheet reaches them the next time
+the script runs. The joints are broken and one palette step from the stone:
+a floor with more contrast than that competes with whatever is standing on it.
+
 ## A forest is a path and what grows either side of it
 
 The forest generator (`app/editor/forest.ts`) lays a ground tile over the whole

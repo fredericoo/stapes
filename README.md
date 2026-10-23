@@ -148,6 +148,14 @@ an agent drives", lists every call.
   (`cave-wall-grey`, `cave-wall-sloped-grey`). Every corner is rounded. Geometry
   too, drawn through the game's own projection; the variants, the shape rules
   and the palette entries are constants in the script
+- `bun run generate:masonry` — redraw `data/tilesets/masonry.png` and the tiles
+  on it: `marble-pillar-bottom`, `-middle` and `-top`, half a level each, cast
+  through the game's projection so any number of middles stack without a seam,
+  with `-cracked` versions of each (and a second middle, `-cracked-2`) and
+  `marble-pillar-broken`, a snapped end that takes the place of a top;
+  and `flagstone-floor` and `slate-floor`, each with an `-inner` variant cut by
+  the wooden floor's masks for use under a half wall. New tiles are appended to
+  `data/tiles.json`; a tile already there has only its sprite fields rewritten
 - `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
   spinner: a crystal modelled in Three.js, rendered in headless Chromium and
   snapped to the logo's sixteen colours. Shape, light and timing are constants
