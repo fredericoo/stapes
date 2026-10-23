@@ -14088,7 +14088,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -14096,7 +14096,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -15509,7 +15509,7 @@
                 "alphaTo": 0.5,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -15517,7 +15517,7 @@
                     "color": "#91db69"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#1ebc73"
                   }
                 ]
@@ -15568,7 +15568,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -15576,7 +15576,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -16765,7 +16765,7 @@
                 "alphaTo": 0.5,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -16773,7 +16773,7 @@
                     "color": "#91db69"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#1ebc73"
                   }
                 ]
@@ -16824,7 +16824,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -16832,7 +16832,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -17793,7 +17793,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -17801,7 +17801,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -27145,7 +27145,7 @@
             "alphaTo": 0.5,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffffff"
               },
               {
@@ -27153,7 +27153,7 @@
                 "color": "#91db69"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#1ebc73"
               }
             ]
@@ -27243,7 +27243,7 @@
             "alphaTo": 0.5,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffffff"
               },
               {
@@ -27251,7 +27251,7 @@
                 "color": "#91db69"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#1ebc73"
               }
             ]
@@ -27510,7 +27510,7 @@
             "alphaTo": 0,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffffff"
               },
               {
@@ -27518,7 +27518,7 @@
                 "color": "#fff4b8"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#ffd25a"
               }
             ]
@@ -27821,7 +27821,7 @@
             "alphaTo": 0,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffffff"
               },
               {
@@ -27829,7 +27829,7 @@
                 "color": "#ffb347"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#8a1c00"
               }
             ]
@@ -27964,7 +27964,7 @@
             "alphaTo": 0,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffffff"
               },
               {
@@ -27972,7 +27972,7 @@
                 "color": "#bfe6ff"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#2f6fbf"
               }
             ]
@@ -28107,7 +28107,7 @@
             "alphaTo": 0,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffffff"
               },
               {
@@ -28115,7 +28115,7 @@
                 "color": "#9be564"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#2d5a12"
               }
             ]
@@ -28252,7 +28252,7 @@
             "alphaTo": 0,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#e8d6b0"
               },
               {
@@ -28260,7 +28260,7 @@
                 "color": "#c2a878"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#5a4630"
               }
             ]
@@ -28350,7 +28350,7 @@
             "alphaTo": 0,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffffff"
               },
               {
@@ -28358,7 +28358,7 @@
                 "color": "#ff5050"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#8a1c1c"
               }
             ]
@@ -28448,7 +28448,7 @@
             "alphaTo": 0,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffffff"
               },
               {
@@ -28456,7 +28456,7 @@
                 "color": "#bfe6ff"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#4fa4ff"
               }
             ]
@@ -28546,7 +28546,7 @@
             "alphaTo": 0,
             "ramp": [
               {
-                "at": 0.0,
+                "at": 0,
                 "color": "#ffd1e8"
               },
               {
@@ -28554,7 +28554,7 @@
                 "color": "#f59ac8"
               },
               {
-                "at": 1.0,
+                "at": 1,
                 "color": "#7fd65a"
               }
             ]
@@ -28845,7 +28845,7 @@
   },
   {
     "id": "silver-chest",
-    "name": "Silver Chest",
+    "name": "Depot Chest",
     "height": 2,
     "type": "simple",
     "kind": "prop",
@@ -31004,7 +31004,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -31012,7 +31012,7 @@
                     "color": "#c9d6ea"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7d8fb3"
                   }
                 ]
@@ -39472,7 +39472,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -39480,7 +39480,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -40118,7 +40118,7 @@
                 "alphaTo": 0.5,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -40126,7 +40126,7 @@
                     "color": "#91db69"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#1ebc73"
                   }
                 ]
@@ -40177,7 +40177,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -40185,7 +40185,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -40983,7 +40983,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -40991,7 +40991,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -41749,7 +41749,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -41757,7 +41757,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -43996,10 +43996,14 @@
       "riseTo": 4,
       "driftCellsPerSecond": 0.6,
       "lit": false,
+      "ownDepth": false,
       "gravity": 3,
       "offsetX": "",
       "offsetY": "",
       "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
       "radiusFromPx": 2,
       "radiusToPx": 1,
       "alphaFrom": 1,
@@ -44092,10 +44096,14 @@
           "riseTo": 6,
           "driftCellsPerSecond": 1.4,
           "lit": false,
+          "ownDepth": false,
           "gravity": 4,
           "offsetX": "",
           "offsetY": "",
           "offsetElev": "",
+          "shape": null,
+          "sizeFromPx": 5,
+          "sizeToPx": null,
           "radiusFromPx": 1,
           "radiusToPx": 2,
           "alphaFrom": 1,
@@ -44706,7 +44714,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -44714,7 +44722,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -45704,7 +45712,7 @@
                 "alphaTo": 0.5,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -45712,7 +45720,7 @@
                     "color": "#91db69"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#1ebc73"
                   }
                 ]
@@ -45763,7 +45771,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -45771,7 +45779,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -46748,7 +46756,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -46756,7 +46764,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -48276,7 +48284,7 @@
                 "alphaTo": 0.5,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -48284,7 +48292,7 @@
                     "color": "#91db69"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#1ebc73"
                   }
                 ]
@@ -48335,7 +48343,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -48343,7 +48351,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -49048,7 +49056,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -49056,7 +49064,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -49783,7 +49791,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#f2dca8"
                   },
                   {
@@ -49791,7 +49799,7 @@
                     "color": "#c79a5a"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7a4f26"
                   }
                 ]
@@ -51734,7 +51742,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -51742,7 +51750,7 @@
                     "color": "#c9d6ea"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7d8fb3"
                   }
                 ]
@@ -52725,7 +52733,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -52733,7 +52741,7 @@
                     "color": "#c9d6ea"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#7d8fb3"
                   }
                 ]
@@ -52830,7 +52838,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#e8d6b0"
                   },
                   {
@@ -52838,7 +52846,7 @@
                     "color": "#c2a878"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#5a4630"
                   }
                 ]
@@ -52887,7 +52895,7 @@
                 "alphaTo": 0,
                 "ramp": [
                   {
-                    "at": 0.0,
+                    "at": 0,
                     "color": "#ffffff"
                   },
                   {
@@ -52895,7 +52903,7 @@
                     "color": "#ff5050"
                   },
                   {
-                    "at": 1.0,
+                    "at": 1,
                     "color": "#8a1c1c"
                   }
                 ]
