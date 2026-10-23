@@ -306,6 +306,43 @@ describe("occluders out at the probe radius", () => {
   });
 });
 
+describe("content drawn over the viewer", () => {
+  it("cuts a wall one storey up and one cell south-east, behind a wall on the viewer's storey", () => {
+    const map = mapAt([
+      { x: 0, y: 0, z: -1, tiles: ["floor"] },
+      { x: 1, y: 0, z: -1, tiles: ["floor", "wall"] },
+      { x: 1, y: 1, z: -1, tiles: ["floor", "wall"] },
+      { x: 0, y: 1, z: -1, tiles: ["floor", "wall"] },
+      { x: 1, y: 1, z: 0, tiles: ["floor", "wall"] },
+    ]);
+    const cut = roofCutFor(map, tilesById, { x: 0, y: 0, z: -1 });
+    expect(cutHides(cut, 1, 1, 0)).toBe(true);
+  });
+
+  it("cuts content two storeys up on the same diagonal", () => {
+    const map = mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["floor"] },
+      { x: 1, y: 0, z: 0, tiles: ["wall"] },
+      { x: 0, y: 1, z: 0, tiles: ["wall"] },
+      { x: 1, y: 1, z: 0, tiles: ["wall"] },
+      { x: 2, y: 2, z: 2, tiles: ["wall"] },
+    ]);
+    const cut = roofCutFor(map, tilesById, { x: 0, y: 0, z: 0 });
+    expect(cutHides(cut, 2, 2, 2)).toBe(true);
+  });
+
+  it("does not cut content up the north-west diagonal, which is drawn behind the viewer", () => {
+    const map = mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["floor"] },
+      { x: -1, y: 0, z: 0, tiles: ["wall"] },
+      { x: 0, y: -1, z: 0, tiles: ["wall"] },
+      { x: -1, y: -1, z: 0, tiles: ["wall"] },
+      { x: -1, y: -1, z: 1, tiles: ["wall"] },
+    ]);
+    expect(roofCutFor(map, tilesById, { x: 0, y: 0, z: 0 })).toBeUndefined();
+  });
+});
+
 describe("roofCutFor picks out one structure", () => {
   const inside = { x: 0, y: 0, z: 0 };
 
