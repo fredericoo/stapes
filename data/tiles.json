@@ -53247,6 +53247,15 @@
             ],
             "do": [
               {
+                "action": "attack_range",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
                 "action": "attack",
                 "of": {
                   "type": "slot",
@@ -53288,11 +53297,13 @@
         ]
       },
       "battler": {
-        "baseHp": 20,
+        "baseHp": 110,
         "masteries": {
-          "sharp": 40,
-          "toughness": 40,
-          "agility": 14
+          "sharp": 15,
+          "blunt": 15,
+          "ranged": 15,
+          "toughness": 10,
+          "agility": 10
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -53318,19 +53329,29 @@
         ],
         "kit": [
           {
-            "slot": "offhand",
-            "tileId": "skull-skeleton",
-            "chance": 25
-          },
-          {
-            "slot": "charm",
-            "tileId": "bone-charm",
-            "chance": 8
+            "slot": "weapon",
+            "tileId": "iron-sword",
+            "chance": 20
           },
           {
             "slot": "weapon",
-            "tileId": "rusty-sword",
-            "chance": 10
+            "tileId": "broad-axe",
+            "chance": 25
+          },
+          {
+            "slot": "weapon",
+            "tileId": "iron-mace",
+            "chance": 33.33
+          },
+          {
+            "slot": "weapon",
+            "tileId": "hunting-bow",
+            "chance": 50
+          },
+          {
+            "slot": "offhand",
+            "tileId": "skull-skeleton",
+            "chance": 25
           }
         ],
         "remains": "bones"
