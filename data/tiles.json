@@ -53684,6 +53684,37 @@
       "y": 8
     },
     "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 1.5,
+      "ttlFromMs": 700,
+      "ttlToMs": 1500,
+      "spawnRadiusCells": 0.3,
+      "spawnElevFrom": 1,
+      "spawnElevTo": 3,
+      "riseFrom": -1,
+      "riseTo": 1,
+      "driftCellsPerSecond": 0.15,
+      "gravity": 1.2,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.9,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.5,
+          "color": "#8ecbff"
+        },
+        {
+          "at": 1,
+          "color": "#1d2b53"
+        }
+      ],
+      "lit": true
+    },
     "affectedByGravity": true,
     "walkable": false,
     "walkDurationMs": 600,
@@ -54425,6 +54456,48 @@
       "y": 16
     },
     "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 4,
+      "ttlFromMs": 500,
+      "ttlToMs": 1000,
+      "spawnRadiusCells": 0.3,
+      "spawnElevFrom": 1,
+      "spawnElevTo": 2,
+      "riseFrom": 2,
+      "riseTo": 4,
+      "driftCellsPerSecond": 0.18,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -0.4,
+      "offsetX": "0.175 * AGE_SEC * AGE_SEC",
+      "offsetY": "-0.1 * AGE_SEC * AGE_SEC",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffe0a0"
+        },
+        {
+          "at": 0.18,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.45,
+          "color": "#7b3b2a"
+        },
+        {
+          "at": 1,
+          "color": "#4b4158"
+        }
+      ]
+    },
     "affectedByGravity": true,
     "walkable": false,
     "walkDurationMs": 600,
