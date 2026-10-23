@@ -42149,8 +42149,8 @@
     }
   },
   {
-    "id": "bones",
-    "name": "Bones",
+    "id": "bone",
+    "name": "Bone",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -53305,8 +53305,16 @@
             "chance": 100,
             "contents": [
               {
-                "tileId": "bones",
+                "tileId": "bone",
                 "chance": 100
+              },
+              {
+                "tileId": "bone",
+                "chance": 50
+              },
+              {
+                "tileId": "bone",
+                "chance": 50
               },
               {
                 "tileId": "skull-player",
