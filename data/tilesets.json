@@ -159,5 +159,12 @@
     "file": "waterfall.png",
     "width": 128,
     "height": 48
+  },
+  {
+    "id": "monsters",
+    "name": "Monsters",
+    "file": "monsters.png",
+    "width": 128,
+    "height": 256
   }
 ]

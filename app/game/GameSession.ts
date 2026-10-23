@@ -3701,19 +3701,21 @@ export class GameSession implements PlaySession {
     const casting = this.tryLocate(actor);
     if (casting) this.turnToward(actor, casting, at);
 
-    const placed: PlacedTile = {
-      tileId: def.id,
-      ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
-      ...(isItem(def) ? { itemId: mintItemId() } : {}),
-      castBy: actor.id,
-      ...(elements.length ? { castElements: [...elements] } : {}),
-    };
     const stack = getStack(this.map, at.x, at.y, at.z);
     const stoodId = where.under == null ? undefined : stack[where.under]?.owner;
     const next = [...stack];
     const stackIndex = where.under ?? next.length;
+    const owner = resolveActor(def) ? this.summonedOwnerId({ ...at, stackIndex }) : undefined;
+    const placed: PlacedTile = {
+      tileId: def.id,
+      ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
+      ...(isItem(def) ? { itemId: mintItemId() } : {}),
+      ...(owner ? { owner } : { castBy: actor.id }),
+      ...(!owner && elements.length ? { castElements: [...elements] } : {}),
+    };
     next.splice(stackIndex, 0, placed);
     this.map = replaceStack(this.map, at.x, at.y, at.z, next);
+    if (owner) this.addResident(owner, def.id, { ...at, stackIndex });
     this.noteTransition("appear", def.id, at, stackIndex);
     this.reindexCells([at]);
     this.settleBoardNow();
