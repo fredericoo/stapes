@@ -42149,46 +42149,6 @@
     }
   },
   {
-    "id": "skull-skeleton",
-    "name": "Skeleton skull",
-    "height": 1,
-    "type": "simple",
-    "kind": "item",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 11,
-      "y": 7
-    },
-    "lightPassing": true,
-    "interactions": {
-      "item": {
-        "type": "artifact",
-        "pile": 5
-      }
-    },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 0,
-              "w": 1,
-              "h": 1
-            },
-            "base": {
-              "x": 0,
-              "y": 0
-            }
-          },
-          "durationMs": 200
-        }
-      ]
-    },
-    "affectedByGravity": true
-  },
-  {
     "id": "bones",
     "name": "Bones",
     "height": 0,
@@ -53349,12 +53309,21 @@
             "chance": 50
           },
           {
-            "slot": "offhand",
-            "tileId": "skull-skeleton",
-            "chance": 25
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "bones",
+                "chance": 100
+              },
+              {
+                "tileId": "skull-player",
+                "chance": 25
+              }
+            ]
           }
-        ],
-        "remains": "bones"
+        ]
       },
       "respawn": {
         "fromMs": 180000,
