@@ -139,6 +139,17 @@ function cutSeeds(
       for (const z of levels) seeds.push({ x, y, z });
     }
   }
+  /**
+   * The projection draws `(x+k, y+k, z+k)` over the viewer's own cell, so that
+   * content hides the viewer even when nothing is straight above them and a
+   * wall on their own storey stops the probe from seeing under it.
+   */
+  for (let z = view.z + 1; z <= MAX_LEVEL; z++) {
+    const step = z - view.z;
+    const x = view.x + step;
+    const y = view.y + step;
+    if (getStack(map, x, y, z).length > 0) seeds.push({ x, y, z });
+  }
   return seeds;
 }
 

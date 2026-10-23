@@ -4263,6 +4263,14 @@ a door.
   collects the cells above the viewer it can see rather than merely noting that
   it saw one, and those seed a flood fill through touching geometry above the
   viewer's level. That component is the cut.
+- **The diagonal over the viewer seeds it too.** The projection draws
+  `(x+k, y+k, z+k)` over the viewer's own cell, so a level-0 wall one cell
+  south-east of a roofless basement corridor hides whoever stands in it. The
+  probe never saw that wall: nothing is straight above the corridor, and the
+  corridor's own wall blocks the ray to the cell beneath it. Measured on the
+  shipped map, this adds a cut at about 550 of 40,000 anchors, nearly all of
+  them street cells just north-west of a building, where the roof really does
+  hide the player and now lifts.
 - **The fill is 26-way, and generously so on purpose.** Merging two structures
   that touch at a corner costs one extra roof lifting with yours — which is what
   every roof did until now. Splitting one costs a hard diagonal edge with half a
