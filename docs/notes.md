@@ -13149,6 +13149,28 @@ of each wall cell shows ground, but a cave generated from any of them comes out
 as open caverns rather than narrow passages. A passage one cell wide is carved
 by hand for now.
 
+## A marble pillar is cut out of a whole column
+
+`bun run generate:masonry` draws `marble-pillar-bottom`, `-middle` and `-top`,
+two units each, so two make a storey and a column is any number of middles
+between a bottom and a top. **Each segment is drawn as part of a column, not on
+its own**: the shaft is carried on above and below it, the view ray is cast
+through that, and the segment keeps the pixels whose stone is its own. Drawn
+alone, a segment outlines its own bottom edge and shades the pixels at its
+lower corners as an end, and stacking them shows a line and two grey notches
+at every joint. Cut from one picture, a stack of them is that picture.
+
+The only pixels taken from the segment drawn alone are its cap, which the
+segment above covers. That is what lets a bottom or a middle end a column
+without a hole in its top.
+
+**The stone floors use the wooden floor's masks.** `flagstone-floor` and
+`slate-floor` copy `wooden-floor`'s slices and cut each slice of their sheet
+where the wood's is cut, and their `-inner` tiles are the complement, as
+`wooden-floor-inner` is. A change to the wood's sheet reaches them the next time
+the script runs. The joints are broken and one palette step from the stone:
+a floor with more contrast than that competes with whatever is standing on it.
+
 ## A forest is a path and what grows either side of it
 
 The forest generator (`app/editor/forest.ts`) lays a ground tile over the whole

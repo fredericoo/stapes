@@ -138,5 +138,12 @@
     "file": "spell-projectiles.png",
     "width": 192,
     "height": 112
+  },
+  {
+    "id": "masonry",
+    "name": "Masonry",
+    "file": "masonry.png",
+    "width": 128,
+    "height": 80
   }
 ]
