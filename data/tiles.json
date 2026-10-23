@@ -53225,15 +53225,6 @@
                 }
               },
               {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "prey"
-                  }
-                }
-              },
-              {
                 "action": "hold"
               }
             ]
