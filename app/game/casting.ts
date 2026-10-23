@@ -10,6 +10,7 @@ import {
 } from "../lib/mastery";
 import { getStack, isBodyPlacement } from "../lib/mapData";
 import type { AnchoredSprite, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import { DIRECTIONS, resolveActor } from "../lib/types";
 import { canPlace } from "../lib/validation";
 import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
@@ -180,6 +181,7 @@ export type ConjureLanding = {
 export function conjureLanding(context: CastContext, tileId: string): ConjureLanding | null {
   const def = context.tilesById[tileId];
   if (!def) return null;
+  if (resolveActor(def)) return bodyLanding(context, def);
 
   const target = context.target;
   const landing: ConjureLanding | null = target
@@ -200,6 +202,27 @@ function cellInFront(context: CastContext): ConjureLanding | null {
   const { to } = step;
   const under = lowestBodyIn(getStack(map, to.x, to.y, to.z), tilesById);
   return under === undefined ? { at: to } : { at: to, under };
+}
+
+/**
+ * A conjured body stands in a cell of its own rather than under whoever is
+ * there, so it takes the first free step around the caster, starting with the
+ * one it faces, and ignores the target.
+ */
+function bodyLanding(context: CastContext, def: TileDef): ConjureLanding | null {
+  const { caster, map, tilesById } = context;
+  const body = tilesById[caster.tileId];
+  if (!body) return null;
+  const start = DIRECTIONS.indexOf(caster.facing);
+  for (let turn = 0; turn < DIRECTIONS.length; turn++) {
+    const facing = DIRECTIONS[(start + turn) % DIRECTIONS.length]!;
+    const step = canWalk(map, caster, facing, body, tilesById);
+    if (!step.ok) continue;
+    const { to } = step;
+    if (lowestBodyIn(getStack(map, to.x, to.y, to.z), tilesById) !== undefined) continue;
+    if (canPlace(map, to.x, to.y, to.z, def, tilesById).ok) return { at: to };
+  }
+  return null;
 }
 
 function lowestBodyIn(

@@ -6203,6 +6203,24 @@ Second wind used to name `verdant-light` as their projectile only so that
 projectile with a `hit` still plays it, and plays both if it has a
 `casterEffect` too.
 
+#### A conjured body is a creature of its own
+
+A conjure whose tile is a body (`resolveActor`) — a slime's `Split` conjures
+another of itself — is given an owner and adopted as a resident on the spot,
+on the terms `/tile` summons by: named after the cell it lands in, which is
+its home. Without that it was a picture of a slime until the world next
+loaded and `adoptResidents` found it. It carries no `castBy` or
+`castElements`, which say who a tile's harm belongs to; a body's blows are its
+own.
+
+**It stands in a cell of its own.** Every other conjure lands under the body
+in the cell it aims at, which is right for a flame and wrong for a body: a
+slime splitting while it fights faces the player, and its copy would be
+placed under the player's feet. `bodyLanding` ignores the target and takes the
+first step around the caster that `canWalk` allows and no body is standing in,
+starting with the one it faces and turning clockwise. With none free the
+conjure is refused as `blocked`, like a flame cast into a wall.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own

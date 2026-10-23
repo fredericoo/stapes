@@ -446,6 +446,10 @@ const props: TileDef[] = [
     effect: { kind: "conjure", tileId: "formed-flame" },
     cooldownMs: 10_000,
   }),
+  stoneTile("rat-stone", {
+    effect: { kind: "conjure", tileId: "rat" },
+    cooldownMs: 10_000,
+  }),
   tile({
     id: "formed-flame",
     intangible: true,
@@ -904,6 +908,27 @@ describe("conjuring", () => {
 
     run(play, TICKS_PER_SECOND * 9);
     expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain("conjured-flame");
+  });
+
+  it("brings a conjured body to life as a creature of its own", () => {
+    const play = session({ weapon: "rat-stone" });
+
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    const owner = bodyAt(play, { x: 1, y: 0, z: 0 });
+    expect(owner).not.toBe("");
+    expect(play.actorSnapshots().find((actor) => actor.id === owner)?.hp).toBeGreaterThan(0);
+  });
+
+  it("stands a conjured body beside the caster, not under whoever is in front", () => {
+    const inFront = spawnRat(world(), { x: 1, y: 0, z: 0 });
+    const play = session(
+      { weapon: "rat-stone" },
+      replaceStack(inFront, 0, 1, 0, [{ tileId: "grass" }]),
+    );
+
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    expect(getStack(play.getMap(), 1, 0, 0).filter((p) => p.tileId === "rat")).toHaveLength(1);
+    expect(bodyAt(play, { x: 0, y: 1, z: 0 })).not.toBe("");
   });
 
   it("refuses to conjure into a wall, and spends nothing", () => {
