@@ -164,7 +164,7 @@
     "id": "monsters",
     "name": "Monsters",
     "file": "monsters.png",
-    "width": 224,
-    "height": 64
+    "width": 128,
+    "height": 256
   }
 ]

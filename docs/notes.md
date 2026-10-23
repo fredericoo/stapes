@@ -10515,7 +10515,7 @@ is off while anything calls the trait. In development a save writes
 
 ### What the shipped creatures call
 
-Seventeen of the twenty-eight shipped brains call traits. The fourteen that
+Eighteen of the twenty-nine shipped brains call traits. The fourteen that
 were first written out by hand each expand to a table that runs exactly as the
 hand-written one it replaced: every state asks the same rows in the same order,
 apart from rows that could never be the first to hold.
@@ -10530,10 +10530,12 @@ apart from rows that could never be the first to hold.
   **the rabbit** `skittish`, and the bat and the rabbit `unsticks`. The bat's
   `unsticks` fires at `roam`, so being stuck comes after its walk home and only
   from `flitting`.
-- **The goblin, the skeleton and the slime** were written with traits from the
-  start: each calls `predator`, and the goblin also `flees-when-hurt` and
-  `follows-its-kind`, so a goblin in a group follows the others and runs once
-  it is down to 30%.
+- **The skeleton and the three slimes** were written with traits from the
+  start, and each calls `predator`. A slime also has a trigger of its own: at
+  35% or less with its prey within 8 cells it goes to `splitting`, which holds
+  at `danger` so a blow cannot pull it back into the fight. That state tries
+  `Split` before it attacks, so while the spell is cooling the slime fights
+  on; see *A conjured body is a creature of its own*.
 
 Neither townsfolk trait leaves its routine to triggers alone. Their tables ask
 a state's own way out before the rows every other state shares — someone
