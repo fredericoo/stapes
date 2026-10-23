@@ -28933,7 +28933,7 @@
       "1,-2": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "1,-1": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "1,0": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
-      "1,1": [{"tileId":"grass-2"}],
+      "1,1": [{"tileId":"grass-2"},{"tileId":"stone-forge"}],
       "1,2": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "1,3": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "1,4": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
