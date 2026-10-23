@@ -21,6 +21,7 @@
     "generate:cave-wall": "bun scripts/generate-cave-wall-tileset.ts",
     "generate:masonry": "bun scripts/generate-masonry-tileset.ts",
     "generate:swamp-trees": "bun scripts/generate-swamp-trees.ts",
+    "generate:waterfall": "bun scripts/generate-waterfall-tileset.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
     "bench:server": "bun scripts/bench-server.ts",

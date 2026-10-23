@@ -152,5 +152,12 @@
     "file": "swamp-trees.png",
     "width": 96,
     "height": 24
+  },
+  {
+    "id": "waterfall",
+    "name": "Waterfall",
+    "file": "waterfall.png",
+    "width": 128,
+    "height": 48
   }
 ]
