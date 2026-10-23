@@ -147,6 +147,20 @@
     "height": 80
   },
   {
+    "id": "swamp-trees",
+    "name": "Swamp Trees",
+    "file": "swamp-trees.png",
+    "width": 96,
+    "height": 24
+  },
+  {
+    "id": "waterfall",
+    "name": "Waterfall",
+    "file": "waterfall.png",
+    "width": 128,
+    "height": 48
+  },
+  {
     "id": "monsters",
     "name": "Monsters",
     "file": "monsters.png",

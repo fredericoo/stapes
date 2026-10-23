@@ -62688,5 +62688,570 @@
         }
       ]
     }
+  },
+  {
+    "id": "dead-tree",
+    "name": "Dead tree",
+    "height": 4,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "swamp-trees",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "dead-tree-twisted",
+    "name": "Dead tree (twisted)",
+    "height": 4,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "swamp-trees",
+      "x": 3,
+      "y": 0
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "mossy-dead-tree",
+    "name": "Mossy dead tree",
+    "height": 4,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "swamp-trees",
+      "x": 6,
+      "y": 0
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "dead-snag",
+    "name": "Dead snag",
+    "height": 4,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "swamp-trees",
+      "x": 9,
+      "y": 0
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "waterfall-top",
+    "name": "Waterfall (top)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "waterfall",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "waterfall-middle",
+    "name": "Waterfall (middle)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "waterfall",
+      "x": 0,
+      "y": 2
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "waterfall-base",
+    "name": "Waterfall (base)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "waterfall",
+      "x": 0,
+      "y": 4
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        }
+      ]
+    }
   }
 ]
