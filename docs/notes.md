@@ -13164,6 +13164,15 @@ The only pixels taken from the segment drawn alone are its cap, which the
 segment above covers. That is what lets a bottom or a middle end a column
 without a hole in its top.
 
+**Cracks are drawn on the stone, not on the sprite.** Each one is a line in
+angle round the shaft and height, so it follows the curve, and only the stone a
+segment owns can carry it. A crack that reaches a joint stops there, and the
+cracked segments stack with the intact ones the same way. The visible side of
+a middle segment is a strip about four pixels wide once the next segment covers
+its cap, which is why its cracks are short. `marble-pillar-broken` is a shaft
+whose top height varies round the centre, shaded darker the further down it
+broke.
+
 **The stone floors use the wooden floor's masks.** `flagstone-floor` and
 `slate-floor` copy `wooden-floor`'s slices and cut each slice of their sheet
 where the wood's is cut, and their `-inner` tiles are the complement, as

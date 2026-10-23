@@ -42,13 +42,51 @@ const INK = 4;
 const SIDE_RAMP = [WHITE, PALE, GREY, DUSK];
 
 type Shape = "disc" | "square";
-type Layer = { from: number; to: number; shape: Shape; radius: number };
+/**
+ * `jagged` replaces a flat top with heights sampled at even angles round the
+ * centre, starting due east, for a shaft that has snapped.
+ */
+type Layer = { from: number; to: number; shape: Shape; radius: number; jagged?: number[] };
+/**
+ * A crack on the side is a line through `[degrees, height]`, the angle round
+ * the centre measured from due east towards south; one on a top face is a line
+ * through footprint pixels `[x, y]`.
+ */
+type Crack = { face: "side" | "top"; points: [number, number][] };
 /** `below` and `above` say whether this segment stacks on, or under, another one's shaft. */
-type Pillar = { tileId: string; name: string; layers: Layer[]; below: boolean; above: boolean };
+type Pillar = {
+  tileId: string;
+  name: string;
+  layers: Layer[];
+  below: boolean;
+  above: boolean;
+  cracks?: Crack[];
+};
 
 const SHAFT_RADIUS = 3.4;
 const MOULDING_RADIUS = 3.8;
 const SLAB_RADIUS = 4;
+
+const BASE: Layer[] = [
+  { from: 0, to: 1, shape: "square", radius: SLAB_RADIUS },
+  { from: 1, to: 2, shape: "disc", radius: MOULDING_RADIUS },
+  { from: 2, to: PILLAR_RISE_PX, shape: "disc", radius: SHAFT_RADIUS },
+];
+const SHAFT: Layer[] = [{ from: 0, to: PILLAR_RISE_PX, shape: "disc", radius: SHAFT_RADIUS }];
+const CAPITAL: Layer[] = [
+  { from: 0, to: 2, shape: "disc", radius: SHAFT_RADIUS },
+  { from: 2, to: 3, shape: "disc", radius: MOULDING_RADIUS },
+  { from: 3, to: PILLAR_RISE_PX, shape: "square", radius: SLAB_RADIUS },
+];
+const SNAPPED: Layer[] = [
+  {
+    from: 0,
+    to: PILLAR_RISE_PX,
+    shape: "disc",
+    radius: SHAFT_RADIUS,
+    jagged: [2.2, 1, 0.6, 1.4, 2.6, 3.9, 3.6, 3.2],
+  },
+];
 
 /** Heights are in pixels above the bottom of the segment, which is four tall. */
 const PILLARS: Pillar[] = [
@@ -57,28 +95,124 @@ const PILLARS: Pillar[] = [
     name: "Marble pillar (bottom)",
     below: false,
     above: true,
-    layers: [
-      { from: 0, to: 1, shape: "square", radius: SLAB_RADIUS },
-      { from: 1, to: 2, shape: "disc", radius: MOULDING_RADIUS },
-      { from: 2, to: PILLAR_RISE_PX, shape: "disc", radius: SHAFT_RADIUS },
-    ],
+    layers: BASE,
   },
   {
     tileId: "marble-pillar-middle",
     name: "Marble pillar (middle)",
     below: true,
     above: true,
-    layers: [{ from: 0, to: PILLAR_RISE_PX, shape: "disc", radius: SHAFT_RADIUS }],
+    layers: SHAFT,
   },
   {
     tileId: "marble-pillar-top",
     name: "Marble pillar (top)",
     below: true,
     above: false,
-    layers: [
-      { from: 0, to: 2, shape: "disc", radius: SHAFT_RADIUS },
-      { from: 2, to: 3, shape: "disc", radius: MOULDING_RADIUS },
-      { from: 3, to: PILLAR_RISE_PX, shape: "square", radius: SLAB_RADIUS },
+    layers: CAPITAL,
+  },
+  {
+    tileId: "marble-pillar-bottom-cracked",
+    name: "Marble pillar (bottom, cracked)",
+    below: false,
+    above: true,
+    layers: BASE,
+    cracks: [
+      {
+        face: "side",
+        points: [
+          [95, 2.2],
+          [80, 2.9],
+          [90, 3.4],
+          [70, 3.9],
+        ],
+      },
+    ],
+  },
+  {
+    tileId: "marble-pillar-middle-cracked",
+    name: "Marble pillar (middle, cracked)",
+    below: true,
+    above: true,
+    layers: SHAFT,
+    cracks: [
+      {
+        face: "side",
+        points: [
+          [115, 0.3],
+          [95, 1.3],
+          [70, 2],
+          [55, 3.1],
+          [35, 3.8],
+        ],
+      },
+    ],
+  },
+  {
+    tileId: "marble-pillar-middle-cracked-2",
+    name: "Marble pillar (middle, cracked 2)",
+    below: true,
+    above: true,
+    layers: SHAFT,
+    cracks: [
+      {
+        face: "side",
+        points: [
+          [130, 0.2],
+          [110, 1],
+          [120, 1.8],
+        ],
+      },
+      {
+        face: "side",
+        points: [
+          [60, 2.2],
+          [75, 3],
+          [65, 3.9],
+        ],
+      },
+    ],
+  },
+  {
+    tileId: "marble-pillar-top-cracked",
+    name: "Marble pillar (top, cracked)",
+    below: true,
+    above: false,
+    layers: CAPITAL,
+    cracks: [
+      {
+        face: "side",
+        points: [
+          [70, 0.2],
+          [85, 1],
+          [65, 1.8],
+        ],
+      },
+      {
+        face: "top",
+        points: [
+          [1, 2],
+          [3, 3],
+          [4, 5],
+          [6, 6],
+        ],
+      },
+    ],
+  },
+  {
+    tileId: "marble-pillar-broken",
+    name: "Marble pillar (broken)",
+    below: true,
+    above: false,
+    layers: SNAPPED,
+    cracks: [
+      {
+        face: "side",
+        points: [
+          [60, 0.4],
+          [75, 1.1],
+        ],
+      },
     ],
   },
 ];
@@ -87,7 +221,7 @@ const PILLARS: Pillar[] = [
 const CANVAS_PX = SPRITE_PX + PILLAR_RISE_PX;
 
 type Vec3 = [number, number, number];
-type Hit = { z: number; normal: Vec3 };
+type Hit = { x: number; y: number; z: number; normal: Vec3; rough: boolean };
 type Span = { top: number; bottom: number };
 
 function normalise([x, y, z]: Vec3): Vec3 {
@@ -102,8 +236,22 @@ function distance(layer: Layer, x: number, y: number): number {
   return Math.max(Math.abs(dx), Math.abs(dy)) - layer.radius;
 }
 
+function angleOf(x: number, y: number): number {
+  return Math.atan2(y - HALF, x - HALF);
+}
+
+function topOf(layer: Layer, x: number, y: number): number {
+  if (!layer.jagged) return layer.to;
+  const at =
+    ((angleOf(x, y) / (2 * Math.PI)) * layer.jagged.length + layer.jagged.length) %
+    layer.jagged.length;
+  const i = Math.floor(at);
+  const next = layer.jagged[(i + 1) % layer.jagged.length]!;
+  return layer.jagged[i]! + (next - layer.jagged[i]!) * (at - i);
+}
+
 function layerAt(layers: Layer[], x: number, y: number, z: number): Layer | undefined {
-  return layers.find((l) => z >= l.from && z < l.to && distance(l, x, y) <= 0);
+  return layers.find((l) => z >= l.from && z < topOf(l, x, y) && distance(l, x, y) <= 0);
 }
 
 function sideNormal(layer: Layer, x: number, y: number): Vec3 {
@@ -126,7 +274,8 @@ function castRay(layers: Layer[], span: Span, u: number, v: number): Hit | null 
     const layer = layerAt(layers, x, y, z);
     if (!layer) continue;
     const covered = layerAt(layers, x, y, z + 2 * MARCH_STEP_PX) !== undefined;
-    return { z, normal: covered ? sideNormal(layer, x, y) : [0, 0, 1] };
+    const normal: Vec3 = covered ? sideNormal(layer, x, y) : [0, 0, 1];
+    return { x, y, z, normal, rough: !covered && layer.jagged !== undefined };
   }
   return null;
 }
@@ -137,12 +286,53 @@ function castRay(layers: Layer[], span: Span, u: number, v: number): Hit | null 
  * bands rather than a lit face and a dark one. A square face lands on the
  * convention every block here keeps: the south face lit and the east one dark.
  */
-function shade(normal: Vec3): number {
-  if (normal[2] > 0.5) return PALE;
+/** A snapped end is shaded by how far down it broke, so the break reads as rubble and not as a lid. */
+function roughTone(z: number): number {
+  if (z > 2.8) return PALE;
+  return z > 1.2 ? GREY : DUSK;
+}
+
+function shade({ normal, rough, z }: Hit): number {
+  if (normal[2] > 0.5) return rough ? roughTone(z) : PALE;
   const across = (normal[0] - normal[1]) / Math.SQRT2;
   return SIDE_RAMP[
     Math.min(SIDE_RAMP.length - 1, Math.floor(((across + 1) / 2) * SIDE_RAMP.length))
   ]!;
+}
+
+/** A crack is dusk through stone and ink through the stone that is already dusk. */
+const CRACKED: Record<number, number> = { [WHITE]: DUSK, [PALE]: DUSK, [GREY]: DUSK, [DUSK]: INK };
+const CRACK_HALF_WIDTH_PX = 0.45;
+/** A crack is thinner than a pixel, so a pixel takes it when this share of its samples land on one. */
+const CRACK_SHARE = 0.25;
+
+function distanceToLine(points: [number, number][], px: number, py: number): number {
+  let best = Infinity;
+  for (let i = 1; i < points.length; i++) {
+    const [ax, ay] = points[i - 1]!;
+    const [bx, by] = points[i]!;
+    const t = Math.max(
+      0,
+      Math.min(
+        1,
+        ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2),
+      ),
+    );
+    best = Math.min(best, Math.hypot(px - ax - t * (bx - ax), py - ay - t * (by - ay)));
+  }
+  return best;
+}
+
+/** Side cracks are measured along the surface, so a degree is as long as it is round the shaft. */
+function onCrack(cracks: Crack[], hit: Hit): boolean {
+  const top = hit.normal[2] > 0.5;
+  return cracks.some((crack) => {
+    if ((crack.face === "top") !== top) return false;
+    if (top) return distanceToLine(crack.points, hit.x, hit.y) <= CRACK_HALF_WIDTH_PX;
+    const toArc = (degrees: number) => (degrees * Math.PI * SHAFT_RADIUS) / 180;
+    const line = crack.points.map(([degrees, z]): [number, number] => [toArc(degrees), z]);
+    return distanceToLine(line, SHAFT_RADIUS * angleOf(hit.x, hit.y), hit.z) <= CRACK_HALF_WIDTH_PX;
+  });
 }
 
 type Owner = "below" | "own" | "above";
@@ -168,13 +358,14 @@ function renderPillar(pillar: Pillar): Pixel[][] {
   const layers = [...pillar.layers];
   if (pillar.below) layers.push(shaftOutside(-PILLAR_RISE_PX, 0));
   if (pillar.above) layers.push(shaftOutside(PILLAR_RISE_PX, 2 * PILLAR_RISE_PX));
+  const cracks = pillar.cracks ?? [];
   const inColumn = outline(
-    render(layers, {
+    render(layers, cracks, {
       top: pillar.above ? 2 * PILLAR_RISE_PX : PILLAR_RISE_PX,
       bottom: pillar.below ? -PILLAR_RISE_PX : 0,
     }),
   );
-  const alone = outline(render(pillar.layers, { top: PILLAR_RISE_PX, bottom: 0 }));
+  const alone = outline(render(pillar.layers, cracks, { top: PILLAR_RISE_PX, bottom: 0 }));
   return inColumn.slice(0, SPRITE_PX).map((row, v) =>
     row.slice(0, SPRITE_PX).map((pixel, u) => {
       if (pixel?.owner === "own") return pixel;
@@ -183,9 +374,9 @@ function renderPillar(pillar: Pillar): Pixel[][] {
   );
 }
 
-function render(layers: Layer[], span: Span): Pixel[][] {
+function render(layers: Layer[], cracks: Crack[], span: Span): Pixel[][] {
   return Array.from({ length: CANVAS_PX }, (_, v) =>
-    Array.from({ length: CANVAS_PX }, (_, u) => samplePixel(layers, span, u, v)),
+    Array.from({ length: CANVAS_PX }, (_, u) => samplePixel(layers, cracks, span, u, v)),
   );
 }
 
@@ -193,10 +384,11 @@ function render(layers: Layer[], span: Span): Pixel[][] {
  * The colour is the one most samples agree on, so an edge does not take a stray
  * tone, and the pixel belongs to whichever segment most of its samples hit.
  */
-function samplePixel(layers: Layer[], span: Span, u: number, v: number): Pixel {
+function samplePixel(layers: Layer[], cracks: Crack[], span: Span, u: number, v: number): Pixel {
   const votes = new Map<number, number>();
   const owners = new Map<Owner, number>();
   let hits = 0;
+  let cracked = 0;
   let z = 0;
   for (let j = 0; j < SUPERSAMPLE; j++) {
     for (let i = 0; i < SUPERSAMPLE; i++) {
@@ -204,13 +396,19 @@ function samplePixel(layers: Layer[], span: Span, u: number, v: number): Pixel {
       if (!hit) continue;
       hits++;
       z += hit.z;
-      const index = shade(hit.normal);
+      if (hit.z >= 0 && hit.z < PILLAR_RISE_PX && onCrack(cracks, hit)) cracked++;
+      const index = shade(hit);
       votes.set(index, (votes.get(index) ?? 0) + 1);
       owners.set(ownerOf(hit.z), (owners.get(ownerOf(hit.z)) ?? 0) + 1);
     }
   }
   if (hits * 2 < SUPERSAMPLE * SUPERSAMPLE) return null;
-  return { index: mostVoted(votes), z: z / hits, owner: mostVoted(owners) };
+  const index = mostVoted(votes);
+  return {
+    index: cracked >= hits * CRACK_SHARE ? (CRACKED[index] ?? index) : index,
+    z: z / hits,
+    owner: mostVoted(owners),
+  };
 }
 
 function mostVoted<T>(votes: Map<T, number>): T {

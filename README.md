@@ -150,7 +150,9 @@ an agent drives", lists every call.
   and the palette entries are constants in the script
 - `bun run generate:masonry` — redraw `data/tilesets/masonry.png` and the tiles
   on it: `marble-pillar-bottom`, `-middle` and `-top`, half a level each, cast
-  through the game's projection so any number of middles stack without a seam;
+  through the game's projection so any number of middles stack without a seam,
+  with `-cracked` versions of each (and a second middle, `-cracked-2`) and
+  `marble-pillar-broken`, a snapped end that takes the place of a top;
   and `flagstone-floor` and `slate-floor`, each with an `-inner` variant cut by
   the wooden floor's masks for use under a half wall. New tiles are appended to
   `data/tiles.json`; a tile already there has only its sprite fields rewritten
