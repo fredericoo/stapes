@@ -10497,10 +10497,10 @@ is off while anything calls the trait. In development a save writes
 
 ### What the shipped creatures call
 
-Fourteen of the twenty-five shipped brains call traits, and each expands to a
-table that runs exactly as the hand-written one it replaced: every state asks
-the same rows in the same order, apart from rows that could never be the first
-to hold.
+Seventeen of the twenty-eight shipped brains call traits. The fourteen that
+were first written out by hand each expand to a table that runs exactly as the
+hand-written one it replaced: every state asks the same rows in the same order,
+apart from rows that could never be the first to hold.
 
 - **The townsfolk who run** — the potion salesman, tanner, pie maker, miner,
   peat cutter, beggar and lamplighter — are one call to `townsfolk-flee` each.
@@ -10512,6 +10512,10 @@ to hold.
   **the rabbit** `skittish`, and the bat and the rabbit `unsticks`. The bat's
   `unsticks` fires at `roam`, so being stuck comes after its walk home and only
   from `flitting`.
+- **The goblin, the skeleton and the slime** were written with traits from the
+  start: each calls `predator`, and the goblin also `flees-when-hurt` and
+  `follows-its-kind`, so a goblin in a group follows the others and runs once
+  it is down to 30%.
 
 Neither townsfolk trait leaves its routine to triggers alone. Their tables ask
 a state's own way out before the rows every other state shares — someone

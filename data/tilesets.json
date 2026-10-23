@@ -145,5 +145,12 @@
     "file": "masonry.png",
     "width": 128,
     "height": 80
+  },
+  {
+    "id": "monsters",
+    "name": "Monsters",
+    "file": "monsters.png",
+    "width": 224,
+    "height": 64
   }
 ]
