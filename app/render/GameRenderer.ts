@@ -48,7 +48,7 @@ import type { Reaching } from "../game/pathfinding";
 import type { Extraction } from "../game/extract";
 import type { Reach as CastReach } from "../lib/item";
 import { type Progress, progressFraction } from "../game/progress";
-import { inscribedNearby } from "./nearbyInscriptions";
+import { inscribedNearby, type NearbyInscription } from "./nearbyInscriptions";
 import { BLOCKED_INK, INTERACTION_COLORS } from "./interactionColors";
 import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
@@ -1640,14 +1640,21 @@ export class GameRenderer {
     this.pushSpeechLabels(snap, labels);
     this.pushNoiseLabels(snap, labels);
     this.forgetStaleAnchors(snap);
-    this.pushPointerLabel(snap, labels);
-    this.pushNearbyInscriptionLabels(snap, labels);
+    const nearby = inscribedNearby(snap.map, this.tilesById, snap.self);
+    const pointed = this.pushPointerLabel(snap, labels, nearby);
+    this.pushNearbyInscriptionLabels(snap, nearby, labels, pointed);
     return labels;
   }
 
-  private pushNearbyInscriptionLabels(snap: GameSnapshot, into: WorldLabel[]) {
-    for (const near of inscribedNearby(snap.map, this.tilesById, snap.self)) {
+  private pushNearbyInscriptionLabels(
+    snap: GameSnapshot,
+    nearby: NearbyInscription[],
+    into: WorldLabel[],
+    pointed: ObjectRef | null,
+  ) {
+    for (const near of nearby) {
       if (this.lookMode && sameRef(near.ref, this.lookedAt)) continue;
+      if (sameRef(near.ref, pointed)) continue;
 
       const { x, y, z, stackIndex } = near.ref;
       const ground = this.cellWorldCenter(x, y, z, snap.map, stackIndex);
@@ -1663,11 +1670,25 @@ export class GameRenderer {
     }
   }
 
-  private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
+  /**
+   * Returns the ref whose nearby inscription this label already carries, so
+   * that inscription is not drawn a second time at the tile's head, where it
+   * would cover the name tag.
+   */
+  private pushPointerLabel(
+    snap: GameSnapshot,
+    into: WorldLabel[],
+    nearby: NearbyInscription[],
+  ): ObjectRef | null {
     const said = this.lookMode ? this.lookLines(snap) : this.pointerLines(snap);
-    if (!said) return;
+    if (!said) return null;
 
-    const { ref, height, lines, color, nameTag, nameColor } = said;
+    const { ref, height, color, nameTag, nameColor } = said;
+    const inscribed =
+      nameTag === undefined ? undefined : nearby.find((near) => sameRef(near.ref, ref));
+    const lines = inscribed
+      ? [{ id: "inscription", text: inscribed.text }, ...said.lines]
+      : said.lines;
     const body = this.lookMode ? undefined : snap.actors.find((a) => a.id === said.actorId);
     const ground = body
       ? this.actorVisualWorld(snap.map, body)
@@ -1689,7 +1710,7 @@ export class GameRenderer {
       ...(color ? { color } : {}),
       ...this.pointerNameId(nameTag, body),
     });
-    if (nameTag === undefined) return;
+    if (nameTag === undefined) return null;
     into.push({
       id: POINTER_NAME_ID,
       kind: "name",
@@ -1699,6 +1720,7 @@ export class GameRenderer {
       reserveBar: true,
       ...(nameColor ? { color: nameColor } : {}),
     });
+    return inscribed ? ref : null;
   }
 
   private pointerNameId(

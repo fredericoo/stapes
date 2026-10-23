@@ -4263,6 +4263,14 @@ a door.
   collects the cells above the viewer it can see rather than merely noting that
   it saw one, and those seed a flood fill through touching geometry above the
   viewer's level. That component is the cut.
+- **The diagonal over the viewer seeds it too.** The projection draws
+  `(x+k, y+k, z+k)` over the viewer's own cell, so a level-0 wall one cell
+  south-east of a roofless basement corridor hides whoever stands in it. The
+  probe never saw that wall: nothing is straight above the corridor, and the
+  corridor's own wall blocks the ray to the cell beneath it. Measured on the
+  shipped map, this adds a cut at about 550 of 40,000 anchors, nearly all of
+  them street cells just north-west of a building, where the roof really does
+  hide the player and now lifts.
 - **The fill is 26-way, and generously so on purpose.** Merging two structures
   that touch at a corner costs one extra roof lifting with yours — which is what
   every roof did until now. Splitting one costs a hard diagonal edge with half a
@@ -13148,6 +13156,63 @@ two** (`widenToTwo`). It already lays its floor under the rock, so the open part
 of each wall cell shows ground, but a cave generated from any of them comes out
 as open caverns rather than narrow passages. A passage one cell wide is carved
 by hand for now.
+
+## A marble pillar is cut out of a whole column
+
+`bun run generate:masonry` draws `marble-pillar-bottom`, `-middle` and `-top`,
+two units each, so two make a storey and a column is any number of middles
+between a bottom and a top. **Each segment is drawn as part of a column, not on
+its own**: the shaft is carried on above and below it, the view ray is cast
+through that, and the segment keeps the pixels whose stone is its own. Drawn
+alone, a segment outlines its own bottom edge and shades the pixels at its
+lower corners as an end, and stacking them shows a line and two grey notches
+at every joint. Cut from one picture, a stack of them is that picture.
+
+The only pixels taken from the segment drawn alone are its cap, which the
+segment above covers. That is what lets a bottom or a middle end a column
+without a hole in its top.
+
+**Cracks are drawn on the stone, not on the sprite.** Each one is a line in
+angle round the shaft and height, so it follows the curve, and only the stone a
+segment owns can carry it. A crack that reaches a joint stops there, and the
+cracked segments stack with the intact ones the same way. The visible side of
+a middle segment is a strip about four pixels wide once the next segment covers
+its cap, which is why its cracks are short. `marble-pillar-broken` is a shaft
+whose top height varies round the centre, shaded darker the further down it
+broke.
+
+**The stone floors use the wooden floor's masks.** `flagstone-floor` and
+`slate-floor` copy `wooden-floor`'s slices and cut each slice of their sheet
+where the wood's is cut, and their `-inner` tiles are the complement, as
+`wooden-floor-inner` is. A change to the wood's sheet reaches them the next time
+the script runs. The joints are broken and one palette step from the stone:
+a floor with more contrast than that competes with whatever is standing on it.
+
+## Swamp trees are grown, and a waterfall leans on the cliff behind it
+
+`bun run generate:swamp-trees` grows each leafless tree from a seed: a trunk
+in a few kinked pieces, forking into thinner limbs that spread mostly
+sideways, because in this projection height is drawn up and to the left and a
+crown that grows upward reads as a diagonal stick. The sprite is three cells
+square with the tree in the south-east one, so the crown has room to spread
+north and west. The tiles are one level tall and let light through, like a
+tree whose crown is mostly gaps. `mossy-dead-tree` hangs strands of pale moss
+from its outer limbs.
+
+`bun run generate:waterfall` draws a sheet of falling water standing on the
+north edge of its cell, so a waterfall goes in the cells south of a cliff and
+covers the cliff's face. Every streak repeats every four pixels of height, the
+height of a segment, which is what lets any number of `waterfall-middle`
+stack seamlessly. Each streak moves one or two pixels a frame, and eight
+frames bring every streak back to where it started. `waterfall-top` starts at
+a strip of shimmer on the cliff's edge. The cliff's top edge draws a row of
+outline and a row of stone between the river and the fall, so the top segment
+lays two rows of water over them, one of them a pixel into the cell north of
+it, and the animated `water` above runs straight into the shimmer. `waterfall-base` throws a
+heap of bubbles south out of the foot of the fall, each living one cycle, so
+the heap churns without ever restarting all at once. The segments are phased
+three frames apart per cell along x, so a wide fall is not one column stamped
+side by side.
 
 ## A forest is a path and what grows either side of it
 
