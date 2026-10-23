@@ -145,5 +145,12 @@
     "file": "masonry.png",
     "width": 128,
     "height": 80
+  },
+  {
+    "id": "swamp-trees",
+    "name": "Swamp Trees",
+    "file": "swamp-trees.png",
+    "width": 96,
+    "height": 24
   }
 ]

@@ -13188,6 +13188,17 @@ where the wood's is cut, and their `-inner` tiles are the complement, as
 the script runs. The joints are broken and one palette step from the stone:
 a floor with more contrast than that competes with whatever is standing on it.
 
+## Swamp trees are grown, not drawn
+
+`bun run generate:swamp-trees` grows each leafless tree from a seed: a trunk
+in a few kinked pieces, forking into thinner limbs that spread mostly
+sideways, because in this projection height is drawn up and to the left and a
+crown that grows upward reads as a diagonal stick. The sprite is three cells
+square with the tree in the south-east one, so the crown has room to spread
+north and west. The tiles are one level tall and let light through, like a
+tree whose crown is mostly gaps. `mossy-dead-tree` hangs strands of pale moss
+from its outer limbs.
+
 ## A forest is a path and what grows either side of it
 
 The forest generator (`app/editor/forest.ts`) lays a ground tile over the whole
