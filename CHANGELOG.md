@@ -1,5 +1,21 @@
 # the-last-stones
 
+## 0.7.0
+
+### Minor Changes
+
+- Casting a spell on yourself now shows it: Light sparkles, Berserk throws red sparks, Crystallise frosts over, Blossom sheds petals, and the self-centred blasts flare around the caster. Creatures that rage, curl up or eat a snack show it too.
+- Bolt spells now look like their element in flight, and stronger stones throw bigger spells. Spark, Sleet, Barbs and Cinder throw a small star, snowflake, thorn or flame; Bolt, Frost, Thorns and Ember throw a comet, ice shard, tumbling leaf or fiery comet; Lance, Rime, Bramble and Pyre throw a violet trident, frozen orb, tumbling bramble or fireball. Each leaves a trail and bursts in its own colours when it lands. Arcane spells now fly fastest, then fire, then nature, and frost spells are the slowest.
+- Two new enemies: skeletons and slimes. Skeletons are slow and take a lot of beating, may carry a sword, axe, mace or bow, and leave one to three bones behind, sometimes with a skull. Fire, water and nature slimes can burn, chill or poison you, and split in two if you leave a wounded one alive long enough.
+
+### Patch Changes
+
+- Anything asleep, you included, can no longer dodge a blow.
+- Hovering an inscribed thing you can use no longer hides its name: the inscription now sits above the action instead of on top of the name.
+- An item you have no room for still shows Pick up, greyed out with "No room", instead of disappearing from the list. Hovering it says "No room" in place of the action, and clicking it tells you why.
+- Walls and roofs that stand in front of you from a storey above now lift away, so you no longer vanish behind the surface in a roofless cellar or behind a building's roof when you stand just north-west of it.
+- Wolves and rats swim now, so a river no longer stops them following you.
+
 ## 0.6.0
 
 ### Minor Changes
