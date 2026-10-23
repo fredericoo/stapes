@@ -1501,6 +1501,14 @@ would cost in shards alone, so the hide stands in for part of the price. The
 backpack is fifteen skins alone. Skins come only from what deer and rabbits drop, so the price is
 a reason to hunt. `skin` piles to 25 so a hunting trip fits in one square.
 
+**The wolfskin set is the tanner's one body piece, and it is paid in `wolf-skin`.**
+Every wolf carries one in its bag, so the hood, coat and boots cost a fight
+rather than a deer hunt. They are the light answer to sharp blows: low defence,
+at least as much sharp resistance as anything else in its slot (3, 5, 3), and Agility rather than
+Toughness to wear, so a fast character has an option chain mail and the
+knight's helm do not give them. The coat sits on the tanner's own Body rack
+rather than the armourer's because the armourer does not take hides.
+
 **A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
 `resolveActor` is satisfied by a `dialog` alone, so a body that only talks is
 adopted, driven and reachable exactly like one that fights. Being a battler

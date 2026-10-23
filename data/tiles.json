@@ -17425,6 +17425,139 @@
                         ]
                       },
                       {
+                        "label": "Wolfskin Hood — 3 wolf skins, 20 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Wolfskin Hood. One point, and three against sharp blows."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "wolf-skin",
+                                "count": 3
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "wolfskin-hood",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Wear it with the ears up. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "As you like. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Body",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Only one coat on my rack. The armourer has the rest."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "body"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Wolfskin Coat — 5 wolf skins, 40 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Wolfskin Coat. Two points, and five against sharp blows."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "wolf-skin",
+                                "count": 5
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 40
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "wolfskin-coat",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "A wolf could not bite through it. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
                         "label": "Back",
                         "then": [
                           {
@@ -17605,6 +17738,57 @@
                         ]
                       },
                       {
+                        "label": "Wolfskin Boots — 3 wolf skins, 20 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Wolfskin Boots. One point, and three against sharp blows."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "wolf-skin",
+                                "count": 3
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "wolfskin-boots",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Quiet on the floor. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It stays on the hook, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
                         "label": "Back",
                         "then": [
                           {
@@ -17673,7 +17857,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Off whatever you hunt. Deer and rabbits leave theirs behind when they fall — bring me the lot."
+                    "text": "Off whatever you hunt. Deer and rabbits leave theirs behind when they fall, and a wolf leaves a grey one — bring me the lot."
                   },
                   {
                     "kind": "goto",
@@ -25755,6 +25939,53 @@
     }
   },
   {
+    "id": "wolfskin-coat",
+    "name": "Wolfskin Coat",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "equipment",
+      "x": 13,
+      "y": 4
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "armor",
+        "def": 2,
+        "resist": {
+          "sharp": 5
+        },
+        "requirements": {
+          "agility": 12
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "warded-robe",
     "name": "Warded Robe",
     "height": 0,
@@ -26087,6 +26318,54 @@
     }
   },
   {
+    "id": "wolfskin-hood",
+    "name": "Wolfskin Hood",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "equipment",
+      "x": 31,
+      "y": 5
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "armor",
+        "slot": "head",
+        "def": 1,
+        "resist": {
+          "sharp": 3
+        },
+        "requirements": {
+          "agility": 8
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "iron-helm",
     "name": "Iron Helm",
     "height": 0,
@@ -26202,6 +26481,54 @@
         "type": "armor",
         "slot": "footwear",
         "def": 1
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "wolfskin-boots",
+    "name": "Wolfskin Boots",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "equipment",
+      "x": 19,
+      "y": 4
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "armor",
+        "slot": "footwear",
+        "def": 1,
+        "resist": {
+          "sharp": 3
+        },
+        "requirements": {
+          "agility": 8
+        }
       }
     },
     "sprite": {
@@ -30957,6 +31284,17 @@
             "slot": "offhand",
             "tileId": "bread",
             "chance": 10
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "wolf-skin",
+                "chance": 100
+              }
+            ]
           }
         ],
         "immuneTo": [
@@ -57167,6 +57505,47 @@
             "rect": {
               "x": 8,
               "y": 20,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180
+        }
+      ]
+    }
+  },
+  {
+    "id": "wolf-skin",
+    "name": "Wolf Skin",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 16,
+      "y": 30
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 25
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
               "w": 2,
               "h": 2
             },
