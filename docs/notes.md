@@ -4188,6 +4188,28 @@ was never a re-sent step: the client minted a fresh `seq` for ground it had
 genuinely not been told about, from a cell it genuinely believed it was standing
 in. The fault was believing it.
 
+### A shove that drops is drawn across, then down
+
+`push` writes the column to where it finally rests in the same tick, however
+far that is below: a crate shoved into a hole is at L-2 before anything else
+can move, so nobody can slip something into the hole in the gap between the
+shove and the landing. What is timed is only the drawing.
+
+`SlideState.dropUnits` is the drop measured after the shove (`pushDropUnits`),
+and is zero for anything a body would step down rather than fall. With a drop,
+the slide lasts `slideDurationMs` — the `PUSH_STEP_MS` shove across at the
+height it left, then `FALL_MS_PER_HEIGHT` per unit, the speed a body falls —
+and `slidePhases` splits progress into the two. The pusher is busy for the
+shove only (`slideStillShoving`), on the server and in `RemoteSession`'s
+prediction alike; the drop that follows belongs to the crate. `slideStarted`
+carries `dropUnits` because the client cannot work it out once its board
+already has the crate at the bottom.
+
+The crate is drawn on the level its foot is passing through until it lands
+(`slideDrawLevel` in `slideMotion.ts`). It is already in the pit's stack, so
+drawn there it would cross the floor above lit by the pit's light map, which
+read as a black square sliding across a lit room.
+
 ### The client shows its own speech before the server echoes it
 
 `RemoteSession.say` hangs the bubble over the predicted body the moment the line

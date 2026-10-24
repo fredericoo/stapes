@@ -191,7 +191,6 @@ import {
   FALL_MS_PER_HEIGHT,
   NOISE_LIFETIME_MS,
   PLAYER_TILE_ID,
-  PUSH_STEP_MS,
   STRIKE_DURATION_MS,
   TICK_MS,
 } from "./constants";
@@ -300,7 +299,7 @@ import {
   type FlightPoint,
   type ProjectileFlight,
 } from "./projectile";
-import { pushedColumn } from "./push";
+import { pushDropUnits, pushedColumn, slideDurationMs, slideStillShoving } from "./push";
 import { isSpawnFilled, rollRespawnDelayMs, type RespawnOutcome, type SpawnPoint } from "./respawn";
 import {
   capacityOf,
@@ -470,6 +469,7 @@ export type SlideSnapshot = {
   object: ObjectRef;
   from: Coord;
   count: number;
+  dropUnits: number;
 };
 
 export type ActorPosition = Coord & { direction: Direction };
@@ -640,6 +640,7 @@ type SlideState = {
   object: ObjectRef;
   from: Coord;
   count: number;
+  dropUnits: number;
   elapsedMs: number;
 };
 
@@ -4351,7 +4352,7 @@ export class GameSession implements PlaySession {
   }
 
   private idle(actor: ActorRuntime): boolean {
-    return !actor.slide && !actor.walk && !actor.fall;
+    return !this.shoving(actor) && !actor.walk && !actor.fall;
   }
 
   private readyToAct(actor: ActorRuntime): boolean {
@@ -4381,10 +4382,12 @@ export class GameSession implements PlaySession {
     const landed = getStack(this.map, to.x, to.y, to.z).length;
     this.map = moveColumn(this.map, ref, count, to, undefined);
 
+    const object = { ...to, stackIndex: landed };
     actor.slide = {
-      object: { ...to, stackIndex: landed },
+      object,
       from,
       count,
+      dropUnits: pushDropUnits(this.map, from, object, this.tilesById),
       elapsedMs: 0,
     };
     this.reindexCells([from, to]);
@@ -5772,7 +5775,11 @@ export class GameSession implements PlaySession {
   private tickSlide(actor: ActorRuntime, tickMs: number) {
     if (!actor.slide) return;
     actor.slide.elapsedMs += tickMs;
-    if (actor.slide.elapsedMs >= PUSH_STEP_MS) actor.slide = null;
+    if (actor.slide.elapsedMs >= slideDurationMs(actor.slide.dropUnits)) actor.slide = null;
+  }
+
+  private shoving(actor: ActorRuntime): boolean {
+    return actor.slide != null && slideStillShoving(actor.slide.elapsedMs);
   }
 
   private tickMotion(actor: ActorRuntime, tickMs: number) {
@@ -5840,7 +5847,10 @@ export class GameSession implements PlaySession {
       fallProgress: actor.fall ? (actor.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT : 0,
       slide: actor.slide,
       slideProgress: actor.slide
-        ? Math.min(1, (actor.slide.elapsedMs + visualExtra) / PUSH_STEP_MS)
+        ? Math.min(
+            1,
+            (actor.slide.elapsedMs + visualExtra) / slideDurationMs(actor.slide.dropUnits),
+          )
         : 0,
       strike: actor.strike,
       strikeProgress: actor.strike
@@ -6058,7 +6068,7 @@ export class GameSession implements PlaySession {
     opts?: { preferDescend?: boolean },
   ): "started" | "later" | "refused" {
     const actor = this.actor(id);
-    if (actor.fall || actor.slide) return "refused";
+    if (actor.fall || this.shoving(actor)) return "refused";
     if (actor.walk) return "later";
     if (actor.attackRecoveryMs > 0) return "later";
 

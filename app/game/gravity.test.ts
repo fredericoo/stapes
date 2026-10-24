@@ -331,6 +331,16 @@ describe("a crate shoved into a pit", () => {
     expect(ids(getStack(session.getMap(), PIT.x, PIT.y, -2))).toEqual(["rock", "sunk-crate"]);
   });
 
+  it("frees the pusher after the shove while the drop is still being drawn", () => {
+    const session = pit();
+    const player = session.actorIds()[0]!;
+    shoveIn(session);
+    for (let i = 0; i < SHOVE_TICKS; i++) session.tick(TICK_MS);
+
+    expect(session.getSnapshot(player).self.slide).not.toBeNull();
+    expect(session.requestStep(player, "e")).toBe("started");
+  });
+
   it("lands a player who falls onto it in the level above it, as walking onto it does", () => {
     const session = pit();
     const player = session.actorIds()[0]!;

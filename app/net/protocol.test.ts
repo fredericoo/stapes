@@ -533,6 +533,7 @@ describe("nothing is quietly dropped in transit", () => {
         object: { x: 1, y: 0, z: 0, stackIndex: 1 },
         from: { x: 0, y: 0, z: 0 },
         count: 1,
+        dropUnits: 0,
       },
       strikeStarted: {
         kind: "strikeStarted",

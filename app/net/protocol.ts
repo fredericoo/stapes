@@ -272,6 +272,7 @@ export type MotionEvent =
       object: { x: number; y: number; z: number; stackIndex: number };
       from: { x: number; y: number; z: number };
       count: number;
+      dropUnits: number;
     }
   | {
       kind: "strikeStarted";
@@ -735,6 +736,7 @@ const serverMessageSchema = v.variant("type", [
           object: objectRefSchema,
           from: coordSchema,
           count: v.number(),
+          dropUnits: v.number(),
         }),
         v.object({
           kind: v.literal("teleported"),
@@ -895,7 +897,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 34;
+export const PROTOCOL_VERSION = 35;
 
 export const MAX_STEPS_AHEAD = 8;
 
