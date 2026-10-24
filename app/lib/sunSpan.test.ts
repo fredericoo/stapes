@@ -28,27 +28,27 @@ const tilesById: Record<string, TileDef> = {
   wall: tile("wall", 4),
 };
 
-type Cell = { x: number; z?: number; tiles: string[] };
+type Cell = { x: number; y?: number; z?: number; tiles: string[] };
 
 function rowMap(cells: Cell[]): MapFile {
   const levels: FlatMapFile["levels"] = {};
   for (const c of cells) {
     const lk = levelKey(c.z ?? 0);
     levels[lk] ??= {};
-    levels[lk]![coordKey(c.x, 0)] = c.tiles.map((tileId) => ({ tileId }));
+    levels[lk]![coordKey(c.x, c.y ?? 0)] = c.tiles.map((tileId) => ({ tileId }));
   }
   return chunkifyMap({ version: MAP_FILE_VERSION, levels });
 }
 
-function floorsFrom(x0: number, x1: number, z = 0): Cell[] {
+function floorsFrom(x0: number, x1: number, z = 0, y = 0): Cell[] {
   const out: Cell[] = [];
-  for (let x = x0; x <= x1; x++) out.push({ x, z, tiles: ["floor"] });
+  for (let x = x0; x <= x1; x++) out.push({ x, y, z, tiles: ["floor"] });
   return out;
 }
 
-function spanAt(map: MapFile, x: number, z = 0): [number, number] {
+function spanAt(map: MapFile, x: number, z = 0, y = 0): [number, number] {
   const level = computeLightingFlood(map, tilesById).levels.get(z)!;
-  const i = (0 - level.y0) * level.w + (x - level.x0);
+  const i = (y - level.y0) * level.w + (x - level.x0);
   return [level.sun[i * SUN_SPAN_STRIDE]!, level.sun[i * SUN_SPAN_STRIDE + 1]!];
 }
 
@@ -82,6 +82,18 @@ describe("bakeSunSpans", () => {
     for (let i = 1; i < sunlitFrom.length; i++) {
       expect(sunlitFrom[i]).toBeGreaterThan(sunlitFrom[i - 1]!);
     }
+  });
+
+  it("puts the shadow of something tall north of it at noon, where the sun is south", () => {
+    const ground = [-2, -1, 0, 1, 2].flatMap((y) => floorsFrom(-20, 20, 0, y));
+    const tower = [
+      { x: 0, y: 0, z: 0, tiles: ["floor", "wall"] },
+      { x: 0, y: 0, z: 1, tiles: ["wall"] },
+      { x: 0, y: 0, z: 2, tiles: ["wall"] },
+    ];
+    const map = rowMap([...ground.filter((c) => !(c.x === 0 && c.y === 0)), ...tower]);
+    expect(litAt(spanAt(map, 0, 0, -1), NOON)).toBe(false);
+    expect(litAt(spanAt(map, 0, 0, 1), NOON)).toBe(true);
   });
 
   describe("under a roof with a hole in it", () => {

@@ -1,7 +1,7 @@
 import { MAX_LIGHT_LEVEL } from "./types";
 
 /**
- * How far along a row the sun bake looks for something in the way. It equals
+ * How far east or west the sun bake looks for something in the way. It equals
  * the chunk bake's apron (`LIGHT_APRON`), so a chunk sees every occluder a
  * whole-map bake would and the two agree cell for cell.
  */
@@ -18,6 +18,17 @@ const SUN_SPAN_BYTE_MAX = 255;
 const MIN_LIT_GAP_RAD = Math.PI / 360;
 
 const SKY_LIT = 0.5;
+
+/**
+ * How far the sun's path leans south of straight overhead. It still rises due
+ * east and sets due west, but at noon it stands this far towards the south, so
+ * shadows swing from west through north to east over the day.
+ */
+export const SUN_TILT_RAD = (15 * Math.PI) / 180;
+
+const SOUTH_PER_LEVEL = Math.tan(SUN_TILT_RAD);
+
+const PATH_UP_PER_LEVEL = 1 / Math.cos(SUN_TILT_RAD);
 
 export type SunGrid = {
   w: number;
@@ -64,7 +75,7 @@ function push(s: Scratch, lo: number, hi: number) {
 function cornerAngle(cornerX: number, cornerH: number, eyeX: number, eyeH: number): number {
   const rise = cornerH - eyeH;
   if (rise <= 0) return cornerX > eyeX ? 0 : Math.PI;
-  return Math.atan2(rise, cornerX - eyeX);
+  return Math.atan2(rise * PATH_UP_PER_LEVEL, cornerX - eyeX);
 }
 
 /**
@@ -113,6 +124,37 @@ function encodeAngle(rad: number): number {
   return Math.round((rad / Math.PI) * SUN_SPAN_BYTE_MAX);
 }
 
+/**
+ * The row a ray from the eye is passing over at height `h`. Every ray towards
+ * a sun on the tilted path drifts south by the same amount per level climbed,
+ * so a cell's rays all lie in one sheared plane, and the bake is still a 2D
+ * problem per cell — it just reads each level from a different row.
+ */
+function rowAt(eyeRowY: number, eyeH: number, h: number): number {
+  return Math.floor(eyeRowY + SOUTH_PER_LEVEL * (h - eyeH));
+}
+
+/**
+ * The highest top in each column over the rows south of it that a ray can
+ * drift into before it climbs past the domain, so a column with nothing above
+ * the eye is skipped without walking its levels.
+ */
+function topsSouthward(g: SunGrid, tops: Float32Array): Float32Array {
+  const drift = Math.ceil(SOUTH_PER_LEVEL * g.d) + 1;
+  const out = new Float32Array(tops.length);
+  for (let y = 0; y < g.h; y++) {
+    for (let x = 0; x < g.w; x++) {
+      let highest = -Infinity;
+      for (let dy = 0; dy <= drift && y + dy < g.h; dy++) {
+        const top = tops[(y + dy) * g.w + x]!;
+        if (top > highest) highest = top;
+      }
+      out[y * g.w + x] = highest;
+    }
+  }
+  return out;
+}
+
 function columnTops(g: SunGrid): Float32Array {
   const slice = g.w * g.h;
   const tops = new Float32Array(slice).fill(-Infinity);
@@ -129,10 +171,12 @@ function columnTops(g: SunGrid): Float32Array {
 
 /**
  * For every occupied, sky-lit cell, the widest span of the sun's east-to-west
- * arc from which a parallel ray reaches it. The sun only ever moves along x,
- * so each row is a 2D problem in (x, height): every solid box and floor above
- * the cell hides an interval of angles, and the cell is sunlit wherever the
- * union of those leaves a gap. A cell lit through two separate openings keeps
+ * arc from which a parallel ray reaches it. The arc leans south by
+ * {@link SUN_TILT_RAD}, so every ray from one cell lies in one plane (see
+ * `rowAt`), and each level is read from the row where the ray enters it. That
+ * keeps the cell a 2D problem in (x, height along the plane): every solid box
+ * and floor above it hides an interval of angles, and the cell is sunlit
+ * wherever the union of those leaves a gap. A cell lit through two separate openings keeps
  * only the wider one.
  *
  * Anything beyond {@link SUN_REACH} is unknown, so the column at the end of
@@ -148,6 +192,7 @@ export function bakeSunSpans(g: SunGrid): Uint8Array {
     out[i * SUN_SPAN_STRIDE + 1] = SUN_SPAN_NEVER_HI;
   }
   const tops = columnTops(g);
+  const reachable = topsSouthward(g, tops);
   const scratch = makeScratch(64);
 
   for (let lz = 0; lz < g.d; lz++) {
@@ -155,7 +200,7 @@ export function bakeSunSpans(g: SunGrid): Uint8Array {
       for (let lx = 0; lx < g.w; lx++) {
         const i = lz * slice + ly * g.w + lx;
         if (!g.occupied[i] || g.sky[i]! <= SKY_LIT) continue;
-        const gap = litGap(g, tops, scratch, lx, ly, lz);
+        const gap = litGap(g, tops, reachable, scratch, lx, ly, lz);
         if (!gap) continue;
         out[i * SUN_SPAN_STRIDE] = encodeAngle(gap[0]);
         out[i * SUN_SPAN_STRIDE + 1] = encodeAngle(gap[1]);
@@ -168,41 +213,47 @@ export function bakeSunSpans(g: SunGrid): Uint8Array {
 function litGap(
   g: SunGrid,
   tops: Float32Array,
+  reachable: Float32Array,
   s: Scratch,
   lx: number,
   ly: number,
   lz: number,
 ): [number, number] | null {
   const slice = g.w * g.h;
-  const row = ly * g.w;
+  const eyeRowY = ly + 0.5;
   const eyeX = lx + 0.5;
-  const eyeH = lz + Math.min(1, g.opacity[lz * slice + row + lx]!);
+  const eyeH = lz + Math.min(1, g.opacity[lz * slice + ly * g.w + lx]!);
   s.n = 0;
 
   const xFrom = Math.max(0, lx - SUN_REACH);
   const xTo = Math.min(g.w - 1, lx + SUN_REACH);
   for (let cx = xFrom; cx <= xTo; cx++) {
-    const columnTop = tops[row + cx]!;
-    if (columnTop <= eyeH) continue;
-    const czTo = Math.min(g.d - 1, Math.ceil(columnTop));
+    const highest = reachable[ly * g.w + cx]!;
+    if (highest <= eyeH) continue;
+    const czTo = Math.min(g.d - 1, Math.ceil(highest));
     let runBottom = -1;
     let runTop = -1;
+    let runRow = -1;
     for (let cz = Math.floor(eyeH); cz <= czTo; cz++) {
-      const j = cz * slice + row + cx;
-      const solid = g.seals[j] && !(cx === lx && cz === lz);
+      const cy = rowAt(eyeRowY, eyeH, Math.max(cz, eyeH));
+      if (cy >= g.h) break;
+      const j = cz * slice + cy * g.w + cx;
+      const solid =
+        tops[cy * g.w + cx]! >= cz && g.seals[j] && !(cx === lx && cy === ly && cz === lz);
       const top = cz + Math.min(1, g.opacity[j]!);
-      if (solid && top > eyeH && runTop === cz) {
+      if (solid && top > eyeH && runTop === cz && runRow === cy) {
         runTop = top;
         continue;
       }
       if (runTop > eyeH) pushBox(s, cx, Math.max(runBottom, eyeH), runTop, eyeX, eyeH);
       runBottom = cz;
+      runRow = cy;
       runTop = solid && top > eyeH ? top : -1;
     }
     if (runTop > eyeH) pushBox(s, cx, Math.max(runBottom, eyeH), runTop, eyeX, eyeH);
   }
-  pushReachWall(s, tops, row, lx - SUN_REACH, eyeX, eyeH, g.w);
-  pushReachWall(s, tops, row, lx + SUN_REACH, eyeX, eyeH, g.w);
+  pushReachWall(s, tops, ly * g.w, lx - SUN_REACH, eyeX, eyeH, g.w);
+  pushReachWall(s, tops, ly * g.w, lx + SUN_REACH, eyeX, eyeH, g.w);
   return widestGap(s);
 }
 

@@ -13536,12 +13536,25 @@ doorway or a hole is darker than it was.
 Baking the sun for the hour would make every chunk stale every time it moved.
 Instead `bakeSunSpans` (`app/lib/sunSpan.ts`) bakes, once per chunk alongside
 the flood, the span of the arc from which each cell can see the sun, and the
-shader lights the cell while `uSunArc` is inside it. The sun only moves along x,
-so each row is a 2D problem: every solid box and floor above a cell hides an
-interval of angles, and the cell keeps the widest gap between them. It travels in
-two more bytes per cell (the chunk planes are six bytes wide, uploaded as an RG
-texture beside the RGBA one), and costs about a third more bake: 30ms to 41ms
-p50 on the fixture town.
+shader lights the cell while `uSunArc` is inside it.
+
+The path leans `SUN_TILT_RAD` (15°) to the south, so it rises due east, stands
+in the south at noon and sets due west, and a shadow swings from west through
+north to east. That particular tilt is what keeps the bake cheap: a path
+through due east and due west is a circle around the east-west axis, so every
+ray from one cell drifts south by the same amount per level and they all lie
+in one plane. Each cell is then a 2D problem in that plane: every solid box and
+floor above it hides an interval of angles, and the cell keeps the widest gap
+between them. A path that rose north of east, as a real summer sun does, would
+put a cell's rays in no common plane, and the bake would have to trace each
+hour separately.
+
+The spans travel in two more bytes per cell (the chunk planes are six bytes
+wide, uploaded as an RG texture beside the RGBA one). The bake goes from 30ms
+to 47ms p50 on the fixture town. In the shader the sun is one more texture
+read per lit pixel: on an M2 Pro `/admin/play` holds the 120 fps cap at noon
+and at night alike; under headless SwiftShader noon frames are about 85ms
+against 67ms at night, which is that one read.
 
 Three consequences that are easy to break:
 
