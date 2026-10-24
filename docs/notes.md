@@ -5949,6 +5949,22 @@ the slot clears the pick. The field is a loose string on the item, resolved
 by `wornPartOf`, so a name nobody drew never stops the armour loading; `bun
 run verify content` reports it instead.
 
+**A human actor is drawn in what they wear.** `GameSession` keeps each
+actor's `outfit` (`wornOutfit`: the part each worn piece names) beside
+`carriedLights`, and the server sends it to other clients the same way, as an
+`outfits` list in `hello` and `patch`, diffed per actor. The list is optional
+on the wire and each part is a loose string checked per layer by
+`readOutfit`, so a part one side does not know costs that layer and never
+drops the frame. On the client `WornLooks` swaps the actor's placement, in
+the drawn map only, for a copy of its tile whose outfit carries the worn
+parts over its own, and adds the copy to the drawn catalogue; the renderers
+then compose it like any human tile. Picking and the interaction panel read
+the snapshot taken before the swap, so a command never names a copy. The
+copy and the drawn map are reused while the looks and the map are unchanged,
+because the renderer rebuilds every chunk whose identity changes. The tile's
+own outfit is what shows in a slot with nothing worn, and it is all a
+portrait shows, because `TilePreview` draws the tile, not the actor.
+
 **A head is a few pixels with no outline**, the same on all three frames of a
 facing; the body's outline frames it. Facing south and east it shows the face,
 so a beard goes there, over the chin and the chest below it. Facing west and

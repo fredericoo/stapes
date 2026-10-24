@@ -183,6 +183,14 @@ const tiles: TileDef[] = [
     },
   }),
   tile({
+    id: "iron-cap",
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: { type: "armor", slot: "head", def: 1, humanPart: "iron-helmet" },
+    },
+  }),
+  tile({
     id: "cherry",
     kind: "item",
     intangible: true,
@@ -1245,5 +1253,28 @@ describe("dying with something on you", () => {
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
+  });
+});
+
+describe("worn outfit", () => {
+  function withCap(): GameSession {
+    const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "iron-cap" }]);
+    return new GameSession(map, tiles);
+  }
+
+  function outfitOf(session: GameSession) {
+    return session.getSnapshot().self.outfit;
+  }
+
+  it("draws the part a worn piece names, and only while it is worn", () => {
+    const session = withCap();
+    session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 });
+    expect(outfitOf(session)).toEqual({});
+
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "head" });
+    expect(outfitOf(session)).toEqual({ hat: "iron-helmet" });
+
+    session.drop({ kind: "head" }, { x: 1, y: 0, z: 0 });
+    expect(outfitOf(session)).toEqual({});
   });
 });

@@ -1,4 +1,5 @@
 import type { GameSocket, WorldContext } from "./sockets";
+import { BARE, isBare, outfitKey } from "../app/lib/humanSprite";
 import * as v from "valibot";
 import {
   GameSession,
@@ -77,6 +78,7 @@ import {
   parseClientMessage,
   type ClientMessage,
   type CarriedLightsPatch,
+  type OutfitPatch,
   type AfflictedPatch,
   type CellAffliction,
   type StatusIdsPatch,
@@ -102,6 +104,7 @@ const [GROUND_ONLY_HEAD, GROUND_ONLY_TAIL] = (() => {
     hps: [],
     names: [],
     carriedLights: [],
+    outfits: [],
     statusIds: [],
     pvp: [],
     extractions: [],
@@ -154,6 +157,7 @@ function isEmptyPatch(
     patch.events.length === 0 &&
     patch.hps.length === 0 &&
     patch.carriedLights.length === 0 &&
+    patch.outfits.length === 0 &&
     patch.statusIds.length === 0 &&
     patch.pvp.length === 0 &&
     patch.extractions.length === 0 &&
@@ -246,6 +250,15 @@ function currentCarriedLights(actors: ActorSnapshot[]): CarriedLightsPatch[] {
   for (const actor of actors) {
     if (actor.carriedLights.length === 0) continue;
     out.push({ actorId: actor.id, tileIds: actor.carriedLights });
+  }
+  return out;
+}
+
+function currentOutfits(actors: ActorSnapshot[]): OutfitPatch[] {
+  const out: OutfitPatch[] = [];
+  for (const actor of actors) {
+    if (isBare(actor.outfit)) continue;
+    out.push({ actorId: actor.id, outfit: actor.outfit });
   }
   return out;
 }
@@ -648,6 +661,7 @@ type TickFrame = {
 const ENTRY_LISTS = [
   "hps",
   "carriedLights",
+  "outfits",
   "statusIds",
   "pvp",
   "extractions",
@@ -697,6 +711,7 @@ function serializeCut(cut: Cut, frame: TickFrame): string {
     `,"hps":${listJson(cut.hps, json.hps)}` +
     `,"names":${JSON.stringify(cut.names)}` +
     `,"carriedLights":${listJson(cut.carriedLights, json.carriedLights)}` +
+    `,"outfits":${listJson(cut.outfits, json.outfits)}` +
     `,"statusIds":${listJson(cut.statusIds, json.statusIds)}` +
     `,"pvp":${listJson(cut.pvp, json.pvp)}` +
     `,"extractions":${listJson(cut.extractions, json.extractions)}` +
@@ -711,6 +726,7 @@ function emptyCut(): Cut {
     names: [],
     hps: [],
     carriedLights: [],
+    outfits: [],
     statusIds: [],
     pvp: [],
     extractions: [],
@@ -765,6 +781,7 @@ export class GameServer {
   private joining: Promise<void> = Promise.resolve();
   private sentHp = new Map<string, { hp: number; maxHp: number; rating: number }>();
   private sentCarriedLights = new Map<string, string>();
+  private sentOutfits = new Map<string, string>();
   private sentStatusIds = new Map<string, { defIds: string[]; key: string }>();
   private sentPvp = new Map<string, boolean>();
   private kingId: string | null = null;
@@ -1630,6 +1647,7 @@ export class GameServer {
       hps: currentHps(actors),
       names: currentNames(actors),
       carriedLights: currentCarriedLights(actors),
+      outfits: currentOutfits(actors),
       statusIds: currentStatusIds(actors),
       pvp: currentPvp(actors),
       extractions: currentExtractions(actors),
@@ -2391,6 +2409,7 @@ export class GameServer {
     this.sentAfflicted.clear();
     this.sentHp.clear();
     this.sentCarriedLights.clear();
+    this.sentOutfits.clear();
     this.sentStatusIds.clear();
     this.sentPvp.clear();
     this.queuedIntents.clear();
@@ -2502,6 +2521,7 @@ export class GameServer {
     this.sweepRespawnCells(cells);
     const hps = this.diffHps(actors);
     const carriedLights = this.diffCarriedLights(actors);
+    const outfits = this.diffOutfits(actors);
     const statusIds = this.diffStatusIds(actors);
     const pvp = this.diffPvp(actors);
     const extractions = this.diffExtractions(actors);
@@ -2511,6 +2531,7 @@ export class GameServer {
       events: this.events,
       hps,
       carriedLights,
+      outfits,
       statusIds,
       pvp,
       extractions,
@@ -2815,6 +2836,16 @@ export class GameServer {
       (actor) => actor.carriedLights.join(","),
       (was, now) => (was ?? "") === now,
       (actor) => ({ actorId: actor.id, tileIds: actor.carriedLights }),
+    );
+  }
+
+  private diffOutfits(actors: ActorSnapshot[]): OutfitPatch[] {
+    return this.diffPerActor(
+      actors,
+      this.sentOutfits,
+      (actor) => outfitKey(actor.outfit),
+      (was, now) => (was ?? outfitKey(BARE)) === now,
+      (actor) => ({ actorId: actor.id, outfit: actor.outfit }),
     );
   }
 
@@ -3238,6 +3269,7 @@ export class GameServer {
       entryActor: {
         hps: actorOf(patch.hps),
         carriedLights: actorOf(patch.carriedLights),
+        outfits: actorOf(patch.outfits),
         statusIds: actorOf(patch.statusIds),
         pvp: actorOf(patch.pvp),
         extractions: actorOf(patch.extractions),
@@ -3266,6 +3298,7 @@ export class GameServer {
         events: new Fragments(patch.events),
         hps: new Fragments(patch.hps),
         carriedLights: new Fragments(patch.carriedLights),
+        outfits: new Fragments(patch.outfits),
         statusIds: new Fragments(patch.statusIds),
         pvp: new Fragments(patch.pvp),
         extractions: new Fragments(patch.extractions),
@@ -3413,6 +3446,7 @@ export class GameServer {
     cut.hps = [...currentHps(arrivals), ...cut.hps];
     cut.names = currentNames(arrivals);
     cut.carriedLights = [...currentCarriedLights(arrivals), ...cut.carriedLights];
+    cut.outfits = [...currentOutfits(arrivals), ...cut.outfits];
     cut.statusIds = [...currentStatusIds(arrivals), ...cut.statusIds];
     cut.pvp = [...currentPvp(arrivals), ...cut.pvp];
     cut.extractions = [...currentExtractions(arrivals), ...cut.extractions];

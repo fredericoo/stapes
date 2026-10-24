@@ -7,6 +7,7 @@ import {
   type Transition,
   type TransitionSide,
 } from "../lib/tileTransition";
+import type { Outfit } from "../lib/humanSprite";
 import { absoluteElevation } from "../lib/geometry";
 import {
   absoluteStandingElevation,
@@ -240,6 +241,7 @@ import {
   bodyElements,
   magicDormant,
   carriedLightTileIds,
+  wornOutfit,
   effectiveBattler,
   emptyEquipment,
   HANDS,
@@ -496,6 +498,8 @@ export type ActorSnapshot = {
   maxHp: number | null;
   rating: number | null;
   carriedLights: string[];
+  /** The parts a human actor's worn armour is drawn as; see `wornOutfit`. */
+  outfit: Outfit;
   extracting: ExtractionProgress | null;
   casting: CastProgress | null;
   pvp: boolean;
@@ -713,6 +717,7 @@ type ActorRuntime = {
   readonly resident: boolean;
   equipment: Equipment;
   carriedLights: string[];
+  outfit: Outfit;
   tags: readonly string[];
   masteryXp: MasteryXp | null;
   extraction: ExtractionRun | null;
@@ -993,6 +998,7 @@ export class GameSession implements PlaySession {
       equipment,
       charmClock: null,
       carriedLights: carriedLightTileIds(equipment, this.tilesById),
+      outfit: wornOutfit(equipment, this.tilesById),
       tags: opts.tagged ?? NO_TAGS,
       masteryXp: resident || !hasExperience(opts.earned) ? null : opts.earned,
       earnedBody: null,
@@ -4706,6 +4712,7 @@ export class GameSession implements PlaySession {
   private setEquipment(actor: ActorRuntime, next: Equipment) {
     actor.equipment = next;
     actor.carriedLights = carriedLightTileIds(next, this.tilesById);
+    actor.outfit = wornOutfit(next, this.tilesById);
     if (!actor.resident) this.decay.armEquipment(next, this.tilesById);
     this.equipmentChanged.add(actor.id);
   }
@@ -5861,6 +5868,7 @@ export class GameSession implements PlaySession {
       rating: this.ratingOf(actor),
       statuses: actor.statuses,
       carriedLights: actor.carriedLights,
+      outfit: actor.outfit,
       extracting: actor.extraction?.progress ?? null,
       casting: actor.casting?.progress ?? null,
       pvp: actor.pvp,
