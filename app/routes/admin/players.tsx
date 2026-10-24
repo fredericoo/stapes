@@ -19,7 +19,7 @@ import { Link, useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { fetchPlayers } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
-import { RATING_GLYPH } from "../../lib/mastery";
+import { Rating } from "../../components/Rating";
 import { Input } from "../../ui/Input";
 import { AccountName, LastOnline, Moment } from "../../components/PlayerFacts";
 import type { PlayerEntry } from "../../../server/world";
@@ -78,7 +78,7 @@ function columns(now: number) {
         row.original.rating === null ? (
           <span className="text-muted">—</span>
         ) : (
-          `${row.original.rating}${RATING_GLYPH}`
+          <Rating value={row.original.rating} />
         ),
     }),
     column.accessor((entry) => (entry.character ? entry.deaths : undefined), {

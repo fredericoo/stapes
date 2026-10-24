@@ -1,4 +1,3 @@
-import { RATING_GLYPH } from "../lib/mastery";
 import { PLAYER_TILE_ID } from "./constants";
 import { PVP_MARK } from "./pvp";
 import type { TileDef } from "../lib/types";
@@ -26,9 +25,4 @@ export function bodyNameIn(
 
 export function fightingName(name: string, pvp: boolean): string {
   return pvp ? `${name} ${PVP_MARK}` : name;
-}
-
-export function sizedUpName(name: string, rating: number | null, looking: boolean): string {
-  if (!looking || rating === null) return name;
-  return `${name} ${RATING_GLYPH}${rating}`;
 }
