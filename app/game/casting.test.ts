@@ -861,6 +861,10 @@ describe("the stones we ship", () => {
     }
   });
 
+  it("asks nothing of the bottom neutral rung that a fresh player lacks", () => {
+    expect(neutral(0).requirements).toEqual({ arcane: MIN_EARNED_MASTERY });
+  });
+
   it("runs the neutral ladder one gate below the elemental one", () => {
     for (let index = 0; index < NEUTRAL_LADDER.length; index++) {
       const where = `rung ${index}`;
@@ -870,6 +874,8 @@ describe("the stones we ship", () => {
       expect(plain.reach, where).toEqual(yardstick.reach);
       expect(plain.castTimeMs, where).toBe(yardstick.castTimeMs);
       expect(plain.cooldownMs, where).toBe(yardstick.cooldownMs);
+      /** The bottom rung is the starter stone, gated at the floor rather than one gate below. */
+      if (index === 0) continue;
       expect(yardstick.requirements!.arcane, where).toBe(
         plain.requirements!.arcane! + ELEMENTAL_ARCANE_GAP,
       );

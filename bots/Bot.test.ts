@@ -188,7 +188,10 @@ it("takes up a bow and shoots a slower creature without letting it close", async
   pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
   const clock = { ms: 0 };
   const remote = new RemoteSession(pair.client() as never, tiles, statuses, () => clock.ms);
-  await harness.server.join(pair.server, "bot", { admin: false });
+  await harness.server.join(pair.server, "bot", { admin: true });
+  remote.say("/mastery ranged 5");
+  remote.say("/mastery toughness 5");
+  const startHp = remote.getSnapshot().self.hp;
   const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
     random: () => 0.5,
     temperament: { ...DEFAULT_TEMPERAMENT, style: "ranged", wanderChance: 0 },
@@ -199,7 +202,7 @@ it("takes up a bow and shoots a slower creature without letting it close", async
 
   const { self } = remote.getSnapshot();
   expect(catGone()).toBe(true);
-  expect(self.hp).toBe(self.maxHp);
+  expect(self.hp).toBe(startHp);
 });
 
 it("turns on a creature it fears but cannot outrun, rather than being chased down", async () => {
@@ -209,6 +212,8 @@ it("turns on a creature it fears but cannot outrun, rather than being chased dow
   const clock = { ms: 0 };
   const remote = new RemoteSession(pair.client() as never, tiles, statuses, () => clock.ms);
   await harness.server.join(pair.server, "bot", { admin: true });
+  remote.say("/mastery sharp 5");
+  remote.say("/mastery agility 10");
   const bot = new Bot(
     remote,
     new ScriptedPlanner([{ goal: "rest", seconds: 300 }]),
@@ -519,6 +524,7 @@ it("backs away from a threat and conjures a flame on it", async () => {
   );
   const { remote, clock } = await joinBot(true);
   remote.say("/mastery arcane 10");
+  remote.say("/mastery toughness 5");
   const bot = new Bot(
     remote,
     new ProgressPlanner([{ goal: "open_rewards" }]),

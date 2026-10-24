@@ -6769,27 +6769,23 @@ is all three of those at once. Nothing was written to make them neutral.
 
 | rung | stone | damage | leaves | cooldown | cast | reach | asks      |
 | ---- | ----- | ------ | ------ | -------- | ---- | ----- | --------- |
-| 1    | Spark | 4      | —      | 5s       | 1s   | 5.5   | Arcane 5  |
+| 1    | Spark | 4      | —      | 5s       | 1s   | 5.5   | Arcane 1  |
 | 2    | Bolt  | 8      | —      | 7s       | 1.5s | 6.5   | Arcane 15 |
 | 3    | Lance | 12     | —      | 10s      | 2s   | 7.5   | Arcane 33 |
 
 They run beside the elemental rungs at the same cooldown, cast time and reach for
-four fifths of the damage, and they ask five Arcane less. Rung 3 is the exception:
+four fifths of the damage, and from rung 2 up they ask five Arcane less. Rung 3 is the exception:
 Lance hits harder than Rime, because Rime spends its damage on an area (below). **That difference is
 what an element buys, stated in the one place it can be read**: more damage and
 a status, for a second mastery and five more Arcane to be let near the stone.
 Pressing one trains Arcane alone, because the flat per-cast fee goes to Arcane
 and to each element the spell is *made of* — and this one is made of nothing.
 
-**The neutral rung one asks exactly what the `player` tile is seeded with**:
-Arcane 5 is what a new body is authored to start at, and Spark asks that and
-nothing else. It is not what "everybody can cast on their first day" rests on
-any more. Spark comes from the forge rather than the tutorial chest, and a death
-can take a new player below Arcane 5, so that promise is Light's, which asks
-`MIN_EARNED_MASTERY` (see *Light is beside the ladder too* below). The elemental
-rung beside Spark asks five more Arcane, so the first thing a new player casts
-is always a neutral stone, and casting it is how the Arcane to reach fire is
-earned.
+**The neutral rung one asks `MIN_EARNED_MASTERY` and nothing else**: a new
+body is authored at level 1 in every mastery, so Spark asks only what nobody can
+lose. The elemental rung beside it still asks Arcane 10, so the first thing a
+new player casts is always a neutral stone, and casting it is how the Arcane to
+reach fire is earned.
 
 The element half of an elemental rung is exactly the floor — one point of Fire,
 Water and Nature, which every player has — so what stands between a new player
@@ -6895,7 +6891,7 @@ cooks, burns whoever steps in it, and outlives every attack stone's cooldown. It
 is fire's utility, not fire's rung one; Cinder is that, so an arcanist has
 something to practise Fire *with*.
 
-**Light is beside the ladder too, below its foot.** It asks Arcane 1, which is
+**Light is beside the ladder too, at its foot.** It asks Arcane 1, which is
 `MIN_EARNED_MASTERY` and so a level no death can take, and puts `luminous` on
 the caster at Spark's cooldown and cast time. Pressing it pays only the flat
 practice fee, half a point, so it is no way to level: Arcane 5 to 10 is three
@@ -6904,7 +6900,7 @@ stone, at Spark's weight.
 
 **The tutorial gives Spark.** The quest chest just past the tutorial's portal
 holds it, with `rewardTag` `tutorial-spark-stone`; a death clears tags, so each
-life takes it once. Every life starts at the player tile's authored Arcane 5,
+life takes it once. Every life starts at the player tile's authored Arcane 1,
 which is Spark's requirement, so the stone works the moment it is taken, and a
 damage spell pays about a point per point of damage — roughly seventy-five
 Spark hits for the same three hundred points.
