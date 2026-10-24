@@ -786,6 +786,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     ...requirementsForSave(stone.requirements),
     ...(stone.reach ? { reach: reachForSave(stone.reach) } : {}),
     ...elementsForSave(stone.elements),
+    ...(stone.casterEffect ? { casterEffect: stone.casterEffect } : {}),
   };
 }
 
