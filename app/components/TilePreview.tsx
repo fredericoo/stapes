@@ -11,6 +11,8 @@ import type {
 } from "../lib/types";
 import { anchoredSprite, facingKeysFor, isDirectional } from "../lib/types";
 import { getFrames } from "../lib/tileResolve";
+import { humanSheetCanvas } from "../lib/humanSheets";
+import { dressHuman } from "../lib/humanSprite";
 
 type Props = {
   tile: TileDef | null;
@@ -92,9 +94,17 @@ export async function drawSprite(
     ctx.fillRect(0, 0, size, size);
     return;
   }
+  await drawFrom(ctx, loadImage(tilesetUrl(tileset.file)), sprite, size);
+}
 
+async function drawFrom(
+  ctx: CanvasRenderingContext2D,
+  source: Promise<CanvasImageSource>,
+  sprite: AnchoredSprite,
+  size: number,
+): Promise<void> {
   try {
-    const img = await loadImage(tilesetUrl(tileset.file));
+    const img = await source;
     const { rect } = sprite;
     const sx = rect.x * 8;
     const sy = rect.y * 8;
@@ -180,6 +190,7 @@ export function TilePreview({
     if (!canvas || !tile) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const human = dressHuman(tile);
 
     const dpr = Math.max(1, Math.round(window.devicePixelRatio || 1));
     canvas.width = size * dpr;
@@ -234,7 +245,12 @@ export function TilePreview({
         t -= f.durationMs;
       }
 
-      await drawSprite(ctx, anchoredSprite(tile.anchor, frame.sprite), tilesets, size);
+      if (human) {
+        const sprite = anchoredSprite(human.def.anchor, frame.sprite);
+        await drawFrom(ctx, humanSheetCanvas(human.look), sprite, size);
+      } else {
+        await drawSprite(ctx, anchoredSprite(tile.anchor, frame.sprite), tilesets, size);
+      }
       if (!alive) return;
 
       again();

@@ -5925,6 +5925,22 @@ part by blanking its block and dropping its entry instead.
 points at an empty block, so a new part is a block in the PNG plus one line
 in `HUMAN_PARTS`.
 
+**A tile with `human` is drawn from the parts, not from its anchor.** The
+tile editor's Human tab sets its skin, hair, head and the outfit it wears in
+an empty slot. The tile keeps its anchor and frames on the player's block in
+`people.png`, so picking, footprint and anything that reads the catalogue
+without composing keep working. Each renderer (`WorldRenderer`,
+`EditorRenderer`, `TilePreview`) draws from a copy of the catalogue in which a
+human tile's anchor points at a sheet composed for its look
+(`humanTextures.ts`, `dressHuman`). That copy must never be saved: it names a
+sheet that exists only in the tab. The copy is cached per catalogue object,
+because `WorldView` hands the renderer its catalogue every frame. A sheet is
+named after everything that draws it (`humanSheetId`), so tiles in the same
+look share one texture. Its tileset is registered only once the texture
+exists, so a human is invisible for that moment rather than magenta. A `human`
+that does not parse, or a tile whose frames reach outside one 48×64 block,
+draws from the anchor, and `bun run verify content` reports it.
+
 **A head is a few pixels with no outline**, the same on all three frames of a
 facing; the body's outline frames it. Facing south and east it shows the face,
 so a beard goes there, over the chin and the chest below it. Facing west and

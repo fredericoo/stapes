@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { HumanTextures } from "../render/humanTextures";
 import { tilesetUrl } from "../lib/api";
 import {
   absoluteElevation,
@@ -170,6 +171,15 @@ export class EditorRenderer {
   private tilesets: TilesetDef[] = [];
   private tilesetById = new Map<string, TilesetDef>();
   private tilesById: Record<string, TileDef> = {};
+  private humans = new HumanTextures((tileset, texture) => {
+    this.tilesetById.set(tileset.id, tileset);
+    this.textures.set(tileset.id, texture);
+    if (!this.assetsReady || this.disposed) return;
+    this.rebuildKey = "";
+    this.prevMap = null;
+    this.rebuildAll();
+    this.requestRender();
+  });
   private levelGroups = new Map<number, THREE.Group>();
   private levelTarget: THREE.WebGLRenderTarget | null = null;
   private compositeScene: THREE.Scene;
@@ -282,12 +292,13 @@ export class EditorRenderer {
   setAssets(tilesets: TilesetDef[], tilesById?: Record<string, TileDef>) {
     this.tilesets = tilesets;
     this.tilesetById = new Map(tilesets.map((t) => [t.id, t]));
-    if (tilesById) this.tilesById = tilesById;
+    for (const { tileset } of this.humans.ready()) this.tilesetById.set(tileset.id, tileset);
+    if (tilesById) this.tilesById = this.humans.dress(tilesById);
     this.assetsReady = false;
     void this.preloadTextures()
       .then(() => {
         if (this.disposed) return;
-        this.tilesById = useEditorStore.getState().tilesById;
+        this.tilesById = this.humans.dress(useEditorStore.getState().tilesById);
         this.rebuildKey = "";
         this.prevMap = null;
         this.rebuildAll();
@@ -391,6 +402,7 @@ export class EditorRenderer {
     this.palettePass.dispose();
     this.compositeMaterial.dispose();
     this.renderer.dispose();
+    this.humans.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();
     for (const tex of this.lightTextures.values()) tex.dispose();
@@ -623,7 +635,7 @@ export class EditorRenderer {
   private syncFromStore(forceRebuild = false) {
     if (this.disposed) return;
     const s = useEditorStore.getState();
-    this.tilesById = s.tilesById;
+    this.tilesById = this.humans.dress(s.tilesById);
     this.applyCamera(s.camera.x, s.camera.y, s.zoom);
     if (this.gridLevel !== s.currentLevel) {
       this.drawGrid(s.currentLevel);

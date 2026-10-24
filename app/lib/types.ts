@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import type { TileHuman } from "./humanSprite";
 import type { Element } from "./element";
 import type { TileInteractions } from "./interactions";
 import { particleEmitterSchema, type ParticleEmitterDef } from "./particleVfx";
@@ -177,6 +178,8 @@ export type TileDef = StateSprites & {
   particles?: ParticleEmitterDef;
   transitions?: TileTransitions;
   states?: Partial<Record<OverrideSpriteState, StateSprites>>;
+  /** Drawn from the human parts in this look instead of the anchor's sheet; see `humanSprite`. */
+  human?: TileHuman;
 };
 
 export function resolveWalkable(def: TileDef): boolean {

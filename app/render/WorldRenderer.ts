@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { HumanTextures } from "./humanTextures";
 import { tilesetUrl } from "../lib/api";
 import {
   absoluteElevation,
@@ -523,6 +524,14 @@ export class WorldRenderer {
   private tilesets: TilesetDef[] = [];
   private tilesetById = new Map<string, TilesetDef>();
   private tilesById: Record<string, TileDef> = {};
+  private humans = new HumanTextures((tileset, texture) => {
+    this.tilesetById.set(tileset.id, tileset);
+    this.textures.set(tileset.id, texture);
+    if (!this.assetsReady || this.disposed) return;
+    this.prevMap = null;
+    if (this.view) this.applyMap(this.view.map, this.cameraWindow(this.view), true);
+    this.needsRender = true;
+  });
   private levelGroups = new Map<number, THREE.Group>();
   private chunkGeometry = new Map<string, ChunkGeometry>();
   private meshedWindow: WorldRect | null = null;
@@ -650,7 +659,8 @@ export class WorldRenderer {
   setAssets(tilesets: TilesetDef[], tilesById?: Record<string, TileDef>) {
     this.tilesets = tilesets;
     this.tilesetById = new Map(tilesets.map((t) => [t.id, t]));
-    if (tilesById) this.tilesById = tilesById;
+    for (const { tileset } of this.humans.ready()) this.tilesetById.set(tileset.id, tileset);
+    if (tilesById) this.tilesById = this.humans.dress(tilesById);
     this.assetsReady = false;
     void this.preloadTextures().then(() => {
       if (this.disposed) return;
@@ -676,7 +686,7 @@ export class WorldRenderer {
 
   setView(view: WorldView) {
     this.view = view;
-    this.tilesById = view.tilesById;
+    this.tilesById = this.humans.dress(view.tilesById);
     this.spriteStates = view.spriteStates;
     this.ingestTransitions(view);
     this.applyCamera(view.camera.x, view.camera.y, view.zoom);
@@ -1181,6 +1191,7 @@ export class WorldRenderer {
     this.renderer.dispose();
     this.lightBaker?.dispose();
     this.lightBaker = null;
+    this.humans.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();
     for (const tex of this.lightTextures.values()) tex.dispose();

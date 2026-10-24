@@ -111,6 +111,24 @@ const FAULTS: {
     found: { severity: "error", file: "tiles.json", id: "rat", path: "interactions.battler" },
   },
   {
+    fault: "a human naming a head nobody drew",
+    seed: (c) => {
+      c.tiles.find((t) => t.id === "rat")!.human = { skin: "default", hair: "red", head: "mohawk" };
+    },
+    found: { severity: "error", file: "tiles.json", id: "rat", path: "human" },
+  },
+  {
+    fault: "a human on a tile whose frames are not one character block",
+    seed: (c) => {
+      c.tiles.find((t) => t.id === "rat")!.human = {
+        skin: "default",
+        hair: "red",
+        head: "short-hair",
+      };
+    },
+    found: { severity: "error", file: "tiles.json", id: "rat", path: "human" },
+  },
+  {
     fault: "a kit naming a tile nobody defines",
     seed: (c) => {
       battlerOf(c).kit[0].tileId = "loaf";
