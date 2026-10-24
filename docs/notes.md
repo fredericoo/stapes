@@ -5910,6 +5910,12 @@ empty block and the tool offers no hat. The page fetches them from
 shows on reload; a deployed world shows it only after a reseed. They are indexed with `people.png`'s palette and are not listed in
 `tilesets.json`, because no tile draws from them.
 
+**A head is a few pixels with no outline**, the same on all three frames of a
+facing; the body's outline frames it. Facing south and east it shows the face,
+so a beard goes there, over the chin and the chest below it. Facing west and
+north it shows the back of the head, so long hair falls down the back there and
+a beard does not show.
+
 **Skin and hair are colour swaps, not ramps.** The body and heads are drawn in
 the `default` skin shades `#6e2727 #cd683d #fbb954` and the heads' hair in the
 `red` shades `#ae2334 #e83b3b`; `SKIN_TONES` and `HAIR_COLOURS` map each of
