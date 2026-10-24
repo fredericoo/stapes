@@ -94,6 +94,7 @@ const NEIGHBOR_OFFSETS: { bit: number; dx: number; dy: number }[] = [
 export type AutotileIdentity = {
   id: string;
   connectsTo?: readonly string[];
+  rawMaskSlices?: boolean;
 };
 
 export function stackConnects(
@@ -129,7 +130,8 @@ export function resolveAutotileSlice(
   z: number,
   tile: AutotileIdentity,
 ): AutotileSlice {
-  return blobMaskToSlice(neighborMask(map, x, y, z, tile));
+  const mask = neighborMask(map, x, y, z, tile);
+  return tile.rawMaskSlices ? mask : blobMaskToSlice(mask);
 }
 
 export function pickAutotileSprite(

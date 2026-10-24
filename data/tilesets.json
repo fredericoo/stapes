@@ -133,6 +133,13 @@
     "height": 48
   },
   {
+    "id": "grass",
+    "name": "Grass",
+    "file": "grass.png",
+    "width": 8,
+    "height": 2048
+  },
+  {
     "id": "spell-projectiles",
     "name": "Spell Projectiles",
     "file": "spell-projectiles.png",

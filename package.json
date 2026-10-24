@@ -17,6 +17,7 @@
     "generate:respawn": "bun scripts/generate-respawn-tileset.ts",
     "generate:spell-projectiles": "bun scripts/generate-spell-projectiles.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
+    "generate:grass": "bun scripts/generate-grass-tileset.ts",
     "generate:low-roofs": "bun scripts/generate-low-roofs.ts",
     "generate:cave-wall": "bun scripts/generate-cave-wall-tileset.ts",
     "generate:masonry": "bun scripts/generate-masonry-tileset.ts",

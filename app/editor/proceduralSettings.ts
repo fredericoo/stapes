@@ -58,11 +58,12 @@ export const DEFAULT_FOREST_CONFIG: ForestConfig = {
   generator: "forest",
   seed: 0xf07e57,
   density: 55,
-  groundTileId: "grass-2",
+  groundTileId: "dirt",
+  coverTileId: "grass-2",
   treeTileId: "tree",
   paths: 1,
   pathWidth: 2,
-  pathTileId: "dirt",
+  pathTileId: null,
   waterTileId: null,
   waterCoverage: 8,
   scatter: [{ tileId: "small-bush", chancePercent: 4 }],
@@ -138,6 +139,7 @@ const ForestConfigSchema = v.object({
     v.maxValue(FOREST_DENSITY_RANGE.max),
   ),
   groundTileId: v.string(),
+  coverTileId: v.optional(v.nullable(v.string()), null),
   treeTileId: v.string(),
   paths: v.pipe(
     v.number(),
@@ -193,6 +195,7 @@ function readForest(raw: unknown, known: KnownTileId): ForestConfig {
   }
   return {
     ...config,
+    coverTileId: keptOptionalTile(config.coverTileId, known),
     pathTileId: keptOptionalTile(config.pathTileId, known),
     waterTileId: keptOptionalTile(config.waterTileId, known),
     scatter: config.scatter.filter((rule) => known(rule.tileId)),

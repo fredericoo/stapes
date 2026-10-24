@@ -812,7 +812,7 @@ function writeSystem(carved: Carved) {
     const ground = getStack(0, x, y).filter(
       (t) => t.tileId === "grass" || t.tileId === "grass-2" || t.tileId === "dirt",
     );
-    return ground.length ? ground : [{ tileId: "grass-2" }];
+    return ground.length ? ground : [{ tileId: "dirt" }, { tileId: "grass-2" }];
   };
   const approach = {
     x: SYSTEM.mouth.x - STEP[SYSTEM.mouthDescent].x,

@@ -119,10 +119,9 @@ function onPerimeter(x: number, y: number, r: Rect): boolean {
 function layGround(levels: Map<number, Cells>) {
   for (let y = -TOWN_HALF_SPAN; y <= TOWN_HALF_SPAN; y++) {
     for (let x = -TOWN_HALF_SPAN; x <= TOWN_HALF_SPAN; x++) {
-      put(levels, x, y, 0, { tileId: "grass-2" });
-      if (isStreet(x, y) || contains(SQUARE, x, y)) {
-        put(levels, x, y, 0, { tileId: "cobblestone" });
-      }
+      put(levels, x, y, 0, { tileId: "dirt" });
+      const paved = isStreet(x, y) || contains(SQUARE, x, y);
+      put(levels, x, y, 0, { tileId: paved ? "cobblestone" : "grass-2" });
     }
   }
 }
@@ -237,7 +236,6 @@ function layPond(levels: Map<number, Cells>) {
       const dx = (x - cx) / rx;
       const dy = (y - cy) / ry;
       if (dx * dx + dy * dy > 1) continue;
-      put(levels, x, y, 0, { tileId: "dirt" });
       put(levels, x, y, 0, { tileId: "water" });
     }
   }

@@ -28,11 +28,12 @@ const BASE: ForestConfig = {
   generator: "forest",
   seed: 8181,
   density: 55,
-  groundTileId: "grass-2",
+  groundTileId: "dirt",
+  coverTileId: "grass-2",
   treeTileId: "tree",
   paths: 1,
   pathWidth: 2,
-  pathTileId: "dirt",
+  pathTileId: null,
   waterTileId: null,
   waterCoverage: 0,
   scatter: [],
@@ -257,7 +258,7 @@ describe("planForest", () => {
     const map = build(RECT);
     let cells = 0;
     eachCell(RECT, (x, y) => {
-      expect(ids(map, x, y)[0]).toBe("grass-2");
+      expect(ids(map, x, y)[0]).toBe("dirt");
       cells++;
     });
     expect(cells).toBe((RECT.x1 - RECT.x0 + 1) * (RECT.y1 - RECT.y0 + 1));
@@ -269,20 +270,34 @@ describe("planForest", () => {
     let floored = 0;
     eachCell(RECT, (x, y) => {
       if (!path.has(gridIndex(grid, x, y))) return;
-      expect(ids(map, x, y).slice(0, 2)).toEqual(["grass-2", "cobblestone"]);
+      expect(ids(map, x, y).slice(0, 2)).toEqual(["dirt", "cobblestone"]);
       floored++;
     });
     expect(floored).toBeGreaterThan(0);
   });
 
-  it("leaves the path as a clearing when it is given no tile", () => {
+  it("leaves the path as bare ground when it is given no tile", () => {
     const map = build(RECT, { pathTileId: null });
     const { path, grid } = growForest(BOUNDS, BASE);
     for (const i of path) {
       const x = (i % grid.width) + grid.minX;
       const y = Math.floor(i / grid.width) + grid.minY;
-      expect(ids(map, x, y)).toEqual(["grass-2"]);
+      expect(ids(map, x, y)).toEqual(["dirt"]);
     }
+  });
+
+  it("covers the ground everywhere but the paths and the water", () => {
+    const config = { ...BASE, waterTileId: "water", waterCoverage: 25 };
+    const map = build(RECT, config);
+    const { path, grid } = growForest(BOUNDS, config);
+    let covered = 0;
+    eachCell(RECT, (x, y) => {
+      const stack = ids(map, x, y);
+      const bare = path.has(gridIndex(grid, x, y)) || stack.includes("water");
+      expect(stack[1] === "grass-2").toBe(!bare);
+      if (!bare) covered++;
+    });
+    expect(covered).toBeGreaterThan(0);
   });
 
   it("never puts a tree on a path", () => {

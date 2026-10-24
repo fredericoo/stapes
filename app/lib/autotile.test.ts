@@ -15,6 +15,8 @@ import {
   N,
   NE,
   E,
+  SW,
+  W,
 } from "./autotile";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, spriteRect } from "./types";
@@ -76,6 +78,16 @@ describe("neighbor matching", () => {
       { x: 1, y: 0, tileId: "g" },
     ]);
     expect(resolveAutotileSlice(map, 0, 0, 0, { id: "g" })).toBe(blobMaskToSlice(N | E));
+  });
+
+  it("keeps the diagonal beside an open side when slices are keyed on the raw mask", () => {
+    const map = mapWith([
+      { x: 0, y: 0, tileId: "g" },
+      { x: -1, y: 0, tileId: "g" },
+      { x: -1, y: 1, tileId: "g" },
+    ]);
+    expect(resolveAutotileSlice(map, 0, 0, 0, { id: "g" })).toBe(blobMaskToSlice(W));
+    expect(resolveAutotileSlice(map, 0, 0, 0, { id: "g", rawMaskSlices: true })).toBe(W | SW);
   });
 
   it("counts a connectsTo neighbour as itself", () => {
