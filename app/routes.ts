@@ -23,7 +23,7 @@ export default [
     route("play", "routes/admin/play.tsx"),
     route("arena", "routes/admin/arena.tsx"),
     route("voxel", "routes/admin/voxel.tsx"),
-    route("townsfolk", "routes/admin/townsfolk.tsx"),
+    route("npcs", "routes/admin/npcs.tsx"),
     route("actions", "routes/admin/actions.tsx"),
     route("feedback", "routes/admin/feedback.tsx"),
     route("players", "routes/admin/players.tsx"),
