@@ -83,7 +83,8 @@ export type BrainConditionDef =
   | { cond: "status"; id: string; atLeastMs?: number }
   | { cond: "health"; atMostPercent: number }
   | { cond: "time_of_day"; fromHour: number; toHour: number }
-  | { cond: "below_level"; level: number };
+  | { cond: "below_level"; level: number }
+  | { cond: "rated_below"; of: Selector; rating: number };
 
 export type BrainCondition = ConditionNode<BrainConditionDef>;
 
@@ -219,6 +220,11 @@ const leafSchema = v.variant("cond", [
   }),
   v.object({ cond: v.literal("time_of_day"), fromHour: hourOfDay, toHour: hourOfDay }),
   v.object({ cond: v.literal("below_level"), level: v.pipe(v.number(), v.integer()) }),
+  v.object({
+    cond: v.literal("rated_below"),
+    of: selectorSchema,
+    rating: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  }),
 ]);
 
 const ifSchema = conditionSchema<BrainConditionDef>(leafSchema);
