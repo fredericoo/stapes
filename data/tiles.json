@@ -14123,10 +14123,7 @@
     "human": {
       "skin": "default",
       "hair": "red",
-      "head": "short-hair",
-      "outfit": {
-        "clothes": "white-tunic"
-      }
+      "head": "short-hair"
     }
   },
   {

@@ -5975,10 +5975,13 @@ name when it seats the player (`appearanceOf`), the session carries it on the
 actor, and it reaches other clients as an `appearances` list sent the way
 `names` are: in `hello` and for arrivals, never diffed, because it cannot
 change during a life. `WornLooks` lays it over the player tile's own `human`,
-whose look (red short hair, white tunic) is what a character without one
-wears. The creation preview dresses the look in `STARTING_OUTFIT` in
-`CharacterLookField.tsx`, which is kept equal to the player tile's outfit by
-hand.
+whose look (red short hair) is what a character without one wears. The player
+tile has no outfit of its own, so a player is drawn in exactly what they have
+equipped and a slot they empty shows bare. Portraits draw the tile, not the
+actor, so a player's icon in the panels shows that bare body. The
+creation preview dresses the look in `STARTING_OUTFIT` in
+`CharacterLookField.tsx`, the part the starting kit's Cloth Tunic is drawn as,
+kept equal to the player tile's kit by hand.
 
 **A head is a few pixels with no outline**, the same on all three frames of a
 facing; the body's outline frames it. Facing south and east it shows the face,
