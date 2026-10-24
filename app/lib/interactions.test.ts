@@ -306,6 +306,14 @@ describe("interactionsForSave", () => {
     ).toMatchObject({ casterEffect: CASTER_EFFECT });
   });
 
+  it("keeps the part a piece of armour is drawn as", () => {
+    expect(
+      interactionsForSave({
+        item: { type: "armor", slot: "head", def: 2, humanPart: "iron-helmet" },
+      })?.item,
+    ).toMatchObject({ humanPart: "iron-helmet" });
+  });
+
   it("keeps the tile a reward is drawn as once claimed", () => {
     expect(
       interactionsForSave({ reward: { actionName: "Open", claimedTileId: " chest-open " } })
