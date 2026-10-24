@@ -5967,10 +5967,10 @@ because the renderer rebuilds every chunk whose identity changes. The tile's
 own outfit is what shows in a slot with nothing worn, and it is all a
 portrait shows, because `TilePreview` draws the tile, not the actor.
 
-**A player chooses their skin, hair and head when they make a character.**
-`/characters/new` sends it with the name, the API refuses one `readAppearance`
-cannot read, and it is stored as JSON in `character.appearance`, null for
-characters made before it existed and for guests. The server reads it with the
+**A player chooses their skin, hair and head when they make a character**, and
+never again: you are what you made. `/characters/new` and `/guest` send it with
+the name, the API refuses one `readAppearance` cannot read, and it is stored as
+JSON in `character.appearance`, null for characters made before it existed. The server reads it with the
 name when it seats the player (`appearanceOf`), the session carries it on the
 actor, and it reaches other clients as an `appearances` list sent the way
 `names` are: in `hello` and for arrivals, never diffed, because it cannot

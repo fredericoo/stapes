@@ -155,6 +155,26 @@ describe("playing as a guest", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
+  it("keeps the look the guest chose for their character", async () => {
+    const look = { skin: "brown", hair: "green", head: "bald" } as const;
+
+    const response = await call("/guest", { name: "Maren Ormstead", appearance: look });
+
+    const [character] = (await me(sessionOf(response))).characters;
+    expect(await world.characters.appearanceOf(character!.id)).toEqual(look);
+  });
+
+  it("refuses a look the game cannot draw, and signs nobody in", async () => {
+    const response = await call("/guest", {
+      name: "Maren Ormstead",
+      appearance: { skin: "brown", hair: "green", head: "antlers" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(await world.characters.nameTaken("Maren Ormstead")).toBe(false);
+  });
+
   it("cannot be started without a character", async () => {
     const response = await call("/auth/sign-in/anonymous", {});
     expect(response.status).toBe(404);

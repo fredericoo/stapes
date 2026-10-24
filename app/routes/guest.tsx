@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { redirect, useNavigate } from "react-router";
+import { CharacterLookField, randomAppearance } from "../components/CharacterLookField";
 import { CharacterNameField } from "../components/CharacterNameField";
+import type { HumanAppearance } from "../lib/humanSprite";
 import { Door, DoorButton, DoorError, DoorNote, DoorTitle, SYSTEM_MONO } from "../components/door";
 import { MAX_CHARACTER_NAME_LENGTH, characterNameProblem } from "../lib/characterName";
 import { fetchMe, startGuest } from "../lib/auth";
@@ -15,6 +17,7 @@ export async function clientLoader() {
 export default function GuestPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
+  const [appearance, setAppearance] = useState<HumanAppearance>(randomAppearance);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +26,7 @@ export default function GuestPage() {
   const submit = async () => {
     setBusy(true);
     setError(null);
-    const started = await startGuest(name);
+    const started = await startGuest(name, appearance);
     setBusy(false);
     if (!started.ok) {
       setError(started.error);
@@ -44,6 +47,7 @@ export default function GuestPage() {
         }}
       >
         <CharacterNameField value={name} disabled={busy} onChange={setName} />
+        <CharacterLookField value={appearance} disabled={busy} onChange={setAppearance} />
         <DoorButton type="submit" disabled={busy || !name || typedProblem !== null}>
           {busy ? "Just a moment…" : "Play"}
         </DoorButton>

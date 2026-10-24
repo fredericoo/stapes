@@ -59,8 +59,11 @@ export function signUp(
   return post("/api/account", { username, email, password });
 }
 
-export async function startGuest(name: string): Promise<Attempt<Character>> {
-  const started = await post<{ character: Character }>("/api/guest", { name });
+export async function startGuest(
+  name: string,
+  appearance?: HumanAppearance,
+): Promise<Attempt<Character>> {
+  const started = await post<{ character: Character }>("/api/guest", { name, appearance });
   return started.ok ? { ok: true, value: started.value.character } : started;
 }
 

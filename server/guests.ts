@@ -1,3 +1,4 @@
+import type { HumanAppearance } from "../app/lib/humanSprite";
 import { characterNameProblem, normaliseCharacterName } from "../app/lib/characterName";
 import type { Auth, Viewer } from "./auth";
 import type { Character, Characters } from "./characters";
@@ -12,6 +13,7 @@ export async function startGuest(
   auth: Auth,
   characters: Characters,
   typed: string,
+  appearance: HumanAppearance | null = null,
 ): Promise<{ character: Character; headers: Headers } | Refused> {
   const problem = characterNameProblem(typed);
   if (problem) return { error: problem };
@@ -21,7 +23,7 @@ export async function startGuest(
 
   const signedIn = await auth.api.signInAnonymous({ returnHeaders: true });
   const userId = signedIn.response.user.id;
-  const made = await characters.create(userId, typed);
+  const made = await characters.create(userId, typed, appearance);
   if ("error" in made) {
     const context = await auth.$context;
     await context.internalAdapter.deleteUser(userId);
