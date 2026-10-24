@@ -1,5 +1,5 @@
 import type { GameSocket, WorldContext } from "./sockets";
-import { BARE, isBare, outfitKey } from "../app/lib/humanSprite";
+import { BARE, isBare, outfitKey, type HumanAppearance } from "../app/lib/humanSprite";
 import * as v from "valibot";
 import {
   GameSession,
@@ -77,6 +77,7 @@ import {
   MAX_STEPS_AHEAD,
   parseClientMessage,
   type ClientMessage,
+  type AppearancePatch,
   type CarriedLightsPatch,
   type OutfitPatch,
   type AfflictedPatch,
@@ -94,7 +95,7 @@ import {
 
 type TickPatch = Omit<Extract<ServerMessage, { type: "patch" }>, "type">;
 
-type SharedPatch = Omit<TickPatch, "cells" | "names"> & { cells: ScopedCell[] };
+type SharedPatch = Omit<TickPatch, "cells" | "names" | "appearances"> & { cells: ScopedCell[] };
 
 const [GROUND_ONLY_HEAD, GROUND_ONLY_TAIL] = (() => {
   const empty: Extract<ServerMessage, { type: "patch" }> = {
@@ -103,6 +104,7 @@ const [GROUND_ONLY_HEAD, GROUND_ONLY_TAIL] = (() => {
     events: [],
     hps: [],
     names: [],
+    appearances: [],
     carriedLights: [],
     outfits: [],
     statusIds: [],
@@ -145,12 +147,13 @@ function wholePatch(patch: SharedPatch): TickPatch {
   return {
     ...patch,
     names: [],
+    appearances: [],
     cells: patch.cells.map((scoped) => scoped.cell),
   };
 }
 
 function isEmptyPatch(
-  patch: Omit<TickPatch, "cells" | "names"> & { cells: readonly unknown[] },
+  patch: Omit<TickPatch, "cells" | "names" | "appearances"> & { cells: readonly unknown[] },
 ): boolean {
   return (
     patch.cells.length === 0 &&
@@ -227,6 +230,15 @@ function currentNames(actors: ActorSnapshot[]): NamePatch[] {
   for (const actor of actors) {
     if (actor.name === null) continue;
     out.push({ actorId: actor.id, name: actor.name });
+  }
+  return out;
+}
+
+function currentAppearances(actors: ActorSnapshot[]): AppearancePatch[] {
+  const out: AppearancePatch[] = [];
+  for (const actor of actors) {
+    if (actor.appearance === null) continue;
+    out.push({ actorId: actor.id, appearance: actor.appearance });
   }
   return out;
 }
@@ -674,6 +686,7 @@ type Cut = {
   cells: Array<number | CellPatch>;
   events: Array<number | MotionEvent>;
   names: NamePatch[];
+  appearances: AppearancePatch[];
 } & { [L in EntryList]: Array<number | SharedPatch[L][number]> };
 
 function listJson<T>(parts: ReadonlyArray<number | T>, shared: Fragments<T>): string {
@@ -710,6 +723,7 @@ function serializeCut(cut: Cut, frame: TickFrame): string {
     `,"events":${listJson(cut.events, json.events)}` +
     `,"hps":${listJson(cut.hps, json.hps)}` +
     `,"names":${JSON.stringify(cut.names)}` +
+    `,"appearances":${JSON.stringify(cut.appearances)}` +
     `,"carriedLights":${listJson(cut.carriedLights, json.carriedLights)}` +
     `,"outfits":${listJson(cut.outfits, json.outfits)}` +
     `,"statusIds":${listJson(cut.statusIds, json.statusIds)}` +
@@ -724,6 +738,7 @@ function emptyCut(): Cut {
     cells: [],
     events: [],
     names: [],
+    appearances: [],
     hps: [],
     carriedLights: [],
     outfits: [],
@@ -748,6 +763,7 @@ export class GameServer {
     protected readonly env: {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
+      appearanceOf?: (actorId: string) => Promise<HumanAppearance | null>;
       deathsOf?: (actorId: string) => Promise<number>;
       maxOnlinePlayers?: number;
       manualTicks?: { startAtMs: number };
@@ -1646,6 +1662,7 @@ export class GameServer {
       actorIds: actors.map((actor) => actor.id),
       hps: currentHps(actors),
       names: currentNames(actors),
+      appearances: currentAppearances(actors),
       carriedLights: currentCarriedLights(actors),
       outfits: currentOutfits(actors),
       statusIds: currentStatusIds(actors),
@@ -2692,6 +2709,7 @@ export class GameServer {
     await this.seatDepots(actorId);
     this.session!.spawn(actorId, {
       name: await this.displayNameOf(actorId),
+      appearance: (await this.env.appearanceOf?.(actorId)) ?? null,
       ...restored,
     });
     this.collectTransitionEvents(this.session!);
@@ -3445,6 +3463,7 @@ export class GameServer {
     ];
     cut.hps = [...currentHps(arrivals), ...cut.hps];
     cut.names = currentNames(arrivals);
+    cut.appearances = currentAppearances(arrivals);
     cut.carriedLights = [...currentCarriedLights(arrivals), ...cut.carriedLights];
     cut.outfits = [...currentOutfits(arrivals), ...cut.outfits];
     cut.statusIds = [...currentStatusIds(arrivals), ...cut.statusIds];

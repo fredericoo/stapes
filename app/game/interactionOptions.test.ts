@@ -241,6 +241,7 @@ function actor(
     statuses: [],
     carriedLights: [],
     outfit: {},
+    appearance: null,
     extracting: null,
     casting: null,
     pvp,

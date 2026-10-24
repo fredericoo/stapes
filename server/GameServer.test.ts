@@ -213,8 +213,10 @@ async function waitForCheckpointedAt(actorId: string, cell: string): Promise<voi
 
 const NAMES = { alice: "Alice", bob: "Bob" } as const;
 
+const ALICE_LOOK = { skin: "pale", hair: "blue", head: "long-hair" } as const;
+
 beforeEach(async () => {
-  harness = await Harness.create(NAMES);
+  harness = await Harness.create(NAMES, { appearances: { alice: ALICE_LOOK } });
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
   await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
@@ -4492,6 +4494,13 @@ describe("what each client is told has changed", () => {
       ...((message.carriedLights ?? []) as Array<{ actorId: string }>),
     ]);
     expect(about.filter((entry) => entry.actorId === "bob")).toEqual([]);
+  });
+
+  it("tells a player arriving how the others there chose to look", async () => {
+    await connect("alice");
+    const bob = await connect("bob");
+
+    expect(bob.hello.appearances).toEqual([{ actorId: "alice", appearance: ALICE_LOOK }]);
   });
 
   it("tells everyone nearby the part a player's new helmet is drawn as", async () => {

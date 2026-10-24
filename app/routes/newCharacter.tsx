@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { redirect, useNavigate } from "react-router";
+import { CharacterLookField, randomAppearance } from "../components/CharacterLookField";
 import { CharacterNameField } from "../components/CharacterNameField";
+import type { HumanAppearance } from "../lib/humanSprite";
 import { Door, DoorButton, DoorError, DoorNote, DoorTitle } from "../components/door";
 import {
   MAX_CHARACTERS_PER_ACCOUNT,
@@ -22,6 +24,7 @@ export async function clientLoader() {
 export default function NewCharacterPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
+  const [appearance, setAppearance] = useState<HumanAppearance>(randomAppearance);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +33,7 @@ export default function NewCharacterPage() {
   const submit = async () => {
     setBusy(true);
     setError(null);
-    const made = await createCharacter(name);
+    const made = await createCharacter(name, appearance);
     setBusy(false);
     if (!made.ok) {
       setError(made.error);
@@ -51,6 +54,7 @@ export default function NewCharacterPage() {
         }}
       >
         <CharacterNameField value={name} disabled={busy} onChange={setName} />
+        <CharacterLookField value={appearance} disabled={busy} onChange={setAppearance} />
         <DoorButton type="submit" disabled={busy || !name || typedProblem !== null}>
           {busy ? "Just a moment…" : "Create and enter"}
         </DoorButton>

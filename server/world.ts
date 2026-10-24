@@ -80,6 +80,7 @@ export class World {
     const server = new GameServer(context, {
       dataStore: new DataStore(blobs),
       nameOf: (actorId) => characters.nameOf(actorId),
+      appearanceOf: (actorId) => characters.appearanceOf(actorId),
       deathsOf: (actorId) => deaths.countOf(actorId),
     });
     const world = new World(

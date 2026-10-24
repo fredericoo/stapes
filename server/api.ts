@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 import { flattenMap, parseMap, serializeMap } from "../app/lib/mapData";
 import { readPngSize } from "../app/lib/png";
+import { readAppearance } from "../app/lib/humanSprite";
 import { untar } from "./untar";
 import { PROTOCOL_VERSION } from "../app/net/protocol";
 import { viewerOf, type Viewer } from "./auth";
@@ -117,11 +118,15 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         if (viewer.guest) {
           return status(403, "A guest plays one character. Save it to an account to make more.");
         }
-        const made = await world.characters.create(viewer.id, body.name);
+        const appearance = body.appearance === undefined ? null : readAppearance(body.appearance);
+        if (body.appearance !== undefined && !appearance) {
+          return status(400, "That look isn't one the game can draw.");
+        }
+        const made = await world.characters.create(viewer.id, body.name, appearance);
         if ("error" in made) return status(400, made.error);
         return { character: made.character };
       },
-      { body: t.Object({ name: t.String() }) },
+      { body: t.Object({ name: t.String(), appearance: t.Optional(t.Unknown()) }) },
     )
 
     .post(

@@ -7,7 +7,7 @@ import {
   type Transition,
   type TransitionSide,
 } from "../lib/tileTransition";
-import type { Outfit } from "../lib/humanSprite";
+import type { HumanAppearance, Outfit } from "../lib/humanSprite";
 import { absoluteElevation } from "../lib/geometry";
 import {
   absoluteStandingElevation,
@@ -500,6 +500,8 @@ export type ActorSnapshot = {
   carriedLights: string[];
   /** The parts a human actor's worn armour is drawn as; see `wornOutfit`. */
   outfit: Outfit;
+  /** A player's chosen skin, hair and head, over their tile's own; null draws the tile's. */
+  appearance: HumanAppearance | null;
   extracting: ExtractionProgress | null;
   casting: CastProgress | null;
   pvp: boolean;
@@ -718,6 +720,7 @@ type ActorRuntime = {
   equipment: Equipment;
   carriedLights: string[];
   outfit: Outfit;
+  appearance: HumanAppearance | null;
   tags: readonly string[];
   masteryXp: MasteryXp | null;
   extraction: ExtractionRun | null;
@@ -977,6 +980,7 @@ export class GameSession implements PlaySession {
     opts: {
       resident?: boolean;
       name?: string | null;
+      appearance?: HumanAppearance | null;
       bodyTileId?: string;
       carrying?: Equipment;
       tagged?: readonly string[];
@@ -999,6 +1003,7 @@ export class GameSession implements PlaySession {
       charmClock: null,
       carriedLights: carriedLightTileIds(equipment, this.tilesById),
       outfit: wornOutfit(equipment, this.tilesById),
+      appearance: opts.appearance ?? null,
       tags: opts.tagged ?? NO_TAGS,
       masteryXp: resident || !hasExperience(opts.earned) ? null : opts.earned,
       earnedBody: null,
@@ -1053,6 +1058,7 @@ export class GameSession implements PlaySession {
     id: string,
     restored: {
       name?: string | null;
+      appearance?: HumanAppearance | null;
       at?: Coord & { direction?: Direction };
       carrying?: Equipment;
       tagged?: readonly string[];
@@ -5869,6 +5875,7 @@ export class GameSession implements PlaySession {
       statuses: actor.statuses,
       carriedLights: actor.carriedLights,
       outfit: actor.outfit,
+      appearance: actor.appearance,
       extracting: actor.extraction?.progress ?? null,
       casting: actor.casting?.progress ?? null,
       pvp: actor.pvp,
