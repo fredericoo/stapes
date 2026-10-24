@@ -25968,7 +25968,8 @@
     "interactions": {
       "item": {
         "type": "armor",
-        "def": 1
+        "def": 1,
+        "humanPart": "white-tunic"
       }
     },
     "sprite": {
@@ -26015,7 +26016,8 @@
         },
         "requirements": {
           "toughness": 5
-        }
+        },
+        "humanPart": "grey-tunic"
       }
     },
     "sprite": {
@@ -26063,7 +26065,8 @@
         },
         "requirements": {
           "agility": 10
-        }
+        },
+        "humanPart": "brown-tunic"
       }
     },
     "sprite": {
@@ -26110,7 +26113,8 @@
         },
         "requirements": {
           "arcane": 10
-        }
+        },
+        "humanPart": "purple-robe"
       }
     },
     "sprite": {
@@ -26157,7 +26161,8 @@
         },
         "requirements": {
           "toughness": 12
-        }
+        },
+        "humanPart": "steel-mail"
       }
     },
     "sprite": {
@@ -26205,7 +26210,8 @@
         },
         "requirements": {
           "toughness": 20
-        }
+        },
+        "humanPart": "steel-mail"
       }
     },
     "sprite": {
@@ -26253,7 +26259,8 @@
         },
         "elements": [
           "fire"
-        ]
+        ],
+        "humanPart": "red-top-grey-trousers"
       }
     },
     "sprite": {
@@ -26301,7 +26308,8 @@
         },
         "elements": [
           "nature"
-        ]
+        ],
+        "humanPart": "green-tunic"
       }
     },
     "sprite": {
@@ -26395,7 +26403,8 @@
         "def": 1,
         "requirements": {
           "agility": 3
-        }
+        },
+        "humanPart": "leather-cap"
       }
     },
     "sprite": {
@@ -26443,7 +26452,8 @@
         },
         "requirements": {
           "toughness": 8
-        }
+        },
+        "humanPart": "iron-helmet"
       }
     },
     "sprite": {
@@ -26491,7 +26501,8 @@
         },
         "requirements": {
           "toughness": 15
-        }
+        },
+        "humanPart": "iron-helmet"
       }
     },
     "sprite": {
@@ -26533,7 +26544,8 @@
       "item": {
         "type": "armor",
         "slot": "footwear",
-        "def": 1
+        "def": 1,
+        "humanPart": "brown-boots"
       }
     },
     "sprite": {
@@ -26581,7 +26593,8 @@
         },
         "requirements": {
           "toughness": 5
-        }
+        },
+        "humanPart": "dark-boots"
       }
     },
     "sprite": {
@@ -26629,7 +26642,8 @@
         },
         "requirements": {
           "toughness": 12
-        }
+        },
+        "humanPart": "grey-boots"
       }
     },
     "sprite": {
