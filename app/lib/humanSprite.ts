@@ -1,4 +1,15 @@
 import * as v from "valibot";
+import {
+  LAYERS,
+  humanPart,
+  idsOn,
+  partOnSchema,
+  type HumanPartId,
+  type LayerId,
+  type PartOn,
+  type Recolouring,
+  type WornLayer,
+} from "./humanParts";
 import { CELL_SIZE, type Direction, type TileDef } from "./types";
 
 export const SHEET_FACINGS: readonly Direction[] = ["s", "e", "w", "n"];
@@ -11,34 +22,6 @@ const RGBA_CHANNELS = 4;
 const ALPHA_OFFSET = 3;
 
 export type Rgba = { width: number; height: number; data: Uint8ClampedArray<ArrayBuffer> };
-
-export type Recolouring = "skin" | "hair";
-
-/**
- * The layers of a human, bottom to top. Each file holds any number of 48×64
- * variants, laid out in a grid and read left to right, top to bottom.
- */
-export const LAYERS = [
-  { id: "base", label: "Body", file: "human_base.png", optional: false, recolour: ["skin"] },
-  { id: "shoes", label: "Shoes", file: "human_shoes.png", optional: true, recolour: [] },
-  { id: "clothes", label: "Clothes", file: "human_clothes.png", optional: true, recolour: [] },
-  {
-    id: "head",
-    label: "Head",
-    file: "human_heads.png",
-    optional: false,
-    recolour: ["skin", "hair"],
-  },
-  { id: "hat", label: "Hat", file: "human_hats.png", optional: true, recolour: [] },
-] as const satisfies readonly {
-  id: string;
-  label: string;
-  file: string;
-  optional: boolean;
-  recolour: readonly Recolouring[];
-}[];
-
-export type LayerId = (typeof LAYERS)[number]["id"];
 
 /** Shadow, base and highlight, in the shades the parts are drawn with under `default`. */
 export const SKIN_TONES = {
@@ -69,12 +52,12 @@ export const SKIN_TONE_NAMES = Object.keys(SKIN_TONES) as SkinTone[];
 export const HAIR_COLOUR_NAMES = Object.keys(HAIR_COLOURS) as HairColour[];
 
 export const humanLookSchema = v.object({
-  variants: v.object({
-    base: v.number(),
-    shoes: v.nullable(v.number()),
-    clothes: v.nullable(v.number()),
-    head: v.number(),
-    hat: v.nullable(v.number()),
+  parts: v.object({
+    base: partOnSchema("base"),
+    shoes: v.nullable(partOnSchema("shoes")),
+    clothes: v.nullable(partOnSchema("clothes")),
+    head: partOnSchema("head"),
+    hat: v.nullable(partOnSchema("hat")),
   }),
   skin: v.picklist(SKIN_TONE_NAMES),
   hair: v.picklist(HAIR_COLOUR_NAMES),
@@ -83,12 +66,47 @@ export const humanLookSchema = v.object({
 export type HumanLook = v.InferOutput<typeof humanLookSchema>;
 
 export const DEFAULT_LOOK: HumanLook = {
-  variants: { base: 0, shoes: 0, clothes: 0, head: 0, hat: null },
+  parts: {
+    base: "body",
+    shoes: "dark-boots",
+    clothes: "white-tunic",
+    head: "short-hair",
+    hat: null,
+  },
   skin: "default",
   hair: "red",
 };
 
-export type PartVariants = Record<LayerId, Rgba[]>;
+/** What a human is born with: chosen once, on a tile or a character. */
+export type HumanAppearance = { skin: SkinTone; hair: HairColour; head: PartOn<"head"> };
+
+/** One part per worn layer; a layer left out is bare. */
+export type Outfit = { [L in WornLayer]?: PartOn<L> };
+
+/**
+ * A human's look: each worn layer is what they have equipped there, or the
+ * outfit they fall back on when that slot is empty.
+ */
+export function resolveHumanLook(
+  appearance: HumanAppearance,
+  fallback: Outfit = {},
+  worn: Outfit = {},
+): HumanLook {
+  return {
+    parts: {
+      base: "body",
+      shoes: worn.shoes ?? fallback.shoes ?? null,
+      clothes: worn.clothes ?? fallback.clothes ?? null,
+      head: appearance.head,
+      hat: worn.hat ?? fallback.hat ?? null,
+    },
+    skin: appearance.skin,
+    hair: appearance.hair,
+  };
+}
+
+/** Every 48×64 block of each layer's file, in the reading order `HUMAN_PARTS` counts in. */
+export type LayerBlocks = Record<LayerId, Rgba[]>;
 
 function hexKey(hex: string): number {
   return Number.parseInt(hex.slice(1), 16);
@@ -100,13 +118,6 @@ function pixelKey(data: Uint8ClampedArray, i: number): number {
 
 function swapsBetween(from: readonly string[], to: readonly string[]): Map<number, number> {
   return new Map(from.map((hex, i) => [hexKey(hex), hexKey(to[i]!)]));
-}
-
-function isBlank(block: Rgba): boolean {
-  for (let i = ALPHA_OFFSET; i < block.data.length; i += RGBA_CHANNELS) {
-    if (block.data[i] !== 0) return false;
-  }
-  return true;
 }
 
 function cropBlock(image: Rgba, left: number, top: number): Rgba {
@@ -121,16 +132,15 @@ function cropBlock(image: Rgba, left: number, top: number): Rgba {
   return { width: SHEET_WIDTH_PX, height: SHEET_HEIGHT_PX, data };
 }
 
-/** Every non-empty 48×64 block of a part file, in reading order. */
-export function splitVariants(image: Rgba): Rgba[] {
-  const variants: Rgba[] = [];
+/** Every 48×64 block of a part file, blank ones included, in reading order. */
+export function splitBlocks(image: Rgba): Rgba[] {
+  const blocks: Rgba[] = [];
   for (let top = 0; top + SHEET_HEIGHT_PX <= image.height; top += SHEET_HEIGHT_PX) {
     for (let left = 0; left + SHEET_WIDTH_PX <= image.width; left += SHEET_WIDTH_PX) {
-      const block = cropBlock(image, left, top);
-      if (!isBlank(block)) variants.push(block);
+      blocks.push(cropBlock(image, left, top));
     }
   }
-  return variants;
+  return blocks;
 }
 
 function swapsFor(recolour: readonly Recolouring[], look: HumanLook): Map<number, number> {
@@ -164,14 +174,14 @@ function paint(sheet: Uint8ClampedArray, layer: Rgba, swaps: Map<number, number>
   }
 }
 
-export function composeSheet(parts: PartVariants, look: HumanLook): Uint8ClampedArray<ArrayBuffer> {
+export function composeSheet(blocks: LayerBlocks, look: HumanLook): Uint8ClampedArray<ArrayBuffer> {
   const sheet = new Uint8ClampedArray(SHEET_WIDTH_PX * SHEET_HEIGHT_PX * RGBA_CHANNELS);
   for (const layer of LAYERS) {
-    const index = look.variants[layer.id];
-    if (index === null) continue;
-    const variant = parts[layer.id][index];
-    if (!variant) continue;
-    paint(sheet, variant, swapsFor(layer.recolour, look));
+    const id: HumanPartId | null = look.parts[layer.id];
+    if (id === null) continue;
+    const block = blocks[layer.id][humanPart(id).block];
+    if (!block) continue;
+    paint(sheet, block, swapsFor(layer.recolour, look));
   }
   return sheet;
 }
@@ -180,22 +190,18 @@ function pick<T>(items: readonly T[], random: () => number): T {
   return items[Math.floor(random() * items.length)]!;
 }
 
-function randomVariant(count: number, optional: boolean, random: () => number): number | null {
-  const choices: (number | null)[] = Array.from({ length: count }, (_, i) => i);
-  if (optional) choices.push(null);
-  return choices.length ? pick(choices, random) : null;
+function maybe<T>(items: readonly T[], random: () => number): T | null {
+  return pick<T | null>([...items, null], random);
 }
 
-export function randomLook(parts: PartVariants, random: () => number = Math.random): HumanLook {
-  const variant = (id: LayerId, optional: boolean) =>
-    randomVariant(parts[id].length, optional, random);
+export function randomLook(random: () => number = Math.random): HumanLook {
   return {
-    variants: {
-      base: variant("base", false) ?? 0,
-      shoes: variant("shoes", true),
-      clothes: variant("clothes", true),
-      head: variant("head", false) ?? 0,
-      hat: variant("hat", true),
+    parts: {
+      base: pick(idsOn("base"), random),
+      shoes: maybe(idsOn("shoes"), random),
+      clothes: maybe(idsOn("clothes"), random),
+      head: pick(idsOn("head"), random),
+      hat: maybe(idsOn("hat"), random),
     },
     skin: pick(SKIN_TONE_NAMES, random),
     hair: pick(HAIR_COLOUR_NAMES, random),

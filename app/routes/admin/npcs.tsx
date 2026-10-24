@@ -17,7 +17,6 @@ import {
   FRAME_PX,
   HAIR_COLOURS,
   HAIR_COLOUR_NAMES,
-  LAYERS,
   SHEET_FACINGS,
   SHEET_HEIGHT_PX,
   SHEET_WIDTH_PX,
@@ -26,13 +25,13 @@ import {
   composeSheet,
   humanLookSchema,
   randomLook,
-  splitVariants,
+  splitBlocks,
   wearsHumanSheet,
   type HumanLook,
-  type LayerId,
-  type PartVariants,
+  type LayerBlocks,
   type Rgba,
 } from "../../lib/humanSprite";
+import { LAYERS, partsOn, type HumanPartId, type LayerId } from "../../lib/humanParts";
 import { rgbaPngBlob, triggerDownload } from "../../lib/pngDownload";
 import type { Direction, TileDef, TilesetDef } from "../../lib/types";
 import { Button, Dialog, FieldLabel, Input, Select, useToast } from "../../ui";
@@ -112,15 +111,15 @@ async function loadPartFile(file: string): Promise<Rgba[]> {
   if (!ctx) throw new Error("2d context unavailable");
   ctx.drawImage(bitmap, 0, 0);
   const { data, width, height } = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-  return splitVariants({ data, width, height });
+  return splitBlocks({ data, width, height });
 }
 
-function useParts(): { parts: PartVariants | null; error: string | null } {
-  const [parts, setParts] = useState<PartVariants | null>(null);
+function useParts(): { parts: LayerBlocks | null; error: string | null } {
+  const [parts, setParts] = useState<LayerBlocks | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     Promise.all(LAYERS.map(async (layer) => [layer.id, await loadPartFile(layer.file)] as const))
-      .then((entries) => setParts(Object.fromEntries(entries) as PartVariants))
+      .then((entries) => setParts(Object.fromEntries(entries) as LayerBlocks))
       .catch((err: unknown) => setError(String(err)));
   }, []);
   return { parts, error };
@@ -143,22 +142,9 @@ function storeLook(look: HumanLook) {
   }
 }
 
-/** A stored look can name a variant that was since removed from its file. */
-function fitLook(look: HumanLook, parts: PartVariants): HumanLook {
-  const fit = (id: LayerId) => {
-    const index = look.variants[id];
-    return index !== null && index < parts[id].length ? index : null;
-  };
-  return {
-    ...look,
-    variants: {
-      base: fit("base") ?? 0,
-      shoes: fit("shoes"),
-      clothes: fit("clothes"),
-      head: fit("head") ?? 0,
-      hat: fit("hat"),
-    },
-  };
+/** Parsing checks the part belongs on that layer, which the computed key alone cannot. */
+function withPart(look: HumanLook, layer: LayerId, id: HumanPartId | null): HumanLook {
+  return v.parse(humanLookSchema, { ...look, parts: { ...look.parts, [layer]: id } });
 }
 
 function useWalkColumn(): number {
@@ -180,9 +166,9 @@ export default function NpcsPage() {
   const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
-    if (!parts) return;
-    setLook(fitLook(loadStoredLook() ?? DEFAULT_LOOK, parts));
-  }, [parts]);
+    const stored = loadStoredLook();
+    if (stored) setLook(stored);
+  }, []);
 
   const updateLook = (next: HumanLook) => {
     setLook(next);
@@ -195,12 +181,7 @@ export default function NpcsPage() {
     <AdminShell
       trailing={
         <>
-          <Button
-            size="sm"
-            variant="ghost-inverse"
-            disabled={!parts}
-            onClick={() => parts && updateLook(randomLook(parts))}
-          >
+          <Button size="sm" variant="ghost-inverse" onClick={() => updateLook(randomLook())}>
             Randomise
           </Button>
           <Button
@@ -232,7 +213,7 @@ function NpcEditor({
   sheet,
   onChange,
 }: {
-  parts: PartVariants;
+  parts: LayerBlocks;
   look: HumanLook;
   sheet: Uint8ClampedArray<ArrayBuffer>;
   onChange: (look: HumanLook) => void;
@@ -248,9 +229,7 @@ function NpcEditor({
             layer={layer.id}
             parts={parts}
             look={look}
-            onChange={(index) =>
-              onChange({ ...look, variants: { ...look.variants, [layer.id]: index } })
-            }
+            onChange={(id) => onChange(withPart(look, layer.id, id))}
           />
         ))}
       </aside>
@@ -428,12 +407,16 @@ function HairField({
   );
 }
 
-function optionsOn(layer: LayerId, parts: PartVariants): (number | null)[] {
-  const options: (number | null)[] = parts[layer].map((_, i) => i);
-  return LAYERS.find((l) => l.id === layer)!.optional ? [null, ...options] : options;
+function optionsOn(layer: LayerId): { id: HumanPartId | null; label: string }[] {
+  const options: { id: HumanPartId | null; label: string }[] = partsOn(layer).map((p) => ({
+    id: p.id,
+    label: p.label,
+  }));
+  const optional = LAYERS.find((l) => l.id === layer)!.optional;
+  return optional ? [{ id: null, label: "None" }, ...options] : options;
 }
 
-/** Each option shows the whole look wearing that variant, facing south and standing. */
+/** Each option shows the whole look wearing that part, facing south and standing. */
 function VariantField({
   layer,
   parts,
@@ -441,38 +424,35 @@ function VariantField({
   onChange,
 }: {
   layer: LayerId;
-  parts: PartVariants;
+  parts: LayerBlocks;
   look: HumanLook;
-  onChange: (index: number | null) => void;
+  onChange: (id: HumanPartId | null) => void;
 }) {
   const def = LAYERS.find((l) => l.id === layer)!;
-  const options = optionsOn(layer, parts);
+  const options = optionsOn(layer);
   const sheets = useMemo(
-    () =>
-      optionsOn(layer, parts).map((index) =>
-        composeSheet(parts, { ...look, variants: { ...look.variants, [layer]: index } }),
-      ),
+    () => optionsOn(layer).map(({ id }) => composeSheet(parts, withPart(look, layer, id))),
     [parts, look, layer],
   );
   return (
     <fieldset className="flex flex-col gap-1">
       <legend className="mb-1">
-        <FieldLabel info={`Drawn from ${def.file}, one 48×64 block per variant.`}>
+        <FieldLabel info={`Drawn from ${def.file} and named in app/lib/humanParts.ts.`}>
           {def.label}
         </FieldLabel>
       </legend>
       <div className="flex flex-wrap gap-1">
-        {options.map((index, i) => (
+        {options.map(({ id, label }, i) => (
           <VariantOption
-            key={index ?? "none"}
-            label={index === null ? `${def.label}: none` : `${def.label}: ${index + 1}`}
-            pressed={look.variants[layer] === index}
+            key={id ?? "none"}
+            label={`${def.label}: ${label}`}
+            pressed={look.parts[layer] === id}
             sheet={sheets[i]!}
-            onClick={() => onChange(index)}
+            onClick={() => onChange(id)}
           />
         ))}
       </div>
-      {parts[layer].length === 0 ? (
+      {options.length === 0 || (options.length === 1 && def.optional) ? (
         <p className="text-xs text-muted">None drawn yet. Add a block to {def.file}.</p>
       ) : null}
     </fieldset>
