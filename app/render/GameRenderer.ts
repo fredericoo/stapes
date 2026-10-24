@@ -121,6 +121,7 @@ import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 import { clampZoomOut, debugSpanPx, DEBUG_ZOOM_OUT, playSquareOrigin } from "./debugView";
 import { DebugPanel } from "./debugPanel";
 import { withClaimedRewards } from "./claimedRewards";
+import { WornLooks } from "./wornLooks";
 
 function sameRef(a: ObjectRef | null, b: ObjectRef | null): boolean {
   if (!a || !b) return false;
@@ -289,6 +290,7 @@ export class GameRenderer {
   private onInteractions: ((options: InteractionOption[]) => void) | null = null;
   private interactionsMap: MapFile | null = null;
   private unseenFrom: { map: MapFile; at: string; drawn: MapFile } | null = null;
+  private readonly wornLooks = new WornLooks();
   private claimedFrom: {
     map: MapFile;
     tilesById: Record<string, TileDef>;
@@ -2010,13 +2012,14 @@ export class GameRenderer {
     this.repickPointer(snap, camera);
 
     const seen = this.withClaimedLooks(this.withoutHiddenBodies(snap));
+    const worn = this.wornLooks.apply(seen.map, seen.actors, this.tilesById);
     const motions = this.tileMotionsFor(seen);
     const vfx = this.statusVfxFor(seen, dtMs);
     const transitions = this.session.takeTransitions();
 
     this.world.setView({
-      map: seen.map,
-      tilesById: this.tilesById,
+      map: worn.map,
+      tilesById: worn.tilesById,
       camera: drawn,
       zoom,
       minutesOfDay: this.minutesOfDay,
@@ -2028,7 +2031,7 @@ export class GameRenderer {
       spriteStates: spriteStatesFor(seen.actors),
       emitterOverrides: this.withFlightLights(snap, this.emitterOverridesFor(seen)),
       spriteTints: vfx.tints,
-      wading: wadingFor(seen.map, seen.actors, this.tilesById),
+      wading: wadingFor(worn.map, seen.actors, worn.tilesById),
       particleEmitters: this.withFlightEffects(snap, vfx.emitters),
       roofCut: cut,
       viewerZ: snap.self.z,

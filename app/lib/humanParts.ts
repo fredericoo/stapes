@@ -108,9 +108,12 @@ export function layerForSlot(slot: EquipSlot): WornLayer | null {
  * dresses. A loose string on the item, so a bad name never stops the armour
  * itself loading.
  */
-export function wornPartOf(armor: ArmorItem): { layer: WornLayer; id: HumanPartId } | null {
+export function wornPartOf(armor: ArmorItem): WornPart | null {
   const layer = layerForSlot(armorSlotOf(armor));
   if (!layer || !armor.humanPart) return null;
   const part = HUMAN_PARTS.find((p) => p.id === armor.humanPart && p.layer === layer);
-  return part ? { layer, id: part.id } : null;
+  return part ? ({ layer, id: part.id } as WornPart) : null;
 }
+
+/** A worn layer with a part from that layer; the cast in `wornPartOf` is checked by its `find`. */
+export type WornPart = { [L in WornLayer]: { layer: L; id: PartOn<L> } }[WornLayer];

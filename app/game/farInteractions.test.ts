@@ -82,6 +82,7 @@ function body(id: string, tileId: string, x: number, y: number, map: MapFile): A
     rating: 10,
     statuses: [],
     carriedLights: [],
+    outfit: {},
     extracting: null,
     casting: null,
     pvp: true,

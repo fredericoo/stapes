@@ -4,6 +4,7 @@ import {
   dressHuman,
   humanSheetId,
   lookOfTileHuman,
+  readOutfit,
   tileHumanFromLook,
   tileHumanLook,
   type TileHuman,
@@ -115,5 +116,13 @@ describe("tileHumanFromLook", () => {
 
     expect(human.outfit).toEqual({ clothes: "white-tunic" });
     expect(humanSheetId(lookOfTileHuman(human))).toBe(humanSheetId(look));
+  });
+});
+
+describe("readOutfit", () => {
+  it("keeps the layers it knows and drops a part that is not on its layer", () => {
+    expect(readOutfit({ hat: "iron-helmet", clothes: "crown", shoes: "leather-cap" })).toEqual({
+      hat: "iron-helmet",
+    });
   });
 });
