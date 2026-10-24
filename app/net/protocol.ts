@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import type { WornLayer } from "../lib/humanParts";
 import { CAST_SQUARES, type CastProgress, type CastSlot } from "../game/casting";
 import { MAX_SPELL_NAME_LENGTH } from "../lib/battler";
 import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../game/deathCost";
@@ -80,6 +81,16 @@ const nextBlowSchema = v.object({
 const carriedLightsPatchSchema = v.object({
   actorId: v.string(),
   tileIds: v.array(v.string()),
+});
+
+/** Loose strings, checked per layer by `readOutfit`, so an unknown part never drops the frame. */
+const outfitPatchSchema = v.object({
+  actorId: v.string(),
+  outfit: v.object({
+    hat: v.optional(v.string()),
+    clothes: v.optional(v.string()),
+    shoes: v.optional(v.string()),
+  }),
 });
 
 const castSlotSchema = v.variant("from", [
@@ -224,6 +235,11 @@ export type CarriedLightsPatch = {
   tileIds: string[];
 };
 
+export type OutfitPatch = {
+  actorId: string;
+  outfit: Partial<Record<WornLayer, string>>;
+};
+
 export type StatusIdsPatch = {
   actorId: string;
   defIds: string[];
@@ -350,6 +366,7 @@ export type ServerMessage =
       hps: HpPatch[];
       names: NamePatch[];
       carriedLights: CarriedLightsPatch[];
+      outfits: OutfitPatch[];
       statusIds: StatusIdsPatch[];
       pvp: PvpPatch[];
       extractions: ExtractionPatch[];
@@ -385,6 +402,7 @@ export type ServerMessage =
       hps: HpPatch[];
       names: NamePatch[];
       carriedLights: CarriedLightsPatch[];
+      outfits: OutfitPatch[];
       statusIds: StatusIdsPatch[];
       pvp: PvpPatch[];
       extractions: ExtractionPatch[];
@@ -609,6 +627,7 @@ const serverMessageSchema = v.variant("type", [
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
     carriedLights: v.array(carriedLightsPatchSchema),
+    outfits: v.optional(v.array(outfitPatchSchema), () => []),
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
     pvp: v.optional(v.array(pvpPatchSchema), () => []),
     extractions: v.optional(v.array(extractionPatchSchema), () => []),
@@ -833,6 +852,7 @@ const serverMessageSchema = v.variant("type", [
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
     carriedLights: v.array(carriedLightsPatchSchema),
+    outfits: v.optional(v.array(outfitPatchSchema), () => []),
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
     pvp: v.optional(v.array(pvpPatchSchema), () => []),
     extractions: v.optional(v.array(extractionPatchSchema), () => []),
