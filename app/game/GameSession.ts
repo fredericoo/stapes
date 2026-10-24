@@ -6136,6 +6136,17 @@ export class GameSession implements PlaySession {
 
     const next = removeEntity(this.map, loc.x, loc.y, loc.z, loc.stackIndex);
 
+    /**
+     * A landing on the top of a full-height stack is also the floor plane of
+     * the level above, and that level owns it (see `listStandingSurfaces`).
+     * The loop below would find that top in `targetZ - 1` and put a body that
+     * falls onto a sunk crate into the crate's level, where walking never does.
+     */
+    if (getStack(next, loc.x, loc.y, targetZ).length === 0) {
+      this.map = appendTile(next, loc.x, loc.y, targetZ, placed);
+      return;
+    }
+
     for (const zTry of [targetZ, targetZ - 1, loc.z]) {
       if (zTry < MIN_LEVEL) continue;
       const stack = getStack(next, loc.x, loc.y, zTry);

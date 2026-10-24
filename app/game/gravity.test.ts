@@ -3,7 +3,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { TICK_MS } from "./constants";
+import { PUSH_STEP_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { findLooseGravityCells, gravityPullOn, settleGravity } from "./gravity";
 import shippedTiles from "../../data/tiles.json";
@@ -51,6 +51,12 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "hole-floor", height: 0, intangible: true }),
   tile({ id: "shaft", height: 4, intangible: true }),
+  tile({
+    id: "sunk-crate",
+    height: 2,
+    affectedByGravity: true,
+    interactions: { push: { climb: "half", moveOnTileIds: [] } },
+  }),
   tile({
     id: "crate",
     height: 4,
@@ -291,5 +297,51 @@ describe("a crate in a running world", () => {
 
     expect(ids(getStack(session.getMap(), 0, 0, 0))).toEqual(["grass", "box"]);
     expect(session.isAtRest()).toBe(true);
+  });
+});
+
+/**
+ * The witch-house puzzle in miniature: a crate shoved into a hole drops a level
+ * and a half onto a rock, and its top ends flush with the floor plane of the
+ * empty level between them.
+ */
+describe("a crate shoved into a pit", () => {
+  const PIT = { x: 2, y: 0 };
+  const SHOVE_TICKS = Math.ceil(PUSH_STEP_MS / TICK_MS);
+  const SETTLE_TICKS = 90;
+
+  function pit() {
+    let map = emptyMap();
+    for (const x of [0, 1]) map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "sunk-crate" }]);
+    map = replaceStack(map, PIT.x, PIT.y, 0, [{ tileId: "hole-floor" }]);
+    map = replaceStack(map, PIT.x, PIT.y, -2, [{ tileId: "rock" }]);
+    return new GameSession(map, tiles);
+  }
+
+  function shoveIn(session: GameSession) {
+    expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+  }
+
+  it("is in the pit on the board the moment it is shoved, before anything else can move", () => {
+    const session = pit();
+    shoveIn(session);
+
+    expect(ids(getStack(session.getMap(), PIT.x, PIT.y, -2))).toEqual(["rock", "sunk-crate"]);
+  });
+
+  it("lands a player who falls onto it in the level above it, as walking onto it does", () => {
+    const session = pit();
+    const player = session.actorIds()[0]!;
+    shoveIn(session);
+    for (let i = 0; i < SHOVE_TICKS; i++) session.tick(TICK_MS);
+    expect(session.requestStep(player, "e")).toBe("started");
+    for (let i = 0; i < SHOVE_TICKS; i++) session.tick(TICK_MS);
+    expect(session.requestStep(player, "e")).toBe("started");
+    for (let i = 0; i < SETTLE_TICKS; i++) session.tick(TICK_MS);
+
+    expect(ids(getStack(session.getMap(), PIT.x, PIT.y, -1))).toEqual(["player"]);
+    expect(ids(getStack(session.getMap(), PIT.x, PIT.y, -2))).toEqual(["rock", "sunk-crate"]);
   });
 });
