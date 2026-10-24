@@ -4,26 +4,43 @@ export const MS_PER_CLOCK_MINUTE = 1000;
 
 export type MinutesOfDay = number;
 
+type Rgb = [number, number, number];
+
+/**
+ * `ambient` is skylight: what a cell gets from the open sky whichever way the
+ * sun points, so it is also the colour of a shadow. `sun` is added on top only
+ * where the cell can see the sun at `sunArc`.
+ */
 export type Illumination = {
-  ambient: [number, number, number];
+  ambient: Rgb;
+  sun: Rgb;
+  sunArc: number;
 };
 
 export type IlluminationKeyframe = {
   at: MinutesOfDay;
-  ambient: [number, number, number];
+  ambient: Rgb;
+  sun?: Rgb;
 };
+
+const NO_SUN: Rgb = [0, 0, 0];
+
+export const SUNRISE_MINUTES = 5 * 60;
+
+export const SUNSET_MINUTES = 20 * 60;
 
 export const ILLUMINATION_KEYFRAMES: readonly IlluminationKeyframe[] = [
   // oxlint-disable-next-line erasing-op
   { at: 0 * 60, ambient: [0.04, 0.05, 0.1] },
   { at: 4 * 60, ambient: [0.04, 0.05, 0.1] },
-  { at: 6 * 60, ambient: [0.35, 0.32, 0.4] },
-  { at: 7 * 60, ambient: [0.85, 0.75, 0.65] },
-  { at: 9 * 60, ambient: [1, 1, 1] },
-  { at: 16 * 60, ambient: [1, 1, 1] },
-  { at: 17 * 60, ambient: [0.55, 0.4, 0.3] },
-  { at: 18 * 60, ambient: [0.55, 0.4, 0.3] },
-  { at: 19 * 60, ambient: [0.04, 0.05, 0.1] },
+  { at: 5 * 60, ambient: [0.2, 0.19, 0.22], sun: [0.12, 0.1, 0.03] },
+  { at: 7 * 60, ambient: [0.45, 0.44, 0.42], sun: [0.55, 0.5, 0.28] },
+  { at: 10 * 60, ambient: [0.5, 0.54, 0.62], sun: [0.55, 0.5, 0.42] },
+  { at: 16 * 60, ambient: [0.5, 0.54, 0.62], sun: [0.55, 0.5, 0.42] },
+  { at: 18 * 60, ambient: [0.45, 0.38, 0.4], sun: [0.6, 0.4, 0.2] },
+  { at: 19 * 60 + 30, ambient: [0.34, 0.22, 0.24], sun: [0.5, 0.18, 0.06] },
+  { at: 20 * 60 + 30, ambient: [0.16, 0.13, 0.26] },
+  { at: 22 * 60, ambient: [0.08, 0.08, 0.18] },
 ];
 
 export const DEFAULT_EDITOR_MINUTES = 12 * 60;
@@ -60,24 +77,31 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-function lerpAmbient(
-  a: [number, number, number],
-  b: [number, number, number],
-  t: number,
-): [number, number, number] {
+function lerpRgb(a: Rgb, b: Rgb, t: number): Rgb {
   return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+}
+
+/**
+ * Where the sun is along its east-to-west arc: 0 on the eastern horizon at
+ * sunrise, 0.5 overhead, 1 on the western horizon at sunset. Clamped at both
+ * ends, which is harmless because the sun colour is black outside them.
+ */
+export function sunArcAt(minutes: MinutesOfDay): number {
+  const t = (wrapMinutes(minutes) - SUNRISE_MINUTES) / (SUNSET_MINUTES - SUNRISE_MINUTES);
+  return Math.min(1, Math.max(0, t));
 }
 
 export function sampleIllumination(
   minutes: MinutesOfDay,
   keys: readonly IlluminationKeyframe[] = ILLUMINATION_KEYFRAMES,
 ): Illumination {
+  const sunArc = sunArcAt(minutes);
   if (!keys.length) {
-    return { ambient: [1, 1, 1] };
+    return { ambient: [1, 1, 1], sun: [...NO_SUN], sunArc };
   }
   if (keys.length === 1) {
     const only = keys[0]!;
-    return { ambient: [...only.ambient] };
+    return { ambient: [...only.ambient], sun: [...(only.sun ?? NO_SUN)], sunArc };
   }
 
   const t = wrapMinutes(minutes);
@@ -97,5 +121,9 @@ export function sampleIllumination(
   }
 
   const u = span <= 0 ? 0 : into / span;
-  return { ambient: lerpAmbient(prev.ambient, next.ambient, u) };
+  return {
+    ambient: lerpRgb(prev.ambient, next.ambient, u),
+    sun: lerpRgb(prev.sun ?? NO_SUN, next.sun ?? NO_SUN, u),
+    sunArc,
+  };
 }

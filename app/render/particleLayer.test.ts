@@ -4,7 +4,7 @@ import { circleSlice, ParticleLayer, particleWorldPx, SHAPE_SLOTS } from "./part
 import type { ParticleEmitterSpec } from "./particles";
 import type { CellHidden } from "./tileEmitters";
 import { DEFAULT_PARTICLES, type ParticleEmitterDef, PARTICLE_SHAPE_PX } from "../lib/particleVfx";
-import type { LevelLightUniforms } from "./worldQuads";
+import { noSunUniforms, type LevelLightUniforms } from "./worldQuads";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { coordKey } from "../lib/types";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
@@ -17,6 +17,7 @@ function lightUniforms(): LevelLightUniforms {
     uLightSize: { value: new THREE.Vector2(1, 1) },
     uLightingEnabled: { value: 1 },
     uAmbient: { value: new THREE.Vector3(1, 1, 1) },
+    ...noSunUniforms(new THREE.Texture()),
   };
 }
 
