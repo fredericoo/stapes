@@ -5939,7 +5939,9 @@ named after everything that draws it (`humanSheetId`), so tiles in the same
 look share one texture. Its tileset is registered only once the texture
 exists, so a human is invisible for that moment rather than magenta. A `human`
 that does not parse, or a tile whose frames reach outside one 48×64 block,
-draws from the anchor, and `bun run verify content` reports it.
+draws from the anchor, and `bun run verify content` reports it. Every
+townsperson, guard and smith is a human tile anchored on the player's block;
+there are no baked NPC sheets, so an NPC's look is changed in its Human tab.
 
 **A piece of armour names the part it is drawn as** in `humanPart`, picked
 under its slot in the tile editor's Item tab. The slot decides the layer

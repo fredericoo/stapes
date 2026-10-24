@@ -14129,7 +14129,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -14774,6 +14774,15 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "pale",
+      "hair": "white",
+      "head": "long-hair",
+      "outfit": {
+        "clothes": "purple-robe",
+        "shoes": "brown-boots"
+      }
     }
   },
   {
@@ -14784,7 +14793,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "smith",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -16254,6 +16263,15 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "brown",
+      "hair": "black",
+      "head": "bald-beard",
+      "outfit": {
+        "clothes": "brown-tunic",
+        "shoes": "dark-boots"
+      }
     }
   },
   {
@@ -16264,7 +16282,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "armourer",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -17510,6 +17528,16 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "dark brown",
+      "head": "beard",
+      "outfit": {
+        "hat": "iron-helmet",
+        "clothes": "steel-mail",
+        "shoes": "dark-boots"
+      }
     }
   },
   {
@@ -17520,7 +17548,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -18478,6 +18506,16 @@
             "durationMs": 200
           }
         ]
+      }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "ginger",
+      "head": "beard",
+      "outfit": {
+        "hat": "leather-cap",
+        "clothes": "brown-tunic",
+        "shoes": "brown-boots"
       }
     }
   },
@@ -39519,7 +39557,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -40175,6 +40213,15 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "pale",
+      "hair": "blonde",
+      "head": "long-hair",
+      "outfit": {
+        "clothes": "white-tunic",
+        "shoes": "brown-boots"
+      }
     }
   },
   {
@@ -40185,7 +40232,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -40880,6 +40927,15 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "brown",
+      "hair": "brown",
+      "head": "bald",
+      "outfit": {
+        "clothes": "grey-tunic",
+        "shoes": "dark-boots"
+      }
     }
   },
   {
@@ -40890,7 +40946,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -41687,7 +41743,17 @@
         ]
       }
     },
-    "walkDurationMs": 700
+    "walkDurationMs": 700,
+    "human": {
+      "skin": "default",
+      "hair": "black",
+      "head": "short-hair",
+      "outfit": {
+        "hat": "leather-cap",
+        "clothes": "grey-tunic",
+        "shoes": "dark-boots"
+      }
+    }
   },
   {
     "id": "peat-cutter",
@@ -41697,7 +41763,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -42453,7 +42519,16 @@
         ]
       }
     },
-    "walkDurationMs": 700
+    "walkDurationMs": 700,
+    "human": {
+      "skin": "brown",
+      "hair": "dark brown",
+      "head": "beard",
+      "outfit": {
+        "clothes": "white-tunic",
+        "shoes": "brown-boots"
+      }
+    }
   },
   {
     "id": "skull-troll",
@@ -44613,7 +44688,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -45557,6 +45632,15 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "brown",
+      "head": "short-hair",
+      "outfit": {
+        "clothes": "white-tunic",
+        "shoes": "brown-boots"
+      }
     }
   },
   {
@@ -45567,7 +45651,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "guard",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -46514,6 +46598,16 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "black",
+      "head": "beard",
+      "outfit": {
+        "hat": "iron-helmet",
+        "clothes": "steel-mail",
+        "shoes": "grey-boots"
+      }
     }
   },
   {
@@ -46524,7 +46618,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -47499,6 +47593,16 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "pale",
+      "hair": "red",
+      "head": "short-hair",
+      "outfit": {
+        "hat": "leather-cap",
+        "clothes": "white-tunic",
+        "shoes": "brown-boots"
+      }
     }
   },
   {
@@ -47509,7 +47613,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "guard",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -49086,6 +49190,16 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "brown",
+      "hair": "dark brown",
+      "head": "short-hair",
+      "outfit": {
+        "hat": "iron-helmet",
+        "clothes": "steel-mail",
+        "shoes": "grey-boots"
+      }
     }
   },
   {
@@ -49096,7 +49210,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -49799,6 +49913,14 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "grey",
+      "head": "bald-beard",
+      "outfit": {
+        "clothes": "grey-tunic"
+      }
     }
   },
   {
@@ -49809,7 +49931,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "townsfolk",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -50633,6 +50755,15 @@
             }
           }
         ]
+      }
+    },
+    "human": {
+      "skin": "pale",
+      "hair": "white",
+      "head": "beard",
+      "outfit": {
+        "clothes": "white-tunic",
+        "shoes": "brown-boots"
       }
     }
   },
