@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { findPlayers } from "../game/player";
 import { battlerIssues, resolveBattler } from "../lib/battler";
 import { needsExpansion, resolveBrain, validateBrain } from "../lib/brain";
@@ -28,6 +29,7 @@ import { resolveItem } from "../lib/item";
 import { listCoords } from "../lib/mapData";
 import { resolveProjectile } from "../lib/projectile";
 import { anchorFits } from "../lib/spriteAnchor";
+import { tileHumanSchema, wearsHumanSheet } from "../lib/humanSprite";
 import {
   COMBAT_STATUS_ID,
   MODIFIER_KEYS,
@@ -344,6 +346,7 @@ function checkTile(raw: Entry, def: TileDef, catalogue: ContentCatalogue, findin
     }
 
     checkBlocks(raw, def, catalogue, findings);
+    checkHuman(def, findings);
     checkReferences(def, catalogue, findings);
   } catch (error) {
     findings.error(id, "", `Checking this tile threw: ${messageOf(error)}.`);
@@ -386,6 +389,26 @@ function checkNormalised(raw: Entry, def: TileDef, findings: Findings) {
       id,
       "light",
       `A frame's light radius is ${radius}, and every radius above MAX_LIGHT_LEVEL is drawn at ${MAX_LIGHT_LEVEL}.`,
+    );
+  }
+}
+
+function checkHuman(def: TileDef, findings: Findings) {
+  if (def.human === undefined) return;
+  const parsed = v.safeParse(tileHumanSchema, def.human);
+  if (!parsed.success) {
+    findings.error(
+      def.id,
+      "human",
+      `The human does not load (${v.summarize(parsed.issues)}), so the tile is drawn from its anchor.`,
+    );
+    return;
+  }
+  if (!wearsHumanSheet(def)) {
+    findings.error(
+      def.id,
+      "human",
+      "The tile has a human, but its frames do not fit one character block, so it is drawn from its anchor.",
     );
   }
 }
