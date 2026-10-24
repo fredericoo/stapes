@@ -967,8 +967,14 @@
       "y": 0
     },
     "lightPassing": true,
-    "wade": true,
     "walkSpeedPercent": -50,
+    "wade": true,
+    "interactions": {
+      "removeStatus": {
+        "trigger": "step",
+        "statusId": "burned"
+      }
+    },
     "slices": {
       "0": {
         "frames": [
@@ -11215,12 +11221,6 @@
           "x": 3,
           "y": -1
         }
-      }
-    },
-    "interactions": {
-      "removeStatus": {
-        "trigger": "step",
-        "statusId": "burned"
       }
     }
   },
