@@ -14,7 +14,7 @@ import {
   stackOcclusion,
 } from "./lighting";
 import type { PackedLightGrid } from "./lighting";
-import { MAX_LIGHT_LEVEL } from "./lightingFlood";
+import { FULL_CELL_TOP_LIGHT_SHARE, MAX_LIGHT_LEVEL } from "./lightingFlood";
 import { sampleIllumination } from "./clock";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
@@ -235,7 +235,7 @@ describe("computeLighting flood fill", () => {
     const wallCell = sampleLevelLight(level, 2, 0)[0];
     const outside = sampleLevelLight(level, 3, 0)[0];
     expect(inside).toBeGreaterThan(0.5);
-    expect(wallCell).toBeLessThan(0.05);
+    expect(wallCell).toBeLessThan(inside);
     expect(outside).toBeLessThan(inside);
   });
 
@@ -520,6 +520,81 @@ describe("computeLighting flood fill", () => {
 
   it(`uses MAX_LIGHT_LEVEL=${MAX_LIGHT_LEVEL}`, () => {
     expect(MAX_LIGHT_LEVEL).toBe(15);
+  });
+});
+
+describe("a full cell's top face", () => {
+  const LIGHT_QUANTUM = 1 / 255;
+
+  function pit(lid: string[]): MapFile {
+    return mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["floor", "torch"] },
+      { x: 1, y: 0, z: 0, tiles: lid },
+      { x: 0, y: 0, z: -1, tiles: ["wall"] },
+      { x: 1, y: 0, z: -1, tiles: ["half", "half"] },
+      { x: 2, y: 0, z: -1, tiles: ["wall"] },
+    ]);
+  }
+
+  function topAndAbove(grid: { levels: Map<number, Parameters<typeof sampleLevelLight>[0]> }) {
+    return {
+      top: sampleLevelLight(grid.levels.get(-1)!, 1, 0)[0],
+      above: sampleLevelLight(grid.levels.get(0)!, 1, 0)[0],
+    };
+  }
+
+  it("is lit, dimmed, by the open cell above it", () => {
+    const { top, above } = topAndAbove(computeLighting(pit([]), tilesById, [0, 0, 0]));
+
+    expect(above).toBeGreaterThan(0.1);
+    expect(Math.abs(top - above * FULL_CELL_TOP_LIGHT_SHARE)).toBeLessThanOrEqual(
+      LIGHT_QUANTUM * 2,
+    );
+  });
+
+  it("keeps the daylight on a full cell under open sky that borrows a torch's glow", () => {
+    const DAYLIGHT: [number, number, number] = [1, 1, 1];
+    const wallAlone = mapAt([
+      { x: 3, y: 0, tiles: ["wall"] },
+      { x: 0, y: 0, tiles: ["floor"] },
+    ]);
+    const wallByTorch = mapAt([
+      { x: 3, y: 0, tiles: ["wall"] },
+      { x: 0, y: 0, tiles: ["floor", "torch"] },
+    ]);
+    const alone = sampleLevelLight(
+      computeLighting(wallAlone, tilesById, DAYLIGHT).levels.get(0)!,
+      3,
+      0,
+    );
+    const byTorch = sampleLevelLight(
+      computeLighting(wallByTorch, tilesById, DAYLIGHT).levels.get(0)!,
+      3,
+      0,
+    );
+
+    expect(alone[0]).toBeGreaterThan(0.5);
+    expect(byTorch[0]).toBeGreaterThanOrEqual(alone[0]);
+  });
+
+  it("stays dark under a floor that seals it", () => {
+    const { top } = topAndAbove(computeLighting(pit(["floor"]), tilesById, [0, 0, 0]));
+
+    expect(top).toBe(0);
+  });
+
+  it("is lit by a carried light the same way as by a baked one", () => {
+    const map = pit([]);
+    const unlit = computeLighting(map, tilesById, [0, 0, 0], undefined, new Set(["torch"]));
+    const painted = overlayEmitterOverrides(unlit, map, tilesById, [
+      { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
+    ]);
+    const { top, above } = topAndAbove(painted);
+
+    expect(above).toBeGreaterThan(0.1);
+    expect(Math.abs(top - above * FULL_CELL_TOP_LIGHT_SHARE)).toBeLessThanOrEqual(
+      LIGHT_QUANTUM * 2,
+    );
   });
 });
 
