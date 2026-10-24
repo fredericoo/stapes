@@ -1094,9 +1094,18 @@ export class GameRenderer {
         if (!this.isWithinView(snap.map, actor, camera)) return null;
         return { x: actor.x, y: actor.y, z: actor.z };
       },
-      strikes: (actorId) =>
-        this.strikesFromHere(snap, actorId) || this.castReachesFromHere(actorId),
+      strikes: (actorId) => this.reachesFromHere(snap, actorId),
     };
+  }
+
+  /**
+   * A queued cast's reach alone stops a follow toward its target: a bow that
+   * outranges the spell would otherwise park the player where the cast is
+   * still refused as out of range, and the cast would wait there forever.
+   */
+  private reachesFromHere(snap: GameSnapshot, actorId: string): boolean {
+    if (this.castApproach?.targetId === actorId) return this.castReachesFromHere(actorId);
+    return this.strikesFromHere(snap, actorId);
   }
 
   private strikesFromHere(snap: GameSnapshot, actorId: string): boolean {
