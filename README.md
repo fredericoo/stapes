@@ -172,9 +172,6 @@ an agent drives", lists every call.
   launches; `PREVIEW=<dir>` also writes a 4× copy there. One frame of the same
   crystal becomes `public/favicon.ico` (32 and 64 px) and
   `public/apple-touch-icon.png` (180 px, on the ink background)
-- `bun run generate:npcs` — recolour the one humanoid in `people.png` into a
-  sheet per NPC, so nobody in town is the player's twin. Writes
-  `data/tilesets/townsfolk.png`, `smith.png`, `armourer.png` and `guard.png`
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as
