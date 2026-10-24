@@ -34,8 +34,25 @@ function weaponOf(id: string): WeaponItem {
   return weapon;
 }
 
-function playerAt(mastery: Mastery, level: number): BattlerDef {
+/**
+ * A player starts at level 1 everywhere and is past it by the time a weapon is worth carrying,
+ * so the weapon ladder is tuned against this body rather than the one a player spawns with.
+ */
+const CAUGHT_UP_LEVEL = 5;
+
+function caughtUp(): BattlerDef {
   const player = bodyOf("player");
+  const masteries = Object.fromEntries(
+    Object.entries(player.masteries).map(([mastery, level]) => [
+      mastery,
+      Math.max(level ?? 0, CAUGHT_UP_LEVEL),
+    ]),
+  );
+  return { ...player, masteries };
+}
+
+function playerAt(mastery: Mastery, level: number): BattlerDef {
+  const player = caughtUp();
   return { ...player, masteries: { ...player.masteries, [mastery]: level } };
 }
 
@@ -169,7 +186,7 @@ describe("the weapon ladder", () => {
 
   function climbing(mastery: Mastery, level: number, rungs: string[]): BattlerDef {
     const toughness = Math.max(
-      bodyOf("player").masteries.toughness ?? 0,
+      caughtUp().masteries.toughness ?? 0,
       ...rungs.map((id) => weaponOf(id).requirements?.toughness ?? 0),
     );
     const at = playerAt(mastery, level);
@@ -228,7 +245,7 @@ describe("two weapons on one rung", () => {
   ];
 
   function onRung(level: number, id: string): BattlerDef {
-    const player = bodyOf("player");
+    const player = caughtUp();
     return {
       ...player,
       masteries: {
@@ -267,7 +284,7 @@ describe("the authored ladder", () => {
   const player = bodyOf("player");
 
   it("runs from a rat the player beats to a snake that beats them", () => {
-    const me = fists(player);
+    const me = fists(caughtUp());
     const versusRat = winRate(me, fists(bodyOf("rat")));
     const versusCat = winRate(me, fists(bodyOf("cat")));
     const versusSnake = winRate(me, fists(bodyOf("snake")));
@@ -313,8 +330,8 @@ describe("the ladder pays for climbing it", () => {
     }
   });
 
-  it("pays a fresh player more for a rat than for a deer", () => {
-    const me = ratingOf("player");
+  it("pays a caught-up player more for a rat than for a deer", () => {
+    const me = rating(caughtUp().masteries);
     expect(experienceMultiplier(ratingOf("rat"), me)).toBeGreaterThan(
       experienceMultiplier(ratingOf("deer"), me),
     );
