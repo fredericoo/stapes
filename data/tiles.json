@@ -22263,6 +22263,7 @@
         "climb": "half",
         "moveOnTileIds": [
           "dirt",
+          "hole",
           "pressure-plate",
           "pressure-plate-pressed"
         ]
@@ -53701,7 +53702,15 @@
       "riseFrom": -1,
       "riseTo": 1,
       "driftCellsPerSecond": 0.15,
+      "lit": true,
+      "ownDepth": false,
       "gravity": 1.2,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
       "radiusFromPx": 1,
       "radiusToPx": 1,
       "alphaFrom": 0.9,
@@ -53719,8 +53728,7 @@
           "at": 1,
           "color": "#1d2b53"
         }
-      ],
-      "lit": true
+      ]
     },
     "affectedByGravity": true,
     "walkable": false,
