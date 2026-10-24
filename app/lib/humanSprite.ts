@@ -83,6 +83,35 @@ export type HumanAppearance = { skin: SkinTone; hair: HairColour; head: PartOn<"
 /** One part per worn layer; a layer left out is bare. */
 export type Outfit = { [L in WornLayer]?: PartOn<L> };
 
+const WORN_LAYERS = ["hat", "clothes", "shoes"] as const satisfies readonly WornLayer[];
+
+export const BARE: Outfit = {};
+
+export function isBare(outfit: Outfit): boolean {
+  return WORN_LAYERS.every((layer) => outfit[layer] === undefined);
+}
+
+/** Names an outfit by its parts, in a fixed order, so two equal outfits share a key. */
+export function outfitKey(outfit: Outfit): string {
+  return WORN_LAYERS.map((layer) => outfit[layer] ?? "").join("+");
+}
+
+/**
+ * Keeps each layer whose part is drawn on that layer and drops the rest, so a
+ * part renamed since the sender last loaded costs that one layer, not the
+ * whole outfit.
+ */
+export function readOutfit(raw: Partial<Record<WornLayer, string>>): Outfit {
+  const outfit: Outfit = {};
+  const hat = v.safeParse(partOnSchema("hat"), raw.hat);
+  if (hat.success) outfit.hat = hat.output;
+  const clothes = v.safeParse(partOnSchema("clothes"), raw.clothes);
+  if (clothes.success) outfit.clothes = clothes.output;
+  const shoes = v.safeParse(partOnSchema("shoes"), raw.shoes);
+  if (shoes.success) outfit.shoes = shoes.output;
+  return isBare(outfit) ? BARE : outfit;
+}
+
 /**
  * A human's look: each worn layer is what they have equipped there, or the
  * outfit they fall back on when that slot is empty.
