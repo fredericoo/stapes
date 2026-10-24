@@ -5890,69 +5890,43 @@ animate a walk: a sign, a roof and an anvil all draw north and south from one
 rect and there is nothing to tell apart, while a body has a front. A repeated
 facing on a body is always a row somebody copied and forgot to move.
 
-### A townsperson is paper-doll parts cut from the player
+### An NPC is a stack of `human_*.png` parts
 
-`app/lib/figure.ts` draws a character block in the layout of the player's in
-`people.png` — rows facing south, east, west and north; columns a step, standing,
-the other step; every frame 2×2 cells with its base at (1, 1). A tile that walks
-with the player's frames therefore wears a generated sheet by moving its anchor
-and nothing else, which is what `/admin/townsfolk`'s *Save as tileset* does to
-the tile picked there. The picker lists only tiles whose frames all fit that
-block, so a wolf or a deer is never offered.
+`/admin/npcs` composes a character block in the layout of the player's in
+`people.png` — rows facing south, east, west and north; columns a step,
+standing, the other step; every frame 16×16. A tile that walks with the
+player's frames wears a composed sheet by moving its anchor and nothing else,
+which is what *Save as tileset* does to the tile picked there.
+`wearsHumanSheet` in `app/lib/humanSprite.ts` keeps the picker to tiles whose
+frames all fit one 48×64 block, so a wolf or a deer is never offered.
 
-**A look is a stack of parts, each a whole 48×64 sheet.** `app/lib/figureParts.json`
-holds them as 64 strings of 48 cells: `.` empty, `#` outline, `1` to `3` the
-shadow, base and highlight of whatever colour the look gives that part. For
-each facing, the parts a look uses are laid down in the `z` order `PARTS` gives
-that facing, and each tone becomes that step of its colour's ramp.
+**The parts are PNGs in `data/tilesets/`, drawn over each other in this order:**
+`human_base.png` (the naked, headless body), `human_shoes.png`,
+`human_clothes.png`, `human_heads.png`, `human_hats.png`. Each file holds any
+number of variants as 48×64 blocks in a grid, read left to right, top to
+bottom; a fully transparent block is skipped. Hats are the one layer drawn
+above the head and outside the body, so they carry their own outline where
+they stand against the background. Height runs up and to the left, so a hat
+is seen from above: a crown leaning up-left from the head and a brim lying flat
+as a rounded disc, about the size of the head, like the helmets in
+`ultima-vi.png`. A hat drawn as a front view, rising straight up the screen,
+looks far too big. The page fetches them from
+`/api/tilesets/`. Under `bun dev` that reads `data/` directly, so a new variant
+shows on reload; a deployed world shows it only after a reseed. They are indexed with `people.png`'s palette and are not listed in
+`tilesets.json`, because no tile draws from them.
 
-**The body, the short hair, the trim and the boots' positions were cut from
-`people.png`, and have been hand-edited since.** The naked human (the second
-block) is the body. The player's tunic, trim and boots came from diffing the
-player against it. The file is the source of truth now: the tunic was cut back
-to a shirt that stops at the belt, with trousers from there to the boots, and
-facing south the head's top-left outline pixel became skin so the head is 3×2
-like it is facing north. Cutting the parts again from `people.png` would undo
-that, so there is no command for it.
+**A head is a few pixels with no outline**, the same on all three frames of a
+facing; the body's outline frames it. Facing south and east it shows the face,
+so a beard goes there, over the chin and the chest below it. Facing west and
+north it shows the back of the head, so long hair falls down the back there and
+a beard does not show.
 
-**Boots always have an outline.** The original draws boots in the outline
-colour, so they needed none; in any other colour a boot at the tip of a foot
-ran straight into the background. `shoes` is `outlined`, and a transparent
-pixel beside a boot becomes outline, so on some frames a boot is a single
-pixel with a ring round it. The pixel between the legs facing south and north
-is outline, a dark gap, as the original draws it.
-
-**A cloak is three parts.** `cape` hangs behind the body facing south and
-east, where only its edges show past the body; facing west and north it covers
-the back, over the shirt and under the head. `cloak-front` covers both sides of
-the chest and leaves the middle open. `hood` covers the head except the face. A
-cape look draws the first, a cloak the first two, and a hooded cloak all three.
-
-**The drawn parts are one mask per facing** repeated across its three frames,
-because the head stays on the same pixels through the walk. Height goes up and
-to the left in this projection, so anything that hangs, like a ponytail or long
-hair, runs down or down-right on screen rather than out to the side. The drawn
-parts and the boots are marked `outlined`, and a transparent pixel beside one
-becomes outline. The body, shirt and trim are not, because the artist leaves
-some edges open on purpose — a hand's tip has no outline — and an automatic
-outline there changed 51 of the player's pixels.
-
-**Ramps step one palette entry either way**, the nearest darker and lighter
-entries in Oklab weighted towards the same hue. That is what the shirt and the
-trousers use. The skin skips an entry either side of `#cd683d`, so that ramp is
-written out in `HAND_RAMPS`.
-
-`bun run figure-parts export <dir>` writes every part as a PNG in the outline
-colour and three greys, to edit in a pixel editor, and `import <dir>` reads them
-back and refuses any other colour.
-
-`bun run generate:figure` renders a sheet with no page: it writes through
-`DataStore` over `DiskBlobs` on `data/`, the class the server writes through, so
-`tiles.json` and `tilesets.json` keep the server's formatting and an anchor move
-is a one-line diff. It checks every `--tile` before it writes anything, so a
-refused tile leaves no orphan sheet behind. The hand-drawn player and
-`bun run generate:npcs`'s recolours of it are untouched; a generated sheet is a
-separate tileset.
+**Skin and hair are colour swaps, not ramps.** The body and heads are drawn in
+the `default` skin shades `#6e2727 #cd683d #fbb954` and the heads' hair in the
+`red` shades `#ae2334 #e83b3b`; `SKIN_TONES` and `HAIR_COLOURS` map each of
+those shades to one in another set, on the body and head layers only. A new
+part drawn in other shades is left as drawn. Clothes, shoes and hats are never
+recoloured, and `#6e2727` and `#ae2334` appear in the clothes for that reason.
 
 ## Magic is a stone you carry, and there is nothing else to it
 

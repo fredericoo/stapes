@@ -12,8 +12,6 @@
     "generate": "bun scripts/generate-tilesets.ts",
     "generate:complement": "bun scripts/generate-autotile-complement.ts",
     "generate:npcs": "bun scripts/generate-npc-sheets.ts",
-    "generate:figure": "bun scripts/generate-figure.ts",
-    "figure-parts": "bun scripts/figure-parts.ts",
     "generate:respawn": "bun scripts/generate-respawn-tileset.ts",
     "generate:spell-projectiles": "bun scripts/generate-spell-projectiles.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
