@@ -1,5 +1,20 @@
 # the-last-stones
 
+## 0.8.0
+
+### Minor Changes
+
+- Every fighter's rating now shows beside their name all the time, marked with a star. Chests that need a rating and your stats panel use the same star.
+- The sun now rises in the east, crosses the southern sky and sets in the west, so shadows swing round across the ground through the day and shafts of sunlight sweep across caves through holes in the roof. Mornings are a pale yellow, sunsets turn red, and the night is shorter: it gets bluer and darker after sunset and is fully dark only from midnight to four.
+
+### Patch Changes
+
+- Slimes are now deep red, blue and green, and the green one is simply called Slime.
+- Casting a spell at a target out of range now walks you into the spell's range, even when your bow reaches further, instead of stopping at bow range and never casting.
+- You now start at level 1 in every skill and grow stronger from your first kills. Rats bite half as often, bats bite softer and slower so they are only a little tougher than rats, and Spark can be cast from your first day.
+- You can no longer push a crate up towards you from above it, so the witch-house crate stays in its hole once it has dropped in. From beside a stack you can still knock the top crate off.
+- A crate you push into a hole now slides to the edge and falls in at the speed you would, instead of vanishing straight to the bottom. Jumping in after it lands you on top of the crate rather than inside it, and your light now reaches the middle of the crate's top.
+
 ## 0.7.0
 
 ### Minor Changes
