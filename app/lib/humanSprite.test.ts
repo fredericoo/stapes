@@ -6,8 +6,9 @@ import {
   SHEET_WIDTH_PX,
   SKIN_TONES,
   composeSheet,
-  splitVariants,
-  type PartVariants,
+  resolveHumanLook,
+  splitBlocks,
+  type LayerBlocks,
   type Rgba,
 } from "./humanSprite";
 
@@ -33,12 +34,12 @@ function pixelAt(sheet: Uint8ClampedArray, at: number): number[] {
   return [...sheet.subarray(at * 4, at * 4 + 3)];
 }
 
-function partsWith(overrides: Partial<PartVariants>): PartVariants {
+function partsWith(overrides: Partial<LayerBlocks>): LayerBlocks {
   return { base: [block()], shoes: [], clothes: [], head: [block()], hat: [], ...overrides };
 }
 
-describe("splitVariants", () => {
-  it("reads blocks left to right then down, skipping empty ones", () => {
+describe("splitBlocks", () => {
+  it("reads blocks left to right then down, keeping empty ones so later blocks keep their place", () => {
     const columns = 2;
     const rows = 2;
     const widthPx = SHEET_WIDTH_PX * columns;
@@ -50,9 +51,14 @@ describe("splitVariants", () => {
       SHEET_HEIGHT_PX * rows,
     );
 
-    const variants = splitVariants(image);
+    const blocks = splitBlocks(image);
 
-    expect(variants.map((v) => pixelAt(v.data, 0))).toEqual([rgb("#111111"), rgb("#222222")]);
+    expect(blocks.map((b) => pixelAt(b.data, 0))).toEqual([
+      [0, 0, 0],
+      rgb("#111111"),
+      [0, 0, 0],
+      rgb("#222222"),
+    ]);
   });
 });
 
@@ -78,6 +84,17 @@ describe("composeSheet", () => {
     expect(pixelAt(sheet, 1)).toEqual(rgb(HAIR_COLOURS.blonde[0]));
   });
 
+  it("draws the block a part names", () => {
+    const parts = partsWith({ head: [block({ 0: "#111111" }), block({ 0: "#222222" })] });
+
+    const sheet = composeSheet(parts, {
+      ...DEFAULT_LOOK,
+      parts: { ...DEFAULT_LOOK.parts, head: "beard" },
+    });
+
+    expect(pixelAt(sheet, 0)).toEqual(rgb("#222222"));
+  });
+
   it("draws later layers over earlier ones and skips a layer set to none", () => {
     const parts = partsWith({
       clothes: [block({ 0: "#111111" })],
@@ -86,14 +103,44 @@ describe("composeSheet", () => {
 
     const hatless = composeSheet(parts, {
       ...DEFAULT_LOOK,
-      variants: { ...DEFAULT_LOOK.variants, hat: null },
+      parts: { ...DEFAULT_LOOK.parts, hat: null },
     });
     const hatted = composeSheet(parts, {
       ...DEFAULT_LOOK,
-      variants: { ...DEFAULT_LOOK.variants, hat: 0 },
+      parts: { ...DEFAULT_LOOK.parts, hat: "leather-cap" },
     });
 
     expect(pixelAt(hatless, 0)).toEqual(rgb("#111111"));
     expect(pixelAt(hatted, 0)).toEqual(rgb("#222222"));
+  });
+});
+
+describe("resolveHumanLook", () => {
+  const appearance = { skin: "pale", hair: "black", head: "beard" } as const;
+
+  it("wears what is equipped over the fallback outfit, and the fallback where a slot is empty", () => {
+    const look = resolveHumanLook(
+      appearance,
+      { clothes: "brown-tunic", shoes: "dark-boots" },
+      { clothes: "steel-mail", hat: "iron-helmet" },
+    );
+
+    expect(look).toEqual({
+      parts: {
+        base: "body",
+        shoes: "dark-boots",
+        clothes: "steel-mail",
+        head: "beard",
+        hat: "iron-helmet",
+      },
+      skin: "pale",
+      hair: "black",
+    });
+  });
+
+  it("leaves a layer bare when neither the outfit nor the equipment covers it", () => {
+    const look = resolveHumanLook(appearance);
+
+    expect(look.parts).toMatchObject({ shoes: null, clothes: null, hat: null });
   });
 });

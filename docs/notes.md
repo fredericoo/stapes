@@ -5903,17 +5903,27 @@ frames all fit one 48×64 block, so a wolf or a deer is never offered.
 **The parts are PNGs in `data/tilesets/`, drawn over each other in this order:**
 `human_base.png` (the naked, headless body), `human_shoes.png`,
 `human_clothes.png`, `human_heads.png`, `human_hats.png`. Each file holds any
-number of variants as 48×64 blocks in a grid, read left to right, top to
-bottom; a fully transparent block is skipped. Hats are the one layer drawn
+number of parts as 48×64 blocks in a grid. Hats are the one layer drawn
 above the head and outside the body, so they carry their own outline where
 they stand against the background. Height runs up and to the left, so a hat
 is seen from above: a crown leaning up-left from the head and a brim lying flat
 as a rounded disc, about the size of the head, like the helmets in
 `ultima-vi.png`. A hat drawn as a front view, rising straight up the screen,
 looks far too big. The page fetches them from
-`/api/tilesets/`. Under `bun dev` that reads `data/` directly, so a new variant
-shows on reload; a deployed world shows it only after a reseed. They are indexed with `people.png`'s palette and are not listed in
-`tilesets.json`, because no tile draws from them.
+`/api/tilesets/`. Under `bun dev` that reads `data/` directly, so a new part
+shows on reload; a deployed world shows it only after a reseed. They are
+indexed with `people.png`'s palette and are not listed in `tilesets.json`,
+because no tile draws from them.
+
+**A part is stored by name, never by position.** `HUMAN_PARTS` in
+`app/lib/humanParts.ts` names each drawn block, and a look holds those names.
+`block` counts every block of the file left to right, top to bottom, blank
+ones included, so drawing a new part in a free block renumbers nothing.
+Moving a block does, and silently re-dresses everyone who wore it; retire a
+part by blanking its block and dropping its entry instead.
+`app/lib/humanParts.test.ts` fails when a drawn block has no name or a name
+points at an empty block, so a new part is a block in the PNG plus one line
+in `HUMAN_PARTS`.
 
 **A head is a few pixels with no outline**, the same on all three frames of a
 facing; the body's outline frames it. Facing south and east it shows the face,
