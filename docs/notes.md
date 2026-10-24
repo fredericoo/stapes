@@ -10169,6 +10169,29 @@ map's business.
 thing, or a body that is gone, is never rated below anything, so its `not` is
 not "strong enough". It is the same `rating` a dialog's `rated_below` reads.
 
+### The gate guards warn a newcomer once per approach
+
+`north-gate-guard` and `south-gate-guard` have `east-gate-guard`'s brain
+with two more states, so a change to how a guard fights or eats goes in all
+three. `watching` goes to `warning` when the nearest player is in sight and
+`rated_below` the gate's number (15 north for the bog imps, 14 south for the
+snakes), binding them as `traveller`; `warning` says the line on entry and
+hands straight to `warned`, which holds until `traveller` is more than 12
+cells off. `east-gate-guard` has no warning, since east is the road a new
+player is pointed to.
+
+- **Every way back from a conversation or a snack goes to `warned`, not
+  `watching`.** A guard is hungry every five minutes, and `snacking` returning
+  to `watching` would warn the same player again the moment it was fed;
+  `listening` returning there would warn them the moment they closed the
+  dialog. `warned` with nobody bound passes on to `watching` at once, because
+  `out_of_range` of an empty slot holds.
+- **Monsters and talk still reach a warned guard**: the transitions to
+  `fighting` and `listening` leave from `["watching", "warned"]`.
+- **The nearest player is the one rated.** A strong player standing nearer the
+  guard than a new one means nobody is warned. `gateGuards.test.ts` covers the
+  once-per-approach loop.
+
 ### The wolf we ship sleeps through the day on the surface
 
 Awake is `or[below_level 0, time_of_day 19→6]`: night on the surface, or any
