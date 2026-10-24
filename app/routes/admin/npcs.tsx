@@ -237,7 +237,6 @@ function NpcEditor({
   sheet: Uint8ClampedArray<ArrayBuffer>;
   onChange: (look: HumanLook) => void;
 }) {
-  const column = useWalkColumn();
   return (
     <div className="grid h-full min-h-0 grid-cols-[320px_1fr]">
       <aside className="flex min-h-0 flex-col gap-4 overflow-auto border-r-2 border-border bg-panel p-3">
@@ -256,21 +255,7 @@ function NpcEditor({
         ))}
       </aside>
       <main className="flex min-h-0 flex-col items-center gap-6 overflow-auto p-6">
-        <div className="flex gap-4">
-          {SHEET_FACINGS.map((facing, row) => (
-            <figure key={facing} className="flex flex-col items-center gap-1 text-xs text-muted">
-              <SheetCanvas
-                sheet={sheet}
-                sx={column * FRAME_PX}
-                sy={row * FRAME_PX}
-                width={FRAME_PX}
-                height={FRAME_PX}
-                zoom={PREVIEW_ZOOM}
-              />
-              <figcaption>{FACING_LABEL[facing]}</figcaption>
-            </figure>
-          ))}
-        </div>
+        <WalkPreview sheet={sheet} />
         <SheetCanvas
           sheet={sheet}
           sx={0}
@@ -280,6 +265,28 @@ function NpcEditor({
           zoom={SHEET_ZOOM}
         />
       </main>
+    </div>
+  );
+}
+
+/** Owns the walk clock so its ticks re-render the four previews and nothing else. */
+function WalkPreview({ sheet }: { sheet: Uint8ClampedArray<ArrayBuffer> }) {
+  const column = useWalkColumn();
+  return (
+    <div className="flex gap-4">
+      {SHEET_FACINGS.map((facing, row) => (
+        <figure key={facing} className="flex flex-col items-center gap-1 text-xs text-muted">
+          <SheetCanvas
+            sheet={sheet}
+            sx={column * FRAME_PX}
+            sy={row * FRAME_PX}
+            width={FRAME_PX}
+            height={FRAME_PX}
+            zoom={PREVIEW_ZOOM}
+          />
+          <figcaption>{FACING_LABEL[facing]}</figcaption>
+        </figure>
+      ))}
     </div>
   );
 }
@@ -421,6 +428,11 @@ function HairField({
   );
 }
 
+function optionsOn(layer: LayerId, parts: PartVariants): (number | null)[] {
+  const options: (number | null)[] = parts[layer].map((_, i) => i);
+  return LAYERS.find((l) => l.id === layer)!.optional ? [null, ...options] : options;
+}
+
 /** Each option shows the whole look wearing that variant, facing south and standing. */
 function VariantField({
   layer,
@@ -434,8 +446,14 @@ function VariantField({
   onChange: (index: number | null) => void;
 }) {
   const def = LAYERS.find((l) => l.id === layer)!;
-  const options: (number | null)[] = parts[layer].map((_, i) => i);
-  if (def.optional) options.unshift(null);
+  const options = optionsOn(layer, parts);
+  const sheets = useMemo(
+    () =>
+      optionsOn(layer, parts).map((index) =>
+        composeSheet(parts, { ...look, variants: { ...look.variants, [layer]: index } }),
+      ),
+    [parts, look, layer],
+  );
   return (
     <fieldset className="flex flex-col gap-1">
       <legend className="mb-1">
@@ -444,12 +462,12 @@ function VariantField({
         </FieldLabel>
       </legend>
       <div className="flex flex-wrap gap-1">
-        {options.map((index) => (
+        {options.map((index, i) => (
           <VariantOption
             key={index ?? "none"}
             label={index === null ? `${def.label}: none` : `${def.label}: ${index + 1}`}
             pressed={look.variants[layer] === index}
-            sheet={composeSheet(parts, { ...look, variants: { ...look.variants, [layer]: index } })}
+            sheet={sheets[i]!}
             onClick={() => onChange(index)}
           />
         ))}
