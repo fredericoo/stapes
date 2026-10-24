@@ -8,7 +8,12 @@ import {
   resolveLightPassing,
 } from "./types";
 import { elevationAt, footElevation, getStack, terrainHeight } from "./mapData";
-import { computeLightingFlood, MAX_LIGHT_LEVEL, parseHexColor } from "./lightingFlood";
+import {
+  computeLightingFlood,
+  FULL_CELL_TOP_LIGHT_SHARE,
+  MAX_LIGHT_LEVEL,
+  parseHexColor,
+} from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
 
 export { MAX_LIGHT_LEVEL };
@@ -720,6 +725,29 @@ function blockView(level: PackedLevelLight): ChannelView {
   return { ...level, data: level.rgba, stride: 4 };
 }
 
+/** The overlay's half of the bake's full-cell rule in `computeLightingFlood`. */
+function lightFullCellTops(occlusion: DenseOcclusion, floatsByZ: Map<number, Float32Array>) {
+  const { reach, w, h } = occlusion;
+  for (const [z, floats] of floatsByZ) {
+    const above = floatsByZ.get(z + 1);
+    if (!above) continue;
+    for (let ly = 0; ly < h; ly++) {
+      for (let lx = 0; lx < w; lx++) {
+        const x = reach.x0 + lx;
+        const y = reach.y0 + ly;
+        const cell = denseIndex(occlusion, x, y, z);
+        const lid = denseIndex(occlusion, x, y, z + 1);
+        if (cell < 0 || lid < 0) continue;
+        if (occlusion.opacity[cell]! < 1 || occlusion.seals[lid]) continue;
+        const i = (ly * w + lx) * 3;
+        for (let c = 0; c < 3; c++) {
+          floats[i + c] = Math.max(floats[i + c]!, above[i + c]! * FULL_CELL_TOP_LIGHT_SHARE);
+        }
+      }
+    }
+  }
+}
+
 export function overlayEmitterOverridesPacked(
   base: PackedLightGrid,
   map: MapFile,
@@ -749,6 +777,7 @@ export function overlayEmitterOverridesPacked(
   for (const e of emitters) {
     castEmitter(e, occlusion, floatsByZ, reach.x0, reach.y0, w, h);
   }
+  lightFullCellTops(occlusion, floatsByZ);
 
   for (const [z, floats] of floatsByZ) {
     writeReachFloats(blockView(out.levels.get(z)!), floats, reach, w, h);
@@ -786,6 +815,7 @@ export function overlayEmitterOverrides(
   for (const e of emitters) {
     castEmitter(e, occlusion, floatsByZ, reach.x0, reach.y0, w, h);
   }
+  lightFullCellTops(occlusion, floatsByZ);
 
   for (const [z, floats] of floatsByZ) {
     writeReachFloats(rgbView(out.levels.get(z)!), floats, reach, w, h);

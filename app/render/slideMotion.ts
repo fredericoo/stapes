@@ -1,4 +1,5 @@
 import type { SlideSnapshot } from "../game/GameSession";
+import { slidePhases } from "../game/push";
 import { baseCellWorldOrigin, depthStackBias } from "../lib/geometry";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
 import { HEIGHT_PER_LEVEL, type MapFile, type PlacedTile, type TileDef } from "../lib/types";
@@ -21,23 +22,37 @@ export function slideTileMotions(
   progress: number,
 ): TileMotion[] {
   const { object, from, count } = slide;
-  const t = progress;
+  const { across, down } = slidePhases(slide.dropUnits, progress);
 
+  /**
+   * The column slides across at the height it left, then drops to where it
+   * landed. `overEdge` is the point between the two: the landing cell, at the
+   * surface the column was pushed off.
+   */
   const fromCenter = surfaceWorldCenter(map, tilesById, from);
   const toCenter = slotWorldCenter(map, tilesById, object, object.stackIndex);
-  const visualX = Math.round(fromCenter.x + (toCenter.x - fromCenter.x) * t);
-  const visualY = Math.round(fromCenter.y + (toCenter.y - fromCenter.y) * t);
+  const originFoot = surfaceFootAbs(map, tilesById, from);
+  const overEdge = cellCenter(
+    { x: object.x, y: object.y, z: from.z },
+    originFoot - from.z * HEIGHT_PER_LEVEL,
+  );
+  const visualX = Math.round(
+    fromCenter.x + (overEdge.x - fromCenter.x) * across + (toCenter.x - overEdge.x) * down,
+  );
+  const visualY = Math.round(
+    fromCenter.y + (overEdge.y - fromCenter.y) * across + (toCenter.y - overEdge.y) * down,
+  );
   const ox = visualX - toCenter.x;
   const oy = visualY - toCenter.y;
 
-  const originFoot = surfaceFootAbs(map, tilesById, from);
   const baseFoot = slotFootAbs(map, tilesById, object, object.stackIndex);
-  const behind = (baseFoot - originFoot) * (1 - t);
+  const behind = (baseFoot - originFoot) * (1 - down);
 
-  const boxX = from.x + (object.x - from.x) * t;
-  const boxY = from.y + (object.y - from.y) * t;
+  const boxX = from.x + (object.x - from.x) * across;
+  const boxY = from.y + (object.y - from.y) * across;
   const originStackLen = getStack(map, from.x, from.y, from.z).length;
   const stack = getStack(map, object.x, object.y, object.z);
+  const drawZ = slideDrawLevel(from.z, object.z, baseFoot - behind);
 
   const motions: TileMotion[] = [];
   for (let i = 0; i < count; i++) {
@@ -52,7 +67,7 @@ export function slideTileMotions(
       stackIndex,
       ox,
       oy,
-      alsoDrawAtZ: from.z < object.z ? from.z : undefined,
+      alsoDrawAtZ: drawZ === object.z ? undefined : drawZ,
       box: {
         x: boxX,
         y: boxY,
@@ -66,6 +81,18 @@ export function slideTileMotions(
     });
   }
   return motions;
+}
+
+/**
+ * The level a sliding column is drawn on, and so lit by. A climb stays on the
+ * level it left until it arrives. A drop is already on its landing level on the
+ * board, so without this it would cross the floor above lit by the pit's light
+ * map; it is drawn on whichever level its foot is passing through instead, as
+ * a falling body is relocated level by level.
+ */
+function slideDrawLevel(fromZ: number, toZ: number, footAbs: number): number {
+  if (fromZ < toZ) return fromZ;
+  return Math.min(fromZ, Math.max(toZ, Math.floor(footAbs / HEIGHT_PER_LEVEL)));
 }
 
 function slotFootAbs(
