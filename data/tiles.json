@@ -14119,6 +14119,11 @@
           "edgeWidth": 0.15
         }
       }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "red",
+      "head": "short-hair"
     }
   },
   {

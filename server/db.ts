@@ -143,6 +143,7 @@ const MIGRATIONS: readonly string[] = [
      started_at   INTEGER NOT NULL,
      ended_at     INTEGER
    )`,
+  `ALTER TABLE character ADD COLUMN appearance TEXT`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

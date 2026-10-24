@@ -5967,6 +5967,22 @@ because the renderer rebuilds every chunk whose identity changes. The tile's
 own outfit is what shows in a slot with nothing worn, and it is all a
 portrait shows, because `TilePreview` draws the tile, not the actor.
 
+**A player chooses their skin, hair and head when they make a character**, and
+never again: you are what you made. `/characters/new` and `/guest` send it with
+the name, the API refuses one `readAppearance` cannot read, and it is stored as
+JSON in `character.appearance`, null for characters made before it existed. The server reads it with the
+name when it seats the player (`appearanceOf`), the session carries it on the
+actor, and it reaches other clients as an `appearances` list sent the way
+`names` are: in `hello` and for arrivals, never diffed, because it cannot
+change during a life. `WornLooks` lays it over the player tile's own `human`,
+whose look (red short hair) is what a character without one wears. The player
+tile has no outfit of its own, so a player is drawn in exactly what they have
+equipped and a slot they empty shows bare. Portraits draw the tile, not the
+actor, so a player's icon in the panels shows that bare body. The
+creation preview dresses the look in `STARTING_OUTFIT` in
+`CharacterLookField.tsx`, the part the starting kit's Cloth Tunic is drawn as,
+kept equal to the player tile's kit by hand.
+
 **A head is a few pixels with no outline**, the same on all three frames of a
 facing; the body's outline frames it. Facing south and east it shows the face,
 so a beard goes there, over the chin and the chest below it. Facing west and

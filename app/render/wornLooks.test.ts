@@ -17,8 +17,14 @@ const GUARD: TileDef = {
 const WOLF: TileDef = { ...GUARD, id: "wolf", name: "Wolf", human: undefined };
 const CATALOGUE = { guard: GUARD, wolf: WOLF };
 
-function actor(tileId: string, x: number, outfit: ActorSnapshot["outfit"]): ActorSnapshot {
-  return { id: `${tileId}-${x}`, tileId, x, y: 0, z: 0, stackIndex: 1, outfit } as ActorSnapshot;
+function actor(
+  tileId: string,
+  x: number,
+  outfit: ActorSnapshot["outfit"],
+  appearance: ActorSnapshot["appearance"] = null,
+): ActorSnapshot {
+  const id = `${tileId}-${x}`;
+  return { id, tileId, x, y: 0, z: 0, stackIndex: 1, outfit, appearance } as ActorSnapshot;
 }
 
 function world() {
@@ -45,6 +51,24 @@ describe("WornLooks", () => {
     });
     expect(getStack(map, 0, 0, 0)[1]!.tileId).toBe("guard");
     expect(CATALOGUE).not.toHaveProperty(drawnId);
+  });
+
+  it("draws a player in the look they chose, over their tile's, wearing nothing extra", () => {
+    const map = world();
+
+    const view = new WornLooks().apply(
+      map,
+      [actor("guard", 0, {}, { skin: "pale", hair: "blue", head: "bald" })],
+      CATALOGUE,
+    );
+
+    const drawnId = getStack(view.map, 0, 0, 0)[1]!.tileId;
+    expect(view.tilesById[drawnId]!.human).toEqual({
+      skin: "pale",
+      hair: "blue",
+      head: "bald",
+      outfit: { clothes: "white-tunic" },
+    });
   });
 
   it("leaves bodies that wear nothing, or are not human, as they are", () => {

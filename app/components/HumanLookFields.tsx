@@ -91,7 +91,13 @@ export function HumanLookFields({
 }
 
 /** Owns the walk clock so its ticks re-render the four previews and nothing else. */
-export function WalkPreview({ sheet }: { sheet: Uint8ClampedArray<ArrayBuffer> }) {
+export function WalkPreview({
+  sheet,
+  zoom = PREVIEW_ZOOM,
+}: {
+  sheet: Uint8ClampedArray<ArrayBuffer>;
+  zoom?: number;
+}) {
   const column = useWalkColumn();
   return (
     <div className="flex gap-4">
@@ -103,7 +109,7 @@ export function WalkPreview({ sheet }: { sheet: Uint8ClampedArray<ArrayBuffer> }
             sy={row * FRAME_PX}
             width={FRAME_PX}
             height={FRAME_PX}
-            zoom={PREVIEW_ZOOM}
+            zoom={zoom}
           />
           <figcaption>{FACING_LABEL[facing]}</figcaption>
         </figure>

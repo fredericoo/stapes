@@ -1,3 +1,4 @@
+import { readAppearance, type HumanAppearance } from "../app/lib/humanSprite";
 import {
   MAX_CHARACTERS_PER_ACCOUNT,
   characterNameProblem,
@@ -91,6 +92,12 @@ export class Characters {
     return row?.name ?? null;
   }
 
+  async appearanceOf(characterId: string): Promise<HumanAppearance | null> {
+    const statement = await this.db.prepare("SELECT appearance FROM character WHERE id = ?");
+    const row = (await statement.get([characterId])) as { appearance: string | null } | undefined;
+    return row?.appearance ? readAppearance(JSON.parse(row.appearance)) : null;
+  }
+
   async markSeen(characterId: string, at: number): Promise<void> {
     const update = await this.db.prepare("UPDATE character SET last_seen_at = ? WHERE id = ?");
     await update.run([at, characterId]);
@@ -116,6 +123,7 @@ export class Characters {
   async create(
     userId: string,
     typed: string,
+    appearance: HumanAppearance | null = null,
   ): Promise<{ character: Character } | { error: string }> {
     const problem = characterNameProblem(typed);
     if (problem) return { error: problem };
@@ -133,10 +141,16 @@ export class Characters {
       createdAt: Date.now(),
     };
     const insert = await this.db.prepare(
-      "INSERT INTO character (id, user_id, name, created_at) VALUES (?, ?, ?, ?)",
+      "INSERT INTO character (id, user_id, name, created_at, appearance) VALUES (?, ?, ?, ?, ?)",
     );
     try {
-      await insert.run([character.id, userId, character.name, character.createdAt]);
+      await insert.run([
+        character.id,
+        userId,
+        character.name,
+        character.createdAt,
+        appearance ? JSON.stringify(appearance) : null,
+      ]);
     } catch (error) {
       if (isNameTaken(error)) {
         return { error: `${character.name} is already taken.` };

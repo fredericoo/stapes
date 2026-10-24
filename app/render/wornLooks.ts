@@ -1,14 +1,20 @@
 import type { ActorSnapshot } from "../game/GameSession";
-import { isBare, outfitKey, type Outfit } from "../lib/humanSprite";
+import {
+  appearanceKey,
+  isBare,
+  outfitKey,
+  type HumanAppearance,
+  type Outfit,
+} from "../lib/humanSprite";
 import { getStack, setStacks, type StackEdit } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 
 export type WornView = { map: MapFile; tilesById: Record<string, TileDef> };
 
 /**
- * Draws each human actor in what they have equipped. In the drawn map only,
- * the actor's placement becomes a copy of its tile whose outfit carries the
- * worn parts over its own, and the copy joins the drawn catalogue, so the
+ * Draws each human actor in what they have equipped, and a player in the look
+ * they chose. In the drawn map only, the actor's placement becomes a copy of
+ * its tile carrying their appearance and their worn parts over its own, and the copy joins the drawn catalogue, so the
  * renderers compose it like any other human tile. The rules, picking and the
  * interaction panel keep reading the real snapshot and the real tile.
  */
@@ -60,12 +66,14 @@ export class WornLooks {
   }
 
   private dressedIdFor(actor: ActorSnapshot, tilesById: Record<string, TileDef>): string | null {
-    if (isBare(actor.outfit)) return null;
+    const { outfit, appearance } = actor;
+    if (isBare(outfit) && !appearance) return null;
     const def = tilesById[actor.tileId];
     if (!def?.human) return null;
-    const id = `${def.id}~${outfitKey(actor.outfit)}`;
+    const who = appearance ? appearanceKey(appearance) : "";
+    const id = `${def.id}~${who}~${outfitKey(outfit)}`;
     if (!this.dressed.has(id)) {
-      this.dressed.set(id, wearing(def, id, actor.outfit));
+      this.dressed.set(id, wearing(def, id, outfit, appearance));
       this.catalogue = null;
     }
     return id;
@@ -78,7 +86,16 @@ export class WornLooks {
   }
 }
 
-function wearing(def: TileDef, id: string, worn: Outfit): TileDef {
+function wearing(
+  def: TileDef,
+  id: string,
+  worn: Outfit,
+  appearance: HumanAppearance | null,
+): TileDef {
   const human = def.human!;
-  return { ...def, id, human: { ...human, outfit: { ...human.outfit, ...worn } } };
+  return {
+    ...def,
+    id,
+    human: { ...human, ...appearance, outfit: { ...human.outfit, ...worn } },
+  };
 }

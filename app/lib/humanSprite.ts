@@ -134,10 +134,24 @@ export function resolveHumanLook(
   };
 }
 
-export const tileHumanSchema = v.object({
+export const humanAppearanceSchema = v.object({
   skin: v.picklist(SKIN_TONE_NAMES),
   hair: v.picklist(HAIR_COLOUR_NAMES),
   head: partOnSchema("head"),
+});
+
+/** An appearance that loads, or null for anything else: a stored or sent look is never trusted. */
+export function readAppearance(raw: unknown): HumanAppearance | null {
+  const parsed = v.safeParse(humanAppearanceSchema, raw);
+  return parsed.success ? parsed.output : null;
+}
+
+export function appearanceKey({ skin, hair, head }: HumanAppearance): string {
+  return `${skin}.${hair}.${head}`;
+}
+
+export const tileHumanSchema = v.object({
+  ...humanAppearanceSchema.entries,
   outfit: v.optional(
     v.object({
       shoes: v.optional(partOnSchema("shoes")),

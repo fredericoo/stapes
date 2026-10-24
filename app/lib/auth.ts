@@ -1,4 +1,5 @@
 import { redirect } from "react-router";
+import type { HumanAppearance } from "./humanSprite";
 import type { Character } from "../../server/characters";
 import type { Role } from "../../server/auth";
 import type { MaintenanceState } from "../../server/maintenance";
@@ -58,8 +59,11 @@ export function signUp(
   return post("/api/account", { username, email, password });
 }
 
-export async function startGuest(name: string): Promise<Attempt<Character>> {
-  const started = await post<{ character: Character }>("/api/guest", { name });
+export async function startGuest(
+  name: string,
+  appearance?: HumanAppearance,
+): Promise<Attempt<Character>> {
+  const started = await post<{ character: Character }>("/api/guest", { name, appearance });
   return started.ok ? { ok: true, value: started.value.character } : started;
 }
 
@@ -90,9 +94,13 @@ export function changePassword(
   });
 }
 
-export async function createCharacter(name: string): Promise<Attempt<Character>> {
+export async function createCharacter(
+  name: string,
+  appearance?: HumanAppearance,
+): Promise<Attempt<Character>> {
   const made = await post<{ character: Character }>("/api/characters", {
     name,
+    appearance,
   });
   return made.ok ? { ok: true, value: made.value.character } : made;
 }

@@ -219,4 +219,15 @@ describe("characters", () => {
   it("answers null for an id no account owns", async () => {
     expect(await characters.nameOf("npc:1,2,0,1")).toBeNull();
   });
+
+  it("keeps the look a character was made with, and has none for one made without", async () => {
+    const account = await makeAccount("looks");
+    const look = { skin: "brown", hair: "blue", head: "beard" } as const;
+    const chosen = await characters.create(account, "Bluebeard", look);
+    const plain = await characters.create(account, "Plain");
+    if (!("character" in chosen) || !("character" in plain)) throw new Error("expected both");
+
+    expect(await characters.appearanceOf(chosen.character.id)).toEqual(look);
+    expect(await characters.appearanceOf(plain.character.id)).toBeNull();
+  });
 });

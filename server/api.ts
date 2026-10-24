@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 import { flattenMap, parseMap, serializeMap } from "../app/lib/mapData";
 import { readPngSize } from "../app/lib/png";
+import { readAppearance, type HumanAppearance } from "../app/lib/humanSprite";
 import { untar } from "./untar";
 import { PROTOCOL_VERSION } from "../app/net/protocol";
 import { viewerOf, type Viewer } from "./auth";
@@ -19,6 +20,15 @@ import {
 const FEEDBACK_LIST_LIMIT = 500;
 
 const GUEST_SIGN_IN_PATH = "/api/auth/sign-in/anonymous";
+
+const REFUSED_LOOK = Symbol("refused look");
+const REFUSED_LOOK_MESSAGE = "That look isn't one the game can draw.";
+
+/** No look sent is null, the player tile's own; a look sent that does not read is refused. */
+function chosenAppearance(sent: unknown): HumanAppearance | null | typeof REFUSED_LOOK {
+  if (sent === undefined) return null;
+  return readAppearance(sent) ?? REFUSED_LOOK;
+}
 
 export function createApi(world: World, bundle: ClientBundle, config: Config) {
   const store = world.blobs;
@@ -46,11 +56,13 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       "/guest",
       async ({ body, request, status }) => {
         if (await signedIn(request)) return status(409, "This browser is already signed in.");
-        const started = await startGuest(world.auth, world.characters, body.name);
+        const appearance = chosenAppearance(body.appearance);
+        if (appearance === REFUSED_LOOK) return status(400, REFUSED_LOOK_MESSAGE);
+        const started = await startGuest(world.auth, world.characters, body.name, appearance);
         if ("error" in started) return status(400, started.error);
         return Response.json({ character: started.character }, { headers: started.headers });
       },
-      { body: t.Object({ name: t.String() }) },
+      { body: t.Object({ name: t.String(), appearance: t.Optional(t.Unknown()) }) },
     )
     .post(
       "/account/claim",
@@ -117,11 +129,13 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         if (viewer.guest) {
           return status(403, "A guest plays one character. Save it to an account to make more.");
         }
-        const made = await world.characters.create(viewer.id, body.name);
+        const appearance = chosenAppearance(body.appearance);
+        if (appearance === REFUSED_LOOK) return status(400, REFUSED_LOOK_MESSAGE);
+        const made = await world.characters.create(viewer.id, body.name, appearance);
         if ("error" in made) return status(400, made.error);
         return { character: made.character };
       },
-      { body: t.Object({ name: t.String() }) },
+      { body: t.Object({ name: t.String(), appearance: t.Optional(t.Unknown()) }) },
     )
 
     .post(

@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from "node:fs/promises";
+import type { HumanAppearance } from "../app/lib/humanSprite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DataStore } from "../app/lib/dataStore";
@@ -221,7 +222,11 @@ export class Harness {
   }
 }
 
-type ServerOptions = { manualTicks?: { startAtMs: number }; seed?: number };
+type ServerOptions = {
+  manualTicks?: { startAtMs: number };
+  seed?: number;
+  appearances?: Readonly<Record<string, HumanAppearance>>;
+};
 
 function buildServer(
   store: WorldStore,
@@ -237,11 +242,13 @@ function buildServer(
     getWebSockets: () => hub.all(),
     acceptWebSocket: (socket) => hub.accept(socket),
   };
+  const { appearances, ...rest } = options;
   return new GameServer(context, {
     dataStore: new DataStore(blobs),
     nameOf: async (actorId) => names[actorId] ?? null,
+    appearanceOf: async (actorId) => appearances?.[actorId] ?? null,
     deathsOf: (actorId) => deaths.countOf(actorId),
-    ...options,
+    ...rest,
   });
 }
 

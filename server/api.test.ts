@@ -155,6 +155,26 @@ describe("playing as a guest", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
+  it("keeps the look the guest chose for their character", async () => {
+    const look = { skin: "brown", hair: "green", head: "bald" } as const;
+
+    const response = await call("/guest", { name: "Maren Ormstead", appearance: look });
+
+    const [character] = (await me(sessionOf(response))).characters;
+    expect(await world.characters.appearanceOf(character!.id)).toEqual(look);
+  });
+
+  it("refuses a look the game cannot draw, and signs nobody in", async () => {
+    const response = await call("/guest", {
+      name: "Maren Ormstead",
+      appearance: { skin: "brown", hair: "green", head: "antlers" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(await world.characters.nameTaken("Maren Ormstead")).toBe(false);
+  });
+
   it("cannot be started without a character", async () => {
     const response = await call("/auth/sign-in/anonymous", {});
     expect(response.status).toBe(404);
@@ -600,5 +620,44 @@ describe("the trait catalogue", () => {
 
     expect(response.status).toBe(404);
     expect(await world.blobs.readTraits()).toEqual(traitsJson);
+  });
+});
+
+describe("making a character", () => {
+  async function admin(): Promise<string> {
+    return sessionOf(
+      await call("/auth/sign-in/username", {
+        username: SEEDED_ADMIN_USERNAME,
+        password: SEEDED_ADMIN_PASSWORD,
+      }),
+    );
+  }
+
+  it("keeps the look it was made with", async () => {
+    const look = { skin: "pale", hair: "blonde", head: "long-hair" } as const;
+
+    const response = await call(
+      "/characters",
+      { name: "Ada Lark", appearance: look },
+      await admin(),
+    );
+
+    expect(response.status).toBe(200);
+    const { character } = (await response.json()) as { character: { id: string } };
+    expect(await world.characters.appearanceOf(character.id)).toEqual(look);
+  });
+
+  it("refuses a look the game cannot draw, and makes no character", async () => {
+    const from = await admin();
+    const before = (await me(from)).characters;
+
+    const response = await call(
+      "/characters",
+      { name: "Ada Lark", appearance: { skin: "green", hair: "blonde", head: "long-hair" } },
+      from,
+    );
+
+    expect(response.status).toBe(400);
+    expect((await me(from)).characters).toEqual(before);
   });
 });

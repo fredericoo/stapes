@@ -83,6 +83,12 @@ const carriedLightsPatchSchema = v.object({
   tileIds: v.array(v.string()),
 });
 
+/** Loose, checked by `readAppearance`, so a look the client cannot draw never drops the frame. */
+const appearancePatchSchema = v.object({
+  actorId: v.string(),
+  appearance: v.object({ skin: v.string(), hair: v.string(), head: v.string() }),
+});
+
 /** Loose strings, checked per layer by `readOutfit`, so an unknown part never drops the frame. */
 const outfitPatchSchema = v.object({
   actorId: v.string(),
@@ -235,6 +241,11 @@ export type CarriedLightsPatch = {
   tileIds: string[];
 };
 
+export type AppearancePatch = {
+  actorId: string;
+  appearance: { skin: string; hair: string; head: string };
+};
+
 export type OutfitPatch = {
   actorId: string;
   outfit: Partial<Record<WornLayer, string>>;
@@ -365,6 +376,7 @@ export type ServerMessage =
       kingId: string | null;
       hps: HpPatch[];
       names: NamePatch[];
+      appearances: AppearancePatch[];
       carriedLights: CarriedLightsPatch[];
       outfits: OutfitPatch[];
       statusIds: StatusIdsPatch[];
@@ -401,6 +413,7 @@ export type ServerMessage =
       events: MotionEvent[];
       hps: HpPatch[];
       names: NamePatch[];
+      appearances: AppearancePatch[];
       carriedLights: CarriedLightsPatch[];
       outfits: OutfitPatch[];
       statusIds: StatusIdsPatch[];
@@ -626,6 +639,7 @@ const serverMessageSchema = v.variant("type", [
     kingId: v.optional(v.nullable(v.string()), () => null),
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
+    appearances: v.optional(v.array(appearancePatchSchema), () => []),
     carriedLights: v.array(carriedLightsPatchSchema),
     outfits: v.optional(v.array(outfitPatchSchema), () => []),
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
@@ -851,6 +865,7 @@ const serverMessageSchema = v.variant("type", [
     ),
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
+    appearances: v.optional(v.array(appearancePatchSchema), () => []),
     carriedLights: v.array(carriedLightsPatchSchema),
     outfits: v.optional(v.array(outfitPatchSchema), () => []),
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),

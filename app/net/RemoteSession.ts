@@ -1,5 +1,12 @@
 import { areaBurstEffects } from "../game/area";
-import { BARE, isBare, readOutfit, type Outfit } from "../lib/humanSprite";
+import {
+  BARE,
+  isBare,
+  readAppearance,
+  readOutfit,
+  type HumanAppearance,
+  type Outfit,
+} from "../lib/humanSprite";
 import { slideDurationMs, slideStillShoving } from "../game/push";
 import {
   DAMAGE_NUMBER_LIFETIME_MS,
@@ -116,6 +123,7 @@ import {
   type ClientMessage,
   type CarriedLightsPatch,
   type OutfitPatch,
+  type AppearancePatch,
   type AfflictedPatch,
   type StatusIdsPatch,
   type PvpPatch,
@@ -190,6 +198,7 @@ export class RemoteSession implements PlaySession {
   private readonly names = new Map<string, string>();
   private readonly carriedLights = new Map<string, string[]>();
   private readonly outfits = new Map<string, Outfit>();
+  private readonly appearances = new Map<string, HumanAppearance>();
   private readonly statusesById = new Map<string, StatusInstance[]>();
   private readonly extractionsById = new Map<string, ExtractionProgress>();
   private readonly pvpOn = new Set<string>();
@@ -440,6 +449,8 @@ export class RemoteSession implements PlaySession {
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.names.clear();
       this.applyNames(message.names);
+      this.appearances.clear();
+      this.applyAppearances(message.appearances);
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
       this.applyOutfits(message.outfits);
@@ -564,6 +575,7 @@ export class RemoteSession implements PlaySession {
 
     const leaving = this.applyCells(message.cells);
     this.applyNames(message.names);
+    this.applyAppearances(message.appearances);
     this.applyHps(message.hps);
     this.applyCarriedLights(message.carriedLights);
     this.applyOutfits(message.outfits);
@@ -599,6 +611,14 @@ export class RemoteSession implements PlaySession {
   private applyCarriedLights(patches: CarriedLightsPatch[]) {
     for (const patch of patches) {
       this.carriedLights.set(patch.actorId, patch.tileIds);
+    }
+  }
+
+  private applyAppearances(patches: AppearancePatch[]) {
+    for (const patch of patches) {
+      const appearance = readAppearance(patch.appearance);
+      if (appearance) this.appearances.set(patch.actorId, appearance);
+      else this.appearances.delete(patch.actorId);
     }
   }
 
@@ -763,6 +783,7 @@ export class RemoteSession implements PlaySession {
     this.hps.delete(id);
     this.carriedLights.delete(id);
     this.outfits.delete(id);
+    this.appearances.delete(id);
     this.statusesById.delete(id);
     this.pvpOn.delete(id);
     this.extractionsById.delete(id);
@@ -1353,6 +1374,7 @@ export class RemoteSession implements PlaySession {
       statuses: id === this.selfId ? this.statuses : (this.statusesById.get(id) ?? NO_STATUSES),
       carriedLights: this.carriedLights.get(id) ?? NO_CARRIED_LIGHTS,
       outfit: this.outfits.get(id) ?? BARE,
+      appearance: this.appearances.get(id) ?? null,
       extracting: id === this.selfId ? this.extracting : (this.extractionsById.get(id) ?? null),
       casting: this.castingsById.get(id) ?? null,
       pvp: this.pvpOn.has(id),
@@ -1746,6 +1768,7 @@ function offscreenActor(id: string): ActorSnapshot {
     statuses: NO_STATUSES,
     carriedLights: NO_CARRIED_LIGHTS,
     outfit: BARE,
+    appearance: null,
     extracting: null,
     casting: null,
     pvp: false,

@@ -213,8 +213,10 @@ async function waitForCheckpointedAt(actorId: string, cell: string): Promise<voi
 
 const NAMES = { alice: "Alice", bob: "Bob" } as const;
 
+const ALICE_LOOK = { skin: "pale", hair: "blue", head: "long-hair" } as const;
+
 beforeEach(async () => {
-  harness = await Harness.create(NAMES);
+  harness = await Harness.create(NAMES, { appearances: { alice: ALICE_LOOK } });
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
   await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
@@ -4492,6 +4494,33 @@ describe("what each client is told has changed", () => {
       ...((message.carriedLights ?? []) as Array<{ actorId: string }>),
     ]);
     expect(about.filter((entry) => entry.actorId === "bob")).toEqual([]);
+  });
+
+  it("tells a player arriving how the others there chose to look", async () => {
+    await connect("alice");
+    const bob = await connect("bob");
+
+    expect(bob.hello.appearances).toEqual([{ actorId: "alice", appearance: ALICE_LOOK }]);
+  });
+
+  it("tells the player themself the part their new helmet is drawn as", async () => {
+    const withHelm = authoredMap();
+    withHelm.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "iron-helm" }];
+    await harness.blobs.put("map.json", JSON.stringify(withHelm), JSON_TYPE);
+
+    const alice = await connect("alice");
+    const seen = record(alice.ws);
+    send(alice.ws, { type: "equip", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    await equipmentWithin(alice.ws);
+    await wait(200);
+
+    const outfits = seen
+      .of("patch")
+      .flatMap((message) => (message.outfits ?? []) as Array<{ actorId: string; outfit: object }>);
+    expect(outfits).toContainEqual({
+      actorId: "alice",
+      outfit: expect.objectContaining({ hat: "iron-helmet" }),
+    });
   });
 
   it("tells everyone nearby the part a player's new helmet is drawn as", async () => {
