@@ -126,9 +126,11 @@ export function ContainerPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">
-          {title}
-          <span className="ml-1 tabular-nums text-paper/40">
+        <h2 className="flex min-w-0 items-baseline text-detail font-bold uppercase tracking-wide text-paper/50">
+          <span className="truncate" title={title}>
+            {title}
+          </span>
+          <span className="ml-1 shrink-0 tabular-nums text-paper/40">
             {contents.length}/{size}
           </span>
         </h2>
