@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
+import { DEFAULT_BATTLER, type BattlerDef, type NaturalSpell } from "./battler";
 import type { PlateComparison } from "./interactions";
 import {
   hasAnyInteraction,
@@ -14,7 +16,9 @@ import {
   resolveReceive,
   resolveSwitch,
 } from "./interactions";
+import type { ArcaneStoneItem } from "./item";
 import { tile } from "./testTile";
+import { normalizeTiles } from "./types";
 
 describe("resolveSwitch", () => {
   it("reads a valid switch block", () => {
@@ -281,6 +285,42 @@ describe("interactionsForSave", () => {
     expect(interactionsForSave({ switch: { targetTileId: "" } })).toBeUndefined();
   });
 
+  it("keeps a battler's pvp flag", () => {
+    expect(interactionsForSave({ battler: { ...DEFAULT_BATTLER, pvp: true } })?.battler?.pvp).toBe(
+      true,
+    );
+  });
+
+  it("keeps the effect a natural spell plays on its caster", () => {
+    const spell: NaturalSpell = { ...SPARK, name: "Spark", casterEffect: CASTER_EFFECT };
+
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER, spells: [spell] } })?.battler
+        ?.spells?.[0]?.casterEffect,
+    ).toEqual(CASTER_EFFECT);
+  });
+
+  it("keeps the effect an arcane stone plays on its caster", () => {
+    expect(
+      interactionsForSave({ item: { ...SPARK, casterEffect: CASTER_EFFECT } })?.item,
+    ).toMatchObject({ casterEffect: CASTER_EFFECT });
+  });
+
+  it("keeps the tile a reward is drawn as once claimed", () => {
+    expect(
+      interactionsForSave({ reward: { actionName: "Open", claimedTileId: " chest-open " } })
+        ?.reward,
+    ).toEqual({ actionName: "Open", claimedTileId: "chest-open" });
+  });
+
+  it("loses nothing a shipped tile sets when the editor saves it", () => {
+    const losses = shippedTiles().flatMap((def) =>
+      lostPaths(def.interactions, interactionsForSave(def.interactions), def.id),
+    );
+
+    expect(losses).toEqual([]);
+  });
+
   it("omits the field when nothing is enabled", () => {
     expect(interactionsForSave({})).toBeUndefined();
     expect(interactionsForSave(undefined)).toBeUndefined();
@@ -432,3 +472,32 @@ describe("interactionsForSave", () => {
     ).toEqual({ fist: 3, toughness: 5 });
   });
 });
+
+const SPARK: ArcaneStoneItem = {
+  type: "stone",
+  effect: { kind: "bolt", on: "target", damage: 3 },
+  cooldownMs: 4_000,
+};
+
+const CASTER_EFFECT_MS = 600;
+const CASTER_EFFECT = { durationMs: CASTER_EFFECT_MS, drop: { levels: 1 } };
+
+function shippedTiles() {
+  const file = path.resolve(import.meta.dirname, "../../data/tiles.json");
+  return normalizeTiles(JSON.parse(readFileSync(file, "utf8")));
+}
+
+/**
+ * Every value the original sets that the saved copy does not carry. Values the
+ * save adds (a default reach) or tidies away (an empty list) are not losses.
+ */
+function lostPaths(original: unknown, saved: unknown, at: string): string[] {
+  if (original === undefined || (Array.isArray(original) && original.length === 0)) return [];
+  if (original === null || typeof original !== "object") {
+    return saved === original ? [] : [at];
+  }
+  if (saved === null || typeof saved !== "object") return [at];
+  return Object.entries(original).flatMap(([key, value]) =>
+    lostPaths(value, (saved as Record<string, unknown>)[key], `${at}.${key}`),
+  );
+}

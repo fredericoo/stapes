@@ -987,8 +987,12 @@ export function interactionsForSave(
     : undefined;
   const reward = interactions?.reward;
   const rewardActionName = reward?.actionName?.trim();
+  const claimedTileId = reward?.claimedTileId?.trim();
   const savedReward = reward
-    ? { ...(rewardActionName ? { actionName: rewardActionName } : {}) }
+    ? {
+        ...(rewardActionName ? { actionName: rewardActionName } : {}),
+        ...(claimedTileId ? { claimedTileId } : {}),
+      }
     : undefined;
   const savedDepot = interactions?.depot ? { size: interactions.depot.size } : undefined;
   const savedCraft = interactions?.craft ? craftForSave(interactions.craft) : undefined;
@@ -1095,15 +1099,17 @@ export function interactionsForSave(
   const savedImmunities = (battler?.immuneTo ?? []).map((id) => id.trim()).filter(Boolean);
   const savedSpells = (battler?.spells ?? []).flatMap((spell) => {
     const name = spell.name?.trim();
-    return name
-      ? [
-          {
-            ...stoneForSave(spell),
-            name,
-            ...(spell.icon ? { icon: { ...spell.icon } } : {}),
-          },
-        ]
-      : [];
+    if (!name) return [];
+    const { type, ...stone } = stoneForSave(spell);
+    /** `type` then `name` first, the order the catalogue writes, so an unchanged save is an unchanged file. */
+    return [
+      {
+        type,
+        name,
+        ...stone,
+        ...(spell.icon ? { icon: { ...spell.icon } } : {}),
+      },
+    ];
   });
   const savedBattler = battler
     ? {
@@ -1127,6 +1133,7 @@ export function interactionsForSave(
           : {}),
         ...(savedImmunities.length ? { immuneTo: savedImmunities } : {}),
         ...(battler.remains?.trim() ? { remains: battler.remains.trim() } : {}),
+        ...(battler.pvp ? { pvp: true } : {}),
         ...(savedSpells.length ? { spells: savedSpells } : {}),
       }
     : undefined;
