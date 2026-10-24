@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
-import { HUMAN_PARTS, LAYERS } from "./humanParts";
+import { HUMAN_PARTS, LAYERS, wornPartOf } from "./humanParts";
+import type { ArmorItem } from "./item";
 import { splitBlocks } from "./humanSprite";
 
 const TILESETS = path.resolve(import.meta.dirname, "../../data/tilesets");
@@ -34,5 +35,26 @@ describe("HUMAN_PARTS", () => {
       .sort((a, b) => a - b);
 
     expect(named).toEqual(drawnBlocks(file));
+  });
+});
+
+describe("wornPartOf", () => {
+  const armor = (fields: Partial<ArmorItem>): ArmorItem => ({ type: "armor", def: 1, ...fields });
+
+  it("finds the part on the layer the slot dresses", () => {
+    expect(wornPartOf(armor({ slot: "head", humanPart: "iron-helmet" }))).toEqual({
+      layer: "hat",
+      id: "iron-helmet",
+    });
+    expect(wornPartOf(armor({ humanPart: "steel-mail" }))).toEqual({
+      layer: "clothes",
+      id: "steel-mail",
+    });
+  });
+
+  it("draws nothing for a part on another layer, an unknown part, or a charm", () => {
+    expect(wornPartOf(armor({ slot: "footwear", humanPart: "iron-helmet" }))).toBeNull();
+    expect(wornPartOf(armor({ slot: "head", humanPart: "crown" }))).toBeNull();
+    expect(wornPartOf(armor({ slot: "charm", humanPart: "iron-helmet" }))).toBeNull();
   });
 });

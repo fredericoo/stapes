@@ -11,6 +11,8 @@ import type {
   ShieldItem,
   WeaponItem,
 } from "../lib/item";
+import { WornPartField } from "./HumanLookFields";
+import { layerForSlot, wornPartOf, type HumanPartId } from "../lib/humanParts";
 import {
   ARMOR_SLOTS,
   armorSlotOf,
@@ -66,6 +68,24 @@ const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> = ARMOR_SLO
 }));
 
 const WORN_REQUIREMENTS_INFO = `Zero asks nothing. Short of Arcane or an element, the piece does nothing at all: no defence, resists, element or charm effect. Short of anything else, it still works, but every point short, summed across everything worn, costs ${Math.round(ENCUMBRANCE_PER_POINT_SHORT * 100)}% of attack speed and of evasion, up to ${Math.round(MAX_ENCUMBRANCE * 100)}%.`;
+
+function WornPart({
+  armor,
+  onChange,
+}: {
+  armor: ArmorItem;
+  onChange: (humanPart: HumanPartId | undefined) => void;
+}) {
+  const layer = layerForSlot(armorSlotOf(armor));
+  if (!layer) return null;
+  return (
+    <WornPartField
+      layer={layer}
+      value={wornPartOf(armor)?.id ?? null}
+      onChange={(id) => onChange(id ?? undefined)}
+    />
+  );
+}
 
 function WornRequirements({
   requirements,
@@ -238,13 +258,15 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: P
               <div>
                 <Segmented<ArmorSlot>
                   value={armorSlotOf(item)}
-                  onChange={(slot) => patchArmor({ slot })}
+                  onChange={(slot) => patchArmor({ slot, humanPart: undefined })}
                   options={ARMOR_SLOT_OPTIONS}
                   size="sm"
                   ariaLabel="Slot"
                 />
               </div>
             </div>
+
+            <WornPart armor={item} onChange={(humanPart) => patchArmor({ humanPart })} />
 
             <StatField
               label="Defence"
