@@ -4503,6 +4503,26 @@ describe("what each client is told has changed", () => {
     expect(bob.hello.appearances).toEqual([{ actorId: "alice", appearance: ALICE_LOOK }]);
   });
 
+  it("tells the player themself the part their new helmet is drawn as", async () => {
+    const withHelm = authoredMap();
+    withHelm.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "iron-helm" }];
+    await harness.blobs.put("map.json", JSON.stringify(withHelm), JSON_TYPE);
+
+    const alice = await connect("alice");
+    const seen = record(alice.ws);
+    send(alice.ws, { type: "equip", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    await equipmentWithin(alice.ws);
+    await wait(200);
+
+    const outfits = seen
+      .of("patch")
+      .flatMap((message) => (message.outfits ?? []) as Array<{ actorId: string; outfit: object }>);
+    expect(outfits).toContainEqual({
+      actorId: "alice",
+      outfit: expect.objectContaining({ hat: "iron-helmet" }),
+    });
+  });
+
   it("tells everyone nearby the part a player's new helmet is drawn as", async () => {
     const withHelm = authoredMap();
     withHelm.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "iron-helm" }];
