@@ -1007,6 +1007,7 @@ describe("giving up", () => {
       health: () => 1,
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
+      ratingOf: () => null,
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, blocked);
@@ -1794,6 +1795,7 @@ describe("a deer that yelps", () => {
       health: () => 1,
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
+      ratingOf: () => null,
     };
 
     for (let tick = 0; tick < 5; tick++) stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1873,6 +1875,7 @@ describe("a deer that yelps", () => {
       health: () => 1,
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
+      ratingOf: () => null,
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -4759,6 +4762,22 @@ describe("asking what a body is under", () => {
       const empty = watching({ cond: "time_of_day", fromHour: 7, toHour: 7 });
       expect(ran(empty, at(7))).toBe("idle");
       expect(ran(empty, at(20))).toBe("idle");
+    });
+  });
+
+  describe("asking how strong somebody is", () => {
+    const newcomer = watching({ cond: "rated_below", of: nearest("player"), rating: 15 });
+    const facing = (rating: number | null) =>
+      ctx({ nearestOnTile: () => "alice", ratingOf: () => rating });
+
+    it("holds for a body rated under the number and not at or over it", () => {
+      expect(ran(newcomer, facing(14))).toBe("alert");
+      expect(ran(newcomer, facing(15))).toBe("idle");
+    });
+
+    it("never holds with nobody to rate", () => {
+      expect(ran(newcomer, ctx({ nearestOnTile: () => null }))).toBe("idle");
+      expect(ran(newcomer, facing(null))).toBe("idle");
     });
   });
 

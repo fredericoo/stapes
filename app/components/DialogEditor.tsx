@@ -21,6 +21,7 @@ import {
   type SwitchTo,
   type TradeSide,
 } from "../lib/dialog";
+import { DEFAULT_RATED_BELOW } from "../lib/brainCatalog";
 import { DIALOG_COMMAND_KINDS, DIALOG_COMMANDS, type CatalogDefaults } from "../lib/dialogCatalog";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { StatusDef } from "../lib/status";
@@ -488,6 +489,10 @@ const CONDITIONS: Record<DialogCondition["cond"], { label: string; make: () => D
     king: { label: "the player is the king", make: () => ({ cond: "king" }) },
     tagged: { label: "the player has the tag", make: () => ({ cond: "tagged", tag: "" }) },
     switched: { label: "the channel is on", make: () => ({ cond: "switched", channel: "" }) },
+    rated_below: {
+      label: "the player is rated below",
+      make: () => ({ cond: "rated_below", rating: DEFAULT_RATED_BELOW }),
+    },
   };
 
 function ConditionFields({
@@ -524,6 +529,16 @@ function ConditionFields({
           className="w-32 font-mono"
           placeholder="channel"
           aria-label="Channel"
+        />
+      ) : null}
+      {leaf.cond === "rated_below" ? (
+        <NumberInput
+          min={0}
+          step={1}
+          value={leaf.rating}
+          onChange={(rating) => onChange({ ...leaf, rating })}
+          className="w-16"
+          aria-label="Rating"
         />
       ) : null}
     </>

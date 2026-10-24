@@ -16,8 +16,9 @@ import { resolveContainer, resolveItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
+import { MIN_RATING } from "../lib/mastery";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Input, Select, Switch } from "../ui";
+import { Button, Input, NumberInput, Select, Switch } from "../ui";
 import { ConversationPanel } from "./ConversationPanel";
 
 const PRETEND_NAME = "you";
@@ -36,6 +37,7 @@ type Pretend = {
   statuses: Set<string>;
   king: boolean;
   channels: Set<string>;
+  rating: number;
 };
 
 function biggestBag(tiles: TileDef[]): TileDef | null {
@@ -62,6 +64,7 @@ function pretendPartner(
     isKing: () => pretend.king,
     hasTag: (tag) => pretend.tags.has(tag),
     channelOn: (channel) => pretend.channels.has(channel),
+    rating: () => pretend.rating,
     attempt: (effects) => {
       const next = {
         equipment: pretend.equipment,
@@ -69,6 +72,7 @@ function pretendPartner(
         statuses: new Set(pretend.statuses),
         king: pretend.king,
         channels: new Set(pretend.channels),
+        rating: pretend.rating,
       };
       for (const effect of effects) {
         if (!applyEffect(next, effect, tilesById, statusDefs)) return false;
@@ -120,6 +124,7 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
     statuses: new Set(),
     king: false,
     channels: new Set(),
+    rating: MIN_RATING,
   }));
   const [adding, setAdding] = useState<string | null>(null);
 
@@ -227,6 +232,17 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
           />
           king
         </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase text-muted">rating</span>
+          <NumberInput
+            min={MIN_RATING}
+            step={1}
+            value={pretend.rating}
+            onChange={(rating) => setPretend({ ...pretend, rating })}
+            className="w-16"
+            aria-label="Pretend rating"
+          />
+        </div>
         {Object.keys(statusDefs).length > 0 ? (
           <div className="flex flex-wrap items-center gap-1">
             <span className="text-[10px] uppercase text-muted">statuses</span>

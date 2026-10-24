@@ -1513,7 +1513,7 @@ battler, which is the same exposure.
 
 - **`if` holds a condition tree** (`app/lib/conditions`, the brain's own
   `and`/`or`/`not` groups) over dialog leaves, and runs `then` (branch 0) or
-  `else` (branch 1) without waiting for a press. There are three leaves.
+  `else` (branch 1) without waiting for a press. There are four leaves.
   `{ cond: "king" }` is read through `PartnerView.isKing`: on the server it
   is `GameSession.kingId`, which `GameServer.crown` sets alongside the `king`
   broadcast and `load` sets on every new session. The world in a tab has no
@@ -1526,6 +1526,9 @@ battler, which is the same exposure.
   plus the brain-state emitters, so it agrees with what the doors on that
   channel are doing. In Try it the pretend channels field answers it, and a
   `switch` command updates that field.
+  `{ cond: "rated_below", rating }` asks whether the player's rating (the ⭐
+  on their stats panel, `rating` in `app/lib/mastery.ts`) is under the number,
+  read through `PartnerView.rating`. Try it has a pretend rating field.
 - **`switch` does not hold any state of its own.** It throws every placed tile
   on its `channel` that has a `switch` interaction, exactly as if somebody had
   used each one, so the lever's own `emit` drives whatever is wired to the
@@ -10160,6 +10163,34 @@ through a round. `planBrainRound` stores it on the `BrainRound`, and
 the body's own `z` is strictly below `level`, so `below_level 0` is underground.
 It has no bounds beyond being a whole number, since how deep a map goes is the
 map's business.
+
+**`rated_below` asks how strong somebody else is.** It holds when the body its
+`of` names has a rating under `rating`, through `BrainContext.ratingOf`. A
+thing, or a body that is gone, is never rated below anything, so its `not` is
+not "strong enough". It is the same `rating` a dialog's `rated_below` reads.
+
+### The gate guards warn a newcomer once per approach
+
+`north-gate-guard` and `south-gate-guard` have `east-gate-guard`'s brain
+with two more states, so a change to how a guard fights or eats goes in all
+three. `watching` goes to `warning` when the nearest player is in sight and
+`rated_below` the gate's number (15 north for the bog imps, 14 south for the
+snakes), binding them as `traveller`; `warning` says the line on entry and
+hands straight to `warned`, which holds until `traveller` is more than 12
+cells off. `east-gate-guard` has no warning, since east is the road a new
+player is pointed to.
+
+- **Every way back from a conversation or a snack goes to `warned`, not
+  `watching`.** A guard is hungry every five minutes, and `snacking` returning
+  to `watching` would warn the same player again the moment it was fed;
+  `listening` returning there would warn them the moment they closed the
+  dialog. `warned` with nobody bound passes on to `watching` at once, because
+  `out_of_range` of an empty slot holds.
+- **Monsters and talk still reach a warned guard**: the transitions to
+  `fighting` and `listening` leave from `["watching", "warned"]`.
+- **The nearest player is the one rated.** A strong player standing nearer the
+  guard than a new one means nobody is warned. `gateGuards.test.ts` covers the
+  once-per-approach loop.
 
 ### The wolf we ship sleeps through the day on the surface
 

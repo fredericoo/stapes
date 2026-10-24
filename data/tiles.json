@@ -45546,8 +45546,1063 @@
     }
   },
   {
-    "id": "town-guard",
-    "name": "Town Guard",
+    "id": "north-gate-guard",
+    "name": "North Gate Guard",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "guard",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "watching",
+        "states": {
+          "watching": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "healing": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "warning": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Hey {traveller}, I wouldn't go north if I were you."
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "warned": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "healing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "healing"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": 10
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "watching"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "watching"
+          },
+          {
+            "from": [
+              "watching",
+              "warned"
+            ],
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops"
+                      ]
+                    }
+                  },
+                  "cells": 8
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "watching",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "player"
+                      ]
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "cond": "rated_below",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "player"
+                      ]
+                    }
+                  },
+                  "rating": 15
+                }
+              ]
+            },
+            "bind": {
+              "traveller": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "warning"
+          },
+          {
+            "from": "warning",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "warned"
+          },
+          {
+            "from": "warned",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "traveller"
+                }
+              },
+              "cells": 12
+            },
+            "to": "watching"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
+            },
+            "to": "warned"
+          },
+          {
+            "from": [
+              "watching",
+              "warned"
+            ],
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "warned"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "if",
+            "when": {
+              "cond": "rated_below",
+              "rating": 15
+            },
+            "then": [
+              {
+                "kind": "say",
+                "text": "Hold up, {partner}. North of here is bog country, and you're not ready for what lives in it."
+              }
+            ],
+            "else": [
+              {
+                "kind": "say",
+                "text": "Off to the bog, {partner}? Watch your footing out there."
+              }
+            ]
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "What's north?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Bog and black water, as far as you can walk. The bog imps live out there."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "What are bog imps?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Small, quick and mean, and they hit far harder than they look."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "I'd want fifteen stars to my name before I went looking for one."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Where should I go instead?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "East, through the other gate. The rats out there are a fair first fight, and they'll teach you to swing."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "South is next, once you've a few fights behind you."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Keep to the road."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 80,
+        "masteries": {
+          "fist": 5,
+          "sharp": 70,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 70,
+          "agility": 40,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "weapon",
+            "tileId": "knights-sword",
+            "chance": 100
+          },
+          {
+            "slot": "offhand",
+            "tileId": "iron-shield",
+            "chance": 100
+          },
+          {
+            "slot": "armor",
+            "tileId": "steel-plate",
+            "chance": 100
+          },
+          {
+            "slot": "head",
+            "tileId": "knights-helm",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "steel-sabatons",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player",
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "east-gate-guard",
+    "name": "East Gate Guard",
     "height": 4,
     "type": "directional",
     "kind": "battler",
@@ -45905,7 +46960,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "Heading out past the gate, {partner}? Then you'd best know about the wolves."
+            "text": "Heading east, {partner}? Good road for a first trip."
           },
           {
             "kind": "anchor",
@@ -45914,6 +46969,1090 @@
           {
             "kind": "choices",
             "options": [
+              {
+                "label": "What's east?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Fields and rats, mostly. A rat's an easy kill once you've got the hang of a fight."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Further out there's a cave that goes down deeper than anyone's mapped."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Anything worth finding?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Something shines by the river, out east. I've seen it glint from the wall on a clear day."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "There's a way to it through the water, if you look closely."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "But a wolf keeps close by it. Don't go after it until you can handle a wolf."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "What about the cave?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "It goes down a long way, and the deeper you go, the darker it gets."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Take a light, and don't go further down than you can climb back up."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Mind the river."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 80,
+        "masteries": {
+          "fist": 5,
+          "sharp": 70,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 70,
+          "agility": 40,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "weapon",
+            "tileId": "knights-sword",
+            "chance": 100
+          },
+          {
+            "slot": "offhand",
+            "tileId": "iron-shield",
+            "chance": 100
+          },
+          {
+            "slot": "armor",
+            "tileId": "steel-plate",
+            "chance": 100
+          },
+          {
+            "slot": "head",
+            "tileId": "knights-helm",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "steel-sabatons",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player",
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "south-gate-guard",
+    "name": "South Gate Guard",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "guard",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "watching",
+        "states": {
+          "watching": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "healing": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "warning": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Hey {traveller}, I wouldn't go south if I were you."
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "warned": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "healing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "healing"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": 10
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "watching"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "watching"
+          },
+          {
+            "from": [
+              "watching",
+              "warned"
+            ],
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 8
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops"
+                      ]
+                    }
+                  },
+                  "cells": 8
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "watching",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "player"
+                      ]
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "cond": "rated_below",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "player"
+                      ]
+                    }
+                  },
+                  "rating": 14
+                }
+              ]
+            },
+            "bind": {
+              "traveller": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "warning"
+          },
+          {
+            "from": "warning",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "warned"
+          },
+          {
+            "from": "warned",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "traveller"
+                }
+              },
+              "cells": 12
+            },
+            "to": "watching"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
+            },
+            "to": "warned"
+          },
+          {
+            "from": [
+              "watching",
+              "warned"
+            ],
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "warned"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "if",
+            "when": {
+              "cond": "rated_below",
+              "rating": 14
+            },
+            "then": [
+              {
+                "kind": "say",
+                "text": "The south road's no place for you yet, {partner}. There are snakes in the grass and wolves in the woods."
+              }
+            ],
+            "else": [
+              {
+                "kind": "say",
+                "text": "Heading south, {partner}? Then you'd best know about the snakes and the wolves."
+              }
+            ]
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "What about snakes?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "They lie in the long grass, and you won't see one until you're on top of it."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Once one has hold of you, you won't outrun it. Fight it, or keep well clear."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "I'd want fourteen stars to my name before I walked that grass."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
               {
                 "label": "When do wolves hunt?",
                 "then": [
@@ -45962,6 +48101,19 @@
                   {
                     "kind": "say",
                     "text": "Drop it where the wolf can see it, then run while it eats."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Where should I go instead?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "East, through the other gate. The rats out there are a fair fight for anyone."
                   },
                   {
                     "kind": "goto",
