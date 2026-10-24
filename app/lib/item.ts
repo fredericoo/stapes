@@ -98,6 +98,8 @@ export type ArmorItem = {
   resist?: WeaponResistances;
   requirements?: Masteries;
   elements?: Element[];
+  /** The human part it is drawn as when worn; see `wornPartOf`. */
+  humanPart?: string;
 };
 
 export type WeaponResistances = Partial<Record<WeaponMastery, number>>;
@@ -422,6 +424,7 @@ const armorSchema = v.object({
   resist: v.optional(weaponResistancesSchema),
   requirements: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
+  humanPart: v.optional(v.string()),
 });
 
 const artifactSchema = v.object({
@@ -703,6 +706,7 @@ function armorForSave(armor: ArmorItem): ArmorItem {
     ...(Object.keys(resist).length > 0 ? { resist } : {}),
     ...requirementsForSave(armor.requirements),
     ...elementsForSave(armor.elements),
+    ...(armor.humanPart ? { humanPart: armor.humanPart } : {}),
   };
 }
 

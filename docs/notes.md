@@ -5941,6 +5941,14 @@ exists, so a human is invisible for that moment rather than magenta. A `human`
 that does not parse, or a tile whose frames reach outside one 48×64 block,
 draws from the anchor, and `bun run verify content` reports it.
 
+**A piece of armour names the part it is drawn as** in `humanPart`, picked
+under its slot in the tile editor's Item tab. The slot decides the layer
+(`LAYER_FOR_SLOT`: head dresses the hat, body the clothes, feet the shoes, and
+a charm nothing), so the picker offers only that layer's parts and changing
+the slot clears the pick. The field is a loose string on the item, resolved
+by `wornPartOf`, so a name nobody drew never stops the armour loading; `bun
+run verify content` reports it instead.
+
 **A head is a few pixels with no outline**, the same on all three frames of a
 facing; the body's outline frames it. Facing south and east it shows the face,
 so a beard goes there, over the chin and the chest below it. Facing west and

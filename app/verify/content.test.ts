@@ -129,6 +129,25 @@ const FAULTS: {
     found: { severity: "error", file: "tiles.json", id: "rat", path: "human" },
   },
   {
+    fault: "armour drawn as a part from another layer than its slot dresses",
+    seed: (c) => {
+      c.tiles.push(
+        tile("boots", {
+          kind: "item",
+          interactions: {
+            item: { type: "armor", slot: "footwear", def: 1, humanPart: "iron-helmet" },
+          },
+        }),
+      );
+    },
+    found: {
+      severity: "error",
+      file: "tiles.json",
+      id: "boots",
+      path: "interactions.item.humanPart",
+    },
+  },
+  {
     fault: "a kit naming a tile nobody defines",
     seed: (c) => {
       battlerOf(c).kit[0].tileId = "loaf";
