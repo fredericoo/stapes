@@ -33,7 +33,7 @@ import { footprintOf, HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
 import { handAccepts, handHasRoomFor, wornAccepts, type Equipment } from "./equipment";
-import { pushDestination } from "./push";
+import { pushDestination, pushedColumn, pushedHeight } from "./push";
 
 export type ObjectRef = Coord & { stackIndex: number };
 
@@ -122,7 +122,39 @@ export function pushTargetFrom(
   if (!direction) return null;
 
   const check = pushDestination(map, ref, direction, def, push, tilesById);
-  return check.ok ? check.to : null;
+  if (!check.ok) return null;
+  if (!pushFollowsPusher(map, tilesById, actor, ref, check.restsAt)) return null;
+  return check.to;
+}
+
+/**
+ * A shove goes away from the one shoving it, vertically as well as across. A
+ * body wholly above the column (feet at or over its top) can only send it down
+ * or level, and one wholly below it only up or level; a body beside it, sharing
+ * any height with it, can send it either way, which is how the top crate of a
+ * stack is knocked off from the ground. Without this, a crate sunk flush into a
+ * hole could be shoved back up out of it from the rim.
+ */
+function pushFollowsPusher(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  restsAt: number,
+): boolean {
+  const pusherFeet = standingElevationUnder(map, tilesById, actor);
+  const pushedFeet = standingElevationUnder(map, tilesById, ref);
+  const pushedTop = pushedFeet + pushedHeight(pushedColumn(map, ref), tilesById);
+  if (pusherFeet >= pushedTop) return restsAt <= pushedFeet;
+  const pusherTop = pusherFeet + bodyHeight(map, tilesById, actor);
+  if (pusherTop <= pushedFeet) return restsAt >= pushedFeet;
+  return true;
+}
+
+function bodyHeight(map: MapFile, tilesById: Record<string, TileDef>, at: ObjectRef): number {
+  const placed = getStack(map, at.x, at.y, at.z)[at.stackIndex];
+  const def = placed && tilesById[placed.tileId];
+  return def ? physicalHeight(def) : 0;
 }
 
 export function switchWouldFit(

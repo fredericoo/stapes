@@ -13,6 +13,7 @@ import {
   equipSlotFrom,
   pickUpDestination,
   pushableDefAt,
+  pushTargetFrom,
   REACH_CELLS,
   withinReach,
   type ObjectRef,
@@ -591,5 +592,42 @@ describe("pushableDefAt", () => {
   it("refuses a tile with no push on it", () => {
     const map = column("rock");
     expect(pushableDefAt(map, pushTilesById, ME, ref(1, 0, 0, 2))).toBeNull();
+  });
+});
+
+/**
+ * The witch-house crate in miniature: a crate on a half-height rock, its top
+ * flush with the wall-top the pusher stands on, so the pusher is wholly above it.
+ */
+describe("pushTargetFrom from wholly above a crate", () => {
+  const sunkTiles = [
+    ...tiles,
+    tile({ id: "player", height: 4, actor: true }),
+    tile({
+      id: "crate",
+      height: 2,
+      affectedByGravity: true,
+      interactions: { push: { climb: "half", moveOnTileIds: [] } },
+    }),
+  ];
+  const sunkById = tilesByIdFromList(sunkTiles);
+  const ON_THE_RIM = { x: 0, y: 0, z: 1, stackIndex: 0 };
+  const SUNK_CRATE = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+  function sunkCrateBeside(beyond: string): MapFile {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "rock" }, { tileId: "crate" }]);
+    return replaceStack(map, 2, 0, 0, [{ tileId: beyond }]);
+  }
+
+  it.each([
+    ["up onto a wall-top", "wall", null],
+    ["level onto a rock", "rock", { x: 2, y: 0, z: 0 }],
+    ["down onto grass", "grass", { x: 2, y: 0, z: 0 }],
+  ])("shoving it %s", (_, beyond, expected) => {
+    const map = sunkCrateBeside(beyond);
+
+    expect(pushTargetFrom(map, sunkById, ON_THE_RIM, SUNK_CRATE)).toEqual(expected);
   });
 });
