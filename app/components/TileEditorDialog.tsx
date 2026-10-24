@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { HumanTab } from "./HumanTab";
 import { WALK_DURATION_MS } from "../game/constants";
 import type {
   AutotileSlice,
@@ -278,6 +279,7 @@ const TAB_INTERACTIVE = "interactive";
 const TAB_BRAIN = "brain";
 const TAB_DIALOG = "dialog";
 const TAB_BATTLE = "battle";
+const TAB_HUMAN = "human";
 const TAB_SPELLS = "spells";
 const TAB_ITEM = "item";
 const TAB_PROJECTILE = "projectile";
@@ -615,6 +617,7 @@ export function TileEditorDialog({
       transitions: draft.transitions,
       interactions: interactionsForSave(draft.interactions),
       states: statesForSave(draft),
+      human: draft.kind === "battler" ? draft.human : undefined,
     };
 
     if (draft.type === "simple" && draft.sprite) {
@@ -1391,6 +1394,7 @@ export function TileEditorDialog({
             ...(draft.kind === "battler"
               ? [
                   { value: TAB_BATTLE, label: "Battle" },
+                  { value: TAB_HUMAN, label: draft.human ? "Human •" : "Human" },
                   {
                     value: TAB_SPELLS,
                     label: draft.interactions?.battler?.spells?.length ? "Spells •" : "Spells",
@@ -1450,6 +1454,10 @@ export function TileEditorDialog({
               statusDefs={statusDefs}
               battlerIssues={battlerProblems}
             />
+          </TabPanel>
+
+          <TabPanel value={TAB_HUMAN}>
+            <HumanTab draft={draft} onChange={setDraft} />
           </TabPanel>
 
           <TabPanel value={TAB_SPELLS}>
