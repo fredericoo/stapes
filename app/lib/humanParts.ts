@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { armorSlotOf, type ArmorItem } from "./item";
 import type { EquipSlot } from "./kit";
 
 export type Recolouring = "skin" | "hair";
@@ -96,3 +97,20 @@ export const LAYER_FOR_SLOT = {
 } as const satisfies Partial<Record<EquipSlot, LayerId>>;
 
 export type WornLayer = (typeof LAYER_FOR_SLOT)[keyof typeof LAYER_FOR_SLOT];
+
+export function layerForSlot(slot: EquipSlot): WornLayer | null {
+  return (LAYER_FOR_SLOT as Partial<Record<EquipSlot, WornLayer>>)[slot] ?? null;
+}
+
+/**
+ * The part a piece of armour is drawn as when worn, or null when it has none,
+ * names a part nobody drew, or names one on another layer than its slot
+ * dresses. A loose string on the item, so a bad name never stops the armour
+ * itself loading.
+ */
+export function wornPartOf(armor: ArmorItem): { layer: WornLayer; id: HumanPartId } | null {
+  const layer = layerForSlot(armorSlotOf(armor));
+  if (!layer || !armor.humanPart) return null;
+  const part = HUMAN_PARTS.find((p) => p.id === armor.humanPart && p.layer === layer);
+  return part ? { layer, id: part.id } : null;
+}

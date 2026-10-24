@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as v from "valibot";
-import { LAYERS, partsOn, type HumanPartId, type LayerId } from "../lib/humanParts";
+import { LAYERS, partsOn, type HumanPartId, type LayerId, type WornLayer } from "../lib/humanParts";
 import { loadLayerBlocks } from "../lib/humanSheets";
 import {
   FRAME_PX,
@@ -11,6 +11,7 @@ import {
   SHEET_WIDTH_PX,
   SKIN_TONES,
   SKIN_TONE_NAMES,
+  DEFAULT_LOOK,
   composeSheet,
   humanLookSchema,
   type HumanLook,
@@ -263,11 +264,15 @@ function VariantField({
   parts,
   look,
   onChange,
+  title,
+  info,
 }: {
   layer: LayerId;
   parts: LayerBlocks;
   look: HumanLook;
   onChange: (id: HumanPartId | null) => void;
+  title?: string;
+  info?: string;
 }) {
   const def = LAYERS.find((l) => l.id === layer)!;
   const options = optionsOn(layer);
@@ -278,8 +283,8 @@ function VariantField({
   return (
     <fieldset className="flex flex-col gap-1">
       <legend className="mb-1">
-        <FieldLabel info={`Drawn from ${def.file} and named in app/lib/humanParts.ts.`}>
-          {def.label}
+        <FieldLabel info={info ?? `Drawn from ${def.file} and named in app/lib/humanParts.ts.`}>
+          {title ?? def.label}
         </FieldLabel>
       </legend>
       <div className="flex flex-wrap gap-1">
@@ -297,6 +302,32 @@ function VariantField({
         <p className="text-xs text-muted">None drawn yet. Add a block to {def.file}.</p>
       ) : null}
     </fieldset>
+  );
+}
+
+/** A piece of armour's part, previewed on the default look so the piece reads on its own. */
+export function WornPartField({
+  layer,
+  value,
+  onChange,
+}: {
+  layer: WornLayer;
+  value: HumanPartId | null;
+  onChange: (id: HumanPartId | null) => void;
+}) {
+  const { parts, error } = useLayerBlocks();
+  const look = useMemo(() => withPart(DEFAULT_LOOK, layer, value), [layer, value]);
+  if (error) return <p className="text-xs text-danger">Couldn't load the parts: {error}</p>;
+  if (!parts) return null;
+  return (
+    <VariantField
+      layer={layer}
+      parts={parts}
+      look={look}
+      onChange={onChange}
+      title="Worn as"
+      info="How a human wearing this piece is drawn. None leaves that layer as the wearer's own outfit has it."
+    />
   );
 }
 

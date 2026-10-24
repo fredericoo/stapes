@@ -25,7 +25,8 @@ import {
   resolveTeleportDef,
   type TileInteractions,
 } from "../lib/interactions";
-import { resolveItem } from "../lib/item";
+import { armorSlotOf, resolveItem } from "../lib/item";
+import { layerForSlot, wornPartOf } from "../lib/humanParts";
 import { listCoords } from "../lib/mapData";
 import { resolveProjectile } from "../lib/projectile";
 import { anchorFits } from "../lib/spriteAnchor";
@@ -347,6 +348,7 @@ function checkTile(raw: Entry, def: TileDef, catalogue: ContentCatalogue, findin
 
     checkBlocks(raw, def, catalogue, findings);
     checkHuman(def, findings);
+    checkWornPart(def, findings);
     checkReferences(def, catalogue, findings);
   } catch (error) {
     findings.error(id, "", `Checking this tile threw: ${messageOf(error)}.`);
@@ -411,6 +413,19 @@ function checkHuman(def: TileDef, findings: Findings) {
       "The tile has a human, but its frames do not fit one character block, so it is drawn from its anchor.",
     );
   }
+}
+
+function checkWornPart(def: TileDef, findings: Findings) {
+  const item = resolveItem(def);
+  if (item?.type !== "armor" || !item.humanPart || wornPartOf(item)) return;
+  const layer = layerForSlot(armorSlotOf(item));
+  findings.error(
+    def.id,
+    "interactions.item.humanPart",
+    layer
+      ? `"${item.humanPart}" is not a ${layer} part in HUMAN_PARTS, so a human wearing it is drawn without it.`
+      : `A ${armorSlotOf(item)} piece dresses no layer of a human, so its part is never drawn.`,
+  );
 }
 
 function checkBlocks(raw: Entry, def: TileDef, catalogue: ContentCatalogue, findings: Findings) {
