@@ -4864,7 +4864,7 @@ What replaced each of the three:
   its own colour from `INTERACTION_COLORS`, so a body reads a red Attack beside
   a white Target and a quest chest a purple Open. A thing with one verb shows
   one hint. A blocked verb keeps its mouse icon and its button but shows its
-  reason in grey (`BLOCKED_INK`) in place of the verb — "Needs *10", "No room"
+  reason in grey (`BLOCKED_INK`) in place of the verb — "Needs ★10", "No room"
   — and the cursor does not change, because the other button may still work.
   Clicking it says why in a notice (`blockedNotice`); from afar it walks there
   first and says why on arrival, the same walk an unblocked verb takes. The name always sits in the name-tag slot under the hints: a body
@@ -8883,7 +8883,7 @@ in. So **nothing on the board changes at all**. What changes is the taker.
   Only `rating` so far. It sits on the placement beside the tag for the same
   reason the tag does: one `quest-chest` tile is both the tutorial's free chest
   and a deep one for veterans. A taker who falls short is shown the row anyway,
-  blocked (`OptionBlock` `needs`), drawn as `needs *10` and announced as
+  blocked (`OptionBlock` `needs`), drawn as `needs ★10` and announced as
   `needs rating 10` — a row that silently vanished would read as "nothing here".
   A full bag is listed the same way, as `noRoom`, and the rating is named
   first because emptying the bag would not open it. So the list asks
@@ -11011,11 +11011,14 @@ survives a reconnect. It is broadcast because it is *drawn*: the mark beside a
 name says whether that stranger can be fought, which is a thing you have to be
 able to read before deciding anything.
 
-The mark is `[PvP]` rather than crossed swords, for the reason `RATING_GLYPH` is
-an asterisk rather than a star: the world's text is typeset in NF Pixels, subset
-to printable ASCII, so a ⚔ falls back to a colour emoji at the wrong metrics. It
-is always on, unlike the ⭐, which is only drawn while looking — a mark you had
-to hold a key to see would be a mark nobody reads before walking into a crowd.
+The mark is `[PvP]` rather than crossed swords: the world's text is typeset in
+NF Pixels, subset to printable ASCII, so a ⚔ falls back to a colour emoji at the
+wrong metrics. The rating's star after every battler's name is not a character
+for the same reason; it is a 7×7 pixel icon (`STAR_PIXELS` in `textLabels.ts`)
+on the font's brick grid, as tall as its digits. Both are always on — a mark you
+had to hold a key to see would be a mark nobody reads before walking into a
+crowd. Interface text outside the world draws the star with `Rating`, from
+pixelarticons.
 
 ### The button asks on the way in, and not on the way out
 

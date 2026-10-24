@@ -929,6 +929,9 @@
 }
 
 .home-realm-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-size: 0.9375rem;
   font-variant-numeric: tabular-nums;
   color: var(--home-text);

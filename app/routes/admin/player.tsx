@@ -5,6 +5,7 @@ import type { Route } from "./+types/player";
 import { AdminShell } from "../../components/AppShell";
 import { ItemCard } from "../../components/ItemCard";
 import { AccountName, Badge, LastOnline, Moment } from "../../components/PlayerFacts";
+import { Rating } from "../../components/Rating";
 import { TilePreview } from "../../components/TilePreview";
 import { describeBlame } from "../../game/blame";
 import { COMMAND_PREFIX, GOTO_COMMAND } from "../../game/commands";
@@ -21,7 +22,6 @@ import {
   MASTERY_LABELS,
   type MasteryXp,
   progressToNextLevel,
-  RATING_GLYPH,
 } from "../../lib/mastery";
 import { pileTally } from "../../lib/piles";
 import { type StatusDef, statusesById } from "../../lib/status";
@@ -83,12 +83,7 @@ export default function PlayerPage() {
 
         <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <h1 className="text-lg font-bold">{character.name}</h1>
-          {player.rating === null ? null : (
-            <span className="tabular-nums text-sm">
-              {player.rating}
-              {RATING_GLYPH}
-            </span>
-          )}
+          {player.rating === null ? null : <Rating value={player.rating} className="text-sm" />}
           <span className="flex flex-wrap items-center gap-1.5">
             {sheet.dead ? <Badge>Dead</Badge> : null}
             {sheet.pvp ? <Badge>PvP</Badge> : null}

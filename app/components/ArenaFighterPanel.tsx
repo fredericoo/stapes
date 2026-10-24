@@ -1,4 +1,5 @@
 import type { ArenaFighter } from "../game/arena";
+import { Rating } from "./Rating";
 import { bodyOf, equipmentOf, fighterForTile, swingsOf, tilesForSlot } from "../game/arena";
 import { type Hand, HANDS, weaponInHand, weaponSwungBy } from "../game/equipment";
 import {
@@ -16,7 +17,6 @@ import {
   type Mastery,
   MIN_MASTERY,
   rating,
-  RATING_GLYPH,
   requirementShare,
   requirementShortfall,
 } from "../lib/mastery";
@@ -109,10 +109,7 @@ function Masteries({
     <fieldset className="flex flex-col gap-2">
       <legend className="flex w-full items-baseline justify-between text-[11px] font-bold uppercase text-muted">
         <span>Masteries</span>
-        <span className="tabular-nums normal-case text-ink">
-          {RATING_GLYPH}
-          {rating(fighter.masteries)}
-        </span>
+        <Rating value={rating(fighter.masteries)} className="normal-case text-ink" />
       </legend>
       <div className="grid grid-cols-4 gap-2">
         {MASTERIES.map((mastery) => (

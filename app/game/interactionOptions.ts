@@ -12,7 +12,6 @@ import {
   DEFAULT_CRAFT_VERB,
 } from "../lib/interactions";
 import { consumeVerb, EQUIP_FALLBACK_VERB, equipVerb, resolveConsumable } from "../lib/item";
-import { RATING_GLYPH } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Progress } from "./progress";
@@ -122,17 +121,21 @@ export function blockReason(blocked: OptionBlock): string | null {
   return "no room";
 }
 
-export function drawnBlockReason(blocked: OptionBlock): string | null {
+/** Words drawn on screen, and the rating drawn after them with a star. */
+export type DrawnReason = { text: string; rating?: number };
+
+export function drawnBlockReason(blocked: OptionBlock): DrawnReason | null {
   if (blocked.kind === "working") return null;
-  if (blocked.kind === "needs") return `needs ${RATING_GLYPH}${blocked.rating}`;
-  return blockReason(blocked);
+  if (blocked.kind === "needs") return { text: "needs", rating: blocked.rating };
+  const text = blockReason(blocked);
+  return text === null ? null : { text };
 }
 
 /** What a pointer hint says for `option`: its verb, or why it cannot be done right now. */
-export function pointerHintText(option: Pick<InteractionOption, "label" | "blocked">): string {
+export function pointerHint(option: Pick<InteractionOption, "label" | "blocked">): DrawnReason {
   const reason = option.blocked ? drawnBlockReason(option.blocked) : null;
-  if (!reason) return option.label;
-  return reason[0].toUpperCase() + reason.slice(1);
+  if (!reason) return { text: option.label };
+  return { ...reason, text: reason.text[0].toUpperCase() + reason.text.slice(1) };
 }
 
 const ACTION_ORDER: Record<InteractionAction, number> = {

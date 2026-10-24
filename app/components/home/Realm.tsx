@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchRealm } from "../../lib/api";
-import { RATING_GLYPH } from "../../lib/mastery";
+import { IconStar } from "../pixelIcons";
 import type { RealmState } from "../../../server/realm";
 
 const REFRESH_MS = 30_000;
@@ -60,7 +60,7 @@ export function Realm() {
                 )}
               </span>
               <span className="home-realm-rating" aria-label={`Rating ${leader.rating}`}>
-                {RATING_GLYPH}
+                <IconStar size={12} aria-hidden="true" />
                 {leader.rating}
               </span>
             </li>

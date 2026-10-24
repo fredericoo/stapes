@@ -5,7 +5,6 @@ import {
   type MasteryXp,
   masteriesFromXp,
   progressToNextLevel,
-  RATING_GLYPH,
   rating,
 } from "../lib/mastery";
 import type { Attributes } from "../game/attributes";
@@ -18,6 +17,7 @@ import { Tooltip } from "../ui";
 import type { ActiveStatus } from "../lib/status";
 import { compareStatuses, STATUS_ICON_SIZE_PX } from "./StatusStrip";
 import { SpritePreview } from "./TilePreview";
+import { Rating } from "./Rating";
 
 export function StatsPanel({
   vitals,
@@ -49,10 +49,7 @@ export function StatsPanel({
     >
       <h2 className="flex items-baseline gap-1 text-detail font-bold uppercase tracking-wide text-paper/50">
         {HEADINGS.stats}
-        <span className="ml-auto tabular-nums text-paper/70">
-          {RATING_GLYPH}
-          {stars}
-        </span>
+        <Rating value={stars} className="ml-auto self-center text-paper/70" />
       </h2>
 
       <div

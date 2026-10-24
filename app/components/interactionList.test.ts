@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockReason, drawnBlockReason, pointerHintText } from "../game/interactionOptions";
+import { blockReason, drawnBlockReason, pointerHint } from "../game/interactionOptions";
 import { fillElapsedMs } from "./InteractionList";
 
 function pull(remainingMs: number, durationMs = 5_000) {
@@ -60,21 +60,24 @@ describe("why a blocked row is grey", () => {
 
   it("announces and draws the same phrase for an ordinary block", () => {
     expect(blockReason({ kind: "noRoom" })).toBe("no room");
-    expect(drawnBlockReason({ kind: "noRoom" })).toBe("no room");
+    expect(drawnBlockReason({ kind: "noRoom" })).toEqual({ text: "no room" });
     expect(blockReason({ kind: "taken" })).toBe("in use");
-    expect(drawnBlockReason({ kind: "taken" })).toBe("in use");
+    expect(drawnBlockReason({ kind: "taken" })).toEqual({ text: "in use" });
   });
 
-  it("draws the rating a reward needs with the glyph, and announces it in words", () => {
-    expect(drawnBlockReason({ kind: "needs", rating: 10 })).toBe("needs *10");
+  it("draws the rating a reward needs beside a star, and announces it in words", () => {
+    expect(drawnBlockReason({ kind: "needs", rating: 10 })).toEqual({ text: "needs", rating: 10 });
     expect(blockReason({ kind: "needs", rating: 10 })).toBe("needs rating 10");
   });
 
   it("puts the reason where the pointer hint's verb would be", () => {
     const chest = { label: "Open", blocked: null };
-    expect(pointerHintText(chest)).toBe("Open");
-    expect(pointerHintText({ ...chest, blocked: { kind: "needs", rating: 10 } })).toBe("Needs *10");
-    expect(pointerHintText({ ...chest, blocked: { kind: "noRoom" } })).toBe("No room");
+    expect(pointerHint(chest)).toEqual({ text: "Open" });
+    expect(pointerHint({ ...chest, blocked: { kind: "needs", rating: 10 } })).toEqual({
+      text: "Needs",
+      rating: 10,
+    });
+    expect(pointerHint({ ...chest, blocked: { kind: "noRoom" } })).toEqual({ text: "No room" });
   });
 
   it("draws nothing for a pull in progress, and still announces it", () => {
