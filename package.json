@@ -11,7 +11,6 @@
     "typecheck": "react-router typegen && tsc && tsc -p tsconfig.server.json && tsc -p tsconfig.node.json",
     "generate": "bun scripts/generate-tilesets.ts",
     "generate:complement": "bun scripts/generate-autotile-complement.ts",
-    "generate:npcs": "bun scripts/generate-npc-sheets.ts",
     "generate:respawn": "bun scripts/generate-respawn-tileset.ts",
     "generate:spell-projectiles": "bun scripts/generate-spell-projectiles.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
