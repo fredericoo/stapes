@@ -31722,18 +31722,18 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "sharp": 12,
+          "sharp": 5,
           "toughness": 4,
-          "agility": 45
+          "agility": 30
         },
         "naturalWeapon": {
           "type": "weapon",
           "name": "Bite",
-          "damage": 3,
+          "damage": 1,
           "def": 0,
-          "accuracy": 84,
-          "variance": 45,
-          "spd": 62,
+          "accuracy": 80,
+          "variance": 100,
+          "spd": 58,
           "reach": {
             "cells": 1.5,
             "height": 2
