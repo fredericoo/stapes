@@ -317,7 +317,7 @@ describe("pushDestination with a rider", () => {
       push({ climb: "none" }),
       tilesById,
     );
-    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 }, restsAt: 2 });
   });
 
   it("refuses when the rider is what does not fit", () => {

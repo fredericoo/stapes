@@ -405,6 +405,7 @@ describe("listInteractionOptions — objects", () => {
 
   it("offers a push on each of two stacked objects", () => {
     let map = field();
+    map = place(map, 0, 0, ["grass", "player"]);
     map = place(map, 1, 0, ["grass", "crate", "crate"]);
     const me = playerAt(map);
 

@@ -7,7 +7,8 @@ import { fitsHeightAtElevation } from "../lib/validation";
 import { FALL_MS_PER_HEIGHT, MAX_CLIMB_HEIGHT, PUSH_STEP_MS } from "./constants";
 import { DIR_DELTA, findLandingAbs, listStandingSurfaces } from "./movement";
 
-export type PushCheck = { ok: true; to: Coord } | { ok: false; reason: string };
+/** `restsAt` is the absolute elevation the shoved column's feet end up at. */
+export type PushCheck = { ok: true; to: Coord; restsAt: number } | { ok: false; reason: string };
 
 export type PushFrom = Coord & { stackIndex: number };
 
@@ -20,7 +21,10 @@ function pushedFeetAbs(map: MapFile, from: PushFrom, tilesById: Record<string, T
   return from.z * HEIGHT_PER_LEVEL + elevationAt(stack, from.stackIndex, tilesById);
 }
 
-function pushedHeight(column: readonly PlacedTile[], tilesById: Record<string, TileDef>): number {
+export function pushedHeight(
+  column: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): number {
   let total = 0;
   for (const placed of column) {
     const def = tilesById[placed.tileId];
@@ -51,7 +55,7 @@ function surfaceToRestOn(
   height: number,
   push: PushInteraction,
   tilesById: Record<string, TileDef>,
-): Coord | null {
+): (Coord & { restsAt: number }) | null {
   const candidates = listStandingSurfaces(map, x, y, tilesById)
     .filter((s) => s.abs >= lo && s.abs <= hi)
     .sort((a, b) => a.abs - b.abs);
@@ -61,7 +65,7 @@ function surfaceToRestOn(
       continue;
     }
     if (!surfaceAllowed(map, x, y, surface.abs, push, tilesById)) continue;
-    return { x, y, z: surface.z };
+    return { x, y, z: surface.z, restsAt: surface.abs };
   }
   return null;
 }
@@ -98,7 +102,7 @@ function landingBelow(
     return { ok: false, reason: "Landing tile is not in the move-on list" };
   }
 
-  return { ok: true, to: { x, y, z: surface.z } };
+  return { ok: true, to: { x, y, z: surface.z }, restsAt: landingAbs };
 }
 
 export function pushDestination(
@@ -131,7 +135,10 @@ export function pushDestination(
     push,
     tilesById,
   );
-  if (stepped) return { ok: true, to: stepped };
+  if (stepped) {
+    const { restsAt, ...to } = stepped;
+    return { ok: true, to, restsAt };
+  }
 
   const clear = fitsHeightAtElevation(map, destX, destY, fromAbs, height, tilesById);
   if (!clear.ok) return clear;

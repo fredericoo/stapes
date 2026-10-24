@@ -4210,6 +4210,23 @@ The crate is drawn on the level its foot is passing through until it lands
 drawn there it would cross the floor above lit by the pit's light map, which
 read as a black square sliding across a lit room.
 
+### A shove goes away from the pusher, up and down as well as across
+
+`pushTargetFrom` refuses a shove whose landing goes back towards the pusher
+vertically. A body wholly above the column (feet at or over its top) can only
+send it down or level, and a body wholly below it (head at or under its feet)
+only up or level. A body that shares any height with the column is beside it
+and can send it either way, so knocking the top crate off a stack from the
+ground still works. Comparing feet with feet would have refused that, because
+the top crate's feet are above the pusher's.
+
+The case it exists for is the witch-house crate: once it is sunk flush into its
+hole, its top is the floor the player stands on at the rim, and a `half` climb
+let it be shoved straight back up out of the hole onto the rim.
+
+`PushCheck` carries `restsAt` for this, the elevation the column's feet land
+at, because `to` names only the level.
+
 ### The client shows its own speech before the server echoes it
 
 `RemoteSession.say` hangs the bubble over the predicted body the moment the line
