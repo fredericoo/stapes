@@ -5904,8 +5904,13 @@ frames all fit one 48×64 block, so a wolf or a deer is never offered.
 `human_base.png` (the naked, headless body), `human_shoes.png`,
 `human_clothes.png`, `human_heads.png`, `human_hats.png`. Each file holds any
 number of variants as 48×64 blocks in a grid, read left to right, top to
-bottom; a fully transparent block is skipped, so `human_hats.png` starts as one
-empty block and the tool offers no hat. The page fetches them from
+bottom; a fully transparent block is skipped. Hats are the one layer drawn
+above the head and outside the body, so they carry their own outline where
+they stand against the background. Height runs up and to the left, so a hat
+is seen from above: a crown leaning up-left from the head and a brim lying flat
+as a rounded disc, about the size of the head, like the helmets in
+`ultima-vi.png`. A hat drawn as a front view, rising straight up the screen,
+looks far too big. The page fetches them from
 `/api/tilesets/`. Under `bun dev` that reads `data/` directly, so a new variant
 shows on reload; a deployed world shows it only after a reseed. They are indexed with `people.png`'s palette and are not listed in
 `tilesets.json`, because no tile draws from them.
