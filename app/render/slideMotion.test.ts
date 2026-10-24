@@ -3,6 +3,8 @@ import type { SlideSnapshot } from "../game/GameSession";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { HEIGHT_PER_LEVEL, type MapFile } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import { PUSH_STEP_MS } from "../game/constants";
+import { slideDurationMs } from "../game/push";
 import { slideTileMotions } from "./slideMotion";
 import { tile } from "../lib/testTile";
 
@@ -30,6 +32,7 @@ function shoved(landingStack: string[] = ["grass"]): {
       object: { x: 1, y: 0, z: 0, stackIndex: landingStack.length },
       from: { x: 0, y: 0, z: 0 },
       count: 2,
+      dropUnits: 0,
     },
   };
 }
@@ -98,6 +101,7 @@ describe("slideTileMotions", () => {
         object: { x: 1, y: 0, z: 0, stackIndex: 1 },
         from: { x: 0, y: 0, z: 0 },
         count: 1,
+        dropUnits: 0,
       },
       0.5,
     );
@@ -121,11 +125,58 @@ describe("slideTileMotions", () => {
         object: { x: 1, y: 0, z: 1, stackIndex: 1 },
         from: { x: 0, y: 0, z: 0 },
         count: 1,
+        dropUnits: 0,
       },
       0,
     );
 
     expect(motions[0]!.alsoDrawAtZ).toBe(0);
     expect(motions[0]!.box.foot).toBe(HEIGHT_PER_LEVEL);
+  });
+
+  describe("over a drop", () => {
+    const DROP_UNITS = 6;
+    const ORIGIN_FOOT = 0;
+    const LANDED_FOOT = -DROP_UNITS;
+    const shoveOver = PUSH_STEP_MS / slideDurationMs(DROP_UNITS);
+
+    function intoPit() {
+      let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+      map = replaceStack(map, 1, 0, -2, [{ tileId: "slab" }, { tileId: "crate" }]);
+      const slide: SlideSnapshot = {
+        object: { x: 1, y: 0, z: -2, stackIndex: 1 },
+        from: { x: 0, y: 0, z: 0 },
+        count: 1,
+        dropUnits: DROP_UNITS,
+      };
+      return (progress: number) => slideTileMotions(map, tilesById, slide, progress)[0]!;
+    }
+
+    it("slides across at the height it left before it starts to fall", () => {
+      const at = intoPit();
+
+      expect(at(shoveOver / 2).box.foot).toBe(ORIGIN_FOOT);
+      expect(at(shoveOver).box.foot).toBe(ORIGIN_FOOT);
+      expect(at(shoveOver).box.x).toBe(1);
+    });
+
+    it("is drawn on the level its foot is passing through, so that level lights it", () => {
+      const at = intoPit();
+      const intoLevelBelow = shoveOver + (1 - shoveOver) * (2 / DROP_UNITS);
+
+      expect(at(shoveOver).alsoDrawAtZ).toBe(0);
+      expect(at(intoLevelBelow).alsoDrawAtZ).toBe(-1);
+      expect(at(1).alsoDrawAtZ).toBeUndefined();
+    });
+
+    it("falls the rest of the way and ends where it landed", () => {
+      const at = intoPit();
+      const halfwayDown = (1 + shoveOver) / 2;
+
+      expect(at(halfwayDown).box.foot).toBe((ORIGIN_FOOT + LANDED_FOOT) / 2);
+      expect(at(1).box.foot).toBe(LANDED_FOOT);
+      expect(at(1).ox).toBe(0);
+      expect(at(1).oy).toBe(0);
+    });
   });
 });

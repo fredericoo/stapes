@@ -73,6 +73,8 @@ const SKY_EDGE_COUNT = SKY_EDGES.length / SKY_EDGE_STRIDE;
 
 const SKY_QUEUE_HEADROOM = 2;
 
+export const FULL_CELL_TOP_LIGHT_SHARE = 0.7;
+
 const canEmitByDef = new WeakMap<TileDef, boolean>();
 
 function canEmit(def: TileDef): boolean {
@@ -657,19 +659,31 @@ export function computeLightingFlood(
         const ci = ly * dom.w + lx;
         const pi = ci * 3;
         const sk = Math.min(1, sky[i]! / MAX_LIGHT_LEVEL);
-        const br = blockR[i]!;
-        const bg = blockG[i]!;
-        const bb = blockB[i]!;
+        let br = blockR[i]!;
+        let bg = blockG[i]!;
+        let bb = blockB[i]!;
         if (opacity[i]! >= 1) {
           if (br + bg + bb > 0.01) {
             skyOut[ci] = 0;
             blockOut[pi] = Math.round(Math.min(1, br) * 255);
             blockOut[pi + 1] = Math.round(Math.min(1, bg) * 255);
             blockOut[pi + 2] = Math.round(Math.min(1, bb) * 255);
-          } else {
-            skyOut[ci] = Math.round(sk * 255);
+            continue;
           }
-          continue;
+          /**
+           * Light never enters a full cell, but its top face is on the floor
+           * plane of the cell above. With that plane open, the face is lit by
+           * the room above it, dimmed, or a crate sunk flush into a pit is
+           * black under the torch of the player standing on it. The glow is
+           * added to the cell's daylight, not swapped for it as an emitter's
+           * own light is above: swapped, a tree near a fire went dark at noon.
+           */
+          skyOut[ci] = Math.round(sk * 255);
+          const above = lz + 1 < dom.d ? i + nCells : -1;
+          if (above < 0 || seals[above]) continue;
+          br = blockR[above]! * FULL_CELL_TOP_LIGHT_SHARE;
+          bg = blockG[above]! * FULL_CELL_TOP_LIGHT_SHARE;
+          bb = blockB[above]! * FULL_CELL_TOP_LIGHT_SHARE;
         }
         skyOut[ci] = Math.round(sk * 255);
         blockOut[pi] = Math.round(Math.min(1, br) * 255);

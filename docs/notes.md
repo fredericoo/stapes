@@ -2534,6 +2534,42 @@ with a ladder beside it, and a hole in the floor of a roofless house at
 treats them as it treats the mouth. A new hole is a line there; anything else
 that lets the sky in is still reported.
 
+## A full cell's top face is lit from the cell above it
+
+Light is stored one value per cell, and a cell with `opacity >= 1` never takes
+any: the flood and the overlay both skip it. Its sprite still has a top face,
+and that face sits on the floor plane of the level above (see "A full-height
+stack tops out on the floor plane of the level above"). A crate sunk flush
+into a pit — the witch-house puzzle, slab plus crate filling L-2 under an empty
+L-1 — was therefore black under the torch of the player standing on it, because
+every neighbour it could borrow from through the light map's linear filter was
+cave wall.
+
+So a full cell whose lid is open takes the block light of the cell above, times
+`FULL_CELL_TOP_LIGHT_SHARE` (0.7). The rule is in two places that must agree:
+the write-out in `computeLightingFlood` and `lightFullCellTops` after the
+overlay's casts. Each reads the cell above's light before it borrowed anything,
+so a column of full cells does not pass light down through itself. A sealed lid
+— the dirt floor that roofs every cave — stops it, which is what keeps cave
+walls dark under a sunlit meadow.
+
+The borrowed glow is added to the cell's daylight. An emitter's own full cell
+swaps its daylight for its block light, and the first version of this rule went
+down that path too: every tree under open sky within reach of a campfire's
+faint glow lost its daylight and went black at noon.
+
+The cost is visible on every unroofed full-height wall near a light: its top is
+lit now, and because texel centres sit on cell centres, the half of the floor
+on its far side nearest the wall picks up a little of that.
+
+**The rule fixes the light map, not everything on screen.** The shader filters
+each sprite pixel against the neighbouring cells of its own level, and the
+palette pass snaps what comes out. The witch-house crate is one lit texel among
+sealed cave walls at 0, so its middle is lit and its edges average down towards
+the walls, and the palette turns most of it into the darkest browns. Drawing a
+full cell whose top is a floor of the level above with that level's light map
+would fix it; that was considered and not done.
+
 ## `carve:caves --verify` walks the underground the way a player gets around it
 
 Straight after a carve, the script checks only the cells it carved. With
@@ -4151,6 +4187,28 @@ Note what this is *not*. `abandonPrediction` is unaffected, and the overshoot
 was never a re-sent step: the client minted a fresh `seq` for ground it had
 genuinely not been told about, from a cell it genuinely believed it was standing
 in. The fault was believing it.
+
+### A shove that drops is drawn across, then down
+
+`push` writes the column to where it finally rests in the same tick, however
+far that is below: a crate shoved into a hole is at L-2 before anything else
+can move, so nobody can slip something into the hole in the gap between the
+shove and the landing. What is timed is only the drawing.
+
+`SlideState.dropUnits` is the drop measured after the shove (`pushDropUnits`),
+and is zero for anything a body would step down rather than fall. With a drop,
+the slide lasts `slideDurationMs` — the `PUSH_STEP_MS` shove across at the
+height it left, then `FALL_MS_PER_HEIGHT` per unit, the speed a body falls —
+and `slidePhases` splits progress into the two. The pusher is busy for the
+shove only (`slideStillShoving`), on the server and in `RemoteSession`'s
+prediction alike; the drop that follows belongs to the crate. `slideStarted`
+carries `dropUnits` because the client cannot work it out once its board
+already has the crate at the bottom.
+
+The crate is drawn on the level its foot is passing through until it lands
+(`slideDrawLevel` in `slideMotion.ts`). It is already in the pit's stack, so
+drawn there it would cross the floor above lit by the pit's light map, which
+read as a black square sliding across a lit room.
 
 ### The client shows its own speech before the server echoes it
 

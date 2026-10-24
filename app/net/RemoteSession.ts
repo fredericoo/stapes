@@ -1,10 +1,10 @@
 import { areaBurstEffects } from "../game/area";
+import { slideDurationMs, slideStillShoving } from "../game/push";
 import {
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
   NOISE_LIFETIME_MS,
   PLAYER_TILE_ID,
-  PUSH_STEP_MS,
   STRIKE_DURATION_MS,
   WALK_DURATION_MS,
 } from "../game/constants";
@@ -138,6 +138,7 @@ type RemoteMotion = {
     object: ObjectRef;
     from: { x: number; y: number; z: number };
     count: number;
+    dropUnits: number;
     elapsedMs: number;
   } | null;
   strike: StrikeState | null;
@@ -876,6 +877,7 @@ export class RemoteSession implements PlaySession {
         object: event.object,
         from: event.from,
         count: event.count,
+        dropUnits: event.dropUnits,
         elapsedMs: 0,
       };
     }
@@ -904,7 +906,7 @@ export class RemoteSession implements PlaySession {
       }
       if (motion.slide) {
         motion.slide.elapsedMs += dtMs;
-        if (motion.slide.elapsedMs >= PUSH_STEP_MS) motion.slide = null;
+        if (motion.slide.elapsedMs >= slideDurationMs(motion.slide.dropUnits)) motion.slide = null;
       }
       if (motion.strike) {
         motion.strike.elapsedMs += dtMs;
@@ -1022,7 +1024,7 @@ export class RemoteSession implements PlaySession {
     if (this.held.directions.length === 0) return;
 
     const motion = this.motions.get(this.selfId);
-    if (!motion || motion.walk || motion.fall || motion.slide) return;
+    if (!motion || motion.walk || motion.fall || shoving(motion)) return;
     if (this.pending.length >= MAX_PREDICTED_STEPS) return;
 
     const def = this.tilesById[PLAYER_TILE_ID];
@@ -1324,7 +1326,9 @@ export class RemoteSession implements PlaySession {
       walkProgress: motion.walk ? Math.min(1, motion.walk.elapsedMs / motion.walk.durationMs) : 0,
       fallProgress: motion.fall ? motion.fall.elapsedMs / FALL_MS_PER_HEIGHT : 0,
       slide: motion.slide,
-      slideProgress: motion.slide ? Math.min(1, motion.slide.elapsedMs / PUSH_STEP_MS) : 0,
+      slideProgress: motion.slide
+        ? Math.min(1, motion.slide.elapsedMs / slideDurationMs(motion.slide.dropUnits))
+        : 0,
       strike: motion.strike,
       strikeProgress: motion.strike ? Math.min(1, motion.strike.elapsedMs / STRIKE_DURATION_MS) : 0,
       name: this.names.get(id) ?? null,
@@ -1514,7 +1518,7 @@ export class RemoteSession implements PlaySession {
     if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
-    if (motion.walk || motion.fall || motion.slide) return false;
+    if (motion.walk || motion.fall || shoving(motion)) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     return (
@@ -1554,7 +1558,7 @@ export class RemoteSession implements PlaySession {
     if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
-    if (motion.walk || motion.fall || motion.slide) return false;
+    if (motion.walk || motion.fall || shoving(motion)) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
@@ -1568,7 +1572,7 @@ export class RemoteSession implements PlaySession {
     if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
-    if (motion.walk || motion.fall || motion.slide) return false;
+    if (motion.walk || motion.fall || shoving(motion)) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
@@ -1586,7 +1590,7 @@ export class RemoteSession implements PlaySession {
     if (!loc) return false;
 
     if (from.kind === "floor") {
-      if (motion.walk || motion.fall || motion.slide) return false;
+      if (motion.walk || motion.fall || shoving(motion)) return false;
       if (!canConsumeFrom(this.map, this.tilesById, loc, from.ref)) return false;
     } else {
       const instance = itemInSlot(this.map, this.tilesById, loc, this.equipment, from.slot);
@@ -1602,7 +1606,7 @@ export class RemoteSession implements PlaySession {
     if (action.kind !== "close" && this.incapacitated()) return false;
     if (action.kind === "open") {
       const motion = this.motions.get(this.selfId);
-      if (!motion || motion.walk || motion.fall || motion.slide) return false;
+      if (!motion || motion.walk || motion.fall || shoving(motion)) return false;
       const loc = this.locate(this.selfId, motion);
       if (!loc) return false;
       if (!canTalkFrom(this.map, this.tilesById, loc, action.ref)) return false;
@@ -1617,7 +1621,7 @@ export class RemoteSession implements PlaySession {
     if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
-    if (motion.walk || motion.fall || motion.slide) return false;
+    if (motion.walk || motion.fall || shoving(motion)) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     if (!canCraftFrom(this.map, this.tilesById, loc, this.equipment, ref, recipe)) {
@@ -1681,6 +1685,11 @@ export class RemoteSession implements PlaySession {
 }
 
 /** A command typed in the chat is answered there by its notice; its reply is for callers that await it. */
+
+function shoving(motion: RemoteMotion): boolean {
+  return motion.slide != null && slideStillShoving(motion.slide.elapsedMs);
+}
+
 function ignoreUnanswered() {}
 
 const NO_CARRIED_LIGHTS: string[] = [];

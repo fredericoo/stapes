@@ -2572,6 +2572,7 @@ export class GameServer {
           object: actor.slide.object,
           from: actor.slide.from,
           count: actor.slide.count,
+          dropUnits: actor.slide.dropUnits,
         });
       }
       if (actor.strike && actor.strike !== sent?.strike) {

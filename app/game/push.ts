@@ -1,9 +1,10 @@
-import { elevationAt, getStack, surfaceTileAt } from "../lib/mapData";
+import { elevationAt, getStack, stackHeight, surfaceTileAt } from "../lib/mapData";
 import type { PushInteraction } from "../lib/interactions";
 import { CLIMB_HEIGHT_UNITS } from "../lib/interactions";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { fitsHeightAtElevation } from "../lib/validation";
+import { FALL_MS_PER_HEIGHT, MAX_CLIMB_HEIGHT, PUSH_STEP_MS } from "./constants";
 import { DIR_DELTA, findLandingAbs, listStandingSurfaces } from "./movement";
 
 export type PushCheck = { ok: true; to: Coord } | { ok: false; reason: string };
@@ -140,4 +141,50 @@ export function pushDestination(
   }
 
   return landingBelow(map, destX, destY, fromAbs, height, push, tilesById);
+}
+
+/**
+ * How far a shoved column drops after it has slid across, measured on the board
+ * the shove has already written. A drop a body would step down is folded into
+ * the slide itself, as `gravityPullOn` folds it into a settle.
+ */
+export function pushDropUnits(
+  map: MapFile,
+  from: Coord,
+  object: Coord & { stackIndex: number },
+  tilesById: Record<string, TileDef>,
+): number {
+  const originFoot =
+    from.z * HEIGHT_PER_LEVEL + stackHeight(getStack(map, from.x, from.y, from.z), tilesById);
+  const landedFoot =
+    object.z * HEIGHT_PER_LEVEL +
+    elevationAt(getStack(map, object.x, object.y, object.z), object.stackIndex, tilesById);
+  const drop = originFoot - landedFoot;
+  return drop > MAX_CLIMB_HEIGHT ? drop : 0;
+}
+
+export function slideDurationMs(dropUnits: number): number {
+  return PUSH_STEP_MS + dropUnits * FALL_MS_PER_HEIGHT;
+}
+
+/** The pusher is busy for the shove only; the drop that follows is the column's. */
+export function slideStillShoving(elapsedMs: number): boolean {
+  return elapsedMs < PUSH_STEP_MS;
+}
+
+export type SlidePhases = { across: number; down: number };
+
+/**
+ * Splits a slide's progress into the shove across and the fall after it, each
+ * 0..1. With no drop both run together, which is the straight line a step up
+ * or down a half-height ledge has always been drawn as.
+ */
+export function slidePhases(dropUnits: number, progress: number): SlidePhases {
+  if (dropUnits === 0) return { across: progress, down: progress };
+  const elapsedMs = progress * slideDurationMs(dropUnits);
+  const fallMs = dropUnits * FALL_MS_PER_HEIGHT;
+  return {
+    across: Math.min(1, elapsedMs / PUSH_STEP_MS),
+    down: Math.min(1, Math.max(0, (elapsedMs - PUSH_STEP_MS) / fallMs)),
+  };
 }
