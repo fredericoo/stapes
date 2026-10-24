@@ -16,6 +16,7 @@ import {
 import type { PackedLightGrid } from "./lighting";
 import { MAX_LIGHT_LEVEL } from "./lightingFlood";
 import { sampleIllumination } from "./clock";
+import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO, SUN_SPAN_STRIDE } from "./sunSpan";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
 
@@ -664,10 +665,22 @@ describe("void", () => {
 });
 
 describe("isPitchBlack", () => {
-  function gridWith(texels: { x: number; y: number; rgba: [number, number, number, number] }[]) {
+  function gridWith(
+    texels: {
+      x: number;
+      y: number;
+      rgba: [number, number, number, number];
+      sun?: [number, number];
+    }[],
+  ) {
     const rgba = new Uint8Array(5 * 5 * 4);
     for (const t of texels) rgba.set(t.rgba, (t.y * 5 + t.x) * 4);
-    const grid: PackedLightGrid = { levels: new Map([[0, { x0: 0, y0: 0, w: 5, h: 5, rgba }]]) };
+    const sun = new Uint8Array(5 * 5 * SUN_SPAN_STRIDE);
+    for (const t of texels)
+      sun.set(t.sun ?? [SUN_SPAN_NEVER_LO, SUN_SPAN_NEVER_HI], (t.y * 5 + t.x) * 2);
+    const grid: PackedLightGrid = {
+      levels: new Map([[0, { x0: 0, y0: 0, w: 5, h: 5, rgba, sun }]]),
+    };
     return grid;
   }
   const day = AMBIENT_PRESETS.day;
@@ -692,6 +705,13 @@ describe("isPitchBlack", () => {
     const grid = gridWith([{ x: 2, y: 2, rgba: [0, 0, 0, 255] }]);
     expect(isPitchBlack(grid, sampleIllumination(2 * 60).ambient, 2, 2, 0)).toBe(true);
     expect(isPitchBlack(grid, AMBIENT_PRESETS.dusk, 2, 2, 0)).toBe(false);
+  });
+
+  it("counts a cell lit only by a shaft of sun as lit while the sun is in the shaft", () => {
+    const grid = gridWith([{ x: 2, y: 2, rgba: [0, 0, 0, 0], sun: [100, 140] }]);
+    const color = [0.5, 0.5, 0.4] as const;
+    expect(isPitchBlack(grid, night, 2, 2, 0, { color, arc: 120 / 255 })).toBe(false);
+    expect(isPitchBlack(grid, night, 2, 2, 0, { color, arc: 0.9 })).toBe(true);
   });
 
   it("is black on a level the grid holds nothing for, which is uploaded dark", () => {

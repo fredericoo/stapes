@@ -16,6 +16,7 @@ import {
 import { chunkIndexOf, chunkKeyAt, elevationAt, footElevation, terrainHeight } from "./mapData";
 import type { AnimatedEmitter, EmitterOverride, RawLightGrid, RawLevelLight } from "./lighting";
 import { resolveLight } from "./tileResolve";
+import { bakeSunSpans, SUN_SPAN_STRIDE } from "./sunSpan";
 
 export { MAX_LIGHT_LEVEL };
 
@@ -451,6 +452,7 @@ export function computeLightingFlood(
   const n = dom.w * dom.h * dom.d;
   const opacity = new Float32Array(n);
   const seals = new Uint8Array(n);
+  const occupied = new Uint8Array(n);
   const sky = new Float32Array(n);
   const blockR = new Float32Array(n);
   const blockG = new Float32Array(n);
@@ -467,6 +469,7 @@ export function computeLightingFlood(
     const i = idx(dom, lx, ly, lz);
     opacity[i] = o.opacity;
     seals[i] = o.seals ? 1 : 0;
+    occupied[i] = 1;
   }
 
   const slice = dom.w * dom.h;
@@ -565,6 +568,8 @@ export function computeLightingFlood(
       }
     }
   }
+
+  const sunSpans = bakeSunSpans({ w: dom.w, h: dom.h, d: dom.d, opacity, seals, occupied, sky });
 
   for (const e of emitters) {
     const rCells = Math.ceil(e.radius);
@@ -677,6 +682,7 @@ export function computeLightingFlood(
         blockOut[pi + 2] = Math.round(Math.min(1, bb) * 255);
       }
     }
+    const sunFrom = lz * nCells * SUN_SPAN_STRIDE;
     levels.set(z, {
       x0: dom.x0,
       y0: dom.y0,
@@ -684,6 +690,7 @@ export function computeLightingFlood(
       h: dom.h,
       sky: skyOut,
       block: blockOut,
+      sun: sunSpans.slice(sunFrom, sunFrom + nCells * SUN_SPAN_STRIDE),
     });
   }
 

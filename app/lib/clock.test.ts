@@ -6,6 +6,9 @@ import {
   minutesOfDayAt,
   MS_PER_CLOCK_MINUTE,
   sampleIllumination,
+  SUNRISE_MINUTES,
+  SUNSET_MINUTES,
+  sunArcAt,
   wrapMinutes,
   type IlluminationKeyframe,
 } from "./clock";
@@ -48,37 +51,54 @@ describe("sampleIllumination", () => {
     expect(dusk.ambient[0]).toBeCloseTo(0.5, 5);
   });
 
-  it("matches day/dusk/night character of default keyframes", () => {
-    const noon = sampleIllumination(12 * 60);
-    expect(noon.ambient[0]).toBeCloseTo(1, 5);
-
-    const dusk = sampleIllumination(17 * 60);
-    expect(dusk.ambient[0]).toBeCloseTo(0.55, 5);
-    expect(sampleIllumination(18 * 60).ambient[0]).toBeCloseTo(0.55, 5);
-
-    const night = sampleIllumination(0);
-    expect(night.ambient[0]).toBeCloseTo(0.04, 5);
+  it("adds sun to sky to reach full light through the middle of the day", () => {
+    for (const h of [10, 12, 16]) {
+      const { ambient, sun } = sampleIllumination(h * 60);
+      for (let c = 0; c < 3; c++) expect(ambient[c]! + sun[c]!).toBeGreaterThan(0.95);
+    }
   });
 
-  it("holds day from 09:00 through 16:00", () => {
-    for (const h of [9, 12, 16]) {
-      const { ambient } = sampleIllumination(h * 60);
-      expect(ambient[0]).toBeCloseTo(1, 5);
-      expect(ambient[1]).toBeCloseTo(1, 5);
-      expect(ambient[2]).toBeCloseTo(1, 5);
-    }
-    expect(sampleIllumination(16 * 60 + 30).ambient[0]).toBeCloseTo(0.775, 2);
-    expect(sampleIllumination(18 * 60 + 30).ambient[0]).toBeCloseTo(0.295, 2);
+  it("keeps a shadow visibly darker and bluer than sunlight at noon", () => {
+    const { ambient, sun } = sampleIllumination(12 * 60);
+    expect(ambient[0]).toBeLessThan(0.6);
+    expect(ambient[2]).toBeGreaterThan(ambient[0]);
+    expect(sun[0]).toBeGreaterThan(sun[2]);
   });
 
-  it("holds night from 19:00 through 04:00", () => {
-    for (const h of [19, 22, 0, 2, 4]) {
-      const { ambient } = sampleIllumination(h * 60);
-      expect(ambient[0]).toBeCloseTo(0.04, 5);
-      expect(ambient[1]).toBeCloseTo(0.05, 5);
-      expect(ambient[2]).toBeCloseTo(0.1, 5);
+  it("holds night from 00:00 through 04:00 with no sun", () => {
+    for (const h of [0, 2, 4]) {
+      const { ambient, sun } = sampleIllumination(h * 60);
+      expect(ambient).toEqual([0.04, 0.05, 0.1]);
+      expect(sun).toEqual([0, 0, 0]);
     }
-    expect(sampleIllumination(6 * 60).ambient[0]).toBeGreaterThan(0.2);
+  });
+
+  it("tints early morning sun yellow and sunset sun red", () => {
+    const morning = sampleIllumination(7 * 60).sun;
+    expect(morning[1]).toBeGreaterThan(morning[2] * 1.5);
+    const sunset = sampleIllumination(19 * 60 + 30).sun;
+    expect(sunset[0]).toBeGreaterThan(sunset[1] * 2);
+  });
+
+  it("turns the sky blue and darker from sunset to midnight", () => {
+    const dusk = sampleIllumination(21 * 60);
+    expect(dusk.ambient[2]).toBeGreaterThan(dusk.ambient[0]);
+    expect(dusk.sun).toEqual([0, 0, 0]);
+    const late = sampleIllumination(23 * 60).ambient;
+    expect(late[2]).toBeLessThan(dusk.ambient[2]);
+  });
+});
+
+describe("sunArcAt", () => {
+  it("runs from the eastern horizon at sunrise to the western at sunset", () => {
+    expect(sunArcAt(SUNRISE_MINUTES)).toBe(0);
+    expect(sunArcAt((SUNRISE_MINUTES + SUNSET_MINUTES) / 2)).toBeCloseTo(0.5, 5);
+    expect(sunArcAt(SUNSET_MINUTES)).toBe(1);
+  });
+
+  it("clamps through the night", () => {
+    expect(sunArcAt(2 * 60)).toBe(0);
+    expect(sunArcAt(23 * 60)).toBe(1);
   });
 });
 
