@@ -10,7 +10,7 @@ import {
   type Recolouring,
   type WornLayer,
 } from "./humanParts";
-import { CELL_SIZE, type Direction, type TileDef } from "./types";
+import { CELL_SIZE, type Direction, type TileDef, type TilesetDef } from "./types";
 
 export const SHEET_FACINGS: readonly Direction[] = ["s", "e", "w", "n"];
 export const SHEET_POSES = ["stepA", "stand", "stepB"] as const;
@@ -103,6 +103,84 @@ export function resolveHumanLook(
     skin: appearance.skin,
     hair: appearance.hair,
   };
+}
+
+export const tileHumanSchema = v.object({
+  skin: v.picklist(SKIN_TONE_NAMES),
+  hair: v.picklist(HAIR_COLOUR_NAMES),
+  head: partOnSchema("head"),
+  outfit: v.optional(
+    v.object({
+      shoes: v.optional(partOnSchema("shoes")),
+      clothes: v.optional(partOnSchema("clothes")),
+      hat: v.optional(partOnSchema("hat")),
+    }),
+  ),
+});
+
+/** A tile's human: who it is, and what it wears when nothing is equipped. */
+export type TileHuman = v.InferOutput<typeof tileHumanSchema>;
+
+const HUMAN_SHEET_PREFIX = "human:";
+
+/** Names a composed sheet by everything that draws it, so identical looks share one. */
+export function humanSheetId(look: HumanLook): string {
+  const parts = LAYERS.map((layer) => look.parts[layer.id] ?? "-");
+  return `${HUMAN_SHEET_PREFIX}${look.skin}:${look.hair}:${parts.join(":")}`;
+}
+
+export function isHumanSheetId(tilesetId: string): boolean {
+  return tilesetId.startsWith(HUMAN_SHEET_PREFIX);
+}
+
+export function humanSheetTileset(id: string): TilesetDef {
+  return { id, name: id, file: "", width: SHEET_WIDTH_PX, height: SHEET_HEIGHT_PX };
+}
+
+/**
+ * The look a tile is drawn in, or null when it is drawn from its anchor: it
+ * has no `human`, the field does not parse, or its frames do not fit one
+ * character block and so could not be cut from a composed sheet.
+ */
+export function tileHumanLook(def: TileDef): HumanLook | null {
+  if (def.human === undefined || !wearsHumanSheet(def)) return null;
+  const parsed = v.safeParse(tileHumanSchema, def.human);
+  return parsed.success ? lookOfTileHuman(parsed.output) : null;
+}
+
+/** A tile's human with nothing equipped. */
+export function lookOfTileHuman({ outfit, ...appearance }: TileHuman): HumanLook {
+  return resolveHumanLook(appearance, outfit);
+}
+
+/** The tile field that draws a look; empty layers are left out rather than saved as null. */
+export function tileHumanFromLook(look: HumanLook): TileHuman {
+  const { shoes, clothes, hat } = look.parts;
+  return {
+    skin: look.skin,
+    hair: look.hair,
+    head: look.parts.head,
+    outfit: {
+      ...(shoes ? { shoes } : {}),
+      ...(clothes ? { clothes } : {}),
+      ...(hat ? { hat } : {}),
+    },
+  };
+}
+
+export type DressedHuman = { def: TileDef; sheetId: string; look: HumanLook };
+
+/**
+ * A copy of a human tile anchored at the origin of its composed sheet, for a
+ * renderer to draw. The frames are already relative to one character block,
+ * so only the anchor moves. Never save the copy: the catalogue keeps its own
+ * anchor for whatever reads it without composing.
+ */
+export function dressHuman(def: TileDef): DressedHuman | null {
+  const look = tileHumanLook(def);
+  if (!look) return null;
+  const sheetId = humanSheetId(look);
+  return { def: { ...def, anchor: { tilesetId: sheetId, x: 0, y: 0 } }, sheetId, look };
 }
 
 /** Every 48×64 block of each layer's file, in the reading order `HUMAN_PARTS` counts in. */
