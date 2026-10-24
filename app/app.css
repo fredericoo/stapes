@@ -329,6 +329,19 @@ body {
     drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
 }
 
+/* On the baseline, where the font's digits stand, so a star as tall as a digit
+   lines up with the number beside it. Tailwind's preflight gives every `svg`
+   `vertical-align: middle`, which sinks it a brick. */
+.world-label__star {
+  display: inline-block;
+  vertical-align: baseline;
+  width: calc(var(--world-label-brick) * 7);
+  height: calc(var(--world-label-brick) * 7);
+  margin-right: var(--world-label-brick);
+  filter: drop-shadow(var(--o1) 0 0 #000) drop-shadow(var(--o1n) 0 0 #000)
+    drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
+}
+
 .world-label--name {
   color: var(--color-label);
   z-index: 0;

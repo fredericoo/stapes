@@ -43,6 +43,7 @@ import {
   healthFraction,
 } from "../render/healthBar";
 import { KeyHint } from "./KeyHint";
+import { Rating } from "./Rating";
 import { TilePreview } from "./TilePreview";
 import { useTap } from "./useTap";
 
@@ -282,6 +283,7 @@ function ActionButton({
   const Icon = ICONS[option.action];
   const blocked = option.blocked;
   const working = blocked?.kind === "working" ? blocked.extraction : null;
+  const drawn = blocked ? drawnBlockReason(blocked) : null;
   const tap = useTap(() => {
     if (!blocked) onAct(option);
   });
@@ -319,12 +321,13 @@ function ActionButton({
       <span className="relative min-w-0 truncate text-detail leading-snug font-medium tracking-tight">
         {option.label}
       </span>
-      {blocked && drawnBlockReason(blocked) ? (
+      {drawn ? (
         <span
           aria-hidden="true"
-          className="relative ml-auto shrink-0 text-2xs leading-snug tracking-tight"
+          className="relative ml-auto flex shrink-0 items-center gap-1 text-2xs leading-snug tracking-tight"
         >
-          {drawnBlockReason(blocked)}
+          {drawn.text}
+          {drawn.rating === undefined ? null : <Rating value={drawn.rating} />}
         </span>
       ) : null}
     </button>

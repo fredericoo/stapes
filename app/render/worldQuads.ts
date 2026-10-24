@@ -11,6 +11,7 @@ import {
   RAY_DEPTH_ELEV,
 } from "../lib/geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
+import { SUN_EDGE_ARC } from "../lib/sunSpan";
 import { ANIM_MAX_FRAMES, NO_ANIMATION } from "./animTable";
 import { TINT_GLSL_COMMON, TINT_GLSL_FRAGMENT, type TintUniforms } from "./spriteTint";
 import {
@@ -50,7 +51,21 @@ export type LevelLightUniforms = {
   uLightSize: { value: THREE.Vector2 };
   uLightingEnabled: { value: number };
   uAmbient: { value: THREE.Vector3 };
+  uSunMap: { value: THREE.Texture };
+  uSunArc: { value: number };
+  uSunColor: { value: THREE.Vector3 };
 };
+
+export type LevelSunUniforms = Pick<LevelLightUniforms, "uSunMap" | "uSunArc" | "uSunColor">;
+
+/** Black sun, so the placeholder map is never read for anything that shows. */
+export function noSunUniforms(placeholder: THREE.Texture): LevelSunUniforms {
+  return {
+    uSunMap: { value: placeholder },
+    uSunArc: { value: 0 },
+    uSunColor: { value: new THREE.Vector3(0, 0, 0) },
+  };
+}
 
 export type LevelCutUniforms = {
   uCutMask: { value: THREE.Texture };
@@ -95,11 +110,13 @@ const WADE_COMPONENTS = 2;
 
 const WADE_ALPHA = 0.5;
 
+const SUN_BOUNCE = 0.5;
+
 /**
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v13";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v14";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -405,6 +422,9 @@ uniform vec2 uLightOrigin;
 uniform vec2 uLightSize;
 uniform float uLightingEnabled;
 uniform vec3 uAmbient;
+uniform sampler2D uSunMap;
+uniform float uSunArc;
+uniform vec3 uSunColor;
 uniform sampler2D uCutMask;
 uniform vec2 uCutOrigin;
 uniform vec2 uCutSize;
@@ -418,7 +438,15 @@ varying vec2 vWorldPx;
 varying vec2 vLightScale;
 varying vec2 vWade;
 ${TINT_GLSL_COMMON}
-${TRANSITION_GLSL_COMMON}`,
+${TRANSITION_GLSL_COMMON}
+// A sun texel holds the arc span (start, end) from which the cell sees the
+// sun; filtering blends neighbouring spans, which is what slides a shadow
+// edge across a cell instead of flipping it.
+float sunThrough(vec2 uv) {
+  vec2 span = texture2D(uSunMap, uv).rg;
+  return smoothstep(span.x - ${glsl(SUN_EDGE_ARC)}, span.x + ${glsl(SUN_EDGE_ARC)}, uSunArc) *
+    (1.0 - smoothstep(span.y - ${glsl(SUN_EDGE_ARC)}, span.y + ${glsl(SUN_EDGE_ARC)}, uSunArc));
+}`,
     )
     .replace(
       "#include <map_fragment>",
@@ -445,7 +473,18 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   vec4 lightTexel = texture2D(uLightMap, lightUv);
   // RGB is block light, alpha is the sky factor, so the ambient tint is
   // applied here rather than baked into the map.
-  vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + lightTexel.rgb);
+  float sun = 0.0;
+  if (dot(uSunColor, uSunColor) > 0.0) {
+    vec2 cellUv = 1.0 / uLightSize;
+    float near =
+      sunThrough(lightUv + cellUv) + sunThrough(lightUv - cellUv) +
+      sunThrough(lightUv + vec2(cellUv.x, -cellUv.y)) + sunThrough(lightUv - vec2(cellUv.x, -cellUv.y));
+    // A shaft lights the floor of a dark room around where it lands; under
+    // open sky the skylight already fills that in, so the glow fades out.
+    float bounce = near * ${glsl(SUN_BOUNCE / 4)} * (1.0 - lightTexel.a);
+    sun = max(sunThrough(lightUv), bounce);
+  }
+  vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + sun * uSunColor + lightTexel.rgb);
   diffuseColor.rgb *= light;
 }
 ${TRANSITION_GLSL_EDGE}

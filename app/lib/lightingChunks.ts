@@ -9,6 +9,7 @@ import type {
 } from "./lighting";
 import { composeAmbientRgb } from "./lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
+import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO, SUN_SPAN_STRIDE, SUN_REACH } from "./sunSpan";
 import type { ChunkCells, LevelChunks, MapFile, PlacedTile, TileDef } from "./types";
 import {
   MAX_LEVEL,
@@ -27,9 +28,11 @@ export const LIGHT_CHUNK_SIZE = 32;
  * Equal to {@link MAX_LIGHT_LEVEL} because a block emitter's radius is
  * clamped to that same bound by `clampTileLight`. If that clamp is ever
  * loosened, this crop is no longer wide enough and a chunk's edge can go
- * dark while a wider light approaches it from outside the apron.
+ * dark while a wider light approaches it from outside the apron. It must
+ * also cover {@link SUN_REACH}, or a chunk's sun bake misses a wall a
+ * whole-map bake would see, and an edit to that wall leaves the chunk stale.
  */
-export const LIGHT_APRON = MAX_LIGHT_LEVEL;
+export const LIGHT_APRON = Math.max(MAX_LIGHT_LEVEL, SUN_REACH);
 
 export const LIGHT_WINDOW_MARGIN = 4;
 
@@ -63,7 +66,7 @@ export type ChunkBaker = {
 const MAX_INFLIGHT_BAKES = 1;
 
 function blitPacked(
-  planesByZ: Map<number, Uint8Array>,
+  planesByZ: Map<number, { rgba: Uint8Array; sun: Uint8Array }>,
   chunk: ChunkLight,
   ox: number,
   oy: number,
@@ -71,21 +74,37 @@ function blitPacked(
   h: number,
 ) {
   for (const [z, plane] of chunk) {
-    let dstPlane = planesByZ.get(z);
-    if (!dstPlane) {
-      dstPlane = new Uint8Array(w * h * RAW_STRIDE);
-      planesByZ.set(z, dstPlane);
+    let dst = planesByZ.get(z);
+    if (!dst) {
+      dst = { rgba: new Uint8Array(w * h * PACKED_STRIDE), sun: emptySunSpans(w * h) };
+      planesByZ.set(z, dst);
     }
     for (let row = 0; row < LIGHT_CHUNK_SIZE; row++) {
-      const src = row * LIGHT_CHUNK_SIZE * RAW_STRIDE;
       const dstRow = oy * LIGHT_CHUNK_SIZE + row;
-      const dst = (dstRow * w + ox * LIGHT_CHUNK_SIZE) * RAW_STRIDE;
-      dstPlane.set(plane.subarray(src, src + LIGHT_CHUNK_SIZE * RAW_STRIDE), dst);
+      for (let col = 0; col < LIGHT_CHUNK_SIZE; col++) {
+        const src = (row * LIGHT_CHUNK_SIZE + col) * RAW_STRIDE;
+        const cell = dstRow * w + ox * LIGHT_CHUNK_SIZE + col;
+        dst.rgba.set(plane.subarray(src, src + PACKED_STRIDE), cell * PACKED_STRIDE);
+        dst.sun[cell * SUN_SPAN_STRIDE] = plane[src + PACKED_STRIDE]!;
+        dst.sun[cell * SUN_SPAN_STRIDE + 1] = plane[src + PACKED_STRIDE + 1]!;
+      }
     }
   }
 }
 
-const RAW_STRIDE = 4;
+function emptySunSpans(cells: number): Uint8Array {
+  const out = new Uint8Array(cells * SUN_SPAN_STRIDE);
+  for (let i = 0; i < cells; i++) {
+    out[i * SUN_SPAN_STRIDE] = SUN_SPAN_NEVER_LO;
+    out[i * SUN_SPAN_STRIDE + 1] = SUN_SPAN_NEVER_HI;
+  }
+  return out;
+}
+
+const PACKED_STRIDE = 4;
+
+/** Block RGB, sky, then the cell's sun span. */
+const RAW_STRIDE = PACKED_STRIDE + SUN_SPAN_STRIDE;
 
 function chunkOf(v: number): number {
   return Math.floor(v / LIGHT_CHUNK_SIZE);
@@ -119,6 +138,10 @@ function prefetchScore(
 
 function sliceChunk(level: RawLevelLight, rect: WorldRect): Uint8Array {
   const out = new Uint8Array(LIGHT_CHUNK_SIZE * LIGHT_CHUNK_SIZE * RAW_STRIDE);
+  for (let p = PACKED_STRIDE; p < out.length; p += RAW_STRIDE) {
+    out[p] = SUN_SPAN_NEVER_LO;
+    out[p + 1] = SUN_SPAN_NEVER_HI;
+  }
   for (let row = 0; row < LIGHT_CHUNK_SIZE; row++) {
     const sy = rect.y0 + row - level.y0;
     if (sy < 0 || sy >= level.h) continue;
@@ -135,6 +158,8 @@ function sliceChunk(level: RawLevelLight, rect: WorldRect): Uint8Array {
       out[dstP + 1] = level.block[srcP + 1]!;
       out[dstP + 2] = level.block[srcP + 2]!;
       out[dstP + 3] = level.sky[srcCell]!;
+      out[dstP + 4] = level.sun[srcCell * SUN_SPAN_STRIDE]!;
+      out[dstP + 5] = level.sun[srcCell * SUN_SPAN_STRIDE + 1]!;
     }
   }
   return out;
@@ -656,7 +681,7 @@ export class ChunkedLighting {
     const w = (cx1 - cx0 + 1) * LIGHT_CHUNK_SIZE;
     const h = (cy1 - cy0 + 1) * LIGHT_CHUNK_SIZE;
 
-    const planesByZ = new Map<number, Uint8Array>();
+    const planesByZ = new Map<number, { rgba: Uint8Array; sun: Uint8Array }>();
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         const held = this.drawable(cx, cy, timeMs);
@@ -667,7 +692,7 @@ export class ChunkedLighting {
     }
 
     const levels = new Map<number, PackedLevelLight>();
-    for (const [z, rgba] of planesByZ) levels.set(z, { x0, y0, w, h, rgba });
+    for (const [z, plane] of planesByZ) levels.set(z, { x0, y0, w, h, ...plane });
     return { levels };
   }
 

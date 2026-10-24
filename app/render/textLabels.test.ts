@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { bodyNameFor, sizedUpName, UNNAMED_BODY } from "../game/displayName";
-import { RATING_GLYPH } from "../lib/mastery";
+import { bodyNameFor, UNNAMED_BODY } from "../game/displayName";
 import type { TileDef } from "../lib/types";
 import { labelScreenPosition, stackingOrder } from "./textLabels";
 
@@ -102,28 +101,5 @@ describe("naming a speaker", () => {
 
   it("still attributes the words when the tile is unknown", () => {
     expect(bodyNameFor({ tileId: "ghost" }, tilesById)).toBeTruthy();
-  });
-});
-
-describe("sizedUpName", () => {
-  it("adds the rating to everything while you are looking", () => {
-    expect(sizedUpName("Rat", 8, true)).toBe(`Rat ${RATING_GLYPH}8`);
-  });
-
-  it("says nothing extra when nobody is looking", () => {
-    expect(sizedUpName("Rat", 8, false)).toBe("Rat");
-  });
-
-  it("says nothing extra about a body with no rating to give", () => {
-    expect(sizedUpName("Barrel", null, true)).toBe("Barrel");
-  });
-
-  it("is written in something the world's font can draw", () => {
-    const label = sizedUpName("Rat", 8, true);
-    for (const char of label) {
-      const code = char.codePointAt(0) ?? 0;
-      expect(code).toBeGreaterThanOrEqual(0x20);
-      expect(code).toBeLessThanOrEqual(0x7d);
-    }
   });
 });

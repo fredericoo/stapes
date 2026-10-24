@@ -4864,7 +4864,7 @@ What replaced each of the three:
   its own colour from `INTERACTION_COLORS`, so a body reads a red Attack beside
   a white Target and a quest chest a purple Open. A thing with one verb shows
   one hint. A blocked verb keeps its mouse icon and its button but shows its
-  reason in grey (`BLOCKED_INK`) in place of the verb — "Needs *10", "No room"
+  reason in grey (`BLOCKED_INK`) in place of the verb — "Needs ★10", "No room"
   — and the cursor does not change, because the other button may still work.
   Clicking it says why in a notice (`blockedNotice`); from afar it walks there
   first and says why on arrival, the same walk an unblocked verb takes. The name always sits in the name-tag slot under the hints: a body
@@ -8829,9 +8829,9 @@ beyond a time that does not parse.
   seen by nobody until they reconnected. `clock` is broadcast to every socket,
   and `RemoteSession` also re-announces the hour on every `hello`, so a renderer
   that outlives a rebirth picks up the hour it missed while dead.
-- **It says the hour back.** Moving within the day plateau (09:00–16:00) or the
-  night plateau (19:00–04:00) changes nothing on screen, so a silent success
-  would read as a dropped command.
+- **It says the hour back.** Moving within the night plateau (00:00–04:00)
+  changes nothing on screen, so a silent success would read as a dropped
+  command.
 
 ## A reward happens to the player, not to the board
 
@@ -8883,7 +8883,7 @@ in. So **nothing on the board changes at all**. What changes is the taker.
   Only `rating` so far. It sits on the placement beside the tag for the same
   reason the tag does: one `quest-chest` tile is both the tutorial's free chest
   and a deep one for veterans. A taker who falls short is shown the row anyway,
-  blocked (`OptionBlock` `needs`), drawn as `needs *10` and announced as
+  blocked (`OptionBlock` `needs`), drawn as `needs ★10` and announced as
   `needs rating 10` — a row that silently vanished would read as "nothing here".
   A full bag is listed the same way, as `noRoom`, and the rating is named
   first because emptying the bag would not open it. So the list asks
@@ -11011,11 +11011,14 @@ survives a reconnect. It is broadcast because it is *drawn*: the mark beside a
 name says whether that stranger can be fought, which is a thing you have to be
 able to read before deciding anything.
 
-The mark is `[PvP]` rather than crossed swords, for the reason `RATING_GLYPH` is
-an asterisk rather than a star: the world's text is typeset in NF Pixels, subset
-to printable ASCII, so a ⚔ falls back to a colour emoji at the wrong metrics. It
-is always on, unlike the ⭐, which is only drawn while looking — a mark you had
-to hold a key to see would be a mark nobody reads before walking into a crowd.
+The mark is `[PvP]` rather than crossed swords: the world's text is typeset in
+NF Pixels, subset to printable ASCII, so a ⚔ falls back to a colour emoji at the
+wrong metrics. The rating's star after every battler's name is not a character
+for the same reason; it is a 7×7 pixel icon (`STAR_PIXELS` in `textLabels.ts`)
+on the font's brick grid, as tall as its digits. Both are always on — a mark you
+had to hold a key to see would be a mark nobody reads before walking into a
+crowd. Interface text outside the world draws the star with `Rating`, from
+pixelarticons.
 
 ### The button asks on the way in, and not on the way out
 
@@ -13580,6 +13583,59 @@ against `uAmbient` in the fragment shader. Time of day is therefore a uniform
 write. Doing that tint on the CPU meant recomposing and re-uploading 17 textures
 per frame; in the shader it is free. Before adding a CPU pass over pixel data,
 check whether the GPU can do it while sampling.
+
+### The sun is baked as a span of its arc, so moving it costs nothing
+
+Daylight has two parts. Skylight is the flood above, time-free, tinted by
+`ambient`; it is also the colour of a shadow. Sunlight comes from one direction
+that sweeps east to west between `SUNRISE_MINUTES` and `SUNSET_MINUTES`
+(`sunArcAt` in `app/lib/clock.ts`), and is tinted by the keyframes' `sun`. At
+midday the two add up to the full light the map used to get from the sky alone,
+so open ground looks as it did; only shadow and anything lit by the sky from a
+doorway or a hole is darker than it was.
+
+Baking the sun for the hour would make every chunk stale every time it moved.
+Instead `bakeSunSpans` (`app/lib/sunSpan.ts`) bakes, once per chunk alongside
+the flood, the span of the arc from which each cell can see the sun, and the
+shader lights the cell while `uSunArc` is inside it.
+
+The path leans `SUN_TILT_RAD` (15°) to the south, so it rises due east, stands
+in the south at noon and sets due west, and a shadow swings from west through
+north to east. That particular tilt is what keeps the bake cheap: a path
+through due east and due west is a circle around the east-west axis, so every
+ray from one cell drifts south by the same amount per level and they all lie
+in one plane. Each cell is then a 2D problem in that plane: every solid box and
+floor above it hides an interval of angles, and the cell keeps the widest gap
+between them. A path that rose north of east, as a real summer sun does, would
+put a cell's rays in no common plane, and the bake would have to trace each
+hour separately.
+
+The spans travel in two more bytes per cell (the chunk planes are six bytes
+wide, uploaded as an RG texture beside the RGBA one). The bake goes from 30ms
+to 47ms p50 on the fixture town. In the shader the sun is one more texture
+read per lit pixel: on an M2 Pro `/admin/play` holds the 120 fps cap at noon
+and at night alike; under headless SwiftShader noon frames are about 85ms
+against 67ms at night, which is that one read.
+
+Three consequences that are easy to break:
+
+- **A cell lit through two openings keeps only the wider one.** A puzzle that
+  needs a spot lit at two times of day needs one opening.
+- **Only a cell the sky already reaches can see the sun.** That is what lets the
+  noon check in `scripts/carve-caves.ts` stand for every hour: a cell with no
+  sky has no span. A low sun angling far into a cave stops where the sky flood
+  stops.
+- **Nothing past `SUN_REACH` along the row is known**, so the column at the end
+  of the reach stands in for it as a wall as tall as its highest floor. Without
+  that a low sun runs under a cave's roof, past the end of the reach, and lights
+  the cave. `SUN_REACH` must stay inside `LIGHT_APRON` or a chunk's spans differ
+  from a whole-map bake's; `lightingChunks.test.ts` compares them.
+
+The shader also lights a cell at up to half strength from the sun on the four
+cells diagonally around it, scaled by how little sky the cell has, so a shaft
+lights the floor around where it lands in a dark room and does nothing under
+open sky. It samples those cells without asking about walls, so the glow reaches
+one cell through a wall.
 
 ### A disposed material takes its compiled shader with it
 

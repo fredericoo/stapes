@@ -21,7 +21,9 @@ import {
   type EmitterOverride,
   type PackedLevelLight,
   type PackedLightGrid,
+  type SunLight,
 } from "../lib/lighting";
+import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO } from "../lib/sunSpan";
 import { sampleIllumination } from "../lib/clock";
 import {
   changedCellsInChunk,
@@ -118,6 +120,7 @@ import {
   type LevelAnimUniforms,
   noAnimUniforms,
   noCutUniforms,
+  noSunUniforms,
   writeBoxAttr,
   writeLightUvAttr,
   writeWadeAttr,
@@ -554,11 +557,13 @@ export class WorldRenderer {
   private magentaTex: THREE.DataTexture;
   private whiteTex: THREE.DataTexture;
   private lightTextures = new Map<number, THREE.DataTexture>();
+  private sunTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightingKey = "";
   private staticLightGrid: PackedLightGrid | null = null;
   private shownLightGrid: PackedLightGrid | null = null;
   private pendingAmbient: [number, number, number] | null = null;
+  private pendingSun: SunLight | null = null;
   private gpuLighting = new GpuLighting();
   private lighting = new ChunkedLighting({}, dynamicLightTileIds({}));
   private lightBaker: WorkerChunkBaker | null = null;
@@ -745,7 +750,14 @@ export class WorldRenderer {
 
   isCellPitchBlack(x: number, y: number, z: number): boolean {
     if (!this.lightingEnabled || !this.shownLightGrid || !this.pendingAmbient) return false;
-    return isPitchBlack(this.shownLightGrid, this.pendingAmbient, x, y, z);
+    return isPitchBlack(
+      this.shownLightGrid,
+      this.pendingAmbient,
+      x,
+      y,
+      z,
+      this.pendingSun ?? undefined,
+    );
   }
 
   quadAssets(): SpriteQuadAssets {
@@ -1172,6 +1184,7 @@ export class WorldRenderer {
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();
     for (const tex of this.lightTextures.values()) tex.dispose();
+    for (const tex of this.sunTextures.values()) tex.dispose();
     for (const tex of this.cutTextures.values()) tex.dispose();
     for (const table of this.animTablesByZ.values()) table.dispose();
     this.magentaTex.dispose();
@@ -1568,6 +1581,7 @@ export class WorldRenderer {
         uLightSize: { value: new THREE.Vector2(1, 1) },
         uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
         uAmbient: { value: new THREE.Vector3(0, 0, 0) },
+        ...noSunUniforms(this.whiteTex),
       };
       this.lightUniformsByZ.set(z, u);
     }
@@ -1658,11 +1672,10 @@ export class WorldRenderer {
 
     this.lightBaker?.syncMap(view.map);
 
-    const ambient = sampleIllumination(view.minutesOfDay).ambient;
-    for (const u of this.lightUniformsByZ.values()) {
-      u.uAmbient.value.set(ambient[0], ambient[1], ambient[2]);
-    }
+    const { ambient, sun, sunArc } = sampleIllumination(view.minutesOfDay);
     this.pendingAmbient = ambient;
+    this.pendingSun = { color: sun, arc: sunArc };
+    for (const u of this.lightUniformsByZ.values()) this.applyIllumination(u);
 
     const base = this.lighting.packedGridFor(view.map, this.lightWindow(view), this.animClock);
 
@@ -1720,14 +1733,42 @@ export class WorldRenderer {
     u.uLightMap.value = tex;
     u.uLightOrigin.value.set(0, 0);
     u.uLightSize.value.set(1, 1);
+    this.uploadSunSpans(z, new Uint8Array([SUN_SPAN_NEVER_LO, SUN_SPAN_NEVER_HI]), 1, 1);
+  }
+
+  private applyIllumination(u: LevelLightUniforms) {
+    const a = this.pendingAmbient;
+    if (a) u.uAmbient.value.set(a[0], a[1], a[2]);
+    const sun = this.pendingSun;
+    if (!sun) return;
+    u.uSunColor.value.set(sun.color[0], sun.color[1], sun.color[2]);
+    u.uSunArc.value = sun.arc;
+  }
+
+  private uploadSunSpans(z: number, spans: Uint8Array, w: number, h: number) {
+    const u = this.ensureLightUniforms(z);
+    let tex = this.sunTextures.get(z);
+    if (!tex || tex.image.width !== w || tex.image.height !== h) {
+      tex?.dispose();
+      tex = new THREE.DataTexture(spans, w, h, THREE.RGFormat);
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.flipY = false;
+      tex.colorSpace = THREE.NoColorSpace;
+      tex.needsUpdate = true;
+      this.sunTextures.set(z, tex);
+    } else {
+      (tex.image as { data: Uint8Array }).data.set(spans);
+      tex.needsUpdate = true;
+    }
+    u.uSunMap.value = tex;
   }
 
   private uploadPackedLevel(z: number, level: PackedLevelLight) {
     const u = this.ensureLightUniforms(z);
-    if (this.pendingAmbient) {
-      const a = this.pendingAmbient;
-      u.uAmbient.value.set(a[0], a[1], a[2]);
-    }
+    this.applyIllumination(u);
+    this.uploadSunSpans(z, level.sun, level.w, level.h);
     u.uLightOrigin.value.set(level.x0 - LIGHT_MAP_CELL_OFFSET, level.y0 - LIGHT_MAP_CELL_OFFSET);
     u.uLightSize.value.set(level.w, level.h);
 

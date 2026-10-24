@@ -30,6 +30,7 @@ import {
   type LevelLightUniforms,
   noAnimUniforms,
   noCutUniforms,
+  noSunUniforms,
   type Quad,
   WORLD_SHADER_CACHE_KEY,
 } from "./worldQuads";
@@ -122,6 +123,7 @@ export class VfxPreview {
       uLightSize: { value: new THREE.Vector2(1, 1) },
       uLightingEnabled: { value: 0 },
       uAmbient: { value: new THREE.Vector3(1, 1, 1) },
+      ...noSunUniforms(this.whiteTex),
     };
 
     this.scene.add(this.buildFloor());

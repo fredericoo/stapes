@@ -5,6 +5,7 @@ import { fixtureTown } from "./fixtureTown";
 import tiles from "../../data/tiles.json";
 import { AMBIENT_PRESETS, composeLightGrid, computeLighting, sampleLevelLight } from "./lighting";
 import { computeLightingFlood } from "./lightingFlood";
+import { SUN_SPAN_STRIDE } from "./sunSpan";
 import {
   ChunkedLighting,
   LIGHT_APRON,
@@ -95,6 +96,34 @@ describe("chunked lighting", () => {
       differing,
       `${differing}/${compared} samples differ, max delta ${maxDelta.toFixed(1)}/255`,
     ).toBe(0);
+  });
+
+  it("bakes the same sun spans chunk by chunk as across the whole map", () => {
+    const mono = computeLightingFlood(mapFile, tilesById, undefined, omit);
+    const bounds = mapBounds(mapFile);
+    const packed = new ChunkedLighting(tilesById, omit).packedGridFor(mapFile, bounds);
+
+    let compared = 0;
+    let differing = 0;
+    let everLit = 0;
+    for (const [z, monoLevel] of mono.levels) {
+      const chunkLevel = packed.levels.get(z);
+      if (!chunkLevel) continue;
+      for (let y = bounds.y0; y <= bounds.y1; y++) {
+        for (let x = bounds.x0; x <= bounds.x1; x++) {
+          const a = ((y - monoLevel.y0) * monoLevel.w + (x - monoLevel.x0)) * SUN_SPAN_STRIDE;
+          const b = ((y - chunkLevel.y0) * chunkLevel.w + (x - chunkLevel.x0)) * SUN_SPAN_STRIDE;
+          for (let c = 0; c < SUN_SPAN_STRIDE; c++) {
+            compared++;
+            if (monoLevel.sun[a + c] !== chunkLevel.sun[b + c]) differing++;
+          }
+          if (monoLevel.sun[a]! < monoLevel.sun[a + 1]!) everLit++;
+        }
+      }
+    }
+
+    expect(everLit).toBeGreaterThan(1000);
+    expect(differing, `${differing}/${compared} span bytes differ`).toBe(0);
   });
 
   describe("an authored radius cannot outrun the apron", () => {

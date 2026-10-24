@@ -15,6 +15,7 @@ import {
   parseHexColor,
 } from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
+import { SUN_SPAN_STRIDE, sunVisibility } from "./sunSpan";
 
 export { MAX_LIGHT_LEVEL };
 
@@ -41,6 +42,7 @@ export type RawLevelLight = {
   h: number;
   sky: Uint8Array;
   block: Uint8Array;
+  sun: Uint8Array;
 };
 
 export type AnimatedEmitter = {
@@ -61,6 +63,7 @@ export type PackedLevelLight = {
   w: number;
   h: number;
   rgba: Uint8Array;
+  sun: Uint8Array;
 };
 
 export type PackedLightGrid = {
@@ -70,7 +73,7 @@ export type PackedLightGrid = {
 export function clonePackedLightGrid(grid: PackedLightGrid): PackedLightGrid {
   const levels = new Map<number, PackedLevelLight>();
   for (const [z, level] of grid.levels) {
-    levels.set(z, { ...level, rgba: new Uint8Array(level.rgba) });
+    levels.set(z, { ...level, rgba: new Uint8Array(level.rgba), sun: new Uint8Array(level.sun) });
   }
   return { levels };
 }
@@ -83,33 +86,52 @@ export const AMBIENT_PRESETS = {
   night: [0.04, 0.05, 0.1] as [number, number, number],
 };
 
+export type SunLight = {
+  color: readonly [number, number, number];
+  arc: number;
+};
+
 export function composeAmbientRgb(
   sky: Uint8Array,
   block: Uint8Array,
   ambient: [number, number, number],
   rgb: Uint8Array,
+  sun?: { spans: Uint8Array; light: SunLight },
 ): void {
   for (let i = 0, p = 0; i < sky.length; i++, p += 3) {
     const sk = sky[i]! / 255;
-    rgb[p] = Math.round(Math.min(1, sk * ambient[0] + block[p]! / 255) * 255);
-    rgb[p + 1] = Math.round(Math.min(1, sk * ambient[1] + block[p + 1]! / 255) * 255);
-    rgb[p + 2] = Math.round(Math.min(1, sk * ambient[2] + block[p + 2]! / 255) * 255);
+    const s = sun
+      ? sunVisibility(
+          sun.spans[i * SUN_SPAN_STRIDE]!,
+          sun.spans[i * SUN_SPAN_STRIDE + 1]!,
+          sun.light.arc,
+        )
+      : 0;
+    for (let c = 0; c < 3; c++) {
+      const sunC = s ? s * sun!.light.color[c]! : 0;
+      rgb[p + c] = Math.round(Math.min(1, sk * ambient[c]! + sunC + block[p + c]! / 255) * 255);
+    }
   }
 }
 
 export function composeLevelLight(
   raw: RawLevelLight,
   ambient: [number, number, number],
+  sun?: SunLight,
 ): LevelLightMap {
   const rgb = new Uint8Array(raw.w * raw.h * 3);
-  composeAmbientRgb(raw.sky, raw.block, ambient, rgb);
+  composeAmbientRgb(raw.sky, raw.block, ambient, rgb, sun && { spans: raw.sun, light: sun });
   return { x0: raw.x0, y0: raw.y0, w: raw.w, h: raw.h, rgb };
 }
 
-export function composeLightGrid(raw: RawLightGrid, ambient: [number, number, number]): LightGrid {
+export function composeLightGrid(
+  raw: RawLightGrid,
+  ambient: [number, number, number],
+  sun?: SunLight,
+): LightGrid {
   const levels = new Map<number, LevelLightMap>();
   for (const [z, level] of raw.levels) {
-    levels.set(z, composeLevelLight(level, ambient));
+    levels.set(z, composeLevelLight(level, ambient, sun));
   }
   return { levels };
 }
@@ -399,10 +421,12 @@ export function computeLighting(
   ambient: [number, number, number],
   overrides?: ReadonlyArray<EmitterOverride>,
   omitLightTileIds?: ReadonlySet<string>,
+  sun?: SunLight,
 ): LightGrid {
   return composeLightGrid(
     computeLightingFlood(map, tilesById, overrides, omitLightTileIds),
     ambient,
+    sun,
   );
 }
 
@@ -846,6 +870,7 @@ export function isPitchBlack(
   x: number,
   y: number,
   z: number,
+  sun?: SunLight,
 ): boolean {
   const level = grid.levels.get(z);
   if (!level) return true;
@@ -855,10 +880,19 @@ export function isPitchBlack(
     for (let dx = -1; dx <= 1; dx++) {
       const lx = x + dx - level.x0;
       if (lx < 0 || lx >= level.w) continue;
-      const i = (ly * level.w + lx) * 4;
+      const cell = ly * level.w + lx;
+      const i = cell * 4;
       const sky = level.rgba[i + 3]! / 255;
+      const s = sun
+        ? sunVisibility(
+            level.sun[cell * SUN_SPAN_STRIDE]!,
+            level.sun[cell * SUN_SPAN_STRIDE + 1]!,
+            sun.arc,
+          )
+        : 0;
       for (let c = 0; c < 3; c++) {
-        if (sky * ambient[c]! + level.rgba[i + c]! / 255 >= PITCH_BLACK_LIGHT) return false;
+        const lit = sky * ambient[c]! + s * (sun?.color[c] ?? 0) + level.rgba[i + c]! / 255;
+        if (lit >= PITCH_BLACK_LIGHT) return false;
       }
     }
   }

@@ -9,10 +9,10 @@ import { type LabelKind, type LabelPlacement, layoutLabels } from "./labelLayout
 
 export type MouseButton = "left" | "right";
 
-export type ButtonHint = { button: MouseButton; text: string; color?: string };
+export type ButtonHint = { button: MouseButton; text: string; rating?: number; color?: string };
 
 export type LabelLine =
-  | { id: string; text: string; crown?: boolean }
+  | { id: string; text: string; rating?: number; crown?: boolean }
   | { id: string; hints: ButtonHint[] };
 
 export type WorldLabel = {
@@ -53,6 +53,7 @@ const BRICKS_PER_EM = 10;
 
 const MOUSE_CLASS = "world-label__mouse";
 const CROWN_CLASS = "world-label__crown";
+const STAR_CLASS = "world-label__star";
 const CROWNED_LINE_CLASS = "world-label__line--crowned";
 const HINTS_LINE_CLASS = "world-label__line--hints";
 const HINT_CLASS = "world-label__hint";
@@ -76,6 +77,9 @@ const MOUSE_PIXELS = [
 ];
 
 const CROWN_PIXELS = ["#..#..#", "##.#.##", "#######", "#######"];
+
+/** As tall as the font's digits, so it reads as part of the number after it. */
+const STAR_PIXELS = ["...#...", "..###..", "#######", ".#####.", "..###..", ".##.##.", ".#...#."];
 
 function mouseIcon(button: MouseButton): SVGSVGElement {
   const pressed = button === "left" ? "L" : "R";
@@ -107,13 +111,19 @@ function pixelIcon(
   return svg;
 }
 
+function ratedText(text: string, rating: number | undefined): HTMLElement {
+  const span = document.createElement("span");
+  span.textContent = text;
+  if (rating === undefined) return span;
+  span.append(" ", pixelIcon(STAR_CLASS, STAR_PIXELS), String(rating));
+  return span;
+}
+
 function hintSpan(hint: ButtonHint): HTMLElement {
   const span = document.createElement("span");
   span.className = HINT_CLASS;
   if (hint.color) span.style.color = hint.color;
-  const text = document.createElement("span");
-  text.textContent = hint.text;
-  span.append(mouseIcon(hint.button), text);
+  span.append(mouseIcon(hint.button), ratedText(hint.text, hint.rating));
   return span;
 }
 
@@ -121,13 +131,11 @@ function lineRow(line: LabelLine): HTMLElement {
   const row = document.createElement("div");
   if ("text" in line && line.crown) {
     row.className = CROWNED_LINE_CLASS;
-    const text = document.createElement("span");
-    text.textContent = line.text;
-    row.append(pixelIcon(CROWN_CLASS, CROWN_PIXELS), text);
+    row.append(pixelIcon(CROWN_CLASS, CROWN_PIXELS), ratedText(line.text, line.rating));
     return row;
   }
   if ("text" in line) {
-    row.textContent = line.text;
+    row.append(ratedText(line.text, line.rating));
     return row;
   }
   row.className = HINTS_LINE_CLASS;
@@ -136,9 +144,12 @@ function lineRow(line: LabelLine): HTMLElement {
 }
 
 function lineSignature(line: LabelLine): string {
-  if ("text" in line) return line.crown ? `\u0004${line.text}` : line.text;
+  if ("text" in line) return `${line.crown ? "\u0004" : ""}${line.text}\u0005${line.rating ?? ""}`;
   return line.hints
-    .map((hint) => `${hint.button}\u0002${hint.text}\u0002${hint.color ?? ""}`)
+    .map(
+      (hint) =>
+        `${hint.button}\u0002${hint.text}\u0005${hint.rating ?? ""}\u0002${hint.color ?? ""}`,
+    )
     .join("\u0003");
 }
 

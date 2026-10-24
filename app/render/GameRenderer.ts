@@ -15,7 +15,7 @@ import type {
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { bodyNameFor, bodyNameIn, fightingName, sizedUpName } from "../game/displayName";
+import { bodyNameFor, bodyNameIn, fightingName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { Conversation } from "../game/dialogRuntime";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
@@ -35,7 +35,7 @@ import {
   applyInteraction,
   blockReason,
   interactionText,
-  pointerHintText,
+  pointerHint,
   listInteractionOptions,
   rankedInteractionsAt,
   refOptionsFrom,
@@ -190,11 +190,11 @@ function hintInk(option: InteractionOption): string {
 }
 
 function buttonLine(first: InteractionOption, second: InteractionOption | null): LabelLine {
-  const left = { button: "left", text: pointerHintText(first), color: hintInk(first) } as const;
+  const left = { button: "left", ...pointerHint(first), color: hintInk(first) } as const;
   if (!second) return { id: "buttons", hints: [left] };
   return {
     id: "buttons",
-    hints: [left, { button: "right", text: pointerHintText(second), color: hintInk(second) }],
+    hints: [left, { button: "right", ...pointerHint(second), color: hintInk(second) }],
   };
 }
 
@@ -1807,14 +1807,20 @@ export class GameRenderer {
       const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);
       const head = elevationScreenOffset(height);
       const name = fightingName(bodyNameFor(actor, this.tilesById), actor.pvp);
-      const sized = sizedUpName(name, actor.rating, this.lookMode);
       const fraction = healthFraction(actor.hp, actor.maxHp);
       into.push({
         id: nameLabelId(actor.id),
         kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y - labelHeadroomPx(height),
-        lines: [{ id: actor.id, text: sized, ...(actor.king ? { crown: true } : {}) }],
+        lines: [
+          {
+            id: actor.id,
+            text: name,
+            ...(actor.rating === null ? {} : { rating: actor.rating }),
+            ...(actor.king ? { crown: true } : {}),
+          },
+        ],
         order: drawOrder(
           actor.x,
           actor.y,

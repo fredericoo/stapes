@@ -50,6 +50,7 @@ import {
   type LevelLightUniforms,
   noAnimUniforms,
   noCutUniforms,
+  noSunUniforms,
   type Quad,
   WORLD_SHADER_CACHE_KEY,
   buildMergedQuadGeometry,
@@ -478,6 +479,7 @@ export class EditorRenderer {
         uLightSize: { value: new THREE.Vector2(1, 1) },
         uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
         uAmbient: { value: new THREE.Vector3(0, 0, 0) },
+        ...noSunUniforms(this.whiteTex),
       };
       this.lightUniformsByZ.set(z, u);
     }
@@ -549,8 +551,11 @@ export class EditorRenderer {
     if (!force && key === this.lightingKey) return;
     this.lightingKey = key;
 
-    const ambient = sampleIllumination(s.lighting.minutesOfDay).ambient;
-    const grid = computeLighting(s.map, s.tilesById, ambient);
+    const { ambient, sun, sunArc } = sampleIllumination(s.lighting.minutesOfDay);
+    const grid = computeLighting(s.map, s.tilesById, ambient, undefined, undefined, {
+      color: sun,
+      arc: sunArc,
+    });
     this.lightGrid = grid;
     this.uploadLightGrid(grid);
     this.requestRender();
