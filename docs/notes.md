@@ -6968,6 +6968,13 @@ damage spell pays a point per point of damage, doubled against anything rated
 well above the caster's Arcane (`experienceMultiplier`), so Arcane 3 to 10 is
 about fifty Spark hits on bats and seventy-five on rats.
 
+**The slimes are rated 20 so Arcane 10 to 15 has something to practise on.**
+Casting is weighed against the target's rating, and the creatures near the
+start are rated 7 to 10, so past Arcane 10 they pay almost nothing
+(`BENEATH_YOU_EXPONENT`): Arcane 10 to 15 was about five hundred Spark hits on
+rats. A slime at 20 pays double until Arcane 14, and the same climb is about
+ninety hits on slimes. Lowering a slime's masteries moves that wall back.
+
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
 what it trains and never weighed, because a mend has nobody on the other end of

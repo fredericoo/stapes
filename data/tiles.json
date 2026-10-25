@@ -54355,9 +54355,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 14,
-          "toughness": 18,
-          "agility": 6
+          "fist": 20,
+          "toughness": 26,
+          "agility": 9
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -55138,9 +55138,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 14,
-          "toughness": 18,
-          "agility": 6
+          "fist": 20,
+          "toughness": 26,
+          "agility": 9
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -55879,9 +55879,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 14,
-          "toughness": 18,
-          "agility": 6
+          "fist": 20,
+          "toughness": 26,
+          "agility": 9
         },
         "naturalWeapon": {
           "type": "weapon",
