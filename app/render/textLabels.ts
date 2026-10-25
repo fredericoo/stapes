@@ -86,6 +86,62 @@ function mouseIcon(button: MouseButton): SVGSVGElement {
   return pixelIcon(MOUSE_CLASS, MOUSE_PIXELS, (pixel) => pixel === "#" || pixel === pressed);
 }
 
+const OUTLINE_COLOR = "#000";
+
+const OUTLINE_BRICKS = 1;
+
+type Cell = { x: number; y: number };
+
+function filledCells(pixels: readonly string[], filled: (pixel: string) => boolean): Cell[] {
+  const cells: Cell[] = [];
+  for (const [y, row] of pixels.entries()) {
+    for (const [x, pixel] of [...row].entries()) {
+      if (filled(pixel)) cells.push({ x, y });
+    }
+  }
+  return cells;
+}
+
+function cellsAround(cell: Cell): Cell[] {
+  const around: Cell[] = [];
+  for (let dy = -OUTLINE_BRICKS; dy <= OUTLINE_BRICKS; dy++) {
+    for (let dx = -OUTLINE_BRICKS; dx <= OUTLINE_BRICKS; dx++) {
+      around.push({ x: cell.x + dx, y: cell.y + dy });
+    }
+  }
+  return around;
+}
+
+/** Every cell within one brick of a filled one, corners included, that is not itself filled. */
+function outlineCells(cells: readonly Cell[]): Cell[] {
+  const key = (cell: Cell) => `${cell.x},${cell.y}`;
+  const taken = new Set(cells.map(key));
+  const outline = new Map<string, Cell>();
+  for (const cell of cells) {
+    for (const around of cellsAround(cell)) {
+      if (!taken.has(key(around))) outline.set(key(around), around);
+    }
+  }
+  return [...outline.values()];
+}
+
+function brickRect(cell: Cell, fill?: string): SVGRectElement {
+  const rect = document.createElementNS(SVG_NS, "rect");
+  rect.setAttribute("x", String(cell.x));
+  rect.setAttribute("y", String(cell.y));
+  rect.setAttribute("width", "1");
+  rect.setAttribute("height", "1");
+  if (fill) rect.setAttribute("fill", fill);
+  return rect;
+}
+
+/**
+ * The outline is drawn as bricks behind the icon rather than with a
+ * `drop-shadow` filter: a filter offsets a bitmap, and on coarse pointers the
+ * brick is 1.6px, which the filter pipeline rounds, so the outline came out
+ * thinner than the glyphs' `text-shadow` beside it. The outline bricks sit
+ * outside the viewBox, and the stylesheet lets the svg overflow by one brick.
+ */
 function pixelIcon(
   className: string,
   pixels: readonly string[],
@@ -97,17 +153,9 @@ function pixelIcon(
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("shape-rendering", "crispEdges");
   svg.setAttribute("fill", "currentColor");
-  for (const [y, row] of pixels.entries()) {
-    for (const [x, pixel] of [...row].entries()) {
-      if (!filled(pixel)) continue;
-      const rect = document.createElementNS(SVG_NS, "rect");
-      rect.setAttribute("x", String(x));
-      rect.setAttribute("y", String(y));
-      rect.setAttribute("width", "1");
-      rect.setAttribute("height", "1");
-      svg.appendChild(rect);
-    }
-  }
+  const cells = filledCells(pixels, filled);
+  for (const cell of outlineCells(cells)) svg.appendChild(brickRect(cell, OUTLINE_COLOR));
+  for (const cell of cells) svg.appendChild(brickRect(cell));
   return svg;
 }
 

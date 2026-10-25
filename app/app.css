@@ -303,14 +303,14 @@ body {
 }
 
 /* 7×9 in the font's own pixels, so each rect is one brick. `text-shadow` does
-   not reach an SVG; four chained single-brick drop-shadows compose into the
-   same 3×3 outline the glyphs get. */
+   not reach an SVG: the icon carries its own outline bricks one brick outside
+   its viewBox, so the svg must overflow for them to show. The same goes for
+   the crown and the star below. */
 .world-label__mouse {
   flex-shrink: 0;
   width: calc(var(--world-label-brick) * 7);
   height: calc(var(--world-label-brick) * 9);
-  filter: drop-shadow(var(--o1) 0 0 #000) drop-shadow(var(--o1n) 0 0 #000)
-    drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
+  overflow: visible;
 }
 
 .world-label__line--crowned {
@@ -325,8 +325,7 @@ body {
   width: calc(var(--world-label-brick) * 7);
   height: calc(var(--world-label-brick) * 4);
   color: var(--color-interact);
-  filter: drop-shadow(var(--o1) 0 0 #000) drop-shadow(var(--o1n) 0 0 #000)
-    drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
+  overflow: visible;
 }
 
 /* On the baseline, where the font's digits stand, so a star as tall as a digit
@@ -338,8 +337,7 @@ body {
   width: calc(var(--world-label-brick) * 7);
   height: calc(var(--world-label-brick) * 7);
   margin-right: var(--world-label-brick);
-  filter: drop-shadow(var(--o1) 0 0 #000) drop-shadow(var(--o1n) 0 0 #000)
-    drop-shadow(0 var(--o1) 0 #000) drop-shadow(0 var(--o1n) 0 #000);
+  overflow: visible;
 }
 
 .world-label--name {
