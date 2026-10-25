@@ -59,7 +59,7 @@ const firstChoice: PreyChoice<Rated> = {
 
 describe("creaturesAround", () => {
   it("leaves out townsfolk, who are battlers with a dialog", () => {
-    const around = [body("town-guard", 1), body("beggar", 2), body("wolf", 3)];
+    const around = [body("east-gate-guard", 1), body("beggar", 2), body("wolf", 3)];
     expect(creaturesAround(newcomer, around, tilesById).map((a) => a.tileId)).toEqual(["wolf"]);
   });
 
