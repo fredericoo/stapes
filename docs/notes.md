@@ -11028,7 +11028,11 @@ The mark is `[PvP]` rather than crossed swords: the world's text is typeset in
 NF Pixels, subset to printable ASCII, so a ⚔ falls back to a colour emoji at the
 wrong metrics. The rating's star after every battler's name is not a character
 for the same reason; it is a 7×7 pixel icon (`STAR_PIXELS` in `textLabels.ts`)
-on the font's brick grid, as tall as its digits. Both are always on — a mark you
+on the font's brick grid, as tall as its digits. The outline on it, and on the mouse
+and crown icons, is bricks drawn behind the icon in its own svg rather than a
+`drop-shadow` filter: a filter offsets a bitmap, and on coarse pointers the brick
+is 1.6px, which the filter pipeline rounds, so the star's outline came out
+thinner than the `text-shadow` on the name beside it. Both are always on — a mark you
 had to hold a key to see would be a mark nobody reads before walking into a
 crowd. Interface text outside the world draws the star with `Rating`, from
 pixelarticons.
