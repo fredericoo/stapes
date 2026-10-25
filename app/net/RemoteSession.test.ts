@@ -11,7 +11,7 @@ import { emptyEquipment } from "../game/equipment";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
 import { CHAT_ARRIVAL_JITTER_MS, CHAT_LIFETIME_MS, CHAT_MIN_INTERVAL_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_GRACE_MS } from "./RemoteSession";
-import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
+import { MAX_STEPS_AHEAD, type CellPatch, type HpPatch, type MotionEvent } from "./protocol";
 import { UNKNOWN_REMAINING_MS } from "../game/statuses";
 import { resolveStatus, type StatusDef } from "../lib/status";
 import { MAX_HELD_TRANSITIONS, MAX_TRANSITION_MS } from "../lib/tileTransition";
@@ -76,9 +76,9 @@ const player: PlacedTile = {
   owner: SELF,
 } as PlacedTile;
 
-function flatMap(): FlatMapFile {
+function flatMap(width = 4): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
-  for (let x = 0; x < 4; x++) cells[`${x},0`] = [grass];
+  for (let x = 0; x < width; x++) cells[`${x},0`] = [grass];
   cells["0,0"] = [grass, player];
   return { version: MAP_FILE_VERSION, levels: { "0": cells } } as unknown as FlatMapFile;
 }
@@ -125,13 +125,14 @@ function slowing(id: string, walkSpeedPercent: number): StatusDef {
 function connected(
   now?: () => number,
   statusDefs: Record<string, StatusDef> = {},
+  map: FlatMapFile = flatMap(),
 ): { socket: FakeSocket; session: RemoteSession } {
   const socket = new FakeSocket();
   const session = new RemoteSession(socket as unknown as WebSocket, tiles, statusDefs, now);
   socket.deliver({
     type: "hello",
     selfId: SELF,
-    map: flatMap(),
+    map,
     actorIds: [SELF],
     playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
@@ -1002,6 +1003,21 @@ describe("RemoteSession prediction", () => {
       { seq: 1, to: { x: 2, y: 0, z: 0 }, chain: 0 },
       { seq: 2, to: { x: 2, y: 0, z: 0 }, chain: 1 },
     ]);
+  });
+
+  it("stops drawing steps while as many as the server holds are unanswered", () => {
+    const { socket, session } = connected(undefined, {}, flatMap(MAX_STEPS_AHEAD * 2));
+    session.setInput({ directions: ["e"] });
+    session.update(WALK_DURATION_MS * MAX_STEPS_AHEAD * 2);
+
+    expect(stepsSent(socket)).toHaveLength(MAX_STEPS_AHEAD);
+    expect(session.getSnapshot().self.x).toBe(MAX_STEPS_AHEAD);
+    expect(session.getSnapshot().self.walk).toBeNull();
+
+    socket.deliver(patch(committedTo(0)));
+    session.update(16);
+
+    expect(stepsSent(socket)).toHaveLength(MAX_STEPS_AHEAD + 1);
   });
 
   it("gives up on a step nothing ever answers for", () => {

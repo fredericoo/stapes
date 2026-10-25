@@ -3350,7 +3350,7 @@ that time no tick ran and no message was read.
 
 What players saw was being thrown back. A walking client drew its steps as
 usual, the server read them all at once when the burst ended, and its step queue
-held two while the client draws up to eight. The rest were refused and the
+held two while the client drew up to eight. The rest were refused and the
 client rolled back several cells. Two changes, each covering one half:
 
 - **`join` waits its turn.** One join at a time, each after a `setTimeout(0)`,
@@ -4226,6 +4226,10 @@ The server's number never gets ahead of the client's. It moves only by closing a
 chain, and the client moves its own for every refusal of a step it still holds,
 or has already moved it when it threw that step away itself. `docs/server.md`
 has the two places where that depends on code elsewhere.
+
+`MAX_STEPS_AHEAD` is 5. The client draws at most five steps the server has not
+answered, and five is also the most a refusal can take back. At 200ms a step,
+that leaves a round trip of about 800ms before a held key stalls.
 
 `scripts/bench-crowd.ts` speaks the same protocol. Its bots aim from where their
 last step went and read their body's cell from the session on a `hello` and on a

@@ -940,7 +940,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
 
 export const PROTOCOL_VERSION = 36;
 
-export const MAX_STEPS_AHEAD = 8;
+export const MAX_STEPS_AHEAD = 5;
 
 export const KEEPALIVE_INTERVAL_MS = 30_000;
 
