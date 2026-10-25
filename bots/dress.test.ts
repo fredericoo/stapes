@@ -3,6 +3,7 @@ import tilesJson from "../data/tiles.json";
 import { emptyEquipment, type Equipment } from "../app/game/equipment";
 import { applyItemMove, clearSlot } from "../app/game/itemMoves";
 import { emptyMap } from "../app/lib/mapData";
+import { xpForLevel, type MasteryXp } from "../app/lib/mastery";
 import { normalizeTileDef, type TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { nextDressing, type Judge } from "./dress";
@@ -10,9 +11,9 @@ import { bodyOf, type Style } from "./gear";
 
 const tilesById = tilesByIdFromList((tilesJson as TileDef[]).map(normalizeTileDef));
 
-function judge(style: Style): Judge {
+function judge(style: Style, xp: MasteryXp = {}): Judge {
   return {
-    body: bodyOf(tilesById, {})!,
+    body: bodyOf(tilesById, xp)!,
     taste: { style, statusDefs: {} },
     keeps: () => false,
     spends: () => false,
@@ -33,11 +34,15 @@ function kit(worn: Partial<Equipment>, bag: string[]): Equipment {
 }
 
 /** Applies dressings the way the server would until the bot has nothing left to change. */
-function dressed(equipment: Equipment, style: Style): { equipment: Equipment; dropped: string[] } {
+function dressed(
+  equipment: Equipment,
+  style: Style,
+  xp: MasteryXp = {},
+): { equipment: Equipment; dropped: string[] } {
   const dropped: string[] = [];
   const at = { x: 0, y: 0, z: 0, stackIndex: 0 };
   for (let moves = 0; moves < 8; moves++) {
-    const dressing = nextDressing(equipment, tilesById, judge(style));
+    const dressing = nextDressing(equipment, tilesById, judge(style, xp));
     if (!dressing) return { equipment, dropped };
     if (dressing.kind === "drop") {
       equipment = clearSlot(emptyMap(), tilesById, at, equipment, dressing.from)!.equipment;
@@ -67,12 +72,17 @@ describe("nextDressing", () => {
 
   it("has an arcane bot keep its sword while it carries one bolt, and put it down for two", () => {
     const sword = { weapon: { id: "s", tileId: "rusty-sword" } };
+    const xp = { arcane: xpForLevel(3) };
 
-    const one = dressed(kit(sword, ["arcane-stone-of-spark"]), "arcane");
+    const one = dressed(kit(sword, ["arcane-stone-of-spark"]), "arcane", xp);
     expect(one.equipment.weapon?.tileId).toBe("rusty-sword");
     expect(one.equipment.offhand?.tileId).toBe("arcane-stone-of-spark");
 
-    const two = dressed(kit(sword, ["arcane-stone-of-spark", "arcane-stone-of-spark"]), "arcane");
+    const two = dressed(
+      kit(sword, ["arcane-stone-of-spark", "arcane-stone-of-spark"]),
+      "arcane",
+      xp,
+    );
     expect(two.equipment.weapon?.tileId).toBe("arcane-stone-of-spark");
     expect(two.equipment.offhand?.tileId).toBe("arcane-stone-of-spark");
     expect(two.dropped).toEqual(["rusty-sword"]);

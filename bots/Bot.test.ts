@@ -475,7 +475,8 @@ it("holds a spark stone and casts it at a creature, training Arcane", async () =
     { tileId: "arcane-stone-of-spark", itemId: "spark" },
   ];
   await harness.blobs.put("map.json", JSON.stringify(world), JSON_TYPE);
-  const { remote, clock } = await joinBot();
+  const { remote, clock } = await joinBot(true);
+  remote.say("/mastery arcane 3");
   const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
     random: () => 0.5,
     temperament: { ...DEFAULT_TEMPERAMENT, style: "arcane", wanderChance: 0 },

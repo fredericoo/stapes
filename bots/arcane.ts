@@ -18,8 +18,8 @@ import type { StatusDef } from "../app/lib/status";
 import type { TileDef } from "../app/lib/types";
 
 /**
- * Carrying a light is worth this much damage a second. A new character's
- * Spark does about 0.8 a second, so it keeps its torch; by Arcane 10 every
+ * Carrying a light is worth this much damage a second. Spark at the Arcane it
+ * asks does about 0.8 a second, so its caster keeps a torch; by Arcane 10 every
  * first-rung bolt does 1.0 to 1.2 and takes the accessory square instead.
  */
 export const LIGHT_WORTH = 1;

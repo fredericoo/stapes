@@ -861,10 +861,6 @@ describe("the stones we ship", () => {
     }
   });
 
-  it("asks nothing of the bottom neutral rung that a fresh player lacks", () => {
-    expect(neutral(0).requirements).toEqual({ arcane: MIN_EARNED_MASTERY });
-  });
-
   it("runs the neutral ladder one gate below the elemental one", () => {
     for (let index = 0; index < NEUTRAL_LADDER.length; index++) {
       const where = `rung ${index}`;
@@ -874,7 +870,7 @@ describe("the stones we ship", () => {
       expect(plain.reach, where).toEqual(yardstick.reach);
       expect(plain.castTimeMs, where).toBe(yardstick.castTimeMs);
       expect(plain.cooldownMs, where).toBe(yardstick.cooldownMs);
-      /** The bottom rung is the starter stone, gated at the floor rather than one gate below. */
+      /** The bottom rung is the first stone Light's practice earns, so it sits just above the floor rather than one gate below. */
       if (index === 0) continue;
       expect(yardstick.requirements!.arcane, where).toBe(
         plain.requirements!.arcane! + ELEMENTAL_ARCANE_GAP,
@@ -910,11 +906,11 @@ describe("the stones we ship", () => {
     }
   });
 
-  it("lets a brand new player onto the bottom neutral rung and no other", () => {
+  it("lets a brand new player cast Light and no rung of either ladder", () => {
     const seeded = resolveBattler(shipped.player!)!.masteries;
 
-    expect(meetsRequirements(seeded, neutral(0).requirements)).toBe(true);
-    expect(meetsRequirements(seeded, neutral(1).requirements)).toBe(false);
+    expect(meetsRequirements(seeded, resolveStone(shipped[LIGHT]!)!.requirements)).toBe(true);
+    expect(meetsRequirements(seeded, neutral(0).requirements)).toBe(false);
 
     for (const element of ELEMENTS) {
       expect(meetsRequirements(seeded, rung(element, 0).requirements), element).toBe(false);

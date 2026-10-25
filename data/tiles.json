@@ -27963,7 +27963,7 @@
         "cooldownMs": 5000,
         "castTimeMs": 1000,
         "requirements": {
-          "arcane": 1
+          "arcane": 3
         },
         "reach": {
           "cells": 5.5,
