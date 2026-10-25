@@ -154,6 +154,27 @@ describe("GameSession.requestStep", () => {
     expect(ticks).toBe(Math.ceil(WALK_DURATION_MS / TICK_MS));
   });
 
+  function sessionOnOpenGround(): GameSession {
+    const cells: Record<string, PlacedTile[]> = {};
+    for (let x = 0; x < 4; x++) cells[`${x},0`] = [grass];
+    const map = chunkifyMap({
+      version: MAP_FILE_VERSION,
+      levels: { "0": cells },
+    } as unknown as FlatMapFile);
+    return new GameSession(map, tiles, {
+      actorIds: ["a"],
+      spawnAt: { x: 0, y: 0, z: 0, stackIndex: 1 },
+    });
+  }
+
+  it("walks to a cell only when one step lands exactly on it", () => {
+    const session = sessionOnOpenGround();
+
+    expect(session.requestStep("a", { x: 2, y: 0, z: 0 })).toBe("refused");
+    expect(session.requestStep("a", { x: 1, y: 0, z: 1 })).toBe("refused");
+    expect(session.requestStep("a", { x: 1, y: 0, z: 0 })).toBe("started");
+  });
+
   it("refuses a step from an actor the board is still dropping", () => {
     const map = chunkifyMap({
       version: MAP_FILE_VERSION,

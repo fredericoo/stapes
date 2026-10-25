@@ -457,7 +457,8 @@ export type ClientMessage =
   | {
       type: "step";
       seq: number;
-      direction: "n" | "e" | "s" | "w";
+      to: { x: number; y: number; z: number };
+      chain: number;
       preferDescend: boolean;
     }
   | { type: "face"; direction: "n" | "e" | "s" | "w" }
@@ -519,7 +520,12 @@ const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("step"),
     seq: v.pipe(v.number(), v.integer(), v.minValue(0)),
-    direction: directionSchema,
+    to: v.object({
+      x: v.pipe(v.number(), v.integer()),
+      y: v.pipe(v.number(), v.integer()),
+      z: v.pipe(v.number(), v.integer()),
+    }),
+    chain: v.pipe(v.number(), v.integer(), v.minValue(0)),
     preferDescend: v.boolean(),
   }),
   v.object({
@@ -932,9 +938,9 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 35;
+export const PROTOCOL_VERSION = 36;
 
-export const MAX_STEPS_AHEAD = 8;
+export const MAX_STEPS_AHEAD = 5;
 
 export const KEEPALIVE_INTERVAL_MS = 30_000;
 
