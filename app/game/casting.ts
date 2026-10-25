@@ -6,6 +6,7 @@ import {
   type Masteries,
   meetsRequirements,
   requirementCoverage,
+  requirementShare,
   REQUIREMENTS_MET,
 } from "../lib/mastery";
 import { getStack, isBodyPlacement } from "../lib/mapData";
@@ -122,7 +123,7 @@ export function castability(context: CastContext, slot: CastSlot): Castability {
 
   if (cooldownOf(context, slot) > 0) return refused("cooling");
 
-  if (!meetsRequirements(context.masteries, stone.requirements)) {
+  if (slot.from === "natural" && !meetsRequirements(context.masteries, stone.requirements)) {
     return refused("mastery");
   }
 
@@ -244,8 +245,16 @@ export function needsTarget(stone: Pick<ArcaneStoneItem, "effect">): boolean {
 export function castDurationMs(stone: ArcaneStoneItem, masteries: Masteries): number {
   const authored = stone.castTimeMs ?? 0;
   if (authored <= 0) return 0;
+  const met = requirementShare(masteries, stone.requirements);
   const coverage = requirementCoverage(masteries, stone.requirements);
-  const share = Math.min(REQUIREMENTS_MET, REQUIREMENTS_MET - (coverage - REQUIREMENTS_MET));
+  /**
+   * Short of what the stone asks, every share missing adds the same share of the
+   * authored time; past it, every share over takes one off, down to instant.
+   */
+  const share =
+    met < REQUIREMENTS_MET
+      ? REQUIREMENTS_MET + (REQUIREMENTS_MET - met)
+      : Math.min(REQUIREMENTS_MET, REQUIREMENTS_MET - (coverage - REQUIREMENTS_MET));
   return Math.max(0, Math.round(authored * share));
 }
 
@@ -280,7 +289,6 @@ export function castableSpells(context: CastContext): SpellButton[] {
     const def = context.tilesById[instance.tileId];
     const stone = def ? resolveStone(def) : null;
     if (!stone) continue;
-    if (!meetsRequirements(context.masteries, stone.requirements)) continue;
 
     const slot = squareSlot(square);
     buttons.push({

@@ -40,7 +40,6 @@ import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import {
   type Masteries,
   meetsMagicRequirements,
-  meetsRequirements,
   physicalShortfall,
   WEAPON_MASTERIES,
 } from "../lib/mastery";
@@ -492,13 +491,11 @@ export function takesEffect(
   if (!instance) return false;
   const def = tilesById[instance.tileId];
   if (!def) return false;
+  if (resolveStone(def)) return true;
   if (magicDormant(def, masteries)) return false;
 
   if (itemElements(def).length > 0) return true;
   if (resolveLight(def, { direction: instance.direction })) return true;
-
-  const stone = resolveStone(def);
-  if (stone) return meetsRequirements(masteries, stone.requirements);
 
   if (slot === "weapon" || slot === "offhand") {
     return (

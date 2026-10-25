@@ -348,6 +348,21 @@ describe("itemCard", () => {
       expect(itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!.dormant).toBeNull();
     });
 
+    it("says a stone cast short of what it asks is slower and weaker", () => {
+      const stone = tileWith({
+        type: "stone",
+        cooldownMs: 1_000,
+        requirements: { arcane: 10, fire: 5 },
+        effect: { kind: "bolt", on: "target", damage: 1 },
+      });
+      expect(itemCard(stone, null, { arcane: xpForLevel(10) })!.dormant).toBe(
+        "Casts slower and weaker until you reach Fire 5.",
+      );
+      expect(
+        itemCard(stone, null, { arcane: xpForLevel(10), fire: xpForLevel(5) })!.dormant,
+      ).toBeNull();
+    });
+
     it("never calls a piece dormant for want of toughness", () => {
       const plate = tileWith({ type: "armor", def: 5, requirements: { toughness: 20 } });
       expect(itemCard(plate, null, NOTHING_LEARNT)!.dormant).toBeNull();

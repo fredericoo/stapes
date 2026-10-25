@@ -250,6 +250,7 @@ function encumbranceStats(
 }
 
 function dormancyOf(item: ItemDef, masteries: BattlerDef["masteries"]): string | null {
+  if (item.type === "stone") return stoneShortfallOf(item, masteries);
   if (
     item.type !== "weapon" &&
     item.type !== "armor" &&
@@ -267,6 +268,20 @@ function dormancyOf(item: ItemDef, masteries: BattlerDef["masteries"]): string |
   return item.type === "weapon"
     ? `You fight with your bare hands until you reach ${until}.`
     : `Does nothing until you reach ${until}.`;
+}
+
+function stoneShortfallOf(
+  stone: ArcaneStoneItem,
+  masteries: BattlerDef["masteries"],
+): string | null {
+  const short = MASTERIES.filter(
+    (mastery) => masteryLevel(masteries, mastery) < (stone.requirements?.[mastery] ?? 0),
+  );
+  if (short.length === 0) return null;
+  const until = short
+    .map((mastery) => `${MASTERY_LABELS[mastery]} ${stone.requirements![mastery]}`)
+    .join(" and ");
+  return `Casts slower and weaker until you reach ${until}.`;
 }
 
 function resistsFrom(armor: ArmorItem): ItemCardResist[] {

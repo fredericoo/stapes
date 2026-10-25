@@ -4591,8 +4591,8 @@ nothing.
   what lets the item card show each piece's own cost and have them add up.
 - **Magic short: it does nothing.** `magicDormant` switches off the item's
   defence, resists, elements (`bodyElements`) and charm tick
-  (`GameSession.wornCharm`); `takesEffect` reports it, so the slot dims like an
-  unmet stone's, and the card says what is missing. Encumbrance is not charged
+  (`GameSession.wornCharm`); `takesEffect` reports it, so the slot dims, and the
+  card says what is missing. Encumbrance is not charged
   for the magic half — a piece that already does nothing is penalty enough.
 
 **A weapon short of its magic is held like a torch.** `weaponSwungBy` answers
@@ -6000,8 +6000,7 @@ recoloured, and `#6e2727` and `#ae2334` appear in the clothes for that reason.
 
 There is no mana, no spell book and no spell slots. What a caster can do is
 decided by which **arcane stones** they are carrying, how recently each was used
-and — for the stones that take time — how far past what one asks the caster has
-got. The whole of a loadout is two hands and a charm, which is why the desktop
+and how far past or short of what one asks the caster has got. The whole of a loadout is two hands and a charm, which is why the desktop
 binding is `Q`, `E`, `F` and stops there.
 
 A stone is an arm of the item union beside weapon, armour, shield, consumable,
@@ -6248,12 +6247,16 @@ takes to 0. `applyHealthMove` floats a `resisted` outcome for either, which
 `damageNumbers.ts` draws like a blow's `blocked`. Before, both floated nothing,
 and a bolt rounded to 0 was handled as a 0-point heal on its target.
 
-**Requirements are not read as a ratio here, unlike a weapon's**, and the absence
-is the design rather than an oversight. `weaponHandling` exists because a weapon
-you have not earned still swings; a stone you have not earned does not fire at
-all, so the share is one at every call site this has. Writing the term anyway
-would be a factor that can never be anything but one, sitting in the formula
-inviting somebody to believe it does something.
+**A caster short of what the stone asks gets that share of it.** `spellPower`
+multiplies the whole figure by `requirementShare`, the capped ratio of the
+levels brought to the levels asked: half of what a stone asks is half its
+damage, and half its healing, since the magnitude is scaled before the sign goes
+back on. It is the capped ratio so a surplus in Arcane cannot pay for a missing
+element. A stone used to refuse an unmet caster outright, which made a stone a
+thing you looked at for hours before it did anything; casting it short is also
+how the elements it asks for are trained, because `practiceEarnings` pays the
+same for every cast. A creature's natural spells keep the old refusal in
+`castability`, so their share is always one.
 
 #### What a bolt throws is the same flight a bow's is
 
@@ -6454,6 +6457,12 @@ far" below
   time, 150% is half, and double is instant. One subtraction because a player has
   to be able to hold it in their head while looking at the requirements grid, and
   because the figure is on the button's tooltip where a level-up visibly moves it.
+- **Short of the requirements, the shortfall goes on the clock the same way.**
+  Half of what a stone asks is one and a half times its time, and none of it is
+  double. It reads `requirementShare` rather than `requirementCoverage` for that
+  half, so a caster ten levels past on Arcane and short on Fire is still slower,
+  not faster: the surplus speeds up a stone you can fully cast and does nothing
+  for one you cannot.
 - **That is what keeps a starter spell worth carrying.** Flame asks Arcane 10 and
   Fire 1, so it is three seconds the day you can first hold one and instant by
   Arcane 21. The spell does not get stronger, it gets quick. The stones at the
@@ -7065,18 +7074,12 @@ keeps running after the cast.
   One search per spell per frame is the cost the click-walk notes above accept
   only while a walk is under way; the bar is drawn all the time.
 
-A stone whose requirements the caster has not met is not one of these — **it has
-no button at all**, on the same grounds an automatic charm does not. Every other
-refusal changes by waiting, walking closer or pointing at somebody, so the button
-is worth keeping around to press when it does. A shortfall in mastery changes
-only by going away and levelling, and until then the disc says "not learnt yet"
-for hours while holding one of three squares. What the stone asks for is on its
-item card beside the levels the caster has, which is where somebody deciding
-whether to go and earn it is already looking. `castability` still answers
-`mastery` — the session and the server ask it about a square rather than about a
-row — and the filter is in `castableStones`, read off `meetsRequirements` rather
-than off the verdict, because mid-cast the verdict answers `casting` for every
-square and an unearned stone would blink into the row for as long as the bar runs.
+A stone whose requirements the caster has not met is not refused at all: it casts
+on a longer bar and lands softer (see "A cast can take time" and "A bolt scales
+like a weapon"), and its button is in the row like any other. `mastery` is left
+only for a creature's natural spells, which `castableSpells` still leaves out of
+the row when unmet — a body's levels are authored, so a spell it is short of is
+one it never casts.
 
 A `noTarget` refusal wears the ready appearance and the press goes through to the
 session, which refuses it and answers with a sentence — see `castRefusalNotice`
@@ -7093,16 +7096,13 @@ wants a rim to run along.
 
 A hand takes anything you can carry — `handAccepts` refuses nothing, on purpose
 — and almost none of it is read. A helmet in a fist armours nobody, a loaf does
-nothing at all, and a stone casts from no square until its requirements are met.
-All three looked exactly like a sword in the same square, so a player could
-reasonably believe the helmet was protecting them and the stone was a spell they
-had. The spell row makes the stone worse rather than better: it leaves an
-unearned stone out entirely, so the kit panel is the only place it appears.
+nothing at all. Both looked exactly like a sword in the same square, so a player
+could reasonably believe the helmet was protecting them.
 
 `takesEffect` in `app/game/equipment.ts` answers it per square, each arm named
 after the rule that actually reads the square: elements and light off any worn
-square (`bodyElements`, `carriedLightTileIds`), a stone against
-`meetsRequirements`, a hand against a swing, a guard or a pack it can open, and
+square (`bodyElements`, `carriedLightTileIds`), a stone in any square that
+takes one, earned or not, because it casts either way, a hand against a swing, a guard or a pack it can open, and
 a worn square against armour authored for *that* square plus the charm's own
 kind. Everything else is inert where it is.
 
@@ -15095,8 +15095,9 @@ for the bow's reach and `Bot.kite` runs as above. A bot with a weapon in hand
 walks up to swing it and casts on the way.
 
 **A bot casts one stone a frame, chosen by the moment** (`Bot.spellcast`).
-It reads `spells()`, the same buttons the spell bar draws, so a stone it has
-not learnt, one cooling down, or a target out of reach is never sent. In
+It reads `spells()`, the same buttons the spell bar draws, so a stone cooling
+down or a target out of reach is never sent, and `usableStone` leaves out a
+stone it has not fully learnt, which a player may cast short but a bot does not. In
 order:
 
 - **Mending:** below `eatHpShare` of its health or while recovering, the

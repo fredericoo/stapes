@@ -36,7 +36,7 @@ const MS_PER_SECOND = 1000;
 /** A bot recasts its light this long before the last one goes out. */
 export const LIGHT_RENEW_MS = 10_000;
 
-/** The stone in `def`, when it is one the bot can cast with its masteries now. */
+/** The stone in `def`, when the bot has every level it asks for. */
 export function usableStone(
   def: TileDef | undefined,
   masteries: Masteries,
