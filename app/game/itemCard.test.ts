@@ -590,6 +590,28 @@ describe("itemCard", () => {
       ).toBe("Grants");
     });
 
+    it("asks a stone's requirements to cast it and everything else's to master it", () => {
+      const asks = { arcane: 5 };
+      const stone = itemCard(
+        tileWith({
+          type: "stone",
+          cooldownMs: 1_000,
+          requirements: asks,
+          effect: { kind: "bolt", on: "target", damage: 1 },
+        }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      const tunic = itemCard(
+        tileWith({ type: "armor", def: 1, requirements: asks }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      expect(stone.requirementsTitle).toBe("Requires");
+      expect(tunic.requirementsTitle).toBe("To Master");
+      expect(tunic.speech).toContain("To Master Arcane 5");
+    });
+
     it("names what a stone leaves behind, wherever its kind keeps the list", () => {
       const venom: StatusDef = {
         id: "venom",
@@ -762,7 +784,7 @@ describe("itemCard", () => {
     const card = itemCard(tileWith(SWORD), null, { sharp: xpForLevel(5) })!;
     expect(card.speech).toContain("Thing");
     expect(card.speech).toContain("One hand — Sharp");
-    expect(card.speech).toContain("Requires Sharp 20, you have 5");
+    expect(card.speech).toContain("To Master Sharp 20, you have 5");
     expect(card.speech).toContain(`${termLabel("damage")}: `);
     expect(card.speech).toContain("A blow every: ");
     expect(card.speech).not.toContain(termLabel("swing"));
@@ -786,7 +808,7 @@ describe("catalogueCard", () => {
     expect(card.requirements).toEqual([
       { mastery: "sharp", required: GATE, have: null, met: true },
     ]);
-    expect(card.speech).toContain(`Requires Sharp ${GATE}`);
+    expect(card.speech).toContain(`To Master Sharp ${GATE}`);
     expect(card.speech).not.toContain("you have");
   });
 

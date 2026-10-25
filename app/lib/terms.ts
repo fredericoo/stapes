@@ -44,6 +44,7 @@ export const HEADINGS = {
   combat: "Combat",
   resists: "Resists",
   requires: "Requires",
+  toMaster: "To Master",
   onHit: "On hit",
   onCast: "On cast",
   grants: "Grants",

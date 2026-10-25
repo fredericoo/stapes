@@ -103,7 +103,7 @@ export function ItemCard({
       ) : null}
 
       {card.requirements.length > 0 ? (
-        <Section title={HEADINGS.requires}>
+        <Section title={card.requirementsTitle}>
           <ul className="flex flex-col gap-0.5">
             {card.requirements.map((row) => (
               <RequirementRow key={row.mastery} row={row} />
