@@ -519,9 +519,9 @@ export type NoiseEmission = {
   elapsedMs: number;
 };
 
-export type SwingOutcome = "hit" | "miss" | "heal";
+export type SwingOutcome = "hit" | "miss" | "heal" | "resisted";
 
-export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss", "heal"];
+export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss", "heal", "resisted"];
 
 export type DamageNumber = {
   id: string;
@@ -3622,7 +3622,7 @@ export class GameSession implements PlaySession {
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
 
-    if (rolled <= 0) return { kind: "mend", amount: -rolled };
+    if (effect.damage < 0) return { kind: "mend", amount: Math.max(0, -rolled) };
 
     const through = damageAfterDefence(rolled, context.stats, ARCANE_BLOW, guardRoll);
     return {
@@ -3642,6 +3642,10 @@ export class GameSession implements PlaySession {
     },
   ) {
     if (move.kind === "harm") {
+      if (move.amount <= 0) {
+        this.floatSwing(subject, "resisted", 0);
+        return;
+      }
       /**
        * Trimmed to what the subject has left: a body with three points can
        * only lose three, and this is also what experience is paid on —

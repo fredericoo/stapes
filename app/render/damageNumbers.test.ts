@@ -21,6 +21,10 @@ describe("what a number says", () => {
     expect(textFor(swing({ amount: 0 }))).toBe("blocked");
   });
 
+  it("says resisted for a spell that landed and did nothing", () => {
+    expect(textFor(swing({ outcome: "resisted", amount: 0 }))).toBe("resisted");
+  });
+
   it("keeps a miss and a dodge tellable apart", () => {
     expect(textFor(swing({ outcome: "miss", amount: 0 }))).toBe("miss");
   });
@@ -37,8 +41,9 @@ describe("what colour it says it in", () => {
     expect(classFor(swing({ amount: 0, own: false }))).toContain("--nothing");
   });
 
-  it("reads a miss and a dodge as nothing too", () => {
+  it("reads a miss, a dodge and a resisted spell as nothing too", () => {
     expect(classFor(swing({ outcome: "miss", own: true }))).toContain("--nothing");
+    expect(classFor(swing({ outcome: "resisted", own: true }))).toContain("--nothing");
   });
 });
 

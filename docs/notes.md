@@ -6241,6 +6241,13 @@ it makes a two-element spell genuinely *harder* rather than merely more
 expensive: a stone asking Fire and Water is thrown at the average of three
 numbers, so training one half of it buys you a third of the spell.
 
+**A harmful bolt that comes to nothing floats "resisted".** Whether a bolt harms
+or mends is read off the sign of its authored `damage`, not off the roll, so a
+small bolt rounded to 0 is still a harm, and so is one that `damageAfterDefence`
+takes to 0. `applyHealthMove` floats a `resisted` outcome for either, which
+`damageNumbers.ts` draws like a blow's `blocked`. Before, both floated nothing,
+and a bolt rounded to 0 was handled as a 0-point heal on its target.
+
 **Requirements are not read as a ratio here, unlike a weapon's**, and the absence
 is the design rather than an oversight. `weaponHandling` exists because a weapon
 you have not earned still swings; a stone you have not earned does not fire at
