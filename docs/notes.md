@@ -6835,7 +6835,7 @@ is all three of those at once. Nothing was written to make them neutral.
 
 | rung | stone | damage | leaves | cooldown | cast | reach | asks      |
 | ---- | ----- | ------ | ------ | -------- | ---- | ----- | --------- |
-| 1    | Spark | 4      | —      | 5s       | 1s   | 5.5   | Arcane 1  |
+| 1    | Spark | 4      | —      | 5s       | 1s   | 5.5   | Arcane 3  |
 | 2    | Bolt  | 8      | —      | 7s       | 1.5s | 6.5   | Arcane 15 |
 | 3    | Lance | 12     | —      | 10s      | 2s   | 7.5   | Arcane 33 |
 
@@ -6847,11 +6847,13 @@ a status, for a second mastery and five more Arcane to be let near the stone.
 Pressing one trains Arcane alone, because the flat per-cast fee goes to Arcane
 and to each element the spell is *made of* — and this one is made of nothing.
 
-**The neutral rung one asks `MIN_EARNED_MASTERY` and nothing else**: a new
-body is authored at level 1 in every mastery, so Spark asks only what nobody can
-lose. The elemental rung beside it still asks Arcane 10, so the first thing a
-new player casts is always a neutral stone, and casting it is how the Arcane to
-reach fire is earned.
+**The neutral rung one asks Arcane 3, two levels above the floor.** A new body
+is authored at level 1 in every mastery, so the only stone it can cast is Light
+(below), and pressing Light is how it reaches Spark. Spark at the floor made
+Light pointless as anything but a lamp, and left nothing to unlock between the
+first cast and Arcane 10. The elemental rung beside it still asks Arcane 10, so
+the first attack a new player casts is always a neutral stone, and casting it is
+how the Arcane to reach fire is earned.
 
 The element half of an elemental rung is exactly the floor — one point of Fire,
 Water and Nature, which every player has — so what stands between a new player
@@ -6960,16 +6962,25 @@ something to practise Fire *with*.
 **Light is beside the ladder too, at its foot.** It asks Arcane 1, which is
 `MIN_EARNED_MASTERY` and so a level no death can take, and puts `luminous` on
 the caster at Spark's cooldown and cast time. Pressing it pays only the flat
-practice fee, half a point, so it is no way to level: Arcane 5 to 10 is three
-hundred points, six hundred presses. The stone forge makes it from a blank
+practice fee, half a point. That is enough for the first step and no more:
+Arcane 3 is thirty-six points, seventy-two presses, about seven minutes, and
+Arcane 10 would be eight hundred presses. The stone forge makes it from a blank
 stone, at Spark's weight.
 
 **The tutorial gives Spark.** The quest chest just past the tutorial's portal
 holds it, with `rewardTag` `tutorial-spark-stone`; a death clears tags, so each
 life takes it once. Every life starts at the player tile's authored Arcane 1,
-which is Spark's requirement, so the stone works the moment it is taken, and a
-damage spell pays about a point per point of damage — roughly seventy-five
-Spark hits for the same three hundred points.
+two short of Spark, so the stone waits on the Light presses above. After that a
+damage spell pays a point per point of damage, doubled against anything rated
+well above the caster's Arcane (`experienceMultiplier`), so Arcane 3 to 10 is
+about fifty Spark hits on bats and seventy-five on rats.
+
+**The slimes are rated 20 so Arcane 10 to 15 has something to practise on.**
+Casting is weighed against the target's rating, and the creatures near the
+start are rated 7 to 10, so past Arcane 10 they pay almost nothing
+(`BENEATH_YOU_EXPONENT`): Arcane 10 to 15 was about five hundred Spark hits on
+rats. A slime at 20 pays double until Arcane 14, and the same climb is about
+ninety hits on slimes. Lowering a slime's masteries moves that wall back.
 
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
