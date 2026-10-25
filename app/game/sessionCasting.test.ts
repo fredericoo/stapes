@@ -802,7 +802,7 @@ describe("what pressing a stone teaches you for its own sake", () => {
   });
 
   it("pays nothing for a press the stone refused", () => {
-    const play = session({ charm: "adept-stone" });
+    const play = session({ charm: "bolt-stone" });
     const before = arcane(play);
     expect(play.cast(squareSlot("charm"))).toBe(false);
     expect(arcane(play)).toBe(before);
@@ -1055,27 +1055,30 @@ describe("a status cast at somebody", () => {
 });
 
 describe("a stone above the caster's mastery", () => {
-  it("refuses to fire, and spends nothing", () => {
+  function mended(arcaneLevel: number): number {
     const play = session({ charm: "adept-stone" });
-
-    expect(play.cast(squareSlot("charm"))).toBe(false);
-    expect(coolingIn(play, "charm")).toBeUndefined();
-  });
-
-  it("fires once the mastery is earned", () => {
-    const play = session({ charm: "adept-stone" });
-    play.runCommand("/mastery arcane 10");
+    play.runCommand(`/mastery arcane ${arcaneLevel}`);
+    play.runCommand(`/health -${MEND_HP * 2}`);
     play.drainNotices();
+    const before = hpOf(play)!;
+    expect(play.cast(squareSlot("charm"))).toBe(true);
+    return hpOf(play)! - before;
+  }
+
+  it("fires anyway, and spends its cooldown", () => {
+    const play = session({ charm: "adept-stone" });
 
     expect(play.cast(squareSlot("charm"))).toBe(true);
+    expect(coolingIn(play, "charm")).toBe(10_000);
   });
 
-  it("is not in the row until then", () => {
-    const play = session({ charm: "adept-stone" });
-    expect(play.spells()).toEqual([]);
+  it("does less than it does for a caster who has earned it", () => {
+    expect(mended(5)).toBeGreaterThan(0);
+    expect(mended(5)).toBeLessThan(mended(10));
+  });
 
-    play.runCommand("/mastery arcane 10");
-    play.drainNotices();
+  it("is in the row from the start", () => {
+    const play = session({ charm: "adept-stone" });
     expect(play.spells().map((spell) => spell.slot)).toEqual([squareSlot("charm")]);
   });
 });
@@ -1536,7 +1539,9 @@ describe("a cast refused for want of a target", () => {
   });
 
   it("says nothing about a refusal the button already draws", () => {
-    const play = session({ charm: "adept-stone" });
+    const play = session({ charm: "mend-stone" });
+    expect(play.cast(squareSlot("charm"))).toBe(true);
+    play.drainNotices();
     expect(play.cast(squareSlot("charm"))).toBe(false);
     expect(play.drainNotices()).toEqual([]);
   });

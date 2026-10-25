@@ -18,6 +18,7 @@ import {
   masteriesSchema,
   masteryLevel,
   MAX_MASTERY,
+  requirementShare,
   requirementShortfall,
   spellElements,
   type WeaponMastery,
@@ -216,7 +217,8 @@ export function spellPower(
   if (damage === 0) return 0;
   const skill = castingSkill(masteries, requirements);
   const magnitude =
-    Math.abs(damage) * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY;
+    (Math.abs(damage) * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY) *
+    requirementShare(masteries, requirements);
   return damage < 0 ? -magnitude : magnitude;
 }
 

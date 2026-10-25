@@ -243,8 +243,14 @@ describe("what a spell is worth in the hand", () => {
   });
 
   it("is the authored number for a body with nothing trained", () => {
-    expect(spellPower(20, { fire: 1 }, {})).toBe(20);
-    expect(spellPower(-20, { fire: 1 }, {})).toBe(-20);
+    expect(spellPower(20, undefined, {})).toBe(20);
+    expect(spellPower(-20, undefined, {})).toBe(-20);
+  });
+
+  it("pays only the share of what the stone asks that the caster brings", () => {
+    const earned = spellPower(20, undefined, { arcane: 5 });
+    expect(spellPower(20, { arcane: 10 }, { arcane: 5 })).toBeCloseTo(earned / 2, 6);
+    expect(spellPower(-20, { arcane: 10 }, { arcane: 5 })).toBeCloseTo(-earned / 2, 6);
   });
 
   it("makes a mend deeper rather than shallower", () => {

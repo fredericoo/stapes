@@ -1463,14 +1463,11 @@ describe("takesEffect", () => {
     expect(takesEffect("armor", held("trinket"), tiles, ADEPT)).toBe(false);
   });
 
-  it("counts a stone the caster has earned, in any square that takes one", () => {
+  it("counts a stone in any square that takes one, earned or not", () => {
     expect(takesEffect("weapon", held("spark"), tiles, ADEPT)).toBe(true);
     expect(takesEffect("charm", held("spark"), tiles, ADEPT)).toBe(true);
-  });
-
-  it("does not count one they have not", () => {
-    expect(takesEffect("weapon", held("spark"), tiles, NOVICE)).toBe(false);
-    expect(takesEffect("charm", held("spark"), tiles, NOVICE)).toBe(false);
+    expect(takesEffect("weapon", held("spark"), tiles, NOVICE)).toBe(true);
+    expect(takesEffect("charm", held("spark"), tiles, NOVICE)).toBe(true);
   });
 });
 

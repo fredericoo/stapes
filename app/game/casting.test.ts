@@ -7,7 +7,7 @@ import { spellElements } from "../lib/mastery";
 import { resolveCraft } from "../lib/interactions";
 import { resolveProjectile } from "../lib/projectile";
 import { statusesById } from "../lib/status";
-import { resolveBattler } from "../lib/battler";
+import { type NaturalSpell, resolveBattler } from "../lib/battler";
 import { type Masteries, MAX_MASTERY, meetsRequirements, MIN_EARNED_MASTERY } from "../lib/mastery";
 import { type Element, ELEMENTS } from "../lib/element";
 import type { MapFile, TileDef } from "../lib/types";
@@ -18,6 +18,7 @@ import {
   CAST_SQUARES,
   castability,
   castableSpells,
+  naturalSlot,
   squareSlot,
   castDurationMs,
   type CastContext,
@@ -239,12 +240,25 @@ describe("why a stone cannot be cast", () => {
     });
   });
 
-  it("refuses a stone whose mastery has not been earned", () => {
+  it("casts a stone whose mastery has not been earned", () => {
     expect(
       castability(
         context({ weapon: instance("adept-stone") }, { masteries: { arcane: 9 } }),
         squareSlot("weapon"),
       ),
+    ).toEqual({ ok: true });
+  });
+
+  it("refuses a natural spell whose mastery its body has not got", () => {
+    const spell: NaturalSpell = {
+      type: "stone",
+      name: "Snap",
+      effect: { kind: "bolt", on: "caster", damage: -5 },
+      cooldownMs: 10_000,
+      requirements: { arcane: 10 },
+    };
+    expect(
+      castability(context({}, { masteries: { arcane: 9 }, spells: [spell] }), naturalSlot("Snap")),
     ).toEqual({ ok: false, reason: "mastery" });
   });
 
@@ -540,30 +554,11 @@ describe("the row of buttons", () => {
     ]);
   });
 
-  it("leaves out a stone the caster has not earned", () => {
-    expect(
-      castableSpells(context({ weapon: instance("adept-stone") }, { masteries: { arcane: 9 } })),
-    ).toEqual([]);
-  });
-
-  it("offers it as soon as the mastery is met", () => {
+  it("offers a stone the caster has not earned", () => {
     const buttons = castableSpells(
-      context({ weapon: instance("adept-stone") }, { masteries: { arcane: 10 } }),
+      context({ weapon: instance("adept-stone") }, { masteries: { arcane: 9 } }),
     );
     expect(buttons.map((button) => button.tileId)).toEqual(["adept-stone"]);
-  });
-
-  it("leaves it out while the caster is part-way through another cast", () => {
-    const buttons = castableSpells(
-      context(
-        { weapon: instance("mend-stone"), charm: instance("adept-stone") },
-        {
-          masteries: { arcane: 9 },
-          casting: { remainingMs: 1_500, durationMs: 3_000, slot: squareSlot("weapon") },
-        },
-      ),
-    );
-    expect(buttons.map((button) => button.slot)).toEqual([squareSlot("weapon")]);
   });
 
   it("carries the stone's own sprite and its cooldown", () => {
@@ -1077,9 +1072,17 @@ describe("how long a cast takes", () => {
     expect(castDurationMs(stone(AUTHORED_MS), { arcane: 100, fire: 100 })).toBe(0);
   });
 
-  it("counts every requirement, and never runs longer than authored", () => {
+  it("counts every requirement", () => {
     expect(castDurationMs(stone(AUTHORED_MS), { arcane: 8, fire: 3 })).toBe(AUTHORED_MS * 0.9);
-    expect(castDurationMs(stone(AUTHORED_MS), {})).toBe(AUTHORED_MS);
+  });
+
+  it("runs longer by the share of what it asks that the caster is short", () => {
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 4, fire: 1 })).toBe(AUTHORED_MS * 1.5);
+    expect(castDurationMs(stone(AUTHORED_MS), {})).toBe(AUTHORED_MS * 2);
+  });
+
+  it("does not let a surplus in one mastery pay for a shortfall in another", () => {
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 18, fire: 1 })).toBe(3_300);
   });
 
   it("holds a stone that asks nothing at its authored time", () => {
