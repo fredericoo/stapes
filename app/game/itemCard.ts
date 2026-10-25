@@ -93,6 +93,7 @@ export type ItemCard = {
   dormant: string | null;
   effects: ItemCardEffect[];
   effectsTitle: string;
+  requirementsTitle: string;
   resists: ItemCardResist[];
   speech: string;
 };
@@ -352,6 +353,10 @@ function effectsTitleFor(item: ItemDef): string {
   return HEADINGS.grants;
 }
 
+function requirementsTitleFor(item: ItemDef): string {
+  return item.type === "stone" ? HEADINGS.requires : HEADINGS.toMaster;
+}
+
 function demandsOf(item: ItemDef): Masteries | undefined {
   if (item.type === "consumable" || item.type === "container" || item.type === "artifact") {
     return undefined;
@@ -503,6 +508,7 @@ export function itemCard(
     effects: effectsFrom(grantsOn(item), statusDefs),
     resists: item.type === "armor" ? resistsFrom(item) : [],
     effectsTitle: effectsTitleFor(item),
+    requirementsTitle: requirementsTitleFor(item),
 
     speech: "",
   };
@@ -563,8 +569,8 @@ function speak(card: ItemCard): string {
   for (const row of card.requirements) {
     lines.push(
       row.have === null
-        ? `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}`
-        : `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
+        ? `${card.requirementsTitle} ${MASTERY_LABELS[row.mastery]} ${row.required}`
+        : `${card.requirementsTitle} ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
     );
   }
   for (const effect of card.effects) {
