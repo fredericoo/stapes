@@ -1,5 +1,16 @@
 # the-last-stones
 
+## 0.9.0
+
+### Minor Changes
+
+- When you make a character you now choose their skin, hair and head, and everyone you meet sees them that way.
+- A forge's window is now titled with just its name, and panel titles stay on one line. Each recipe now lists everything it can make and your chance of getting each one; hover a picture to see the item's name.
+
+### Patch Changes
+
+- Townsfolk, guards and smiths now each have their own face, hair and skin, and they are drawn in the armour they wear, so a guard in steel plate and a knight's helm looks it.
+
 ## 0.8.0
 
 ### Minor Changes
