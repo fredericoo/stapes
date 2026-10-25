@@ -63,6 +63,7 @@ import { brainExpansionIssues, traitsById, type TraitCatalogue } from "../app/li
 import type { StatusInstance } from "../app/game/statuses";
 import type {
   ChunkCells,
+  Coord,
   Direction,
   FlatMapFile,
   MapFile,
@@ -460,7 +461,7 @@ function samePosition(a: ActorPosition, b: ActorPosition): boolean {
 
 type QueuedStep = {
   seq: number;
-  direction: Direction;
+  to: Coord;
   preferDescend: boolean;
 };
 
@@ -814,6 +815,7 @@ export class GameServer {
   private events: MotionEvent[] = [];
   private commandReplies: Array<{ ws: GameSocket; requestId: number; reply: CommandReply }> = [];
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
+  private readonly stepChains = new Map<string, number>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private tickDueAt = 0;
   private consecutiveTickFailures = 0;
@@ -1555,6 +1557,8 @@ export class GameServer {
     { admin, accountId }: { admin: boolean; accountId: string },
   ): Promise<void> {
     this.displaceSockets(actorId);
+    this.queuedIntents.delete(actorId);
+    this.stepChains.delete(actorId);
     this.ctx.acceptWebSocket(socket);
     this.seat(socket, { actorId, admin, accountId });
 
@@ -1961,20 +1965,54 @@ export class GameServer {
     );
   }
 
-  private queueStep(actorId: string, step: QueuedStep) {
+  /**
+   * Each step of a chain starts where the one before it lands. A newer chain means
+   * the client gave up on the old one, so whatever is still queued from it goes.
+   */
+  private queueStep(actorId: string, step: QueuedStep & { chain: number }) {
+    const chain = this.stepChains.get(actorId) ?? 0;
+    if (step.chain < chain) {
+      this.rejectStep(actorId, step.seq);
+      return;
+    }
+    if (step.chain > chain) {
+      this.stepChains.set(actorId, step.chain);
+      this.dropQueuedSteps(actorId);
+    }
     const queue = this.queuedIntents.get(actorId) ?? [];
     const waiting = queue.filter((intent) => intent.kind === "step").length;
     if (waiting >= MAX_QUEUED_STEPS || queue.length >= MAX_QUEUED_INTENTS) {
       this.rejectStep(actorId, step.seq);
+      this.closeChain(actorId);
       return;
     }
     queue.push({
       kind: "step",
       seq: step.seq,
-      direction: step.direction,
+      to: step.to,
       preferDescend: step.preferDescend,
     });
     this.queuedIntents.set(actorId, queue);
+  }
+
+  /**
+   * Every step sent after a refused one was drawn from a cell the body never
+   * reached, including the ones still on their way here, so nothing more is walked
+   * until the client starts the next chain.
+   */
+  private closeChain(actorId: string) {
+    this.stepChains.set(actorId, (this.stepChains.get(actorId) ?? 0) + 1);
+  }
+
+  private dropQueuedSteps(actorId: string) {
+    const queue = this.queuedIntents.get(actorId);
+    if (!queue) return;
+    let kept = 0;
+    for (const intent of queue) {
+      if (intent.kind === "step") this.rejectStep(actorId, intent.seq);
+      else queue[kept++] = intent;
+    }
+    queue.length = kept;
   }
 
   private queueAction(actorId: string, action: QueuedAction) {
@@ -2030,13 +2068,16 @@ export class GameServer {
         continue;
       }
 
-      const outcome = session.requestStep(actorId, intent.direction, {
+      const outcome = session.requestStep(actorId, intent.to, {
         preferDescend: intent.preferDescend,
       });
       if (outcome === "later") return;
 
       queue.shift();
-      if (outcome === "refused") this.rejectStep(actorId, intent.seq);
+      if (outcome !== "refused") continue;
+      this.rejectStep(actorId, intent.seq);
+      this.closeChain(actorId);
+      this.dropQueuedSteps(actorId);
     }
   }
 
@@ -2228,6 +2269,7 @@ export class GameServer {
     this.lastCut.delete(actorId);
     this.subscriptionsToCheck.delete(actorId);
     this.queuedIntents.delete(actorId);
+    this.stepChains.delete(actorId);
     this.lastSaidAt.delete(actorId);
     this.silenced.delete(actorId);
     this.forgetDeathNotice(actorId);

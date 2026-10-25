@@ -14,11 +14,13 @@ import {
 } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { resolvePush } from "../app/lib/interactions";
-import { chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
+import { chunkifyMap, chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
 import { BODY_REACH_ON_LEVEL, INTEREST_REACH_CHUNKS } from "../app/net/interest";
 import { xpForLevel } from "../app/lib/mastery";
 import { CHUNK_SIZE, levelKey } from "../app/lib/types";
-import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
+import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../app/lib/types";
+import { locateActor } from "../app/game/actors";
+import { DIR_DELTA } from "../app/game/movement";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
 import { CLOSE_REPLACED, MAX_STEPS_AHEAD } from "../app/net/protocol";
@@ -167,6 +169,8 @@ async function connect(
   const joined = stub().join(pair.server, actorId, { admin, accountId });
   const hello = await nextMessageOfType(ws, "hello");
   await joined;
+  const body = locateActor(chunkifyMap(hello.map as FlatMapFile), actorId);
+  if (body) aimOfSocket.set(ws, { x: body.x, y: body.y, z: body.z });
   return { ws, hello, pair };
 }
 
@@ -1299,8 +1303,18 @@ function contentsOf(message: Record<string, unknown>): Array<{ tileId: string }>
   return equipment.bag?.contents ?? [];
 }
 
-function step(ws: TestSocket, seq: number, direction: string) {
-  ws.send(JSON.stringify({ type: "step", seq, direction, preferDescend: false }));
+const aimOfSocket = new WeakMap<TestSocket, Coord>();
+
+function sendStep(ws: TestSocket, seq: number, to: Coord, chain = 0) {
+  aimOfSocket.set(ws, to);
+  ws.send(JSON.stringify({ type: "step", seq, to, chain, preferDescend: false }));
+}
+
+/** Aims as a client does: from its `hello`, and then from where its last step went. */
+function step(ws: TestSocket, seq: number, direction: Direction) {
+  const from = aimOfSocket.get(ws)!;
+  const { dx, dy } = DIR_DELTA[direction];
+  sendStep(ws, seq, { x: from.x + dx, y: from.y + dy, z: from.z });
 }
 
 function noiseWithin(ws: TestSocket, ms: number) {
@@ -1465,6 +1479,35 @@ describe("stepping", () => {
     for (let seq = 0; seq < MAX_STEPS_AHEAD; seq++) step(ws, seq, "e");
 
     expect(await messageWithin(ws, "stepRejected", QUIET_MS)).toBeNull();
+  });
+
+  it("walks nothing more of a chain once one of its steps is refused", async () => {
+    const { ws } = await connect("alice");
+    sendStep(ws, 0, { x: 2, y: 0, z: 0 });
+    await messageWithin(ws, "stepRejected", 1000);
+
+    sendStep(ws, 1, { x: 1, y: 0, z: 0 });
+    expect(await messageWithin(ws, "stepRejected", 1000)).toEqual({
+      type: "stepRejected",
+      seq: 1,
+    });
+
+    sendStep(ws, 2, { x: 1, y: 0, z: 0 }, 1);
+    expect(await walkWithin(ws, 1000)).toMatchObject({ to: { x: 1, y: 0, z: 0 } });
+  });
+
+  it("drops what is still queued from a chain the client has given up on", async () => {
+    const { ws } = await connect("alice");
+    step(ws, 0, "e");
+    step(ws, 1, "e");
+    await walkWithin(ws, 1000);
+    const heard = record(ws);
+
+    sendStep(ws, 2, { x: 0, y: 0, z: 0 }, 1);
+    await new Promise((resolve) => setTimeout(resolve, WALK_DURATION_MS * 2 + 300));
+
+    expect(heard.of("stepRejected")).toEqual([{ type: "stepRejected", seq: 1 }]);
+    expect(await actorX("alice")).toBe(0);
   });
 
   it("tells only the client whose step it was", async () => {

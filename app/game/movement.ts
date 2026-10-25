@@ -14,7 +14,14 @@ import {
 } from "../lib/mapData";
 import { stackOcclusion } from "../lib/lighting";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, coordKey, resolveClimbFrom } from "../lib/types";
+import {
+  DIRECTIONS,
+  HEIGHT_PER_LEVEL,
+  MAX_LEVEL,
+  MIN_LEVEL,
+  coordKey,
+  resolveClimbFrom,
+} from "../lib/types";
 import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
@@ -27,6 +34,16 @@ export const DIR_DELTA: Record<Direction, { dx: number; dy: number }> = {
   s: { dx: 0, dy: 1 },
   w: { dx: -1, dy: 0 },
 };
+
+export function stepDirection(from: Coord, to: Coord): Direction | null {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  for (const direction of DIRECTIONS) {
+    const delta = DIR_DELTA[direction];
+    if (delta.dx === dx && delta.dy === dy) return direction;
+  }
+  return null;
+}
 
 export function sceneryStack(
   map: MapFile,

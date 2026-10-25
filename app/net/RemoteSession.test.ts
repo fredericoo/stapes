@@ -884,7 +884,7 @@ describe("RemoteSession prediction", () => {
     expect(self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
     expect(self.walkProgress).toBe(0);
     expect(stepsSent(socket)).toEqual([
-      { type: "step", seq: 0, direction: "e", preferDescend: false },
+      { type: "step", seq: 0, to: { x: 1, y: 0, z: 0 }, chain: 0, preferDescend: false },
     ]);
   });
 
@@ -987,6 +987,21 @@ describe("RemoteSession prediction", () => {
     socket.deliver({ type: "stepRejected", seq: 1 });
 
     expect(session.getSnapshot().self.x).toBe(1);
+  });
+
+  it("starts a new chain for the first step after a refused one", () => {
+    const { socket, session } = connected();
+    session.setInput({ directions: ["e"] });
+    session.update(WALK_DURATION_MS);
+
+    socket.deliver({ type: "stepRejected", seq: 1 });
+    session.update(16);
+
+    expect(stepsSent(socket).map(({ seq, to, chain }) => ({ seq, to, chain }))).toEqual([
+      { seq: 0, to: { x: 1, y: 0, z: 0 }, chain: 0 },
+      { seq: 1, to: { x: 2, y: 0, z: 0 }, chain: 0 },
+      { seq: 2, to: { x: 2, y: 0, z: 0 }, chain: 1 },
+    ]);
   });
 
   it("gives up on a step nothing ever answers for", () => {

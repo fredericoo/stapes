@@ -4188,6 +4188,50 @@ was never a re-sent step: the client minted a fresh `seq` for ground it had
 genuinely not been told about, from a cell it genuinely believed it was standing
 in. The fault was believing it.
 
+### A step names the cell it walks into, and the chain it belongs to
+
+A `step` carries `to`, the cell the client drew the body walking into, and not a
+direction. `GameSession.requestStep` works out the direction from the body's cell
+once it has stopped walking, and refuses the step unless one step that way lands
+exactly on `to`, level included.
+
+A direction used to be enough while nothing was refused. After a refusal the
+server walked the next direction from the cell the body was really in, which is
+not the cell the client had drawn it walking from. A player blocked going east
+who had already turned north was walked north from the cell before the block,
+one row away from what their screen showed. `dropConfirmedSteps` matches a
+confirmation by cell only, so the client then took the server's moves as
+confirmations of its own, and the two drifted apart until
+`STEP_CONFIRM_GRACE_MS` ran out and the body was dragged across. Every turn made
+in the round trip before the refusal arrived was misapplied this way. On a fast
+connection that window is shorter than a step. A long round trip, or a server
+that stalls long enough for the client to get several steps ahead, opens it.
+
+A cell alone does not close it. A step drawn before the refusal can still aim at
+a cell beside the body: east (refused), north, then west aims at the cell north
+of the one the body never left. So a step also carries `chain`. The client
+starts a new chain whenever it throws away steps the server has not answered
+(`discardPending`): a rollback, giving up after the grace, a teleport, a fall, a
+death, a `hello` on the same socket. `GameServer.queueStep` keeps the chain it is
+walking for each actor:
+
+- a step from an older chain is refused when it arrives;
+- a step from a newer chain means the client gave up on the old one, so the
+  steps still queued from it are refused and dropped;
+- a refused step closes the chain: the steps queued behind it are dropped, and
+  every step still on its way is refused when it arrives, until the client's
+  next chain.
+
+The server's number never gets ahead of the client's. It moves only by closing a
+chain, and the client moves its own for every refusal of a step it still holds,
+or has already moved it when it threw that step away itself. `docs/server.md`
+has the two places where that depends on code elsewhere.
+
+`scripts/bench-crowd.ts` speaks the same protocol. Its bots aim from where their
+last step went and read their body's cell from the session on a `hello` and on a
+refusal. They keep the level they were on, so a step that climbs is refused and
+the bot starts a new chain from where it is.
+
 ### A shove that drops is drawn across, then down
 
 `push` writes the column to where it finally rests in the same tick, however
