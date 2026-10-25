@@ -1392,6 +1392,14 @@ describe("a bolt thrown at somebody", () => {
     expect(statusIdsOf(play, target)).toContain("burned");
   });
 
+  it("floats resisted over a body its damage could not get through", () => {
+    const { play, target } = boltAt("brand-bolt-stone", "walled-rat");
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+
+    const over = play.getSnapshot().damage.filter((number) => number.targetId === target);
+    expect(over).toMatchObject([{ outcome: "resisted", amount: 0 }]);
+  });
+
   it("mends whoever it is pointed at, clamped at their full health", () => {
     const play = session({ charm: "mend-stone" });
     play.runCommand(`/health ${PLAYER_MAX_HP - 3}`);

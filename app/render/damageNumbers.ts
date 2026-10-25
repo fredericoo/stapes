@@ -80,8 +80,9 @@ export class DamageNumberLayer {
   }
 }
 
-const NOTHING_HAPPENED: Record<"miss", string> = {
+const NOTHING_HAPPENED: Record<"miss" | "resisted", string> = {
   miss: "miss",
+  resisted: "resisted",
 };
 
 const MEND_SIGN = "+";
