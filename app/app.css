@@ -577,21 +577,49 @@ body {
   box-shadow: 2px 2px 0 0 var(--color-border);
 }
 
-/* A glass vial lying on its side, from `public/hud/vial.svg`: the cork and
-   lip are the left slice, the rounded end the right, and the middle is open
-   glass. The fill and trail run in the content box behind `__glass`, which
-   lays a translucent shine over whatever colour the fill is, so the vial is
-   one image and only the rectangles move. Its brick stays 2px on a phone, where
-   the interface brick is 1px, so the vial keeps a readable height. */
+/* A glass pill from `public/hud/pill.svg`, a 9-slice of 3-pixel walls and
+   6-pixel rounded ends. Its glass is open, so `__liquid` sits behind it and
+   reaches 4 pixels into each end, stepped at its corners to the curve the
+   image draws. The fill and trail run inside `__liquid` with a translucent
+   shine over them, so the pill is one still image and only the rectangles
+   move. Its brick stays 2px on a phone, where the interface brick is 1px, so
+   the pill keeps a readable height. */
 .health-gauge {
   --vb: 2px;
   border-style: solid;
-  border-width: calc(var(--vb) * 3) calc(var(--vb) * 4) calc(var(--vb) * 3) calc(var(--vb) * 7);
-  border-image: url("/hud/vial.svg") 3 4 3 7 / calc(var(--vb) * 3) calc(var(--vb) * 4)
-    calc(var(--vb) * 3) calc(var(--vb) * 7) stretch;
+  border-width: calc(var(--vb) * 3) calc(var(--vb) * 6);
+  border-image: url("/hud/pill.svg") 3 6 / calc(var(--vb) * 3) calc(var(--vb) * 6) stretch;
   height: calc(var(--vb) * 14);
+}
+
+.health-gauge__liquid {
+  --v2: calc(var(--vb) * 2);
+  position: absolute;
+  inset: 0 calc(var(--vb) * -4);
+  overflow: hidden;
   background-color: rgb(160 200 230 / 0.1);
-  background-clip: padding-box;
+  clip-path: polygon(
+    var(--v2) 0,
+    calc(100% - var(--v2)) 0,
+    calc(100% - var(--v2)) var(--vb),
+    calc(100% - var(--vb)) var(--vb),
+    calc(100% - var(--vb)) var(--v2),
+    100% var(--v2),
+    100% calc(100% - var(--v2)),
+    calc(100% - var(--vb)) calc(100% - var(--v2)),
+    calc(100% - var(--vb)) calc(100% - var(--vb)),
+    calc(100% - var(--v2)) calc(100% - var(--vb)),
+    calc(100% - var(--v2)) 100%,
+    var(--v2) 100%,
+    var(--v2) calc(100% - var(--vb)),
+    var(--vb) calc(100% - var(--vb)),
+    var(--vb) calc(100% - var(--v2)),
+    0 calc(100% - var(--v2)),
+    0 var(--v2),
+    var(--vb) var(--v2),
+    var(--vb) var(--vb),
+    var(--v2) var(--vb)
+  );
 }
 
 .health-gauge__glass {

@@ -35,12 +35,14 @@ export function HealthGauge({
         .filter(Boolean)
         .join(" ")}
     >
-      <span className="health-gauge__trail absolute inset-y-0 left-0" style={{ width }} />
-      <span
-        className="health-gauge__fill absolute inset-y-0 left-0"
-        style={{ width, backgroundColor: healthBarColor(fraction) }}
-      />
-      <span aria-hidden="true" className="health-gauge__glass" />
+      <span aria-hidden="true" className="health-gauge__liquid">
+        <span className="health-gauge__trail absolute inset-y-0 left-0" style={{ width }} />
+        <span
+          className="health-gauge__fill absolute inset-y-0 left-0"
+          style={{ width, backgroundColor: healthBarColor(fraction) }}
+        />
+        <span className="health-gauge__glass" />
+      </span>
       <span
         aria-hidden="true"
         className="health-gauge__value relative flex h-full items-center justify-center text-detail leading-none tabular-nums text-paper"
