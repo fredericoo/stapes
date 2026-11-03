@@ -1652,6 +1652,15 @@ swords in one cell are therefore two things you can pick up, and the list offers
 both; before this only the top of a stack was reachable, and the lower sword
 could not be got at at all.
 
+**An item is never buried** (`reachableItemDefAt`). The lid rule still holds
+for every other affordance — a switch, a craft, a reward, an extract under a
+crate is out of reach — but not for picking up, equipping, eating or opening
+an item. A body that dies drops its kit and then its skull on top, and the
+skull has height: under the lid rule the kit was invisible to the interaction
+list until somebody took the skull away. The pointer pick still stops at the
+lid, so a covered item is reached from its row rather than by clicking it; the
+bots' loot search (`lootInCell`) follows the item rule.
+
 **The pointer pick takes the same rule, and did not used to** (`render/pick.ts`,
 `candidateIn`). It read the top of each stack and nothing else, so anything you
 were standing on was unclickable: a body is a placement like any other, and on a

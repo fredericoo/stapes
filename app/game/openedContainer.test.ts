@@ -131,14 +131,12 @@ describe("a box that is covered", () => {
     expect(readOpenedContainer(trodden, tilesById, ME, NO_DEPOTS, REF, CHEST_ID).kind).toBe("open");
   });
 
-  it("closes under a crate, which is", () => {
-    const buried = replaceStack(emptyMap(), 1, 0, 0, [
+  it("is still open under a crate", () => {
+    const covered = replaceStack(emptyMap(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "chest", itemId: CHEST_ID, contents: [] },
       { tileId: "rock" },
     ]);
-    expect(readOpenedContainer(buried, tilesById, ME, NO_DEPOTS, REF, CHEST_ID).kind).toBe(
-      "closed",
-    );
+    expect(readOpenedContainer(covered, tilesById, ME, NO_DEPOTS, REF, CHEST_ID).kind).toBe("open");
   });
 });

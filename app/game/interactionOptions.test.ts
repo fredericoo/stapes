@@ -1032,12 +1032,15 @@ describe("listInteractionOptions — picking things up", () => {
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
-  it("says nothing about an item buried under something else", () => {
+  it("offers an item under something else", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "sword", "rock"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)).sort()).toEqual([
+      "equip",
+      "pickUp",
+    ]);
   });
 
   it("offers pick up blocked for no room once the bag and both hands are full", () => {
@@ -1274,12 +1277,14 @@ describe("listInteractionOptions — consumables on the floor", () => {
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
-  it("says nothing about one buried under something else", () => {
+  it("offers one under something else", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "cherry", "rock"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT))).toContain(
+      "consume",
+    );
   });
 });
 
@@ -1333,12 +1338,14 @@ describe("listInteractionOptions — standing on things", () => {
     expect(actionsIn(options).sort()).toEqual(["attack", "follow", "pickUp", "push", "target"]);
   });
 
-  it("does not reach under a crate, which is a lid", () => {
+  it("reaches an item under a crate, which is a lid to everything else", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "sword", "crate"]);
     const me = playerAt(map);
 
-    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT))).toEqual([
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)).sort()).toEqual([
+      "equip",
+      "pickUp",
       "push",
     ]);
   });

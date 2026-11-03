@@ -693,12 +693,13 @@ describe("picking things up", () => {
     expect(getStack(session.getMap(), 0, 0, 0).map((p) => p.tileId)).toEqual(["grass", "player"]);
   });
 
-  it("refuses something buried under another tile", () => {
+  it("takes something from under another tile and leaves the tile", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: SWORD }, { tileId: "crate" }]);
     const session = new GameSession(map, tiles);
 
-    expect(session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
+    expect(session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+    expect(getStack(session.getMap(), 1, 0, 0).map((p) => p.tileId)).toEqual(["grass", "crate"]);
   });
 
   it("takes either of two things lying on each other", () => {

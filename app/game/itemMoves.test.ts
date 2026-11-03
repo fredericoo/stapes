@@ -322,8 +322,8 @@ describe("looting and stashing", () => {
     ).toBe(false);
   });
 
-  it("refuses a chest buried under something else", () => {
-    const buried = replaceStack(emptyMap(), 1, 0, 0, [
+  it("reaches into a chest under something else", () => {
+    const covered = replaceStack(emptyMap(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "chest", itemId: "itm_chest", contents: [sword("itm_a")] },
       { tileId: "crate" },
@@ -331,7 +331,7 @@ describe("looting and stashing", () => {
     const ref: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
     expect(
       canMoveItem(
-        buried,
+        covered,
         tilesById,
         ME,
         kit([]),
@@ -341,7 +341,7 @@ describe("looting and stashing", () => {
           index: 0,
         },
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("refuses a full chest and a full bag alike", () => {

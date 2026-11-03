@@ -287,6 +287,10 @@ function topmostThingIn(stack: readonly PlacedTile[]): number {
   return -1;
 }
 
+/**
+ * Unlike every other affordance, an item is never buried: a skull dropped on
+ * a body's kit would otherwise hide the kit until somebody moved the skull.
+ */
 export function reachableItemDefAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -294,9 +298,7 @@ export function reachableItemDefAt(
   ref: ObjectRef,
 ): TileDef | null {
   if (!withinReach(map, tilesById, actor, ref)) return null;
-  const stack = getStack(map, ref.x, ref.y, ref.z);
-  if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
-  const placed = stack[ref.stackIndex];
+  const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return null;
   const def = tilesById[placed.tileId];
   if (!def || !resolveItem(def)) return null;

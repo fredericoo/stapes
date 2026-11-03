@@ -285,13 +285,13 @@ describe("canPickUpFrom", () => {
     expect(canPickUpFrom(map, tilesById, ME, ref(1, 0), KIT)).toBe(false);
   });
 
-  it("refuses something buried under another tile", () => {
+  it("reaches something under another tile", () => {
     const map = replaceStack(emptyMap(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "sword", itemId: "itm_buried" },
       { tileId: "rock" },
     ]);
-    expect(canPickUpFrom(map, tilesById, ME, ref(1, 0), KIT)).toBe(false);
+    expect(canPickUpFrom(map, tilesById, ME, ref(1, 0), KIT)).toBe(true);
   });
 
   it("refuses an empty cell", () => {
@@ -362,13 +362,13 @@ describe("equipSlotFrom", () => {
     expect(slotFor("rock", emptyEquipment())).toBeNull();
   });
 
-  it("refuses something buried under another tile", () => {
+  it("reaches something under another tile", () => {
     const map = replaceStack(emptyMap(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "sword", itemId: "itm_buried" },
       { tileId: "rock" },
     ]);
-    expect(canEquipFrom(map, tilesById, ME, ref(1, 0), emptyEquipment())).toBe(false);
+    expect(canEquipFrom(map, tilesById, ME, ref(1, 0), emptyEquipment())).toBe(true);
   });
 });
 
@@ -428,14 +428,13 @@ describe("a body is not a lid", () => {
     );
   });
 
-  it("is still buried under something nobody is driving", () => {
-    const buried = replaceStack(emptyMap(), 0, 0, 0, [
+  it("reaches an item under something nobody is driving too", () => {
+    const covered = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
-      { tileId: "sword", itemId: "itm_target" },
+      { tileId: "chest", itemId: "itm_target" },
       { tileId: "rock" },
     ]);
-    expect(canPickUpFrom(buried, tilesById, ME, ref(0, 0), KIT)).toBe(false);
-    expect(canOpenFrom(buried, tilesById, ME, ref(0, 0))).toBe(false);
+    expect(canOpenFrom(covered, tilesById, ME, ref(0, 0))).toBe(true);
   });
 });
 

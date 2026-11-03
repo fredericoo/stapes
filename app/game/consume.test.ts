@@ -211,16 +211,14 @@ describe("eating off the floor", () => {
     expect(tilesAt(session, 2, 0)).toEqual(["grass", "cherry"]);
   });
 
-  it("refuses one buried under something else", () => {
+  it("eats one under something else", () => {
     const map = replaceStack(field(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "cherry" },
       { tileId: "crate" },
     ]);
     const session = new GameSession(map, tiles);
-    expect(session.consume({ kind: "floor", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } })).toBe(
-      false,
-    );
+    expect(session.consume({ kind: "floor", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } })).toBe(true);
   });
 
   it("refuses a thing that is not a consumable", () => {
