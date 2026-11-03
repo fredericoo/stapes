@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Equipment } from "../game/equipment";
 import { slotIn, type ContainerRef, type ContainerView } from "../game/itemMoves";
 import { engravedName } from "../lib/engraving";
+import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
@@ -12,6 +13,7 @@ import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
 import { TilePreview } from "./TilePreview";
 import type { ItemDrag } from "./useItemDrag";
+import { windowFrameStyle } from "./windowFrame";
 
 const FRONT = "s" as const;
 
@@ -110,6 +112,7 @@ export function ContainerPanel({
   return (
     <section
       className={["gump flex flex-col gap-1", className].filter(Boolean).join(" ")}
+      style={windowFrameStyle(def ? resolveContainer(def)?.frame : undefined)}
       aria-label={title}
     >
       <div className="gump__title">

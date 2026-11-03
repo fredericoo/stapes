@@ -46,6 +46,7 @@ import {
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
+import { WINDOW_FRAMES, WINDOW_FRAME_LABELS, type WindowFrame } from "../lib/windowFrames";
 import { FieldLabel, Input, SectionTitle, Segmented, Select, SwitchField } from "../ui";
 import { StatField } from "./StatField";
 import { CharmFields } from "./CharmFields";
@@ -139,6 +140,15 @@ const TYPE_INFO: Record<ItemType, string> = {
   charm:
     "Worn on the accessory square, never held and never pressed. Does its thing on its own clock for as long as it is worn.",
 };
+
+const WINDOW_FRAME_OPTIONS = [
+  { value: "", label: "Stone (default)" },
+  ...WINDOW_FRAMES.map((frame) => ({ value: frame, label: WINDOW_FRAME_LABELS[frame] })),
+];
+
+function asWindowFrame(value: string | null): WindowFrame | undefined {
+  return WINDOW_FRAMES.find((frame) => frame === value);
+}
 
 export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: Props) {
   const item = draft.interactions?.item ?? DEFAULT_WEAPON;
@@ -462,6 +472,17 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: P
               label="Equippable"
               info="On: a backpack — goes in the bag slot and its contents are the inventory. Off: a chest or a body, opened where it lies and never carried."
             />
+
+            <div className="flex flex-col gap-1">
+              <FieldLabel info="The frame drawn around this container's window in the game.">
+                Window
+              </FieldLabel>
+              <Select
+                value={item.frame ?? ""}
+                onValueChange={(frame) => patchContainer({ frame: asWindowFrame(frame) })}
+                options={WINDOW_FRAME_OPTIONS}
+              />
+            </div>
           </div>
         )}
 

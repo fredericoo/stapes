@@ -25,6 +25,7 @@ import {
   transitionSchema,
 } from "./tileTransition";
 import { HEIGHT_PER_LEVEL, type TileDef } from "./types";
+import { WINDOW_FRAMES, type WindowFrame } from "./windowFrames";
 
 export type Reach = {
   cells: number;
@@ -79,6 +80,7 @@ export type ContainerItem = {
   type: "container";
   size: number;
   equippable: boolean;
+  frame?: WindowFrame;
 };
 
 export const ARMOR_SLOTS = ["head", "armor", "footwear", "charm"] as const;
@@ -393,6 +395,7 @@ const containerSchema = v.object({
   type: v.literal("container"),
   size: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CONTAINER_SIZE)),
   equippable: v.boolean(),
+  frame: v.optional(v.picklist(WINDOW_FRAMES)),
 });
 
 const weaponResistancesSchema = v.object(
@@ -747,6 +750,7 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
     type: "container",
     size: item.size,
     equippable: item.equippable,
+    ...(item.frame ? { frame: item.frame } : {}),
   };
 }
 
