@@ -1,5 +1,19 @@
 # the-last-stones
 
+## 0.10.0
+
+### Minor Changes
+
+- You can now cast an arcane stone before you reach the levels it asks for. Each level you are short makes the cast slower and its damage or healing smaller, in proportion to how much you are missing, and casting it still trains you towards it.
+
+### Patch Changes
+
+- A harmful spell that does no damage now shows "resisted" over its target, the way a blow that does nothing shows "blocked". Before, nothing appeared.
+- Slimes are tougher, and they keep teaching Arcane well past level 10.
+- Spark now needs Arcane 3, so a new character trains with Light before they can cast it.
+- On a phone, the star beside a rating now has the same black outline as the name next to it.
+- Weapons, armour and other gear now list the levels they ask for under "To Master" instead of "Requires". Arcane stones still say "Requires".
+
 ## 0.9.0
 
 ### Minor Changes
