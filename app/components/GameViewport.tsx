@@ -510,7 +510,7 @@ export function GameViewport({
           className="flex h-full shrink-0 flex-col gap-2 border-l-2 border-outline p-2 shadow-[inset_2px_0_0_var(--color-stone-lo)]"
           style={{ width: INTERACTION_PANEL_WIDTH_PX }}
         >
-          <div className="gump flex shrink-0 flex-col gap-2">
+          <div className="flex shrink-0 flex-col gap-2">
             <HealthGauge vitals={vitals} />
             {readouts ? (
               <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
