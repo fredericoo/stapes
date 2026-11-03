@@ -465,7 +465,7 @@ export function GameViewport({
             >
               {replacesList ??
                 (panelCoversList ? (
-                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-0.5">
+                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-0.5">
                     {panels}
                   </div>
                 ) : (
@@ -531,7 +531,7 @@ export function GameViewport({
             </div>
           ) : null}
           {showEquipment || showBag || showStats || heldContainer || openedContainer ? (
-            <div className="scrolls-in-chrome flex min-h-0 shrink flex-col gap-3 overflow-y-auto overscroll-contain p-0.5">
+            <div className="flex min-h-0 shrink flex-col gap-3 overflow-y-auto overscroll-contain pb-0.5 [scrollbar-width:none]">
               {panels}
             </div>
           ) : null}

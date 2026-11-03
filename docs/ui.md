@@ -16,3 +16,4 @@
 - A frame is named in `WINDOW_FRAMES` (`app/lib/windowFrames.ts`), which is what a container tile's `frame` is validated against, and its fill colour is in `windowFrame.ts`. A new frame is its image, its name in that list and its fill.
 - The colours in `PALETTE` in `app/components/pixelIcons.tsx` and in the frame images copy the `--color-outline`, `--color-brass` and related tokens in `app/app.css`; an SVG cannot read a custom property.
 - `.gump--parchment` swaps `--color-paper` and `--color-ink` inside the window. A component in it that writes `text-paper` gets the parchment's ink, which is what lets the conversation and craft panels go on parchment unchanged; a literal colour inside one does not swap.
+- The desktop sidebar's panel scroller hides its scrollbar. A scrollbar there takes its width from the windows inside it and nowhere else, so they stop lining up with the windows above and below.
