@@ -102,3 +102,27 @@ export function uniformFootprint(frames: Frame[]): boolean {
       f.sprite.base.y === first.base.y,
   );
 }
+
+/**
+ * Walks the row until the texel's z (that frame's cumulative end time) passes
+ * the clock; the last column repeats the cycle length so the loop always stops
+ * before reading past the row's real frames.
+ */
+export const ANIM_GLSL_FUNCTION = `
+uniform sampler2D uAnimTable;
+uniform vec2 uAnimSize;
+uniform float uAnimClockMs;
+uniform float uAnimEnabled;
+vec2 animFrameOffset(float row, float clockMs) {
+  float v = (row + 0.5) / uAnimSize.y;
+  float total = texture2D(uAnimTable, vec2(1.0 - 0.5 / uAnimSize.x, v)).z;
+  float t = mod(clockMs, max(total, 1.0));
+  vec2 offset = vec2(0.0);
+  for (int i = 0; i < ${ANIM_MAX_FRAMES}; i++) {
+    if (float(i) >= uAnimSize.x) break;
+    vec4 texel = texture2D(uAnimTable, vec2((float(i) + 0.5) / uAnimSize.x, v));
+    offset = texel.xy;
+    if (t < texel.z) break;
+  }
+  return offset;
+}`;

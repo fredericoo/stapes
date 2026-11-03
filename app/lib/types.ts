@@ -147,6 +147,19 @@ export type StateSprites = {
   variants?: Record<string, TileSprite>;
 };
 
+/**
+ * Pixels of the tile's art in one of `colors` show a reflection of whatever
+ * stands on the bank behind it, painted flat in `color` and wobbled sideways by
+ * up to `turbulence` pixels a row.
+ */
+export const MAX_REFLECTIVE_COLORS = 4;
+
+export type TileReflective = {
+  colors: string[];
+  color: string;
+  turbulence: number;
+};
+
 export type TileDef = StateSprites & {
   id: string;
   name: string;
@@ -173,6 +186,7 @@ export type TileDef = StateSprites & {
   swims?: boolean;
   walkSpeedPercent?: number;
   wade?: boolean;
+  reflective?: TileReflective;
   climbFrom?: Partial<Record<FacingKey, Partial<Record<Direction, boolean>>>>;
   interactions?: TileInteractions;
   particles?: ParticleEmitterDef;
