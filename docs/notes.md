@@ -257,7 +257,7 @@ are absent in the game and present on the chooser.
 **The world is torn down at the press, not by the unmount the navigation
 causes.** React Router commits a navigation inside `startTransition`, and a
 transition gives way to every ordinary update. A live world keeps making them —
-the clock, the frame readout, the vitals, the list of what is within reach —
+the frame readout, the vitals, the list of what is within reach —
 between frames that take most of a slow machine's time. Left to the unmount,
 the chooser took about six seconds to appear on the machine this was measured
 on, and with the page's CPU throttled four times
