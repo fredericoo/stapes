@@ -139,9 +139,8 @@ export function EquipmentPanel({
       className={["gump flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label="Equipment"
     >
-      <h2 className="gump__title text-detail uppercase">Equipment</h2>
       <div
-        className="grid self-start"
+        className="grid self-center"
         style={{
           gridTemplateColumns: `repeat(${COLUMN_COUNT}, ${slotPx}px)`,
           gridTemplateRows: `repeat(${ROW_COUNT}, ${(slotPx + gapPx) / 2}px)`,
