@@ -60,11 +60,8 @@ export function CraftPanel({
   }, [hotkeys, recipes]);
 
   return (
-    <section
-      aria-label={name}
-      className={`flex flex-col gap-1 border-2 border-paper/25 bg-paper/5 p-1.5 ${className}`}
-    >
-      <div className="flex shrink-0 items-center gap-1.5">
+    <section aria-label={name} className={`gump gump--parchment flex flex-col gap-1 ${className}`}>
+      <div className="gump__title shrink-0">
         {def ? (
           <TilePreview
             tile={def}

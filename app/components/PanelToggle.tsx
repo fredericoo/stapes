@@ -14,10 +14,10 @@ import { useTap } from "./useTap";
 
 function toggleClass(on: boolean, size: ActionButtonSize): string {
   return [
-    "relative flex items-center justify-center border-2 shadow-hard",
+    "knob relative flex items-center justify-center",
     ACTION_BUTTON_SIZE_CLASS[size],
     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-    on ? "border-paper bg-paper text-ink" : "border-paper/40 bg-transparent text-paper",
+    on ? "knob--on" : "",
   ].join(" ");
 }
 
@@ -173,8 +173,8 @@ export function BagButton({
             className={[
               "pointer-events-none absolute -bottom-1 -right-1 border px-0.5 text-2xs font-bold leading-tight tabular-nums",
               held >= capacity
-                ? "border-paper bg-paper text-ink"
-                : "border-paper/40 bg-ink text-paper/80",
+                ? "border-outline bg-label text-outline"
+                : "border-outline bg-socket text-paper",
             ].join(" ")}
           >
             {held}/{capacity}

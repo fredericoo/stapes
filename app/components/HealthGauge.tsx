@@ -27,7 +27,7 @@ export function HealthGauge({
       aria-valuenow={hp}
       aria-valuetext={`${hp} of ${maxHp}`}
       className={[
-        "health-gauge relative h-5 w-full shrink-0 border border-paper/40 bg-ink",
+        "health-gauge socket relative h-6 w-full shrink-0",
         healing ? "health-gauge--healing" : "",
         fraction <= LOW_HEALTH_FRACTION ? "health-gauge--low" : "",
         className,

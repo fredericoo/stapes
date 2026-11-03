@@ -126,10 +126,10 @@ export function EquipmentPanel({
 
   return (
     <section
-      className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
+      className={["gump flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label="Equipment"
     >
-      <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">Equipment</h2>
+      <h2 className="gump__title text-detail uppercase">Equipment</h2>
       <div
         className="grid self-start"
         style={{

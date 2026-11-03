@@ -142,13 +142,13 @@ export function DirectionPad({
         steerTo(null);
       }}
     >
-      <div className="pad-disc absolute inset-0 border-2 border-paper/40 bg-ink" />
+      <div className="pad-disc socket absolute inset-0" />
 
       <div
         aria-hidden="true"
         className={[
-          "pad-knob pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 border-2",
-          active ? "border-paper bg-paper" : "border-paper/40 bg-paper/10",
+          "pad-knob knob pointer-events-none absolute -translate-x-1/2 -translate-y-1/2",
+          active ? "knob--on" : "",
         ].join(" ")}
         style={{
           width: `${KNOB_SIZE_RATIO * 100}%`,

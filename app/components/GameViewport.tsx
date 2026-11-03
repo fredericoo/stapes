@@ -42,7 +42,7 @@ const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 const NO_SPELLS: SpellButton[] = [];
 
-const INTERACTION_PANEL_WIDTH_PX = 224;
+const INTERACTION_PANEL_WIDTH_PX = 264;
 
 const INTERACTION_LIST_MIN_WIDTH_PX = 168;
 
@@ -409,7 +409,7 @@ export function GameViewport({
   );
 
   return (
-    <div className="flex h-full w-full bg-ink">
+    <div className="gump-backdrop flex h-full w-full">
       <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
       <div
         className="flex h-full min-w-0 flex-1 touch-pan-y flex-col items-center select-none"
@@ -432,7 +432,11 @@ export function GameViewport({
           </div>
         </div>
 
-        {coarse ? <HealthGauge vitals={vitals} /> : null}
+        {coarse ? (
+          <div className="w-full px-3 pt-2">
+            <HealthGauge vitals={vitals} />
+          </div>
+        ) : null}
 
         {coarse ? (
           <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">
@@ -461,7 +465,7 @@ export function GameViewport({
             >
               {replacesList ??
                 (panelCoversList ? (
-                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-0.5">
                     {panels}
                   </div>
                 ) : (
@@ -503,21 +507,19 @@ export function GameViewport({
 
       {coarse ? null : (
         <aside
-          className="flex h-full shrink-0 flex-col gap-2 border-l-2 border-paper/20 p-2"
+          className="flex h-full shrink-0 flex-col gap-2 border-l-2 border-outline p-2 shadow-[inset_2px_0_0_var(--color-stone-lo)]"
           style={{ width: INTERACTION_PANEL_WIDTH_PX }}
         >
-          <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
+          <div className="gump flex shrink-0 flex-col gap-2">
             <HealthGauge vitals={vitals} />
             {readouts ? (
               <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
             ) : null}
             <StatusStrip statuses={statuses} interactive tilesets={tilesets} />
           </div>
-          <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
-            {panelButtons("compact")}
-          </div>
+          <div className="flex shrink-0 items-center gap-1">{panelButtons("compact")}</div>
           {spells.length > 0 ? (
-            <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
+            <div className="flex shrink-0 items-center gap-1">
               <SpellBar
                 spells={spells}
                 onCast={cast}
@@ -528,12 +530,12 @@ export function GameViewport({
               />
             </div>
           ) : null}
-          {showEquipment || showBag ? (
-            <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
+          {showEquipment || showBag || showStats || heldContainer || openedContainer ? (
+            <div className="scrolls-in-chrome flex min-h-0 shrink flex-col gap-3 overflow-y-auto overscroll-contain p-0.5">
               {panels}
             </div>
           ) : null}
-          {replacesList ?? list}
+          <div className="flex min-h-36 flex-1 flex-col">{replacesList ?? list}</div>
         </aside>
       )}
     </div>

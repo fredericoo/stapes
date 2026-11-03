@@ -42,12 +42,11 @@ const NO_MASTERY_XP: MasteryXp = {};
 const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 const ROW_CLASS =
-  "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11";
-export const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
+  "flex min-h-6 w-full items-center gap-1 px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11";
+export const OPTION_CLASS = `${ROW_CLASS} knob aria-disabled:opacity-50`;
 export const CLOSE_BUTTON_CLASS =
-  "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent relative pointer-coarse:after:absolute pointer-coarse:after:-inset-3";
-export const PANEL_TITLE_CLASS =
-  "min-w-0 truncate text-detail font-bold uppercase tracking-wide text-paper/50";
+  "knob ml-auto grid h-6 w-6 shrink-0 place-items-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent relative pointer-coarse:after:absolute pointer-coarse:after:-inset-3";
+export const PANEL_TITLE_CLASS = "min-w-0 truncate text-detail uppercase";
 export const LABEL_CLASS = "truncate text-detail leading-snug font-medium tracking-tight";
 const CHOICE_LABEL_CLASS = "text-detail leading-snug font-medium tracking-tight";
 const TURN_GAP_CLASS = "mt-1.5";
@@ -117,9 +116,9 @@ export function ConversationPanel({
   return (
     <section
       aria-label={`Talking to ${title}`}
-      className={`flex flex-col gap-1 border-2 border-paper/25 bg-paper/5 p-1.5 ${className}`}
+      className={`gump gump--parchment flex flex-col gap-1 ${className}`}
     >
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="gump__title shrink-0">
         {def ? (
           <TilePreview
             tile={def}
@@ -303,7 +302,7 @@ function TradeOffer({
       : null;
   const possible = plan !== null;
   const stepBaseClass =
-    "grid shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+    "knob grid shrink-0 place-items-center aria-disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
   const stepClass = `${stepBaseClass} w-8 pointer-coarse:w-11`;
   const step = (delta: 1 | -1) =>
     setAmount((c) => Math.min(trade.max, Math.max(trade.min, c + delta)));
@@ -370,7 +369,7 @@ function TradeOffer({
           </button>
           <output
             aria-live="polite"
-            className="grid min-w-8 flex-1 place-items-center border border-paper/30 px-1 tabular-nums text-xs text-paper"
+            className="socket grid min-w-8 flex-1 place-items-center px-1 tabular-nums text-xs text-paper"
           >
             ×{amount}
           </output>

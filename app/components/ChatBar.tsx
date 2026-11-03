@@ -57,7 +57,7 @@ function ChatComposer({
         aria-label="Say something"
         autoComplete="off"
         autoFocus={autoFocus}
-        className="min-w-0 flex-1 border-2 border-paper/40 bg-ink px-2 py-1 text-sm text-paper placeholder:text-paper/40 focus:border-paper focus:outline-none"
+        className="socket min-w-0 flex-1 px-2 py-1 text-sm text-paper placeholder:text-paper/40 focus:border-stone focus:outline-none"
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -74,7 +74,7 @@ function ChatComposer({
       />
       <button
         type="button"
-        className="shrink-0 border-2 border-paper/40 px-3 py-1 text-xs uppercase text-paper hover:border-paper disabled:opacity-40"
+        className="knob shrink-0 px-3 py-1 text-xs uppercase disabled:opacity-40"
         disabled={text.trim().length === 0}
         onClick={() => send()}
       >
@@ -159,10 +159,9 @@ export function ChatButton({
           ref={triggerRef}
           aria-label="Say something"
           className={[
-            "flex items-center justify-center border-2 shadow-hard",
+            "knob flex items-center justify-center",
             ACTION_BUTTON_SIZE_CLASS.touch,
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            "border-paper/40 bg-transparent text-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink",
           ].join(" ")}
           onPointerDown={() => {
             closedByTriggerPressRef.current = open;
@@ -180,7 +179,7 @@ export function ChatButton({
         <Popover.Positioner sideOffset={8} align="start">
           <Popover.Popup
             ref={popupRef}
-            className="z-50 flex w-[calc(100vw-1.5rem)] items-center gap-2 border-2 border-border bg-ink p-2 text-paper shadow-hard"
+            className="gump z-50 flex w-[calc(100vw-1.5rem)] items-center gap-2 text-paper"
           >
             <ChatComposer onSay={onSay} onTypingChange={onTypingChange} onSent={close} autoFocus />
           </Popover.Popup>

@@ -142,7 +142,7 @@ function SpellSquare({
         aria-disabled={press === null}
         {...tap}
         className={[
-          "spell-disc relative flex aspect-square min-w-0 flex-1 flex-col items-center justify-center border-2",
+          "spell-disc relative flex aspect-square min-w-0 flex-1 flex-col items-center justify-center",
           "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           APPEARANCE_CLASSES[appearance],
         ].join(" ")}
@@ -203,10 +203,10 @@ function SpellSquare({
 }
 
 const APPEARANCE_CLASSES: Record<SpellAppearance, string> = {
-  ready: "border-paper/60 bg-paper/10 text-paper hover:border-paper",
-  casting: "animate-pulse border-accent bg-accent/15 text-paper hover:border-paper",
-  cooling: "border-paper/30 bg-transparent text-paper/40 opacity-60",
-  unavailable: "border-dashed border-paper/25 bg-transparent text-paper/40 opacity-50",
+  ready: "knob",
+  casting: "knob knob--on animate-pulse border-accent",
+  cooling: "socket opacity-60",
+  unavailable: "socket opacity-50",
 };
 
 function CooldownRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: number }) {

@@ -59,7 +59,7 @@ export function Tooltip({
         >
           <BaseTooltip.Popup
             className={[
-              "border-2 border-border bg-paper px-2 py-1 text-xs text-ink shadow-hard",
+              "ui-tooltip border-2 border-border bg-paper px-2 py-1 text-xs text-ink shadow-hard",
               "max-w-[min(20rem,calc(100vw-1rem))]",
               className,
             ]

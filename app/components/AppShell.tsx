@@ -27,6 +27,7 @@ export const ADMIN_DESTINATIONS: Destination[] = [
 ];
 
 function linkClass(isActive: boolean, block: boolean): string {
+  if (block) return ["knob block w-full px-2 py-1 text-xs", isActive ? "knob--on" : ""].join(" ");
   return [
     "border-2 px-2 py-1 text-xs font-medium",
     block ? "block w-full" : "",
@@ -62,7 +63,7 @@ function AppMenuPopup({
   onNavigate: () => void;
 }) {
   return (
-    <Popover.Popup className="z-50 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col gap-2 border-2 border-border bg-ink p-2 text-paper shadow-hard">
+    <Popover.Popup className="gump z-50 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col gap-2 text-paper">
       {destinations.length === 0 ? null : (
         <nav className="flex flex-col gap-1">
           {destinations.map(({ to, label }) => (
@@ -107,10 +108,9 @@ export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
         <Popover.Trigger
           aria-label="Menu"
           className={[
-            "relative flex items-center justify-center border-2 shadow-hard",
+            "knob relative flex items-center justify-center",
             ACTION_BUTTON_SIZE_CLASS[size],
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            "border-paper/40 bg-transparent text-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink",
           ].join(" ")}
         >
           <IconSettings size={size === "touch" ? 24 : 18} aria-hidden="true" />

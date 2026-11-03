@@ -44,10 +44,10 @@ export function StatsPanel({
 
   return (
     <section
-      className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
+      className={["gump flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label="Stats"
     >
-      <h2 className="flex items-baseline gap-1 text-detail font-bold uppercase tracking-wide text-paper/50">
+      <h2 className="gump__title text-detail uppercase">
         {HEADINGS.stats}
         <Rating value={stars} className="ml-auto self-center text-paper/70" />
       </h2>
@@ -63,9 +63,7 @@ export function StatsPanel({
       >
         <Effects statuses={statuses} tilesets={tilesets} />
 
-        <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
-          {HEADINGS.masteries}
-        </h3>
+        <h3 className="gump__heading mt-1 text-detail uppercase">{HEADINGS.masteries}</h3>
         <ul className="flex flex-col gap-1">
           {levels.map(({ mastery, level, progress }) => (
             <li key={mastery} className="flex flex-col gap-0.5">
@@ -94,9 +92,7 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
 
   return (
     <>
-      <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
-        {HEADINGS.combat}
-      </h3>
+      <h3 className="gump__heading mt-1 text-detail uppercase">{HEADINGS.combat}</h3>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-detail tabular-nums">
         <Reading term="damage" value={bandLabel(minDamage, maxDamage)} />
         <Reading term="defence" value={`${def}`} />
@@ -126,9 +122,7 @@ function Effects({ statuses, tilesets }: { statuses: ActiveStatus[]; tilesets: T
 
   return (
     <>
-      <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
-        {HEADINGS.effects}
-      </h3>
+      <h3 className="gump__heading mt-1 text-detail uppercase">{HEADINGS.effects}</h3>
       <ul className="flex flex-col gap-0.5">
         {ordered.map((status) => (
           <EffectRow key={status.defId} status={status} tilesets={tilesets} />
@@ -177,9 +171,9 @@ function MasteryProgress({
     <span
       role="img"
       aria-label={`${mastery} ${level}, ${Math.round(progress * 100)}% towards the next`}
-      className="flex h-1 w-full border border-paper/25 bg-ink"
+      className="flex h-2 w-full border-2 border-outline bg-socket"
     >
-      <span className="bg-paper/60" style={{ width: `${Math.round(progress * 100)}%` }} />
+      <span className="bg-brass" style={{ width: `${Math.round(progress * 100)}%` }} />
     </span>
   );
 }

@@ -109,12 +109,10 @@ export function ContainerPanel({
 
   return (
     <section
-      className={["flex flex-col gap-1 border-2 border-paper/25 bg-paper/5 p-1.5", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={["gump flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label={title}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="gump__title">
         {def ? (
           <TilePreview
             tile={def}
@@ -126,11 +124,11 @@ export function ContainerPanel({
             background={null}
           />
         ) : null}
-        <h2 className="flex min-w-0 items-baseline text-detail font-bold uppercase tracking-wide text-paper/50">
+        <h2 className="flex min-w-0 items-baseline text-detail uppercase">
           <span className="truncate" title={title}>
             {title}
           </span>
-          <span className="ml-1 shrink-0 tabular-nums text-paper/40">
+          <span className="ml-1 shrink-0 tabular-nums text-paper/60">
             {contents.length}/{size}
           </span>
         </h2>
@@ -138,7 +136,7 @@ export function ContainerPanel({
           type="button"
           onClick={onClose}
           aria-label={`Close ${title}`}
-          className="ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="knob ml-auto grid h-6 w-6 shrink-0 place-items-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           <IconClose size={CLOSE_ICON_SIZE_PX} aria-hidden="true" />
         </button>

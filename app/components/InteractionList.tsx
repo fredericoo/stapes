@@ -150,23 +150,23 @@ function litClass(option: InteractionOption): string {
 function boxClass(group: InteractionGroup, active: InteractionOption | null): string {
   if (active) return litClass(active);
   if (group.options.some((option) => option.action === "reward")) {
-    return "border-reward/60 bg-reward/10 text-paper hover:border-reward";
+    return "border-reward/80 bg-reward/10 text-paper hover:border-reward";
   }
-  return "border-paper/40 bg-ink text-paper hover:border-paper";
+  return "text-paper hover:border-stone";
+}
+
+function litBorder(option: InteractionOption): string {
+  if (option.action === "open") return "border-interact";
+  if (option.action === "attack") return "border-danger";
+  return "";
 }
 
 function actionClass(option: InteractionOption): string {
-  if (option.blocked) {
-    return "border-dashed border-paper/25 text-paper/40";
-  }
-  if (option.active) return litClass(option);
-  if (option.far) {
-    return "border-paper/15 text-paper/60 hover:border-paper hover:bg-paper/10 hover:text-paper";
-  }
-  if (option.action === "reward") {
-    return "border-reward/60 text-reward hover:border-reward hover:bg-reward/10";
-  }
-  return "border-paper/30 text-paper hover:border-paper hover:bg-paper/10";
+  if (option.blocked) return "knob opacity-50";
+  if (option.active) return `knob knob--on ${litBorder(option)}`;
+  if (option.far) return "knob text-paper/70 hover:text-paper";
+  if (option.action === "reward") return "knob text-reward";
+  return "knob";
 }
 
 export function fillElapsedMs(progress: Progress): number {
@@ -198,7 +198,7 @@ function InteractionBox({
       onMouseEnter={() => onHover?.(subject.id)}
       onMouseLeave={() => onHover?.(null)}
       className={[
-        "flex w-full shrink-0 items-start gap-2 border-2 p-1",
+        "plate flex w-full shrink-0 items-start gap-2 p-1.5",
         boxClass(group, active),
       ].join(" ")}
     >
@@ -213,11 +213,11 @@ function InteractionBox({
         className="shrink-0"
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-xs text-paper/70">{subject.name}</span>
+        <span className="truncate text-xs text-label">{subject.name}</span>
         {subject.health ? <RowHealth health={subject.health} /> : null}
-        <div className="mt-1 flex flex-col gap-px">
+        <div className="mt-1 flex flex-col gap-0.5">
           {rows.map((row, at) => (
-            <div key={row[0]!.id} className="flex items-center gap-px">
+            <div key={row[0]!.id} className="flex items-center gap-0.5">
               {firstRow === null ? null : <KeyHint label={numberKeyLabel(firstRow + at)} />}
               {row.map((option) => (
                 <ActionButton
@@ -307,7 +307,7 @@ function ActionButton({
           : undefined
       }
       className={[
-        "relative overflow-hidden flex min-w-0 flex-1 min-h-6 items-center gap-1 border px-1 py-0.5 text-left pointer-coarse:min-h-9",
+        "relative overflow-hidden flex min-w-0 flex-1 min-h-7 items-center gap-1 px-1 py-0.5 text-left pointer-coarse:min-h-9",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         actionClass(option),
       ].join(" ")}
@@ -341,7 +341,7 @@ function RowHealth({ health }: { health: { hp: number; maxHp: number } }) {
     <span
       role="img"
       aria-label={`${health.hp} of ${health.maxHp} health`}
-      className="mt-1 flex h-1 w-full border border-paper/40 bg-ink"
+      className="mt-1 flex h-2 w-full border-2 border-outline bg-socket"
     >
       <span
         style={{

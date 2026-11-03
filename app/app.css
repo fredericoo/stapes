@@ -38,6 +38,20 @@
   --color-label: #ffd23f;
   --color-border: #1a1a1a;
   --shadow-hard: 2px 2px 0 0 #1a1a1a;
+  /* The game interface's materials, sampled from the world's stone, timber and
+     brass so a window reads as something built in the same town. */
+  --color-outline: #0d0a10;
+  --color-stone-hi: #b3abc4;
+  --color-stone: #7a728d;
+  --color-stone-lo: #48425a;
+  --color-gump: #24202c;
+  --color-socket: #15121a;
+  --color-wood-hi: #d39a5c;
+  --color-wood: #9a6434;
+  --color-wood-lo: #5a3519;
+  --color-parchment: #ead9ad;
+  --color-parchment-ink: #3a2816;
+  --color-brass: #d4a03c;
 }
 
 @keyframes fill-progress {
@@ -604,4 +618,206 @@ body {
     animation: none;
     border-color: var(--color-danger-on-ink);
   }
+}
+
+/* The game's windows. Every edge is drawn in whole bricks of `--ui-brick`, so
+   bevels stay crisp at 2x; a bevel is two inset shadows offset one brick
+   towards opposite corners, which paints only the two edges each one uncovers. */
+@layer components {
+  .pixel-ui {
+    --ui-brick: 2px;
+  }
+
+  .gump {
+    --b: var(--ui-brick, 2px);
+    --frame-hi: var(--color-stone-hi);
+    --frame: var(--color-stone);
+    --frame-lo: var(--color-stone-lo);
+    position: relative;
+    border: var(--b) solid var(--color-outline);
+    background-color: var(--color-gump);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4' shape-rendering='crispEdges'%3E%3Cpath fill='%23fff' fill-opacity='.045' d='M0 0h1v1H0zM2 2h1v1H2z'/%3E%3C/svg%3E");
+    background-size: calc(var(--b) * 4) calc(var(--b) * 4);
+    box-shadow:
+      inset var(--b) var(--b) 0 0 var(--frame-hi),
+      inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 var(--frame-lo),
+      inset 0 0 0 calc(var(--b) * 3) var(--frame),
+      inset 0 0 0 calc(var(--b) * 4) var(--color-outline),
+      0 var(--b) 0 0 var(--color-outline);
+    padding: calc(var(--b) * 4 + 6px);
+    isolation: isolate;
+  }
+
+  /* Brass caps over the four corners, one brick outside the border box so
+     they sit on the outline rather than inside it. `isolation` on the window
+     keeps their z-index inside it, or they paint over popups. */
+  .gump::before {
+    content: "";
+    position: absolute;
+    inset: calc(var(--b) * -1);
+    pointer-events: none;
+    --cap: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 6' shape-rendering='crispEdges'%3E%3Cpath fill='%230d0a10' d='M1 0h4v1H1zM0 1h1v4H0zM5 1h1v4H5zM1 5h4v1H1z'/%3E%3Cpath fill='%23d4a03c' d='M1 1h4v4H1z'/%3E%3Cpath fill='%23ffe08a' d='M1 1h2v1H1zM1 2h1v1H1z'/%3E%3Cpath fill='%237a5418' d='M4 2h1v3H4zM2 4h2v1H2z'/%3E%3C/svg%3E");
+    background:
+      var(--cap) left top / calc(var(--b) * 6) no-repeat,
+      var(--cap) right top / calc(var(--b) * 6) no-repeat,
+      var(--cap) left bottom / calc(var(--b) * 6) no-repeat,
+      var(--cap) right bottom / calc(var(--b) * 6) no-repeat;
+    z-index: 1;
+  }
+
+  /* Swapping the two theme colours inside the window turns every
+     `text-paper` and `bg-ink` it contains into ink on parchment without
+     touching the components. */
+  .gump--parchment {
+    --frame-hi: var(--color-wood-hi);
+    --frame: var(--color-wood);
+    --frame-lo: var(--color-wood-lo);
+    --color-paper: var(--color-parchment-ink);
+    --color-ink: var(--color-parchment);
+    background-color: var(--color-parchment);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4' shape-rendering='crispEdges'%3E%3Cpath fill='%237a5418' fill-opacity='.12' d='M0 0h1v1H0zM2 2h1v1H2z'/%3E%3C/svg%3E");
+    color: var(--color-parchment-ink);
+  }
+
+  .gump__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: var(--b) solid var(--frame-lo);
+    box-shadow: 0 var(--b) 0 0 color-mix(in oklab, var(--frame-hi) 35%, transparent);
+    color: var(--color-label);
+    text-shadow:
+      1px 1px 0 var(--color-outline),
+      -1px 1px 0 var(--color-outline),
+      1px -1px 0 var(--color-outline),
+      -1px -1px 0 var(--color-outline);
+  }
+
+  .gump--parchment .gump__title {
+    color: #7a1f1f;
+    text-shadow: none;
+  }
+
+  .gump__heading {
+    color: var(--color-brass);
+  }
+
+  .gump--parchment .gump__heading {
+    color: #7a4a14;
+  }
+
+  /* A thin frame for things that sit inside a window or stack many to a
+     column, where the full window border would take more room than the
+     contents. */
+  .plate {
+    --b: var(--ui-brick, 2px);
+    border: var(--b) solid var(--color-outline);
+    background-color: var(--color-gump);
+    box-shadow:
+      inset var(--b) var(--b) 0 0 color-mix(in oklab, var(--color-stone-hi) 45%, transparent),
+      inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 var(--color-stone-lo);
+  }
+
+  .socket {
+    --b: var(--ui-brick, 2px);
+    border: var(--b) solid var(--color-outline);
+    background-color: var(--color-socket);
+    box-shadow:
+      inset var(--b) var(--b) 0 0 #000,
+      inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 var(--color-stone-lo);
+  }
+
+  .knob {
+    --b: var(--ui-brick, 2px);
+    border: var(--b) solid var(--color-outline);
+    background-color: #575068;
+    color: var(--color-paper);
+    box-shadow:
+      inset var(--b) var(--b) 0 0 var(--color-stone-hi),
+      inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 #2c2738;
+  }
+
+  .knob:hover {
+    background-color: #655d78;
+  }
+
+  .knob:active,
+  .knob[aria-pressed="true"],
+  .knob[data-popup-open],
+  .knob--on {
+    background-color: var(--color-socket);
+    color: var(--color-label);
+    box-shadow:
+      inset var(--b) var(--b) 0 0 #000,
+      inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 var(--color-stone-lo);
+  }
+
+  .knob:disabled,
+  .knob[aria-disabled="true"] {
+    background-color: #3a3546;
+    box-shadow: none;
+  }
+
+  .gump-backdrop {
+    background-color: #120f16;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4' shape-rendering='crispEdges'%3E%3Cpath fill='%23fff' fill-opacity='.03' d='M0 0h1v1H0zM2 2h1v1H2z'/%3E%3C/svg%3E");
+    background-size: 8px 8px;
+  }
+
+  .health-gauge__fill {
+    box-shadow:
+      inset 0 var(--ui-brick, 2px) 0 0 rgb(255 255 255 / 0.35),
+      inset 0 calc(var(--ui-brick, 2px) * -1) 0 0 rgb(0 0 0 / 0.3);
+  }
+}
+
+@layer components {
+  .gump--parchment .knob {
+    background-color: #dcc58f;
+    color: var(--color-parchment-ink);
+    box-shadow:
+      inset var(--b) var(--b) 0 0 #f6ead0,
+      inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 #9a7a45;
+  }
+
+  .gump--parchment .knob:hover {
+    background-color: #e6d3a3;
+  }
+
+  .gump--parchment .knob:active,
+  .gump--parchment .knob[aria-pressed="true"],
+  .gump--parchment .knob--on {
+    background-color: #c7ab6f;
+    color: #7a1f1f;
+    box-shadow:
+      inset var(--b) var(--b) 0 0 #9a7a45,
+      inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 #f6ead0;
+  }
+
+  .gump--parchment .socket {
+    background-color: #d6c18e;
+    box-shadow:
+      inset var(--b) var(--b) 0 0 #9a7a45,
+      inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 #f6ead0;
+  }
+}
+
+/* Unlayered so it beats the utilities `Tooltip` carries for the admin tools:
+   inside the game a tooltip is a slip of parchment in a timber frame. */
+.pixel-ui .ui-tooltip {
+  --b: var(--ui-brick, 2px);
+  --color-paper: var(--color-parchment);
+  --color-ink: var(--color-parchment-ink);
+  border: var(--b) solid var(--color-outline);
+  background-color: var(--color-parchment);
+  color: var(--color-parchment-ink);
+  padding: calc(var(--b) * 3 + 4px) calc(var(--b) * 3 + 6px);
+  box-shadow:
+    inset var(--b) var(--b) 0 0 var(--color-wood-hi),
+    inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 var(--color-wood-lo),
+    inset 0 0 0 calc(var(--b) * 2) var(--color-wood),
+    inset 0 0 0 calc(var(--b) * 3) var(--color-outline),
+    0 var(--b) 0 0 var(--color-outline);
 }
