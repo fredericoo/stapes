@@ -2356,6 +2356,67 @@ every step taken from the water is slow, including the one back onto the bank.
 A route prices those steps the same way — see `legCost` under "A chase is a
 route" — so it walks round water when going round is quicker.
 
+### A `reflective` tile shows what stands beside it, in one flat colour
+
+A tile with `reflective` has three fields: `colors`, the pixels of its own art
+that act as a mirror (the shipped water lists its two body colours and leaves
+the crest out); `color`, the one shade the reflection is painted in; and
+`turbulence`, how many pixels a row of the reflection may sway sideways. The
+reflection is a silhouette, not a second copy of the sprite: it keeps the
+palette coarse and costs one channel.
+
+In the cabinet projection a box turned half a turn about the centre of its
+footprint is exactly its reflection, so that is the transform:
+`reflected = 2 * pivot - world`. Everything turns about the centre of its base
+cell, bodies and walls alike, with the pivot moved down-right to the water's
+height (`waterlinePivot`). A storey above the water therefore turns about the
+water's level, not its own floor.
+
+How it is drawn (`app/render/reflections.ts`, wired in `WorldRenderer`):
+
+- **A second pass into a one-channel target.** Every mesh that can reflect has
+  a twin on layer 1 (`REFLECTION_LAYER`) with the reflection material. Before
+  the main pass the camera draws layer 1 into a `RedFormat` target the size of
+  the drawing buffer. Nothing is drawn when no loaded chunk reflects.
+- **The water reads that target in the world shader.** A texel whose sRGB
+  colour is in the tile's mask samples the target at its own screen position,
+  shifted by the turbulence, and on a hit takes `color`. It is lit after that,
+  so a reflection darkens at night like the water around it.
+- **Only what stands near water gets a twin.** `ReflectiveCells` keeps each
+  chunk's reflective cells in a `WeakMap` keyed by the chunk object, so the
+  copy-on-write map makes a lookup free until the chunk is edited. A thing has
+  a twin only when water lies within `REFLECTION_REACH_CELLS` south-east of it,
+  or one cell north-west, on its own level or up to `REFLECTION_LEVELS_BELOW`
+  below. An edit to a reflective cell rebuilds the chunks around it and the
+  storeys above, because what reflects in it lives there
+  (`markReflectionNeighbours`).
+
+Three things look wrong and are not:
+
+- **A wall's reflection has a straight bottom edge.** Wall art is thin
+  diagonal bands, and turned half a turn their ends make spikes. The reflection
+  is cut at the footprint's south edge plus `REFLECTION_LENGTH_FRACTION` of the
+  thing's height above the water.
+- **A wading body turns about its dry-ground pivot, not its sunk position.**
+  The mesh is moved by the wade sink and the pivot, a child of it, moves too,
+  so the shader takes the sink back off the pivot. What is turned is the body
+  as drawn, sunk and cropped, so the reflection shows the same cut.
+- **The material compares the mask in sRGB.** The texture is decoded to linear
+  on sampling, and an author picks the mask from the sheet's sRGB hex, so the
+  shader re-encodes before comparing (`MASK_TOLERANCE_SQ`).
+
+Only `WorldRenderer`'s tile materials compile the lookup, under
+`REFLECTING_WORLD_SHADER_CACHE_KEY`. The editor's and a transition's
+materials leave it out: compiled in but never taken, the branch still cost the
+editor's frame budget about 0.3ms at p95. So a tile mid-transition shows no
+reflection.
+
+Not done: the map editor's `EditorRenderer` draws no reflections; turbulence
+only moves when the scene redraws, which water's own animation does every
+frame change; particles over water are not mirrored; and at most
+`MAX_REFLECTIVE_TILES` tiles and `MAX_REFLECTIVE_COLORS` mask colours each fit
+the uniforms.
+
 ### A creature that cannot swim does not walk into water
 
 A creature's brain keeps it out of `wade` cells unless its tile has

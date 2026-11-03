@@ -13,6 +13,14 @@ import {
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import { SUN_EDGE_ARC } from "../lib/sunSpan";
 import { ANIM_GLSL_FUNCTION, NO_ANIMATION } from "./animTable";
+import {
+  NO_REFLECTION_UNIFORMS,
+  REFLECT_GLSL_COMMON,
+  REFLECT_GLSL_FRAGMENT,
+  REFLECT_GLSL_VERTEX,
+  REFLECT_GLSL_VERTEX_COMMON,
+  type ReflectionUniforms,
+} from "./reflections";
 import { TINT_GLSL_COMMON, TINT_GLSL_FRAGMENT, type TintUniforms } from "./spriteTint";
 import {
   NO_TRANSITION_UNIFORMS,
@@ -43,6 +51,8 @@ export type Quad = {
   lightX1: number;
   lightY1: number;
   unlit: boolean;
+  /** One-based reflective tile slot, or absent; see `reflectiveTileIndex`. */
+  reflect?: number;
 };
 
 export type LevelLightUniforms = {
@@ -116,7 +126,10 @@ const SUN_BOUNCE = 0.5;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v15";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v16";
+
+/** The world shader with the reflection lookup, which only `WorldRenderer`'s tile materials carry. */
+export const REFLECTING_WORLD_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-reflect`;
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -164,6 +177,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const spans = new Float32Array(n * VERTS_PER_QUAD * SPAN_COMPONENTS);
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
+  const reflects = new Float32Array(n * VERTS_PER_QUAD);
   const indices = n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
   for (let i = 0; i < n; i++) {
@@ -207,6 +221,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     unlit[vb + 1] = u;
     unlit[vb + 2] = u;
     unlit[vb + 3] = u;
+    reflects.fill(q.reflect ?? 0, vb, vb + VERTS_PER_QUAD);
 
     writeQuadBox(boxes, stacks, spans, i, q.box, q.stackBias);
 
@@ -240,6 +255,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("aSpan", new THREE.BufferAttribute(spans, SPAN_COMPONENTS));
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
+  geo.setAttribute("aReflect", new THREE.BufferAttribute(reflects, 1));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -279,6 +295,10 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   geo.setAttribute("aSpan", new THREE.BufferAttribute(spans, SPAN_COMPONENTS));
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
+  geo.setAttribute(
+    "aReflect",
+    new THREE.BufferAttribute(new Float32Array(VERTS_PER_QUAD).fill(q.reflect ?? 0), 1),
+  );
   geo.setAttribute(
     "aWade",
     new THREE.BufferAttribute(new Float32Array(VERTS_PER_QUAD * WADE_COMPONENTS), WADE_COMPONENTS),
@@ -349,8 +369,10 @@ export function injectWorldShader(
   cut: LevelCutUniforms,
   anim: LevelAnimUniforms,
   transition: TransitionUniforms = NO_TRANSITION_UNIFORMS,
+  reflect: ReflectionUniforms = NO_REFLECTION_UNIFORMS,
 ) {
-  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, transition);
+  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, transition, reflect);
+  const reflectGlsl = (snippet: string) => (reflect === NO_REFLECTION_UNIFORMS ? "" : snippet);
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -372,6 +394,7 @@ varying vec2 vWorldPx;
 varying vec2 vLightScale;
 varying vec2 vWade;
 ${TRANSITION_GLSL_VERTEX_COMMON}
+${reflectGlsl(REFLECT_GLSL_VERTEX_COMMON)}
 
 ${ANIM_GLSL_FUNCTION}`,
     )
@@ -387,6 +410,7 @@ vLightScale = aLightScale;
 vWade = aWade;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
 ${TRANSITION_GLSL_VERTEX}
+${reflectGlsl(REFLECT_GLSL_VERTEX)}
 #ifdef USE_MAP
 if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
   vMapUv += animFrameOffset(aAnim.x, uAnimClockMs + aAnim.y);
@@ -420,6 +444,7 @@ varying vec2 vLightScale;
 varying vec2 vWade;
 ${TINT_GLSL_COMMON}
 ${TRANSITION_GLSL_COMMON}
+${reflectGlsl(REFLECT_GLSL_COMMON)}
 // A sun texel holds the arc span (start, end) from which the cell sees the
 // sun; filtering blends neighbouring spans, which is what slides a shadow
 // edge across a cell instead of flipping it.
@@ -442,6 +467,7 @@ if (uCutEnabled > 0.5) {
 }
 ${TRANSITION_GLSL_DISCARD}
 ${TINT_GLSL_FRAGMENT}
+${reflectGlsl(REFLECT_GLSL_FRAGMENT)}
 // Sample at the art pixel's centre rather than the fragment: a fragment is
 // smaller than a texel once zoomed, so sampling per fragment would smear a
 // gradient across art that should read flat per pixel.

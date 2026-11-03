@@ -1,0 +1,106 @@
+import { describe, expect, it } from "vitest";
+import { tile } from "../lib/testTile";
+import { chunkifyMap, replaceStack } from "../lib/mapData";
+import { MAP_FILE_VERSION, coordKey, levelKey } from "../lib/types";
+import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
+import {
+  MAX_REFLECTIVE_TILES,
+  REFLECTION_LEVELS_BELOW,
+  REFLECTION_REACH_CELLS,
+  ReflectiveCells,
+  reflectiveTileIndex,
+} from "./reflections";
+
+const MIRROR = { colors: ["#335c8c"], color: "#2e222f", turbulence: 1 };
+
+const tiles: Record<string, TileDef> = {
+  grass: tile({ id: "grass" }),
+  rock: tile({ id: "rock", height: 2 }),
+  water: tile({ id: "water", reflective: MIRROR }),
+};
+
+function mapAt(cells: Array<{ x: number; y: number; z?: number; tiles: string[] }>): MapFile {
+  const levels: FlatMapFile["levels"] = {};
+  for (const c of cells) {
+    const lk = levelKey(c.z ?? 0);
+    levels[lk] ??= {};
+    levels[lk][coordKey(c.x, c.y)] = c.tiles.map((tileId) => ({ tileId }));
+  }
+  return chunkifyMap({ version: MAP_FILE_VERSION, levels });
+}
+
+function cellsFor(byId: Record<string, TileDef>) {
+  return new ReflectiveCells(byId, reflectiveTileIndex(byId));
+}
+
+describe("reflectiveTileIndex", () => {
+  it("numbers reflective tiles from one in id order, skipping tiles with no mirror colours", () => {
+    const index = reflectiveTileIndex({
+      water: tile({ id: "water", reflective: MIRROR }),
+      grass: tile({ id: "grass" }),
+      ice: tile({ id: "ice", reflective: MIRROR }),
+      blank: tile({ id: "blank", reflective: { ...MIRROR, colors: [] } }),
+    });
+    expect([...index]).toEqual([
+      ["ice", 1],
+      ["water", 2],
+    ]);
+  });
+
+  it("keeps only as many tiles as the shader has slots for", () => {
+    const many = Object.fromEntries(
+      Array.from({ length: MAX_REFLECTIVE_TILES + 2 }, (_, i) => {
+        const id = `pool-${String(i).padStart(2, "0")}`;
+        return [id, tile({ id, reflective: MIRROR })];
+      }),
+    );
+    expect(reflectiveTileIndex(many).size).toBe(MAX_REFLECTIVE_TILES);
+  });
+});
+
+describe("ReflectiveCells.waterlineNear", () => {
+  it("finds water south-east of a thing within reach, and none beyond it", () => {
+    const near = mapAt([
+      { x: REFLECTION_REACH_CELLS, y: REFLECTION_REACH_CELLS, tiles: ["water"] },
+    ]);
+    const far = mapAt([{ x: REFLECTION_REACH_CELLS + 1, y: 0, tiles: ["water"] }]);
+    expect(cellsFor(tiles).waterlineNear(near, 0, 0, 0)).not.toBeNull();
+    expect(cellsFor(tiles).waterlineNear(far, 0, 0, 0)).toBeNull();
+  });
+
+  it("picks the nearest water when two pools sit at different heights", () => {
+    const map = mapAt([
+      { x: 1, y: 0, tiles: ["rock", "water"] },
+      { x: 3, y: 0, tiles: ["water"] },
+    ]);
+    const lowOnly = mapAt([{ x: 3, y: 0, tiles: ["water"] }]);
+    const cells = cellsFor(tiles);
+    expect(cells.waterlineNear(map, 0, 0, 0)).toBeGreaterThan(
+      cells.waterlineNear(lowOnly, 0, 0, 0)!,
+    );
+  });
+
+  it("finds water on a level below for an upper storey", () => {
+    const map = mapAt([{ x: 1, y: 1, z: 0, tiles: ["water"] }]);
+    const cells = cellsFor(tiles);
+    expect(cells.waterlineNear(map, 0, 0, REFLECTION_LEVELS_BELOW)).not.toBeNull();
+    expect(cells.waterlineNear(map, 0, 0, REFLECTION_LEVELS_BELOW + 1)).toBeNull();
+  });
+
+  it("finds nothing when no tile is reflective", () => {
+    const map = mapAt([{ x: 1, y: 0, tiles: ["water"] }]);
+    const plain = { ...tiles, water: tile({ id: "water" }) };
+    expect(cellsFor(plain).waterlineNear(map, 0, 0, 0)).toBeNull();
+  });
+});
+
+describe("ReflectiveCells.changedChunks", () => {
+  it("reports a chunk only when its reflective cells change", () => {
+    const before = mapAt([{ x: 0, y: 0, tiles: ["grass"] }]);
+    const cells = cellsFor(tiles);
+    const grassMoved = replaceStack(before, 1, 0, 0, [{ tileId: "grass" }]);
+    const waterAdded = replaceStack(before, 1, 0, 0, [{ tileId: "water" }]);
+    expect(cells.changedChunks(before, grassMoved, 0)).toEqual([]);
+    expect(cells.changedChunks(before, waterAdded, 0)).toHaveLength(1);
+  });
+});
