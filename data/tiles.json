@@ -969,6 +969,14 @@
     "lightPassing": true,
     "walkSpeedPercent": -50,
     "wade": true,
+    "reflective": {
+      "colors": [
+        "#335c8c",
+        "#24436b"
+      ],
+      "color": "#2e222f",
+      "turbulence": 1
+    },
     "interactions": {
       "removeStatus": {
         "trigger": "step",
