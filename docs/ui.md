@@ -17,3 +17,4 @@
 - The colours in `PALETTE` in `app/components/pixelIcons.tsx` and in the frame images copy the `--color-outline`, `--color-brass` and related tokens in `app/app.css`; an SVG cannot read a custom property.
 - `.gump--parchment` swaps `--color-paper` and `--color-ink` inside the window. A component in it that writes `text-paper` gets the parchment's ink, which is what lets the conversation and craft panels go on parchment unchanged; a literal colour inside one does not swap.
 - The desktop sidebar's panel scroller hides its scrollbar. A scrollbar there takes its width from the windows inside it and nowhere else, so they stop lining up with the windows above and below.
+- The health vial's slice widths in `.health-gauge` (3, 4, 3 and 7 image pixels) are the cork, glass and rounded end drawn in `public/hud/vial.svg`. Redrawing the vial with a wider cork or a thicker wall means changing both, or the liquid runs under the cork.

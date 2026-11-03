@@ -27,7 +27,7 @@ export function HealthGauge({
       aria-valuenow={hp}
       aria-valuetext={`${hp} of ${maxHp}`}
       className={[
-        "health-gauge socket relative h-6 w-full shrink-0 pointer-coarse:h-5",
+        "health-gauge relative w-full shrink-0",
         healing ? "health-gauge--healing" : "",
         fraction <= LOW_HEALTH_FRACTION ? "health-gauge--low" : "",
         className,
@@ -40,6 +40,7 @@ export function HealthGauge({
         className="health-gauge__fill absolute inset-y-0 left-0"
         style={{ width, backgroundColor: healthBarColor(fraction) }}
       />
+      <span aria-hidden="true" className="health-gauge__glass" />
       <span
         aria-hidden="true"
         className="health-gauge__value relative flex h-full items-center justify-center text-detail leading-none tabular-nums text-paper"
