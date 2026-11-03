@@ -198,7 +198,7 @@ function InteractionBox({
       onMouseEnter={() => onHover?.(subject.id)}
       onMouseLeave={() => onHover?.(null)}
       className={[
-        "plate flex w-full shrink-0 items-start gap-2 p-1.5",
+        "plate flex w-full shrink-0 items-start gap-2 p-1.5 pointer-coarse:p-1",
         boxClass(group, active),
       ].join(" ")}
     >
@@ -338,11 +338,7 @@ function RowHealth({ health }: { health: { hp: number; maxHp: number } }) {
   const fraction = healthFraction(health.hp, health.maxHp);
 
   return (
-    <span
-      role="img"
-      aria-label={`${health.hp} of ${health.maxHp} health`}
-      className="mt-1 flex h-2 w-full border-2 border-outline bg-socket"
-    >
+    <span role="img" aria-label={`${health.hp} of ${health.maxHp} health`} className="meter mt-1">
       <span
         style={{
           width: `${(healthBarFillBricks(fraction) / HEALTH_BAR_FILL_STEPS) * 100}%`,

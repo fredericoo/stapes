@@ -465,7 +465,7 @@ export function GameViewport({
             >
               {replacesList ??
                 (panelCoversList ? (
-                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-0.5">
+                  <div className="flex w-full min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pb-0.5">
                     {panels}
                   </div>
                 ) : (

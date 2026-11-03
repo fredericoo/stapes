@@ -628,6 +628,24 @@ body {
     --ui-brick: 2px;
   }
 
+  /* A phone is at least 3x, so a one-pixel brick is still three device
+     pixels: as crisp as 2px at 2x, and it halves what every frame and bevel
+     takes from a screen with little height to spare. */
+  @media (pointer: coarse) {
+    .pixel-ui {
+      --ui-brick: 1px;
+    }
+
+    .gump {
+      padding: 4px;
+    }
+
+    .gump__title {
+      margin-bottom: 4px;
+      padding-bottom: 2px;
+    }
+  }
+
   /* A 9-slice image from `public/frames`: 16 pixels square with 6-pixel
      corners, drawn at one image pixel per brick. A window names its frame
      with `--frame-image`; the centre is not part of the image, so the fill
@@ -737,6 +755,15 @@ body {
   .knob[aria-disabled="true"] {
     background-color: #3a3546;
     box-shadow: none;
+  }
+
+  .meter {
+    --b: var(--ui-brick, 2px);
+    display: flex;
+    width: 100%;
+    height: calc(var(--b) * 4);
+    border: var(--b) solid var(--color-outline);
+    background-color: var(--color-socket);
   }
 
   .gump-backdrop {

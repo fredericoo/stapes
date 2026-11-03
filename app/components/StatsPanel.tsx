@@ -64,11 +64,11 @@ export function StatsPanel({
         <Effects statuses={statuses} tilesets={tilesets} />
 
         <h3 className="gump__heading mt-1 text-detail uppercase">{HEADINGS.masteries}</h3>
-        <ul className="flex flex-col gap-1">
+        <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
           {levels.map(({ mastery, level, progress }) => (
             <li key={mastery} className="flex flex-col gap-0.5">
-              <span className="flex items-baseline gap-1 text-xs">
-                <span className="capitalize text-paper/80">{mastery}</span>
+              <span className="flex min-w-0 items-baseline gap-1 text-xs">
+                <span className="truncate capitalize text-paper/80">{mastery}</span>
                 <span className="ml-auto tabular-nums text-paper">{level}</span>
               </span>
               <MasteryProgress mastery={mastery} level={level} progress={progress} />
@@ -171,7 +171,7 @@ function MasteryProgress({
     <span
       role="img"
       aria-label={`${mastery} ${level}, ${Math.round(progress * 100)}% towards the next`}
-      className="flex h-2 w-full border-2 border-outline bg-socket"
+      className="meter"
     >
       <span className="bg-brass" style={{ width: `${Math.round(progress * 100)}%` }} />
     </span>
