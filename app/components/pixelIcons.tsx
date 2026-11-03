@@ -1,40 +1,4 @@
-import type { ComponentType, SVGProps } from "react";
-import { Apple } from "pixelarticons/react/Apple.js";
-import { Backpack } from "pixelarticons/react/Backpack.js";
-import { Box } from "pixelarticons/react/Box.js";
-import { Notes } from "pixelarticons/react/Notes.js";
-import { Close } from "pixelarticons/react/Close.js";
-import { Comment } from "pixelarticons/react/Comment.js";
-import { DiamondGem } from "pixelarticons/react/DiamondGem.js";
-import { DoorClosed } from "pixelarticons/react/DoorClosed.js";
-import { Eye } from "pixelarticons/react/Eye.js";
-import { EyeOff } from "pixelarticons/react/EyeOff.js";
-import { Fire } from "pixelarticons/react/Fire.js";
-import { Gift } from "pixelarticons/react/Gift.js";
-import { Hand } from "pixelarticons/react/Hand.js";
-import { Heart } from "pixelarticons/react/Heart.js";
-import { Human } from "pixelarticons/react/Human.js";
-import { Lightbulb } from "pixelarticons/react/Lightbulb.js";
-import { LightbulbOff } from "pixelarticons/react/LightbulbOff.js";
-import { Logout } from "pixelarticons/react/Logout.js";
-import { MapPin } from "pixelarticons/react/MapPin.js";
-import { Menu } from "pixelarticons/react/Menu.js";
-import { Message } from "pixelarticons/react/Message.js";
-import { MessageText } from "pixelarticons/react/MessageText.js";
-import { Minus } from "pixelarticons/react/Minus.js";
-import { Move } from "pixelarticons/react/Move.js";
-import { Plus } from "pixelarticons/react/Plus.js";
-import { Save } from "pixelarticons/react/Save.js";
-import { Search } from "pixelarticons/react/Search.js";
-import { SettingsCog } from "pixelarticons/react/SettingsCog.js";
-import { Shirt } from "pixelarticons/react/Shirt.js";
-import { Skull } from "pixelarticons/react/Skull.js";
-import { Smile } from "pixelarticons/react/Smile.js";
-import { Star } from "pixelarticons/react/Star.js";
-import { Switch } from "pixelarticons/react/Switch.js";
-import { Sword } from "pixelarticons/react/Sword.js";
-import { Target } from "pixelarticons/react/Target.js";
-import { Tools } from "pixelarticons/react/Tools.js";
+import type { ComponentType } from "react";
 
 export type PixelIconProps = {
   size?: number;
@@ -44,138 +8,569 @@ export type PixelIconProps = {
 
 export type PixelIcon = ComponentType<PixelIconProps>;
 
+const GRID = 12;
+
 /**
- * pixelarticons draw on a 24-unit box in 2-unit cells, so a cell is
- * `size / 12` CSS pixels. Rounding to a multiple of 6 keeps every cell a whole
- * device pixel at 2x, the same trade the interface font makes.
+ * A cell is `size / 12` CSS pixels. Rounding to a multiple of 6 keeps every
+ * cell a whole device pixel at 2x, the same trade the interface font makes.
  */
 const ICON_SIZE_STEP_PX = 6;
 
 const DEFAULT_ICON_SIZE_PX = 24;
 
+const OUTLINE = "#0d0a10";
+
+const CURRENT = "*";
+
+const PALETTE: Record<string, string> = {
+  k: OUTLINE,
+  w: "#f4f0e6",
+  l: "#b3abc4",
+  g: "#7a728d",
+  d: "#48425a",
+  r: "#d83a3a",
+  R: "#8a1f2a",
+  p: "#ff9a8a",
+  y: "#ffd23f",
+  o: "#d4a03c",
+  O: "#7a5418",
+  t: "#d39a5c",
+  b: "#9a6434",
+  B: "#5a3519",
+  E: "#2d6a4f",
+  u: "#3f8fe0",
+  U: "#1f4f8a",
+  c: "#9ad8ff",
+  v: "#b15cff",
+  V: "#6a2aa0",
+  s: "#f0b78a",
+  S: "#b97a50",
+  f: "#ff8a1f",
+  P: "#ead9ad",
+  Q: "#b8955a",
+  [CURRENT]: "currentColor",
+};
+
 function snappedSize(size: number): number {
   return Math.max(ICON_SIZE_STEP_PX, Math.round(size / ICON_SIZE_STEP_PX) * ICON_SIZE_STEP_PX);
 }
 
-function pixelIcon(Svg: ComponentType<SVGProps<SVGSVGElement>>): PixelIcon {
+/**
+ * Every empty cell touching a painted one, corners included, is filled with
+ * the outline colour: the same one-brick 3×3 outline the world's labels wear,
+ * so an icon reads against the world, a window or a sprite alike.
+ */
+function spritePaths(rows: readonly string[]): Array<{ fill: string; d: string }> {
+  const top = Math.floor((GRID - rows.length) / 2);
+  const grid: string[][] = Array.from({ length: GRID }, () => Array<string>(GRID).fill("."));
+  for (const [y, row] of rows.entries()) {
+    for (const [x, cell] of [...row].entries()) {
+      if (x < GRID) grid[top + y]![x] = cell;
+    }
+  }
+  const painted = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < GRID && y < GRID && grid[y]![x] !== ".";
+  const cells = new Map<string, string[]>();
+  const add = (key: string, x: number, y: number) => {
+    const list = cells.get(key) ?? [];
+    list.push(`M${x} ${y}h1v1h-1z`);
+    cells.set(key, list);
+  };
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      const cell = grid[y]![x]!;
+      if (cell !== ".") {
+        add(cell, x, y);
+        continue;
+      }
+      let touches = false;
+      for (let dy = -1; dy <= 1 && !touches; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (painted(x + dx, y + dy)) {
+            touches = true;
+            break;
+          }
+        }
+      }
+      if (touches) add("k", x, y);
+    }
+  }
+  return [...cells].map(([key, d]) => ({ fill: PALETTE[key] ?? OUTLINE, d: d.join("") }));
+}
+
+function sprite(rows: readonly string[]): PixelIcon {
+  const paths = spritePaths(rows);
   return function Icon({ size = DEFAULT_ICON_SIZE_PX, className, ...rest }: PixelIconProps) {
     const px = snappedSize(size);
     return (
-      <Svg width={px} height={px} shapeRendering="crispEdges" className={className} {...rest} />
-    );
-  };
-}
-
-const GLYPH_CELL_UNITS = 2;
-
-const GLYPH_OFFSET_UNITS = 1;
-
-/**
- * The same 11×11 grid pixelarticons draw on — 2-unit cells starting one unit
- * in — written one character per cell, for the icons the set does not have.
- */
-function glyphPath(rows: readonly string[]): string {
-  const cells: string[] = [];
-  for (const [y, row] of rows.entries()) {
-    for (const [x, cell] of [...row].entries()) {
-      if (cell !== "#") continue;
-      const left = GLYPH_OFFSET_UNITS + x * GLYPH_CELL_UNITS;
-      const top = GLYPH_OFFSET_UNITS + y * GLYPH_CELL_UNITS;
-      cells.push(`M${left} ${top}h${GLYPH_CELL_UNITS}v${GLYPH_CELL_UNITS}h-${GLYPH_CELL_UNITS}z`);
-    }
-  }
-  return cells.join("");
-}
-
-function glyph(rows: readonly string[]): ComponentType<SVGProps<SVGSVGElement>> {
-  const d = glyphPath(rows);
-  return function Glyph(props: SVGProps<SVGSVGElement>) {
-    return (
-      <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" {...props}>
-        <path d={d} />
+      <svg
+        viewBox={`0 0 ${GRID} ${GRID}`}
+        width={px}
+        height={px}
+        shapeRendering="crispEdges"
+        className={className}
+        xmlns="http://www.w3.org/2000/svg"
+        {...rest}
+      >
+        {paths.map(({ fill, d }) => (
+          <path key={fill} fill={fill} d={d} />
+        ))}
       </svg>
     );
   };
 }
 
-const Boot = glyph([
-  "...........",
-  ".####......",
-  ".#..#......",
-  ".#..#......",
-  ".#..#......",
-  ".#..####...",
-  ".#.....##..",
-  ".#......#..",
-  ".#......##.",
-  ".#########.",
-  ".#########.",
+export const IconApple = sprite([
+  "......B.....",
+  ".....bEE....",
+  "..rprrrrrR..",
+  ".rpprrrrrrR.",
+  ".rprrrrrrrR.",
+  ".rrrrrrrrrR.",
+  ".rrrrrrrrRR.",
+  "..rrrrrrRR..",
+  "...rrRRR....",
 ]);
 
-const Droplet = glyph([
-  ".....#.....",
-  "....#.#....",
-  "....#.#....",
-  "...#...#...",
-  "..#.....#..",
-  "..#.....#..",
-  ".#.......#.",
-  ".#.......#.",
-  ".#.......#.",
-  "..#.....#..",
-  "...#####...",
+export const IconBackpack = sprite([
+  "....BBBB....",
+  "...B....B...",
+  "..tbbbbbbB..",
+  ".tbbbbbbbbB.",
+  ".tbtttttbbB.",
+  ".tbbboobbbB.",
+  ".tbbbbbbbbB.",
+  ".tbbbbbbbbB.",
+  ".tbbbbbbbbB.",
+  "..BBBBBBBB..",
 ]);
 
-const Pickaxe = glyph([
-  "..#######..",
-  ".#...#...#.",
-  "#....#....#",
-  ".....#.....",
-  ".....#.....",
-  ".....#.....",
-  ".....#.....",
-  ".....#.....",
-  ".....#.....",
-  ".....#.....",
-  ".....#.....",
+export const IconBox = sprite([
+  "..tttttttB..",
+  ".tbbbbbbbbB.",
+  ".tbbbbbbbbB.",
+  ".oooooooooO.",
+  ".tbbbyybbbB.",
+  ".tbbbOObbbB.",
+  ".tbbbbbbbbB.",
+  ".tbbbbbbbbB.",
+  ".BBBBBBBBBB.",
 ]);
 
-export const IconApple = pixelIcon(Apple);
-export const IconBackpack = pixelIcon(Backpack);
-export const IconBox = pixelIcon(Box);
-export const IconBoot = pixelIcon(Boot);
-export const IconBulb = pixelIcon(Lightbulb);
-export const IconBulbOff = pixelIcon(LightbulbOff);
-export const IconChangelog = pixelIcon(Notes);
-export const IconChat = pixelIcon(Message);
-export const IconClose = pixelIcon(Close);
-export const IconDiamond = pixelIcon(DiamondGem);
-export const IconDoor = pixelIcon(DoorClosed);
-export const IconDroplet = pixelIcon(Droplet);
-export const IconExit = pixelIcon(Logout);
-export const IconEye = pixelIcon(Eye);
-export const IconEyeOff = pixelIcon(EyeOff);
-export const IconFeedback = pixelIcon(MessageText);
-export const IconFire = pixelIcon(Fire);
-export const IconFace = pixelIcon(Smile);
-export const IconGift = pixelIcon(Gift);
-export const IconHand = pixelIcon(Hand);
-export const IconHeart = pixelIcon(Heart);
-export const IconHuman = pixelIcon(Human);
-export const IconMapPin = pixelIcon(MapPin);
-export const IconMenu = pixelIcon(Menu);
-export const IconMinus = pixelIcon(Minus);
-export const IconMove = pixelIcon(Move);
-export const IconPickaxe = pixelIcon(Pickaxe);
-export const IconPlus = pixelIcon(Plus);
-export const IconSave = pixelIcon(Save);
-export const IconSearch = pixelIcon(Search);
-export const IconSettings = pixelIcon(SettingsCog);
-export const IconShirt = pixelIcon(Shirt);
-export const IconSkull = pixelIcon(Skull);
-export const IconStar = pixelIcon(Star);
-export const IconSwitch = pixelIcon(Switch);
-export const IconSword = pixelIcon(Sword);
-export const IconTalk = pixelIcon(Comment);
-export const IconTarget = pixelIcon(Target);
-export const IconTools = pixelIcon(Tools);
+export const IconBoot = sprite([
+  "..oooO......",
+  "..tbbB......",
+  "..tbbB......",
+  "..tbbB......",
+  "..tbbbbB....",
+  "..tbbbbbbB..",
+  "..tbbbbbbbB.",
+  ".BBBBBBBBBB.",
+]);
+
+const BULB = [
+  "....yyyy....",
+  "...ywwyyy...",
+  "..ywyyyyyo..",
+  "..yyyyyyyo..",
+  "..yyyyyyyo..",
+  "...yyyyyo...",
+  "....yyoo....",
+  "....llll....",
+  "....gggg....",
+  ".....dd.....",
+];
+
+export const IconBulb = sprite(BULB);
+
+export const IconBulbOff = sprite(
+  BULB.map((row) => row.replace(/y/g, "g").replace(/w/g, "l").replace(/o/g, "d")),
+);
+
+export const IconChangelog = sprite([
+  "..PPPPPPPQ..",
+  "..PggggPPQ..",
+  "..PPPPPPPQ..",
+  "..PgggggPQ..",
+  "..PPPPPPPQ..",
+  "..PggggPPQ..",
+  "..PPPPPPPQ..",
+  "..PgggPPPQ..",
+  "..PPPPPPPQ..",
+  "..QQQQQQQQ..",
+]);
+
+export const IconChat = sprite([
+  ".wwwwwwwwwl.",
+  ".wdddddwwwl.",
+  ".wwwwwwwwwl.",
+  ".wdddwwwwwl.",
+  ".wwwwwwwwwl.",
+  ".llwwllllll.",
+  "...wl.......",
+  "...l........",
+]);
+
+export const IconClose = sprite([
+  ".**......**.",
+  ".***....***.",
+  "..***..***..",
+  "...******...",
+  "....****....",
+  "....****....",
+  "...******...",
+  "..***..***..",
+  ".***....***.",
+  ".**......**.",
+]);
+
+export const IconDiamond = sprite([
+  "...cwcccu...",
+  "..cwccccuU..",
+  ".ccccccuuuU.",
+  "..cccuuuUU..",
+  "...ccuuUU...",
+  "....cuUU....",
+  ".....UU.....",
+]);
+
+export const IconDoor = sprite([
+  "....tbbB....",
+  "...tbbbbB...",
+  "..tbBbbBbB..",
+  "..tbBbbBbB..",
+  "..tbBbbByB..",
+  "..tbBbbBbB..",
+  "..tbBbbBbB..",
+  "..tbBbbBbB..",
+  "..tbBbbBbB..",
+  ".dddddddddd.",
+]);
+
+export const IconDroplet = sprite([
+  ".....cu.....",
+  "....cuuU....",
+  "....cuuU....",
+  "...cuuuuU...",
+  "..cwuuuuuU..",
+  "..cwuuuuuU..",
+  "..cuuuuuuU..",
+  "..uuuuuuUU..",
+  "...uuuuUU...",
+  "....UUUU....",
+]);
+
+export const IconExit = sprite([
+  ".gggggg.....",
+  ".gBBBBg.r...",
+  ".gBBBBg.rr..",
+  ".gBrrrrrrrr.",
+  ".gBrrrrrrrr.",
+  ".gBBBBg.rr..",
+  ".gBBBBg.r...",
+  ".gBBBBg.....",
+  ".gggggg.....",
+]);
+
+export const IconEye = sprite([
+  "...llllll...",
+  "..lwwwwwwl..",
+  ".lwwwuuwwwl.",
+  ".lwwuUUuwwl.",
+  ".lwwwuuwwwl.",
+  "..lwwwwwwl..",
+  "...llllll...",
+]);
+
+export const IconEyeOff = sprite([
+  ".........r..",
+  "...lllllr...",
+  "..lggggrgl..",
+  ".lgggdrgggl.",
+  ".lggdrddggl.",
+  ".lggrddgggl.",
+  "..lrgggggl..",
+  "..rllllll...",
+]);
+
+export const IconFeedback = sprite([
+  ".wwwwwwwwwl.",
+  ".wwwwrwwwwl.",
+  ".wwwwrwwwwl.",
+  ".wwwwwwwwwl.",
+  ".wwwwrwwwwl.",
+  ".llwwllllll.",
+  "...wl.......",
+  "...l........",
+]);
+
+export const IconFire = sprite([
+  "......f.....",
+  ".....ff.....",
+  "....fff..f..",
+  "...fffff.ff.",
+  "..fffyyfffR.",
+  ".rffyyyyffR.",
+  ".rfyywwyyfR.",
+  ".rfyywwyyfR.",
+  "..rffyyffR..",
+  "...RRRRRR...",
+]);
+
+export const IconFace = sprite([
+  "...BBBBBB...",
+  "..BBBBBBBB..",
+  "..BssssssB..",
+  "..ssdssdsS..",
+  "..sssssssS..",
+  "..ssRRRRsS..",
+  "...ssssSS...",
+  "....SSSS....",
+]);
+
+export const IconGift = sprite([
+  "...yy..yy...",
+  "....yyyy....",
+  ".vvvvyyvvvV.",
+  ".VVVVyyVVVV.",
+  "..vvvyyvvV..",
+  "..vvvyyvvV..",
+  "..vvvyyvvV..",
+  "..vvvyyvvV..",
+  "..VVVyyVVV..",
+]);
+
+export const IconHand = sprite([
+  "...s.s.s....",
+  "...s.s.s.s..",
+  "...s.s.s.s..",
+  "...sssssss..",
+  ".s.ssssssS..",
+  ".ssssssssS..",
+  "..sssssssS..",
+  "...ssssSS...",
+  "....ssSS....",
+]);
+
+export const IconHeart = sprite([
+  "..rrr..rrr..",
+  ".rpprrrrrrr.",
+  ".rprrrrrrrr.",
+  ".rrrrrrrrrR.",
+  ".rrrrrrrrrR.",
+  "..rrrrrrRR..",
+  "...rrrrRR...",
+  "....rrRR....",
+  ".....RR.....",
+]);
+
+export const IconHuman = sprite([
+  ".....ss.....",
+  "....ssss....",
+  ".....SS.....",
+  "..uuuuuuuu..",
+  "..u.uuuu.u..",
+  "..s.uuuu.s..",
+  "....BBBB....",
+  "....B..B....",
+  "....B..B....",
+  "...BB..BB...",
+]);
+
+export const IconMapPin = sprite([
+  "....rrrr....",
+  "...rpprrR...",
+  "..rprwwrrR..",
+  "..rrrwwrrR..",
+  "..rrrrrrrR..",
+  "...rrrrrR...",
+  "....rrrR....",
+  ".....rR.....",
+  ".....R......",
+]);
+
+export const IconMenu = sprite([
+  ".**********.",
+  ".**********.",
+  "............",
+  ".**********.",
+  ".**********.",
+  "............",
+  ".**********.",
+  ".**********.",
+]);
+
+export const IconMinus = sprite([".**********.", ".**********."]);
+
+export const IconMove = sprite([
+  ".....ww.....",
+  "....wwww....",
+  ".....ww.....",
+  "..w..ww..w..",
+  ".wwwwwwwwww.",
+  ".wwwwwwwwww.",
+  "..w..ww..w..",
+  ".....ww.....",
+  "....wwww....",
+  ".....ww.....",
+]);
+
+export const IconPickaxe = sprite([
+  "..llllllll..",
+  ".ld..tb..dl.",
+  ".d...tb...d.",
+  ".....tb.....",
+  ".....tb.....",
+  ".....tb.....",
+  ".....tb.....",
+  ".....tb.....",
+  ".....BB.....",
+]);
+
+export const IconPlus = sprite([
+  ".....**.....",
+  ".....**.....",
+  ".....**.....",
+  ".....**.....",
+  ".**********.",
+  ".**********.",
+  ".....**.....",
+  ".....**.....",
+  ".....**.....",
+  ".....**.....",
+]);
+
+export const IconSave = sprite([
+  ".uulllllluU.",
+  ".uullldlluU.",
+  ".uulllllluU.",
+  ".uuuuuuuuuU.",
+  ".uwwwwwwwuU.",
+  ".uwddddwwuU.",
+  ".uwwwwwwwuU.",
+  ".uwddwwwwuU.",
+  ".uwwwwwwwuU.",
+  ".UUUUUUUUUU.",
+]);
+
+export const IconSearch = sprite([
+  "..ooooo.....",
+  ".owcccco....",
+  ".occcccO....",
+  ".occcccO....",
+  ".occcccO....",
+  "..OOOOOb....",
+  ".......bb...",
+  "........bb..",
+  ".........bb.",
+  "..........B.",
+]);
+
+export const IconSettings = sprite([
+  "...ww..ll...",
+  "....wwll....",
+  ".w.wwllll.g.",
+  ".wwwlllllgg.",
+  "..wll..lgg..",
+  "..lll..ggd..",
+  ".lllllggddd.",
+  ".l.llggdd.d.",
+  "....ggdd....",
+  "...gg..dd...",
+]);
+
+export const IconShirt = sprite([
+  "...cu..uc...",
+  "..cuuuuuuU..",
+  ".cuuuuuuuuU.",
+  ".uuuuuuuuuU.",
+  "...uuuuuuU..",
+  "...uuuuuuU..",
+  "...uuuuuuU..",
+  "...uuuuuuU..",
+  "...uuuuuuU..",
+  "...UUUUUUU..",
+]);
+
+export const IconSkull = sprite([
+  "...wwwwww...",
+  "..wwwwwwwwl.",
+  ".wwwwwwwwwl.",
+  ".wkkwwwkkwl.",
+  ".wkkwwwkkwl.",
+  ".wwwwkwwwwl.",
+  "..wwwwwwwl..",
+  "...wkwkwl...",
+  "...lllll....",
+]);
+
+export const IconStar = sprite([
+  ".....yy.....",
+  ".....yy.....",
+  "....ywyy....",
+  ".yyyywyyyyo.",
+  "..yyyyyyyo..",
+  "...yyyyyo...",
+  "...yyyyyo...",
+  "..yyyo.yyo..",
+  "..yo....yo..",
+]);
+
+export const IconSwitch = sprite([
+  ".......rr...",
+  ".......rR...",
+  "......bb....",
+  ".....bb.....",
+  "....bb......",
+  "..llllllll..",
+  "..lggggggd..",
+  "..dddddddd..",
+]);
+
+export const IconSword = sprite([
+  ".........wl.",
+  "........wl..",
+  ".......wl...",
+  "......wl....",
+  ".o...wl.....",
+  "..o.wl......",
+  "...ol.......",
+  "..boO.......",
+  ".B...O......",
+]);
+
+export const IconTalk = sprite([
+  ".PPPPPPPPPQ.",
+  ".PPPPPPPPPQ.",
+  ".PPdPdPdPPQ.",
+  ".PPPPPPPPPQ.",
+  ".QQQQQPPQQQ.",
+  "......PQ....",
+  ".....PQ.....",
+]);
+
+export const IconTarget = sprite([
+  "...rrrrrr...",
+  "..rwwwwwwr..",
+  ".rwwrrrrwwr.",
+  ".rwrwwwwrwr.",
+  ".rwrwrrwrwr.",
+  ".rwrwrrwrwr.",
+  ".rwrwwwwrwr.",
+  ".rwwrrrrwwr.",
+  "..rwwwwwwr..",
+  "...rrrrrr...",
+]);
+
+export const IconTools = sprite([
+  "..lllllld...",
+  "..lwwwwldd..",
+  "..dddddddd..",
+  ".....tb.....",
+  ".....tb.....",
+  ".....tb.....",
+  ".....tb.....",
+  ".....tb.....",
+  ".....tb.....",
+  ".....BB.....",
+]);

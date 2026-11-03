@@ -11156,7 +11156,7 @@ is 1.6px, which the filter pipeline rounds, so the star's outline came out
 thinner than the `text-shadow` on the name beside it. Both are always on — a mark you
 had to hold a key to see would be a mark nobody reads before walking into a
 crowd. Interface text outside the world draws the star with `Rating`, from
-pixelarticons.
+`pixelIcons.tsx`.
 
 ### The button asks on the way in, and not on the way out
 
