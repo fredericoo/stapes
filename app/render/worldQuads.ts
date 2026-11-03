@@ -12,7 +12,7 @@ import {
 } from "../lib/geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import { SUN_EDGE_ARC } from "../lib/sunSpan";
-import { ANIM_MAX_FRAMES, NO_ANIMATION } from "./animTable";
+import { ANIM_GLSL_FUNCTION, NO_ANIMATION } from "./animTable";
 import { TINT_GLSL_COMMON, TINT_GLSL_FRAGMENT, type TintUniforms } from "./spriteTint";
 import {
   NO_TRANSITION_UNIFORMS,
@@ -116,7 +116,7 @@ const SUN_BOUNCE = 0.5;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v14";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v15";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -363,10 +363,6 @@ attribute vec2 aSpan;
 attribute vec2 aLightScale;
 attribute vec2 aAnim;
 attribute vec2 aWade;
-uniform sampler2D uAnimTable;
-uniform vec2 uAnimSize;
-uniform float uAnimClockMs;
-uniform float uAnimEnabled;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -377,22 +373,7 @@ varying vec2 vLightScale;
 varying vec2 vWade;
 ${TRANSITION_GLSL_VERTEX_COMMON}
 
-// Walks the row until the texel's z (that frame's cumulative end time)
-// passes the clock; the last column repeats the cycle length so the loop
-// always stops before reading past the row's real frames.
-vec2 animFrameOffset(float row, float clockMs) {
-  float v = (row + 0.5) / uAnimSize.y;
-  float total = texture2D(uAnimTable, vec2(1.0 - 0.5 / uAnimSize.x, v)).z;
-  float t = mod(clockMs, max(total, 1.0));
-  vec2 offset = vec2(0.0);
-  for (int i = 0; i < ${ANIM_MAX_FRAMES}; i++) {
-    if (float(i) >= uAnimSize.x) break;
-    vec4 texel = texture2D(uAnimTable, vec2((float(i) + 0.5) / uAnimSize.x, v));
-    offset = texel.xy;
-    if (t < texel.z) break;
-  }
-  return offset;
-}`,
+${ANIM_GLSL_FUNCTION}`,
     )
     .replace(
       "#include <uv_vertex>",
