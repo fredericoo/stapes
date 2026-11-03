@@ -14,13 +14,20 @@ import type { BodySlotRef } from "../game/itemMoves";
 import type { MasteryXp } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
+import { useCoarsePointer } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
 
 const SQUARE_GAP_PX = 6;
 
-const HALF_ROW_PX = (ITEM_SLOT_SIZE_PX + SQUARE_GAP_PX) / 2;
+/**
+ * On a phone the panels share the bottom third of the screen with the
+ * joystick, and the seven squares at desktop size did not fit it.
+ */
+const TOUCH_SLOT_SIZE_PX = 36;
+
+const TOUCH_SQUARE_GAP_PX = 4;
 
 const ROWS_PER_SQUARE = 2;
 
@@ -121,6 +128,9 @@ export function EquipmentPanel({
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
+  const coarse = useCoarsePointer();
+  const slotPx = coarse ? TOUCH_SLOT_SIZE_PX : ITEM_SLOT_SIZE_PX;
+  const gapPx = coarse ? TOUCH_SQUARE_GAP_PX : SQUARE_GAP_PX;
   const claimed = handClaimedByTwoHander(equipment, tilesById);
   const spilling = claimed ? equipment[otherHand(claimed)] : null;
 
@@ -133,9 +143,9 @@ export function EquipmentPanel({
       <div
         className="grid self-start"
         style={{
-          gridTemplateColumns: `repeat(${COLUMN_COUNT}, ${ITEM_SLOT_SIZE_PX}px)`,
-          gridTemplateRows: `repeat(${ROW_COUNT}, ${HALF_ROW_PX}px)`,
-          columnGap: SQUARE_GAP_PX,
+          gridTemplateColumns: `repeat(${COLUMN_COUNT}, ${slotPx}px)`,
+          gridTemplateRows: `repeat(${ROW_COUNT}, ${(slotPx + gapPx) / 2}px)`,
+          columnGap: gapPx,
         }}
       >
         {SQUARES.map((square) => (
@@ -160,6 +170,7 @@ export function EquipmentPanel({
               drag={drag}
               masteryXp={masteryXp}
               statusDefs={statusDefs}
+              sizePx={slotPx}
             />
           </div>
         ))}
