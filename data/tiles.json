@@ -29130,7 +29130,8 @@
       "item": {
         "type": "container",
         "size": 4,
-        "equippable": true
+        "equippable": true,
+        "frame": "burlap"
       }
     },
     "sprite": {
@@ -29172,7 +29173,8 @@
       "item": {
         "type": "container",
         "size": 8,
-        "equippable": true
+        "equippable": true,
+        "frame": "leather"
       }
     },
     "sprite": {
@@ -29213,7 +29215,8 @@
       "item": {
         "type": "container",
         "size": 2,
-        "equippable": false
+        "equippable": false,
+        "frame": "chest"
       },
       "push": {
         "climb": "none",
@@ -38839,7 +38842,8 @@
       "item": {
         "type": "container",
         "size": 1,
-        "equippable": false
+        "equippable": false,
+        "frame": "burlap"
       }
     },
     "sprite": {
