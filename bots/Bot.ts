@@ -1,4 +1,4 @@
-import { coveredBySomething, type ObjectRef } from "../app/game/affordances";
+import type { ObjectRef } from "../app/game/affordances";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import type { CastSlot, SpellButton } from "../app/game/casting";
 import { carriedInstances, type Equipment } from "../app/game/equipment";
@@ -1969,7 +1969,6 @@ export class Bot {
       if (!part) continue;
       const def = this.tilesById[placed.tileId];
       if (!def || !resolveItem(def)) continue;
-      if (coveredBySomething(stack, stackIndex, this.tilesById)) continue;
       const ref = { ...cell, stackIndex };
       if ((this.lootSkipped.get(lootKey(ref, part.tileId)) ?? 0) > nowMs) continue;
       if (!sees(snapshot, this.tilesById, cell)) return null;
