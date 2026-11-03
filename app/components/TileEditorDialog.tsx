@@ -22,6 +22,7 @@ import type {
 } from "../lib/types";
 import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import { ParticleFields } from "./ParticleFields";
+import { ReflectiveFields } from "./ReflectiveFields";
 import { ProjectileTab } from "./ProjectileTab";
 import { VfxPreview } from "./VfxPreview";
 import { NO_VFX } from "../lib/statusVfx";
@@ -605,6 +606,7 @@ export function TileEditorDialog({
       swims: isActor && draft.swims ? true : undefined,
       walkSpeedPercent: draft.walkSpeedPercent || undefined,
       wade: draft.wade ? true : undefined,
+      reflective: draft.reflective,
       footprint:
         mayCoverCells(draft) && draft.footprint && (draft.footprint.w > 1 || draft.footprint.d > 1)
           ? draft.footprint
@@ -1691,6 +1693,11 @@ export function TileEditorDialog({
                 className="w-24"
               />
             </label>
+
+            <ReflectiveFields
+              reflective={draft.reflective}
+              onChange={(reflective) => setDraft({ ...draft, reflective })}
+            />
 
             <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
               <div className="flex items-center gap-2">
