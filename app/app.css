@@ -49,8 +49,8 @@
   --color-wood-hi: #d39a5c;
   --color-wood: #9a6434;
   --color-wood-lo: #5a3519;
-  --color-parchment: #ead9ad;
-  --color-parchment-ink: #3a2816;
+  --color-parchment: #c9b07c;
+  --color-parchment-ink: #24160a;
   --color-brass: #d4a03c;
 }
 
@@ -754,7 +754,7 @@ body {
 
 @layer components {
   .gump--parchment .knob {
-    background-color: #dcc58f;
+    background-color: #dbc595;
     color: var(--color-parchment-ink);
     box-shadow:
       inset var(--b) var(--b) 0 0 #f6ead0,
@@ -762,7 +762,7 @@ body {
   }
 
   .gump--parchment .knob:hover {
-    background-color: #e6d3a3;
+    background-color: #e4d1a6;
   }
 
   .gump--parchment .knob:active,
@@ -776,7 +776,7 @@ body {
   }
 
   .gump--parchment .socket {
-    background-color: #d6c18e;
+    background-color: #b39a68;
     box-shadow:
       inset var(--b) var(--b) 0 0 #9a7a45,
       inset calc(var(--b) * -1) calc(var(--b) * -1) 0 0 #f6ead0;
