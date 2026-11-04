@@ -134,6 +134,7 @@ import {
   rewardNotice,
   spawnNotice,
   despawnNotice,
+  faceNotice,
   statusAcquiredNotice,
   otherStatusNotice,
   otherStatusRemovedNotice,
@@ -150,6 +151,7 @@ import { type Combatant, mayHarm } from "./pvp";
 import {
   BRAIN_COMMAND,
   DESPAWN_COMMAND,
+  FACE_COMMAND,
   FIRE_COMMAND,
   GIVE_COMMAND,
   GOTO_COMMAND,
@@ -163,6 +165,7 @@ import {
   TILE_COMMAND,
   TIME_COMMAND,
   type BrainCommand,
+  type FaceCommand,
   type Command,
   type CommandOutcome,
   type CommandRefusal,
@@ -5026,7 +5029,24 @@ export class GameSession implements PlaySession {
         return this.runBrainCommand(command, id);
       case FIRE_COMMAND:
         return this.runFireCommand(command, id);
+      case FACE_COMMAND:
+        return this.runFaceCommand(command, id);
     }
+  }
+
+  private runFaceCommand(command: FaceCommand, id: string): CommandOutcome {
+    const targetId = command.target ?? id;
+    const actor = this.actors.get(targetId);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
+
+    this.turnActor(actor, loc, command.direction);
+    const name = this.bodyName(actor.id) ?? actor.id;
+    this.say(id, faceNotice(name, command.direction));
+    return {
+      ok: true,
+      data: { command: FACE_COMMAND, target: actor.id, direction: command.direction },
+    };
   }
 
   private runTimeCommand(command: TimeCommand, id: string): CommandOutcome {

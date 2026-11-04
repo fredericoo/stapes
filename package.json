@@ -26,6 +26,7 @@
     "bench:bots": "bun scripts/bench-bots.ts",
     "bots": "bun bots/index.ts",
     "verify": "bun scripts/verify.ts",
+    "scene": "bun scripts/scene.ts",
     "test": "bun run test:unit && bun run test:server && bun run test:perf",
     "test:unit": "vitest run",
     "test:server": "bun test server/ bots/",

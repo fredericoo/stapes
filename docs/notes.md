@@ -752,6 +752,42 @@ leftover from the Worker deployment in any case: the module is a set of keys and
 a `JSON.parse`, with nothing server-only in it, and `GameServer` had been
 importing its type into shared code for as long as it has existed.
 
+## `/admin/scene` draws a hand-written scene with no game behind it
+
+`bun run scene <file> --out <png>` exists so a renderer change can be looked
+at without playing the world for it. Finding the case in `data/map.json`,
+keeping a creature from walking off or killing the player, and waiting for the
+whole map's light to bake each cost more than the change being checked.
+
+- **A scene is cells, not a map file.** `Scene` (`app/lib/scene.ts`) lists
+  stacks by cell or by rectangle, each tile an id or `{ tile, facing,
+  variant }`; `buildScene` turns it into a `MapFile` with `replaceStack`, so
+  a later entry replaces an earlier one's stack. A tile id it does not know, a
+  facing that is not a cardinal or a bad time is an error naming it, thrown
+  in the page and so out of `page.evaluate` into the script.
+- **The renderer is the game's, the catalogue is the real one.**
+  `/admin/scene` loads `fetchBootstrap()` like `/admin/play` and hands the map
+  to a bare `WorldRenderer`: no `GameRenderer`, no `GameServer`, no session.
+  Nothing on the page moves or decides.
+- **Every render of a scene is the same picture.** The page never calls
+  `start()`, so the animation clock stays at zero and water and every other
+  animated tile is drawn at its first frame. Two renders, one on the base
+  commit and one on the branch, differ only where the change does.
+- **`render` resolves on a settled frame.** It polls `isSettled()` (the light
+  bake has landed) and then calls `renderOnce()` itself, since there is no
+  render loop to draw it.
+- **No destructured default parameters in a route module.** `{ timeoutMs =
+  DEFAULT } = {}` as a parameter of `window.__scene.render` broke
+  `react-router build` ("Expected a Path, but got null", in
+  `split-route-modules`), while `bun dev` and the typecheck passed. Read an
+  optional argument inside the body instead, and run `bun run build` on a new
+  route before pushing.
+- **The script starts its own `bun dev`** on free ports and stops it, unless
+  `--url` is given, and launches Chromium with software GL
+  (`--use-angle=swiftshader`), so the picture does not depend on a GPU.
+  `CHROMIUM_PATH` names the browser where the repo's Playwright build is not
+  installed, as in the cloud container.
+
 ## `window.__stapes` is the page an agent drives
 
 The play pages, `/online` and `/admin/play`, put one object on the window for anything
@@ -8693,7 +8729,7 @@ A line beginning with `/` is an instruction rather than something to say.
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
 The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/give`, `/status`,
-`/health`, `/brain`, `/fire`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
+`/health`, `/brain`, `/face`, `/fire`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
 `app/game/commands.ts` is the grammar of each, and is the line a player is shown
 when they get one wrong.
 
@@ -9020,6 +9056,15 @@ be in one particular state for the thing being checked to happen.
   and a state the brain does not have is refused with the list of the states it
   does, the way an unknown status lists the statuses.
 
+
+### `/face` turns a body to look one way
+
+`/face <body> <n|e|s|w>` sets the facing a body is drawn with, through the same
+`turnActor` a step uses, so a reflection, a lantern's beam or anything else
+that depends on facing can be looked at from each side without walking the
+body there. Only the four cardinals are accepted, because `turnActor` stores a
+`Direction`. A brain that is on turns the body again on its next step, so put
+it `off` with `/brain` first when the facing has to hold.
 ### `/fire` sends a projectile's flight, and nothing that travels with one
 
 `/fire <projectile> <from> <to>` looses a projectile tile from one end to the

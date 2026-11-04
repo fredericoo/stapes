@@ -1,0 +1,10 @@
+{
+  "time": "12:00",
+  "zoom": 6,
+  "look": [4, 4],
+  "cells": [
+    { "from": [-2, -2], "to": [10, 10], "tiles": ["grass-2"] },
+    { "from": [4, 4], "to": [9, 9], "tiles": ["dirt", "water"] },
+    { "at": [3, 3], "tiles": ["grass-2", { "tile": "cyclops", "facing": "e" }] }
+  ]
+}

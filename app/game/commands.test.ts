@@ -1223,6 +1223,34 @@ function cellAfter(session: GameSession, id: string, ms: number) {
   return at && { x: at.x, y: at.y };
 }
 
+describe("turning a body", () => {
+  const facingOf = (session: GameSession, x: number, y: number) =>
+    getStack(session.getMap(), x, y, 0)?.find((p) => p.tileId === "hound")?.direction;
+
+  it("turns a body to the direction named, and it stays turned while its brain is off", () => {
+    const session = world();
+    session.runCommand("/spawn hound 2 2", "me");
+    session.runCommand("/brain npc:2,2,0,1 off", "me");
+    const reply = session.runCommand("/face npc:2,2,0,1 west", "me");
+
+    expect(reply).toEqual({
+      ok: true,
+      notice: "Hound turns to face west",
+      ids: [],
+      data: { command: "face", target: "npc:2,2,0,1", direction: "w" },
+    });
+    cellAfter(session, "npc:2,2,0,1", A_FEW_BRAIN_TURNS_MS);
+    expect(facingOf(session, 2, 2)).toBe("w");
+  });
+
+  it("refuses a word that is not a direction", () => {
+    expect(parseCommand("/face npc:2,2,0,1 up")).toEqual({
+      ok: false,
+      refusal: { kind: "notADirection", typed: "up" },
+    });
+  });
+});
+
 describe("switching a brain", () => {
   it("reads a body, then off, on or the name of a state", () => {
     expect(parseCommand("/brain npc:2,2,0,1 OFF")).toEqual({
