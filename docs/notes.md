@@ -8615,7 +8615,7 @@ A line beginning with `/` is an instruction rather than something to say.
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
 The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/give`, `/status`,
-`/health`, `/brain`, `/fire`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
+`/health`, `/brain`, `/face`, `/fire`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
 `app/game/commands.ts` is the grammar of each, and is the line a player is shown
 when they get one wrong.
 
@@ -8942,6 +8942,15 @@ be in one particular state for the thing being checked to happen.
   and a state the brain does not have is refused with the list of the states it
   does, the way an unknown status lists the statuses.
 
+
+### `/face` turns a body to look one way
+
+`/face <body> <n|e|s|w>` sets the facing a body is drawn with, through the same
+`turnActor` a step uses, so a reflection, a lantern's beam or anything else
+that depends on facing can be looked at from each side without walking the
+body there. Only the four cardinals are accepted, because `turnActor` stores a
+`Direction`. A brain that is on turns the body again on its next step, so put
+it `off` with `/brain` first when the facing has to hold.
 ### `/fire` sends a projectile's flight, and nothing that travels with one
 
 `/fire <projectile> <from> <to>` looses a projectile tile from one end to the

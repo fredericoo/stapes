@@ -3,7 +3,7 @@ import type { CraftInteraction, ExtractInteraction, PlacedReward } from "../lib/
 import { DEFAULT_CRAFT_VERB, DEFAULT_EXTRACT_VERB } from "../lib/interactions";
 import { EQUIP_SLOTS } from "../lib/kit";
 import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
-import type { Coord, TileDef } from "../lib/types";
+import type { Coord, Direction, TileDef } from "../lib/types";
 import type { CastRefusal } from "./casting";
 import type { InteractionOption } from "./interactionOptions";
 import {
@@ -169,6 +169,8 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return `${refusal.name} is not driven by a brain`;
     case "unknownState":
       return `No state called "${refusal.typed}" in ${refusal.name}'s brain. Try ${refusal.known.join(", ")}`;
+    case "notADirection":
+      return `"${refusal.typed}" is not a direction. Try n, e, s or w`;
     case "notAProjectile":
       return refusal.known.length === 0
         ? `"${refusal.typed}" is not a projectile, and this world authored none`
@@ -207,6 +209,17 @@ export function fireNotice(projectile: string, from: string | Coord, to: string 
 export function otherArrivalNotice(name: string, at: Coord): string {
   return `${name} is now at ${cellName(at)}`;
 }
+
+export function faceNotice(name: string, direction: Direction): string {
+  return `${name} turns to face ${DIRECTION_NAMES[direction]}`;
+}
+
+const DIRECTION_NAMES: Record<Direction, string> = {
+  n: "north",
+  e: "east",
+  s: "south",
+  w: "west",
+};
 
 export function despawnNotice(name: string, at: Coord): string {
   return `${name} disappears from ${cellName(at)}`;
