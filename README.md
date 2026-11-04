@@ -263,6 +263,13 @@ an agent drives", lists every call.
     a temporary git worktree that borrows this checkout's `node_modules`,
     and prints the change in each figure: the balance evidence a content PR
     attaches
+- `bun run scene <scene.json> --out <file.png>` — draw a few hand-written cells
+  with the game's own renderer and no game behind it, and screenshot them. A
+  scene lists tile stacks by cell, each tile with an optional facing, plus the
+  time of day, zoom and the cell to centre on (`Scene` in `app/lib/scene.ts`;
+  `scripts/scenes/` has examples). It starts `bun dev` on free ports for the
+  shot unless `--url` names one already running; `--size` and `--scale` set
+  the viewport and pixel ratio. The page it drives is `/admin/scene`
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says

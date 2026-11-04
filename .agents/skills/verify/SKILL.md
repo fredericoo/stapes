@@ -74,8 +74,15 @@ has to have `verify battle` itself; on an older one it says so and stops.
 - **A world lets in at most 250 players who are not administrators**
   (`MAX_ONLINE_PLAYERS`). A test with a larger crowd has to raise it the way
   `bench:crowd` does, with `GameServer`'s `maxOnlinePlayers` option.
-- **Playwright in the cloud container** needs the browser named:
-  `CHROMIUM_PATH=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell bun run test:perf`.
+- **Playwright in the cloud container** needs the browser named, because the
+  one the repo's Playwright expects is not installed there:
+  `CHROMIUM_PATH=/opt/pw-browsers/chromium bun run test:perf`, and the same
+  for `bun run scene`.
+- **A creature in `/admin/play` acts on its own.** It wanders off, turns, or
+  kills the player before the screenshot. `/brain <body> off` stops it, and
+  `/face <body> <n|e|s|w>` turns it; `/tile` and `/spawn` reply with the new
+  body's id in `ids`. For a picture rather than behaviour, draw a scene
+  instead (below).
 
 ## Looking at it
 
@@ -84,6 +91,44 @@ tools under `/admin` need an administrator: a fresh database seeds `admin` with
 the password `salem123`. `/admin/play` is the game with the real `GameServer`
 running in the tab, so it needs no socket and no character, and it is the page
 to open when the question is whether the game still works.
+
+### A picture of a renderer change: `bun run scene`
+
+When the question is what something looks like (a sprite, a reflection, light,
+draw order), do not go looking for the case in the real world. Write it:
+
+```json
+{
+  "time": "12:00",
+  "zoom": 6,
+  "look": [4, 4],
+  "cells": [
+    { "from": [-2, -2], "to": [10, 10], "tiles": ["grass-2"] },
+    { "from": [4, 4], "to": [9, 9], "tiles": ["dirt", "water"] },
+    { "at": [3, 3], "tiles": ["grass-2", { "tile": "cyclops", "facing": "e" }] }
+  ]
+}
+```
+
+```sh
+bun run scene scripts/scenes/cyclops-pond.json --out before.png
+```
+
+- **It is the real renderer and the real catalogue.** `/admin/scene` hands the
+  scene to `WorldRenderer` with `data/tiles.json` and the tilesets, and no
+  `GameServer`: nothing moves, nothing thinks, nobody dies. It waits for the
+  light to bake before the shot.
+- **Later entries replace earlier stacks**, so fill the ground with a `from`/`to`
+  rectangle first and place things after. A stack is listed bottom first, as
+  in `data/map.json`. `z` goes third in `at`, or as `z` beside `from`/`to`.
+- **Before and after from one scene file.** Render it on the base commit and on
+  the branch, with the same `--size`, and the only difference is the change.
+  Keep a scene that shows something worth checking again in `scripts/scenes/`.
+- **It takes about 20 seconds**, most of it starting `bun dev`. With `bun dev`
+  already running, `--url <client origin>` skips that.
+- **What it cannot show:** anything that needs the game running, such as a
+  walk, a projectile, a status tint or a creature's state. Use `/admin/play`
+  with `/brain off` and `/face` for those.
 
 ## Handing the evidence over
 
