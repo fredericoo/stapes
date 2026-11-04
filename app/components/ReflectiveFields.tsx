@@ -1,4 +1,5 @@
 import {
+  DEFAULT_REFLECTION_FADE_PX,
   DEFAULT_REFLECTION_OPACITY,
   MAX_REFLECTIVE_COLORS,
   type TileReflective,
@@ -8,10 +9,12 @@ import { ColorField, NumberField, Row } from "./ParticleFields";
 
 const MAX_TURBULENCE_PX = 4;
 const OPACITY_STEP = 0.05;
+const MAX_FADE_PX = 128;
 
 export const DEFAULT_REFLECTIVE: TileReflective = {
   colors: ["#335c8c"],
   opacity: DEFAULT_REFLECTION_OPACITY,
+  fadePx: DEFAULT_REFLECTION_FADE_PX,
   turbulence: 1,
 };
 
@@ -90,6 +93,15 @@ function ReflectiveSettings({
           max={1}
           step={OPACITY_STEP}
           onChange={(opacity) => onChange({ ...reflective, opacity })}
+        />
+        <NumberField
+          label="Fade height (px)"
+          info="How many pixels above the waterline a reflection takes to fade out. Anything taller than this is not reflected past this height."
+          value={reflective.fadePx ?? DEFAULT_REFLECTION_FADE_PX}
+          min={1}
+          max={MAX_FADE_PX}
+          step={1}
+          onChange={(fadePx) => onChange({ ...reflective, fadePx })}
         />
         <NumberField
           label="Turbulence (px)"

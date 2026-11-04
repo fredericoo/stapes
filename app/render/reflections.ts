@@ -9,6 +9,7 @@ import {
 } from "../lib/mapData";
 import {
   CELL_SIZE,
+  DEFAULT_REFLECTION_FADE_PX,
   DEFAULT_REFLECTION_OPACITY,
   MAX_REFLECTIVE_COLORS,
   coordKey,
@@ -41,13 +42,28 @@ export const REFLECTION_LEVELS_BELOW = 3;
 const REFLECTION_DEPTH_SPAN_PX = 32768;
 
 /**
- * The target's alpha names the water surface a reflection belongs to, so water
- * on another level that happens to share its screen pixels ignores it. Zero is
- * left for "nothing reflected here"; elevations come in quarters at the finest.
+ * A reflection texel packs three things into RGBA8. The top six bits of each
+ * channel are the sRGB colour. The low two bits of r, g and b together name the
+ * waterline in half heights modulo 64, so water on another level that shares
+ * the screen pixel ignores it. Alpha is the art pixel's height above the
+ * waterline plus one, so zero means nothing is reflected there.
  */
-const WATERLINE_TAG_GLSL = `
+const REFLECTION_PACKING_GLSL = `
 float waterlineTag(float elev) {
-  return (1.0 + mod(floor(elev * 4.0 + 0.5), 254.0)) / 255.0;
+  return mod(floor(elev * 2.0 + 0.5), 64.0);
+}
+vec4 packReflection(vec3 srgb, float elev, float heightPx) {
+  vec3 colour = floor(clamp(srgb, 0.0, 1.0) * 63.0 + 0.5) * 4.0;
+  float tag = waterlineTag(elev);
+  vec3 tagBits = vec3(floor(tag / 16.0), mod(floor(tag / 4.0), 4.0), mod(tag, 4.0));
+  return vec4(colour + tagBits, clamp(heightPx, 0.0, 254.0) + 1.0) / 255.0;
+}
+`;
+
+const UNPACK_REFLECTION_GLSL = `
+float unpackedWaterlineTag(vec3 bytes) {
+  vec3 bits = mod(bytes, 4.0);
+  return bits.r * 16.0 + bits.g * 4.0 + bits.b;
 }
 `;
 
@@ -64,6 +80,7 @@ export type ReflectionUniforms = {
   uReflectClockMs: { value: number };
   uReflectMask: { value: THREE.Vector3[] };
   uReflectOpacity: { value: number[] };
+  uReflectFadePx: { value: number[] };
   uReflectTurbulence: { value: number[] };
 };
 
@@ -80,6 +97,7 @@ export function createReflectionUniforms(): ReflectionUniforms {
       ),
     },
     uReflectOpacity: { value: new Array<number>(MAX_REFLECTIVE_TILES).fill(0) },
+    uReflectFadePx: { value: new Array<number>(MAX_REFLECTIVE_TILES).fill(1) },
     uReflectTurbulence: { value: new Array<number>(MAX_REFLECTIVE_TILES).fill(0) },
   };
 }
@@ -118,6 +136,10 @@ export function writeReflectionDefs(
       uniforms.uReflectMask.value[slot * MAX_REFLECTIVE_COLORS + i]!.set(c.r, c.g, c.b);
     });
     uniforms.uReflectOpacity.value[slot] = reflective.opacity ?? DEFAULT_REFLECTION_OPACITY;
+    uniforms.uReflectFadePx.value[slot] = Math.max(
+      1,
+      reflective.fadePx ?? DEFAULT_REFLECTION_FADE_PX,
+    );
     uniforms.uReflectTurbulence.value[slot] = reflective.turbulence;
   }
 }
@@ -138,16 +160,19 @@ uniform float uReflectFragPerPx;
 uniform float uReflectClockMs;
 uniform vec3 uReflectMask[${MAX_REFLECTIVE_TILES * MAX_REFLECTIVE_COLORS}];
 uniform float uReflectOpacity[${MAX_REFLECTIVE_TILES}];
+uniform float uReflectFadePx[${MAX_REFLECTIVE_TILES}];
 uniform float uReflectTurbulence[${MAX_REFLECTIVE_TILES}];
 varying float vReflect;
-${WATERLINE_TAG_GLSL}
+${REFLECTION_PACKING_GLSL}
+${UNPACK_REFLECTION_GLSL}
 `;
 
 /**
  * Runs before lighting, so a reflection is lit (and darkened at night) like the
  * water it lies on. It reads the art pixel's centre, shifted a whole number of
  * art pixels per row, so a ripple moves the reflection in steps of the art grid.
- * The target holds sRGB-encoded colour, decoded here before the linear blend.
+ * The reflection fades out linearly over `fadePx` art pixels above the
+ * waterline, and its sRGB colour is decoded before the linear blend.
  */
 export const REFLECT_GLSL_FRAGMENT = `
 #ifdef USE_MAP
@@ -169,10 +194,12 @@ if (vReflect > 0.5) {
     vec2 artPx = floor(vWorldPx) + 0.5 + vec2(shiftPx, 0.0);
     // World y runs down the screen and gl_FragCoord.y runs up it.
     vec2 frag = gl_FragCoord.xy + (artPx - vWorldPx) * vec2(uReflectFragPerPx, -uReflectFragPerPx);
-    vec4 reflected = texture2D(uReflectMap, frag / uReflectSize);
-    if (abs(reflected.a - waterlineTag(vBox.z)) < ${glsl(0.5 / 255)}) {
-      vec3 reflectedLinear = sRGBTransferEOTF(vec4(reflected.rgb, 1.0)).rgb;
-      diffuseColor.rgb = mix(diffuseColor.rgb, reflectedLinear, uReflectOpacity[reflectSlot]);
+    vec4 bytes = floor(texture2D(uReflectMap, frag / uReflectSize) * 255.0 + 0.5);
+    if (bytes.a > 0.5 && unpackedWaterlineTag(bytes.rgb) == waterlineTag(vBox.z)) {
+      vec3 srgb = floor(bytes.rgb / 4.0) / 63.0;
+      vec3 reflectedLinear = sRGBTransferEOTF(vec4(srgb, 1.0)).rgb;
+      float fade = clamp(1.0 - (bytes.a - 1.0) / uReflectFadePx[reflectSlot], 0.0, 1.0);
+      diffuseColor.rgb = mix(diffuseColor.rgb, reflectedLinear, uReflectOpacity[reflectSlot] * fade);
     }
   }
 }
@@ -185,10 +212,10 @@ export const NO_REFLECTION_CUT = 1e9;
 /**
  * Draws a sprite turned half a turn about `aPivot.xy` (the centre of its base
  * cell at the waterline, in model space) into the reflection target in its own
- * colours, sRGB-encoded so the 8-bit target keeps the dark shades apart, with
- * the waterline `aPivot.w` tagged in alpha. Below `aPivot.z` (model space y) it
- * is cut off flat. A wading body is turned as it is drawn, sunk and cropped,
- * about the same pivot it would have on dry ground.
+ * colours, packed with its waterline `aPivot.w` and height above it (see
+ * `REFLECTION_PACKING_GLSL`). Below `aPivot.z` (model space y) it is cut off
+ * flat. A wading body is turned as it is drawn, sunk and cropped, about the
+ * same pivot it would have on dry ground.
  */
 export function createReflectionMaterial(
   texture: THREE.Texture,
@@ -208,6 +235,7 @@ varying float vWading;
 varying float vReflectedY;
 varying float vCutY;
 varying float vWaterline;
+varying float vPivotY;
 ${ANIM_GLSL_FUNCTION}
 void main() {
   vUv = uv;
@@ -226,6 +254,7 @@ void main() {
   vec2 reflected = 2.0 * pivot - world;
   vReflectedY = reflected.y;
   vWaterline = aPivot.w;
+  vPivotY = pivot.y;
   gl_Position = projectionMatrix * viewMatrix * vec4(reflected, 0.0, 1.0);
   // The camera is orthographic, so w is 1 and this is the NDC depth: nearer the viewer is lower.
   float nearness = aBox.x + aBox.y + aBox.z * 0.5 - cameraPosition.x - cameraPosition.y;
@@ -240,7 +269,8 @@ varying float vWading;
 varying float vReflectedY;
 varying float vCutY;
 varying float vWaterline;
-${WATERLINE_TAG_GLSL}
+varying float vPivotY;
+${REFLECTION_PACKING_GLSL}
 void main() {
   if (vReflectedY > vCutY) discard;
   if (vWading > 0.5) {
@@ -249,7 +279,9 @@ void main() {
   }
   vec4 texel = texture2D(map, vUv);
   if (texel.a < 0.5) discard;
-  gl_FragColor = vec4(sRGBTransferOETF(vec4(texel.rgb, 1.0)).rgb, waterlineTag(vWaterline));
+  vec3 srgb = sRGBTransferOETF(vec4(texel.rgb, 1.0)).rgb;
+  float heightPx = floor(vPivotY - floor(vSourcePx.y));
+  gl_FragColor = packReflection(srgb, vWaterline, heightPx);
 }`,
     side: THREE.DoubleSide,
     depthTest: true,

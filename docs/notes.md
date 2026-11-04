@@ -2365,8 +2365,9 @@ route" — so it walks round water when going round is quicker.
 A tile with `reflective` has three fields: `colors`, the pixels of its own art
 that act as a mirror (the shipped water lists its two body colours and leaves
 the crest out); `opacity`, how much of the reflected sprite's own colour is
-blended over the water; and `turbulence`, how many pixels a row of the
-reflection may sway sideways. A tile saved without `opacity` reads
+blended over the water; `fadePx`, how many art pixels above the waterline the
+reflection takes to fade to nothing; and `turbulence`, how many pixels a row
+of the reflection may sway sideways. A tile saved without `opacity` reads
 `DEFAULT_REFLECTION_OPACITY`.
 
 In the cabinet projection a box turned half a turn about the centre of its
@@ -2383,12 +2384,16 @@ How it is drawn (`app/render/reflections.ts`, wired in `WorldRenderer`):
   writes the sprite's texel sRGB-encoded. Before the main pass the camera draws
   layer 1 into a target the size of the drawing buffer. Nothing is drawn when
   no loaded chunk reflects.
-- **Alpha names the water surface.** The target is in screen space, so water
-  on one level shares pixels with reflections meant for water on another: a
-  pool on a cliff top sits on screen right where the cliff's own reflection in
-  the pond below lands. Each twin writes `waterlineTag` of its waterline into
-  alpha, and water takes only a reflection whose tag matches its own foot
-  elevation (`vBox.z`). Zero means nothing is reflected there.
+- **A texel carries a waterline tag and a height.** The target is in screen
+  space, so water on one level shares pixels with reflections meant for water
+  on another: a pool on a cliff top sits on screen right where the cliff's own
+  reflection in the pond below lands. `REFLECTION_PACKING_GLSL` keeps six bits
+  of colour per channel, puts `waterlineTag` of the waterline in the two low
+  bits of r, g and b, and puts the art pixel's height above the waterline in
+  alpha. Water takes only a reflection whose tag matches its own foot elevation
+  (`vBox.z`), and fades it by that height over `fadePx`. Height is measured from
+  the waterline pivot, so an upper storey, pivoted at the water, fades from
+  where the ground floor left off.
 - **The pass has its own depth.** A thing nearer the viewer also stands in
   front of a farther thing's reflection: a waterfall hides the cliff behind it,
   and so must its reflection. Each twin's depth is `x + y` of its base cell,
