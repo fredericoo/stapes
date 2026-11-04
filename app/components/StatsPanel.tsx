@@ -1,11 +1,14 @@
 import {
   levelForXp,
-  MASTERIES,
+  MAGIC_MASTERIES,
   type Mastery,
+  MASTERY_LABELS,
   type MasteryXp,
   masteriesFromXp,
+  PHYSICAL_MASTERIES,
   progressToNextLevel,
   rating,
+  WEAPON_MASTERIES,
 } from "../lib/mastery";
 import type { Attributes } from "../game/attributes";
 import type { Vitals } from "../game/GameSession";
@@ -35,12 +38,6 @@ export function StatsPanel({
   scrolls?: boolean;
   className?: string;
 }) {
-  const levels = MASTERIES.map((mastery) => ({
-    mastery,
-    level: levelForXp(masteryXp[mastery] ?? 0),
-    progress: progressToNextLevel(masteryXp[mastery] ?? 0),
-  })).sort((a, b) => b.level - a.level);
-
   const stars = vitals.rating ?? rating(masteriesFromXp(masteryXp));
 
   return (
@@ -63,21 +60,59 @@ export function StatsPanel({
         <Effects statuses={statuses} tilesets={tilesets} />
 
         <h3 className={SECTION_HEADING_CLASS}>{HEADINGS.masteries}</h3>
-        <ul className="flex flex-col gap-1">
-          {levels.map(({ mastery, level, progress }) => (
-            <li key={mastery} className="flex flex-col gap-0.5">
-              <span className="flex items-baseline gap-1 text-xs">
-                <span className="capitalize text-paper/80">{mastery}</span>
-                <span className="ml-auto tabular-nums text-paper">{level}</span>
-              </span>
-              <MasteryProgress mastery={mastery} level={level} progress={progress} />
-            </li>
-          ))}
-        </ul>
+        {MASTERY_GROUPS.map((group) => (
+          <MasteryGroup key={group.label} group={group} masteryXp={masteryXp} />
+        ))}
 
         <Combat attributes={vitals.attributes} />
       </div>
     </HudWindow>
+  );
+}
+
+const WEAPON_GROUP: Mastery[] = WEAPON_MASTERIES.filter(
+  (mastery) => !MAGIC_MASTERIES.includes(mastery),
+);
+
+/**
+ * Built from the lists in `lib/mastery` so that every mastery lands in exactly
+ * one group: what is neither a weapon nor magic is physical.
+ */
+const MASTERY_GROUPS: { label: string; masteries: Mastery[] }[] = [
+  { label: "Weapons", masteries: WEAPON_GROUP },
+  {
+    label: "Physical",
+    masteries: PHYSICAL_MASTERIES.filter((mastery) => !WEAPON_GROUP.includes(mastery)),
+  },
+  { label: "Arcane", masteries: MAGIC_MASTERIES },
+];
+
+function MasteryGroup({
+  group,
+  masteryXp,
+}: {
+  group: { label: string; masteries: Mastery[] };
+  masteryXp: MasteryXp;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5" role="group" aria-label={`${group.label} masteries`}>
+      <h4 className="text-2xs uppercase tracking-wide text-paper/50">{group.label}</h4>
+      <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {group.masteries.map((mastery) => {
+          const xp = masteryXp[mastery] ?? 0;
+          const level = levelForXp(xp);
+          return (
+            <li key={mastery} className="flex min-w-0 flex-col gap-0.5">
+              <span className="flex items-baseline gap-1 text-xs">
+                <span className="truncate text-paper/80">{MASTERY_LABELS[mastery]}</span>
+                <span className="ml-auto tabular-nums text-paper">{level}</span>
+              </span>
+              <MasteryProgress mastery={mastery} level={level} progress={progressToNextLevel(xp)} />
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -173,9 +208,9 @@ function MasteryProgress({
     <span
       role="img"
       aria-label={`${mastery} ${level}, ${Math.round(progress * 100)}% towards the next`}
-      className="flex h-1.5 w-full border border-frame-lo bg-ink"
+      className="flex h-1.5 w-full border border-paper/35 bg-black"
     >
-      <span className="bg-label/70" style={{ width: `${Math.round(progress * 100)}%` }} />
+      <span className="bg-label" style={{ width: `${Math.round(progress * 100)}%` }} />
     </span>
   );
 }
