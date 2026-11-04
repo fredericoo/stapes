@@ -109,6 +109,7 @@ export function EquipmentPanel({
   tiles,
   tilesets,
   drag,
+  onClose,
   className = "",
 }: {
   equipment: Equipment;
@@ -119,6 +120,7 @@ export function EquipmentPanel({
   tiles: TileDef[];
   tilesets: TilesetDef[];
   drag: ItemDrag;
+  onClose?: () => void;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -126,7 +128,7 @@ export function EquipmentPanel({
   const spilling = claimed ? equipment[otherHand(claimed)] : null;
 
   return (
-    <HudWindow label="Equipment" title="Equipment" className={className}>
+    <HudWindow label="Equipment" title="Equipment" onClose={onClose} className={className}>
       <div
         className="grid self-center"
         style={{

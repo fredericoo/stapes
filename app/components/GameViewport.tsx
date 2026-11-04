@@ -349,6 +349,7 @@ export function GameViewport({
       statuses={statuses}
       tilesets={tilesets}
       scrolls={!coarse}
+      onClose={() => openStats(false)}
     />
   ) : null;
   const equipmentWindow = showEquipment ? (
@@ -361,6 +362,7 @@ export function GameViewport({
       tiles={tiles}
       tilesets={tilesets}
       drag={drag}
+      onClose={() => openEquipment(false)}
     />
   ) : null;
   const bagWindow =

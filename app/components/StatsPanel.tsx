@@ -29,6 +29,7 @@ export function StatsPanel({
   statuses = [],
   tilesets = [],
   scrolls = false,
+  onClose,
   className = "",
 }: {
   vitals: Vitals;
@@ -36,6 +37,7 @@ export function StatsPanel({
   statuses?: ActiveStatus[];
   tilesets?: TilesetDef[];
   scrolls?: boolean;
+  onClose?: () => void;
   className?: string;
 }) {
   const stars = vitals.rating ?? rating(masteriesFromXp(masteryXp));
@@ -45,6 +47,7 @@ export function StatsPanel({
       label="Stats"
       title={HEADINGS.stats}
       meta={<Rating value={stars} className="text-paper/80" />}
+      onClose={onClose}
       flush
       className={className}
     >
