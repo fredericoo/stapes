@@ -45665,7 +45665,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "guard",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
@@ -46710,6 +46710,16 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "black",
+      "head": "beard",
+      "outfit": {
+        "hat": "iron-helmet",
+        "clothes": "steel-mail",
+        "shoes": "grey-boots"
+      }
     }
   },
   {
@@ -47677,7 +47687,7 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "guard",
+      "tilesetId": "people",
       "x": 0,
       "y": 0
     },
