@@ -21,7 +21,8 @@ export type DialogChoice = { label: string; then: DialogCommand[] };
 export type DialogCondition =
   | { cond: "king" }
   | { cond: "tagged"; tag: string }
-  | { cond: "switched"; channel: string };
+  | { cond: "switched"; channel: string }
+  | { cond: "rated_below"; rating: number };
 
 export type DialogIf = {
   kind: "if";
@@ -71,6 +72,10 @@ const whenSchema = conditionSchema<DialogCondition>(
     v.object({ cond: v.literal("king") }),
     v.object({ cond: v.literal("tagged"), tag: name }),
     v.object({ cond: v.literal("switched"), channel: name }),
+    v.object({
+      cond: v.literal("rated_below"),
+      rating: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    }),
   ]),
 );
 

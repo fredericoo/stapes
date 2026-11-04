@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DialogDef } from "../lib/dialog";
+import { MIN_RATING } from "../lib/mastery";
 import {
   acceptTrade,
   cancelTrade,
@@ -61,6 +62,7 @@ function partner(
   king = false,
   tags: readonly string[] = [],
   channels: readonly string[] = [],
+  rating = MIN_RATING,
 ) {
   const attempts: DialogEffectDef[][] = [];
   const view: PartnerView & { attempts: DialogEffectDef[][] } = {
@@ -68,6 +70,7 @@ function partner(
     isKing: () => king,
     hasTag: (tag) => tags.includes(tag),
     channelOn: (channel) => channels.includes(channel),
+    rating: () => rating,
     attempt: (effects) => (attempts.push([...effects]), attempt(effects)),
     attempts,
   };
@@ -276,6 +279,22 @@ describe("an if", () => {
     const open = partner(undefined, false, [], ["gate"]);
     expect(lines(openConversation(porter, npc, open))).toEqual(["npc: The gate stands open."]);
     expect(lines(openConversation(porter, npc, partner()))).toEqual(["npc: The gate is shut."]);
+  });
+
+  it("asks whether the player is rated below a number", () => {
+    const warden: DialogDef = {
+      script: [
+        {
+          kind: "if",
+          when: { cond: "rated_below", rating: 15 },
+          then: [say("Not yet.")],
+          else: [say("Go on.")],
+        },
+      ],
+    };
+    const at = (rating: number) => partner(undefined, false, [], [], rating);
+    expect(lines(openConversation(warden, npc, at(14)))).toEqual(["npc: Not yet."]);
+    expect(lines(openConversation(warden, npc, at(15)))).toEqual(["npc: Go on."]);
   });
 
   it("reads a negated group the other way round", () => {

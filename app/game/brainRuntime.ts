@@ -84,6 +84,7 @@ export type BrainContext = {
   health(): number | null;
   minutesOfDay: MinutesOfDay;
   nameOf(actorId: string): string | null;
+  ratingOf(actorId: string): number | null;
 };
 
 export type Utterance = {
@@ -338,6 +339,11 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       return withinHours(ctx.minutesOfDay, condition.fromHour, condition.toHour);
     case "below_level":
       return ctx.self.z < condition.level;
+    case "rated_below": {
+      const id = boundBody(identify(condition.of, memory, ctx));
+      const rated = id === null ? null : ctx.ratingOf(id);
+      return rated !== null && rated < condition.rating;
+    }
   }
 }
 

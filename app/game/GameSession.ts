@@ -214,6 +214,7 @@ import {
   type Masteries,
   masteriesFromXp,
   type MasteryXp,
+  MIN_RATING,
   rating,
   spellElements,
   xpForLevel,
@@ -1694,6 +1695,7 @@ export class GameSession implements PlaySession {
       name: () => this.bodyName(partner.id),
       isKing: () => partner.id === this.kingId,
       hasTag: (tag) => partner.tags.includes(tag),
+      rating: () => this.ratingOf(partner) ?? MIN_RATING,
       channelOn: (channel) => this.channelOn(channel),
       attempt: (effects) => this.attemptDialogEffects(partner.id, effects),
     };
@@ -1968,6 +1970,10 @@ export class GameSession implements PlaySession {
       health: () => this.healthShare(actor),
       minutesOfDay: round.minutesOfDay,
       nameOf: (id) => this.bodyName(id),
+      ratingOf: (id) => {
+        const body = this.actors.get(id);
+        return body ? this.ratingOf(body) : null;
+      },
     });
   }
 

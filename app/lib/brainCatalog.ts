@@ -45,6 +45,8 @@ type CatalogEntry<T> = {
 
 export const DEFAULT_SELECTOR = nearest(PLAYER_TILE_ID);
 
+export const DEFAULT_RATED_BELOW = 15;
+
 export const DEFAULT_THING = thing(PLAYER_TILE_ID);
 
 export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainConditionDef>> = {
@@ -174,6 +176,15 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     hint: "This body is standing on a level lower than this one. Level 0 is the surface, so below 0 is underground and its not is under the sky.",
     params: [{ key: "level", kind: "number", label: "level" }],
     make: () => ({ cond: "below_level", level: 0 }),
+  },
+  rated_below: {
+    label: "rated below",
+    hint: "The body this names has a rating (its ⭐) under this number. Pair it with in sight of the nearest player to speak to a newcomer and nobody else. A body that is gone, or is a thing, is never rated below anything.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "rating", kind: "number", label: "rating", min: 0 },
+    ],
+    make: () => ({ cond: "rated_below", of: DEFAULT_SELECTOR, rating: DEFAULT_RATED_BELOW }),
   },
   carrying: {
     label: "carrying",
