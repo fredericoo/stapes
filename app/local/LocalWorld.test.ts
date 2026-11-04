@@ -140,7 +140,13 @@ describe("the world in a tab", () => {
 
     await opened.message(
       connection.socket,
-      JSON.stringify({ type: "step", seq: 1, direction: "e", preferDescend: false }),
+      JSON.stringify({
+        type: "step",
+        seq: 1,
+        to: { x: 1, y: 0, z: 0 },
+        chain: 0,
+        preferDescend: false,
+      }),
     );
 
     const moved = await untilCommittedAt(connection, 1);
@@ -155,7 +161,13 @@ describe("the world in a tab", () => {
     await alice.next("hello");
     await first.message(
       alice.socket,
-      JSON.stringify({ type: "step", seq: 1, direction: "e", preferDescend: false }),
+      JSON.stringify({
+        type: "step",
+        seq: 1,
+        to: { x: 1, y: 0, z: 0 },
+        chain: 0,
+        preferDescend: false,
+      }),
     );
     await untilCommittedAt(alice, 1);
     await first.stop();
@@ -176,7 +188,13 @@ describe("the world in a tab", () => {
     await alice.next("hello");
     await opened.message(
       alice.socket,
-      JSON.stringify({ type: "step", seq: 1, direction: "e", preferDescend: false }),
+      JSON.stringify({
+        type: "step",
+        seq: 1,
+        to: { x: 1, y: 0, z: 0 },
+        chain: 0,
+        preferDescend: false,
+      }),
     );
     await untilCommittedAt(alice, 1);
 

@@ -13,4 +13,6 @@
 ## Wire
 
 - `parseServerMessage` uses valibot `v.object` schemas, which strip unknown fields. A field added to a message type but not to its schema is dropped in transit without a type error.
+- `GameServer.seatJoiner` forgets the actor's step chain and step queue. A new socket is a new `RemoteSession`, which numbers its chains from 0, so a chain number kept from the displaced socket would refuse every step the new one sends. Nothing else may lower it: the world resets beside `queuedIntents.clear()` keep `stepChains`, because steps still on their way from a chain the server has just closed would be walked under a lower number.
+- `GameServer.closeChain` adds one to the actor's chain rather than setting it to the refused step's chain plus one. A step refused for a full queue leaves the steps queued ahead of it, which belong to the chain it just closed; when one of those is refused later, the steps the client sent on its next chain are behind it, and a chain set from the refused step's number would let them through.
 - `GameServer.flushCommandReplies` runs at the end of `tick`, after `broadcastPatch`. `RemoteSession.command` resolves when the reply arrives and its callers read the board straight after, so a reply sent from `webSocketMessage`, where the command runs, would reach them before the change it reports.

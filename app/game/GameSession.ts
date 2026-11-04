@@ -338,6 +338,7 @@ import {
   groundWalkSpeedPercent,
   listStandingSurfaces,
   standingAbs,
+  stepDirection,
   surfacesInClimbBand,
   wadesAt,
   walkDurationMsFor,
@@ -6045,7 +6046,11 @@ export class GameSession implements PlaySession {
     this.driveWalkOrder(actor);
   }
 
-  private applyStepRequest(actor: ActorRuntime, request: StepRequest): boolean {
+  private applyStepRequest(
+    actor: ActorRuntime,
+    request: StepRequest,
+    landing: Coord | null = null,
+  ): boolean {
     if (request.directions.length === 0) return false;
     if (this.incapacitated(actor)) return false;
     const loc = this.locate(actor);
@@ -6065,6 +6070,7 @@ export class GameSession implements PlaySession {
 
     if (!choice.step) return false;
     if (actor.casting) return false;
+    if (landing && walkKey(choice.step.to) !== walkKey(landing)) return false;
 
     this.forgetWalk(actor);
     actor.walk = {
@@ -6081,9 +6087,14 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  /**
+   * A cell is a client's prediction, so the step is refused unless it lands exactly
+   * there. The direction is read off the body only after the walk check, because a
+   * walking body is still in the cell it set off from.
+   */
   requestStep(
     id: string,
-    direction: Direction,
+    toward: Direction | Coord,
     opts?: { preferDescend?: boolean },
   ): "started" | "later" | "refused" {
     const actor = this.actor(id);
@@ -6091,10 +6102,15 @@ export class GameSession implements PlaySession {
     if (actor.walk) return "later";
     if (actor.attackRecoveryMs > 0) return "later";
 
-    const started = this.applyStepRequest(actor, {
-      directions: [direction],
-      preferDescend: opts?.preferDescend,
-    });
+    const direction =
+      typeof toward === "string" ? toward : stepDirection(this.locate(actor), toward);
+    if (!direction) return "refused";
+    const landing = typeof toward === "string" ? null : toward;
+    const started = this.applyStepRequest(
+      actor,
+      { directions: [direction], preferDescend: opts?.preferDescend },
+      landing,
+    );
     return started ? "started" : "refused";
   }
 

@@ -5,12 +5,12 @@ import statusesJson from "../data/statuses.json";
 import traitsJson from "../data/traits.json";
 import { RemoteSession } from "../app/net/RemoteSession";
 import { MAP_FILE_VERSION, normalizeTileDef } from "../app/lib/types";
-import { getStack, listCoords } from "../app/lib/mapData";
+import { getStack, listCoords, replaceStack } from "../app/lib/mapData";
 import { covers, visibleStack, withinBodyReach, BODY_REACH_ON_LEVEL } from "../app/net/interest";
 import { MIN_LEVEL, MAX_LEVEL } from "../app/lib/types";
 import type { MapFile } from "../app/lib/types";
 import type { ActorPosition } from "../app/game/GameSession";
-import type { FlatMapFile, TileDef } from "../app/lib/types";
+import type { Coord, FlatMapFile, TileDef } from "../app/lib/types";
 import { PLAYER_TILE_ID, TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { CHUNK_SIZE } from "../app/lib/types";
 import { statusesById } from "../app/lib/status";
@@ -291,4 +291,118 @@ describe("somebody joining out of reach", () => {
     },
     WALKING_TEST_MS,
   );
+});
+
+describe("walking a round trip away from the world", () => {
+  const ONE_WAY_MS = 250;
+
+  function field(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (let x = 0; x <= CHUNK_SIZE * 2; x++) {
+      for (let y = -2; y <= 2; y++) cells[`${x},${y}`] = [{ tileId: "grass" }];
+    }
+    cells[`${SPAWN_X},0`] = [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID, direction: "s" }];
+    return { version: MAP_FILE_VERSION, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  /**
+   * Each frame is held for `ONE_WAY_MS` of the client's clock in both directions,
+   * so a step is drawn well before the world hears of it, and a refusal is heard
+   * well after the client has drawn the steps that followed it.
+   */
+  async function playFar(actorId: string, onServerHears: (seq: number) => void) {
+    await harness.blobs.put("map.json", JSON.stringify(field()), JSON_TYPE);
+    const pair = new Pair();
+    const socket = pair.client();
+    let clock = 0;
+    const up: { at: number; data: string }[] = [];
+    const down: { at: number; data: string }[] = [];
+    const listeners: ((event: { data: unknown }) => void)[] = [];
+    pair.onClientMessage = (data) => up.push({ at: clock + ONE_WAY_MS, data });
+    socket.addEventListener("message", (event) =>
+      down.push({ at: clock + ONE_WAY_MS, data: event.data }),
+    );
+    const sent: { type: string }[] = [];
+    const far = {
+      readyState: 1,
+      send: (data: string) => {
+        sent.push(JSON.parse(data) as { type: string });
+        socket.send(data);
+      },
+      close: () => socket.close(),
+      addEventListener: (type: string, cb: (event: { data: unknown }) => void) => {
+        if (type === "message") listeners.push(cb);
+      },
+      removeEventListener: () => {},
+    };
+    const hear = (data: string) => {
+      for (const cb of listeners) cb({ data });
+    };
+    const remote = new RemoteSession(far as unknown as WebSocket, tiles, statuses, () => clock);
+    await harness.server.join(pair.server, actorId, { admin: true });
+    await flush();
+    for (const frame of down.splice(0)) hear(frame.data);
+    expect(remote.isReady()).toBe(true);
+
+    const internals = harness.server as unknown as {
+      session: { actorSnapshots(): { id: string; walk: { to: Coord } | null }[] };
+    };
+    const walkedTo: Coord[] = [];
+    let lastWalk: { to: Coord } | null = null;
+    const advance = async (ms: number, onFrame?: () => void, frameMs = 16) => {
+      for (let spent = 0; spent < ms; spent += frameMs) {
+        clock += frameMs;
+        while (down[0] && down[0].at <= clock) hear(down.shift()!.data);
+        remote.update(frameMs);
+        onFrame?.();
+        while (up[0] && up[0].at <= clock) {
+          const { data } = up.shift()!;
+          const message = JSON.parse(data) as { type: string; seq?: number };
+          if (message.type === "step") onServerHears(message.seq!);
+          await harness.server.webSocketMessage(pair.server, data);
+        }
+        await flush();
+        await tickWorld(frameMs);
+        await flush();
+        const walk = internals.session.actorSnapshots().find((a) => a.id === actorId)?.walk;
+        if (walk && walk !== lastWalk) walkedTo.push(walk.to);
+        lastWalk = walk ?? null;
+      }
+    };
+    const stepsSent = () => sent.filter((message) => message.type === "step").length;
+    return { remote, advance, stepsSent, walkedTo };
+  }
+
+  it("walks none of the steps drawn before a refusal was heard", async () => {
+    const wallX = SPAWN_X + 2;
+    const internals = harness.server as unknown as {
+      session: { map: MapFile; actorPosition(id: string): ActorPosition | null };
+    };
+    const { remote, advance, stepsSent, walkedTo } = await playFar("alice", (seq) => {
+      if (seq !== 1) return;
+      internals.session.map = replaceStack(internals.session.map, wallX, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "brick-wall" },
+      ]);
+    });
+    await advance(300);
+
+    remote.setInput({ directions: ["e"] });
+    await advance(WALK_DURATION_MS * 8, () => {
+      if (stepsSent() === 2) remote.setInput({ directions: ["n"] });
+      if (stepsSent() === 3) remote.setInput({ directions: ["w"] });
+    });
+    remote.setInput({ directions: [] });
+    await advance(WALK_DURATION_MS + 32);
+
+    const drawn = remote.getSnapshot().self;
+    await advance(4_000);
+    const settled = remote.getSnapshot().self;
+    const world = internals.session.actorPosition("alice")!;
+
+    expect(walkedTo.filter((cell) => cell.y !== 0)).toEqual([]);
+    expect({ x: settled.x, y: settled.y }).toEqual({ x: drawn.x, y: drawn.y });
+    expect({ x: world.x, y: world.y }).toEqual({ x: drawn.x, y: drawn.y });
+    expect(divergence(remote, "alice")).toEqual([]);
+  });
 });

@@ -6,6 +6,8 @@ import { DataStore } from "../app/lib/dataStore";
 import { listCoords, parseMap } from "../app/lib/mapData";
 import { WALK_DURATION_MS } from "../app/game/constants";
 import type { GameSession } from "../app/game/GameSession";
+import { DIR_DELTA } from "../app/game/movement";
+import type { Coord } from "../app/lib/types";
 import { DiskBlobs } from "../server/blobs";
 import { openDatabase } from "../server/db";
 import { GameServer } from "../server/GameServer";
@@ -135,15 +137,23 @@ class Bot {
   closeCode: number | undefined;
   private closed = false;
   private seq = 0;
+  private chain = 0;
+  private aim: Coord | null = null;
   private direction: Direction = "s";
   private runLeft = 0;
   recording: string[] | null = null;
 
+  /**
+   * `locate` reads the world the bench runs beside, which a real client cannot. It
+   * is asked only where a client would rebuild its prediction from the board: on a
+   * `hello`, and on a refusal, which is sent while the body is standing still.
+   */
   constructor(
     readonly actorId: string,
     private readonly counters: Counters,
     deflate: boolean,
     private readonly idle: boolean,
+    private readonly locate: (actorId: string) => Coord | null,
   ) {
     const bot = this;
     this.socket = new GameSocket({
@@ -175,12 +185,15 @@ class Bot {
       this.counters.helloBytes += data.length;
       this.state = "walking";
       this.runLeft = 0;
+      this.aim = this.locate(this.actorId);
       this.nextAt = performance.now() + between(500, 2_000);
       return;
     }
     if (data.startsWith('{"type":"stepRejected"')) {
       this.counters.stepsRejected++;
       this.runLeft = 0;
+      this.chain++;
+      this.aim = this.locate(this.actorId);
       if (this.state === "walking") this.nextAt = performance.now() + between(150, 450);
       return;
     }
@@ -198,7 +211,7 @@ class Bot {
       this.nextAt = Number.POSITIVE_INFINITY;
       return JSON.stringify({ type: "rebirth" });
     }
-    if (this.state !== "walking" || this.idle) return null;
+    if (this.state !== "walking" || this.idle || !this.aim) return null;
 
     if (this.runLeft <= 0) {
       this.direction = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)]!;
@@ -211,10 +224,13 @@ class Bot {
     this.runLeft--;
     this.counters.stepsSent++;
     this.nextAt = now + WALK_DURATION_MS;
+    const { dx, dy } = DIR_DELTA[this.direction];
+    this.aim = { x: this.aim.x + dx, y: this.aim.y + dy, z: this.aim.z };
     return JSON.stringify({
       type: "step",
       seq: ++this.seq,
-      direction: this.direction,
+      to: this.aim,
+      chain: this.chain,
       preferDescend: false,
     });
   }
@@ -292,7 +308,13 @@ async function run(options: Options) {
   };
   const bots: Bot[] = [];
   for (let i = 0; i < options.players; i++) {
-    const bot = new Bot(crypto.randomUUID(), counters, options.deflate, options.idle);
+    const bot = new Bot(
+      crypto.randomUUID(),
+      counters,
+      options.deflate,
+      options.idle,
+      (actorId) => internals.session?.actorPosition(actorId) ?? null,
+    );
     if (surface.length > 0) {
       const at = surface[Math.floor(Math.random() * surface.length)]!;
       await store.put(`pos:${bot.actorId}`, {

@@ -185,6 +185,7 @@ export class RemoteSession implements PlaySession {
   private readonly motions = new Map<string, RemoteMotion>();
   private pending: PredictedStep[] = [];
   private nextStepSeq = 0;
+  private stepChain = 0;
   private held: GameInput = { directions: [] };
   private facing: Direction | null = null;
   private attackRecoveryMs = 0;
@@ -412,7 +413,7 @@ export class RemoteSession implements PlaySession {
       this.kingId = message.kingId;
       this.serverMap = chunkifyMap(message.map as FlatMapFile);
       this.map = this.serverMap;
-      this.pending = [];
+      this.discardPending();
       this.attackRecoveryMs = 0;
       this.facing = null;
       this.serverSeen = null;
@@ -545,7 +546,7 @@ export class RemoteSession implements PlaySession {
       if (message.masteryXp) this.masteryXp = message.masteryXp;
       this.spellCooldowns = {};
       this.held = { directions: [] };
-      this.pending = [];
+      this.discardPending();
       this.attackRecoveryMs = 0;
       this.statuses = NO_STATUSES;
       this.setDead(true);
@@ -1108,7 +1109,8 @@ export class RemoteSession implements PlaySession {
     this.send({
       type: "step",
       seq,
-      direction: choice.step.direction,
+      to: choice.step.to,
+      chain: this.stepChain,
       preferDescend: Boolean(this.held.preferDescend),
     });
   }
@@ -1139,7 +1141,7 @@ export class RemoteSession implements PlaySession {
     this.serverSeen = at;
 
     if (!at) {
-      this.pending = [];
+      this.discardPending();
       this.map = this.serverMap;
       return;
     }
@@ -1180,7 +1182,7 @@ export class RemoteSession implements PlaySession {
   private rollBackFrom(seq: number) {
     const at = this.pending.findIndex((step) => step.seq === seq);
     if (at < 0) return;
-    this.pending.length = at;
+    this.discardPending(at);
     const motion = this.motions.get(this.selfId);
     if (motion) motion.walk = null;
     this.rebuildPredicted();
@@ -1188,10 +1190,21 @@ export class RemoteSession implements PlaySession {
 
   private abandonPrediction() {
     if (this.pending.length === 0) return;
-    this.pending = [];
+    this.discardPending();
     const motion = this.motions.get(this.selfId);
     if (motion) motion.walk = null;
     this.map = this.serverMap;
+  }
+
+  /**
+   * The server may still hold the discarded steps, or have them on the way. They
+   * belong to the old chain, so the next step starts a new one, and the server
+   * drops them rather than walking the body from a cell it is not in.
+   */
+  private discardPending(keep = 0) {
+    if (this.pending.length <= keep) return;
+    this.pending.length = keep;
+    this.stepChain += 1;
   }
 
   private hangChat(chat: Omit<ChatBubble, "id">) {
