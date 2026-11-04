@@ -43,7 +43,7 @@ const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 const ROW_CLASS =
   "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11";
-export const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
+export const OPTION_CLASS = `${ROW_CLASS} hud-button text-paper aria-disabled:opacity-50`;
 export const LABEL_CLASS = "truncate text-detail leading-snug font-medium tracking-tight";
 const CHOICE_LABEL_CLASS = "text-detail leading-snug font-medium tracking-tight";
 const TURN_GAP_CLASS = "mt-1.5";
@@ -292,7 +292,7 @@ function TradeOffer({
       : null;
   const possible = plan !== null;
   const stepBaseClass =
-    "grid shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+    "hud-button grid shrink-0 place-items-center text-paper aria-disabled:text-paper/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
   const stepClass = `${stepBaseClass} w-8 pointer-coarse:w-11`;
   const step = (delta: 1 | -1) =>
     setAmount((c) => Math.min(trade.max, Math.max(trade.min, c + delta)));

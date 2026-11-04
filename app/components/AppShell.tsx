@@ -107,10 +107,9 @@ export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
         <Popover.Trigger
           aria-label="Menu"
           className={[
-            "relative flex items-center justify-center border-2 shadow-hard",
+            "hud-button relative flex items-center justify-center",
             ACTION_BUTTON_SIZE_CLASS[size],
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            "border-paper/40 bg-transparent text-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink",
           ].join(" ")}
         >
           <IconSettings size={size === "touch" ? 24 : 18} aria-hidden="true" />
