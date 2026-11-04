@@ -11,7 +11,7 @@ import {
   reflectiveTileIndex,
 } from "./reflections";
 
-const MIRROR = { colors: ["#335c8c"], color: "#2e222f", turbulence: 1 };
+const MIRROR = { colors: ["#335c8c"], opacity: 0.4, turbulence: 1 };
 
 const tiles: Record<string, TileDef> = {
   grass: tile({ id: "grass" }),

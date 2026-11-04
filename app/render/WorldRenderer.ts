@@ -2767,7 +2767,7 @@ export class WorldRenderer {
 
   /**
    * Drawn before the world, because the water samples it: a reflective texel
-   * whose pixel here is covered takes the reflection colour before it is lit.
+   * whose pixel here is covered blends in the reflected colour before it is lit.
    */
   private renderReflections(r: THREE.WebGLRenderer) {
     let reflects = false;
@@ -2799,7 +2799,7 @@ export class WorldRenderer {
         depthBuffer: false,
         stencilBuffer: false,
         type: THREE.UnsignedByteType,
-        format: THREE.RedFormat,
+        format: THREE.RGBAFormat,
         magFilter: THREE.NearestFilter,
         minFilter: THREE.NearestFilter,
         generateMipmaps: false,

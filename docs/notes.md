@@ -2360,14 +2360,14 @@ every step taken from the water is slow, including the one back onto the bank.
 A route prices those steps the same way — see `legCost` under "A chase is a
 route" — so it walks round water when going round is quicker.
 
-### A `reflective` tile shows what stands beside it, in one flat colour
+### A `reflective` tile shows what stands beside it, blended over the water
 
 A tile with `reflective` has three fields: `colors`, the pixels of its own art
 that act as a mirror (the shipped water lists its two body colours and leaves
-the crest out); `color`, the one shade the reflection is painted in; and
-`turbulence`, how many pixels a row of the reflection may sway sideways. The
-reflection is a silhouette, not a second copy of the sprite: it keeps the
-palette coarse and costs one channel.
+the crest out); `opacity`, how much of the reflected sprite's own colour is
+blended over the water; and `turbulence`, how many pixels a row of the
+reflection may sway sideways. A tile saved without `opacity` reads
+`DEFAULT_REFLECTION_OPACITY`.
 
 In the cabinet projection a box turned half a turn about the centre of its
 footprint is exactly its reflection, so that is the transform:
@@ -2378,14 +2378,16 @@ water's level, not its own floor.
 
 How it is drawn (`app/render/reflections.ts`, wired in `WorldRenderer`):
 
-- **A second pass into a one-channel target.** Every mesh that can reflect has
-  a twin on layer 1 (`REFLECTION_LAYER`) with the reflection material. Before
-  the main pass the camera draws layer 1 into a `RedFormat` target the size of
-  the drawing buffer. Nothing is drawn when no loaded chunk reflects.
+- **A second pass into an RGBA target.** Every mesh that can reflect has a
+  twin on layer 1 (`REFLECTION_LAYER`) with the reflection material, which
+  writes the sprite's texel sRGB-encoded with alpha 1. Before the main pass the
+  camera draws layer 1 into a target the size of the drawing buffer. Nothing is
+  drawn when no loaded chunk reflects.
 - **The water reads that target in the world shader.** A texel whose sRGB
   colour is in the tile's mask samples the target at its own screen position,
-  shifted by the turbulence, and on a hit takes `color`. It is lit after that,
-  so a reflection darkens at night like the water around it.
+  shifted by the turbulence, and on a hit decodes the colour and mixes it over
+  the water's at `opacity`, in linear space. It is lit after that, so a
+  reflection darkens at night like the water around it.
 - **Only what stands near water gets a twin.** `ReflectiveCells` keeps each
   chunk's reflective cells in a `WeakMap` keyed by the chunk object, so the
   copy-on-write map makes a lookup free until the chunk is edited. A thing has
@@ -2405,6 +2407,9 @@ Three things look wrong and are not:
   The mesh is moved by the wade sink and the pivot, a child of it, moves too,
   so the shader takes the sink back off the pivot. What is turned is the body
   as drawn, sunk and cropped, so the reflection shows the same cut.
+- **The target holds sRGB, not linear, colour.** In an 8-bit target linear
+  values crush the dark shades of the palette together, so the reflection
+  material encodes and the world shader decodes.
 - **The material compares the mask in sRGB.** The texture is decoded to linear
   on sampling, and an author picks the mask from the sheet's sRGB hex, so the
   shader re-encodes before comparing (`MASK_TOLERANCE_SQ`).
@@ -2415,7 +2420,8 @@ materials leave it out: compiled in but never taken, the branch still cost the
 editor's frame budget about 0.3ms at p95. So a tile mid-transition shows no
 reflection.
 
-Not done: the map editor's `EditorRenderer` draws no reflections; turbulence
+Not done: where two reflections overlap in the target, whichever twin draws
+last wins, since the pass has no depth; the map editor's `EditorRenderer` draws no reflections; turbulence
 only moves when the scene redraws, which water's own animation does every
 frame change; particles over water are not mirrored; and at most
 `MAX_REFLECTIVE_TILES` tiles and `MAX_REFLECTIVE_COLORS` mask colours each fit

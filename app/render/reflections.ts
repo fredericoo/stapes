@@ -9,6 +9,7 @@ import {
 } from "../lib/mapData";
 import {
   CELL_SIZE,
+  DEFAULT_REFLECTION_OPACITY,
   MAX_REFLECTIVE_COLORS,
   coordKey,
   type MapFile,
@@ -45,7 +46,7 @@ export type ReflectionUniforms = {
   uReflectFragPerPx: { value: number };
   uReflectClockMs: { value: number };
   uReflectMask: { value: THREE.Vector3[] };
-  uReflectColor: { value: THREE.Vector3[] };
+  uReflectOpacity: { value: number[] };
   uReflectTurbulence: { value: number[] };
 };
 
@@ -61,9 +62,7 @@ export function createReflectionUniforms(): ReflectionUniforms {
         () => new THREE.Vector3(-1, -1, -1),
       ),
     },
-    uReflectColor: {
-      value: Array.from({ length: MAX_REFLECTIVE_TILES }, () => new THREE.Vector3()),
-    },
+    uReflectOpacity: { value: new Array<number>(MAX_REFLECTIVE_TILES).fill(0) },
     uReflectTurbulence: { value: new Array<number>(MAX_REFLECTIVE_TILES).fill(0) },
   };
 }
@@ -101,8 +100,7 @@ export function writeReflectionDefs(
       c.convertLinearToSRGB();
       uniforms.uReflectMask.value[slot * MAX_REFLECTIVE_COLORS + i]!.set(c.r, c.g, c.b);
     });
-    const color = new THREE.Color(reflective.color);
-    uniforms.uReflectColor.value[slot]!.set(color.r, color.g, color.b);
+    uniforms.uReflectOpacity.value[slot] = reflective.opacity ?? DEFAULT_REFLECTION_OPACITY;
     uniforms.uReflectTurbulence.value[slot] = reflective.turbulence;
   }
 }
@@ -122,15 +120,16 @@ uniform vec2 uReflectSize;
 uniform float uReflectFragPerPx;
 uniform float uReflectClockMs;
 uniform vec3 uReflectMask[${MAX_REFLECTIVE_TILES * MAX_REFLECTIVE_COLORS}];
-uniform vec3 uReflectColor[${MAX_REFLECTIVE_TILES}];
+uniform float uReflectOpacity[${MAX_REFLECTIVE_TILES}];
 uniform float uReflectTurbulence[${MAX_REFLECTIVE_TILES}];
 varying float vReflect;
 `;
 
 /**
  * Runs before lighting, so a reflection is lit (and darkened at night) like the
- * water it replaces. It reads the art pixel's centre, shifted a whole number of
+ * water it lies on. It reads the art pixel's centre, shifted a whole number of
  * art pixels per row, so a ripple moves the reflection in steps of the art grid.
+ * The target holds sRGB-encoded colour, decoded here before the linear blend.
  */
 export const REFLECT_GLSL_FRAGMENT = `
 #ifdef USE_MAP
@@ -152,8 +151,10 @@ if (vReflect > 0.5) {
     vec2 artPx = floor(vWorldPx) + 0.5 + vec2(shiftPx, 0.0);
     // World y runs down the screen and gl_FragCoord.y runs up it.
     vec2 frag = gl_FragCoord.xy + (artPx - vWorldPx) * vec2(uReflectFragPerPx, -uReflectFragPerPx);
-    if (texture2D(uReflectMap, frag / uReflectSize).r > 0.5) {
-      diffuseColor.rgb = uReflectColor[reflectSlot];
+    vec4 reflected = texture2D(uReflectMap, frag / uReflectSize);
+    if (reflected.a > 0.5) {
+      vec3 reflectedLinear = sRGBTransferEOTF(vec4(reflected.rgb, 1.0)).rgb;
+      diffuseColor.rgb = mix(diffuseColor.rgb, reflectedLinear, uReflectOpacity[reflectSlot]);
     }
   }
 }
@@ -165,8 +166,8 @@ export const NO_REFLECTION_CUT = 1e9;
 
 /**
  * Draws a sprite turned half a turn about `aPivot.xy` (the centre of its base
- * cell at the waterline, in model space) into the reflection target, as
- * coverage only: the colour is the water's to pick. Below `aPivot.z` (model
+ * cell at the waterline, in model space) into the reflection target in its own
+ * colours, sRGB-encoded so the 8-bit target keeps the dark shades apart. Below `aPivot.z` (model
  * space y) it is cut off flat. A wading body is turned as it is drawn, sunk and
  * cropped, about the same pivot it would have on dry ground.
  */
@@ -220,8 +221,9 @@ void main() {
     vec2 fromFeet = vFeetPx - (floor(vSourcePx) + 0.5);
     if (min(fromFeet.x, fromFeet.y) < 1.0) discard;
   }
-  if (texture2D(map, vUv).a < 0.5) discard;
-  gl_FragColor = vec4(1.0);
+  vec4 texel = texture2D(map, vUv);
+  if (texel.a < 0.5) discard;
+  gl_FragColor = vec4(sRGBTransferOETF(vec4(texel.rgb, 1.0)).rgb, 1.0);
 }`,
     side: THREE.DoubleSide,
     depthTest: false,
