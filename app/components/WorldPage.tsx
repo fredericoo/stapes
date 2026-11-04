@@ -17,7 +17,6 @@ import { loadPadSide, type PadSide, savePadSide } from "./padSide";
 import { PadSideToggle } from "./PadSideToggle";
 import { ReplacedScreen } from "./ReplacedScreen";
 import { WorldFullScreen } from "./WorldFullScreen";
-import { WorldClock } from "./WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { DeathCost } from "../game/deathCost";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
@@ -28,7 +27,6 @@ import { activeStatuses, COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
 import { LATEST_VERSION } from "./releaseNotes";
 import { useCoarsePointer } from "../lib/useMediaQuery";
-import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { CraftingWindow } from "../game/craft";
@@ -152,7 +150,6 @@ export function WorldPage({
   const rebirth = useCallback(() => {
     if (sessionRef.current?.rebirth()) setRebirthing(true);
   }, []);
-  const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(DEFAULT_PLAY_MINUTES);
   const [stats, setStats] = useState<FrameStats | null>(null);
   const statsRef = useRef(stats);
   statsRef.current = stats;
@@ -348,7 +345,6 @@ export function WorldPage({
         renderer.setLightingEnabled(lightingRef.current);
         renderer.setDebugView(debugViewRequested(window.location.search));
         renderer.setMinutesOfDay(remote.minutesOfDay());
-        renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
@@ -544,12 +540,7 @@ export function WorldPage({
                 onSay={say}
                 onPvp={setPvp}
                 onTypingChange={noteTyping}
-                readouts={
-                  <>
-                    {status === "live" ? null : statusChip}
-                    <WorldClock minutesOfDay={minutesOfDay} />
-                  </>
-                }
+                readouts={status === "live" ? null : statusChip}
                 interactions={interactions}
                 onInteract={act}
                 onHoverInteraction={hoverInteraction}
