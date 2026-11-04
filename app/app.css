@@ -38,6 +38,103 @@
   --color-label: #ffd23f;
   --color-border: #1a1a1a;
   --shadow-hard: 2px 2px 0 0 #1a1a1a;
+  --color-frame: #3d362d;
+  --color-frame-hi: #847760;
+  --color-frame-lo: #0e0c0a;
+  --color-well: #191612;
+  --color-hud: #221e19;
+}
+
+/* Two grain layers: a fine monochrome turbulence for the speckle, and a
+   coarse low-frequency one that blotches it so a large surface does not read
+   as flat print. Both are grey at low alpha, so they darken and lighten
+   whatever colour sits under them rather than tinting it. */
+:root {
+  --noise-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='96' height='96' filter='url(%23n)'/%3E%3C/svg%3E");
+  --noise-coarse: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.02' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .35 0'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The in-game chrome: carved stone frames with a light top-left edge and a
+   dark bottom-right one. In `components` so a state utility on the same
+   element (`border-accent` while an item hovers a drop target) still wins. */
+@layer components {
+  .hud-surface {
+    background-color: var(--color-hud);
+    background-image: var(--noise-fine), var(--noise-coarse);
+    background-blend-mode: overlay, normal;
+  }
+
+  .bevel-raised {
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--color-frame-hi) var(--color-frame-lo) var(--color-frame-lo)
+      var(--color-frame-hi);
+  }
+
+  .bevel-sunken {
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--color-frame-lo) var(--color-frame-hi) var(--color-frame-hi)
+      var(--color-frame-lo);
+  }
+
+  .hud-window {
+    background-color: var(--color-frame);
+    background-image: var(--noise-fine);
+    background-blend-mode: overlay;
+    box-shadow: 0 0 0 1px var(--color-frame-lo);
+  }
+
+  .hud-window__title {
+    background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.2));
+    border-bottom: 1px solid var(--color-frame-lo);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.06);
+  }
+
+  .hud-well {
+    background-color: var(--color-well);
+    background-image: var(--noise-fine);
+    background-blend-mode: soft-light;
+    box-shadow: inset 1px 1px 0 rgb(0 0 0 / 0.45);
+  }
+
+  /* Pressing swaps the bevel and drops the face a pixel, which is what makes
+     it read as a key going down rather than a colour change. `aria-pressed`
+     holds a panel toggle down and `aria-expanded` a menu trigger.
+     `data-popup-open` cannot be the hook: a tooltip sets it on its trigger
+     too, which sank every button while its tooltip showed. */
+  .hud-button {
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--color-frame-hi) var(--color-frame-lo) var(--color-frame-lo)
+      var(--color-frame-hi);
+    background-color: var(--color-frame);
+    background-image:
+      var(--noise-fine), linear-gradient(to bottom, rgb(255 255 255 / 0.14), rgb(0 0 0 / 0.18));
+    background-blend-mode: overlay, normal;
+    color: var(--color-paper);
+    box-shadow: 1px 1px 0 var(--color-frame-lo);
+  }
+
+  .hud-button:hover:not(:disabled) {
+    background-color: #4b4337;
+  }
+
+  .hud-button:active:not(:disabled, [aria-disabled="true"]),
+  .hud-button[aria-pressed="true"],
+  .hud-button[aria-expanded="true"] {
+    border-color: var(--color-frame-lo) var(--color-frame-hi) var(--color-frame-hi)
+      var(--color-frame-lo);
+    background-color: #2b261f;
+    background-image:
+      var(--noise-fine), linear-gradient(to bottom, rgb(0 0 0 / 0.25), rgb(255 255 255 / 0.04));
+    box-shadow: none;
+    translate: 1px 1px;
+  }
+
+  .hud-button[aria-pressed="true"] {
+    color: var(--color-label);
+  }
 }
 
 @keyframes fill-progress {

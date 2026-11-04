@@ -144,7 +144,7 @@ function litClass(option: InteractionOption): string {
     return "border-interact bg-interact/20 text-paper";
   }
   if (option.action === "attack") return "border-danger bg-danger/20 text-paper";
-  return "border-paper bg-paper/15 text-paper";
+  return "border-label bg-label/15 text-paper";
 }
 
 function boxClass(group: InteractionGroup, active: InteractionOption | null): string {
@@ -152,7 +152,7 @@ function boxClass(group: InteractionGroup, active: InteractionOption | null): st
   if (group.options.some((option) => option.action === "reward")) {
     return "border-reward/60 bg-reward/10 text-paper hover:border-reward";
   }
-  return "border-paper/40 bg-ink text-paper hover:border-paper";
+  return "bevel-sunken hud-well text-paper hover:border-paper/60";
 }
 
 function actionClass(option: InteractionOption): string {
@@ -161,12 +161,10 @@ function actionClass(option: InteractionOption): string {
   }
   if (option.active) return litClass(option);
   if (option.far) {
-    return "border-paper/15 text-paper/60 hover:border-paper hover:bg-paper/10 hover:text-paper";
+    return "hud-button text-paper/60 hover:text-paper";
   }
-  if (option.action === "reward") {
-    return "border-reward/60 text-reward hover:border-reward hover:bg-reward/10";
-  }
-  return "border-paper/30 text-paper hover:border-paper hover:bg-paper/10";
+  if (option.action === "reward") return "hud-button text-reward";
+  return "hud-button";
 }
 
 export function fillElapsedMs(progress: Progress): number {

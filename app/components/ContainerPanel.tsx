@@ -1,5 +1,4 @@
-import { IconClose } from "./pixelIcons";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Equipment } from "../game/equipment";
 import { slotIn, type ContainerRef, type ContainerView } from "../game/itemMoves";
 import { engravedName } from "../lib/engraving";
@@ -9,13 +8,12 @@ import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
+import { HudWindow } from "./HudWindow";
 import { ItemSlot } from "./ItemSlot";
 import { TilePreview } from "./TilePreview";
 import type { ItemDrag } from "./useItemDrag";
 
 const FRONT = "s" as const;
-
-const CLOSE_ICON_SIZE_PX = 12;
 
 export const TITLE_SPRITE_SIZE_PX = 18;
 
@@ -79,17 +77,20 @@ export function ContainerPanel({
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
 
-  const rowRef = useRef<HTMLDivElement>(null);
+  /**
+   * State rather than a ref, so the observer follows the grid when a minimised
+   * window unmounts it and an expanded one mounts a new one.
+   */
+  const [row, setRow] = useState<HTMLDivElement | null>(null);
   const [widthPx, setWidthPx] = useState(0);
 
   useEffect(() => {
-    const row = rowRef.current;
     if (!row) return;
     const observer = new ResizeObserver(() => setWidthPx(row.clientWidth));
     observer.observe(row);
     setWidthPx(row.clientWidth);
     return () => observer.disconnect();
-  }, []);
+  }, [row]);
 
   const { columns, slotPx } = containerSlotGrid(widthPx);
   const captioned = useCoarsePointer();
@@ -108,14 +109,11 @@ export function ContainerPanel({
   );
 
   return (
-    <section
-      className={["flex flex-col gap-1 border-2 border-paper/25 bg-paper/5 p-1.5", className]
-        .filter(Boolean)
-        .join(" ")}
-      aria-label={title}
-    >
-      <div className="flex items-center gap-1.5">
-        {def ? (
+    <HudWindow
+      label={title}
+      title={title}
+      icon={
+        def ? (
           <TilePreview
             tile={def}
             tilesets={tilesets}
@@ -125,27 +123,18 @@ export function ContainerPanel({
             chrome={false}
             background={null}
           />
-        ) : null}
-        <h2 className="flex min-w-0 items-baseline text-detail font-bold uppercase tracking-wide text-paper/50">
-          <span className="truncate" title={title}>
-            {title}
-          </span>
-          <span className="ml-1 shrink-0 tabular-nums text-paper/40">
-            {contents.length}/{size}
-          </span>
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={`Close ${title}`}
-          className="ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          <IconClose size={CLOSE_ICON_SIZE_PX} aria-hidden="true" />
-        </button>
-      </div>
-
+        ) : null
+      }
+      meta={
+        <span>
+          {contents.length}/{size}
+        </span>
+      }
+      onClose={onClose}
+      className={className}
+    >
       <div
-        ref={rowRef}
+        ref={setRow}
         className="grid"
         style={{
           columnGap: SLOT_GAP_PX,
@@ -180,6 +169,6 @@ export function ContainerPanel({
           </div>
         ))}
       </div>
-    </section>
+    </HudWindow>
   );
 }

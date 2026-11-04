@@ -34,6 +34,8 @@ import type { ActiveStatus, StatusDef } from "../lib/status";
 import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
+import { HudWindow } from "./HudWindow";
+import { WindowStack } from "./WindowStack";
 import { bagGained, newlyEquipped, statsMood, useNotice } from "./panelNotice";
 
 const NO_STATUSES: ActiveStatus[] = [];
@@ -42,7 +44,7 @@ const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 const NO_SPELLS: SpellButton[] = [];
 
-const INTERACTION_PANEL_WIDTH_PX = 224;
+const INTERACTION_PANEL_WIDTH_PX = 240;
 
 const INTERACTION_LIST_MIN_WIDTH_PX = 168;
 
@@ -300,7 +302,7 @@ export function GameViewport({
       }}
       onHover={coarse ? undefined : onHoverInteraction}
       hotkeys
-      className="min-h-0 w-full flex-1"
+      className={coarse ? "min-h-0 w-full flex-1" : "min-h-0 w-full flex-1 p-1"}
     />
   );
 
@@ -340,76 +342,76 @@ export function GameViewport({
     </>
   );
 
-  const panels = (
-    <>
-      {showStats ? (
-        <StatsPanel
-          vitals={vitals}
-          masteryXp={masteryXp}
-          statuses={statuses}
-          tilesets={tilesets}
-          scrolls={!coarse}
-        />
-      ) : null}
-      {showEquipment ? (
-        <EquipmentPanel
-          equipment={equipment}
-          masteryXp={masteryXp}
-          statusDefs={statusDefs}
-          bagOpen={showBag}
-          handOpen={heldContainer ? openHand : null}
-          tiles={tiles}
-          tilesets={tilesets}
-          drag={drag}
-        />
-      ) : null}
-      {showBag && equipment.bag ? (
-        <ContainerPanel
-          container={containerViewOf(equipment.bag, tilesById)}
-          location={{ kind: "bag" }}
-          equipment={equipment}
-          tiles={tiles}
-          tilesets={tilesets}
-          title="Bag"
-          onClose={() => openBag(false)}
-          drag={drag}
-          masteryXp={masteryXp}
-          statusDefs={statusDefs}
-        />
-      ) : null}
-      {heldContainer && openHand ? (
-        <ContainerPanel
-          container={containerViewOf(heldContainer, tilesById)}
-          location={{ kind: "hand", hand: openHand }}
-          equipment={equipment}
-          tiles={tiles}
-          tilesets={tilesets}
-          title={tilesById[heldContainer.tileId]?.name ?? "Container"}
-          onClose={() => setOpenHand(null)}
-          drag={drag}
-          masteryXp={masteryXp}
-          statusDefs={statusDefs}
-        />
-      ) : null}
-      {openedContainer ? (
-        <ContainerPanel
-          container={openedContainer}
-          location={openedContainer.location}
-          equipment={equipment}
-          tiles={tiles}
-          tilesets={tilesets}
-          title={tilesById[openedContainer.tileId]?.name ?? "Container"}
-          onClose={() => onOpenContainer?.(null)}
-          drag={drag}
-          masteryXp={masteryXp}
-          statusDefs={statusDefs}
-        />
-      ) : null}
-    </>
-  );
+  const statsWindow = showStats ? (
+    <StatsPanel
+      vitals={vitals}
+      masteryXp={masteryXp}
+      statuses={statuses}
+      tilesets={tilesets}
+      scrolls={!coarse}
+      onClose={() => openStats(false)}
+    />
+  ) : null;
+  const equipmentWindow = showEquipment ? (
+    <EquipmentPanel
+      equipment={equipment}
+      masteryXp={masteryXp}
+      statusDefs={statusDefs}
+      bagOpen={showBag}
+      handOpen={heldContainer ? openHand : null}
+      tiles={tiles}
+      tilesets={tilesets}
+      drag={drag}
+      onClose={() => openEquipment(false)}
+    />
+  ) : null;
+  const bagWindow =
+    showBag && equipment.bag ? (
+      <ContainerPanel
+        container={containerViewOf(equipment.bag, tilesById)}
+        location={{ kind: "bag" }}
+        equipment={equipment}
+        tiles={tiles}
+        tilesets={tilesets}
+        title="Bag"
+        onClose={() => openBag(false)}
+        drag={drag}
+        masteryXp={masteryXp}
+        statusDefs={statusDefs}
+      />
+    ) : null;
+  const handWindow =
+    heldContainer && openHand ? (
+      <ContainerPanel
+        container={containerViewOf(heldContainer, tilesById)}
+        location={{ kind: "hand", hand: openHand }}
+        equipment={equipment}
+        tiles={tiles}
+        tilesets={tilesets}
+        title={tilesById[heldContainer.tileId]?.name ?? "Container"}
+        onClose={() => setOpenHand(null)}
+        drag={drag}
+        masteryXp={masteryXp}
+        statusDefs={statusDefs}
+      />
+    ) : null;
+  const containerWindow = openedContainer ? (
+    <ContainerPanel
+      container={openedContainer}
+      location={openedContainer.location}
+      equipment={equipment}
+      tiles={tiles}
+      tilesets={tilesets}
+      title={tilesById[openedContainer.tileId]?.name ?? "Container"}
+      onClose={() => onOpenContainer?.(null)}
+      drag={drag}
+      masteryXp={masteryXp}
+      statusDefs={statusDefs}
+    />
+  ) : null;
 
   return (
-    <div className="flex h-full w-full bg-ink">
+    <div className="hud-surface flex h-full w-full">
       <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
       <div
         className="flex h-full min-w-0 flex-1 touch-pan-y flex-col items-center select-none"
@@ -462,7 +464,11 @@ export function GameViewport({
               {replacesList ??
                 (panelCoversList ? (
                   <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
-                    {panels}
+                    {statsWindow}
+                    {equipmentWindow}
+                    {bagWindow}
+                    {handWindow}
+                    {containerWindow}
                   </div>
                 ) : (
                   list
@@ -503,37 +509,44 @@ export function GameViewport({
 
       {coarse ? null : (
         <aside
-          className="flex h-full shrink-0 flex-col gap-2 border-l-2 border-paper/20 p-2"
+          className="hud-surface flex h-full shrink-0 flex-col gap-1 border-l-2 border-frame-lo p-1"
           style={{ width: INTERACTION_PANEL_WIDTH_PX }}
         >
-          <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
+          <div className="hud-window bevel-raised flex shrink-0 flex-col gap-1 p-1">
             <HealthGauge vitals={vitals} />
             {readouts ? (
               <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
             ) : null}
             <StatusStrip statuses={statuses} interactive tilesets={tilesets} />
+            <div className="flex items-center gap-1">{panelButtons("compact")}</div>
           </div>
-          <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
-            {panelButtons("compact")}
-          </div>
-          {spells.length > 0 ? (
-            <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
-              <SpellBar
-                spells={spells}
-                onCast={cast}
-                onStopCast={stopCast}
-                tilesById={tilesById}
-                tilesets={tilesets}
-                className="max-w-40"
-              />
-            </div>
-          ) : null}
-          {showEquipment || showBag ? (
-            <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
-              {panels}
-            </div>
-          ) : null}
-          {replacesList ?? list}
+          <WindowStack
+            className="scrolls-in-chrome flex-1 overflow-y-auto overscroll-contain"
+            windows={{
+              stats: statsWindow,
+              equipment: equipmentWindow,
+              bag: bagWindow,
+              hand: handWindow,
+              container: containerWindow,
+              spells:
+                spells.length > 0 ? (
+                  <HudWindow label="Spells" title="Spells">
+                    <SpellBar
+                      spells={spells}
+                      onCast={cast}
+                      onStopCast={stopCast}
+                      tilesById={tilesById}
+                      tilesets={tilesets}
+                    />
+                  </HudWindow>
+                ) : null,
+              nearby: replacesList ?? (
+                <HudWindow label="Nearby" title="Nearby" grows flush>
+                  {list}
+                </HudWindow>
+              ),
+            }}
+          />
         </aside>
       )}
     </div>

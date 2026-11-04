@@ -1,4 +1,3 @@
-import { IconClose } from "./pixelIcons";
 import { useEffect, useMemo, useRef } from "react";
 import type { CraftingWindow } from "../game/craft";
 import { bindNumberKeys, numberKeyLabel } from "../game/heldDirections";
@@ -6,13 +5,8 @@ import { craftRecipeName, type CraftInput, type CraftOutput } from "../lib/inter
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
-import {
-  CLOSE_BUTTON_CLASS,
-  CLOSE_ICON_SIZE_PX,
-  LABEL_CLASS,
-  PANEL_TITLE_CLASS,
-  PanelButton,
-} from "./ConversationPanel";
+import { LABEL_CLASS, PanelButton } from "./ConversationPanel";
+import { HudWindow } from "./HudWindow";
 import { KeyHint } from "./KeyHint";
 import { Tooltip } from "../ui";
 import { TilePreview } from "./TilePreview";
@@ -60,12 +54,11 @@ export function CraftPanel({
   }, [hotkeys, recipes]);
 
   return (
-    <section
-      aria-label={name}
-      className={`flex flex-col gap-1 border-2 border-paper/25 bg-paper/5 p-1.5 ${className}`}
-    >
-      <div className="flex shrink-0 items-center gap-1.5">
-        {def ? (
+    <HudWindow
+      label={name}
+      title={name}
+      icon={
+        def ? (
           <TilePreview
             tile={def}
             tilesets={tilesets}
@@ -75,21 +68,15 @@ export function CraftPanel({
             chrome={false}
             background={null}
           />
-        ) : null}
-        <h2 className={PANEL_TITLE_CLASS} title={name}>
-          {name}
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={`Close ${name}`}
-          className={CLOSE_BUTTON_CLASS}
-        >
-          <IconClose size={CLOSE_ICON_SIZE_PX} aria-hidden="true" />
-        </button>
-      </div>
-
-      <div className="relative flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
+        ) : null
+      }
+      onClose={onClose}
+      closeLabel={`Close ${name}`}
+      grows
+      flush
+      className={className}
+    >
+      <div className="relative flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain p-1">
         {recipes.length === 0 ? (
           <p className="px-1 py-2 text-center text-detail text-paper/60">{NO_RECIPES_TEXT}</p>
         ) : null}
@@ -115,7 +102,7 @@ export function CraftPanel({
           </PanelButton>
         ))}
       </div>
-    </section>
+    </HudWindow>
   );
 }
 

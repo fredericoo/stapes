@@ -44,10 +44,10 @@ export function PvpToggle({
           disabled={!changeable}
           {...tap}
           className={[
-            "flex items-center justify-center border-2 shadow-hard",
+            "hud-button flex items-center justify-center",
             ACTION_BUTTON_SIZE_CLASS[size],
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            on ? "border-danger bg-danger text-paper" : "border-paper/40 bg-transparent text-paper",
+            on ? "bg-danger! text-paper!" : "",
             changeable ? "" : "opacity-40",
           ].join(" ")}
         >

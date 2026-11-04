@@ -203,9 +203,9 @@ function SpellSquare({
 }
 
 const APPEARANCE_CLASSES: Record<SpellAppearance, string> = {
-  ready: "border-paper/60 bg-paper/10 text-paper hover:border-paper",
-  casting: "animate-pulse border-accent bg-accent/15 text-paper hover:border-paper",
-  cooling: "border-paper/30 bg-transparent text-paper/40 opacity-60",
+  ready: "hud-button",
+  casting: "hud-button animate-pulse border-accent! bg-accent/30!",
+  cooling: "hud-well bevel-sunken text-paper/40 opacity-60",
   unavailable: "border-dashed border-paper/25 bg-transparent text-paper/40 opacity-50",
 };
 

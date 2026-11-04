@@ -981,6 +981,28 @@ Adding a maximum scale to the viewport meta would also stop the zoom, and is the
 wrong fix: it takes pinch-zoom away from everybody, including anybody who needs
 it to read.
 
+## The sidebar is a stack of windows the player can minimise
+
+On a desktop the column beside the world is a vitals frame (health, effects,
+the panel toggles) and under it a `WindowStack` of `HudWindow`s, in a fixed
+order: stats, equipment, bag, an opened hand or ground container, spells and
+the reach list. Each window's minimise button folds it to its title. Which
+windows are minimised is kept per browser under `stapes:collapsed-windows`
+(`app/components/windowLayout.ts`); nothing is sent to the server.
+
+**A panel that measures itself has to follow its element, not mount once.**
+Minimising a window unmounts its body, so `ContainerPanel`'s slot grid is a
+new element when the window opens again. An observer attached once on mount
+would watch nothing after that, read a width of 0, and lay four slots out in
+two rows.
+
+**A window whose body scrolls is `flush`.** The scroller clips at its own box,
+so the well's padding outside it would leave a band of well between the cut and the
+frame. The scroller carries the padding inside itself instead.
+
+On a phone the same panels render as `HudWindow`s outside a stack, with no
+minimise button, because only one shows at a time.
+
 ## The phone's joystick can sit on either side, and the browser remembers which
 
 On a phone the space under the toolbar is two columns: the reach list, and a

@@ -93,12 +93,12 @@ export function slotAppearance({
 const SLOT_APPEARANCE_CLASSES: Record<SlotAppearance, string> = {
   landing: "border-accent bg-accent/30",
   candidate: "border-accent/60 bg-accent/10",
-  source: "border-dashed border-paper/60 bg-paper/5 opacity-50",
+  source: "opacity-50",
   open: "border-interact bg-interact/20",
-  locked: "border-paper/25 bg-paper/5 opacity-60",
-  idle: "border-paper/20 bg-transparent hover:border-paper/50",
-  filled: "border-paper/60 bg-paper/10 hover:border-paper",
-  empty: "border-dashed border-paper/25 bg-transparent",
+  locked: "opacity-60",
+  idle: "hover:border-paper/50",
+  filled: "hover:border-paper/70",
+  empty: "",
 };
 
 function slotLabelFor(instance: ItemInstance, tile: TileDef | null): string {
@@ -232,7 +232,7 @@ export function ItemSlot({
       onFocus={() => setPointedAt(true)}
       onBlur={() => setPointedAt(false)}
       className={[
-        "relative flex shrink-0 items-center justify-center border-2 transition-colors",
+        "hud-well bevel-sunken relative flex shrink-0 items-center justify-center transition-colors",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         SLOT_APPEARANCE_CLASSES[
           slotAppearance({
