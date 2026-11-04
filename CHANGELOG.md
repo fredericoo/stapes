@@ -1,5 +1,19 @@
 # the-last-stones
 
+## 0.11.0
+
+### Minor Changes
+
+- Each town gate now has its own guard who tells you what lies beyond it. The north and south guards call out if they think you are not strong enough yet, and the east guard knows of something shiny by the river.
+- The sidebar is now a stack of framed windows, and each one can be minimised to its title; the game remembers which on that device. Buttons, item slots and windows have a carved stone look, masteries are listed two to a row, and the chat bar matches.
+- Water now reflects the houses, trees, people and creatures beside it, with a slight ripple.
+
+### Patch Changes
+
+- Reflections in water now show the colours of whatever stands on the bank, fading out towards the top, instead of a dark silhouette.
+- The clock is gone from the screen. Tell the time of day by the light and where the sun is.
+- On a slow connection, a blocked step no longer walks you somewhere you didn't go and then pulls you back a moment later. You also walk at most five tiles ahead of what the world has confirmed, so a lag spike can take back no more than that.
+
 ## 0.10.0
 
 ### Minor Changes
