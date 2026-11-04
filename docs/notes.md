@@ -257,7 +257,7 @@ are absent in the game and present on the chooser.
 **The world is torn down at the press, not by the unmount the navigation
 causes.** React Router commits a navigation inside `startTransition`, and a
 transition gives way to every ordinary update. A live world keeps making them —
-the clock, the frame readout, the vitals, the list of what is within reach —
+the frame readout, the vitals, the list of what is within reach —
 between frames that take most of a slow machine's time. Left to the unmount,
 the chooser took about six seconds to appear on the machine this was measured
 on, and with the page's CPU throttled four times
@@ -661,6 +661,10 @@ Pause box were a page deciding for itself what hour it was; the hour belongs to
 the world now, and `/time` is what moves it — for everybody, which in a tab is
 you.
 
+The game shows no clock either. A player reads the hour from the light and the
+direction of the sun; `formatClock` is left to the map editor's time slider and
+the reply to `/time`.
+
 ### The worker is the server
 
 `app/local/world.worker.ts` is what `server/index.ts` is: something owns a
@@ -981,12 +985,12 @@ it to read.
 
 On a phone the space under the toolbar is two columns: the reach list, and a
 column holding the effects strip, the spell bar, the direction pad and the
-clock. The pad column is on the right unless the player picks **Left** in the
+connection readout. The pad column is on the right unless the player picks **Left** in the
 game menu's Joystick row (`app/components/PadSideToggle.tsx`).
 
 **The swap is `flex-row-reverse` on the row in `GameViewport`**, so the DOM
 order stays list first. A screen reader and the tab key meet the columns in the
-same order on either side, and changing side remounts nothing. The clock is
+same order on either side, and changing side remounts nothing. The readout is
 aligned to the screen edge, so its `justify-*` flips with the side. The effects
 strip does not flip: it is read left to right, most urgent first.
 

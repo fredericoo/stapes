@@ -258,7 +258,6 @@ export class GameRenderer {
   private clockAnchorMinutes: MinutesOfDay = DEFAULT_PLAY_MINUTES;
   private clockAnchorAtMs = 0;
   private clockPaused = false;
-  private onClock: ((minutes: MinutesOfDay) => void) | null = null;
   private onStats: ((stats: FrameStats) => void) | null = null;
   private onEquipment: ((equipment: Equipment) => void) | null = null;
   private equipmentSent: Equipment | null = null;
@@ -392,7 +391,6 @@ export class GameRenderer {
   setMinutesOfDay(m: MinutesOfDay) {
     this.minutesOfDay = wrapMinutes(m);
     this.reanchorClock(this.minutesOfDay);
-    this.onClock?.(Math.floor(this.minutesOfDay));
   }
 
   setClockPaused(paused: boolean) {
@@ -409,10 +407,6 @@ export class GameRenderer {
   private clockNow(nowMs: number): MinutesOfDay {
     if (this.clockPaused) return this.clockAnchorMinutes;
     return clockAfter(this.clockAnchorMinutes, nowMs - this.clockAnchorAtMs);
-  }
-
-  setOnClock(cb: ((minutes: MinutesOfDay) => void) | null) {
-    this.onClock = cb;
   }
 
   setOnNextFrame(cb: (() => void) | null) {
@@ -819,10 +813,7 @@ export class GameRenderer {
       const now = performance.now();
       const dt = Math.min(100, now - this.lastTime);
       this.lastTime = now;
-      const prev = Math.floor(this.minutesOfDay);
       this.minutesOfDay = this.clockNow(now);
-      const next = Math.floor(this.minutesOfDay);
-      if (next !== prev) this.onClock?.(next);
       const frameStart = performance.now();
       this.profiler.measure("sim", () => this.session.update(dt));
       this.profiler.measure("view", () => this.pushView(now, dt));
@@ -845,7 +836,6 @@ export class GameRenderer {
     this.disposed = true;
     this.onStats = null;
     this.world.setProfiler(null);
-    this.onClock = null;
     this.onEquipment = null;
     this.onSpells = null;
     this.onOpenedContainer = null;
