@@ -18,8 +18,6 @@ const SHADOW: [number, number, number, number] = [0x24, 0x43, 0x6b, 255];
 const BASE: [number, number, number, number] = [0x33, 0x5c, 0x8c, 255];
 const HIGHLIGHT: [number, number, number, number] = [0x5b, 0x8f, 0xbf, 255];
 
-const BANK_DEPTH = 2;
-
 const FRAME_MS = 80;
 
 const PHASE = { x: 3, y: -1 };
@@ -56,46 +54,19 @@ const CORNERS: {
   missing: number;
   x: number;
   y: number;
-  casts: boolean;
 }[] = [
-  { needs: N | W, missing: NW, x: 0, y: 0, casts: true },
-  { needs: N | E, missing: NE, x: CELL - 1, y: 0, casts: true },
-  { needs: S | W, missing: SW, x: 0, y: CELL - 1, casts: false },
-  { needs: S | E, missing: SE, x: CELL - 1, y: CELL - 1, casts: false },
+  { needs: N | W, missing: NW, x: 0, y: 0 },
+  { needs: N | E, missing: NE, x: CELL - 1, y: 0 },
+  { needs: S | W, missing: SW, x: 0, y: CELL - 1 },
+  { needs: S | E, missing: SE, x: CELL - 1, y: CELL - 1 },
 ];
 
-function nickCorners(inside: boolean[][], mask: number, casting = false): boolean[][] {
+function nickCorners(inside: boolean[][], mask: number): boolean[][] {
   const out = inside.map((row) => [...row]);
   for (const corner of CORNERS) {
-    if (casting && !corner.casts) continue;
     const bothEdges = (mask & corner.needs) === corner.needs;
     if (!bothEdges || mask & corner.missing) continue;
     out[corner.y]![corner.x] = false;
-  }
-  return out;
-}
-
-/**
- * Off-tile pixels count as inside the water, so open water gets no bank and an
- * edge slice is shaded only where its own shape cuts in.
- */
-function bankOf(shape: boolean[][], inside: boolean[][]): boolean[][] {
-  const at = (x: number, y: number): boolean =>
-    x < 0 || y < 0 || x >= CELL || y >= CELL ? true : shape[y]![x]!;
-  const out = shape.map((row) => row.map(() => false));
-  for (let y = 0; y < CELL; y++) {
-    for (let x = 0; x < CELL; x++) {
-      if (!inside[y]![x]!) continue;
-      for (let dy = 0; dy <= BANK_DEPTH && !out[y]![x]; dy++) {
-        for (let dx = 0; dx <= BANK_DEPTH; dx++) {
-          if (dx === 0 && dy === 0) continue;
-          if (!at(x - dx, y - dy)) {
-            out[y]![x] = true;
-            break;
-          }
-        }
-      }
-    }
   }
   return out;
 }
@@ -171,7 +142,6 @@ async function main() {
     );
     const mask = AUTOTILE_SLICE_MASKS[slice]!;
     const shape = nickCorners(inside, mask);
-    const bank = bankOf(nickCorners(inside, mask, true), shape);
 
     for (let frame = 0; frame < frameCount; frame++) {
       const lit = litByFrame[frame]!;
@@ -179,13 +149,7 @@ async function main() {
       for (let y = 0; y < CELL; y++) {
         for (let x = 0; x < CELL; x++) {
           if (!shape[y]![x]!) continue;
-          const tone = bank[y]![x]!
-            ? SHADOW
-            : lit[y]![x]!
-              ? HIGHLIGHT
-              : shade[y]![x]!
-                ? SHADOW
-                : BASE;
+          const tone = lit[y]![x]! ? HIGHLIGHT : shade[y]![x]! ? SHADOW : BASE;
           setPixel(sheet, frame * CELL + x, row * CELL + y, tone);
         }
       }
