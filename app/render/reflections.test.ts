@@ -8,10 +8,11 @@ import {
   REFLECTION_LEVELS_BELOW,
   REFLECTION_REACH_CELLS,
   ReflectiveCells,
+  mirrorUvShift,
   reflectiveTileIndex,
 } from "./reflections";
 
-const MIRROR = { colors: ["#335c8c"], color: "#2e222f", turbulence: 1 };
+const MIRROR = { colors: ["#335c8c"], opacity: 0.4, fadePx: 24, turbulence: 1 };
 
 const tiles: Record<string, TileDef> = {
   grass: tile({ id: "grass" }),
@@ -102,5 +103,38 @@ describe("ReflectiveCells.changedChunks", () => {
     const waterAdded = replaceStack(before, 1, 0, 0, [{ tileId: "water" }]);
     expect(cells.changedChunks(before, grassMoved, 0)).toEqual([]);
     expect(cells.changedChunks(before, waterAdded, 0)).toHaveLength(1);
+  });
+});
+
+describe("mirrorUvShift", () => {
+  const SHEET = { id: "sheet", name: "sheet", file: "sheet.png", width: 128, height: 64 };
+  const facing = (x: number, y: number, base = { x: 3, y: 3 }) => ({
+    frames: [{ sprite: { rect: { x, y, w: 4, h: 4 }, base }, durationMs: 200 }],
+  });
+  const body = (west = facing(12, 4)) =>
+    tile({
+      id: "body",
+      type: "directional",
+      anchor: { tilesetId: "sheet", x: 0, y: 0 },
+      sprites: { n: facing(4, 0), e: facing(12, 0), s: facing(4, 4), w: west },
+    });
+
+  it("points an east-facing frame at the west-facing art, and back", () => {
+    const def = body();
+    const east = def.sprites!.e!.frames[0]!;
+    const west = def.sprites!.w!.frames[0]!;
+    expect(mirrorUvShift(def, east, SHEET)).toEqual([0, -32 / 64]);
+    expect(mirrorUvShift(def, west, SHEET)).toEqual([0, 32 / 64]);
+  });
+
+  it("leaves north and south as they are", () => {
+    const def = body();
+    expect(mirrorUvShift(def, def.sprites!.n!.frames[0]!, SHEET)).toEqual([0, 0]);
+    expect(mirrorUvShift(def, def.sprites!.s!.frames[0]!, SHEET)).toEqual([0, 0]);
+  });
+
+  it("does not swap to opposite art standing on a different base cell", () => {
+    const def = body(facing(12, 4, { x: 0, y: 3 }));
+    expect(mirrorUvShift(def, def.sprites!.e!.frames[0]!, SHEET)).toEqual([0, 0]);
   });
 });

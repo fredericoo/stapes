@@ -149,14 +149,18 @@ export type StateSprites = {
 
 /**
  * Pixels of the tile's art in one of `colors` show a reflection of whatever
- * stands on the bank behind it, painted flat in `color` and wobbled sideways by
- * up to `turbulence` pixels a row.
+ * stands on the bank behind it, in its own colours blended over the water at
+ * `opacity`, fading to nothing `fadePx` art pixels above the waterline, and
+ * wobbled sideways by up to `turbulence` pixels a row.
  */
 export const MAX_REFLECTIVE_COLORS = 4;
+export const DEFAULT_REFLECTION_OPACITY = 0.4;
+export const DEFAULT_REFLECTION_FADE_PX = 24;
 
 export type TileReflective = {
   colors: string[];
-  color: string;
+  opacity: number;
+  fadePx: number;
   turbulence: number;
 };
 

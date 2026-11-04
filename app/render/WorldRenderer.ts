@@ -119,9 +119,11 @@ import {
   ReflectiveCells,
   createReflectionMaterial,
   createReflectionUniforms,
+  mirrorUvShift,
   reflectiveTileIndex,
   waterlinePivot,
   writePivotAttr,
+  writeMirrorUvAttr,
   writeReflectionDefs,
 } from "./reflections";
 import {
@@ -222,6 +224,8 @@ type BuildItem = Quad & {
   footElev: number;
   /** A body, whose reflection runs its full length rather than being cut off flat. */
   standsOnFeet: boolean;
+  /** A body's uv offset to its opposite facing; see `mirrorUvShift`. */
+  mirrorUv?: [number, number];
   stackIndex: number;
   transitionId?: string;
   pivotX: number;
@@ -269,10 +273,10 @@ type TransitionMesh = {
  */
 function reflectionPivot(item: BuildItem, waterElev: number): ReflectionPivot {
   const pivot = waterlinePivot({ x: item.pivotX, y: item.pivotY }, item.footElev, waterElev);
-  if (item.standsOnFeet) return { ...pivot, cutY: NO_REFLECTION_CUT };
+  if (item.standsOnFeet) return { ...pivot, cutY: NO_REFLECTION_CUT, waterElev };
   const southEdgeY = pivot.y + CELL_SIZE / 2;
   const heightPx = (item.box.top - waterElev) * PX_PER_HEIGHT;
-  return { ...pivot, cutY: southEdgeY + heightPx * REFLECTION_LENGTH_FRACTION };
+  return { ...pivot, cutY: southEdgeY + heightPx * REFLECTION_LENGTH_FRACTION, waterElev };
 }
 
 /** How much of a wall's height its reflection shows before the flat cut. */
@@ -1419,7 +1423,7 @@ export class WorldRenderer {
     const frame = entry.frames[frameIdx]!;
     if (frameIdx !== entry.frameIdx) {
       entry.frameIdx = frameIdx;
-      writeFrameUvs(entry.mesh, entry.def.anchor, frame, entry.tileset);
+      writeFrameUvs(entry.mesh, entry.def, frame, entry.tileset);
     }
 
     if (view.z !== entry.z) {
@@ -2256,6 +2260,7 @@ export class WorldRenderer {
       const animKey = animationKey(def, placed, x, y, z, state);
 
       const offsets = separate ? NO_PILE_OFFSET : pileOffsets(countOf(placed));
+      const standsOnFeet = def.kind === "battler" || resolveActor(def);
       const stackBias = depthStackBias(z, stackIndex);
       const extent = extents[stackIndex] ?? { foot: elev, top: elev };
       const boxFoot = absoluteElevation(z, extent.foot);
@@ -2298,7 +2303,8 @@ export class WorldRenderer {
           stackBias: stackBias + pileDepthNudge(i, offsets.length),
           texture,
           footElev: foot,
-          standsOnFeet: def.kind === "battler" || resolveActor(def),
+          standsOnFeet,
+          mirrorUv: standsOnFeet ? mirrorUvShift(def, art, tileset) : undefined,
           reflect: this.reflective().index.get(def.id),
           lightX0: x,
           lightY0: y,
@@ -2747,8 +2753,10 @@ export class WorldRenderer {
         x: pivot.x - mesh.position.x,
         y: pivot.y - mesh.position.y,
         cutY: pivot.cutY - mesh.position.y,
+        waterElev: pivot.waterElev,
       },
     ]);
+    if (item.mirrorUv) writeMirrorUvAttr(mesh.geometry, item.mirrorUv);
     const twin = new THREE.Mesh(mesh.geometry, this.reflectionMaterialFor(item.texture, z));
     twin.layers.set(REFLECTION_LAYER);
     twin.frustumCulled = false;
@@ -2767,7 +2775,7 @@ export class WorldRenderer {
 
   /**
    * Drawn before the world, because the water samples it: a reflective texel
-   * whose pixel here is covered takes the reflection colour before it is lit.
+   * whose pixel here is covered blends in the reflected colour before it is lit.
    */
   private renderReflections(r: THREE.WebGLRenderer) {
     let reflects = false;
@@ -2796,10 +2804,10 @@ export class WorldRenderer {
   private ensureReflectionTarget(w: number, h: number): THREE.WebGLRenderTarget {
     if (!this.reflectionTarget) {
       this.reflectionTarget = new THREE.WebGLRenderTarget(w, h, {
-        depthBuffer: false,
+        depthBuffer: true,
         stencilBuffer: false,
         type: THREE.UnsignedByteType,
-        format: THREE.RedFormat,
+        format: THREE.RGBAFormat,
         magFilter: THREE.NearestFilter,
         minFilter: THREE.NearestFilter,
         generateMipmaps: false,
@@ -2847,7 +2855,7 @@ export class WorldRenderer {
       for (const inst of instances) {
         if (inst.frameIdx === idx) continue;
         inst.frameIdx = idx;
-        writeFrameUvs(inst.mesh, sample.def.anchor, frame, sample.tileset);
+        writeFrameUvs(inst.mesh, sample.def, frame, sample.tileset);
         changed = true;
       }
     }
@@ -2906,7 +2914,7 @@ export class WorldRenderer {
       inst.frames = frames;
       inst.animKey = animationKey(inst.def, inst.placed, x, y, z, next);
       inst.frameIdx = idx;
-      writeFrameUvs(inst.mesh, inst.def.anchor, frames[idx]!, inst.tileset);
+      writeFrameUvs(inst.mesh, inst.def, frames[idx]!, inst.tileset);
       swapped = true;
     }
 
@@ -2934,17 +2942,15 @@ function frameUvs(
   };
 }
 
-function writeFrameUvs(
-  mesh: THREE.Mesh,
-  anchor: SpriteAnchor,
-  frame: Frame,
-  tileset: TilesetDef,
-): void {
-  const { u0, v0, u1, v1 } = frameUvs(anchor, frame, tileset);
+function writeFrameUvs(mesh: THREE.Mesh, def: TileDef, frame: Frame, tileset: TilesetDef): void {
+  const { u0, v0, u1, v1 } = frameUvs(def.anchor, frame, tileset);
   const uvs = mesh.geometry.attributes.uv!;
   uvs.setXY(0, u0, v0);
   uvs.setXY(1, u1, v0);
   uvs.setXY(2, u0, v1);
   uvs.setXY(3, u1, v1);
   uvs.needsUpdate = true;
+  if (mesh.geometry.getAttribute("aMirrorUv")) {
+    writeMirrorUvAttr(mesh.geometry, mirrorUvShift(def, frame, tileset));
+  }
 }

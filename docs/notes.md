@@ -2382,14 +2382,15 @@ every step taken from the water is slow, including the one back onto the bank.
 A route prices those steps the same way — see `legCost` under "A chase is a
 route" — so it walks round water when going round is quicker.
 
-### A `reflective` tile shows what stands beside it, in one flat colour
+### A `reflective` tile shows what stands beside it, blended over the water
 
 A tile with `reflective` has three fields: `colors`, the pixels of its own art
 that act as a mirror (the shipped water lists its two body colours and leaves
-the crest out); `color`, the one shade the reflection is painted in; and
-`turbulence`, how many pixels a row of the reflection may sway sideways. The
-reflection is a silhouette, not a second copy of the sprite: it keeps the
-palette coarse and costs one channel.
+the crest out); `opacity`, how much of the reflected sprite's own colour is
+blended over the water; `fadePx`, how many art pixels above the waterline the
+reflection takes to fade to nothing; and `turbulence`, how many pixels a row
+of the reflection may sway sideways. A tile saved without `opacity` reads
+`DEFAULT_REFLECTION_OPACITY`.
 
 In the cabinet projection a box turned half a turn about the centre of its
 footprint is exactly its reflection, so that is the transform:
@@ -2400,14 +2401,30 @@ water's level, not its own floor.
 
 How it is drawn (`app/render/reflections.ts`, wired in `WorldRenderer`):
 
-- **A second pass into a one-channel target.** Every mesh that can reflect has
-  a twin on layer 1 (`REFLECTION_LAYER`) with the reflection material. Before
-  the main pass the camera draws layer 1 into a `RedFormat` target the size of
-  the drawing buffer. Nothing is drawn when no loaded chunk reflects.
+- **A second pass into an RGBA target.** Every mesh that can reflect has a
+  twin on layer 1 (`REFLECTION_LAYER`) with the reflection material, which
+  writes the sprite's texel sRGB-encoded. Before the main pass the camera draws
+  layer 1 into a target the size of the drawing buffer. Nothing is drawn when
+  no loaded chunk reflects.
+- **A texel carries a waterline tag and a height.** The target is in screen
+  space, so water on one level shares pixels with reflections meant for water
+  on another: a pool on a cliff top sits on screen right where the cliff's own
+  reflection in the pond below lands. `REFLECTION_PACKING_GLSL` keeps six bits
+  of colour per channel, puts `waterlineTag` of the waterline in the two low
+  bits of r, g and b, and puts the art pixel's height above the waterline in
+  alpha. Water takes only a reflection whose tag matches its own foot elevation
+  (`vBox.z`), and fades it by that height over `fadePx`. Height is measured from
+  the waterline pivot, so an upper storey, pivoted at the water, fades from
+  where the ground floor left off.
+- **The pass has its own depth.** A thing nearer the viewer also stands in
+  front of a farther thing's reflection: a waterfall hides the cliff behind it,
+  and so must its reflection. Each twin's depth is `x + y` of its base cell,
+  relative to the camera, over `REFLECTION_DEPTH_SPAN_PX`.
 - **The water reads that target in the world shader.** A texel whose sRGB
   colour is in the tile's mask samples the target at its own screen position,
-  shifted by the turbulence, and on a hit takes `color`. It is lit after that,
-  so a reflection darkens at night like the water around it.
+  shifted by the turbulence, and on a hit decodes the colour and mixes it over
+  the water's at `opacity`, in linear space. It is lit after that, so a
+  reflection darkens at night like the water around it.
 - **Only what stands near water gets a twin.** `ReflectiveCells` keeps each
   chunk's reflective cells in a `WeakMap` keyed by the chunk object, so the
   copy-on-write map makes a lookup free until the chunk is edited. A thing has
@@ -2423,10 +2440,20 @@ Three things look wrong and are not:
   diagonal bands, and turned half a turn their ends make spikes. The reflection
   is cut at the footprint's south edge plus `REFLECTION_LENGTH_FRACTION` of the
   thing's height above the water.
+- **A body's reflection draws its opposite facing's art.** The half turn is
+  exact for a box drawn in the projection, but a body is drawn upright, so
+  turning it also turns it round left to right. Its twin reads the art of the
+  opposite facing instead (east for west, north-east for north-west), through
+  the `aMirrorUv` offset `writeFrameUvs` keeps in step with the frame, so the
+  reflection faces the way the body does. North and south are their own
+  mirror. Walls and other boxes keep their own art.
 - **A wading body turns about its dry-ground pivot, not its sunk position.**
   The mesh is moved by the wade sink and the pivot, a child of it, moves too,
   so the shader takes the sink back off the pivot. What is turned is the body
   as drawn, sunk and cropped, so the reflection shows the same cut.
+- **The target holds sRGB, not linear, colour.** In an 8-bit target linear
+  values crush the dark shades of the palette together, so the reflection
+  material encodes and the world shader decodes.
 - **The material compares the mask in sRGB.** The texture is decoded to linear
   on sampling, and an author picks the mask from the sheet's sRGB hex, so the
   shader re-encodes before comparing (`MASK_TOLERANCE_SQ`).

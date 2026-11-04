@@ -974,7 +974,8 @@
         "#335c8c",
         "#24436b"
       ],
-      "color": "#2e222f",
+      "opacity": 0.4,
+      "fadePx": 24,
       "turbulence": 1
     },
     "interactions": {
