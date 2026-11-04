@@ -2380,9 +2380,19 @@ How it is drawn (`app/render/reflections.ts`, wired in `WorldRenderer`):
 
 - **A second pass into an RGBA target.** Every mesh that can reflect has a
   twin on layer 1 (`REFLECTION_LAYER`) with the reflection material, which
-  writes the sprite's texel sRGB-encoded with alpha 1. Before the main pass the
-  camera draws layer 1 into a target the size of the drawing buffer. Nothing is
-  drawn when no loaded chunk reflects.
+  writes the sprite's texel sRGB-encoded. Before the main pass the camera draws
+  layer 1 into a target the size of the drawing buffer. Nothing is drawn when
+  no loaded chunk reflects.
+- **Alpha names the water surface.** The target is in screen space, so water
+  on one level shares pixels with reflections meant for water on another: a
+  pool on a cliff top sits on screen right where the cliff's own reflection in
+  the pond below lands. Each twin writes `waterlineTag` of its waterline into
+  alpha, and water takes only a reflection whose tag matches its own foot
+  elevation (`vBox.z`). Zero means nothing is reflected there.
+- **The pass has its own depth.** A thing nearer the viewer also stands in
+  front of a farther thing's reflection: a waterfall hides the cliff behind it,
+  and so must its reflection. Each twin's depth is `x + y` of its base cell,
+  relative to the camera, over `REFLECTION_DEPTH_SPAN_PX`.
 - **The water reads that target in the world shader.** A texel whose sRGB
   colour is in the tile's mask samples the target at its own screen position,
   shifted by the turbulence, and on a hit decodes the colour and mixes it over
@@ -2420,8 +2430,7 @@ materials leave it out: compiled in but never taken, the branch still cost the
 editor's frame budget about 0.3ms at p95. So a tile mid-transition shows no
 reflection.
 
-Not done: where two reflections overlap in the target, whichever twin draws
-last wins, since the pass has no depth; the map editor's `EditorRenderer` draws no reflections; turbulence
+Not done: the map editor's `EditorRenderer` draws no reflections; turbulence
 only moves when the scene redraws, which water's own animation does every
 frame change; particles over water are not mirrored; and at most
 `MAX_REFLECTIVE_TILES` tiles and `MAX_REFLECTIVE_COLORS` mask colours each fit

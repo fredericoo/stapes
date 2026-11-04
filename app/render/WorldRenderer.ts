@@ -269,10 +269,10 @@ type TransitionMesh = {
  */
 function reflectionPivot(item: BuildItem, waterElev: number): ReflectionPivot {
   const pivot = waterlinePivot({ x: item.pivotX, y: item.pivotY }, item.footElev, waterElev);
-  if (item.standsOnFeet) return { ...pivot, cutY: NO_REFLECTION_CUT };
+  if (item.standsOnFeet) return { ...pivot, cutY: NO_REFLECTION_CUT, waterElev };
   const southEdgeY = pivot.y + CELL_SIZE / 2;
   const heightPx = (item.box.top - waterElev) * PX_PER_HEIGHT;
-  return { ...pivot, cutY: southEdgeY + heightPx * REFLECTION_LENGTH_FRACTION };
+  return { ...pivot, cutY: southEdgeY + heightPx * REFLECTION_LENGTH_FRACTION, waterElev };
 }
 
 /** How much of a wall's height its reflection shows before the flat cut. */
@@ -2747,6 +2747,7 @@ export class WorldRenderer {
         x: pivot.x - mesh.position.x,
         y: pivot.y - mesh.position.y,
         cutY: pivot.cutY - mesh.position.y,
+        waterElev: pivot.waterElev,
       },
     ]);
     const twin = new THREE.Mesh(mesh.geometry, this.reflectionMaterialFor(item.texture, z));
@@ -2796,7 +2797,7 @@ export class WorldRenderer {
   private ensureReflectionTarget(w: number, h: number): THREE.WebGLRenderTarget {
     if (!this.reflectionTarget) {
       this.reflectionTarget = new THREE.WebGLRenderTarget(w, h, {
-        depthBuffer: false,
+        depthBuffer: true,
         stencilBuffer: false,
         type: THREE.UnsignedByteType,
         format: THREE.RGBAFormat,

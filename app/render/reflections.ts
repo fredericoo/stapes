@@ -34,6 +34,23 @@ const REFLECTION_BACK_REACH_CELLS = 1;
  */
 export const REFLECTION_LEVELS_BELOW = 3;
 
+/**
+ * The world px of `x + y` either side of the camera that the reflection pass
+ * can order by depth. A thing further south-east stands nearer the viewer.
+ */
+const REFLECTION_DEPTH_SPAN_PX = 32768;
+
+/**
+ * The target's alpha names the water surface a reflection belongs to, so water
+ * on another level that happens to share its screen pixels ignores it. Zero is
+ * left for "nothing reflected here"; elevations come in quarters at the finest.
+ */
+const WATERLINE_TAG_GLSL = `
+float waterlineTag(float elev) {
+  return (1.0 + mod(floor(elev * 4.0 + 0.5), 254.0)) / 255.0;
+}
+`;
+
 /** Squared sRGB distance under which a texel counts as one of the mask colours. */
 const MASK_TOLERANCE_SQ = 1e-4;
 /** Radians of wobble phase per art pixel row: about two rows per ripple at this rate. */
@@ -123,6 +140,7 @@ uniform vec3 uReflectMask[${MAX_REFLECTIVE_TILES * MAX_REFLECTIVE_COLORS}];
 uniform float uReflectOpacity[${MAX_REFLECTIVE_TILES}];
 uniform float uReflectTurbulence[${MAX_REFLECTIVE_TILES}];
 varying float vReflect;
+${WATERLINE_TAG_GLSL}
 `;
 
 /**
@@ -152,7 +170,7 @@ if (vReflect > 0.5) {
     // World y runs down the screen and gl_FragCoord.y runs up it.
     vec2 frag = gl_FragCoord.xy + (artPx - vWorldPx) * vec2(uReflectFragPerPx, -uReflectFragPerPx);
     vec4 reflected = texture2D(uReflectMap, frag / uReflectSize);
-    if (reflected.a > 0.5) {
+    if (abs(reflected.a - waterlineTag(vBox.z)) < ${glsl(0.5 / 255)}) {
       vec3 reflectedLinear = sRGBTransferEOTF(vec4(reflected.rgb, 1.0)).rgb;
       diffuseColor.rgb = mix(diffuseColor.rgb, reflectedLinear, uReflectOpacity[reflectSlot]);
     }
@@ -167,9 +185,10 @@ export const NO_REFLECTION_CUT = 1e9;
 /**
  * Draws a sprite turned half a turn about `aPivot.xy` (the centre of its base
  * cell at the waterline, in model space) into the reflection target in its own
- * colours, sRGB-encoded so the 8-bit target keeps the dark shades apart. Below `aPivot.z` (model
- * space y) it is cut off flat. A wading body is turned as it is drawn, sunk and
- * cropped, about the same pivot it would have on dry ground.
+ * colours, sRGB-encoded so the 8-bit target keeps the dark shades apart, with
+ * the waterline `aPivot.w` tagged in alpha. Below `aPivot.z` (model space y) it
+ * is cut off flat. A wading body is turned as it is drawn, sunk and cropped,
+ * about the same pivot it would have on dry ground.
  */
 export function createReflectionMaterial(
   texture: THREE.Texture,
@@ -178,7 +197,7 @@ export function createReflectionMaterial(
   return new THREE.ShaderMaterial({
     uniforms: { map: { value: texture }, ...anim },
     vertexShader: `
-attribute vec3 aPivot;
+attribute vec4 aPivot;
 attribute vec2 aAnim;
 attribute vec4 aBox;
 attribute vec2 aWade;
@@ -188,6 +207,7 @@ varying vec2 vFeetPx;
 varying float vWading;
 varying float vReflectedY;
 varying float vCutY;
+varying float vWaterline;
 ${ANIM_GLSL_FUNCTION}
 void main() {
   vUv = uv;
@@ -205,7 +225,11 @@ void main() {
   vSourcePx = world;
   vec2 reflected = 2.0 * pivot - world;
   vReflectedY = reflected.y;
+  vWaterline = aPivot.w;
   gl_Position = projectionMatrix * viewMatrix * vec4(reflected, 0.0, 1.0);
+  // The camera is orthographic, so w is 1 and this is the NDC depth: nearer the viewer is lower.
+  float nearness = aBox.x + aBox.y + aBox.z * 0.5 - cameraPosition.x - cameraPosition.y;
+  gl_Position.z = clamp(-nearness / ${glsl(REFLECTION_DEPTH_SPAN_PX)}, -1.0, 1.0);
 }`,
     fragmentShader: `
 uniform sampler2D map;
@@ -215,6 +239,8 @@ varying vec2 vFeetPx;
 varying float vWading;
 varying float vReflectedY;
 varying float vCutY;
+varying float vWaterline;
+${WATERLINE_TAG_GLSL}
 void main() {
   if (vReflectedY > vCutY) discard;
   if (vWading > 0.5) {
@@ -223,11 +249,11 @@ void main() {
   }
   vec4 texel = texture2D(map, vUv);
   if (texel.a < 0.5) discard;
-  gl_FragColor = vec4(sRGBTransferOETF(vec4(texel.rgb, 1.0)).rgb, 1.0);
+  gl_FragColor = vec4(sRGBTransferOETF(vec4(texel.rgb, 1.0)).rgb, waterlineTag(vWaterline));
 }`,
     side: THREE.DoubleSide,
-    depthTest: false,
-    depthWrite: false,
+    depthTest: true,
+    depthWrite: true,
     transparent: false,
   });
 }
@@ -245,7 +271,7 @@ export function waterlinePivot(
   return { x: pivot.x + lift, y: pivot.y + lift };
 }
 
-export type ReflectionPivot = { x: number; y: number; cutY: number };
+export type ReflectionPivot = { x: number; y: number; cutY: number; waterElev: number };
 
 export function writePivotAttr(
   geo: THREE.BufferGeometry,
@@ -260,12 +286,13 @@ export function writePivotAttr(
       arr[o] = p.x;
       arr[o + 1] = p.y;
       arr[o + 2] = p.cutY;
+      arr[o + 3] = p.waterElev;
     }
   });
   geo.setAttribute("aPivot", new THREE.BufferAttribute(arr, PIVOT_COMPONENTS));
 }
 
-const PIVOT_COMPONENTS = 3;
+const PIVOT_COMPONENTS = 4;
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
