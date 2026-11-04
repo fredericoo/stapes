@@ -15,6 +15,7 @@ import type { MasteryXp } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import { HudWindow } from "./HudWindow";
 import { ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
 
@@ -125,13 +126,9 @@ export function EquipmentPanel({
   const spilling = claimed ? equipment[otherHand(claimed)] : null;
 
   return (
-    <section
-      className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
-      aria-label="Equipment"
-    >
-      <h2 className="text-detail font-bold uppercase tracking-wide text-paper/50">Equipment</h2>
+    <HudWindow label="Equipment" title="Equipment" className={className}>
       <div
-        className="grid self-start"
+        className="grid self-center"
         style={{
           gridTemplateColumns: `repeat(${COLUMN_COUNT}, ${ITEM_SLOT_SIZE_PX}px)`,
           gridTemplateRows: `repeat(${ROW_COUNT}, ${HALF_ROW_PX}px)`,
@@ -164,7 +161,7 @@ export function EquipmentPanel({
           </div>
         ))}
       </div>
-    </section>
+    </HudWindow>
   );
 }
 

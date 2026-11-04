@@ -18,6 +18,7 @@ import type { ActiveStatus } from "../lib/status";
 import { compareStatuses, STATUS_ICON_SIZE_PX } from "./StatusStrip";
 import { SpritePreview } from "./TilePreview";
 import { Rating } from "./Rating";
+import { HudWindow } from "./HudWindow";
 
 export function StatsPanel({
   vitals,
@@ -43,18 +44,16 @@ export function StatsPanel({
   const stars = vitals.rating ?? rating(masteriesFromXp(masteryXp));
 
   return (
-    <section
-      className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
-      aria-label="Stats"
+    <HudWindow
+      label="Stats"
+      title={HEADINGS.stats}
+      meta={<Rating value={stars} className="text-paper/80" />}
+      flush
+      className={className}
     >
-      <h2 className="flex items-baseline gap-1 text-detail font-bold uppercase tracking-wide text-paper/50">
-        {HEADINGS.stats}
-        <Rating value={stars} className="ml-auto self-center text-paper/70" />
-      </h2>
-
       <div
         className={[
-          "flex flex-col gap-1",
+          "flex flex-col gap-1 p-1",
           scrolls ? "scrolls-in-chrome overflow-y-auto overscroll-contain" : "",
         ]
           .filter(Boolean)
@@ -63,9 +62,7 @@ export function StatsPanel({
       >
         <Effects statuses={statuses} tilesets={tilesets} />
 
-        <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
-          {HEADINGS.masteries}
-        </h3>
+        <h3 className={SECTION_HEADING_CLASS}>{HEADINGS.masteries}</h3>
         <ul className="flex flex-col gap-1">
           {levels.map(({ mastery, level, progress }) => (
             <li key={mastery} className="flex flex-col gap-0.5">
@@ -80,11 +77,14 @@ export function StatsPanel({
 
         <Combat attributes={vitals.attributes} />
       </div>
-    </section>
+    </HudWindow>
   );
 }
 
-const STATS_BODY_MAX_HEIGHT = 200;
+const SECTION_HEADING_CLASS =
+  "mt-1 border-b border-paper/10 pb-0.5 text-detail uppercase tracking-wide text-label/70 first:mt-0";
+
+const STATS_BODY_MAX_HEIGHT = 240;
 const MS_PER_SECOND = 1000;
 
 function Combat({ attributes }: { attributes: Attributes | null }) {
@@ -94,9 +94,7 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
 
   return (
     <>
-      <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
-        {HEADINGS.combat}
-      </h3>
+      <h3 className={SECTION_HEADING_CLASS}>{HEADINGS.combat}</h3>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-detail tabular-nums">
         <Reading term="damage" value={bandLabel(minDamage, maxDamage)} />
         <Reading term="defence" value={`${def}`} />
@@ -126,9 +124,7 @@ function Effects({ statuses, tilesets }: { statuses: ActiveStatus[]; tilesets: T
 
   return (
     <>
-      <h3 className="mt-1 text-detail font-bold uppercase tracking-wide text-paper/50">
-        {HEADINGS.effects}
-      </h3>
+      <h3 className={SECTION_HEADING_CLASS}>{HEADINGS.effects}</h3>
       <ul className="flex flex-col gap-0.5">
         {ordered.map((status) => (
           <EffectRow key={status.defId} status={status} tilesets={tilesets} />
@@ -177,9 +173,9 @@ function MasteryProgress({
     <span
       role="img"
       aria-label={`${mastery} ${level}, ${Math.round(progress * 100)}% towards the next`}
-      className="flex h-1 w-full border border-paper/25 bg-ink"
+      className="flex h-1.5 w-full border border-frame-lo bg-ink"
     >
-      <span className="bg-paper/60" style={{ width: `${Math.round(progress * 100)}%` }} />
+      <span className="bg-label/70" style={{ width: `${Math.round(progress * 100)}%` }} />
     </span>
   );
 }
