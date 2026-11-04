@@ -119,9 +119,11 @@ import {
   ReflectiveCells,
   createReflectionMaterial,
   createReflectionUniforms,
+  mirrorUvShift,
   reflectiveTileIndex,
   waterlinePivot,
   writePivotAttr,
+  writeMirrorUvAttr,
   writeReflectionDefs,
 } from "./reflections";
 import {
@@ -222,6 +224,8 @@ type BuildItem = Quad & {
   footElev: number;
   /** A body, whose reflection runs its full length rather than being cut off flat. */
   standsOnFeet: boolean;
+  /** A body's uv offset to its opposite facing; see `mirrorUvShift`. */
+  mirrorUv?: [number, number];
   stackIndex: number;
   transitionId?: string;
   pivotX: number;
@@ -1419,7 +1423,7 @@ export class WorldRenderer {
     const frame = entry.frames[frameIdx]!;
     if (frameIdx !== entry.frameIdx) {
       entry.frameIdx = frameIdx;
-      writeFrameUvs(entry.mesh, entry.def.anchor, frame, entry.tileset);
+      writeFrameUvs(entry.mesh, entry.def, frame, entry.tileset);
     }
 
     if (view.z !== entry.z) {
@@ -2256,6 +2260,7 @@ export class WorldRenderer {
       const animKey = animationKey(def, placed, x, y, z, state);
 
       const offsets = separate ? NO_PILE_OFFSET : pileOffsets(countOf(placed));
+      const standsOnFeet = def.kind === "battler" || resolveActor(def);
       const stackBias = depthStackBias(z, stackIndex);
       const extent = extents[stackIndex] ?? { foot: elev, top: elev };
       const boxFoot = absoluteElevation(z, extent.foot);
@@ -2298,7 +2303,8 @@ export class WorldRenderer {
           stackBias: stackBias + pileDepthNudge(i, offsets.length),
           texture,
           footElev: foot,
-          standsOnFeet: def.kind === "battler" || resolveActor(def),
+          standsOnFeet,
+          mirrorUv: standsOnFeet ? mirrorUvShift(def, art, tileset) : undefined,
           reflect: this.reflective().index.get(def.id),
           lightX0: x,
           lightY0: y,
@@ -2750,6 +2756,7 @@ export class WorldRenderer {
         waterElev: pivot.waterElev,
       },
     ]);
+    if (item.mirrorUv) writeMirrorUvAttr(mesh.geometry, item.mirrorUv);
     const twin = new THREE.Mesh(mesh.geometry, this.reflectionMaterialFor(item.texture, z));
     twin.layers.set(REFLECTION_LAYER);
     twin.frustumCulled = false;
@@ -2848,7 +2855,7 @@ export class WorldRenderer {
       for (const inst of instances) {
         if (inst.frameIdx === idx) continue;
         inst.frameIdx = idx;
-        writeFrameUvs(inst.mesh, sample.def.anchor, frame, sample.tileset);
+        writeFrameUvs(inst.mesh, sample.def, frame, sample.tileset);
         changed = true;
       }
     }
@@ -2907,7 +2914,7 @@ export class WorldRenderer {
       inst.frames = frames;
       inst.animKey = animationKey(inst.def, inst.placed, x, y, z, next);
       inst.frameIdx = idx;
-      writeFrameUvs(inst.mesh, inst.def.anchor, frames[idx]!, inst.tileset);
+      writeFrameUvs(inst.mesh, inst.def, frames[idx]!, inst.tileset);
       swapped = true;
     }
 
@@ -2935,17 +2942,15 @@ function frameUvs(
   };
 }
 
-function writeFrameUvs(
-  mesh: THREE.Mesh,
-  anchor: SpriteAnchor,
-  frame: Frame,
-  tileset: TilesetDef,
-): void {
-  const { u0, v0, u1, v1 } = frameUvs(anchor, frame, tileset);
+function writeFrameUvs(mesh: THREE.Mesh, def: TileDef, frame: Frame, tileset: TilesetDef): void {
+  const { u0, v0, u1, v1 } = frameUvs(def.anchor, frame, tileset);
   const uvs = mesh.geometry.attributes.uv!;
   uvs.setXY(0, u0, v0);
   uvs.setXY(1, u1, v0);
   uvs.setXY(2, u0, v1);
   uvs.setXY(3, u1, v1);
   uvs.needsUpdate = true;
+  if (mesh.geometry.getAttribute("aMirrorUv")) {
+    writeMirrorUvAttr(mesh.geometry, mirrorUvShift(def, frame, tileset));
+  }
 }

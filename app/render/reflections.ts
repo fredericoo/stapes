@@ -13,9 +13,18 @@ import {
   DEFAULT_REFLECTION_OPACITY,
   MAX_REFLECTIVE_COLORS,
   coordKey,
+  facingKeysFor,
+  isDirectional,
+  spriteRect,
+  type Frame,
   type MapFile,
+  type Octant,
+  type OverrideSpriteState,
+  type SpriteState,
   type TileDef,
+  type TilesetDef,
 } from "../lib/types";
+import { resolveTileSprite } from "../lib/tileResolve";
 import { ANIM_GLSL_FUNCTION } from "./animTable";
 import type { LevelAnimUniforms } from "./worldQuads";
 
@@ -215,7 +224,8 @@ export const NO_REFLECTION_CUT = 1e9;
  * colours, packed with its waterline `aPivot.w` and height above it (see
  * `REFLECTION_PACKING_GLSL`). Below `aPivot.z` (model space y) it is cut off
  * flat. A wading body is turned as it is drawn, sunk and cropped, about the
- * same pivot it would have on dry ground.
+ * same pivot it would have on dry ground. `aMirrorUv` moves a body's art to its
+ * opposite facing, so the half turn leaves it facing the way it does on land.
  */
 export function createReflectionMaterial(
   texture: THREE.Texture,
@@ -228,6 +238,7 @@ attribute vec4 aPivot;
 attribute vec2 aAnim;
 attribute vec4 aBox;
 attribute vec2 aWade;
+attribute vec2 aMirrorUv;
 varying vec2 vUv;
 varying vec2 vSourcePx;
 varying vec2 vFeetPx;
@@ -238,7 +249,7 @@ varying float vWaterline;
 varying float vPivotY;
 ${ANIM_GLSL_FUNCTION}
 void main() {
-  vUv = uv;
+  vUv = uv + aMirrorUv;
   if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
     vUv += animFrameOffset(aAnim.x, uAnimClockMs + aAnim.y);
   }
@@ -288,6 +299,81 @@ void main() {
     depthWrite: true,
     transparent: false,
   });
+}
+
+const HORIZONTAL_MIRROR: Record<Octant, Octant> = {
+  n: "n",
+  ne: "nw",
+  e: "w",
+  se: "sw",
+  s: "s",
+  sw: "se",
+  w: "e",
+  nw: "ne",
+};
+
+const mirrorFramesByDef = new WeakMap<TileDef, Map<Frame, Frame>>();
+
+/**
+ * Each frame of a directional tile paired with the same frame of its
+ * left-right opposite facing, in every state. Only the facings the tile type
+ * has are walked: a four-way tile's diagonals fall back to cardinals that are
+ * not each other's mirror.
+ */
+function mirrorFrames(def: TileDef): Map<Frame, Frame> {
+  let pairs = mirrorFramesByDef.get(def);
+  if (pairs) return pairs;
+  pairs = new Map();
+  if (isDirectional(def)) {
+    const states: SpriteState[] = [
+      "idle",
+      ...(Object.keys(def.states ?? {}) as OverrideSpriteState[]),
+    ];
+    for (const state of states) {
+      for (const direction of facingKeysFor(def)) {
+        const own = resolveTileSprite(def, { state, direction })?.frames;
+        const opposite = resolveTileSprite(def, {
+          state,
+          direction: HORIZONTAL_MIRROR[direction],
+        })?.frames;
+        if (!own?.length || !opposite?.length || own === opposite) continue;
+        own.forEach((frame, i) => {
+          if (!pairs!.has(frame)) pairs!.set(frame, opposite[i % opposite.length]!);
+        });
+      }
+    }
+  }
+  mirrorFramesByDef.set(def, pairs);
+  return pairs;
+}
+
+/**
+ * The uv offset from `frame` to its left-right opposite facing's frame, which
+ * the half turn turns back round so a body's reflection faces the way it does.
+ * Zero when there is no opposite, or it is drawn at another size or base.
+ */
+export function mirrorUvShift(def: TileDef, frame: Frame, tileset: TilesetDef): [number, number] {
+  const opposite = mirrorFrames(def).get(frame);
+  if (!opposite) return [0, 0];
+  const own = spriteRect(def.anchor, frame.sprite);
+  const other = spriteRect(def.anchor, opposite.sprite);
+  const sameBase =
+    frame.sprite.base.x === opposite.sprite.base.x &&
+    frame.sprite.base.y === opposite.sprite.base.y;
+  if (own.w !== other.w || own.h !== other.h || !sameBase) return [0, 0];
+  return [
+    ((other.x - own.x) * CELL_SIZE) / tileset.width,
+    ((own.y - other.y) * CELL_SIZE) / tileset.height,
+  ];
+}
+
+export function writeMirrorUvAttr(geo: THREE.BufferGeometry, shift: readonly [number, number]) {
+  const verts = geo.getAttribute("position").count;
+  const existing = geo.getAttribute("aMirrorUv") as THREE.BufferAttribute | undefined;
+  const attr = existing ?? new THREE.BufferAttribute(new Float32Array(verts * 2), 2);
+  for (let v = 0; v < verts; v++) attr.setXY(v, shift[0], shift[1]);
+  attr.needsUpdate = true;
+  if (!existing) geo.setAttribute("aMirrorUv", attr);
 }
 
 /**

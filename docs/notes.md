@@ -2418,6 +2418,13 @@ Three things look wrong and are not:
   diagonal bands, and turned half a turn their ends make spikes. The reflection
   is cut at the footprint's south edge plus `REFLECTION_LENGTH_FRACTION` of the
   thing's height above the water.
+- **A body's reflection draws its opposite facing's art.** The half turn is
+  exact for a box drawn in the projection, but a body is drawn upright, so
+  turning it also turns it round left to right. Its twin reads the art of the
+  opposite facing instead (east for west, north-east for north-west), through
+  the `aMirrorUv` offset `writeFrameUvs` keeps in step with the frame, so the
+  reflection faces the way the body does. North and south are their own
+  mirror. Walls and other boxes keep their own art.
 - **A wading body turns about its dry-ground pivot, not its sunk position.**
   The mesh is moved by the wade sink and the pivot, a child of it, moves too,
   so the shader takes the sink back off the pivot. What is turned is the body
