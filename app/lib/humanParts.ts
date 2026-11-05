@@ -40,6 +40,7 @@ export const HUMAN_PARTS = [
   { id: "brown-boots", layer: "shoes", block: 1, label: "Brown boots" },
   { id: "red-boots", layer: "shoes", block: 2, label: "Red boots" },
   { id: "grey-boots", layer: "shoes", block: 3, label: "Grey boots" },
+  { id: "wolfskin-boots", layer: "shoes", block: 4, label: "Wolfskin boots" },
   { id: "white-tunic", layer: "clothes", block: 0, label: "White tunic" },
   { id: "brown-tunic", layer: "clothes", block: 1, label: "Brown tunic" },
   { id: "green-tunic", layer: "clothes", block: 2, label: "Green tunic" },
@@ -57,6 +58,7 @@ export const HUMAN_PARTS = [
   { id: "red-top-grey-trousers", layer: "clothes", block: 9, label: "Red top, grey trousers" },
   { id: "tan-top-green-trousers", layer: "clothes", block: 10, label: "Tan top, green trousers" },
   { id: "steel-mail", layer: "clothes", block: 11, label: "Steel mail" },
+  { id: "wolfskin-coat", layer: "clothes", block: 12, label: "Wolfskin coat" },
   { id: "short-hair", layer: "head", block: 0, label: "Short hair" },
   { id: "beard", layer: "head", block: 1, label: "Beard" },
   { id: "long-hair", layer: "head", block: 2, label: "Long hair" },
@@ -65,6 +67,7 @@ export const HUMAN_PARTS = [
   { id: "leather-cap", layer: "hat", block: 0, label: "Leather cap" },
   { id: "iron-helmet", layer: "hat", block: 1, label: "Iron helmet" },
   { id: "robin-hood-hat", layer: "hat", block: 2, label: "Robin Hood hat" },
+  { id: "wolfskin-hood", layer: "hat", block: 3, label: "Wolfskin hood" },
 ] as const satisfies readonly { id: string; layer: LayerId; block: number; label: string }[];
 
 type PartDef = (typeof HUMAN_PARTS)[number];

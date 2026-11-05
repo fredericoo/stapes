@@ -136,6 +136,12 @@ an agent drives", lists every call.
   `stone-stairs` sprites in all four facings, cast through the game's own
   projection in the colours of the single sprite each had before. Rewrites only
   the two tiles' sprite fields; their `climbFrom` stays authored
+- `bun run generate:hats` — redraw `data/tilesets/human_hats.png`, every hat
+  in `HUMAN_PARTS`, each modelled as solids around the head and cast through
+  the game's own projection in every frame. A new hat is an entry in
+  `HUMAN_PARTS` plus a model in the script's `HATS`, which the typecheck
+  requires. `PREVIEW=<dir>` also writes `hats.png` there, every hat on a head
+  at 12×
 - `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
   shape and its palette entries live in the script where a diff can read them

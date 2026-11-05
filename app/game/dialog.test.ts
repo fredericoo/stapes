@@ -225,6 +225,8 @@ const tiles: TileDef[] = [
       "skin",
       "leather-cap",
       "iron-helm",
+      "wolf-skin",
+      "wolfskin-coat",
     ].includes(t.id),
   ),
 ];
@@ -550,6 +552,22 @@ describe("the tanner, as authored", () => {
     press(session, 0);
     trade(session, 1);
     expect(bagOf(session)).toEqual(["skinx2", "arcane-shardx5", "iron-helm", "leather-cap"]);
+  });
+
+  it("sells the wolfskin coat for wolf skins and shards off the body rack", () => {
+    let map = fieldWith("tanner");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "wolf-skin", count: 7 }]);
+    map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 45 }]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+    session.pickUp({ x: 0, y: -1, z: 0, stackIndex: 1 });
+
+    talkTo(session, "tanner");
+    press(session, 1);
+    expect(lastLine(session)).toContain("Only one coat");
+    press(session, 0);
+    trade(session, 1);
+    expect(bagOf(session)).toEqual(["wolf-skinx2", "arcane-shardx5", "wolfskin-coat"]);
   });
 });
 
