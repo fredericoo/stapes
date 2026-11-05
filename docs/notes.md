@@ -13750,6 +13750,20 @@ runs into a tree takes the tree out, and `cutFords` then breaks it wherever it
 would otherwise cut the wood in two. Undergrowth is the same scatter pass, on
 cells that are neither path nor water.
 
+**A water cell is `dirt` under the water, not the forest's ground.** Water is
+drawn over the tile beneath it, so grass under a pond shows through as a green
+pond bed. The path tile is left out under water for the same reason. The
+authored map follows the same rule: no `grass` or `grass-2` sits under `water`.
+
+**Every cell touching the water has `dirt` over its ground too.** Dirt is an
+autotile: under a rim cell with grass beside it, it draws its own edge, and that
+edge leaves a gap under the water's rim. With dirt in all eight neighbours, the
+dirt under the water is drawn as interior and the edge falls on the dry bank,
+where the grass beneath shows through it. The generator can only edit inside its
+rectangle, so water that reaches the rectangle's edge still has a gap on that
+side. The map's banks were filled in the same way, except at a waterfall's drop,
+where the neighbour is empty, and beside `half-stone`, which dirt already joins.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is

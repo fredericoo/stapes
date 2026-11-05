@@ -77,6 +77,14 @@ const EDGE_DITHER_FLOOR = 0.3;
 
 const PATH_STRAY_CHANCE = 0.38;
 
+/**
+ * Water is drawn over the tile beneath it, so the forest's ground would show
+ * as grass at the bottom of every pond; the bed is dirt whatever the ground is.
+ * Dirt is an autotile, so it also covers every cell touching the water, or its
+ * edge would be cut under the water's rim and leave a gap there.
+ */
+const WATER_BED_TILE_ID = "dirt";
+
 const STEPS = [
   { dx: 0, dy: -1 },
   { dx: 1, dy: 0 },
@@ -332,17 +340,30 @@ export function planForest(
     tilesById,
   );
 
+  const bedTileId = tilesById[WATER_BED_TILE_ID] ? WATER_BED_TILE_ID : config.groundTileId;
+  const bank = bedTileId === config.groundTileId ? new Set<number>() : bankOf(grid, water);
   const edits: StackEdit[] = [];
   for (let y = bounds.minY; y <= bounds.maxY; y++) {
     for (let x = bounds.minX; x <= bounds.maxX; x++) {
       const i = gridIndex(grid, x, y);
+      if (config.waterTileId && water.has(i)) {
+        edits.push({
+          x,
+          y,
+          z,
+          stack: [placed(bedTileId, tilesById), placed(config.waterTileId, tilesById)],
+        });
+        continue;
+      }
       const stack: PlacedTile[] = [placed(config.groundTileId, tilesById)];
-      if (config.pathTileId && path.has(i)) {
+      const onPath = config.pathTileId !== null && path.has(i);
+      if (bank.has(i) && !(onPath && config.pathTileId === bedTileId)) {
+        stack.push(placed(bedTileId, tilesById));
+      }
+      if (config.pathTileId && onPath) {
         stack.push(placed(config.pathTileId, tilesById));
       }
-      if (config.waterTileId && water.has(i)) {
-        stack.push(placed(config.waterTileId, tilesById));
-      } else if (!isOpen(grid, x, y)) {
+      if (!isOpen(grid, x, y)) {
         stack.push(placed(config.treeTileId, tilesById));
       } else {
         const prop = scatter.get(`${x},${y}`);
@@ -361,6 +382,22 @@ export function planForest(
   }
 
   return { ok: true, edits };
+}
+
+function bankOf(grid: CellGrid, water: ReadonlySet<number>): Set<number> {
+  const bank = new Set<number>();
+  for (const i of water) {
+    const x = gridX(grid, i);
+    const y = gridY(grid, i);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!inBounds(grid, x + dx, y + dy)) continue;
+        const j = gridIndex(grid, x + dx, y + dy);
+        if (!water.has(j)) bank.add(j);
+      }
+    }
+  }
+  return bank;
 }
 
 function erodeWithWater(grid: CellGrid, bounds: Bounds, config: ForestConfig): Set<number> {
