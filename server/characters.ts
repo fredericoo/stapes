@@ -1,3 +1,4 @@
+import { characterIdOf } from "../app/lib/characterId";
 import { readAppearance, type HumanAppearance } from "../app/lib/humanSprite";
 import {
   MAX_CHARACTERS_PER_ACCOUNT,
@@ -136,7 +137,7 @@ export class Characters {
     }
 
     const character: Character = {
-      id: crypto.randomUUID(),
+      id: await this.nextId(),
       name: normaliseCharacterName(typed),
       createdAt: Date.now(),
     };
@@ -158,6 +159,17 @@ export class Characters {
       throw error;
     }
     return { character };
+  }
+
+  /**
+   * `AUTOINCREMENT` never hands a number out twice, even after the row is gone,
+   * so a character deleted with its guest account does not free its id for the
+   * next one while the deaths and reigns that name it remain.
+   */
+  private async nextId(): Promise<string> {
+    const insert = await this.db.prepare("INSERT INTO character_serial (serial) VALUES (NULL)");
+    const { lastInsertRowid } = await insert.run();
+    return characterIdOf(Number(lastInsertRowid));
   }
 }
 

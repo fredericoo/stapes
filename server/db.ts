@@ -144,6 +144,7 @@ const MIGRATIONS: readonly string[] = [
      ended_at     INTEGER
    )`,
   `ALTER TABLE character ADD COLUMN appearance TEXT`,
+  `CREATE TABLE IF NOT EXISTS character_serial (serial INTEGER PRIMARY KEY AUTOINCREMENT)`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

@@ -68,9 +68,9 @@ import {
   adoptAuthoredPlayer,
   adoptBodyAt,
   DEFAULT_FACING,
+  listActorOwners,
   listResidentBodies,
-  residentHome,
-  residentOwnerId,
+  ResidentIds,
   actorStillAt,
   despawnActor,
   despawnActors,
@@ -824,6 +824,8 @@ export class GameSession implements PlaySession {
     this.board = settleSpans(this.board, next, this.tilesById);
   }
   private readonly actors = new Map<string, ActorRuntime>();
+  private readonly residentIds = new ResidentIds((id) => this.actors.has(id));
+  private readonly residentHomes = new Map<string, Coord>();
   private readonly walkingInto = new Map<string, ActorRuntime[]>();
   private tileIndex: Map<string, string[]> | null = null;
   private readonly spawnAt: Coord & { stackIndex: number };
@@ -955,14 +957,30 @@ export class GameSession implements PlaySession {
   }
 
   private adoptResidents() {
+    const owned = listActorOwners(this.map);
     for (const body of listResidentBodies(this.map, this.tilesById)) {
-      const owner = body.placed.owner ?? residentOwnerId(body);
-      if (!body.placed.owner) {
+      let owner = body.placed.owner;
+      if (!owner) {
+        owner = this.residentIds.mint(owned);
         this.map = adoptBodyAt(this.map, body, owner);
+        this.residentHomes.set(owner, { x: body.x, y: body.y, z: body.z });
       }
       if (!this.actors.has(owner)) {
         this.addResident(owner, body.placed.tileId, body);
       }
+    }
+  }
+
+  /**
+   * A resumed board names its residents but not where they belong, so the
+   * server hands over the cells its stored spawn points were authored at.
+   */
+  setResidentHomes(points: readonly Pick<SpawnPoint, "ownerId" | "cell">[]) {
+    for (const point of points) {
+      if (!point.ownerId) continue;
+      this.residentHomes.set(point.ownerId, point.cell);
+      const actor = this.actors.get(point.ownerId);
+      if (actor) actor.home = point.cell;
     }
   }
 
@@ -1019,7 +1037,7 @@ export class GameSession implements PlaySession {
       refuge: null,
       brainAttentive: false,
       conversation: null,
-      home: residentHome(id),
+      home: this.residentHomes.get(id) ?? null,
       hp: opts.hp === undefined ? null : Math.max(1, opts.hp),
       statuses: resident ? NO_STATUSES : (opts.statuses ?? NO_STATUSES),
       standingStatusMs: 0,
@@ -1151,6 +1169,7 @@ export class GameSession implements PlaySession {
     this.map = mintItemIds(this.map, this.tilesById);
     this.noteTransition("appear", def.id, point.cell, stackIndex);
     if (point.ownerId && !this.actors.has(point.ownerId)) {
+      this.residentHomes.set(point.ownerId, point.cell);
       this.addResident(point.ownerId, point.placed.tileId, { x, y, z, stackIndex });
     }
     this.reindexCells([point.cell]);
@@ -3743,7 +3762,7 @@ export class GameSession implements PlaySession {
     const stoodId = where.under == null ? undefined : stack[where.under]?.owner;
     const next = [...stack];
     const stackIndex = where.under ?? next.length;
-    const owner = resolveActor(def) ? this.summonedOwnerId({ ...at, stackIndex }) : undefined;
+    const owner = resolveActor(def) ? this.residentIds.mint() : undefined;
     const placed: PlacedTile = {
       tileId: def.id,
       ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
@@ -3753,7 +3772,10 @@ export class GameSession implements PlaySession {
     };
     next.splice(stackIndex, 0, placed);
     this.map = replaceStack(this.map, at.x, at.y, at.z, next);
-    if (owner) this.addResident(owner, def.id, { ...at, stackIndex });
+    if (owner) {
+      this.residentHomes.set(owner, { x: at.x, y: at.y, z: at.z });
+      this.addResident(owner, def.id, { ...at, stackIndex });
+    }
     this.noteTransition("appear", def.id, at, stackIndex);
     this.reindexCells([at]);
     this.settleBoardNow();
@@ -5437,9 +5459,7 @@ export class GameSession implements PlaySession {
         tileId: def.id,
         ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
         ...(isItem(def) ? { itemId: mintItemId() } : {}),
-        ...(resolveActor(def)
-          ? { owner: this.summonedOwnerId({ ...at, stackIndex }, new Set(owners)) }
-          : {}),
+        ...(resolveActor(def) ? { owner: this.residentIds.mint(new Set(owners)) } : {}),
       };
 
       const poured = pourInto(stack, placed, this.tilesById);
@@ -5457,6 +5477,7 @@ export class GameSession implements PlaySession {
     const summoned = getStack(this.map, at.x, at.y, at.z);
     for (const owner of owners) {
       const stackIndex = summoned.findIndex((placed) => placed.owner === owner);
+      this.residentHomes.set(owner, { x: at.x, y: at.y, z: at.z });
       this.addResident(owner, def.id, { ...at, stackIndex });
     }
     for (const stackIndex of formed) {
@@ -5465,14 +5486,6 @@ export class GameSession implements PlaySession {
     this.reindexCells([at]);
     this.settleBoardNow();
     return { ok: true, owners };
-  }
-
-  private summonedOwnerId(
-    at: Coord & { stackIndex: number },
-    alsoTaken: ReadonlySet<string> = new Set(),
-  ): string {
-    const home = residentOwnerId(at);
-    return this.actors.has(home) || alsoTaken.has(home) ? `${home},${crypto.randomUUID()}` : home;
   }
 
   private runStatusCommand(command: StatusCommand, authorId: string): CommandOutcome {

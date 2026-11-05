@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { residentAt } from "./testResidents";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import { interactionKinds, interactionsForSave, resolveRemoveStatus } from "../lib/interactions";
@@ -201,7 +202,8 @@ describe("stepping into water", () => {
 
   it("puts out a creature too — a body is a body", () => {
     const play = session(world(["fire", "water"], "deer"), { actorIds: [] });
-    const id = "npc:0,0,0,1";
+    const resident = residentAt(play, 0, 0, 0);
+    const id = resident;
     expect(play.requestStep(id, "e")).toBe("started");
     run(play, TICKS_PER_STEP);
     expect(held(play, id)).toEqual(["burned"]);

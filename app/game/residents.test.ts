@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { residentAt } from "./testResidents";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { FALL_MS_PER_HEIGHT, TICK_MS } from "./constants";
@@ -59,14 +60,15 @@ describe("adopting residents", () => {
     const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
 
     expect(session.actorIds()).toHaveLength(1);
-    expect(session.actorIds()[0]).toMatch(/^npc:/);
+    expect(session.isResident(session.actorIds()[0]!)).toBe(true);
   });
 
-  it("mints an identity from where the body was authored", () => {
+  it("writes the id it gives a body onto the body", () => {
     const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
+    const resident = residentAt(session, 2, 0, 0);
 
-    expect(session.actorIds()).toEqual(["npc:2,0,0,1"]);
-    expect(ownersAt(session.getMap(), 2, 0, 0)).toEqual([undefined, "npc:2,0,0,1"]);
+    expect(session.actorIds()).toEqual([resident]);
+    expect(ownersAt(session.getMap(), 2, 0, 0)).toEqual([undefined, resident]);
   });
 
   it("tells two bodies in one cell apart", () => {
@@ -123,7 +125,7 @@ describe("residents and the reaper", () => {
 
     const owners = session.actorIds();
     expect(owners).toContain("alice");
-    expect(owners.some((id) => id.startsWith("npc:"))).toBe(true);
+    expect(owners.some((id) => session.isResident(id))).toBe(true);
     expect(placedAt(session.getMap(), 2, 0, 0)).toHaveLength(2);
     expect(ownersAt(session.getMap(), 0, 0, 0)).not.toContain("bob");
   });

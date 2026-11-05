@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { residentAt } from "./testResidents";
 import { resolveTeleport } from "../lib/interactions";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -384,8 +385,9 @@ describe("stepping onto a pad", () => {
     const session = new GameSession(padWorld({ x: 5, y: 5, z: 0 }, "deer"), tiles, {
       actorIds: [],
     });
+    const resident = residentAt(session, 0, 0, 0);
     expect(whereIs(session.getMap(), "deer")).toMatchObject({ x: 0, y: 0 });
-    expect(session.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    expect(session.requestStep(resident, "e")).toBe("started");
     run(session, TICKS_PER_STEP);
     expect(whereIs(session.getMap(), "deer")).toMatchObject({ x: 5, y: 5 });
   });

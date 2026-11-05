@@ -136,19 +136,36 @@ export function listResidentBodies(
   return found;
 }
 
-export function residentOwnerId(at: Coord & { stackIndex: number }): string {
-  return `${RESIDENT_ID_PREFIX}${at.x},${at.y},${at.z},${at.stackIndex}`;
-}
+/**
+ * A resident's id is a letter and a base-36 count, because it is repeated in
+ * every cell and event about the body. It carries nothing else: where a
+ * resident belongs is its spawn point's cell, handed to `GameSession` as its
+ * home.
+ */
+const RESIDENT_ID_PREFIX = "n";
+const RESIDENT_ID_RADIX = 36;
 
-const RESIDENT_ID_PREFIX = "npc:";
+const NO_IDS: ReadonlySet<string> = new Set();
 
-export function residentHome(ownerId: string): Coord | null {
-  if (!ownerId.startsWith(RESIDENT_ID_PREFIX)) return null;
-  const parts = ownerId.slice(RESIDENT_ID_PREFIX.length).split(",");
-  if (parts.length !== 4) return null;
-  const [x, y, z] = parts.map(Number);
-  if (x === undefined || y === undefined || z === undefined) return null;
-  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? { x, y, z } : null;
+/**
+ * The count starts again with every session, and a board resumed from a
+ * checkpoint keeps the ids it was saved with, so each one minted skips those
+ * already taken.
+ */
+export class ResidentIds {
+  private next = 0;
+
+  constructor(private readonly taken: (id: string) => boolean) {}
+
+  mint(alsoTaken: ReadonlySet<string> = NO_IDS): string {
+    let id = this.candidate();
+    while (this.taken(id) || alsoTaken.has(id)) id = this.candidate();
+    return id;
+  }
+
+  private candidate(): string {
+    return `${RESIDENT_ID_PREFIX}${(this.next++).toString(RESIDENT_ID_RADIX)}`;
+  }
 }
 
 export function adoptBodyAt(
