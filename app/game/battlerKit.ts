@@ -5,7 +5,13 @@ import { mintItemId } from "../lib/itemInstance";
 import type { Kit, KitContent } from "../lib/kit";
 import { MAX_KIT_CHANCE } from "../lib/kit";
 import type { TileDef } from "../lib/types";
-import { emptyEquipment, type Equipment, handHasRoomFor } from "./equipment";
+import {
+  EQUIPMENT_SLOTS,
+  emptyEquipment,
+  type Equipment,
+  handHasRoomFor,
+  wornInstances,
+} from "./equipment";
 import { slotAccepts } from "./itemMoves";
 
 export function equipmentForBody(
@@ -47,6 +53,31 @@ export function equipmentFromKit(
   }
 
   return equipment;
+}
+
+/**
+ * Fills each slot `kit` leaves empty with what `starter` has there, unless
+ * `kit` already holds that item somewhere else: a torch moved to the weapon
+ * hand is not a reason to hand over a second torch.
+ */
+export function toppedUpKit(
+  kit: Equipment,
+  starter: Equipment,
+  tilesById: Record<string, TileDef>,
+): Equipment {
+  const out = { ...kit };
+  const held = new Set(wornInstances(kit).map((instance) => instance.tileId));
+  for (const slot of EQUIPMENT_SLOTS) {
+    const fresh = starter[slot];
+    if (!fresh || out[slot] || held.has(fresh.tileId)) continue;
+    const def = tilesById[fresh.tileId];
+    if (!def) continue;
+    if ((slot === "weapon" || slot === "offhand") && !handHasRoomFor(out, tilesById, slot, def)) {
+      continue;
+    }
+    out[slot] = fresh;
+  }
+  return out;
 }
 
 function draw(entry: KitContent, random: () => number): boolean {

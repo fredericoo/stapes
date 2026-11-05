@@ -3,7 +3,7 @@ import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
 import traitsJson from "../data/traits.json";
 import { PLAYER_TILE_ID, TICK_MS } from "../app/game/constants";
-import { carriedInstances } from "../app/game/equipment";
+import { carriedInstances, emptyEquipment } from "../app/game/equipment";
 import { fixtureTutorial } from "../app/lib/fixtureTutorial";
 import { statusesById } from "../app/lib/status";
 import { traitsById, withTraits } from "../app/lib/traits";
@@ -322,9 +322,9 @@ it("walks back for its bag at once when nothing it fears was near where it died"
 it("leaves its bag while a creature it fears killed it beside it", async () => {
   const situation = await bagToldAfterDying(8, async (remote, clock, bot) => {
     const { self } = remote.getSnapshot();
-    void remote.command(`/spawn bat ${self.x + 3} ${self.y} ${self.z}`);
-    const batSeen = () => remote.getSnapshot().actors.some((a) => a.tileId === "bat");
-    await play(bot, remote, batSeen, clock);
+    void remote.command(`/spawn skeleton ${self.x + 3} ${self.y} ${self.z}`);
+    const skeletonSeen = () => remote.getSnapshot().actors.some((a) => a.tileId === "skeleton");
+    await play(bot, remote, skeletonSeen, clock);
   });
 
   expect(situation?.lostKitAt).toBeNull();
@@ -416,7 +416,17 @@ it("hears another player, answers them once, and never runs a command it is talk
   expect(new Set(said)).toEqual(new Set(["tile 0 0 0 lava"]));
 });
 
-async function joinBot(admin = false) {
+async function joinBot(admin = false, { emptyHanded = false } = {}) {
+  if (emptyHanded) {
+    await harness.store.put("equip:bot", {
+      equipment: {
+        ...emptyEquipment(),
+        armor: { tileId: "cloth-tunic" },
+        bag: { tileId: "basic-bag", contents: [] },
+      },
+      savedAt: 0,
+    });
+  }
   const pair = new Pair();
   pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
   const clock = { ms: 0 };
@@ -475,7 +485,7 @@ it("holds a spark stone and casts it at a creature, training Arcane", async () =
     { tileId: "arcane-stone-of-spark", itemId: "spark" },
   ];
   await harness.blobs.put("map.json", JSON.stringify(world), JSON_TYPE);
-  const { remote, clock } = await joinBot(true);
+  const { remote, clock } = await joinBot(true, { emptyHanded: true });
   remote.say("/mastery arcane 3");
   const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
     random: () => 0.5,
@@ -540,7 +550,7 @@ it("backs away from a threat and conjures a flame on it", async () => {
   const flames = () => JSON.stringify(remote.getSnapshot().map).includes('"arcane-flame"');
 
   await play(bot, remote, worn, clock);
-  remote.say("/spawn snake +3 0");
+  remote.say("/spawn snake +4 0");
   await play(bot, remote, flames, clock);
 
   expect(flames()).toBe(true);

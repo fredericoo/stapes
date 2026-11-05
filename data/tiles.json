@@ -13752,6 +13752,16 @@
         },
         "kit": [
           {
+            "slot": "weapon",
+            "tileId": "rusty-sword",
+            "chance": 100
+          },
+          {
+            "slot": "offhand",
+            "tileId": "hand-lantern",
+            "chance": 100
+          },
+          {
             "slot": "armor",
             "tileId": "cloth-tunic",
             "chance": 100
@@ -26118,7 +26128,7 @@
         "requirements": {
           "agility": 10
         },
-        "humanPart": "brown-tunic"
+        "humanPart": "white-tunic"
       }
     },
     "sprite": {

@@ -6,7 +6,7 @@ import type { Kit } from "../lib/kit";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { equipmentForBody, equipmentFromKit } from "./battlerKit";
+import { equipmentForBody, equipmentFromKit, toppedUpKit } from "./battlerKit";
 import type { Equipment, Hand } from "./equipment";
 import { effectiveBattler, emptyEquipment, HANDS, handToSwing, wornInstances } from "./equipment";
 import { Rng } from "./rng";
@@ -53,6 +53,8 @@ const tiles = tilesByIdFromList([
   itemTile("bag", DEFAULT_CONTAINER),
   itemTile("chest", { ...DEFAULT_CONTAINER, equippable: false }),
   itemTile("mail", { type: "armor", def: 4, resist: { sharp: 6 } }),
+  itemTile("greatsword", { ...DEFAULT_WEAPON, twoHanded: true }),
+  itemTile("torch", { type: "artifact" }),
   tile("rock"),
 ]);
 
@@ -429,5 +431,35 @@ describe("the bog imp we ship", () => {
       expect(counts[weapon]! / BODIES).toBeGreaterThan(0.22);
       expect(counts[weapon]! / BODIES).toBeLessThan(0.28);
     }
+  });
+});
+
+describe("topping a kit up from the starter kit", () => {
+  const starter: Equipment = {
+    ...emptyEquipment(),
+    weapon: { id: "itm_new_sword", tileId: "sword" },
+    offhand: { id: "itm_new_torch", tileId: "torch" },
+    armor: { id: "itm_new_mail", tileId: "mail" },
+  };
+
+  it("fills the slots left empty and keeps what is already worn", () => {
+    const kept = { ...emptyEquipment(), weapon: { id: "itm_dagger", tileId: "dagger" } };
+
+    expect(toppedUpKit(kept, starter, tiles)).toEqual({
+      ...starter,
+      weapon: kept.weapon,
+    });
+  });
+
+  it("gives nothing a second time that the kit holds in another slot", () => {
+    const kept = { ...emptyEquipment(), weapon: { id: "itm_torch", tileId: "torch" } };
+
+    expect(toppedUpKit(kept, starter, tiles).offhand).toBeNull();
+  });
+
+  it("puts nothing in the hand a two-handed weapon claims", () => {
+    const kept = { ...emptyEquipment(), weapon: { id: "itm_great", tileId: "greatsword" } };
+
+    expect(toppedUpKit(kept, starter, tiles).offhand).toBeNull();
   });
 });

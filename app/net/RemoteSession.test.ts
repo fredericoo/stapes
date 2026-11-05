@@ -8,6 +8,7 @@ import {
 } from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { emptyEquipment } from "../game/equipment";
+import { xpForLevel } from "../lib/mastery";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
 import { CHAT_ARRIVAL_JITTER_MS, CHAT_LIFETIME_MS, CHAT_MIN_INTERVAL_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_GRACE_MS } from "./RemoteSession";
@@ -1353,13 +1354,14 @@ describe("RemoteSession death", () => {
     expect(seen).toEqual([true]);
   });
 
-  it("takes what the death cost off the death itself", () => {
+  it("takes what the death cost, and the experience it left, off the death itself", () => {
     const { socket, session } = connected();
-    const cost = { levelsLost: [{ mastery: "sharp", from: 10, to: 1 }] };
+    const cost = { bagLeft: true, levelsLost: [{ mastery: "sharp", from: 10, to: 9 }] };
 
-    socket.deliver({ ...died(), cost });
+    socket.deliver({ ...died(), masteryXp: { sharp: xpForLevel(9) }, cost });
 
     expect(session.deathCost()).toEqual(cost);
+    expect(session.getSnapshot().masteryXp).toEqual({ sharp: xpForLevel(9) });
   });
 
   it("takes the name the next life plays as off the death", () => {
@@ -1391,12 +1393,13 @@ describe("RemoteSession death", () => {
     expect(session.deathCost()).toBeNull();
   });
 
-  it("takes the emptied kit off the death itself", () => {
+  it("takes the kit it comes back with off the death itself", () => {
     const { socket, session } = connected();
+    const kit = { ...emptyEquipment(), weapon: { id: "itm_sword", tileId: "rusty-sword" } };
 
-    socket.deliver(died());
+    socket.deliver(died(kit));
 
-    expect(session.getSnapshot().equipment).toEqual(emptyEquipment());
+    expect(session.getSnapshot().equipment).toEqual(kit);
   });
 
   it("takes the statuses off a body that is gone", () => {
@@ -1456,7 +1459,7 @@ describe("RemoteSession death", () => {
   });
 
   describe("a death while the tab was closed", () => {
-    const cost = { levelsLost: [{ mastery: "sharp", from: 10, to: 1 }] };
+    const cost = { bagLeft: true, levelsLost: [{ mastery: "sharp", from: 10, to: 1 }] };
 
     it("is shown from the hello that reports it", () => {
       const { socket, session } = connected();
