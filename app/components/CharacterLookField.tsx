@@ -11,7 +11,7 @@ import { HumanLookFields, WalkPreview, useLayerBlocks } from "./HumanLookFields"
 const PREVIEW_ZOOM = 3;
 
 /** The part the player tile's starting Cloth Tunic is drawn as, so the preview wears what a new character starts in. */
-const STARTING_OUTFIT: Outfit = { clothes: "white-tunic" };
+const STARTING_OUTFIT: Outfit = { clothes: "brown-tunic" };
 
 export function randomAppearance(): HumanAppearance {
   const look = randomLook();
