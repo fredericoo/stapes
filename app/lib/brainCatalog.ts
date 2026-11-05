@@ -186,6 +186,12 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     ],
     make: () => ({ cond: "rated_below", of: DEFAULT_SELECTOR, rating: DEFAULT_RATED_BELOW }),
   },
+  rated_below_self: {
+    label: "rated below me",
+    hint: "The body this names has a rating (its ⭐) under this body's own. Pair it with in sight of the nearest player to hunt only those it can beat. A body that is gone, or is a thing, is never rated below anything.",
+    params: [{ key: "of", kind: "selector", label: "of" }],
+    make: () => ({ cond: "rated_below_self", of: DEFAULT_SELECTOR }),
+  },
   carrying: {
     label: "carrying",
     hint: "There is something in this body's bag. Leave the tile empty for anything at all. A body with no bag carries nothing.",

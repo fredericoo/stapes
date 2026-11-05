@@ -71,6 +71,7 @@ export function brainContext(overrides: Partial<BrainContext> = {}) {
     minutesOfDay: 12 * 60,
     nameOf: (id: string) => id,
     ratingOf: () => null,
+    ownRating: () => null,
     ...overrides,
   } satisfies BrainContext;
   return built;

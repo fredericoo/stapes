@@ -1993,6 +1993,7 @@ export class GameSession implements PlaySession {
         const body = this.actors.get(id);
         return body ? this.ratingOf(body) : null;
       },
+      ownRating: () => this.ratingOf(actor),
     });
   }
 

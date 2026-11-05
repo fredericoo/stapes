@@ -1011,6 +1011,7 @@ describe("giving up", () => {
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ratingOf: () => null,
+      ownRating: () => null,
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, blocked);
@@ -1799,6 +1800,7 @@ describe("a deer that yelps", () => {
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ratingOf: () => null,
+      ownRating: () => null,
     };
 
     for (let tick = 0; tick < 5; tick++) stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1879,6 +1881,7 @@ describe("a deer that yelps", () => {
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ratingOf: () => null,
+      ownRating: () => null,
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -4787,6 +4790,16 @@ describe("asking what a body is under", () => {
     it("never holds with nobody to rate", () => {
       expect(ran(newcomer, ctx({ nearestOnTile: () => null }))).toBe("idle");
       expect(ran(newcomer, facing(null))).toBe("idle");
+    });
+
+    it("compares against its own rating when asked about somebody weaker", () => {
+      const weaker = watching({ cond: "rated_below_self", of: nearest("player") });
+      const against = (theirs: number | null, own: number | null) =>
+        ctx({ nearestOnTile: () => "alice", ratingOf: () => theirs, ownRating: () => own });
+      expect(ran(weaker, against(7, 8))).toBe("alert");
+      expect(ran(weaker, against(8, 8))).toBe("idle");
+      expect(ran(weaker, against(null, 8))).toBe("idle");
+      expect(ran(weaker, against(1, null))).toBe("idle");
     });
   });
 
