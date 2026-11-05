@@ -29764,6 +29764,15 @@
         ],
         "traits": [
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 7
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "gnawing",

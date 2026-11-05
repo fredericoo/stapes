@@ -1378,6 +1378,216 @@
     ]
   },
   {
+    "id": "flees-the-stronger",
+    "name": "Flees the stronger",
+    "hint": "Runs from the nearest threat it can see when that one is rated at or above itself, and from anybody that rated who hits it, until they are safe cells away. Backed into a corner, it bites, then tries to run again. Call it before fights-back so it runs from a strong attacker instead of turning on them.",
+    "params": {
+      "threats": {
+        "kind": "bodies",
+        "label": "runs from"
+      },
+      "sight": {
+        "kind": "cells",
+        "label": "sees within"
+      },
+      "safe": {
+        "kind": "cells",
+        "default": 8,
+        "label": "safe at"
+      },
+      "pause": {
+        "kind": "ms",
+        "default": 2000,
+        "label": "bites for"
+      },
+      "cry": {
+        "kind": "text",
+        "optional": true,
+        "label": "noise as it bolts"
+      }
+    },
+    "slots": {
+      "spooked": "body"
+    },
+    "states": {
+      "fleeing": {
+        "band": "danger",
+        "onEnter": [
+          {
+            "effect": "noise",
+            "text": {
+              "arg": "cry"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "step_away_from",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "spooked"
+              }
+            },
+            "allowDrops": true
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "cornered": {
+        "band": "danger",
+        "do": [
+          {
+            "action": "attack",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "spooked"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "retarget": true,
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "attacked"
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "rated_below_self",
+                  "of": {
+                    "type": "attacker"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "bind": {
+          "spooked": {
+            "type": "attacker"
+          }
+        },
+        "to": "fleeing"
+      },
+      {
+        "retarget": true,
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": {
+                    "arg": "threats"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "sight"
+              }
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "rated_below_self",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": {
+                        "arg": "threats"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "bind": {
+          "spooked": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "threats"
+              }
+            }
+          }
+        },
+        "to": "fleeing"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "fleeing",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "cornered"
+      },
+      {
+        "from": "fleeing",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "spooked"
+            }
+          },
+          "cells": {
+            "arg": "safe"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "cornered",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "spooked"
+            }
+          },
+          "cells": {
+            "arg": "safe"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "cornered",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "pause"
+          }
+        },
+        "to": "fleeing"
+      }
+    ]
+  },
+  {
     "id": "flees-when-hurt",
     "name": "Flees when hurt",
     "hint": "Breaks off and backs away once it is down to this share of its health with the threat still near. Healed, it goes back to what it was doing; clear, it rests.",

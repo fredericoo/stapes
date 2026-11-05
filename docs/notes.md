@@ -10986,8 +10986,8 @@ apart from rows that could never be the first to hold.
   at `danger` so a blow cannot pull it back into the fight. That state tries
   `Split` before it attacks, so while the spell is cooling the slime fights
   on; see *A conjured body is a creature of its own*.
-- **The rat** calls `fights-back`, `hunts-the-weaker`, `scavenges` and
-  `returns-home`. Its pack-following and its sniffing when stuck are still its
+- **The rat** calls `flees-the-stronger`, `fights-back`, `hunts-the-weaker`,
+  `scavenges` and `returns-home`. Its pack-following and its sniffing when stuck are still its
   own rows. See *A creature can hunt only what it outrates, and scavenge*.
 
 Neither townsfolk trait leaves its routine to triggers alone. Their tables ask
@@ -11022,7 +11022,17 @@ one behind them. It only decides whether a hunt starts: once the creature is
 in its fight it keeps after the target whatever the target's rating, and a
 blow from anybody still starts a fight through `fights-back`. The rat rates 8
 (sharp 4, toughness 3, agility 24), so it goes for a fresh character (rating
-1) and leaves alone anyone who has reached 8.
+1) and runs from anyone who has reached 8.
+
+**`flees-the-stronger`** is the other half: it runs from the nearest threat it
+can see when that one is *not* `rated_below_self`, and from an attacker who is
+not. Both triggers hold at `danger`, as `fights-back`'s does, so a tie between
+"hit by a strong body" and "hit by anybody" goes to the order of the calls. The
+rat calls it before `fights-back` for that reason; called after, the rat turns
+on a strong attacker instead of running. Backed into a corner it holds at
+`danger` and bites for `pause`, then tries to run again. Held at `fight`, as
+`skittish` holds its own, the sight trigger would take it back to fleeing on
+the next round, and a rat against a wall would never bite.
 
 **`scavenges`** eats any food lying about that it can see, hungry or not, while
 it has no `combat` status. It is not `eats-when-hungry` with a high `full`:

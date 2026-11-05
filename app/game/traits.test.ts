@@ -855,6 +855,17 @@ describe("the rat we ship", () => {
     expect(hpOfAlice(game)).toBeLessThan(before!);
   });
 
+  it("runs from a player rated the same as it", () => {
+    const game = session(field([PLAYER_AT, "player", "alice"]), RAT_RATING * 2);
+    run(game, BRAIN_TICK_MS * 30);
+    const [rat, alice] = ["rat", "player"].map((tileId) =>
+      game.actorSnapshots().find((actor) => actor.tileId === tileId)!,
+    );
+    expect(Math.abs(rat!.x - alice!.x) + Math.abs(rat!.y - alice!.y)).toBeGreaterThan(
+      Math.abs(PLAYER_AT.x - RAT_AT.x),
+    );
+  });
+
   it("leaves a player rated above it alone", () => {
     const game = session(field([PLAYER_AT, "player", "alice"]), RAT_RATING * 4);
     const before = hpOfAlice(game);
