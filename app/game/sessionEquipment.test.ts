@@ -1139,13 +1139,13 @@ describe("dying with something on you", () => {
     return session;
   }
 
-  it("leaves a player's whole kit where the body fell", () => {
+  it("leaves a player's bag where the body fell, and nothing else", () => {
     const session = doomed();
 
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(session.actorIds()).not.toContain(LOCAL_ACTOR_ID);
-    expect(tilesAt(session, 0, 0)).toEqual(expect.arrayContaining(["grass", BAG_TILE_ID, SWORD]));
+    expect(tilesAt(session, 0, 0)).toEqual(["grass", BAG_TILE_ID]);
   });
 
   it("drops the pack whole, with what was in it still inside", () => {
@@ -1166,25 +1166,17 @@ describe("dying with something on you", () => {
     return session.drainTransitions().filter((note) => note.tossedFrom);
   }
 
-  it("tosses the whole kit from halfway up the body, where it fell", () => {
+  it("tosses the bag from halfway up the body, where it fell", () => {
     const session = doomed();
 
     expect(tossesAsItDies(session, LOCAL_ACTOR_ID)).toMatchObject([
-      {
-        side: "appear",
-        tileId: SWORD,
-        x: 0,
-        y: 0,
-        z: 0,
-        tossedFrom: { x: 0, y: 0, elev: 2, order: 0 },
-      },
       {
         side: "appear",
         tileId: BAG_TILE_ID,
         x: 0,
         y: 0,
         z: 0,
-        tossedFrom: { x: 0, y: 0, elev: 2, order: 1 },
+        tossedFrom: { x: 0, y: 0, elev: 2, order: 0 },
       },
     ]);
   });
@@ -1220,7 +1212,42 @@ describe("dying with something on you", () => {
     expect(packAt(session, 0, 0)?.itemId).toBe(packId);
   });
 
-  it("names the masteries the life had above a new one's", () => {
+  it("leaves every bag it carries, in the bag slot and in both hands", () => {
+    const session = doomed();
+    expect(session.moveItem({ kind: "weapon" }, { kind: "contents", index: 1 })).toBe(true);
+    session.runCommand(`/give ${BAG_TILE_ID} weapon`);
+    session.runCommand(`/give ${BAG_TILE_ID} offhand`);
+    const { weapon, offhand, bag } = session.getSnapshot().equipment;
+    expect([weapon?.tileId, offhand?.tileId, bag?.tileId]).toEqual([
+      BAG_TILE_ID,
+      BAG_TILE_ID,
+      BAG_TILE_ID,
+    ]);
+
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
+
+    const dropped = getStack(session.getMap(), 0, 0, 0).filter(
+      (placed) => placed.tileId === BAG_TILE_ID,
+    );
+    expect(dropped.map((placed) => placed.itemId).sort()).toEqual(
+      [weapon!.id, offhand!.id, bag!.id].sort(),
+    );
+  });
+
+  it("hands the death over holding everything but the bag, and a new empty one", () => {
+    const session = doomed();
+    const playerId = selfId(session);
+    const { weapon, bag } = session.getSnapshot().equipment;
+
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
+
+    const death = session.drainDeaths().find((one) => one.id === playerId);
+    expect(death?.equipment.weapon).toEqual(weapon);
+    expect(death?.equipment.bag).toMatchObject({ tileId: BAG_TILE_ID, contents: [] });
+    expect(death?.equipment.bag?.id).not.toBe(bag?.id);
+  });
+
+  it("takes a tenth of each mastery's experience, and names the levels that cost", () => {
     const session = doomed();
     const playerId = selfId(session);
     session.runCommand("/mastery fist 20", playerId);
@@ -1228,9 +1255,7 @@ describe("dying with something on you", () => {
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     const death = session.drainDeaths().find((one) => one.id === playerId);
-    expect(death?.cost?.levelsLost).toContainEqual(
-      expect.objectContaining({ mastery: "fist", from: 20 }),
-    );
+    expect(death?.cost?.levelsLost).toContainEqual({ mastery: "fist", from: 20, to: 18 });
   });
 
   it("still leaves a creature's whole kit on the floor", () => {

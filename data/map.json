@@ -33168,7 +33168,7 @@
       "14,-20": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "14,-19": [{"tileId":"grass-2"},{"tileId":"cobblestone"}],
       "14,-18": [{"tileId":"grass-2"},{"tileId":"marble-pillar-bottom"},{"tileId":"marble-pillar-middle"}],
-      "14,-17": [{"tileId":"grass-2"},{"tileId":"quest-crate","rewardTag":"basic-chest","rewardTileIds":["hand-lantern","raw-meat","rusty-sword"],"inscription":"Basic equipment\nHelp yourself"}],
+      "14,-17": [{"tileId":"grass-2"}],
       "14,-16": [{"tileId":"grass-2"},{"tileId":"flagstone-floor"},{"tileId":"flagstone-floor-inner"}],
       "14,-15": [{"tileId":"grass-2"},{"tileId":"flagstone-floor"},{"tileId":"flagstone-floor-inner"}],
       "14,-14": [{"tileId":"grass-2"},{"tileId":"flagstone-floor"},{"tileId":"flagstone-floor-inner"}],

@@ -244,8 +244,8 @@ import {
   fightsWithAHand,
   handToSwing,
   otherHand,
+  packSlots,
   spilled,
-  wornInstances,
   stoneLocked,
   weaponInHand,
   weaponSwungBy,
@@ -273,7 +273,7 @@ import {
 import { type Progress, windProgress } from "./progress";
 import { countDown, reached, TICK_SLACK_MS } from "./ticks";
 import { type Attributes, attributesOf } from "./attributes";
-import { equipmentForBody } from "./battlerKit";
+import { equipmentForBody, toppedUpKit } from "./battlerKit";
 import { type DeathCost, deathCost } from "./deathCost";
 import {
   attackerEarnings,
@@ -281,6 +281,7 @@ import {
   defenderEarnings,
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
+  experienceAfterDeath,
   extractEarnings,
   practiceEarnings,
 } from "./experience";
@@ -799,6 +800,9 @@ function cooledEquipment(equipment: Equipment, spentMs: number): Equipment {
 
 export type Death = {
   id: string;
+  equipment: Equipment;
+  masteryXp: MasteryXp | null;
+  tags: readonly string[];
   cost: DeathCost | null;
   at: Coord | null;
   name: string | null;
@@ -2873,7 +2877,7 @@ export class GameSession implements PlaySession {
     if (loc) {
       const carried = target.resident
         ? spilled(target.equipment, this.tilesById)
-        : wornInstances(target.equipment);
+        : this.packsOf(target.equipment);
       this.dropKit(carried, loc);
     }
 
@@ -2889,9 +2893,14 @@ export class GameSession implements PlaySession {
     loc: ActorLocation | null,
     blame: Blame | undefined,
   ): Death {
+    const before = target.masteryXp ?? {};
+    const masteryXp = target.resident ? null : experienceAfterDeath(before);
     return {
       id: target.id,
-      cost: target.resident ? null : deathCost(target.masteryXp ?? {}, this.newLifeXp()),
+      equipment: target.resident ? emptyEquipment() : this.rebirthKit(target.equipment),
+      masteryXp,
+      tags: target.tags,
+      cost: masteryXp && deathCost(before, masteryXp, this.packsOf(target.equipment).length > 0),
       at: loc && { x: loc.x, y: loc.y, z: loc.z },
       name: loc
         ? bodyNameFor({ tileId: loc.placed.tileId, name: target.name }, this.tilesById)
@@ -2900,10 +2909,29 @@ export class GameSession implements PlaySession {
     };
   }
 
-  private newLifeXp(): MasteryXp {
-    const def = this.tilesById[PLAYER_TILE_ID];
-    const authored = def ? resolveBattler(def) : null;
-    return authored ? xpFromMasteries(authored.masteries) : {};
+  /**
+   * The kit a player comes back with: everything but the bags it left on the
+   * floor, topped up from the `player` tile's kit. The starter bag is
+   * emptied because the kit may author one with things in it, and a death
+   * must not mint those again.
+   */
+  private rebirthKit(died: Equipment): Equipment {
+    const kept = { ...died };
+    for (const slot of packSlots(died, this.tilesById)) kept[slot] = null;
+    const starter = this.rollKit(PLAYER_TILE_ID);
+    const bag = starter.bag && { ...starter.bag, contents: [] };
+    return toppedUpKit(kept, { ...starter, bag }, this.tilesById);
+  }
+
+  /**
+   * A player's bag, and a bag moved into a hand too, so holding it as you die
+   * does not save it.
+   */
+  private packsOf(equipment: Equipment): ItemInstance[] {
+    return packSlots(equipment, this.tilesById).flatMap((slot) => {
+      const held = equipment[slot];
+      return held ? [held] : [];
+    });
   }
 
   /**

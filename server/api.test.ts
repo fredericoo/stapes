@@ -575,8 +575,8 @@ describe("the realm", () => {
     expect(heard).toContainEqual({ type: "king", actorId: maren });
   });
 
-  it("passes the crown to the next in line when the king dies, and keeps the old reign", async () => {
-    const maren = await character("Maren Ormstead", 30);
+  it("passes the crown on when a death drops the king below the next in line, and keeps the old reign", async () => {
+    const maren = await character("Maren Ormstead", 21);
     const tobin = await character("Tobin Reed", 20);
     await world.join(openSocket(), maren, { admin: false });
     expect((await realm()).king?.name).toBe("Maren Ormstead I");
@@ -587,7 +587,10 @@ describe("the realm", () => {
     const after = await realm();
 
     expect(after.king?.name).toBe("Tobin Reed I");
-    expect(after.leaders.map((leader) => leader.name)).not.toContain("Maren Ormstead I");
+    expect(after.leaders.map((leader) => leader.name)).toEqual([
+      "Tobin Reed I",
+      "Maren Ormstead II",
+    ]);
     expect(await reigns()).toEqual([
       { character_id: maren, name: "Maren Ormstead I", ended_at: expect.any(Number) },
       { character_id: tobin, name: "Tobin Reed I", ended_at: null },

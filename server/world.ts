@@ -142,10 +142,6 @@ export class World {
     return this.realm.state;
   }
 
-  /**
-   * A dead character is left out by having no rating: a death deletes its
-   * `mast:` row and takes its body out of the session.
-   */
   async refreshRealm(): Promise<void> {
     const [roster, ratings, { deaths }] = await Promise.all([
       this.characters.roster(),

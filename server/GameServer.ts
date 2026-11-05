@@ -1434,7 +1434,17 @@ export class GameServer {
     }
 
     for (const [actorId, { death, told }] of this.pendingDeathWrites) {
-      this.forgetLife(actorId);
+      this.forgetPositionAndPvp(actorId);
+      entries[this.equipmentKey(actorId)] = { equipment: death.equipment, savedAt };
+      if (death.tags.length > 0) {
+        entries[this.tagsKey(actorId)] = { tags: [...death.tags], savedAt };
+      }
+      if (death.masteryXp) {
+        entries[this.masteriesKey(actorId)] = { masteries: { ...death.masteryXp }, savedAt };
+      }
+      entries[this.hpKey(actorId)] = { hp: null, savedAt };
+      entries[this.statusesKey(actorId)] = { statuses: [], savedAt };
+      this.storedVitals.set(actorId, { hp: null, statuses: null });
       if (!told) {
         entries[this.diedAwayKey(actorId)] = { cost: death.cost ?? NOTHING_LOST, savedAt };
       }
@@ -1462,25 +1472,15 @@ export class GameServer {
   }
 
   /**
-   * A death deletes every row the life wrote, so the next seat is a new
-   * character's: the world's spawn, the starting kit, the player tile's
-   * masteries, no tags and PvP off. `hidden:` is an admin setting and stays.
-   * The deletes are tombstones in the same `WorldStore` commit as the
-   * board that dropped the kit.
+   * The position is deleted rather than overwritten with the spawn, so a
+   * player seated after a death stands on whatever cell the `player` marker
+   * names by then, and PvP goes back off. The deletes are tombstones in the
+   * same `WorldStore` commit as the board that dropped the bag.
    */
-  private forgetLife(actorId: string) {
+  private forgetPositionAndPvp(actorId: string) {
     this.ctx.storage
-      .delete([
-        this.positionKey(actorId),
-        this.equipmentKey(actorId),
-        this.tagsKey(actorId),
-        this.masteriesKey(actorId),
-        this.hpKey(actorId),
-        this.statusesKey(actorId),
-        this.pvpKey(actorId),
-      ])
+      .delete([this.positionKey(actorId), this.pvpKey(actorId)])
       .catch(GameServer.reportWriteFailure("death clear"));
-    this.storedVitals.set(actorId, { hp: null, statuses: null });
   }
 
   private saveActorsIfDue() {
@@ -2724,8 +2724,8 @@ export class GameServer {
     for (const death of this.justDied) {
       this.sendTo(death.id, {
         type: "died",
-        equipment: emptyEquipment(),
-        masteryXp: null,
+        equipment: death.equipment,
+        masteryXp: death.masteryXp,
         cost: death.cost ?? NOTHING_LOST,
         ...this.rebornAs(death.id),
       });

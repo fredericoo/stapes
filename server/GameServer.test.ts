@@ -566,7 +566,7 @@ describe("joining and leaving", () => {
       const deadRow = await runInDurableObject(stub(), (_instance, state) =>
         state.storage.get<{ hp: number | null }>("hp:alice"),
       );
-      expect(deadRow).toBeUndefined();
+      expect(deadRow?.hp).toBeNull();
     });
 
     it("tells a player who died while away what it cost, on their next hello", async () => {
@@ -941,18 +941,18 @@ describe("replacing the world", () => {
     expect(contentsOf(hello).map((i) => i.tileId)).toEqual(["rusty-sword"]);
   });
 
-  it("arms a player from the floor when they ask to equip", async () => {
-    const withSword = authoredMap();
-    withSword.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "rusty-sword" }];
-    await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
+  it("dresses a player from the floor when they ask to equip", async () => {
+    const withCap = authoredMap();
+    withCap.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "leather-cap" }];
+    await harness.blobs.put("map.json", JSON.stringify(withCap), JSON_TYPE);
 
     const alice = await connect("alice");
     send(alice.ws, { type: "equip", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
-    const armed = (await equipmentWithin(alice.ws))!;
+    const dressed = (await equipmentWithin(alice.ws))!;
 
-    const equipment = armed.equipment as { weapon: { tileId: string } | null };
-    expect(equipment.weapon?.tileId).toBe("rusty-sword");
-    expect(contentsOf(armed)).toEqual([]);
+    const equipment = dressed.equipment as { head: { tileId: string } | null };
+    expect(equipment.head?.tileId).toBe("leather-cap");
+    expect(contentsOf(dressed)).toEqual([]);
   });
 
   it("picks up from where the step sent before it ends, not from where the body was", async () => {
@@ -2709,7 +2709,7 @@ describe("what a flush writes", () => {
     expect(board.length).toBeGreaterThan(0);
   });
 
-  it("retracts a kit row once the last thing in it has been dropped", async () => {
+  it("writes the kit row again once the bag has been dropped", async () => {
     const who = freshPlayer();
     const { ws } = await connect(who);
     await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
@@ -2727,13 +2727,7 @@ describe("what a flush writes", () => {
     await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
 
     const after = await savedEquipment(who);
-    const kit = after?.equipment as {
-      weapon: unknown;
-      offhand: unknown;
-      bag: unknown;
-    };
-    expect(kit.weapon).toBeNull();
-    expect(kit.offhand).toBeNull();
+    const kit = after?.equipment as { bag: unknown };
     expect(kit.bag).toBeNull();
   });
 
@@ -2757,7 +2751,9 @@ describe("what a flush writes", () => {
 });
 
 describe("dying and coming back", () => {
-  const SWORD = "rusty-sword";
+  /** Not the starter `rusty-sword`, so the one picked up is told apart from the one in hand. */
+  const SWORD = "iron-sword";
+  const STARTER_SWORD = "rusty-sword";
 
   function checkpointWithSword() {
     const checkpoint = checkpointWith(["alice"]);
@@ -2912,13 +2908,17 @@ describe("dying and coming back", () => {
     }));
   }
 
-  it("forgets the kit they died with, in the batch that drops the body", async () => {
+  it("writes the kit they come back with, without the bag, in the batch that drops the body", async () => {
     await armedAlice();
 
     await killAndTick("alice");
 
     const { position, equipment } = await storedRows("alice");
-    expect(equipment).toBeUndefined();
+    expect(equipment?.equipment).toMatchObject({
+      weapon: { tileId: STARTER_SWORD },
+      bag: { tileId: BAG_TILE_ID, contents: [] },
+    });
+    expect(JSON.stringify(equipment)).not.toContain(SWORD);
     expect(position).toBeUndefined();
   });
 
@@ -2984,19 +2984,19 @@ describe("dying and coming back", () => {
     expect(await actorX("alice")).toBe(SPAWN_CELL);
   });
 
-  it("hands back the starting kit a new character gets", async () => {
+  it("hands back what they wore and held, and a new empty bag", async () => {
     await armedAlice();
     await killAndTick("alice");
     await simulateEviction();
 
     const { hello } = await connect("alice");
 
-    const equipment = hello.equipment as {
-      weapon: unknown;
-      bag: { tileId: string } | null;
-    };
-    expect(equipment.weapon).toBeNull();
-    expect(equipment.bag?.tileId).toBe(BAG_TILE_ID);
+    expect(hello.equipment).toMatchObject({
+      weapon: { tileId: STARTER_SWORD },
+      offhand: { tileId: "hand-lantern" },
+      armor: { tileId: "cloth-tunic" },
+      bag: { tileId: BAG_TILE_ID, contents: [] },
+    });
   });
 
   async function hurtAndPoisoned(actorId: string) {
@@ -3035,8 +3035,8 @@ describe("dying and coming back", () => {
     await killAndTick("alice");
 
     const after = await storedBody("alice");
-    expect(after.hp).toBeUndefined();
-    expect(after.statuses).toBeUndefined();
+    expect(after.hp?.hp).toBeNull();
+    expect(after.statuses?.statuses).toEqual([]);
   });
 
   it("comes back with PvP off", async () => {
@@ -3056,25 +3056,30 @@ describe("dying and coming back", () => {
     expect(await pvpOf()).toBe(false);
   });
 
-  it("forgets the experience and the tags they died with", async () => {
+  it("keeps the tags they died with and takes a tenth of the experience", async () => {
     await armedAlice();
     await runInDurableObject(stub(), (instance: GameServer) => {
       const internals = instance as unknown as {
-        session: { actors: Map<string, { tags: readonly string[] }> };
+        session: {
+          actors: Map<string, { tags: readonly string[] }>;
+          runCommand(text: string, id: string): unknown;
+        };
         saveActors(actorIds: Iterable<string>, force: boolean): void;
       };
+      internals.session.runCommand("/mastery sharp 10", "alice");
       internals.session.actors.get("alice")!.tags = ["tutorial-spark-stone"];
       internals.saveActors(["alice"], true);
     });
-    expect(await savedMasteries("alice")).toBeDefined();
+    const before = await savedMasteries("alice");
+    expect(before?.sharp).toBeGreaterThan(0);
 
     await killAndTick("alice");
 
-    expect(await savedMasteries("alice")).toBeUndefined();
+    expect((await savedMasteries("alice"))?.sharp).toBeCloseTo(before!.sharp! * 0.9);
     const tags = await runInDurableObject(stub(), async (_instance, state) =>
-      state.storage.get("tags:alice"),
+      state.storage.get<{ tags: string[] }>("tags:alice"),
     );
-    expect(tags).toBeUndefined();
+    expect(tags?.tags).toEqual(["tutorial-spark-stone"]);
   });
 
   it("logs the death with where it happened, what caused it, who did it and what it cost", async () => {
@@ -3153,10 +3158,9 @@ describe("dying and coming back", () => {
 
     expect(await floorAtDeath()).toContain(swordId);
     const { position, equipment } = await storedRows("alice");
-    expect(equipment).toBeUndefined();
+    expect(JSON.stringify(equipment)).not.toContain(swordId);
     expect(position).toBeUndefined();
-    expect((await storedBody("alice")).hp).toBeUndefined();
-    expect(await savedMasteries("alice")).toBeUndefined();
+    expect((await storedBody("alice")).hp?.hp).toBeNull();
   });
 
   it("seats a player who rejoins before the tick without the kit they died with", async () => {
@@ -3263,12 +3267,7 @@ describe("dying and coming back", () => {
     const { hello } = await connect("alice");
 
     expect(tilesAt(hello.map as FlatMapFile, AWAY_FROM_SPAWN)).toContain(SWORD);
-    const equipment = hello.equipment as {
-      weapon: unknown;
-      bag: { contents?: unknown[] } | null;
-    };
-    expect(equipment.weapon).toBeNull();
-    expect(equipment.bag?.contents ?? []).toEqual([]);
+    expect(JSON.stringify(hello.equipment)).not.toContain(SWORD);
   });
 
   it("seats them at the spawn point after a reload", async () => {
@@ -3293,19 +3292,20 @@ describe("dying and coming back", () => {
     expect(types.indexOf("patch")).toBeLessThan(types.indexOf("died"));
   });
 
-  it("hands over an empty kit on the death itself", async () => {
+  it("hands over the kit they come back with on the death itself", async () => {
     const alice = await armedAlice();
     const seen = record(alice.ws);
 
     await killAndTick("alice");
 
     const died = seen.of("died")[0]!;
-    expect(Object.values(died.equipment as Record<string, unknown>).every((held) => !held)).toBe(
-      true,
-    );
+    expect(died.equipment).toMatchObject({
+      weapon: { tileId: STARTER_SWORD },
+      bag: { tileId: BAG_TILE_ID, contents: [] },
+    });
   });
 
-  it("tells the dying player which masteries the life took with it", async () => {
+  it("tells the dying player which masteries the death cost a level", async () => {
     const alice = await armedAlice();
     await runInDurableObject(stub(), (instance: GameServer) => {
       const internals = instance as unknown as {
@@ -3722,9 +3722,9 @@ describe("casting", () => {
               baseHp: 8,
               ...battler,
               kit: [
-                ...((battler.kit as unknown[]) ?? []),
                 { slot: "charm", tileId: STONE_TILE_ID, chance: 100 },
                 { slot: "weapon", tileId: BOLT_TILE_ID, chance: 100 },
+                ...((battler.kit as unknown[]) ?? []),
               ],
             },
           },
@@ -4521,7 +4521,7 @@ describe("what each client is told has changed", () => {
     expect(await rememberedPvp()).not.toContain("alice");
   });
 
-  it("says nothing about a body that arrives with nothing to say", async () => {
+  it("says nothing but its torch about a body that arrives", async () => {
     const alice = await connect("alice");
 
     const seen = record(alice.ws);
@@ -4534,7 +4534,6 @@ describe("what each client is told has changed", () => {
       ...((message.pvp ?? []) as Array<{ actorId: string }>),
       ...((message.extractions ?? []) as Array<{ actorId: string }>),
       ...((message.castings ?? []) as Array<{ actorId: string }>),
-      ...((message.carriedLights ?? []) as Array<{ actorId: string }>),
     ]);
     expect(about.filter((entry) => entry.actorId === "bob")).toEqual([]);
   });

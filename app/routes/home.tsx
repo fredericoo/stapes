@@ -8,7 +8,7 @@ import { Gallery } from "../components/home/Gallery";
 import { CANONICAL_ORIGIN, DISCORD_INVITE, media } from "../components/home/content";
 import { Hero } from "../components/home/Hero";
 import { NAV_HEIGHT_PX, NavBar } from "../components/home/NavBar";
-import { Permadeath } from "../components/home/Permadeath";
+import { Death } from "../components/home/Death";
 import { PlaybackProvider, usePlayback } from "../components/home/playback";
 import { Realm } from "../components/home/Realm";
 import { useOnScreen } from "../components/home/useOnScreen";
@@ -95,7 +95,7 @@ export default function HomePage() {
           <Realm />
           <FeatureTour />
           <Dangers />
-          <Permadeath />
+          <Death />
           <Gallery />
           <FinalCall />
         </main>

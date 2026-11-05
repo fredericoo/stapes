@@ -42,8 +42,8 @@ export function Realm() {
         Who rules
       </h2>
       <p className="home-realm-lede">
-        The highest-rated character alive is king. When the king dies, the crown passes to the next
-        in line.
+        The highest-rated character is king. Dying costs experience, and that can be enough to pass
+        the crown to the next in line.
       </p>
       <ol className="home-realm-list" role="list">
         {realm.leaders.map((leader, index) => {

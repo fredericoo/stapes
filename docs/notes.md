@@ -548,10 +548,10 @@ rather than add a query of its own.
 public and returns the last ranking from memory, so a home page polled by
 many visitors never reads the database.
 
-- **Being dead is having no rating.** A death deletes the character's `mast:`
-  row and takes its body out of the session, so `GameServer.ratings()` no
-  longer has it. A reborn character comes back at the player tile's
-  masteries, which is the bottom of the table.
+- **A death costs rating, not the place in the table.** A death writes the
+  character's `mast:` row with a tenth of every mastery's experience taken
+  off, so `GameServer.ratings()` still ranks it, lower. The crown changes
+  hands on a death only when that drop puts somebody else ahead.
 - **A tie keeps the crown with its holder**, so two characters level on
   rating do not trade it on every refresh. Between two who do not hold it,
   the older character ranks first.
@@ -1662,8 +1662,8 @@ holding the old cell would put the dead back where the marker used to be.
 
 There used to be a `spawn:<id>` row and a `setSpawn` interaction that moved it,
 so a player could anchor themselves to a `respawn-point` tile. Both went with
-permadeath (see *A death is the end of a life*): a new life starts in the
-tutorial, so nothing may choose where it starts. `GameServer.load` deletes any
+permadeath, which made a new life start in the tutorial, and were not brought
+back when death stopped being permanent. `GameServer.load` deletes any
 `spawn:` rows still in storage. The `respawn-point` tile is still in the
 catalogue, with no interaction, because the map has one placed.
 
@@ -4969,30 +4969,29 @@ people and one for everything else.
   authored carrying meat.
 - **Dying drops it.** `kill` → `dropKit` lays the kit on the corpse's cell. A
   creature's bag spills its contents and the bag itself stays with the body; a
-  player's every slot drops whole, the bag with its contents still inside — see
-  *A death is the end of a life*.
+  player drops only their bag, whole, with its contents still inside — see
+  *A death costs the bag and a tenth of the experience*.
 
 **A death is the moment the session stops being able to answer for somebody**,
 and everything a reload hands back is read from storage — so a death has to write
 itself down before it destroys the only copy of what it knew.
 
-- **What drops does not die with the body.** `kill` drops the whole kit onto
-  the corpse's cell first, all of it or none of it: a sword somebody picked up a
-  moment ago is still a sword in the world, findable by whoever walks past. A
-  cell that refuses the kit is one with no floor to stand on (the body died
-  falling, or in water); items take no height, so a floor never runs out of
-  room. The kit is then lost with the body.
+- **What drops does not die with the body.** `kill` drops what falls onto
+  the corpse's cell first, all of it or none of it: a sword somebody put in
+  their bag a moment ago is still a sword in the world, findable by whoever
+  walks past. A cell that refuses it is one with no floor to stand on (the body
+  died falling, or in water); items take no height, so a floor never runs out
+  of room. The bag is then lost with the body.
 - **The `Death` carries what the runtime knew**, because `GameSession.kill`
-  deletes it: where, who did it, and for a player what the death cost
-  (`DeathCost`). Nothing downstream can re-derive any of it.
-- **A reload or a `rebirth` seats a new character.** `forgetLife` deletes the
-  `pos:`, `equip:`, `tags:`, `mast:`, `hp:`, `status:` and `pvp:` rows, so the
-  next seat reads what a character that never played reads: the world's spawn,
-  the starting kit the `player` tile rolls, the tile's masteries, no tags, full
-  health, nothing on them and PvP off. `hidden:` is an administrator's setting
-  rather than the life's, and stays. The deletes are tombstones in the
-  `WorldStore` commit that writes the board, so the board and the rows cannot
-  disagree about where the kit went.
+  deletes it: where, who did it, the kit and experience the player comes back
+  with, their tags, and what the death cost (`DeathCost`). Nothing downstream
+  can re-derive any of it.
+- **The death batch writes the next seat.** `saveActors` writes `equip:` with
+  the kit the player comes back with, `mast:` with the reduced experience,
+  `tags:` unchanged, `hp:` empty and `status:` empty, and deletes `pos:` and
+  `pvp:`, so the next seat stands on the world's spawn with PvP off. The
+  deletes are tombstones in the `WorldStore` commit that writes the board, so
+  the board and the rows cannot disagree about where the bag went.
 - **Hit points need nothing.** They are rebuilt from the tile on every load, so a
   respawned body is at full health by construction rather than by a reset.
 - **`noteDeaths` forces a flush**, rather than leaving it to the next one. This
@@ -7726,17 +7725,16 @@ hears.
    the world carry on is being shown a board they have no body in, and every
    patch of it is bandwidth spent on somebody who cannot act.
 
-**`died` says the kit is empty, and the server says it.** The `equipment`
-message is read off a live runtime and a death is exactly what deletes it, so
-the panel behind the screen would go on showing a kit that is on the floor.
-`died` carries an empty kit and no experience; the next life's kit and
-masteries arrive with the `hello` a rebirth answers with.
+**`died` carries the kit and experience the player comes back with.** The
+`equipment` message is read off a live runtime and a death is exactly what
+deletes it, so the panel behind the screen would go on showing a bag that is
+on the floor. `died` carries the kit without the bag, topped up, and the
+reduced experience.
 
-**The screen says what the life took with it.** `kill` builds a `DeathCost`
-(`app/game/deathCost.ts`) from the life's experience and the `player` tile's
-authored masteries: each mastery the life had above where a new one starts,
-with where from and where to. It rides on `died` as `cost`, and `DeathScreen`
-lists it under "Masteries lost". The client could have worked the levels out
+**The screen says what the death took.** `kill` builds a `DeathCost`
+(`app/game/deathCost.ts`) from the experience before and after: `bagLeft`, and
+each mastery that fell a level, with where from and where to. It rides on
+`died` as `cost`, and `DeathScreen` lists it under "Masteries lost". The client could have worked the levels out
 from its last `masteries` block, and that is the diff *One source, and the
 client infers nothing* already argued against: the client's copy can be a tick
 behind, and a blow that paid experience in the killing tick never reaches it.
@@ -7745,8 +7743,7 @@ nothing to show.
 
 **A death nobody was connected for is told on the next `hello`.** A lingering
 body (see *Closing the tab does not end a fight*) can die with no socket to send
-`died` to, and the rows are deleted all the same: the player comes back as a
-new character in the tutorial. So the death batch in
+`died` to, and the rows are written all the same. So the death batch in
 `saveActors` also writes a `diedAway:` row holding the `DeathCost`, only for a
 death that was not announced, and `seatJoiner` reads and deletes it and puts it
 on the `hello` as `diedAway`. It is deleted on the read, not once the screen has
@@ -11372,8 +11369,8 @@ Storage keeps a `pvp:` row per player, written the moment the switch moves
 rather than on the periodic flush: a switch somebody turned off and a crash a
 second later must not add up to a player who comes back fightable. Off is written
 as well as on, or turning it off would last exactly until the next reconnect. A death deletes
-it with the rest of the life, so every new life starts unfightable (see *A
-death is the end of a life*). It rides across a world replacement on the tags' argument — it records a
+it, so every player comes back unfightable (see *A death costs the bag and a
+tenth of the experience*). It rides across a world replacement on the tags' argument — it records a
 decision the player made, and nothing an author writes into a map has any bearing
 on it.
 
@@ -11481,24 +11478,31 @@ is a thing you are holding on exactly the terms a crate is. Nothing nests, so
 one level of spilling is the whole of it. A deer that had picked a bush leaves
 the berries it was carrying.
 
-### A death is the end of a life
+### A death costs the bag and a tenth of the experience
 
-A player who dies drops everything and starts again from nothing, back in the
-tutorial. `kill` lays every slot on the corpse's cell; the bag goes down whole,
-contents and all, so whoever reaches it first takes the bag in one pickup. The
-masteries go back to what the `player` tile authors, the tags go, and with them
-every reward the tutorial gave, so the tutorial's chests can be opened again.
+A player who dies drops their bag, whole, contents and all, so whoever reaches
+it first takes the bag in one pickup. A bag moved into a hand drops too, so
+holding it is no way to keep it. Everything else they wore and held stays on
+them. Every mastery loses a tenth of its experience (`XP_SHARE_LOST_ON_DEATH`
+in `app/game/experience.ts`), a tenth of the whole and not of the level's
+progress, so a death can cost several levels and can take a mastery down to 1.
 
-What carries over is the name, the count of deaths and whatever was left in a
-depot: the `death` table keeps a row per death, the next life is the
-character's next generation (see *A character's generation is its deaths plus
-one*), and a depot belongs to the account rather than the life (see *A depot
-is a stash per account, opened from a placement*).
+The kit they come back with is `GameSession.rebirthKit`: what they kept,
+topped up by `toppedUpKit` (`app/game/battlerKit.ts`) from the kit the
+`player` tile authors — a basic bag, a rusty sword, a torch and a cloth
+tunic. A slot is filled only when it is empty and the kit does not already
+hold that item elsewhere, so a torch moved to the weapon hand is not doubled,
+and nothing goes into the hand a two-handed weapon claims. The new bag is
+emptied, so a `player` kit that authors one with things in it does not mint
+them again.
 
-This is the design rather than a cost to tune. A death that took a share of
-experience and the pack let a player build up across lives, and the rest of
-the game was then balanced against a character who never really started over.
-With nothing kept, a fight is a decision about the whole of what you have.
+Tags survive the death, so a quest chest stays opened for that character: its
+reward is once per character, not once per life. The name, the count of
+deaths and the depot carry over as well.
+
+Death was permanent for a while: a player dropped everything and started again
+in the tutorial at the `player` tile's masteries, with no tags. Hardly anybody
+played under it, and it was taken back to this.
 
 ### A character's generation is its deaths plus one
 
@@ -11538,9 +11542,9 @@ with the tag `town` is a second door onto the same contents, and one tagged
   maps each seated actor to an owner, and the server seats it with the
   signed-in user's id. Two characters of one account online at once share one
   stash in memory, so neither can move a copy of an item the other already
-  took out. The stash is stored under `depot:<userId>`, which `forgetLife`
-  does not delete and `pruneRemembered` does not prune: death takes the pack
-  and leaves the depot.
+  took out. The stash is stored under `depot:<userId>`, which a death does not touch
+  and `pruneRemembered` does not prune: death takes the bag and leaves the
+  depot.
 - **Not on the map.** The contents are never in a `PlacedTile`, because the
   map is shared and a depot is not. They reach the client in `hello.depots`
   and the `depots` message, and a move names them with the `depot` slot kind.

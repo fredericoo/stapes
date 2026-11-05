@@ -46,8 +46,12 @@ export function DeathScreen({
         </h2>
         <div id="death-screen-cost" className="flex w-full flex-col gap-4">
           <div className="flex flex-col gap-2 text-center text-sm text-pretty text-paper/80">
-            <p>Everything you carried lies where you fell.</p>
-            <p>Your masteries start over, and so do you: back in the tutorial, with nothing.</p>
+            <p>
+              {cost?.bagLeft
+                ? "Your bag stayed where you fell, with everything in it. You kept everything else."
+                : "You kept everything you had."}
+            </p>
+            <p>Every mastery lost a tenth of its experience. You start again with a new bag.</p>
             {rebornAs ? (
               <p className="text-paper">
                 {away ? `You are now ${rebornAs}.` : `You will be reborn as ${rebornAs}.`}
