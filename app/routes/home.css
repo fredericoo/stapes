@@ -375,8 +375,11 @@
   }
 }
 
+/* `backwards`, not `both`: a forwards fill keeps the filter and transform
+   applied after the rise ends, and mobile browsers then keep rasterising the
+   text on its own layer, soft. */
 .home-rise {
-  animation: home-rise 600ms var(--home-ease) both;
+  animation: home-rise 600ms var(--home-ease) backwards;
   animation-delay: calc(150ms + var(--rise-order, 0) * 100ms);
 }
 
