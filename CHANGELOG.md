@@ -1,5 +1,22 @@
 # the-last-stones
 
+## 0.12.0
+
+### Minor Changes
+
+- Death is no longer permanent. When you die you drop your bag with everything in it, every mastery loses a tenth of its experience, and you keep everything you wore and held. You come back with a new bag, and with a torch, a rusty sword and a cloth tunic if you had lost them. Quest chests you already opened stay opened. New characters now start with the torch and the rusty sword, so the box of basic equipment by the spawn is gone.
+- Anything you drop on a square that is already piled a full level high now lands on top of the pile, so you can stack things as high as you like and build steps to climb.
+- Iron grates can now be built into walls, running north–south or east–west. You can see and light can shine through them, but nobody can walk through.
+- Wooden doors now always open and close by hand. The doors in front of the cyclops and the crypts door are now metal: they cannot be opened by hand, and either of the cyclops plates, inside or outside, opens both doors there.
+
+### Patch Changes
+
+- The cloth tunic now looks brown when you wear it, closer to how cheap it is.
+- Ponds and streams now have a dirt bed instead of grass showing through the water.
+- The North Gate Guard is visible again, in the same helmet and mail as the guard at the south gate.
+- Ramps and stone stairs now show which way they climb: each one is drawn rising towards the side you walk up to, in all four directions.
+- Choosing your character's look is simpler: one walking preview on a patch of grass turns to show you every side, skin and hair colours are single swatches, and hairstyles are picked by name.
+
 ## 0.11.0
 
 ### Minor Changes
