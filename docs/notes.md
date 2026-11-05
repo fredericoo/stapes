@@ -2191,6 +2191,17 @@ Get it backwards and the ramp is walkable, reachable, and refuses to go up.
 `scripts/carve-caves.ts` derives it (`RAMP_FACING`) rather than typing it, and
 then proves every ramp it placed by asking `canWalk` to climb one.
 
+The sprite shows the same thing: each facing is drawn with its high edge on the
+side you climb towards, by `bun run generate:ramps`. A flight of `stone-stairs`
+climbed towards the camera (facing `n` or `w`) has its risers behind its
+treads and shows one pixel of each tread, so the script shades every other
+tread; without that the flight draws as a plain slope.
+
+`climbFrom` is written out for each facing and is not rotated with the sprite,
+so the two can disagree. `generate:ramps` resolves every facing's `climbFrom`
+before it draws and stops if one does not climb exactly towards the high edge
+it is about to draw.
+
 ### A step never crosses a sealed floor plane
 
 `canWalk` lands a step on any standing surface in the destination column within

@@ -132,6 +132,10 @@ an agent drives", lists every call.
   an eave rising two units across its cell, and `low-roof-<colour>-ridge`, a
   one-unit ridge on the same pitch, in red, yellow and blue. Geometry drawn
   through the game's own projection, shaded with `roof-1`'s shingle pattern
+- `bun run generate:ramps` — redraw `data/tilesets/ramps.png`, the `ramp` and
+  `stone-stairs` sprites in all four facings, cast through the game's own
+  projection in the colours of the single sprite each had before. Rewrites only
+  the two tiles' sprite fields; their `climbFrom` stays authored
 - `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
   shape and its palette entries live in the script where a diff can read them

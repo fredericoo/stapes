@@ -12906,8 +12906,8 @@
     "kind": "prop",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 14,
+      "tilesetId": "ramps",
+      "x": 0,
       "y": 0
     },
     "climbFrom": {
@@ -12961,7 +12961,7 @@
           {
             "sprite": {
               "rect": {
-                "x": 0,
+                "x": 2,
                 "y": 0,
                 "w": 2,
                 "h": 2
@@ -12980,7 +12980,7 @@
           {
             "sprite": {
               "rect": {
-                "x": 0,
+                "x": 4,
                 "y": 0,
                 "w": 2,
                 "h": 2
@@ -12999,7 +12999,7 @@
           {
             "sprite": {
               "rect": {
-                "x": 0,
+                "x": 6,
                 "y": 0,
                 "w": 2,
                 "h": 2
@@ -13023,9 +13023,9 @@
     "kind": "prop",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 16,
-      "y": 0
+      "tilesetId": "ramps",
+      "x": 0,
+      "y": 2
     },
     "climbFrom": {
       "n": {
@@ -13078,7 +13078,7 @@
           {
             "sprite": {
               "rect": {
-                "x": 0,
+                "x": 2,
                 "y": 0,
                 "w": 2,
                 "h": 2
@@ -13097,7 +13097,7 @@
           {
             "sprite": {
               "rect": {
-                "x": 0,
+                "x": 4,
                 "y": 0,
                 "w": 2,
                 "h": 2
@@ -13116,7 +13116,7 @@
           {
             "sprite": {
               "rect": {
-                "x": 0,
+                "x": 6,
                 "y": 0,
                 "w": 2,
                 "h": 2

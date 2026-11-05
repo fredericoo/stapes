@@ -138,5 +138,12 @@
     "file": "monsters.png",
     "width": 128,
     "height": 256
+  },
+  {
+    "id": "ramps",
+    "name": "Ramps",
+    "file": "ramps.png",
+    "width": 64,
+    "height": 32
   }
 ]
