@@ -32,7 +32,7 @@
     "name": "walls",
     "file": "walls.png",
     "width": 160,
-    "height": 128
+    "height": 256
   },
   {
     "id": "floors",

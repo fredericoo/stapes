@@ -1346,6 +1346,32 @@ A rule spelled out five times is a rule that is only ever four-fifths true.
 editor reads `map.json` and never sees an owned body, so it is consistency
 rather than a fix, which is the point.
 
+## A wooden door answers to hands, and a metal door to channels
+
+`door-closed` and `door-open` have a `switch` and no `receive`; `metal-door-closed`
+and `metal-door-open` have a `receive` and no `switch`. The wooden door used to
+carry both, and the two fought. A wired wooden door was put back by its channel
+on the next settle after anybody opened it, so by hand it never opened, and an
+unwired one opened by hand only because nothing was listening. Whether a door
+could be opened depended on a field set per placement in the map editor, which
+the player cannot see. Now the tile says which it is, and the art says it too.
+`planRoute` reads a door as passable only through its `switch`, so a brain plans
+around a metal door rather than into it.
+
+**A placement's `channel` is a comma-separated list** (`channelNames`). An
+emitter drives every name on it; a receiver reads its names together, through
+`channelsPowered`: in `any` mode it is on while any emitter on any of its
+channels is on, and in `all` mode only while every emitter on every one of them
+is. The double door in front of the cyclops follows two plates this way, one
+outside (`cyclops-in`) and one inside (`cyclops-out`): both metal doors listen
+to `cyclops-in, cyclops-out`, so either plate opens both. A list rather than one shared name keeps each plate
+addressable on its own, by a dialog's `switch` or `if switched` and by any other
+receiver that wants only one of them.
+
+The two halves of the metal door are both `any`. The wooden door's halves used
+to be `any` to open and `all` to close, which with two emitters on one channel and
+only one of them on opens the door on one settle and closes it on the next.
+
 ## A dialog is a script, and the brain only asks whether anybody is talking
 
 `interactions.dialog` (`app/lib/dialog.ts`, run by `app/game/dialogRuntime.ts`)
@@ -2333,9 +2359,10 @@ owns it.
 
 **Two kinds of placement are skipped rather than treated as the top.** An
 intangible tile has no surface, so the search looks through a sword on the
-ground or an open door to the tile beneath — `door-open` is the only tile in
-the catalogue that is both intangible and `walkable: false`, and a rule that
-consulted intangibles would seal every open doorway. A body is somebody
+ground or an open door to the tile beneath — `door-open` and `metal-door-open`
+are the only tiles in the catalogue that are both intangible and
+`walkable: false`, and a rule that consulted intangibles would seal every open
+doorway. A body is somebody
 standing in the cell rather than part of it, so a wolf on grass leaves the
 grass as the surface; without that skip every occupied cell would report no
 surface and nothing could fall onto one. Authored NPCs carry no `owner` until a

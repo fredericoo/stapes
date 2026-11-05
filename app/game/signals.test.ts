@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import catalogueRaw from "../../data/tiles.json";
 import { channelNames, emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Direction, MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -491,5 +492,54 @@ describe("GameSession signals", () => {
     const session = new GameSession(map, tiles);
     run(session, 10);
     expect(stackIds(session.getSnapshot().map, 2, 0)[0]).toMatch(/^flip-[ab]$/);
+  });
+});
+
+describe("the catalogue's doors", () => {
+  const catalogue = tilesByIdFromList(normalizeTiles(catalogueRaw as unknown[]));
+
+  function doorsBetween(inside: string, outside: string): MapFile {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: inside, channel: "door-in" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: outside, channel: "door-out" }]);
+    map = replaceStack(map, 3, 0, 0, [
+      { tileId: "metal-door-closed", channel: "door-in, door-out" },
+    ]);
+    return replaceStack(map, 4, 0, 0, [
+      { tileId: "metal-door-closed", channel: "door-in, door-out" },
+    ]);
+  }
+
+  it("opens both metal doors from either plate and closes them once both are up", () => {
+    for (const [inside, outside] of [
+      ["pressure-plate-pressed", "pressure-plate"],
+      ["pressure-plate", "pressure-plate-pressed"],
+    ] as const) {
+      const map = doorsBetween(inside, outside);
+      const { map: next } = settleSignals(map, findWiredCells(map), catalogue);
+      expect(stackIds(next, 3, 0)).toEqual(["metal-door-open"]);
+      expect(stackIds(next, 4, 0)).toEqual(["metal-door-open"]);
+
+      const released = replaceStack(next, 0, 0, 0, [
+        { tileId: "pressure-plate", channel: "door-in" },
+      ]);
+      const up = replaceStack(released, 1, 0, 0, [
+        { tileId: "pressure-plate", channel: "door-out" },
+      ]);
+      const closed = settleSignals(up, findWiredCells(up), catalogue).map;
+      expect(stackIds(closed, 3, 0)).toEqual(["metal-door-closed"]);
+      expect(stackIds(closed, 4, 0)).toEqual(["metal-door-closed"]);
+    }
+  });
+
+  it("leaves a wired wooden door to whoever opens it", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "pressure-plate-pressed", channel: "gate-a" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "door-open", channel: "gate-a" }]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "pressure-plate", channel: "gate-b" }]);
+    map = replaceStack(map, 3, 0, 0, [{ tileId: "door-open", channel: "gate-b" }]);
+
+    const { changed } = settleSignals(map, findWiredCells(map), catalogue);
+    expect(changed).toEqual([]);
   });
 });
