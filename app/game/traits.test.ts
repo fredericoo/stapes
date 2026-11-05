@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import traitsJson from "../../data/traits.json";
 import type { Selector } from "../lib/brain";
-import { emptyMap, replaceStack } from "../lib/mapData";
+import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { FRAME, tile } from "../lib/testTile";
-import { normalizeTiles } from "../lib/types";
+import { normalizeTiles, type MapFile, type TileDef } from "../lib/types";
 import {
   brainExpansionIssues,
   catalogueBreaks,
@@ -758,5 +758,118 @@ describe("the catalogue we ship", () => {
 
   it("expands every brain that calls it", () => {
     expect(brainExpansionIssues(normalizeTiles(tilesJson as unknown[]), shipped)).toEqual([]);
+  });
+});
+
+describe("the rat we ship", () => {
+  const shipped = traitsById(traitsJson as unknown[]);
+  const real = normalizeTiles(tilesJson as unknown[]);
+  const realTile = (id: string): TileDef => real.find((def) => def.id === id)!;
+  const RAT_AT = { x: 0, y: 0 };
+  const FOOD_AT = { x: 3, y: 0 };
+  const PLAYER_AT = { x: 3, y: 0 };
+  const RAT_RATING = 8;
+
+  function player(sharp: number): TileDef {
+    return tile({
+      id: "player",
+      height: 4,
+      kind: "battler",
+      directional: true,
+      walkable: false,
+      variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
+      interactions: {
+        battler: {
+          baseHp: 100,
+          masteries: { sharp },
+          naturalWeapon: {
+            type: "weapon",
+            damage: 0,
+            def: 0,
+            accuracy: 0,
+            variance: 0,
+            spd: 100,
+            mastery: "sharp",
+          },
+        },
+      },
+    });
+  }
+
+  function field(...extras: [{ x: number; y: number }, string, string?][]): MapFile {
+    let map = emptyMap();
+    for (let x = -6; x <= 6; x++) {
+      for (let y = -6; y <= 6; y++) map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, RAT_AT.x, RAT_AT.y, 0, [{ tileId: "grass" }, { tileId: "rat" }]);
+    for (const [at, tileId, owner] of extras) {
+      map = replaceStack(map, at.x, at.y, 0, [
+        { tileId: "grass" },
+        { tileId, direction: "w", ...(owner ? { owner } : {}) },
+      ]);
+    }
+    return map;
+  }
+
+  function session(map: MapFile, playerSharp: number): GameSession {
+    const tiles = [
+      tile({ id: "grass", height: 0 }),
+      realTile("rat"),
+      realTile("bread"),
+      realTile("ale"),
+      player(playerSharp),
+    ];
+    return new GameSession(map, tiles, {
+      actorIds: ["alice"],
+      spawnAt: { x: 6, y: 6, z: 0, stackIndex: 1 },
+      traits: shipped,
+    });
+  }
+
+  function run(game: GameSession, ms: number) {
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) game.tick(TICK_MS);
+  }
+
+  const foodLeft = (game: GameSession, tileId: string) =>
+    getStack(game.getMap(), FOOD_AT.x, FOOD_AT.y, 0).some((placed) => placed.tileId === tileId);
+
+  const hpOfAlice = (game: GameSession) =>
+    game.actorSnapshots().find((actor) => actor.tileId === "player")?.hp ?? null;
+
+  it("eats food it finds on the floor without being hungry", () => {
+    const game = session(field([FOOD_AT, "bread"]), 0);
+    run(game, BRAIN_TICK_MS * 30);
+    expect(foodLeft(game, "bread")).toBe(false);
+  });
+
+  it("leaves ale where it lies", () => {
+    const game = session(field([FOOD_AT, "ale"]), 0);
+    run(game, BRAIN_TICK_MS * 30);
+    expect(foodLeft(game, "ale")).toBe(true);
+  });
+
+  it("goes for a player rated below it", () => {
+    const game = session(field([PLAYER_AT, "player", "alice"]), 0);
+    const before = hpOfAlice(game);
+    run(game, BRAIN_TICK_MS * 30);
+    expect(hpOfAlice(game)).toBeLessThan(before!);
+  });
+
+  it("runs from a player rated the same as it", () => {
+    const game = session(field([PLAYER_AT, "player", "alice"]), RAT_RATING * 2);
+    run(game, BRAIN_TICK_MS * 30);
+    const [rat, alice] = ["rat", "player"].map((tileId) =>
+      game.actorSnapshots().find((actor) => actor.tileId === tileId)!,
+    );
+    expect(Math.abs(rat!.x - alice!.x) + Math.abs(rat!.y - alice!.y)).toBeGreaterThan(
+      Math.abs(PLAYER_AT.x - RAT_AT.x),
+    );
+  });
+
+  it("leaves a player rated above it alone", () => {
+    const game = session(field([PLAYER_AT, "player", "alice"]), RAT_RATING * 4);
+    const before = hpOfAlice(game);
+    run(game, BRAIN_TICK_MS * 30);
+    expect(hpOfAlice(game)).toBe(before);
   });
 });

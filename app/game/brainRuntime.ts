@@ -85,6 +85,7 @@ export type BrainContext = {
   minutesOfDay: MinutesOfDay;
   nameOf(actorId: string): string | null;
   ratingOf(actorId: string): number | null;
+  ownRating(): number | null;
 };
 
 export type Utterance = {
@@ -343,6 +344,13 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       const id = boundBody(identify(condition.of, memory, ctx));
       const rated = id === null ? null : ctx.ratingOf(id);
       return rated !== null && rated < condition.rating;
+    }
+    case "rated_below_self": {
+      const own = ctx.ownRating();
+      if (own === null) return false;
+      const id = boundBody(identify(condition.of, memory, ctx));
+      const rated = id === null ? null : ctx.ratingOf(id);
+      return rated !== null && rated < own;
     }
   }
 }
