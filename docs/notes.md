@@ -10965,7 +10965,7 @@ is off while anything calls the trait. In development a save writes
 
 ### What the shipped creatures call
 
-Eighteen of the twenty-nine shipped brains call traits. The fourteen that
+Nineteen of the twenty-nine shipped brains call traits. The fourteen that
 were first written out by hand each expand to a table that runs exactly as the
 hand-written one it replaced: every state asks the same rows in the same order,
 apart from rows that could never be the first to hold.
@@ -10986,6 +10986,9 @@ apart from rows that could never be the first to hold.
   at `danger` so a blow cannot pull it back into the fight. That state tries
   `Split` before it attacks, so while the spell is cooling the slime fights
   on; see *A conjured body is a creature of its own*.
+- **The rat** calls `fights-back`, `hunts-the-weaker`, `scavenges` and
+  `returns-home`. Its pack-following and its sniffing when stuck are still its
+  own rows. See *A creature can hunt only what it outrates, and scavenge*.
 
 Neither townsfolk trait leaves its routine to triggers alone. Their tables ask
 a state's own way out before the rows every other state shares — someone
@@ -10994,15 +10997,41 @@ always comes first. So the snack and the talk are triggers from the brain's
 own states, and rows after the walk home's own exits for the trait's states.
 
 The rest are still written out, and the training dummy has nothing to share.
-The town guard, the patrolling guard, the town crier, the torch salesman, the
-deer and the rat each ask a shared row after a state's own rows where the
-bands cannot put it: the guards' sight of a monster comes between being hit
-and the snack, the crier and the torch salesman ask a walk home (and the crier
-a bedtime) after the talk, and the deer and the rat ask being stuck last from
-states a trigger cannot reach in that position. The wolf, the troll, the bog
+The town guard, the patrolling guard, the town crier, the torch salesman and
+the deer each ask a shared row after a state's own rows where the bands cannot
+put it: the guards' sight of a monster comes between being hit and the snack,
+the crier and the torch salesman ask a walk home (and the crier a bedtime)
+after the talk, and the deer asks being stuck last from states a trigger
+cannot reach in that position. The wolf, the troll, the bog
 imp and the cyclops would each change what they do; see *A wounded wolf breaks
 off* and *The wolf we ship sleeps through the day on the surface* for what
 their rows rely on.
+
+## A creature can hunt only what it outrates, and scavenge
+
+**`rated_below_self`** holds when the body its selector names has a rating
+under the asking creature's own, both read through `rating` in
+`app/lib/mastery.ts`. `rated_below` compares against a fixed number, which is
+right for a dialog about newcomers and wrong for a creature: a number written
+into the brain does not follow the creature when its masteries are retuned.
+
+**`hunts-the-weaker`** is `hunts-on-sight` with `rated_below_self` of the
+nearest prey added to its `when`. It asks about the *nearest* prey only, the
+same body `in_los` asks about, so a strong player standing nearer hides a weak
+one behind them. It only decides whether a hunt starts: once the creature is
+in its fight it keeps after the target whatever the target's rating, and a
+blow from anybody still starts a fight through `fights-back`. The rat rates 8
+(sharp 4, toughness 3, agility 24), so it goes for a fresh character (rating
+1) and leaves alone anyone who has reached 8.
+
+**`scavenges`** eats any food lying about that it can see, hungry or not, while
+it has no `combat` status. It is not `eats-when-hungry` with a high `full`:
+that trait's gate is a `not` around a `status` floor, and there is no value
+that reads as "never full". Its state holds at `need`, below `fight`, so food
+never pulls it out of a fight and a fight or a blow pulls it off its meal. The
+default food list is written out in the trait — every consumable in
+`data/tiles.json` except `ale` and `green-potion` — so a new food is eaten only
+once it is added there.
 
 ## A status can stop its bearer acting, and damage can end one
 

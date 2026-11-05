@@ -224,6 +224,86 @@
     ]
   },
   {
+    "id": "hunts-the-weaker",
+    "name": "Hunts the weaker",
+    "hint": "Hunts on sight, but only goes for the nearest of its prey when that one is rated below itself. Once it has started, it keeps after its target whatever the target's rating.",
+    "params": {
+      "prey": {
+        "kind": "bodies",
+        "label": "prey"
+      },
+      "within": {
+        "kind": "cells",
+        "label": "sees within"
+      },
+      "fight": {
+        "kind": "state",
+        "band": "fight",
+        "label": "fights in"
+      },
+      "target": {
+        "kind": "slot",
+        "holds": "body",
+        "label": "target"
+      },
+      "calm": {
+        "kind": "cells",
+        "default": 12,
+        "label": "gives up at"
+      },
+      "when": {
+        "kind": "condition",
+        "optional": true,
+        "label": "only when"
+      },
+      "until": {
+        "kind": "condition",
+        "optional": true,
+        "label": "also gives up when"
+      }
+    },
+    "traits": [
+      {
+        "trait": "hunts-on-sight",
+        "with": {
+          "prey": {
+            "arg": "prey"
+          },
+          "within": {
+            "arg": "within"
+          },
+          "fight": "fight",
+          "target": "target",
+          "calm": {
+            "arg": "calm"
+          },
+          "when": {
+            "combinator": "and",
+            "rules": [
+              {
+                "arg": "when"
+              },
+              {
+                "cond": "rated_below_self",
+                "of": {
+                  "type": "nearest",
+                  "data": {
+                    "tileIds": {
+                      "arg": "prey"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "until": {
+            "arg": "until"
+          }
+        }
+      }
+    ]
+  },
+  {
     "id": "predator",
     "name": "Predator",
     "hint": "Fights back, hunts what it can see, and keeps to a leash around where it was placed.",
@@ -964,6 +1044,184 @@
       },
       {
         "from": "browsing",
+        "if": {
+          "arg": "until"
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "scavenges",
+    "name": "Scavenges",
+    "hint": "Eats any food it can see lying about, hungry or not, as long as it is out of a fight. A fight takes it off its meal, and a meal never takes it out of a fight.",
+    "params": {
+      "food": {
+        "kind": "things",
+        "default": [
+          "apple",
+          "apple-pie",
+          "berry",
+          "bread",
+          "cheese",
+          "cooked-meat",
+          "luminous-potion",
+          "raw-meat",
+          "red-potion",
+          "rotten-meat",
+          "stale-berry",
+          "stale-cheese"
+        ],
+        "label": "eats"
+      },
+      "within": {
+        "kind": "cells",
+        "default": 7,
+        "label": "sees within"
+      },
+      "lose": {
+        "kind": "cells",
+        "default": 9,
+        "label": "loses it at"
+      },
+      "cry": {
+        "kind": "text",
+        "optional": true,
+        "label": "noise as it goes"
+      },
+      "when": {
+        "kind": "condition",
+        "optional": true,
+        "label": "only when"
+      },
+      "until": {
+        "kind": "condition",
+        "optional": true,
+        "label": "also gives up when"
+      }
+    },
+    "slots": {
+      "meal": "thing"
+    },
+    "states": {
+      "scavenging": {
+        "band": "need",
+        "onEnter": [
+          {
+            "effect": "noise",
+            "text": {
+              "arg": "cry"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "consume",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "meal"
+              }
+            }
+          },
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "meal"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "band": "need",
+        "retarget": true,
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "arg": "when"
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "status",
+                  "id": "combat"
+                }
+              ]
+            },
+            {
+              "cond": "in_los",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": {
+                    "arg": "food"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "bind": {
+          "meal": {
+            "type": "thing",
+            "data": {
+              "tileIds": {
+                "arg": "food"
+              }
+            }
+          }
+        },
+        "to": "scavenging"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "scavenging",
+        "if": {
+          "cond": "status",
+          "id": "combat"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "scavenging",
+        "if": {
+          "cond": "out_of_los",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "meal"
+            }
+          },
+          "cells": {
+            "arg": "lose"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "scavenging",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "scavenging",
         "if": {
           "arg": "until"
         },

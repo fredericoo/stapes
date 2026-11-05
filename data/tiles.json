@@ -29661,132 +29661,9 @@
                 "steps": 3
               }
             ]
-          },
-          "homing": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
-              },
-              {
-                "action": "step_random"
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
-          {
-            "from": "any",
-            "if": {
-              "cond": "attacked"
-            },
-            "bind": {
-              "prey": {
-                "type": "attacker"
-              }
-            },
-            "to": "gnawing"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 7
-            },
-            "bind": {
-              "prey": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "gnawing"
-          },
-          {
-            "from": "gnawing",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "prey"
-                }
-              },
-              "cells": 10
-            },
-            "to": "scurry"
-          },
-          {
-            "from": "scurry",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 10
-            },
-            "to": "homing"
-          },
-          {
-            "from": "sniffing",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 10
-            },
-            "to": "homing"
-          },
-          {
-            "from": "following",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 10
-            },
-            "to": "homing"
-          },
-          {
-            "from": "loitering",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 10
-            },
-            "to": "homing"
-          },
-          {
-            "from": "homing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 2
-            },
-            "to": "scurry"
-          },
           {
             "from": "scurry",
             "if": {
@@ -29883,6 +29760,38 @@
               "ms": 900
             },
             "to": "scurry"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "fights-back",
+            "with": {
+              "fight": "gnawing",
+              "target": "prey",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "hunts-the-weaker",
+            "with": {
+              "prey": [
+                "player"
+              ],
+              "within": 7,
+              "fight": "gnawing",
+              "target": "prey",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "scavenges",
+            "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 10
+            }
           }
         ]
       },
