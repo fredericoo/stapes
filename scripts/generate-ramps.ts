@@ -1,7 +1,14 @@
+import path from "node:path";
 import { PNG } from "pngjs";
 import { PX_PER_HEIGHT } from "../app/lib/geometry";
-import { CELL_SIZE, DIRECTIONS, type Direction, type TileDef } from "../app/lib/types";
-import { type Rgba, paintRgba, writeTileset } from "./tileset-output";
+import {
+  CELL_SIZE,
+  DIRECTIONS,
+  type Direction,
+  type TileDef,
+  resolveClimbFrom,
+} from "../app/lib/types";
+import { type Rgba, paintRgba, readJson, writeTileset } from "./tileset-output";
 
 const TILESET_ID = "ramps";
 const RISE = 2;
@@ -157,6 +164,31 @@ function tileDef(id: string, row: number): TileDef {
   } as unknown as TileDef;
 }
 
+/**
+ * `climbFrom` is authored per facing and is not rotated with the sprite, so a
+ * facing whose climb disagrees with `UPHILL` would draw one way and climb
+ * another. The script refuses to draw over that rather than hide it.
+ */
+async function assertClimbsUphill(ids: string[]) {
+  const tiles = await readJson<TileDef[]>(path.resolve(import.meta.dirname, "../data/tiles.json"));
+  const wrong: string[] = [];
+  for (const id of ids) {
+    const def = tiles.find((t) => t.id === id);
+    if (!def) throw new Error(`no tile "${id}" in data/tiles.json`);
+    for (const facing of DIRECTIONS) {
+      const flags = resolveClimbFrom(def, facing);
+      const climbs = DIRECTIONS.filter((d) => flags[d]);
+      if (climbs.length !== 1 || climbs[0] !== UPHILL[facing]) {
+        wrong.push(`${id} facing ${facing} climbs [${climbs}], drawn rising ${UPHILL[facing]}`);
+      }
+    }
+  }
+  if (wrong.length) throw new Error(`climbFrom does not match the sprites:\n${wrong.join("\n")}`);
+}
+
+const TILE_IDS = ["ramp", "stone-stairs"];
+await assertClimbsUphill(TILE_IDS);
+
 const sheet = new PNG({ width: DIRECTIONS.length * SPRITE_PX, height: 2 * SPRITE_PX });
 DIRECTIONS.forEach((facing, column) => {
   const left = column * SPRITE_PX;
@@ -165,4 +197,9 @@ DIRECTIONS.forEach((facing, column) => {
   drawSprite(sheet, left, SPRITE_PX, stairs, (hit) => stairColour(facing, stairs, hit), null);
 });
 
-await writeTileset(TILESET_ID, "Ramps", sheet, [tileDef("ramp", 0), tileDef("stone-stairs", 1)]);
+await writeTileset(
+  TILESET_ID,
+  "Ramps",
+  sheet,
+  TILE_IDS.map((id, row) => tileDef(id, row)),
+);
