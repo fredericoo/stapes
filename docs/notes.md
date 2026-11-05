@@ -1597,8 +1597,7 @@ rather than the armourer's because the armourer does not take hides.
 All three are drawn when worn (`wolfskin-hood`, `wolfskin-coat`,
 `wolfskin-boots` in `HUMAN_PARTS`), in the wolf's own colours from
 `animals.png`. The hood is a wolf's head sitting on the wearer's: ears up,
-the muzzle over the brow facing south, sideways with the wolf's red eye
-facing east and west, and only the back of the head and ears facing north.
+the muzzle forward over the face, and black eyes either side of it.
 
 **A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
 `resolveActor` is satisfied by a `dialog` alone, so a body that only talks is
@@ -6206,11 +6205,22 @@ frames all fit one 48×64 block, so a wolf or a deer is never offered.
 `human_clothes.png`, `human_heads.png`, `human_hats.png`. Each file holds any
 number of parts as 48×64 blocks in a grid. Hats are the one layer drawn
 above the head and outside the body, so they carry their own outline where
-they stand against the background. Height runs up and to the left, so a hat
-is seen from above: a crown leaning up-left from the head and a brim lying flat
-as a rounded disc, about the size of the head, like the helmets in
-`ultima-vi.png`. A hat drawn as a front view, rising straight up the screen,
-looks far too big. The page fetches them from
+they stand against the background. Height runs up and to the left, one pixel
+of each per pixel of height (`elevationScreenOffset`), so a sphere is drawn
+√3 times longer along that diagonal than across it. The head is a sphere of
+about 1.5 pixels, which shows as a 3×3 blob, and `bun run generate:hats`
+draws every hat by modelling it as solids around that sphere, ray-casting
+them along (−1, −1, −1) for every frame, and reducing the result to the
+ramp's colours. A hat is added there, not drawn in the PNG: the script
+rewrites the whole sheet. Drawn by eye, as a front view rising straight up the screen, a hat
+looks far too big and leans differently in each facing. A hat opens towards
+the face: the face is one row of pixels at the bottom of the blob, and any
+hat that comes past the brow hangs over it, so the skin pixels shared by the
+heads with hair are left empty in every hat except `wolfskin-hood`, which
+covers the face on purpose. Its south facing is not cast: seen face-on the
+head is three pixels wide and does not read as a wolf, so it is the east
+facing mirrored across the screen diagonal, which in this projection swaps
+world x and y and is a true south view of the same model. The page fetches them from
 `/api/tilesets/`. Under `bun dev` that reads `data/` directly, so a new part
 shows on reload; a deployed world shows it only after a reseed. They are
 indexed with `people.png`'s palette and are not listed in `tilesets.json`,
