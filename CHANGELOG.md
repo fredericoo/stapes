@@ -1,5 +1,16 @@
 # the-last-stones
 
+## 0.13.0
+
+### Minor Changes
+
+- Rats now eat any food they find lying on the floor, except ale and poison, whenever they are not in a fight. They also only come after you on sight while your rating is below theirs; once your rating matches a rat's it runs from you instead, and bites only when it is cornered.
+- Wolves now drop a wolf skin when they fall. Take wolf skins and shards to the tanner for a Wolfskin Hood, Coat and Boots: light armour that turns aside sharp blows and asks for Agility rather than Toughness. You wear them where everyone can see: a grey pelt coat, fur boots and the wolf's own head as a hood.
+
+### Patch Changes
+
+- The buttons and text at the top of the home page stay sharp on your phone after they slide into place, instead of turning slightly blurry.
+
 ## 0.12.0
 
 ### Minor Changes
