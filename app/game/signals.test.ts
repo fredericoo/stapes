@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { emptyMap, getStack, replaceStack } from "../lib/mapData";
+import { channelNames, emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Direction, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import { channelPowered, findWiredCells, readChannels, settleSignals } from "./signals";
+import {
+  channelPowered,
+  channelsPowered,
+  findWiredCells,
+  readChannels,
+  settleSignals,
+} from "./signals";
 import { tile } from "../lib/testTile";
 
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
@@ -245,7 +251,54 @@ describe("channelPowered", () => {
   });
 });
 
+describe("channelNames", () => {
+  it("splits a comma-separated list and drops blanks", () => {
+    expect(channelNames(" gate-a, gate-b ,, ")).toEqual(["gate-a", "gate-b"]);
+    expect(channelNames(undefined)).toEqual([]);
+  });
+});
+
+describe("channelsPowered", () => {
+  const state = new Map([
+    ["dark", { on: 0, total: 1 }],
+    ["mixed", { on: 1, total: 2 }],
+    ["full", { on: 1, total: 1 }],
+  ]);
+
+  it("reads any as one emitter on any listed channel", () => {
+    expect(channelsPowered(state, ["dark", "mixed"], "any")).toBe(true);
+    expect(channelsPowered(state, ["dark", "nobody"], "any")).toBe(false);
+  });
+
+  it("reads all as every emitter on every listed channel", () => {
+    expect(channelsPowered(state, ["full", "mixed"], "all")).toBe(false);
+    expect(channelsPowered(state, ["full"], "all")).toBe(true);
+    expect(channelsPowered(state, ["full", "nobody"], "all")).toBe(false);
+  });
+});
+
 describe("settleSignals", () => {
+  it("opens a receiver listening to two channels when either one is on", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-unlit", channel: "gate-a" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "torch-lit", channel: "gate-b" }]);
+    map = replaceStack(map, 5, 0, 0, [{ tileId: "door", channel: "gate-a, gate-b" }]);
+
+    const { map: next } = settleSignals(map, findWiredCells(map), tilesById);
+    expect(stackIds(next, 5, 0)).toEqual(["door-open"]);
+  });
+
+  it("drives every channel an emitter lists", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "torch-lit", channel: "gate-a,gate-b" },
+    ]);
+    map = replaceStack(map, 5, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
+    map = replaceStack(map, 6, 0, 0, [{ tileId: "door", channel: "gate-b" }]);
+
+    const { map: next } = settleSignals(map, findWiredCells(map), tilesById);
+    expect(stackIds(next, 5, 0)).toEqual(["door-open"]);
+    expect(stackIds(next, 6, 0)).toEqual(["door-open"]);
+  });
+
   it("opens a receiver its channel powers", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
     map = replaceStack(map, 5, 0, 0, [{ tileId: "grass" }, { tileId: "door", channel: "gate-a" }]);

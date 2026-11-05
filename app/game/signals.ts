@@ -1,4 +1,4 @@
-import { getStack, listCoords, replaceStack } from "../lib/mapData";
+import { channelNames, getStack, listCoords, replaceStack } from "../lib/mapData";
 import type { ReceiveInteraction, SignalValue } from "../lib/interactions";
 import { receiveTriggers, resolveEmit, resolveReceive } from "../lib/interactions";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -22,6 +22,21 @@ export function channelPowered(
   const tally = state.get(channel);
   if (!tally || tally.total === 0) return false;
   return mode === "all" ? tally.on === tally.total : tally.on > 0;
+}
+
+/**
+ * Reads several channels as one: in `any` mode, one emitter on any of them is
+ * enough; in `all` mode, every emitter on every one of them must be on.
+ */
+export function channelsPowered(
+  state: ChannelState,
+  channels: readonly string[],
+  mode: ReceiveInteraction["mode"],
+): boolean {
+  if (channels.length === 0) return false;
+  return mode === "all"
+    ? channels.every((channel) => channelPowered(state, channel, "all"))
+    : channels.some((channel) => channelPowered(state, channel, "any"));
 }
 
 export function cellIsWired(map: MapFile, cell: Coord): boolean {
@@ -55,12 +70,10 @@ export function readChannels(
 
   for (const cell of cells) {
     for (const placed of getStack(map, cell.x, cell.y, cell.z)) {
-      const channel = placed.channel;
-      if (!channel) continue;
       const def = tilesById[placed.tileId];
       const emit = def && resolveEmit(def);
       if (!emit) continue;
-      add(channel, emit.value);
+      for (const channel of channelNames(placed.channel)) add(channel, emit.value);
     }
   }
   for (const source of extra) add(source.channel, source.value);
@@ -80,7 +93,8 @@ function swapReceiverAt(
   const def = tilesById[placed.tileId];
   const receive: ReceiveInteraction | null = def ? resolveReceive(def) : null;
   if (!receive || !tilesById[receive.tileId]) return null;
-  if (!receiveTriggers(receive, channelPowered(state, placed.channel, receive.mode))) {
+  const powered = channelsPowered(state, channelNames(placed.channel), receive.mode);
+  if (!receiveTriggers(receive, powered)) {
     return null;
   }
 

@@ -12,6 +12,7 @@ import { absoluteElevation } from "../lib/geometry";
 import {
   absoluteStandingElevation,
   appendTile,
+  channelNames,
   chunkIndexOf,
   chunkKeyAt,
   chunkKeyFor,
@@ -1788,7 +1789,7 @@ export class GameSession implements PlaySession {
       const stack = getStack(this.map, cell.x, cell.y, cell.z);
       let touched = false;
       const next = stack.map((placed) => {
-        if (placed.channel !== channel) return placed;
+        if (!channelNames(placed.channel).includes(channel)) return placed;
         const def = this.tilesById[placed.tileId];
         const sw = def && resolveSwitch(def);
         if (!sw) return placed;
