@@ -1594,6 +1594,11 @@ at least as much sharp resistance as anything else in its slot (3, 5, 3), and Ag
 Toughness to wear, so a fast character has an option chain mail and the
 knight's helm do not give them. The coat sits on the tanner's own Body rack
 rather than the armourer's because the armourer does not take hides.
+All three are drawn when worn (`wolfskin-hood`, `wolfskin-coat`,
+`wolfskin-boots` in `HUMAN_PARTS`), in the wolf's own colours from
+`animals.png`. The hood is a wolf's head sitting on the wearer's: ears up,
+the muzzle over the brow facing south, sideways with the wolf's red eye
+facing east and west, and only the back of the head and ears facing north.
 
 **A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
 `resolveActor` is satisfied by a `dialog` alone, so a body that only talks is

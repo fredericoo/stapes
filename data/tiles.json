@@ -26645,7 +26645,8 @@
         },
         "requirements": {
           "agility": 12
-        }
+        },
+        "humanPart": "wolfskin-coat"
       }
     },
     "sprite": {
@@ -27031,7 +27032,8 @@
         },
         "requirements": {
           "agility": 8
-        }
+        },
+        "humanPart": "wolfskin-hood"
       }
     },
     "sprite": {
@@ -27220,7 +27222,8 @@
         },
         "requirements": {
           "agility": 8
-        }
+        },
+        "humanPart": "wolfskin-boots"
       }
     },
     "sprite": {
