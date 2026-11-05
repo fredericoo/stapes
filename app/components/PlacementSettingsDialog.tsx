@@ -175,12 +175,12 @@ export function PlacementSettingsDialog({
 
         {wired ? (
           <label className="flex flex-col gap-1 text-xs">
-            <FieldLabel info="Emitters drive the channel and receivers follow it. Sharing a name is the whole of the wiring.">
+            <FieldLabel info="Emitters drive the channel and receivers follow it. Sharing a name is the whole of the wiring. Separate names with commas to wire one placement to several channels: a door listening to two buttons reads both.">
               Signal channel
             </FieldLabel>
             <Input
               list={channelListId}
-              placeholder="channel"
+              placeholder="channel, or several separated by commas"
               value={channel}
               onChange={(e) => setChannel(e.target.value)}
             />

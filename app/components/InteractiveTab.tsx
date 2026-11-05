@@ -1034,7 +1034,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
               </div>
 
               <div className="flex flex-col gap-1 text-xs">
-                <FieldLabel info="With several emitters on one channel: any reads on as soon as one is on; all waits for every one. No emitters reads off.">
+                <FieldLabel info="With several emitters on the placement's channels: any reads on as soon as one is on; all waits for every one. No emitters reads off.">
                   Combine
                 </FieldLabel>
                 <Segmented<SignalMode>

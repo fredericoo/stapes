@@ -682,12 +682,25 @@ export function updatePlacedVariant(
   return updatePlacedText(map, x, y, z, stackIndex, "variant", variant);
 }
 
+/**
+ * A placement's `channel` is a comma-separated list, so a door can follow two
+ * buttons that each keep their own name. An emitter drives every name listed;
+ * a receiver reads them together, as one channel.
+ */
+export function channelNames(channel: string | undefined): string[] {
+  if (!channel) return [];
+  return channel
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
 export function listChannels(map: MapFile): string[] {
   const seen = new Set<string>();
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { stack } of listCoords(map, z)) {
       for (const placed of stack) {
-        if (placed.channel) seen.add(placed.channel);
+        for (const name of channelNames(placed.channel)) seen.add(name);
       }
     }
   }
