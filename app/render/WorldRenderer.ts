@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { HumanTextures } from "./humanTextures";
+import { drawnAs } from "./wornLooks";
 import { tilesetUrl } from "../lib/api";
 import {
   absoluteElevation,
@@ -2442,7 +2443,7 @@ export class WorldRenderer {
       : this.formingAt.get(transitionAddress({ x, y, z, stackIndex }));
     if (!id) return undefined;
     const tileId = this.liveTransitions.get(id)?.live.note.tileId;
-    return tileId === placed.tileId ? id : undefined;
+    return tileId !== undefined && drawnAs(placed.tileId, tileId) ? id : undefined;
   }
 
   private attachTransition(

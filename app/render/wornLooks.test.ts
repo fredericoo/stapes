@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ActorSnapshot } from "../game/GameSession";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { TileDef } from "../lib/types";
-import { WornLooks } from "./wornLooks";
+import { resolveTransitionSlot } from "./tileTransitions";
+import { drawnAs, WornLooks } from "./wornLooks";
 
 const GUARD: TileDef = {
   id: "guard",
@@ -94,5 +95,23 @@ describe("WornLooks", () => {
 
     expect(second.map).toBe(first.map);
     expect(second.tilesById).toBe(first.tilesById);
+  });
+
+  it("lets a transition naming the real tile find the dressed placement it is drawn as", () => {
+    const view = new WornLooks().apply(
+      world(),
+      [actor("guard", 0, {}, { skin: "pale", hair: "blue", head: "bald" })],
+      CATALOGUE,
+    );
+    const drawnStack = getStack(view.map, 0, 0, 0);
+
+    expect(resolveTransitionSlot(drawnStack, { tileId: "guard", stackIndex: 1 })).toBe(1);
+    expect(resolveTransitionSlot(drawnStack, { tileId: "wolf", stackIndex: 1 })).toBeUndefined();
+  });
+});
+
+describe("drawnAs", () => {
+  it("does not take one tile for another whose id it begins with", () => {
+    expect(drawnAs("guard-captain~pale~", "guard")).toBe(false);
   });
 });

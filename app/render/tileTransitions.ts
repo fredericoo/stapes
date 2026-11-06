@@ -13,6 +13,7 @@ import {
 import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import type { ParticleEmitterSpec } from "./particles";
 import { plumeScale } from "./plumeScale";
+import { drawnAs } from "./wornLooks";
 
 export const MAX_LIVE_TRANSITIONS = 32;
 
@@ -107,10 +108,12 @@ export function resolveTransitionSlot(
   stack: readonly { tileId: string }[],
   note: { tileId: string; stackIndex: number },
 ): number | undefined {
-  if (stack[note.stackIndex]?.tileId === note.tileId) return note.stackIndex;
+  const at = stack[note.stackIndex];
+  if (at && drawnAs(at.tileId, note.tileId)) return note.stackIndex;
   let only: number | undefined;
   for (let i = 0; i < stack.length; i++) {
-    if (stack[i]?.tileId !== note.tileId) continue;
+    const placed = stack[i];
+    if (!placed || !drawnAs(placed.tileId, note.tileId)) continue;
     if (only !== undefined) return undefined;
     only = i;
   }
