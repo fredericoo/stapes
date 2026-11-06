@@ -378,17 +378,20 @@ describe("itemCard", () => {
       expect(card.requirements).toHaveLength(1);
     });
 
-    it("gives a resistance as the total, best first", () => {
+    it("lists each resistance under defence as the bonus on top of it, best first", () => {
       const card = itemCard(
         tileWith({ type: "armor", def: 4, resist: { blunt: 2, sharp: 5 } }),
         null,
         NOTHING_LEARNT,
       )!;
-      expect(card.resists).toEqual([
-        { mastery: "sharp", total: 9, extra: 5 },
-        { mastery: "blunt", total: 6, extra: 2 },
-      ]);
-      expect(card.speech).toContain("Sharp blows lose 9 rather than 4");
+      expect(statAt(card.stats, "defence")).toMatchObject({
+        value: "4",
+        against: [
+          { mastery: "sharp", extra: 5 },
+          { mastery: "blunt", extra: 2 },
+        ],
+      });
+      expect(card.speech).toContain("Defence: 4. 5 more against sharp blows");
     });
 
     it("reads a resistance of zero as no resistance at all", () => {
@@ -397,11 +400,7 @@ describe("itemCard", () => {
         null,
         NOTHING_LEARNT,
       )!;
-      expect(card.resists).toEqual([]);
-    });
-
-    it("leaves the table empty for everything that is not armour", () => {
-      expect(itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!.resists).toEqual([]);
+      expect(statAt(card.stats, "defence").against).toBeUndefined();
     });
   });
 

@@ -42,7 +42,6 @@ export const HEADINGS = {
   effects: "Effects",
   masteries: "Masteries",
   combat: "Combat",
-  resists: "Resists",
   requires: "Requires",
   toMaster: "To Master",
   onHit: "On hit",

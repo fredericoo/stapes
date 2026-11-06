@@ -55,6 +55,7 @@ export type ItemCardStat = {
   value: string;
   base?: string;
   tone: ItemCardTone;
+  against?: ItemCardResist[];
 };
 
 /** `have` is null on a card that is not read by anybody in particular. */
@@ -77,7 +78,6 @@ export type ItemCardEffect = {
 
 export type ItemCardResist = {
   mastery: WeaponMastery;
-  total: number;
   extra: number;
 };
 
@@ -94,7 +94,6 @@ export type ItemCard = {
   effects: ItemCardEffect[];
   effectsTitle: string;
   requirementsTitle: string;
-  resists: ItemCardResist[];
   speech: string;
 };
 
@@ -226,11 +225,13 @@ function armorStats(
   armor: ArmorItem | ShieldItem,
   masteries: BattlerDef["masteries"],
 ): ItemCardStat[] {
+  const against = armor.type === "armor" ? resistsFrom(armor) : [];
   return [
     {
       term: "defence",
       value: `${armor.def}`,
       tone: "good",
+      ...(against.length > 0 ? { against } : {}),
     },
     ...encumbranceStats(armor.requirements, masteries),
   ];
@@ -289,9 +290,9 @@ function resistsFrom(armor: ArmorItem): ItemCardResist[] {
   for (const mastery of WEAPON_MASTERIES) {
     const extra = armor.resist?.[mastery] ?? 0;
     if (extra <= 0) continue;
-    rows.push({ mastery, total: armor.def + extra, extra });
+    rows.push({ mastery, extra });
   }
-  return rows.sort((a, b) => b.total - a.total);
+  return rows.sort((a, b) => b.extra - a.extra);
 }
 
 const MINUS = "\u2212";
@@ -521,7 +522,6 @@ export function itemCard(
     requirements: requirementsFrom(demandsOf(item), masteries),
     dormant: dormancyOf(item, masteries),
     effects: effectsFrom(grantsOn(item), statusDefs),
-    resists: item.type === "armor" ? resistsFrom(item) : [],
     effectsTitle: effectsTitleFor(item),
     requirementsTitle: requirementsTitleFor(item),
 
@@ -575,11 +575,9 @@ function speak(card: ItemCard): string {
         ? `${said}: ${stat.value}, where somebody who has just earned it gets ${stat.base}`
         : `${said}: ${stat.value}`,
     );
-  }
-  for (const row of card.resists) {
-    lines.push(
-      `${MASTERY_LABELS[row.mastery]} blows lose ${row.total} rather than ${row.total - row.extra}`,
-    );
+    for (const row of stat.against ?? []) {
+      lines.push(`${row.extra} more against ${MASTERY_LABELS[row.mastery].toLowerCase()} blows`);
+    }
   }
   for (const row of card.requirements) {
     lines.push(
