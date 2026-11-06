@@ -68515,6 +68515,13 @@
             },
             "name": "Ember"
           }
+        ],
+        "kit": [
+          {
+            "slot": "offhand",
+            "tileId": "arcane-stone-of-cinder",
+            "chance": 1
+          }
         ]
       },
       "brain": {
@@ -69084,6 +69091,13 @@
             },
             "name": "Frost"
           }
+        ],
+        "kit": [
+          {
+            "slot": "offhand",
+            "tileId": "arcane-stone-of-sleet",
+            "chance": 1
+          }
         ]
       },
       "brain": {
@@ -69652,6 +69666,13 @@
               "height": 2
             },
             "name": "Thorns"
+          }
+        ],
+        "kit": [
+          {
+            "slot": "offhand",
+            "tileId": "arcane-stone-of-barbs",
+            "chance": 1
           }
         ]
       },

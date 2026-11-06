@@ -11045,6 +11045,11 @@ its defence against arrows. Its own element status is in `immuneTo`, and
 `elements` puts it on the element wheel, so a water spell takes half again
 off an ember wisp.
 
+**One wisp in a hundred carries its element's rung-10 stone** (Cinder, Sleet,
+Barbs) in its off hand, and drops it where it dies, as every kit does. A held
+stone is not one of the body's own spells, and the brain casts only those, so
+carrying it does not change how the wisp fights.
+
 **The brain hunts at range and backs off inside two cells.** It sees a player
 within 7 cells, casts spell 1 then spell 2, and walks up when neither can be
 cast. Inside 2 cells it steps away while still casting; past 4 it walks back.
