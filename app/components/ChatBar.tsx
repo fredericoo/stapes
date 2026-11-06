@@ -6,6 +6,17 @@ import { isTypingTarget } from "../game/heldDirections";
 import { Tooltip } from "../ui/Tooltip";
 import { ACTION_BUTTON_SIZE_CLASS } from "./actionButton";
 
+/**
+ * Enter stays with the focused element only where it does something there that
+ * chat should not steal: typing in a field, or confirming inside an open dialog
+ * or select list, which also trap focus so the chat field could not take it.
+ */
+function claimsEnterForChat(target: EventTarget | null): boolean {
+  if (isTypingTarget(target)) return false;
+  if (!(target instanceof Element)) return true;
+  return target.closest('[role="dialog"], [role="alertdialog"], [role="listbox"]') === null;
+}
+
 function ChatComposer({
   onSay,
   onTypingChange,
@@ -34,14 +45,15 @@ function ChatComposer({
   useEffect(() => {
     if (!focusOnEnter) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Enter" || event.repeat) return;
-      if (isTypingTarget(event.target)) return;
-      if (document.activeElement !== document.body) return;
+      if (event.key !== "Enter" || event.repeat || event.isComposing) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (!claimsEnterForChat(event.target)) return;
       event.preventDefault();
+      event.stopPropagation();
       inputRef.current?.focus();
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [focusOnEnter]);
 
   useEffect(() => () => onTypingChange(false), [onTypingChange]);
