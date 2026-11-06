@@ -166,7 +166,7 @@ describe("fightOdds", () => {
   it("expects a fight to go better with other players beside the bot", () => {
     const wolf = [foe("wolf")];
     const alone = fightOdds(newcomerSwings, fresh, wolf, tilesById, statusDefs)!;
-    const together = fightOdds(newcomerSwings, fresh, wolf, tilesById, statusDefs, 1, 0, 2)!;
+    const together = fightOdds(newcomerSwings, fresh, wolf, tilesById, statusDefs, { allies: 2 })!;
     expect(together.killSeconds).toBeLessThan(alone.killSeconds);
     expect(together.margin).toBeGreaterThan(alone.margin);
   });

@@ -1,4 +1,6 @@
 import { castDurationMs, type CastSlot, type SpellButton } from "../app/game/casting";
+import { spellGuard, type Guarded } from "../app/game/combat";
+import { meanThroughGuard } from "../app/game/combatMetrics";
 import { affordsRecipe } from "../app/game/craft";
 import { carriedLightTileIds, magicDormant, type Equipment } from "../app/game/equipment";
 import { spellPower, type BattlerDef } from "../app/lib/battler";
@@ -46,16 +48,32 @@ export function usableStone(
   return meetsRequirements(masteries, stone.requirements) ? stone : null;
 }
 
+/** Who a bolt lands on, as far as what it is weighed against goes. */
+export type BoltTarget = { guard: Guarded; masteries: Masteries };
+
 /**
  * Health a bolt takes off somebody it is aimed at, on average, before the
- * wheel, counting its area's share when that reaches others; 0 for any other stone.
+ * wheel, counting its area's share when that reaches others; 0 for any other
+ * stone. With a `target`, each hit is weighed against that target's resist,
+ * or its defence for a physical blow, as the server weighs it.
  */
-export function boltDamage(stone: ArcaneStoneItem, masteries: Masteries): number {
+export function boltDamage(
+  stone: ArcaneStoneItem,
+  masteries: Masteries,
+  target?: BoltTarget,
+): number {
   const { effect } = stone;
   if (effect.kind !== "bolt" || effect.on !== "target") return 0;
   const area = effect.area && affectsBody(effect.area.affects, false) ? effect.area : undefined;
-  const damage = Math.max(0, effect.damage ?? 0) + Math.max(0, area?.damage ?? 0);
-  return damage > 0 ? spellPower(damage, stone.requirements, masteries) : 0;
+  const guard = target ? spellGuard(stone.physical, target.guard, target.masteries) : 0;
+  const hit = (damage: number | undefined) => {
+    if (!damage || damage <= 0) return 0;
+    return meanThroughGuard(
+      spellPower(damage, stone.requirements, masteries, stone.physical),
+      guard,
+    );
+  };
+  return hit(effect.damage) + hit(area?.damage);
 }
 
 /** Health a stone puts back into its own caster, on average; 0 for any other stone. */
@@ -161,12 +179,13 @@ export function boltsPerSecond(
   equipment: Equipment,
   tilesById: Record<string, TileDef>,
   masteries: Masteries,
+  target?: BoltTarget,
 ): number {
   let total = 0;
   for (const square of ["weapon", "offhand", "charm"] as const) {
     const stone = usableStone(tilesById[equipment[square]?.tileId ?? ""], masteries);
     if (!stone) continue;
-    total += perSecond(boltDamage(stone, masteries), stone, masteries);
+    total += perSecond(boltDamage(stone, masteries, target), stone, masteries);
   }
   return total;
 }
@@ -191,12 +210,15 @@ type Button = Pick<SpellButton, "slot" | "tileId" | "castability">;
  * The ready bolt that would hurt `foe` most: its damage, turned by the wheel
  * against what the foe is made of. Water before fire at a cave troll, and a
  * bolt the wheel resists only when it is still the hardest hit on offer.
+ * With a `target`, a magical bolt is preferred over a physical one at a body
+ * in plate, and the other way round at one with high Arcane.
  */
 export function bestBolt(
   buttons: readonly Button[],
   tilesById: Record<string, TileDef>,
   masteries: Masteries,
   foe: readonly Element[],
+  target?: BoltTarget,
 ): CastSlot | null {
   let best: { slot: CastSlot; damage: number } | null = null;
   for (const button of buttons) {
@@ -204,7 +226,7 @@ export function bestBolt(
     const stone = usableStone(tilesById[button.tileId], masteries);
     if (!stone) continue;
     const elements = spellElements(stone.requirements);
-    const damage = boltDamage(stone, masteries) * effectiveness(elements, foe);
+    const damage = boltDamage(stone, masteries, target) * effectiveness(elements, foe);
     if (damage > 0 && (!best || damage > best.damage)) best = { slot: button.slot, damage };
   }
   return best?.slot ?? null;

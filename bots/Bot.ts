@@ -48,6 +48,7 @@ import {
 import {
   awaitsMastery,
   bestBolt,
+  type BoltTarget,
   boltsPerSecond,
   bestMend,
   forgeOrders,
@@ -62,7 +63,7 @@ import {
 } from "./arcane";
 import { ALLY_CELLS, alliesBeside, COMPANY_CELLS, companyGoal, leaderOf } from "./company";
 import { nextDressing } from "./dress";
-import { fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
+import { creatureSwing, fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
 import { Economy, FOOD_RESERVE, type Deal } from "./economy";
 import { bodyOf, rangedReach, wornWorth } from "./gear";
 import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
@@ -403,8 +404,9 @@ export class Bot {
   /** The bot's own swings and the margins worked out this decision, which fights ask for often. */
   private sizing: {
     mine: FightingStats[];
-    /** What the bolts it wears add to `mine`, in damage a second. */
-    bolts: number;
+    /** What the bolts it wears add to `mine` against a target, in damage a second. */
+    bolts: (target: BoltTarget) => number;
+    masteries: Masteries;
     margins: Map<string, number>;
     zones?: Zone[];
   } | null = null;
@@ -500,7 +502,9 @@ export class Bot {
     this.sizing = body
       ? {
           mine: swingsOf(body, snapshot.equipment, self, this.tilesById, this.statusDefs),
-          bolts: boltsPerSecond(snapshot.equipment, this.tilesById, body.masteries),
+          bolts: (target) =>
+            boltsPerSecond(snapshot.equipment, this.tilesById, body.masteries, target),
+          masteries: body.masteries,
           margins: new Map(),
         }
       : null;
@@ -1141,16 +1145,12 @@ export class Bot {
         (a) =>
           this.outpaces(snapshot, a) && !slowsItsTarget(this.tilesById[a.tileId], this.statusDefs),
       );
-    const odds = fightOdds(
-      this.sizing.mine,
-      snapshot.self,
-      foes,
-      this.tilesById,
-      this.statusDefs,
-      kites ? KITED_SHARE : 1,
-      this.sizing.bolts,
+    const odds = fightOdds(this.sizing.mine, snapshot.self, foes, this.tilesById, this.statusDefs, {
+      theirShare: kites ? KITED_SHARE : 1,
+      bolts: this.sizing.bolts,
       allies,
-    );
+      masteries: this.sizing.masteries,
+    });
     const margin = odds?.margin ?? Infinity;
     this.sizing.margins.set(key, margin);
     return margin;
@@ -1412,11 +1412,15 @@ export class Bot {
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
     if (body) {
       const mine = swingsOf(body, snapshot.equipment, fresh, this.tilesById, this.statusDefs);
-      const bolts = boltsPerSecond(snapshot.equipment, this.tilesById, body.masteries);
+      const bolts = (target: BoltTarget) =>
+        boltsPerSecond(snapshot.equipment, this.tilesById, body.masteries, target);
       for (const def of Object.values(this.tilesById)) {
         if (def.id === PLAYER_TILE_ID || !canHurt(def)) continue;
         const foe = { tileId: def.id, hp: null, maxHp: null, statuses: [] };
-        const odds = fightOdds(mine, fresh, [foe], this.tilesById, this.statusDefs, 1, bolts);
+        const odds = fightOdds(mine, fresh, [foe], this.tilesById, this.statusDefs, {
+          bolts,
+          masteries: body.masteries,
+        });
         if (odds && odds.margin < this.temperament.dread) tiles.add(def.id);
       }
     }
@@ -1708,8 +1712,10 @@ export class Bot {
       if (snapshot.targetId !== this.foe.id) return null;
       const foe = snapshot.actors.find((a) => a.id === this.foe!.id);
       const def = foe && this.tilesById[foe.tileId];
-      const elements = (def && resolveBattler(def)?.elements) ?? [];
-      return bestBolt(buttons, this.tilesById, masteries, elements);
+      const battler = def ? resolveBattler(def) : null;
+      const guard = foe && creatureSwing(foe, this.tilesById, this.statusDefs);
+      const target = guard && battler ? { guard, masteries: battler.masteries } : undefined;
+      return bestBolt(buttons, this.tilesById, masteries, battler?.elements ?? [], target);
     }
     if (this.flight) return this.scorch(snapshot, buttons, masteries);
     const training = awaitsMastery(carriedInstances(snapshot.equipment), this.tilesById, masteries);

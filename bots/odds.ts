@@ -1,4 +1,5 @@
-import { rotationOdds, swingOdds } from "../app/game/combatMetrics";
+import { spellGuard } from "../app/game/combat";
+import { meanThroughGuard, rotationOdds, swingOdds } from "../app/game/combatMetrics";
 import {
   effectiveBattler,
   HANDS,
@@ -16,15 +17,23 @@ import {
 } from "../app/game/statuses";
 import { resolveBrain, tilesNamedBy, type BrainCondition } from "../app/lib/brain";
 import { isConditionGroup } from "../app/lib/conditions";
-import { resolveBattler, type BattlerDef, type FightingStats } from "../app/lib/battler";
+import {
+  resolveBattler,
+  spellPower,
+  type BattlerDef,
+  type FightingStats,
+} from "../app/lib/battler";
 import { affectsBody } from "../app/lib/area";
 import {
   MAX_PERCENT_STAT,
+  type ArcaneStoneItem,
   type SpellArea,
   type StoneEffect,
   type WeaponStatus,
 } from "../app/lib/item";
+import type { Masteries } from "../app/lib/mastery";
 import type { StatusDef } from "../app/lib/status";
+import type { BoltTarget } from "./arcane";
 import type { TileDef } from "../app/lib/types";
 
 /** A body as a fight sees it: who it is, how hurt, and what it is under. */
@@ -80,11 +89,12 @@ export function creatureSwing(
 }
 
 /** Damage a second from a creature's bolts that hurt, spread over each spell's cooldown. */
-export function spellDamagePerSecond(def: TileDef | undefined): number {
+export function spellDamagePerSecond(def: TileDef | undefined, target?: BoltTarget): number {
   const battler = def ? resolveBattler(def) : null;
+  if (!battler) return 0;
   let total = 0;
-  for (const spell of battler?.spells ?? []) {
-    total += damageAtFoe(spell.effect) * castsPerSecond(spell.cooldownMs);
+  for (const spell of battler.spells ?? []) {
+    total += damageAtFoe(spell, battler.masteries, target) * castsPerSecond(spell.cooldownMs);
   }
   return total;
 }
@@ -93,11 +103,21 @@ export function spellDamagePerSecond(def: TileDef | undefined): number {
  * What one cast does to whoever the caster is fighting: the bolt's hit when it
  * is aimed at them, plus its area's when the area reaches others. An area
  * around the caster counts as landing, since a creature casts it beside you.
+ * Each hit is scaled by the caster and weighed against `target` the way the
+ * server weighs it.
  */
-function damageAtFoe(effect: StoneEffect): number {
+function damageAtFoe(spell: ArcaneStoneItem, masteries: Masteries, target?: BoltTarget): number {
+  const { effect } = spell;
   if (effect.kind !== "bolt") return 0;
-  const bolt = effect.on === "target" ? Math.max(0, effect.damage ?? 0) : 0;
-  return bolt + Math.max(0, areaAtFoe(effect)?.damage ?? 0);
+  const guard = target ? spellGuard(spell.physical, target.guard, target.masteries) : 0;
+  const hit = (damage: number | undefined) => {
+    if (!damage || damage <= 0) return 0;
+    return meanThroughGuard(
+      spellPower(damage, spell.requirements, masteries, spell.physical),
+      guard,
+    );
+  };
+  return (effect.on === "target" ? hit(effect.damage) : 0) + hit(areaAtFoe(effect)?.damage);
 }
 
 function statusesAtFoe(effect: StoneEffect): readonly WeaponStatus[] {
@@ -266,15 +286,30 @@ export const ALLY_SHARE = 0.5;
  * counted as hitting only the bot, since any of them may pick it.
  * Null when any foe is a body whose fighting the bot cannot work out.
  */
+const NO_BOLTS = () => 0;
+
+function foeMasteries(foe: Fighter, tilesById: Record<string, TileDef>): Masteries {
+  const def = tilesById[foe.tileId];
+  return (def && resolveBattler(def)?.masteries) ?? {};
+}
+
 export function fightOdds(
   mine: readonly FightingStats[],
   self: Fighter,
   foes: readonly Fighter[],
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
-  theirShare = 1,
-  boltsPerSecond = 0,
-  allies = 0,
+  {
+    theirShare = 1,
+    bolts = NO_BOLTS,
+    allies = 0,
+    masteries = {},
+  }: {
+    theirShare?: number;
+    bolts?: (target: BoltTarget) => number;
+    allies?: number;
+    masteries?: Masteries;
+  } = {},
 ): Odds | null {
   if (mine.length === 0 || foes.length === 0) return null;
   const guard = mine[0]!;
@@ -297,7 +332,7 @@ export function fightOdds(
   for (const [i, foe] of foes.entries()) {
     const theirs = theirSwings[i]!;
     const mineOnThem =
-      boltsPerSecond +
+      bolts({ guard: theirs, masteries: foeMasteries(foe, tilesById) }) +
       averagedOver(afflictions, (under) =>
         afflictedDamagePerSecond(mine, theirs, under, statusDefs, health),
       );
@@ -311,7 +346,7 @@ export function fightOdds(
           under ? withStatusModifiers(guard, [under], statusDefs, health) : guard,
         ).damagePerSecond,
     );
-    incoming += blows + spellDamagePerSecond(tilesById[foe.tileId]);
+    incoming += blows + spellDamagePerSecond(tilesById[foe.tileId], { guard, masteries });
   }
   killSeconds /= 1 + allies * ALLY_SHARE;
   let drained = drainedBy(afflictions, killSeconds, bearer, statusDefs) * theirShare;

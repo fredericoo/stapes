@@ -4905,19 +4905,23 @@ take a fireball as well as it takes a sword, which made heavy armour the best
 gear against mages.
 
 A stone with `physical` set (`"blunt"` for a stomp, `"ranged"` for a thrown
-stone) is weighed as a weapon blow of that kind: defence plus the resistance to
-that kind, through the same `damageAfterDefence` a swing goes through. Its area
-follows the same rule as its bolt, because `AreaCast` carries `physical` from the
-stone.
+stone) is a blow of that kind on both sides. Its power scales with the caster's
+mastery of that blow in place of Arcane (`castingSkill`), so a cyclops's Stomp
+grows with its Blunt and its Arcane only decides how well it resists magic. It
+is weighed against defence plus the resistance to that kind, as a swing is.
+`spellGuard` is the one place that picks between the two, and its area follows
+the same rule as its bolt because `AreaCast` carries `physical` from the stone.
 
 A mend is never weighed. It scales with the caster's Arcane and the stone's
-requirements through `spellPower`, as before, and neither the target's resist nor
-its defence takes anything off it.
+requirements through `spellPower`, and neither the target's resist nor its
+defence takes anything off it.
 
 The guard roll is drawn the same way for both kinds, so a cast takes the same
-draws whichever way it is weighed. `bots/arcane.ts` prices a bolt before
-any reduction, as it did before, so a bot does not yet know that a bolt is
-better against a target in plate.
+draws whichever way it is weighed. Bots price a bolt the same way without
+rolling: `meanThroughGuard` takes `MEAN_GUARD_SHARE` of the guard off the power.
+`boltDamage` and `bestBolt` in `bots/arcane.ts` weigh their own bolts against
+the foe, and `spellDamagePerSecond` in `bots/odds.ts` weighs a creature's
+spells against the bot, so a bot throws magic at plate and a blow at a mage.
 
 ### Gear short of its requirements: slower if physical, dormant if magical
 

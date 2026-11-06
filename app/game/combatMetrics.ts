@@ -4,6 +4,7 @@ import {
   defenceAgainst,
   dodgeChanceAgainst,
   guardBand,
+  guardFraction,
   guardRolled,
   landChance,
   potentialDamageFrom,
@@ -59,6 +60,19 @@ export function guardOdds(defender: FightingStats, attacker: FightingStats): Gua
   }
   odds.push({ value, chance: 1 - from });
   return odds;
+}
+
+const MEAN_GUARD_STEPS = 1000;
+
+/** `guardFraction` averaged over its roll, by the midpoint rule. */
+export const MEAN_GUARD_SHARE =
+  Array.from({ length: MEAN_GUARD_STEPS }, (_, i) =>
+    guardFraction((i + 0.5) / MEAN_GUARD_STEPS),
+  ).reduce((sum, share) => sum + share, 0) / MEAN_GUARD_STEPS;
+
+/** What a spell of `power` takes off on average once a guard of `guard` is rolled against it. */
+export function meanThroughGuard(power: number, guard: number): number {
+  return Math.max(0, power - MEAN_GUARD_SHARE * guard);
 }
 
 const BISECTION_STEPS = 60;
