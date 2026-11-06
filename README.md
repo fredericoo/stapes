@@ -185,6 +185,12 @@ an agent drives", lists every call.
   `waterfall-top`, `-middle` and `-base`, half a level each and eight frames,
   a sheet of water on the north edge of its cell that stacks without a seam
   against the cliff north of it, with a heap of foam at the base
+- `bun run generate:wisps` — redraw `data/tilesets/wisps.png`: `ember-wisp`,
+  `tide-wisp` and `moss-wisp`, eight frames each of a glow that pulses and
+  bobs, a near-white core fading through the element's palette colours and
+  out in opacity. The sheet is marked `translucent`. It writes the sprite and
+  its light, and leaves the battler, brain, respawn and particles authored on
+  the tile alone
 - `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
   spinner: a crystal modelled in Three.js, rendered in headless Chromium and
   snapped to the logo's sixteen colours. Shape, light and timing are constants

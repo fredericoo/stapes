@@ -10720,9 +10720,11 @@ path `/despawn` and a player's leaving take, not `kill`:
   player's body leaves them with nothing to play until they reconnect, which is
   why `/despawn` refuses players. A self-kill a player could cast would have to
   be a real death, with everything that costs.
-- **It fades only when its brain runs**, and a brain runs only while somebody
-  could notice it. A wisp nobody is near at dawn stays on the board until a
-  player gets close, then fades in front of them.
+- **It fades on a creature's next turn, wherever it is.** A creature far from
+  every player still dozes through a turn now and then (see *A creature thinks
+  every round only while somebody could notice it*), so a wisp fades at dawn
+  whether or not anybody is near. With nobody online no brain runs at all, and
+  a wisp still on the board then fades on the first turn after somebody joins.
 
 ## A respawn can keep to hours
 
@@ -10983,6 +10985,81 @@ left to right and then (for the cyclops) top to bottom. Nothing can check
 that — see *A walk cycle in the wrong row is a bug only a person can see* —
 and the facings want looking at in the game. The cyclops's 4×4 frames stand
 on base cell (3, 3), the bottom-right.
+
+## The forest wisps
+
+Three creatures that are only about at night: `ember-wisp`, `tide-wisp` and
+`moss-wisp`, one per element. Each one fights only by casting spells of its
+own element, glows in that element's colour, and is fragile up close. They are
+placed apart in the eastern forest: the ember wisp in the clearing by the
+stream at (77, 21), the tide wisp at (76, -34) and the moss wisp at (69, -61).
+They were first placed together, and three casting at one player at once is
+three times the damage the tuning below was measured for.
+
+**The art is a glow on a translucent sheet.** `bun run generate:wisps` draws a
+near-white core that darkens through the element's palette ramp and loses
+opacity with distance, eight frames a cycle, with a pulse and a 1.2-pixel bob a
+quarter-cycle apart. Alpha is snapped to four steps, so the glow reads as rings
+rather than as a smooth gradient. The sheet is `translucent` in `tilesets.json`
+(see *A translucent sheet is blended, not cut out*); on any other sheet
+everything under half alpha would be cut away and only the core would be left.
+Every frame carries the same light object, so the light is steady and the
+overlay is not re-baked as the sprite animates. The generator writes the
+sprite, the anchor, the light and the sheet's flag; the battler, brain,
+respawn, transitions and particles are authored on the tile and survive a
+re-run.
+
+**The trail is the tile's own `particles`.** A body is a placement, so the
+emitter is indexed at whatever cell the wisp stands in. When it steps, the
+emitter at the old cell is retired and its sparks finish their lives where they
+were, which is what leaves the trail. Six one-pixel sparks a second, unlit,
+white to the element's colour.
+
+**Each wisp's Arcane is exactly what its spells ask.** Arcane 20 and its
+element at 5, the requirements of its element's rung-20 stone (Ember, Frost,
+Thorns), which it casts as spell 2. Spell 1 is the rung-10 stone of the same
+element (Cinder, Sleet, Barbs) with its requirements raised to match and its
+damage cut to 4. The first version had Arcane 25 against Cinder's 10. That
+is over double, so the cast was instant (see *A cast can take time*), and a
+wisp spawned beside a new character killed it before `/brain off` returned. At
+exactly the requirements both casts take their full 1–1.5 seconds, and a blow
+breaks a cast in progress, which is what makes melee its counter.
+
+```
+                spell 1        spell 2               spellPower, before the target's resist
+  ember-wisp    Cinder 1.0s    Ember 1.5s + burned    6.6 / 12.8
+  tide-wisp     Sleet  1.0s    Frost 1.5s + chilled   6.6 / 12.8
+  moss-wisp     Barbs  1.0s    Thorns 1.5s + poison   6.6 / 14.9
+```
+
+In `/admin/play` an ember wisp took a new 13-HP character to 9 with Cinder
+and killed it with Ember 1.4 seconds later. A rung-15 character (25 HP)
+survives a full rotation.
+
+**Weak up close and hard to hit from range.** `baseHp` 6, Toughness 2 and
+Agility 50. `verify battle` against a rung-15 sword kills it in about 1.5
+seconds; a hunting bow lands 30% of its shots and takes twice as long. The
+duel has no spells and no distance, so those figures say how fragile it is,
+not how dangerous. It has no ranged resistance: the agility is the whole of
+its defence against arrows. Its own element status is in `immuneTo`, and
+`elements` puts it on the element wheel, so a water spell takes half again
+off an ember wisp.
+
+**The brain hunts at range and backs off inside two cells.** It sees a player
+within 7 cells, casts spell 1 then spell 2, and walks up when neither can be
+cast. Inside 2 cells it steps away while still casting; past 4 it walks back.
+It drifts within 8 cells of its spawn, and gives up a chase past 14. The first
+row is `time_of_day 7→21 → fading`, above `attacked`, so dawn ends a fight.
+`fading` is `fade`, and `respawn.hours` 21→5 keeps it from coming back until
+night. Between 5 and 7 the wisps already on the board are still about; none
+are respawned. `appear` and `disappear` are noise dissolves edged in the
+element's light colour.
+
+**`/admin/scene` cannot show a wisp's light.** A body's own light is painted
+by `GameRenderer.emitterOverridesFor`, which the scene page does not run; the
+torch salesman is dark there too. Use `/admin/play` at night for that. The map
+editor draws its own materials and still cuts sprites at half alpha, so it
+shows a wisp as its core only.
 
 ## A trait is part of a brain, called with typed arguments
 
