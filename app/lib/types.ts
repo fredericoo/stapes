@@ -289,6 +289,8 @@ export type TilesetDef = {
   file: string;
   width: number;
   height: number;
+  /** The play renderer blends this sheet's sprites by their alpha instead of cutting them out at half. */
+  translucent?: boolean;
 };
 
 /** What a player must have to take a placement's reward; a missing criterion asks nothing. */

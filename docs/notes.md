@@ -2506,6 +2506,28 @@ every step taken from the water is slow, including the one back onto the bank.
 A route prices those steps the same way — see `legCost` under "A chase is a
 route" — so it walks round water when going round is quicker.
 
+### A translucent sheet is blended, not cut out
+
+Every world sprite is cut out at half alpha and writes depth, which is what lets
+the world sort by depth with no draw order. A `TilesetDef` marked
+`translucent: true` is the exception: `WorldRenderer.materialFor` and
+`transitionMaterial` give its textures an alpha floor of 0.02 and no depth
+write, and its meshes draw at `TRANSLUCENT_RENDER_ORDER`, after the level and
+after a wading body. The blend goes through the palette pass like the wading
+one, so a half-transparent pixel lands on the nearest palette colour to what is
+behind it.
+
+- **It is per sheet because every material is keyed by texture.** Tints,
+  dissolves and motion ghosts each swap a mesh's material for another one built
+  from the same texture, so a flag on the texture follows the mesh through all
+  of them. A flag per tile would have to be carried through every swap.
+- **Only separate meshes should use it.** A still tile is merged into its
+  chunk's batch, and a whole batch would be drawn late and write no depth. The
+  wisps are bodies, so each is its own mesh.
+- **Two translucent sprites do not sort against each other.** Neither writes
+  depth, so where two overlap the one drawn second is on top, whichever is in
+  front. Everything opaque is drawn before them and sorts correctly.
+
 ### A `reflective` tile shows what stands beside it, blended over the water
 
 A tile with `reflective` has three fields: `colors`, the pixels of its own art

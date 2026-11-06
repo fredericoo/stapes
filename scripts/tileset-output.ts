@@ -70,7 +70,9 @@ async function writeTiles(generated: TileDef[]) {
   await fs.writeFile(file, text.replace(/\n\]\s*$/, `,\n${appended.join(",\n")}\n]\n`));
 }
 
-async function writeTilesetEntry(id: string, name: string, sheet: PNG) {
+type TilesetOptions = Pick<TilesetDef, "translucent">;
+
+async function writeTilesetEntry(id: string, name: string, sheet: PNG, options: TilesetOptions) {
   const file = path.join(DATA, "tilesets.json");
   const sets = await readJson<TilesetDef[]>(file);
   const entry: TilesetDef = {
@@ -79,6 +81,7 @@ async function writeTilesetEntry(id: string, name: string, sheet: PNG) {
     file: `${id}.png`,
     width: sheet.width,
     height: sheet.height,
+    ...options,
   };
   const set = sets.find((s) => s.id === id);
   if (set) Object.assign(set, entry);
@@ -90,9 +93,15 @@ async function writeTilesetEntry(id: string, name: string, sheet: PNG) {
  * Writes a generated sheet, its `tilesets.json` entry and its tiles together, so
  * a generator cannot leave one of the three behind the others.
  */
-export async function writeTileset(id: string, name: string, sheet: PNG, tiles: TileDef[]) {
+export async function writeTileset(
+  id: string,
+  name: string,
+  sheet: PNG,
+  tiles: TileDef[],
+  options: TilesetOptions = {},
+) {
   await fs.writeFile(path.join(DATA, "tilesets", `${id}.png`), PNG.sync.write(sheet));
   await writeTiles(tiles);
-  await writeTilesetEntry(id, name, sheet);
+  await writeTilesetEntry(id, name, sheet, options);
   console.log(`data/tilesets/${id}.png — ${sheet.width}x${sheet.height}, ${tiles.length} tiles`);
 }
