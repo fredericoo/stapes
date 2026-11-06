@@ -1,5 +1,11 @@
 # the-last-stones
 
+## 0.13.1
+
+### Patch Changes
+
+- The Wolfskin Coat now looks like a wolf pelt thrown over a leather coat instead of grey armour, and the Wolfskin Hood and Coat have new icons to match how they look when worn.
+
 ## 0.13.0
 
 ### Minor Changes
