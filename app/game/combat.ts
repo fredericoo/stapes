@@ -2,6 +2,7 @@ import { clampChance, type FightingStats } from "../lib/battler";
 import {
   isRanged,
   MAX_PERCENT_STAT,
+  type PhysicalBlow,
   type Reach,
   type WeaponResistances,
   type StatusGrant,
@@ -184,12 +185,23 @@ export function arcaneResist(
   );
 }
 
-export function damageAfterResist(
+/** What a harmful spell is weighed against: defence for a physical blow, arcane resist for magic. */
+export function spellGuard(
+  physical: PhysicalBlow | undefined,
+  defender: Guarded,
+  masteries: Masteries,
+): number {
+  return physical
+    ? defenceAgainst(defender, { mastery: physical })
+    : arcaneResist(defender, masteries);
+}
+
+export function damageAfterGuard(
   potentialDamage: number,
-  resist: number,
+  guard: number,
   guardRoll: number,
 ): number {
-  return Math.max(0, potentialDamage - Math.round(guardFraction(guardRoll) * resist));
+  return Math.max(0, potentialDamage - Math.round(guardFraction(guardRoll) * guard));
 }
 
 export type Striking = Pick<FightingStats, "mastery">;

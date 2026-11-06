@@ -242,6 +242,11 @@ describe("what a spell is worth in the hand", () => {
     );
   });
 
+  it("drives a physical spell with the mastery of its blow rather than Arcane", () => {
+    expect(castingSkill({ arcane: 100, blunt: 40 }, undefined, "blunt")).toBeCloseTo(0.4, 6);
+    expect(spellPower(20, undefined, { arcane: 100 }, "blunt")).toBe(20);
+  });
+
   it("is the authored number for a body with nothing trained", () => {
     expect(spellPower(20, undefined, {})).toBe(20);
     expect(spellPower(-20, undefined, {})).toBe(-20);

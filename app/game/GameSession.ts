@@ -226,9 +226,8 @@ import {
   WINDUP_LAPSE_MS,
   canReach,
   reachPointAt,
-  arcaneResist,
-  damageAfterDefence,
-  damageAfterResist,
+  damageAfterGuard,
+  spellGuard,
   damageFraction,
   inflictedBy,
   cappedToHealth,
@@ -3662,20 +3661,15 @@ export class GameSession implements PlaySession {
   ): HealthMove | null {
     if (!effect.damage) return null;
 
-    const power = spellPower(effect.damage, stone.requirements, context.masteries);
+    const power = spellPower(effect.damage, stone.requirements, context.masteries, stone.physical);
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
 
     if (effect.damage < 0) return { kind: "mend", amount: Math.max(0, -rolled) };
 
-    const through = stone.physical
-      ? damageAfterDefence(rolled, context.stats, { mastery: stone.physical }, guardRoll)
-      : damageAfterResist(
-          rolled,
-          arcaneResist(context.stats, this.bodyOf(subject)?.masteries ?? {}),
-          guardRoll,
-        );
+    const guard = spellGuard(stone.physical, context.stats, this.bodyOf(subject)?.masteries ?? {});
+    const through = damageAfterGuard(rolled, guard, guardRoll);
     return {
       kind: "harm",
       amount: this.elementalDamage(subject, through, elements),
