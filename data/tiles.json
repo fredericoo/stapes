@@ -68433,7 +68433,7 @@
     },
     "interactions": {
       "battler": {
-        "baseHp": 6,
+        "baseHp": 24,
         "masteries": {
           "arcane": 20,
           "fire": 5,
@@ -68470,7 +68470,7 @@
             "effect": {
               "kind": "bolt",
               "on": "target",
-              "damage": 4,
+              "damage": 1,
               "variance": 60,
               "projectile": "cinder-flame"
             },
@@ -68491,15 +68491,15 @@
             "effect": {
               "kind": "bolt",
               "on": "target",
-              "damage": 10,
+              "damage": 4,
               "variance": 60,
               "projectile": "ember-comet",
               "statuses": [
                 {
                   "id": "burned",
-                  "chance": 30,
-                  "fromMs": 2000,
-                  "toMs": 4000
+                  "chance": 20,
+                  "fromMs": 1000,
+                  "toMs": 2000
                 }
               ]
             },
@@ -69009,7 +69009,7 @@
     },
     "interactions": {
       "battler": {
-        "baseHp": 6,
+        "baseHp": 24,
         "masteries": {
           "arcane": 20,
           "water": 5,
@@ -69046,7 +69046,7 @@
             "effect": {
               "kind": "bolt",
               "on": "target",
-              "damage": 4,
+              "damage": 1,
               "variance": 25,
               "projectile": "sleet-flake"
             },
@@ -69067,7 +69067,7 @@
             "effect": {
               "kind": "bolt",
               "on": "target",
-              "damage": 10,
+              "damage": 4,
               "variance": 25,
               "projectile": "frost-shard",
               "statuses": [
@@ -69585,7 +69585,7 @@
     },
     "interactions": {
       "battler": {
-        "baseHp": 6,
+        "baseHp": 24,
         "masteries": {
           "arcane": 20,
           "nature": 5,
@@ -69622,7 +69622,7 @@
             "effect": {
               "kind": "bolt",
               "on": "target",
-              "damage": 4,
+              "damage": 1,
               "variance": 25,
               "projectile": "barb-thorn"
             },
@@ -69643,7 +69643,7 @@
             "effect": {
               "kind": "bolt",
               "on": "target",
-              "damage": 12,
+              "damage": 5,
               "variance": 25,
               "projectile": "thorn-leaf",
               "statuses": [

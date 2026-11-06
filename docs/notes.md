@@ -11018,27 +11018,35 @@ white to the element's colour.
 **Each wisp's Arcane is exactly what its spells ask.** Arcane 20 and its
 element at 5, the requirements of its element's rung-20 stone (Ember, Frost,
 Thorns), which it casts as spell 2. Spell 1 is the rung-10 stone of the same
-element (Cinder, Sleet, Barbs) with its requirements raised to match and its
-damage cut to 4. The first version had Arcane 25 against Cinder's 10. That
-is over double, so the cast was instant (see *A cast can take time*), and a
-wisp spawned beside a new character killed it before `/brain off` returned. At
-exactly the requirements both casts take their full 1–1.5 seconds, and a blow
-breaks a cast in progress, which is what makes melee its counter.
+element (Cinder, Sleet, Barbs) with its requirements raised to match. The
+first version had Arcane 25 against Cinder's 10. That is over double, so the
+cast was instant (see *A cast can take time*), and a wisp spawned beside a
+new character killed it before `/brain off` returned. At exactly the
+requirements both casts take their full 1–1.5 seconds, and a blow breaks a
+cast in progress, which is what makes melee its counter.
+
+**It hits lightly and often.** The pace is the stones' own cooldowns, and the
+damage is authored low on the wisp's copies, not on the stones players carry:
+1 on spell 1, 4 on Ember and Frost, 5 on Thorns. Casting at Arcane 20 adds
+`skill · DAMAGE_AT_MAX_MASTERY` to each, which is why a 1 lands as 3.5. The
+ember wisp's burn is 1–2 seconds at 20%, where the Ember stone's is 2–4
+seconds at 30%. A burn ticks a point every quarter second, so the stone's
+burn alone could be 16 points.
 
 ```
-                spell 1        spell 2               spellPower, before the target's resist
-  ember-wisp    Cinder 1.0s    Ember 1.5s + burned    6.6 / 12.8
-  tide-wisp     Sleet  1.0s    Frost 1.5s + chilled   6.6 / 12.8
-  moss-wisp     Barbs  1.0s    Thorns 1.5s + poison   6.6 / 14.9
+                spell 1        spell 2                 spellPower, before the target's resist
+  ember-wisp    Cinder 1.0s    Ember 1.5s + burned      3.5 / 6.6
+  tide-wisp     Sleet  1.0s    Frost 1.5s + chilled     3.5 / 6.6
+  moss-wisp     Barbs  1.0s    Thorns 1.5s + poison     3.5 / 7.7
 ```
 
-In `/admin/play` an ember wisp took a new 13-HP character to 9 with Cinder
-and killed it with Ember 1.4 seconds later. A rung-15 character (25 HP)
-survives a full rotation.
+In `/admin/play` a new 13-HP character standing still beside a wisp lasted
+about 10 seconds (ember), 11 (tide) and 8 (moss), taking 3 to 7 a hit. The
+first tuning, at 6.6 and 12.8, killed one in under 2 seconds.
 
-**Weak up close and hard to hit from range.** `baseHp` 6, Toughness 2 and
-Agility 50. `verify battle` against a rung-15 sword kills it in about 1.5
-seconds; a hunting bow lands 30% of its shots and takes twice as long. The
+**Weak up close and hard to hit from range.** `baseHp` 24 (26 hit points),
+Toughness 2 and Agility 50. `verify battle` against a rung-15 sword kills it in
+about 6 seconds; a hunting bow lands 30% of its shots and takes about 14. The
 duel has no spells and no distance, so those figures say how fragile it is,
 not how dangerous. It has no ranged resistance: the agility is the whole of
 its defence against arrows. Its own element status is in `immuneTo`, and
