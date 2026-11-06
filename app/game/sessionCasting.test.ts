@@ -6,7 +6,7 @@ import { masteriesFromXp, masteryLevel, xpForLevel } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { naturalSlot, squareSlot } from "./casting";
-import { guardBand, MIN_GUARD_SHARE } from "./combat";
+import { ARCANE_LEVELS_PER_RESIST, guardBand, MIN_GUARD_SHARE } from "./combat";
 import { BRAIN_ROUND_TICKS, BRAIN_TURNS_PER_TICK_MIN, TICK_MS } from "./constants";
 import { emptyEquipment } from "./equipment";
 import { casterEarnings, practiceEarnings, XP_PER_CAST, XP_PER_DAMAGE } from "./experience";
@@ -89,21 +89,25 @@ const BOLT_RESIST = 5;
 
 const RAT_DEF = defFrom(RAT_TOUGHNESS);
 
-const RAT_GUARD = guardBand({ def: RAT_DEF, resist: {} }, { mastery: "arcane" });
+const ARCANE_RAT_LEVEL = 40;
 
-const BOLT_THROUGH = {
-  least: BOLT_DAMAGE - RAT_GUARD.highest,
-  most: BOLT_DAMAGE - RAT_GUARD.lowest,
-};
+function resistBand(resist: number): { lowest: number; highest: number } {
+  return { lowest: Math.round(resist * MIN_GUARD_SHARE), highest: resist };
+}
 
-const MAILED_GUARD = guardBand(
-  { def: RAT_DEF, resist: { arcane: BOLT_RESIST } },
-  { mastery: "arcane" },
+function throughBand(guard: { lowest: number; highest: number }) {
+  return { least: BOLT_DAMAGE - guard.highest, most: BOLT_DAMAGE - guard.lowest };
+}
+
+const BOLT_THROUGH = throughBand(resistBand(0));
+
+const MAILED_THROUGH = throughBand(resistBand(BOLT_RESIST));
+
+const ARCANE_RAT_THROUGH = throughBand(
+  resistBand(Math.floor(ARCANE_RAT_LEVEL / ARCANE_LEVELS_PER_RESIST)),
 );
-const MAILED_THROUGH = {
-  least: BOLT_DAMAGE - MAILED_GUARD.highest,
-  most: BOLT_DAMAGE - MAILED_GUARD.lowest,
-};
+
+const ROCK_THROUGH = throughBand(guardBand({ def: RAT_DEF, resist: {} }, { mastery: "blunt" }));
 
 function expectThrough(took: number, band: { least: number; most: number } = BOLT_THROUGH): void {
   expect(took).toBeGreaterThanOrEqual(band.least);
@@ -151,6 +155,13 @@ function body(
   });
 }
 
+function arcaneRat(): TileDef {
+  const rat = body("arcane-rat", RAT_TOUGHNESS, { actor: true });
+  const battler = rat.interactions!.battler as { masteries: object };
+  battler.masteries = { ...battler.masteries, arcane: ARCANE_RAT_LEVEL };
+  return rat;
+}
+
 function nimbleRat(): TileDef {
   const rat = body("nimble-rat", RAT_TOUGHNESS, { actor: true });
   const battler = rat.interactions!.battler as { masteries: object };
@@ -172,6 +183,13 @@ const props: TileDef[] = [
   body("mailed-rat", RAT_TOUGHNESS, { actor: true }, [{ slot: "armor", tileId: "warding-mail" }]),
   body("walled-rat", RAT_TOUGHNESS, { actor: true }, [{ slot: "armor", tileId: "walling-mail" }]),
   nimbleRat(),
+  arcaneRat(),
+  stoneTile("rock-stone", {
+    effect: { kind: "bolt", damage: BOLT_DAMAGE, on: "target" },
+    physical: "blunt",
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 2 },
+  }),
   stoneTile("mend-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
     cooldownMs: MEND_COOLDOWN_MS,
@@ -1240,6 +1258,27 @@ describe("a bolt thrown at somebody", () => {
     const { play, target, before } = boltAt("bolt-stone", "mailed-rat");
     expect(play.cast(squareSlot("weapon"))).toBe(true);
     expectThrough(took(play, target, before), MAILED_THROUGH);
+  });
+
+  it("takes no notice of the target's defence when it is magic", () => {
+    expect(RAT_DEF).toBeGreaterThan(0);
+    const { play, target, before } = boltAt("bolt-stone");
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    expect(took(play, target, before)).toBe(BOLT_DAMAGE);
+  });
+
+  it("is resisted by the target's own Arcane", () => {
+    expect(ARCANE_RAT_THROUGH.most).toBeLessThan(BOLT_DAMAGE);
+    const { play, target, before } = boltAt("bolt-stone", "arcane-rat");
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    expectThrough(took(play, target, before), ARCANE_RAT_THROUGH);
+  });
+
+  it("goes through defence instead when it is a physical blow", () => {
+    expect(ROCK_THROUGH.most).toBeLessThan(BOLT_DAMAGE);
+    const { play, target, before } = boltAt("rock-stone");
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    expectThrough(took(play, target, before), ROCK_THROUGH);
   });
 
   it("is weighed on the wheel against what the target is made of", () => {

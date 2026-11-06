@@ -42,6 +42,7 @@ import {
   isRanged,
   NO_ELEMENTS,
   resolveContainer,
+  type PhysicalBlow,
   type SpellArea,
   type StatusGrant,
   type StoneEffect,
@@ -225,7 +226,8 @@ import {
   WINDUP_LAPSE_MS,
   canReach,
   reachPointAt,
-  damageAfterDefence,
+  damageAfterGuard,
+  spellGuard,
   damageFraction,
   inflictedBy,
   cappedToHealth,
@@ -663,6 +665,7 @@ type ExtractionRun = {
 type AreaCast = {
   area: SpellArea;
   requirements: Masteries | undefined;
+  physical: PhysicalBlow | undefined;
   masteries: Masteries;
 };
 
@@ -777,8 +780,6 @@ type ActorRuntime = {
 const STANDING_STATUS_EVERY_MS = 1000;
 
 const SELF_SPELL_MULTIPLIER = 1;
-
-const ARCANE_BLOW: Pick<FightingStats, "mastery"> = { mastery: "arcane" };
 
 const NOTHING_INFLICTED: readonly WeaponStatus[] = [];
 
@@ -3467,7 +3468,7 @@ export class GameSession implements PlaySession {
     const spell = this.spellName(actor, slot);
     const caster = this.bodyName(actor.id);
 
-    const move = this.rollHealthMove(subject, effect, stone.requirements, elements, {
+    const move = this.rollHealthMove(subject, effect, stone, elements, {
       stats,
       masteries: body.masteries,
     });
@@ -3499,6 +3500,7 @@ export class GameSession implements PlaySession {
               area: {
                 area: effect.area,
                 requirements: stone.requirements,
+                physical: stone.physical,
                 masteries: body.masteries,
               },
             }
@@ -3618,7 +3620,7 @@ export class GameSession implements PlaySession {
     const stats = this.battlerOf(body);
     if (!stats || (this.hpOf(body) ?? 0) <= 0) return;
 
-    const move = this.rollHealthMove(body, cast.area, cast.requirements, from.elements, {
+    const move = this.rollHealthMove(body, cast.area, cast, from.elements, {
       stats,
       masteries: cast.masteries,
     });
@@ -3653,20 +3655,21 @@ export class GameSession implements PlaySession {
   private rollHealthMove(
     subject: ActorRuntime,
     effect: { damage?: number; variance?: number },
-    requirements: Masteries | undefined,
+    stone: { requirements?: Masteries | undefined; physical?: PhysicalBlow | undefined },
     elements: readonly Element[],
     context: { stats: FightingStats; masteries: Masteries },
   ): HealthMove | null {
     if (!effect.damage) return null;
 
-    const power = spellPower(effect.damage, requirements, context.masteries);
+    const power = spellPower(effect.damage, stone.requirements, context.masteries, stone.physical);
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
 
     if (effect.damage < 0) return { kind: "mend", amount: Math.max(0, -rolled) };
 
-    const through = damageAfterDefence(rolled, context.stats, ARCANE_BLOW, guardRoll);
+    const guard = spellGuard(stone.physical, context.stats, this.bodyOf(subject)?.masteries ?? {});
+    const through = damageAfterGuard(rolled, guard, guardRoll);
     return {
       kind: "harm",
       amount: this.elementalDamage(subject, through, elements),

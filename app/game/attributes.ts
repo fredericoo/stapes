@@ -2,7 +2,7 @@ import type { BattlerDef } from "../lib/battler";
 import { MELEE_REACH, type Reach } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { damageBand, swingIntervalMs } from "./combat";
+import { arcaneResist, damageBand, swingIntervalMs } from "./combat";
 import { type Equipment, effectiveBattler, handToSwing } from "./equipment";
 import { walkDurationMsFor } from "./movement";
 import { type StatusInstance, walkSpeedPercentFrom, withStatusModifiers } from "./statuses";
@@ -13,6 +13,7 @@ export type Attributes = {
   swingMs: number;
   hitChance: number;
   def: number;
+  resist: number;
   flee: number;
   reach: string;
   walkPace: number;
@@ -53,6 +54,7 @@ export function attributesOf({
     swingMs: swingIntervalMs(stats),
     hitChance: stats.hitChance,
     def: stats.def,
+    resist: arcaneResist(stats, body.masteries),
     flee: stats.flee,
     reach: shortReach(stats.reach),
     walkPace: 1000 / walkDurationMsFor(bodyDef, walkSpeedPercentFrom(statuses, statusDefs)),
@@ -73,6 +75,7 @@ export function sameAttributes(a: Attributes | null, b: Attributes | null): bool
     a.swingMs === b.swingMs &&
     a.hitChance === b.hitChance &&
     a.def === b.def &&
+    a.resist === b.resist &&
     a.flee === b.flee &&
     a.reach === b.reach &&
     a.walkPace === b.walkPace

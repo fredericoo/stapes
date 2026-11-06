@@ -5,6 +5,7 @@ import {
   DEFAULT_WEAPON,
   MAX_PERCENT_STAT,
   MELEE_REACH,
+  type PhysicalBlow,
   type Reach,
   stoneSchema,
   weaponSchema,
@@ -202,9 +203,14 @@ const NO_WEAPON_STATUSES: readonly WeaponStatus[] = [];
 
 export const NO_RESISTANCES: WeaponResistances = {};
 
-export function castingSkill(masteries: Masteries, requirements: Masteries | undefined): number {
+/** A physical spell is driven by the mastery of its blow, where a magical one is driven by Arcane. */
+export function castingSkill(
+  masteries: Masteries,
+  requirements: Masteries | undefined,
+  physical?: PhysicalBlow,
+): number {
   const elements = spellElements(requirements);
-  let total = masteryLevel(masteries, "arcane");
+  let total = masteryLevel(masteries, physical ?? "arcane");
   for (const element of elements) total += masteryLevel(masteries, element);
   return total / ((1 + elements.length) * MAX_MASTERY);
 }
@@ -213,9 +219,10 @@ export function spellPower(
   damage: number,
   requirements: Masteries | undefined,
   masteries: Masteries,
+  physical?: PhysicalBlow,
 ): number {
   if (damage === 0) return 0;
-  const skill = castingSkill(masteries, requirements);
+  const skill = castingSkill(masteries, requirements, physical);
   const magnitude =
     (Math.abs(damage) * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY) *
     requirementShare(masteries, requirements);

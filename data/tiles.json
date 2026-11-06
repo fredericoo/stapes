@@ -13335,6 +13335,7 @@
         "baseHp": 8,
         "masteries": {
           "sharp": 9,
+          "arcane": 4,
           "toughness": 7,
           "agility": 28
         },
@@ -29185,6 +29186,7 @@
     "interactions": {
       "item": {
         "type": "stone",
+        "physical": "blunt",
         "effect": {
           "kind": "bolt",
           "on": "caster",
@@ -30138,6 +30140,7 @@
         "baseHp": 8,
         "masteries": {
           "sharp": 4,
+          "arcane": 2,
           "toughness": 3,
           "agility": 24
         },
@@ -30513,6 +30516,7 @@
         "baseHp": 8,
         "masteries": {
           "sharp": 16,
+          "arcane": 12,
           "toughness": 14,
           "agility": 10
         },
@@ -31873,6 +31877,7 @@
         "baseHp": 8,
         "masteries": {
           "sharp": 30,
+          "arcane": 6,
           "toughness": 22,
           "agility": 30
         },
@@ -32346,6 +32351,7 @@
         "baseHp": 8,
         "masteries": {
           "sharp": 5,
+          "arcane": 6,
           "toughness": 4,
           "agility": 30
         },
@@ -54872,6 +54878,7 @@
           "sharp": 12,
           "blunt": 12,
           "ranged": 12,
+          "arcane": 12,
           "toughness": 18,
           "agility": 28
         },
@@ -55008,6 +55015,7 @@
           {
             "type": "stone",
             "name": "Throw stone",
+            "physical": "ranged",
             "effect": {
               "kind": "bolt",
               "on": "target",
@@ -55878,6 +55886,7 @@
         "baseHp": 1800,
         "masteries": {
           "blunt": 30,
+          "arcane": 60,
           "toughness": 100,
           "agility": 4
         },
@@ -55999,6 +56008,7 @@
           {
             "type": "stone",
             "name": "Stomp",
+            "physical": "blunt",
             "effect": {
               "kind": "bolt",
               "on": "caster",
@@ -56469,6 +56479,7 @@
           "sharp": 15,
           "blunt": 15,
           "ranged": 15,
+          "arcane": 15,
           "toughness": 10,
           "agility": 10
         },
@@ -57082,6 +57093,7 @@
         "baseHp": 8,
         "masteries": {
           "fist": 20,
+          "arcane": 20,
           "toughness": 26,
           "agility": 9
         },
@@ -57865,6 +57877,7 @@
         "baseHp": 8,
         "masteries": {
           "fist": 20,
+          "arcane": 20,
           "toughness": 26,
           "agility": 9
         },
@@ -58606,6 +58619,7 @@
         "baseHp": 8,
         "masteries": {
           "fist": 20,
+          "arcane": 20,
           "toughness": 26,
           "agility": 9
         },

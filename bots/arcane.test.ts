@@ -45,6 +45,28 @@ describe("bestBolt", () => {
     expect(bestBolt(buttons, tilesById, caster, [])).toEqual(squareSlot("weapon"));
   });
 
+  it("throws magic at a body in plate and a blow at one with high Arcane", () => {
+    const sling: TileDef = {
+      ...tilesById["arcane-stone-of-spark"]!,
+      id: "sling-stone",
+      interactions: {
+        item: {
+          type: "stone",
+          effect: { kind: "bolt", on: "target", damage: 6 },
+          physical: "ranged",
+          cooldownMs: 10_000,
+        },
+      },
+    };
+    const withSling = { ...tilesById, [sling.id]: sling };
+    const buttons = hands({ weapon: "arcane-stone-of-spark", offhand: "sling-stone" });
+    const plated = { guard: { def: 20, resist: {} }, masteries: {} };
+    const adept = { guard: { def: 0, resist: {} }, masteries: { arcane: 80 } };
+
+    expect(bestBolt(buttons, withSling, caster, [], plated)).toEqual(squareSlot("weapon"));
+    expect(bestBolt(buttons, withSling, caster, [], adept)).toEqual(squareSlot("offhand"));
+  });
+
   it("passes over a stone that is still cooling", () => {
     const buttons = [
       ...hands({ offhand: "arcane-stone-of-sleet" }),

@@ -4895,6 +4895,34 @@ the same draws a bare one does — the same rule everything in a fight is under.
 The one draw defence *does* take is the guard below, and it is taken whether or
 not the defender is wearing anything.
 
+### A spell is magic unless it says it is a blow
+
+A stone that harms is **magic** by default, and magic is weighed against
+`arcaneResist` (`app/game/combat.ts`) instead of defence: the arcane resistance
+of what the target wears plus one point for every `ARCANE_LEVELS_PER_RESIST`
+levels of the target's own Arcane. Defence is not part of it. Plate used to
+take a fireball as well as it takes a sword, which made heavy armour the best
+gear against mages.
+
+A stone with `physical` set (`"blunt"` for a stomp, `"ranged"` for a thrown
+stone) is a blow of that kind on both sides. Its power scales with the caster's
+mastery of that blow in place of Arcane (`castingSkill`), so a cyclops's Stomp
+grows with its Blunt and its Arcane only decides how well it resists magic. It
+is weighed against defence plus the resistance to that kind, as a swing is.
+`spellGuard` is the one place that picks between the two, and its area follows
+the same rule as its bolt because `AreaCast` carries `physical` from the stone.
+
+A mend is never weighed. It scales with the caster's Arcane and the stone's
+requirements through `spellPower`, and neither the target's resist nor its
+defence takes anything off it.
+
+The guard roll is drawn the same way for both kinds, so a cast takes the same
+draws whichever way it is weighed. Bots price a bolt the same way without
+rolling: `meanThroughGuard` takes `MEAN_GUARD_SHARE` of the guard off the power.
+`boltDamage` and `bestBolt` in `bots/arcane.ts` weigh their own bolts against
+the foe, and `spellDamagePerSecond` in `bots/odds.ts` weighs a creature's
+spells against the bot, so a bot throws magic at plate and a blow at a mage.
+
 ### Gear short of its requirements: slower if physical, dormant if magical
 
 `ArmorItem`, `ShieldItem` and `CharmItem` take `requirements` the way a weapon

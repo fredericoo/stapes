@@ -394,6 +394,16 @@ describe("itemCard", () => {
       expect(card.speech).toContain("Defence: 4. 5 more against sharp blows");
     });
 
+    it("gives arcane resistance its own resist row rather than a child of defence", () => {
+      const card = itemCard(
+        tileWith({ type: "armor", def: 1, resist: { arcane: 6, sharp: 2 } }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      expect(statAt(card.stats, "defence").against).toEqual([{ mastery: "sharp", extra: 2 }]);
+      expect(statAt(card.stats, "resist")).toMatchObject({ value: "+6" });
+    });
+
     it("reads a resistance of zero as no resistance at all", () => {
       const card = itemCard(
         tileWith({ type: "armor", def: 4, resist: { sharp: 0 } }),
@@ -541,6 +551,22 @@ describe("itemCard", () => {
       expect(card.requirements).toEqual([{ mastery: "arcane", required: 12, have: 4, met: false }]);
     });
 
+    it("says a harmful stone is blocked by resist, or by defence when it is a physical blow", () => {
+      const bolt = (extra: object) =>
+        itemCard(
+          tileWith({
+            type: "stone",
+            cooldownMs: 8_000,
+            effect: { kind: "bolt", on: "target", damage: 9 },
+            ...extra,
+          }),
+          null,
+          NOTHING_LEARNT,
+        )!;
+      expect(statAt(bolt({}).stats, "blow").value).toBe("Resist");
+      expect(statAt(bolt({ physical: "blunt" }).stats, "blow").value).toBe("Defence (Blunt)");
+    });
+
     it("reads a mending stone as mending rather than as negative damage", () => {
       const card = itemCard(
         tileWith({
@@ -556,6 +582,7 @@ describe("itemCard", () => {
         tone: "good",
       });
       expect(statAt(card.stats, "subject").value).toBe("You");
+      expect(card.stats.some((stat) => stat.term === "blow")).toBe(false);
     });
 
     it("says where an area lands, who it is for and what it does there", () => {

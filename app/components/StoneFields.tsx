@@ -1,5 +1,6 @@
 import type {
   ArcaneStoneItem,
+  PhysicalBlow,
   Reach,
   StoneEffect,
   StoneEffectKind,
@@ -17,6 +18,7 @@ import {
   MIN_CAST_TIME_MS,
   MIN_PERCENT_STAT,
   MIN_STONE_COOLDOWN_MS,
+  PHYSICAL_BLOWS,
   reachOf,
 } from "../lib/item";
 import {
@@ -32,6 +34,7 @@ import type { StatusDef } from "../lib/status";
 import { projectileTiles, resolveProjectile } from "../lib/projectile";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
+import { ARCANE_LEVELS_PER_RESIST } from "../game/combat";
 import { AreaFields } from "./AreaFields";
 import { CasterEffectFields } from "./CasterEffectFields";
 import { StatusCures } from "./StatusCures";
@@ -54,6 +57,17 @@ const SUBJECT_OPTIONS: Array<{ value: StoneSubject; label: string }> = [
   { value: "target", label: "Target" },
 ];
 
+const MAGIC = "magic";
+
+type BlowOption = PhysicalBlow | typeof MAGIC;
+
+const BLOW_OPTIONS: Array<{ value: BlowOption; label: string }> = [
+  { value: MAGIC, label: "Magic" },
+  ...PHYSICAL_BLOWS.map((blow) => ({ value: blow, label: MASTERY_LABELS[blow] })),
+];
+
+const BLOW_INFO = `Magic is weighed against the subject's resist: the arcane resistance on what they wear, plus a point for every ${ARCANE_LEVELS_PER_RESIST} levels of their Arcane. A physical blow is weighed against defence plus the resistance to that kind of blow, as a weapon is. The area hits the same way. A mend is never weighed.`;
+
 const BLANK_EFFECTS: Record<StoneEffectKind, StoneEffect> = {
   bolt: { kind: "bolt", damage: -10, on: "caster" },
   conjure: { kind: "conjure", tileId: "" },
@@ -68,7 +82,7 @@ const HALF_SECOND_MS = MS_PER_SECOND / 2;
 const SECONDS_PER_MINUTE = 60;
 
 const EFFECT_INFO: Record<StoneEffectKind, string> = {
-  bolt: "Not aimed: no accuracy, no dodge — the cooldown is spent and the stone answers. Scaled by the caster's Arcane and the stone's elements, averaged; the figure is what it does for somebody who has learnt nothing. A harm goes through armour and the wheel. A mend is stopped by neither, stops at full health, and trains by what it actually restored.",
+  bolt: "Not aimed: no accuracy, no dodge — the cooldown is spent and the stone answers. Scaled by the caster's Arcane and the stone's elements, averaged; the figure is what it does for somebody who has learnt nothing. A harm goes through resist, or defence for a physical blow, and the wheel. A mend is stopped by neither, stops at full health, and trains by what it actually restored.",
   conjure:
     "Places a tile at the target's cell, or in front of the caster with nothing targeted. The player never picks a square.",
 };
@@ -165,6 +179,19 @@ export function StoneFields({
                   options={SUBJECT_OPTIONS}
                   size="sm"
                   ariaLabel="Who the bolt lands on"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1 text-xs">
+              <FieldLabel info={BLOW_INFO}>Blow</FieldLabel>
+              <div>
+                <Segmented<BlowOption>
+                  value={stone.physical ?? MAGIC}
+                  onChange={(blow) => onChange({ physical: blow === MAGIC ? undefined : blow })}
+                  options={BLOW_OPTIONS}
+                  size="sm"
+                  ariaLabel="What the spell is weighed against"
                 />
               </div>
             </div>
