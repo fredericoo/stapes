@@ -9,6 +9,17 @@ import {
 import { getStack, setStacks, type StackEdit } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 
+const DRESSED = "~";
+
+/**
+ * True when a placement in the drawn map is `tileId`, as itself or as the copy
+ * `WornLooks` dressed it in. Notes from the session name the real tile, so the
+ * renderer matches them against the drawn map through this.
+ */
+export function drawnAs(drawnId: string, tileId: string): boolean {
+  return drawnId === tileId || drawnId.startsWith(tileId + DRESSED);
+}
+
 export type WornView = { map: MapFile; tilesById: Record<string, TileDef> };
 
 /**
@@ -71,7 +82,7 @@ export class WornLooks {
     const def = tilesById[actor.tileId];
     if (!def?.human) return null;
     const who = appearance ? appearanceKey(appearance) : "";
-    const id = `${def.id}~${who}~${outfitKey(outfit)}`;
+    const id = `${def.id}${DRESSED}${who}${DRESSED}${outfitKey(outfit)}`;
     if (!this.dressed.has(id)) {
       this.dressed.set(id, wearing(def, id, outfit, appearance));
       this.catalogue = null;
