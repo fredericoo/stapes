@@ -886,6 +886,7 @@ export class GameSession implements PlaySession {
   private liveNoise: NoiseEmission[] = [];
   private nextNoiseId = 0;
   private pendingDeaths: Death[] = [];
+  private pendingFades: string[] = [];
   private settledEmitters = "";
 
   constructor(
@@ -1962,6 +1963,7 @@ export class GameSession implements PlaySession {
     const sight = this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight;
     const thingsFound = new Map<string, FoundThing | null>();
     const reach = brainReach(brain);
+    let fading = false;
     stepBrain(brain, actor.brain, tickMs, {
       busy: !this.idle(actor),
       rng: this.rng,
@@ -2009,7 +2011,21 @@ export class GameSession implements PlaySession {
         return body ? this.ratingOf(body) : null;
       },
       ownRating: () => this.ratingOf(actor),
+      fade: () => {
+        fading = true;
+      },
     });
+    if (fading) this.fadeAway(actor);
+  }
+
+  /**
+   * `despawn` rather than `kill`, so the body leaves no remains and spills
+   * nothing; the server is told through `drainFades` so its respawn point is
+   * armed as it would be for a death.
+   */
+  private fadeAway(actor: ActorRuntime) {
+    this.despawn(actor.id);
+    this.pendingFades.push(actor.id);
   }
 
   /**
@@ -2256,6 +2272,12 @@ export class GameSession implements PlaySession {
     const swung = this.pendingSwings;
     this.pendingSwings = [];
     return swung;
+  }
+
+  drainFades(): string[] {
+    const faded = this.pendingFades;
+    this.pendingFades = [];
+    return faded;
   }
 
   drainDeaths(): Death[] {

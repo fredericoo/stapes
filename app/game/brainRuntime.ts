@@ -86,6 +86,7 @@ export type BrainContext = {
   nameOf(actorId: string): string | null;
   ratingOf(actorId: string): number | null;
   ownRating(): number | null;
+  fade(): void;
 };
 
 export type Utterance = {
@@ -462,6 +463,9 @@ function runAction(
       if (!at) return "failure";
       return fleeAlongRoute(at, action.allowDrops, ctx);
     }
+    case "fade":
+      ctx.fade();
+      return "success";
   }
 }
 

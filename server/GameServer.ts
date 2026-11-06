@@ -2597,6 +2597,7 @@ export class GameServer {
      * `noteDeaths` has recorded its death.
      */
     this.noteDeaths(session);
+    this.noteFades(session);
     this.releaseLingerers();
     this.broadcastSpeech(session, actors);
     this.broadcastNoise(session, actors);
@@ -2701,6 +2702,14 @@ export class GameServer {
     }
     for (const id of this.sentMotion.keys()) {
       if (!live.has(id)) this.sentMotion.delete(id);
+    }
+  }
+
+  private noteFades(session: GameSession) {
+    for (const actorId of session.drainFades()) {
+      this.sentHp.delete(actorId);
+      const point = this.respawnPoints.get(actorId);
+      if (point) this.armRespawn(point, this.now());
     }
   }
 

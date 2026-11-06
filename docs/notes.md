@@ -10675,6 +10675,33 @@ nobody in one way: it never touches `actor.targetId`.
   row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
   selector no control displays.
 
+## `fade` leaves the board without dying
+
+Written for the forest wisp, a creature that is only about at night: it fades
+at dawn, and *A respawn can keep to hours* stops it coming back before dark.
+
+
+`fade` is a brain action with no arguments. The session notes it during the
+turn and calls `fadeAway` after `stepBrain` returns, so nothing later in the
+turn reads a body that is already gone. `fadeAway` goes through `despawn`, the
+path `/despawn` and a player's leaving take, not `kill`:
+
+- **No remains and nothing spilled.** `kill` drops the kit and the `remains`
+  tile and reports a death. A fade is not a death: no `Death`, no death row, no
+  blame, no experience.
+- **The server is told through `drainFades`.** `/despawn` is invisible to the
+  respawn bookkeeping (see *`/despawn` takes a creature off the board*), which
+  is right for an administrator's removal and wrong here. `GameServer.noteFades`
+  arms the body's respawn point the way `noteDeaths` does, so a faded wisp is
+  due back after its delay, wherever it wandered to before it faded.
+- **It is not a spell, and players cannot do it.** Removing a connected
+  player's body leaves them with nothing to play until they reconnect, which is
+  why `/despawn` refuses players. A self-kill a player could cast would have to
+  be a real death, with everything that costs.
+- **It fades only when its brain runs**, and a brain runs only while somebody
+  could notice it. A wisp nobody is near at dawn stays on the board until a
+  player gets close, then fades in front of them.
+
 ## A respawn can keep to hours
 
 `RespawnInteraction.hours` is `{ fromHour, toHour }` on the same terms as the

@@ -305,6 +305,12 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
     ],
     make: () => ({ action: "consume" }),
   },
+  fade: {
+    label: "fade",
+    hint: "Leave the board at the end of this turn, as if it was never there: no remains, and nothing it carried is dropped. A body with a respawn point comes back after its respawn delay, inside the point's hours if it has any.",
+    params: [],
+    make: () => ({ action: "fade" }),
+  },
 };
 
 export const EFFECTS: Record<BrainEffectDef["effect"], CatalogEntry<BrainEffectDef>> = {

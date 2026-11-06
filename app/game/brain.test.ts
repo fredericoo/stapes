@@ -18,7 +18,8 @@ import {
 import { group } from "../lib/conditions";
 import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE, type StatusDef, statusesById } from "../lib/status";
-import { emptyMap, getStack, replaceStack } from "../lib/mapData";
+import { emptyMap, getStack, listCoords, replaceStack } from "../lib/mapData";
+import { residentAt } from "./testResidents";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { initialMemory, stepBrain, type BrainContext, type WalkOrderState } from "./brainRuntime";
 import { brainContext } from "./testBrainContext";
@@ -1012,6 +1013,7 @@ describe("giving up", () => {
       nameOf: (id: string) => id,
       ratingOf: () => null,
       ownRating: () => null,
+      fade: vi.fn(),
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, blocked);
@@ -1801,6 +1803,7 @@ describe("a deer that yelps", () => {
       nameOf: (id: string) => id,
       ratingOf: () => null,
       ownRating: () => null,
+      fade: vi.fn(),
     };
 
     for (let tick = 0; tick < 5; tick++) stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1882,6 +1885,7 @@ describe("a deer that yelps", () => {
       nameOf: (id: string) => id,
       ratingOf: () => null,
       ownRating: () => null,
+      fade: vi.fn(),
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1947,6 +1951,75 @@ describe("a creature that wakes at night", () => {
 
     minutes = 20 * 60;
     expect(saidOver(session, BRAIN_TICK_MS * 2)).toEqual(["hoo"]);
+  });
+});
+
+describe("a creature that fades at dawn", () => {
+  const SKULL = "fade-skull";
+  const wisps: TileDef[] = [
+    ...tiles,
+    tile({ id: SKULL, height: 1 }),
+    tile({
+      id: "wisp",
+      height: 2,
+      kind: "battler",
+      actor: true,
+      walkable: false,
+      interactions: {
+        battler: {
+          baseHp: 8,
+          masteries: {},
+          naturalWeapon: {
+            type: "weapon",
+            damage: 1,
+            def: 0,
+            accuracy: 50,
+            variance: 0,
+            spd: 50,
+            mastery: "fist",
+          },
+          remains: SKULL,
+        },
+        brain: {
+          initial: "drifting",
+          states: {
+            drifting: { do: [{ action: "hold" }] },
+            fading: { do: [{ action: "fade" }] },
+          },
+          transitions: [
+            {
+              from: "any",
+              if: { cond: "time_of_day", fromHour: 7, toHour: 21 },
+              to: "fading",
+            },
+          ],
+        },
+      },
+    }),
+  ];
+
+  function tileIdsOnBoard(session: GameSession): string[] {
+    return listCoords(session.getMap(), 0).flatMap(({ stack }) => stack.map((p) => p.tileId));
+  }
+
+  it("leaves the board with no remains once the morning comes, and says so once", () => {
+    let minutes = 3 * 60;
+    const session = new GameSession(withDeer(field(2), 0, 0, "wisp"), wisps, {
+      actorIds: ["alice"],
+      clock: () => minutes,
+    });
+    advance(session, BRAIN_TICK_MS * 2);
+    expect(tileIdsOnBoard(session)).toContain("wisp");
+    expect(session.drainFades()).toEqual([]);
+
+    const wisp = residentAt(session, 0, 0, 0);
+    minutes = 7 * 60;
+    advance(session, BRAIN_TICK_MS * 2);
+
+    expect(new Set(tileIdsOnBoard(session))).toEqual(new Set(["grass", "player"]));
+    expect(session.actorIds()).not.toContain(wisp);
+    expect(session.drainFades()).toEqual([wisp]);
+    expect(session.drainDeaths()).toEqual([]);
   });
 });
 

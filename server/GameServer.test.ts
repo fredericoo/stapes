@@ -2293,6 +2293,39 @@ describe("respawn", () => {
     });
   });
 
+  describe("a creature that fades", () => {
+    const FADE_RESPAWN_MS = 60_000;
+
+    beforeEach(async () => {
+      const fader = {
+        ...gnomeTile(),
+        interactions: {
+          respawn: { fromMs: FADE_RESPAWN_MS, toMs: FADE_RESPAWN_MS },
+          brain: {
+            initial: "fading",
+            states: { fading: { do: [{ action: "fade" }] } },
+            transitions: [],
+          },
+        },
+      };
+      await harness.blobs.put("tiles.json", JSON.stringify([...tilesJson, fader]), JSON_TYPE);
+    });
+
+    it("leaves its cell and arms its respawn point as a death would", async () => {
+      await connect("alice");
+
+      let pending: Record<string, number> | undefined;
+      for (let polls = 0; polls < 100; polls++) {
+        pending = await pendingRespawns();
+        if (pending?.[GNOME_OWNER] !== undefined) break;
+        await new Promise((resolve) => setTimeout(resolve, STORAGE_POLL_MS));
+      }
+
+      expect(pending?.[GNOME_OWNER]).toBeGreaterThan(Date.now());
+      expect(await gnomeStack()).toEqual(["grass"]);
+    });
+  });
+
   describe("an item that decays where it stands", () => {
     const BERRY_X = 1;
     const BERRY_REF = { x: BERRY_X, y: 0, z: 0, stackIndex: 1 };
