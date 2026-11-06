@@ -1597,7 +1597,29 @@ rather than the armourer's because the armourer does not take hides.
 All three are drawn when worn (`wolfskin-hood`, `wolfskin-coat`,
 `wolfskin-boots` in `HUMAN_PARTS`), in the wolf's own colours from
 `animals.png`. The hood is a wolf's head sitting on the wearer's: ears up,
-the muzzle forward over the face, and black eyes either side of it.
+the muzzle forward over the face, and black eyes either side of it. The
+coat is a druid's: a pelt over the shoulders and down the back, bulging off
+it, over brown leather, so facing south or east it shows leather under grey
+shoulders and facing north or west it shows the pelt. Both are cast by
+`generate:hats` and `generate:clothes`, and so are their icons, seen from
+the front: the hood is the same model, and the coat is coloured into the
+leather jerkin's icon by a trunk fitted to it.
+
+**A cast coat keeps a drawn coat's silhouette.** The body in the art runs
+steeper down the screen than the 45° this projection draws a vertical line
+at, and its arms and legs move between poses, so a modelled body would not
+sit on it. `generate:clothes` takes a hand-drawn part as the template
+instead: in each frame it fits a trunk to the template's pixels, leaning it
+by the least horizontal amount that projects onto their main axis, casts the
+trunk and whatever the coat wears on it, and colours each template pixel by
+the solid it lands on. Only a solid marked `spills` (the pelt) may add
+pixels outside the template, and never above its first row: facing south,
+pelt at shoulder height behind the body lands above the shoulders on screen
+and reads as a collar standing up behind the head. Facing north the back
+fills the frame and the cast pelt came out as a shapeless bulge, so the
+coat's north frames are its west frames mirrored across the screen
+diagonal (`northFromWest`), moved by whatever lays the west body on the
+north one.
 
 **A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
 `resolveActor` is satisfied by a `dialog` alone, so a body that only talks is
