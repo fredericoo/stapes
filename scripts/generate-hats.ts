@@ -3,6 +3,7 @@ import { HUMAN_PARTS, humanPart, type PartOn } from "../app/lib/humanParts";
 import { FRAME_PX, SHEET_FACINGS, SHEET_POSES, SKIN_TONES } from "../app/lib/humanSprite";
 import type { Direction } from "../app/lib/types";
 import { cast, outline, shade, transpose } from "./human-parts/cast";
+import { castIcon, writeIcon, writeIconPreview } from "./human-parts/icon";
 import {
   type Axes,
   type Sdf,
@@ -24,14 +25,15 @@ import {
 import {
   BLOCK_H,
   BLOCK_W,
+  BALD,
   OUTLINE,
   body,
-  eastToSouthOffset,
   headCentre,
   heads,
   openAt,
   pixel,
   readColours,
+  transposeOffset,
   writeIndexed,
   writePreview,
 } from "./human-parts/sheet";
@@ -46,6 +48,9 @@ const BOUND_LIFT = 1.5;
 /** Everything a hat models in front of the head and below this height is cut away, so it opens towards the face. */
 const BROW = 0.85;
 const FACE_BACK = 0.35;
+
+/** Model pixels to each icon pixel: the most the hood fits one cell at. */
+const ICON_PX = 0.62;
 
 const BROWN = ["#45293f", "#6e2727", "#9e4539"];
 const STEEL = ["#3e3546", "#7f708a", "#9babb2", "#c7dcd0"];
@@ -64,6 +69,8 @@ type HatModel = {
    * keeps the height shear, so the east frames mirrored are a true south view.
    */
   southFromEast?: boolean;
+  /** The item's icon in `equipment.png`, cast from the same model; most hat icons are drawn by hand. */
+  icon?: readonly [number, number];
 };
 
 function faceCut(head: Vec, axes: Axes): Sdf {
@@ -133,6 +140,7 @@ const HATS: Record<PartOn<"hat">, HatModel> = {
   "wolfskin-hood": {
     opensToFace: false,
     southFromEast: true,
+    icon: [31, 5],
     solids: (c, x) => [
       { sdf: above(sphere(at(c, [x.up, 0.35]), HEAD_R + 0.45), c[2] + 0.15), ramp: WOLF },
       {
@@ -217,9 +225,15 @@ function drawHat(model: HatModel): (string | null)[][][] {
   const south = SHEET_FACINGS.indexOf("s");
   const east = SHEET_FACINGS.indexOf("e");
   frames[south] = SHEET_POSES.map((_, pose) =>
-    transpose(frames[east]![pose]!, FRAME_PX, ...eastToSouthOffset(pose)),
+    transpose(frames[east]![pose]!, FRAME_PX, ...transposeOffset(heads, BALD, pose, "e", "s")),
   );
   return frames;
+}
+
+/** The model alone, facing south with no head inside it. */
+function drawIcon(model: HatModel): (string | null)[] {
+  const head: Vec = [0, 0, 0];
+  return castIcon(solidsFor(model, head, "s"), { centre: [0, 0, BOUND_LIFT], r: BOUND_R }, ICON_PX);
 }
 
 const blocks = HUMAN_PARTS.filter((p) => p.layer === "hat");
@@ -237,6 +251,7 @@ for (const part of blocks) {
       }),
     ),
   );
+  if (model.icon) writeIcon(model.icon, drawIcon(model));
   console.log(`drew ${part.id}`);
 }
 writeIndexed("human_hats.png", width, BLOCK_H, sheet);
@@ -251,5 +266,9 @@ if (PREVIEW) {
       (row, x, y) =>
         sheet[(row * FRAME_PX + y) * width + part.block * BLOCK_W + FRAME_PX + x] ?? null,
     ]),
+  );
+  writeIconPreview(
+    path.join(PREVIEW, "hat-icons.png"),
+    blocks.flatMap((p) => (HATS[p.id].icon ? [HATS[p.id].icon!] : [])),
   );
 }

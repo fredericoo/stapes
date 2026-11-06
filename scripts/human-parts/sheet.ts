@@ -4,6 +4,7 @@ import { deflateSync } from "node:zlib";
 import { PNG } from "pngjs";
 import { humanPart } from "../../app/lib/humanParts";
 import { FRAME_PX, SHEET_FACINGS, SHEET_POSES } from "../../app/lib/humanSprite";
+import type { Direction } from "../../app/lib/types";
 
 export const TILESETS = path.resolve(import.meta.dirname, "..", "..", "data", "tilesets");
 export const BLOCK_W = SHEET_POSES.length * FRAME_PX;
@@ -63,24 +64,31 @@ export function headCentre(pose: number, row: number): [number, number] {
   return [sx / n, sy / n];
 }
 
-/** The offset that lays the bald head's east blob, transposed, on its south one. */
-export function eastToSouthOffset(pose: number): [number, number] {
-  const south = SHEET_FACINGS.indexOf("s");
-  const east = SHEET_FACINGS.indexOf("e");
-  const blob = (row: number) => {
+/**
+ * The offset that lays block `block` of `png` in facing `from`, transposed,
+ * on the same block in facing `to`. The drawn frames are not exact mirrors of
+ * each other, so the transpose is moved by whatever overlaps them most.
+ */
+export function transposeOffset(
+  png: PNG,
+  block: number,
+  pose: number,
+  from: Direction,
+  to: Direction,
+): [number, number] {
+  const blob = (facing: Direction) => {
+    const row = SHEET_FACINGS.indexOf(facing);
     const cells: [number, number][] = [];
     for (let y = 0; y < FRAME_PX; y++)
-      for (let x = 0; x < FRAME_PX; x++)
-        if (pixel(heads, BALD, pose, row, x, y)) cells.push([x, y]);
+      for (let x = 0; x < FRAME_PX; x++) if (pixel(png, block, pose, row, x, y)) cells.push([x, y]);
     return cells;
   };
-  const target = new Set(blob(south).map(([x, y]) => y * FRAME_PX + x));
+  const target = new Set(blob(to).map(([x, y]) => y * FRAME_PX + x));
+  const source = blob(from);
   let best = { overlap: -1, ox: 0, oy: 0 };
   for (let ox = -4; ox <= 4; ox++) {
     for (let oy = -4; oy <= 4; oy++) {
-      const overlap = blob(east).filter(([x, y]) =>
-        target.has((x + oy) * FRAME_PX + y + ox),
-      ).length;
+      const overlap = source.filter(([x, y]) => target.has((x + oy) * FRAME_PX + y + ox)).length;
       if (overlap > best.overlap) best = { overlap, ox, oy };
     }
   }
