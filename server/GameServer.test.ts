@@ -13,7 +13,7 @@ import {
   TICK_MS,
   WALK_DURATION_MS,
 } from "../app/game/constants";
-import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
+import { MINUTES_PER_DAY, minutesOfDayAt, MS_PER_CLOCK_MINUTE } from "../app/lib/clock";
 import { resolvePush } from "../app/lib/interactions";
 import { chunkifyMap, chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
 import { BODY_REACH_ON_LEVEL, INTEREST_REACH_CHUNKS } from "../app/net/interest";
@@ -2243,6 +2243,54 @@ describe("respawn", () => {
       state.storage.get<Record<string, number>>("respawnPending"),
     );
     expect(Object.keys(pending ?? {})).toEqual([]);
+  });
+
+  async function gnomeStack() {
+    return await runInDurableObject(stub(), (instance: GameServer) => {
+      const session = (instance as unknown as { session: { getMap(): MapFile } }).session;
+      return getStack(session.getMap(), GNOME_X, 0, 0).map((p) => p.tileId);
+    });
+  }
+
+  async function pendingRespawns() {
+    return await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<Record<string, number>>("respawnPending"),
+    );
+  }
+
+  describe("a respawn kept to its hours", () => {
+    beforeEach(async () => {
+      const gnome = gnomeTile();
+      gnome.interactions.respawn = {
+        fromMs: RESPAWN_WINDOW_MS,
+        toMs: RESPAWN_WINDOW_MS,
+        hours: { fromHour: 3, toHour: 4 },
+      } as typeof gnome.interactions.respawn;
+      await harness.blobs.put("tiles.json", JSON.stringify([...tilesJson, gnome]), JSON_TYPE);
+    });
+
+    it("holds outside its hours, and comes back once /time moves into them", async () => {
+      const first = await connect("alice");
+      command(first.ws, "/time 12:00");
+      await nextMessageOfType(first.ws, "clock");
+
+      await putCheckpoint({ ...checkpointWith(["alice"]), dead: [GNOME_OWNER] });
+      await simulateEviction();
+      const alice = await connect("alice");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await runDurableObjectAlarm(stub());
+
+      expect(await gnomeStack()).toEqual(["grass"]);
+      const held = (await pendingRespawns())?.[GNOME_OWNER] ?? 0;
+      expect(held - Date.now()).toBeGreaterThan(14 * 60 * MS_PER_CLOCK_MINUTE);
+
+      command(alice.ws, "/time 03:30");
+      await nextMessageOfType(alice.ws, "clock");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await runDurableObjectAlarm(stub());
+
+      expect(await gnomeStack()).toEqual(["grass", "gnome"]);
+    });
   });
 
   describe("an item that decays where it stands", () => {

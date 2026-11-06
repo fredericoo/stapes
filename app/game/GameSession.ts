@@ -23,7 +23,11 @@ import {
   replaceStack,
   tileIdsInChunk,
 } from "../lib/mapData";
-import type { ExtractInteraction, RespawnInteraction } from "../lib/interactions";
+import {
+  resolveRespawn,
+  type ExtractInteraction,
+  type RespawnInteraction,
+} from "../lib/interactions";
 import {
   craftEffect,
   pullEffect,
@@ -137,7 +141,7 @@ import {
   tileNotice,
   timeNotice,
 } from "./notices";
-import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
+import { DEFAULT_PLAY_MINUTES, msUntilHours, type MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
 import { type Blame, causeOfDeath, possessive } from "./blame";
 import { conjuredName, sparesStander } from "./conjured";
@@ -1229,6 +1233,16 @@ export class GameSession implements PlaySession {
 
   respawnDelayMs(respawn: RespawnInteraction): number {
     return rollRespawnDelayMs(respawn, () => this.rng.next());
+  }
+
+  /**
+   * Read from the tile rather than from `point.respawn`, which is a copy stored
+   * with the point and keeps whatever the tile said when the world first loaded.
+   */
+  respawnHoursWaitMs(point: SpawnPoint): number {
+    const def = this.tilesById[point.placed.tileId];
+    const hours = def ? resolveRespawn(def)?.hours : undefined;
+    return hours ? msUntilHours(this.clock(), hours.fromHour, hours.toHour) : 0;
   }
 
   private actor(id: string): ActorRuntime {

@@ -14,6 +14,7 @@ import {
   resolvePressurePlate,
   resolvePush,
   resolveReceive,
+  resolveRespawn,
   resolveSwitch,
 } from "./interactions";
 import type { ArcaneStoneItem } from "./item";
@@ -509,3 +510,29 @@ function lostPaths(original: unknown, saved: unknown, at: string): string[] {
     lostPaths(value, (saved as Record<string, unknown>)[key], `${at}.${key}`),
   );
 }
+
+describe("resolveRespawn", () => {
+  it("keeps the hours a respawn is allowed in", () => {
+    const def = tile({
+      id: "wisp",
+      interactions: { respawn: { fromMs: 1000, toMs: 2000, hours: { fromHour: 21, toHour: 5 } } },
+    });
+    expect(resolveRespawn(def)?.hours).toEqual({ fromHour: 21, toHour: 5 });
+  });
+
+  it("refuses hours that start and end together, which would never hold", () => {
+    const def = tile({
+      id: "wisp",
+      interactions: { respawn: { fromMs: 1000, toMs: 2000, hours: { fromHour: 6, toHour: 6 } } },
+    });
+    expect(resolveRespawn(def)).toBeNull();
+  });
+
+  it("saves the hours with the wait", () => {
+    expect(
+      interactionsForSave({
+        respawn: { fromMs: 1000, toMs: 2000, hours: { fromHour: 21, toHour: 5 } },
+      }),
+    ).toEqual({ respawn: { fromMs: 1000, toMs: 2000, hours: { fromHour: 21, toHour: 5 } } });
+  });
+});

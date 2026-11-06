@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { MAX_HOUR_OF_DAY } from "./clock";
 import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import type { TileDef } from "./types";
 
@@ -172,7 +173,7 @@ const durationMs = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 export const MAX_HEALTH_PERCENT = 100;
 
-export const MAX_HOUR_OF_DAY = 23;
+export { MAX_HOUR_OF_DAY };
 
 const hourOfDay = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_HOUR_OF_DAY));
 

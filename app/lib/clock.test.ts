@@ -5,6 +5,7 @@ import {
   MINUTES_PER_DAY,
   minutesOfDayAt,
   MS_PER_CLOCK_MINUTE,
+  msUntilHours,
   sampleIllumination,
   SUNRISE_MINUTES,
   SUNSET_MINUTES,
@@ -123,5 +124,21 @@ describe("minutesOfDayAt", () => {
     const now = 1_770_000_000_000;
     expect(minutesOfDayAt(now + MS_PER_CLOCK_MINUTE)).toBe(wrapMinutes(minutesOfDayAt(now) + 1));
     expect(minutesOfDayAt(now + MINUTES_PER_DAY * MS_PER_CLOCK_MINUTE)).toBe(minutesOfDayAt(now));
+  });
+});
+
+describe("msUntilHours", () => {
+  it("is zero inside a window that runs through midnight", () => {
+    expect(msUntilHours(23 * 60, 21, 5)).toBe(0);
+    expect(msUntilHours(2 * 60, 21, 5)).toBe(0);
+  });
+
+  it("waits for the first hour to come round when outside it", () => {
+    expect(msUntilHours(7 * 60, 21, 5)).toBe(14 * 60 * MS_PER_CLOCK_MINUTE);
+    expect(msUntilHours(5 * 60, 21, 5)).toBe(16 * 60 * MS_PER_CLOCK_MINUTE);
+  });
+
+  it("rounds a part-minute up, so the wait never ends just short of the window", () => {
+    expect(msUntilHours(20 * 60 + 59.5, 21, 5)).toBe(Math.ceil(0.5 * MS_PER_CLOCK_MINUTE));
   });
 });

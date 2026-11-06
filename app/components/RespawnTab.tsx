@@ -1,11 +1,14 @@
-import type { RespawnInteraction, TileInteractions } from "../lib/interactions";
+import type { RespawnHours, RespawnInteraction, TileInteractions } from "../lib/interactions";
 import { DEFAULT_RESPAWN, hasAnyInteraction } from "../lib/interactions";
+import { MAX_HOUR_OF_DAY } from "../lib/clock";
 import type { TileDef } from "../lib/types";
 import { FieldLabel, NumberInput, SwitchField } from "../ui";
 
 const MS_PER_SECOND = 1000;
 
 const MAX_RESPAWN_SECONDS = 86_400;
+
+const DEFAULT_HOURS: RespawnHours = { fromHour: 21, toHour: 5 };
 
 type Props = {
   draft: TileDef;
@@ -30,9 +33,23 @@ export function RespawnTab({ draft, onChange }: Props) {
     const ms = Math.round(Math.min(MAX_RESPAWN_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND);
     setRespawn(
       end === "fromMs"
-        ? { fromMs: ms, toMs: Math.max(ms, respawn.toMs) }
-        : { toMs: ms, fromMs: Math.min(ms, respawn.fromMs) },
+        ? { ...respawn, fromMs: ms, toMs: Math.max(ms, respawn.toMs) }
+        : { ...respawn, toMs: ms, fromMs: Math.min(ms, respawn.fromMs) },
     );
+  };
+
+  const setHours = (hours: RespawnHours | undefined) => {
+    if (!respawn) return;
+    const { hours: _was, ...rest } = respawn;
+    setRespawn(hours ? { ...rest, hours } : rest);
+  };
+
+  const patchHour = (end: keyof RespawnHours, hour: number) => {
+    if (!respawn?.hours) return;
+    const clamped = Math.round(Math.min(MAX_HOUR_OF_DAY, Math.max(0, hour)));
+    const next = { ...respawn.hours, [end]: clamped };
+    if (next.fromHour === next.toHour) return;
+    setHours(next);
   };
 
   return (
@@ -72,6 +89,36 @@ export function RespawnTab({ draft, onChange }: Props) {
                 aria-label="Longest wait in seconds"
               />
             </span>
+
+            <SwitchField
+              checked={Boolean(respawn.hours)}
+              onCheckedChange={(on) => setHours(on ? { ...DEFAULT_HOURS } : undefined)}
+              label="Only between hours"
+              info="A wait that ends outside these hours holds until the first hour comes round on the world's clock. A start later than the end runs through midnight, so 21 to 5 is the night."
+            />
+            {respawn.hours ? (
+              <span className="flex items-center gap-2">
+                <NumberInput
+                  min={0}
+                  max={MAX_HOUR_OF_DAY}
+                  step={1}
+                  value={respawn.hours.fromHour}
+                  onChange={(hour) => patchHour("fromHour", hour)}
+                  className="w-20"
+                  aria-label="First hour it may respawn"
+                />
+                <span className="text-muted">to</span>
+                <NumberInput
+                  min={0}
+                  max={MAX_HOUR_OF_DAY}
+                  step={1}
+                  value={respawn.hours.toHour}
+                  onChange={(hour) => patchHour("toHour", hour)}
+                  className="w-20"
+                  aria-label="Hour it stops respawning"
+                />
+              </span>
+            ) : null}
           </div>
         ) : null}
       </section>

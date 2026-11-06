@@ -10675,6 +10675,27 @@ nobody in one way: it never touches `actor.targetId`.
   row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
   selector no control displays.
 
+## A respawn can keep to hours
+
+`RespawnInteraction.hours` is `{ fromHour, toHour }` on the same terms as the
+brain's `time_of_day`: a start later than the end runs through midnight, and
+equal ends are refused, since that window would never open.
+
+- **The delay is drawn as before, and the hours are checked when it comes
+  due.** `processDueRespawns` asks `GameSession.respawnHoursWaitMs`. Outside the
+  window, the deadline moves to the next time `fromHour` comes round on the
+  world's clock (`msUntilHours`; a game minute is a wall-clock second), so the
+  alarm does not fire all day.
+- **The hours come from the tile, not from the stored point.** A `SpawnPoint`
+  keeps a copy of `respawn` from the world's first load, so reading the hours
+  off the point would ignore an edit to the tile until the world was replaced.
+- **`/time` brings a held respawn forward.** A held deadline was worked out
+  from the old clock. `waitingForHours` remembers which pending respawns are
+  held for their hours. `flushClock` sets each of those deadlines to now, and
+  the next alarm checks them against the new clock. The set is not persisted.
+  After a restart a held deadline is still right, unless the clock was moved
+  while the world was down.
+
 ## A ranged `after` staggers creatures that decide on the same round
 
 `after` takes an optional `toMs`. With it, the wait is somewhere from `ms` to
