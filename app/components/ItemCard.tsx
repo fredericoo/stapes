@@ -7,7 +7,7 @@ import type {
   ItemCardStat,
 } from "../game/itemCard";
 import { MASTERY_LABELS } from "../lib/mastery";
-import { HEADINGS, termLabel } from "../lib/terms";
+import { termLabel } from "../lib/terms";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { SpritePreview, TilePreview } from "./TilePreview";
 
@@ -92,16 +92,6 @@ export function ItemCard({
         </dl>
       ) : null}
 
-      {card.resists.length > 0 ? (
-        <Section title={HEADINGS.resists}>
-          <ul className="flex flex-col gap-0.5">
-            {card.resists.map((row) => (
-              <ResistRow key={row.mastery} row={row} />
-            ))}
-          </ul>
-        </Section>
-      ) : null}
-
       {card.requirements.length > 0 ? (
         <Section title={card.requirementsTitle}>
           <ul className="flex flex-col gap-0.5">
@@ -135,7 +125,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function StatRow({ stat }: { stat: ItemCardStat }) {
-  return (
+  const row = (
     <div className="flex items-baseline gap-2 text-detail leading-tight">
       <dt className="shrink-0 text-ink/70">{termLabel(stat.term)}</dt>
       <dd className="flex min-w-0 flex-1 items-baseline gap-1 tabular-nums">
@@ -144,6 +134,15 @@ function StatRow({ stat }: { stat: ItemCardStat }) {
         <span className={`shrink-0 font-bold ${TONE_TEXT[stat.tone]}`}>{stat.value}</span>
       </dd>
     </div>
+  );
+  if (!stat.against?.length) return row;
+  return (
+    <>
+      {row}
+      {stat.against.map((resist) => (
+        <ResistRow key={resist.mastery} row={resist} />
+      ))}
+    </>
   );
 }
 
@@ -181,14 +180,13 @@ function RequirementRow({ row }: { row: ItemCardRequirement }) {
 
 function ResistRow({ row }: { row: ItemCardResist }) {
   return (
-    <li className="flex items-baseline gap-2 text-detail leading-tight">
-      <span className="shrink-0 text-ink/80">{MASTERY_LABELS[row.mastery]}</span>
-      <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
-      <span className="shrink-0 tabular-nums text-ink/50 line-through">
-        {row.total - row.extra}
-      </span>
-      <span className="shrink-0 font-bold tabular-nums text-accent">{row.total}</span>
-    </li>
+    <div className="flex items-baseline gap-2 pl-3 text-detail leading-tight">
+      <dt className="shrink-0 text-ink/60">{MASTERY_LABELS[row.mastery]}</dt>
+      <dd className="flex min-w-0 flex-1 items-baseline gap-1 tabular-nums">
+        <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
+        <span className="shrink-0 font-bold text-accent">+{row.extra}</span>
+      </dd>
+    </div>
   );
 }
 
