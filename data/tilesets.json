@@ -145,5 +145,13 @@
     "file": "ramps.png",
     "width": 64,
     "height": 32
+  },
+  {
+    "id": "wisps",
+    "name": "Wisps",
+    "file": "wisps.png",
+    "width": 128,
+    "height": 48,
+    "translucent": true
   }
 ]

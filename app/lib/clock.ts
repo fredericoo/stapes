@@ -1,5 +1,7 @@
 export const MINUTES_PER_DAY = 24 * 60;
 
+export const MAX_HOUR_OF_DAY = 23;
+
 export const MS_PER_CLOCK_MINUTE = 1000;
 
 export type MinutesOfDay = number;
@@ -71,6 +73,13 @@ export function withinHours(minutes: MinutesOfDay, fromHour: number, toHour: num
   const from = fromHour * 60;
   const to = toHour * 60;
   return from <= to ? t >= from && t < to : t >= from || t < to;
+}
+
+/** Zero inside the window; otherwise the wall-clock wait until `fromHour` next comes round. */
+export function msUntilHours(minutes: MinutesOfDay, fromHour: number, toHour: number): number {
+  if (withinHours(minutes, fromHour, toHour)) return 0;
+  const ahead = wrapMinutes(fromHour * 60 - minutes);
+  return Math.ceil(ahead * MS_PER_CLOCK_MINUTE);
 }
 
 function lerp(a: number, b: number, t: number): number {

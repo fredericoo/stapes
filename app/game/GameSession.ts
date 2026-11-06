@@ -23,7 +23,11 @@ import {
   replaceStack,
   tileIdsInChunk,
 } from "../lib/mapData";
-import type { ExtractInteraction, RespawnInteraction } from "../lib/interactions";
+import {
+  resolveRespawn,
+  type ExtractInteraction,
+  type RespawnInteraction,
+} from "../lib/interactions";
 import {
   craftEffect,
   pullEffect,
@@ -137,7 +141,7 @@ import {
   tileNotice,
   timeNotice,
 } from "./notices";
-import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
+import { DEFAULT_PLAY_MINUTES, msUntilHours, type MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
 import { type Blame, causeOfDeath, possessive } from "./blame";
 import { conjuredName, sparesStander } from "./conjured";
@@ -882,6 +886,7 @@ export class GameSession implements PlaySession {
   private liveNoise: NoiseEmission[] = [];
   private nextNoiseId = 0;
   private pendingDeaths: Death[] = [];
+  private pendingFades: string[] = [];
   private settledEmitters = "";
 
   constructor(
@@ -1229,6 +1234,16 @@ export class GameSession implements PlaySession {
 
   respawnDelayMs(respawn: RespawnInteraction): number {
     return rollRespawnDelayMs(respawn, () => this.rng.next());
+  }
+
+  /**
+   * Read from the tile rather than from `point.respawn`, which is a copy stored
+   * with the point and keeps whatever the tile said when the world first loaded.
+   */
+  respawnHoursWaitMs(point: SpawnPoint): number {
+    const def = this.tilesById[point.placed.tileId];
+    const hours = def ? resolveRespawn(def)?.hours : undefined;
+    return hours ? msUntilHours(this.clock(), hours.fromHour, hours.toHour) : 0;
   }
 
   private actor(id: string): ActorRuntime {
@@ -1948,6 +1963,7 @@ export class GameSession implements PlaySession {
     const sight = this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight;
     const thingsFound = new Map<string, FoundThing | null>();
     const reach = brainReach(brain);
+    let fading = false;
     stepBrain(brain, actor.brain, tickMs, {
       busy: !this.idle(actor),
       rng: this.rng,
@@ -1995,7 +2011,21 @@ export class GameSession implements PlaySession {
         return body ? this.ratingOf(body) : null;
       },
       ownRating: () => this.ratingOf(actor),
+      fade: () => {
+        fading = true;
+      },
     });
+    if (fading) this.fadeAway(actor);
+  }
+
+  /**
+   * `despawn` rather than `kill`, so the body leaves no remains and spills
+   * nothing; the server is told through `drainFades` so its respawn point is
+   * armed as it would be for a death.
+   */
+  private fadeAway(actor: ActorRuntime) {
+    this.despawn(actor.id);
+    this.pendingFades.push(actor.id);
   }
 
   /**
@@ -2242,6 +2272,12 @@ export class GameSession implements PlaySession {
     const swung = this.pendingSwings;
     this.pendingSwings = [];
     return swung;
+  }
+
+  drainFades(): string[] {
+    const faded = this.pendingFades;
+    this.pendingFades = [];
+    return faded;
   }
 
   drainDeaths(): Death[] {

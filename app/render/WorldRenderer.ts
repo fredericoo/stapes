@@ -197,6 +197,32 @@ const PROJECTILE_STACK_BIAS = 32;
 
 const WADING_RENDER_ORDER = 0.5;
 
+/**
+ * A translucent sheet writes no depth, so whatever stands behind its art has to
+ * be in the frame before it is blended over, which is after the level and
+ * after a wading body.
+ */
+const TRANSLUCENT_RENDER_ORDER = 0.75;
+
+const SPRITE_ALPHA_CUTOFF = 0.5;
+
+const TRANSLUCENT_ALPHA_FLOOR = 0.02;
+
+function isTranslucent(texture: THREE.Texture | null | undefined): boolean {
+  return texture?.userData.translucent === true;
+}
+
+function restingRenderOrder(mesh: THREE.Mesh): number {
+  const material = mesh.material as THREE.MeshBasicMaterial;
+  return isTranslucent(material.map) ? TRANSLUCENT_RENDER_ORDER : 0;
+}
+
+function cutOrBlend(mat: THREE.MeshBasicMaterial, texture: THREE.Texture) {
+  const translucent = isTranslucent(texture);
+  mat.alphaTest = translucent ? TRANSLUCENT_ALPHA_FLOOR : SPRITE_ALPHA_CUTOFF;
+  mat.depthWrite = !translucent;
+}
+
 /** Reflection meshes sit on their own layer, so only the reflection pass draws them. */
 const REFLECTION_LAYER = 1;
 const REFLECTION_CLEAR = 0x000000;
@@ -1303,7 +1329,7 @@ export class WorldRenderer {
       mesh.position.x = base.x + (motion?.ox ?? 0) + sinkPx;
       mesh.position.y = base.y + (motion?.oy ?? 0) + sinkPx;
       writeWadeAttr(mesh.geometry, sinkPx, edgePx);
-      mesh.renderOrder = edgePx > 0 ? WADING_RENDER_ORDER : 0;
+      mesh.renderOrder = edgePx > 0 ? WADING_RENDER_ORDER : restingRenderOrder(mesh);
       writeBoxAttr(
         mesh.geometry,
         motion
@@ -1595,6 +1621,7 @@ export class WorldRenderer {
           tex.generateMipmaps = false;
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.flipY = true;
+          tex.userData.translucent = ts.translucent === true;
           tex.needsUpdate = true;
           this.textures.set(ts.id, tex);
         } catch (err) {
@@ -1703,11 +1730,10 @@ export class WorldRenderer {
       mat.customProgramCacheKey = () => REFLECTING_WORLD_SHADER_CACHE_KEY;
       this.materials.set(key, mat);
     }
-    mat.alphaTest = 0.5;
     mat.transparent = true;
     mat.opacity = 1;
     mat.depthTest = true;
-    mat.depthWrite = true;
+    cutOrBlend(mat, texture);
     mat.needsUpdate = true;
     return mat;
   }
@@ -2113,6 +2139,7 @@ export class WorldRenderer {
       const geo = buildMergedQuadGeometry(quads);
       geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, this.materialFor(tex, z));
+      mesh.renderOrder = restingRenderOrder(mesh);
       mesh.frustumCulled = false;
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
@@ -2512,10 +2539,9 @@ export class WorldRenderer {
       );
     };
     mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
-    mat.alphaTest = 0.5;
     mat.transparent = true;
     mat.depthTest = true;
-    mat.depthWrite = true;
+    cutOrBlend(mat, texture);
     return mat;
   }
 
@@ -2826,6 +2852,7 @@ export class WorldRenderer {
   ): THREE.Mesh {
     const geo = buildSingleQuadGeometry(quad);
     const mesh = new THREE.Mesh(geo, this.materialFor(texture, z));
+    mesh.renderOrder = restingRenderOrder(mesh);
     mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();

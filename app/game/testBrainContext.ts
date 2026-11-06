@@ -72,6 +72,7 @@ export function brainContext(overrides: Partial<BrainContext> = {}) {
     nameOf: (id: string) => id,
     ratingOf: () => null,
     ownRating: () => null,
+    fade: vi.fn(),
     ...overrides,
   } satisfies BrainContext;
   return built;

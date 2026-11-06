@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { MAX_HOUR_OF_DAY } from "./clock";
 import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import type { TileDef } from "./types";
 
@@ -103,7 +104,8 @@ export type BrainActionDef =
   | { action: "cast"; spell: number; of?: Selector }
   | { action: "extract"; of: Selector }
   | { action: "switch"; of: Selector }
-  | { action: "consume"; of?: Selector; tileId?: string };
+  | { action: "consume"; of?: Selector; tileId?: string }
+  | { action: "fade" };
 
 export type BrainEffectDef = { effect: "say"; text: string } | { effect: "noise"; text: string };
 
@@ -172,7 +174,7 @@ const durationMs = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 export const MAX_HEALTH_PERCENT = 100;
 
-export const MAX_HOUR_OF_DAY = 23;
+export { MAX_HOUR_OF_DAY };
 
 const hourOfDay = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_HOUR_OF_DAY));
 
@@ -278,6 +280,7 @@ const actionSchema = v.variant("action", [
     of: v.optional(selectorSchema),
     tileId: v.optional(v.pipe(v.string(), v.minLength(1))),
   }),
+  v.object({ action: v.literal("fade") }),
 ]);
 
 const effectSchema = v.variant("effect", [

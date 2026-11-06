@@ -2506,6 +2506,28 @@ every step taken from the water is slow, including the one back onto the bank.
 A route prices those steps the same way — see `legCost` under "A chase is a
 route" — so it walks round water when going round is quicker.
 
+### A translucent sheet is blended, not cut out
+
+Every world sprite is cut out at half alpha and writes depth, which is what lets
+the world sort by depth with no draw order. A `TilesetDef` marked
+`translucent: true` is the exception: `WorldRenderer.materialFor` and
+`transitionMaterial` give its textures an alpha floor of 0.02 and no depth
+write, and its meshes draw at `TRANSLUCENT_RENDER_ORDER`, after the level and
+after a wading body. The blend goes through the palette pass like the wading
+one, so a half-transparent pixel lands on the nearest palette colour to what is
+behind it.
+
+- **It is per sheet because every material is keyed by texture.** Tints,
+  dissolves and motion ghosts each swap a mesh's material for another one built
+  from the same texture, so a flag on the texture follows the mesh through all
+  of them. A flag per tile would have to be carried through every swap.
+- **Only separate meshes should use it.** A still tile is merged into its
+  chunk's batch, and a whole batch would be drawn late and write no depth. The
+  wisps are bodies, so each is its own mesh.
+- **Two translucent sprites do not sort against each other.** Neither writes
+  depth, so where two overlap the one drawn second is on top, whichever is in
+  front. Everything opaque is drawn before them and sorts correctly.
+
 ### A `reflective` tile shows what stands beside it, blended over the water
 
 A tile with `reflective` has three fields: `colors`, the pixels of its own art
@@ -10675,6 +10697,56 @@ nobody in one way: it never touches `actor.targetId`.
   row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
   selector no control displays.
 
+## `fade` leaves the board without dying
+
+Written for the forest wisp, a creature that is only about at night: it fades
+at dawn, and *A respawn can keep to hours* stops it coming back before dark.
+
+
+`fade` is a brain action with no arguments. The session notes it during the
+turn and calls `fadeAway` after `stepBrain` returns, so nothing later in the
+turn reads a body that is already gone. `fadeAway` goes through `despawn`, the
+path `/despawn` and a player's leaving take, not `kill`:
+
+- **No remains and nothing spilled.** `kill` drops the kit and the `remains`
+  tile and reports a death. A fade is not a death: no `Death`, no death row, no
+  blame, no experience.
+- **The server is told through `drainFades`.** `/despawn` is invisible to the
+  respawn bookkeeping (see *`/despawn` takes a creature off the board*), which
+  is right for an administrator's removal and wrong here. `GameServer.noteFades`
+  arms the body's respawn point the way `noteDeaths` does, so a faded wisp is
+  due back after its delay, wherever it wandered to before it faded.
+- **It is not a spell, and players cannot do it.** Removing a connected
+  player's body leaves them with nothing to play until they reconnect, which is
+  why `/despawn` refuses players. A self-kill a player could cast would have to
+  be a real death, with everything that costs.
+- **It fades on a creature's next turn, wherever it is.** A creature far from
+  every player still dozes through a turn now and then (see *A creature thinks
+  every round only while somebody could notice it*), so a wisp fades at dawn
+  whether or not anybody is near. With nobody online no brain runs at all, and
+  a wisp still on the board then fades on the first turn after somebody joins.
+
+## A respawn can keep to hours
+
+`RespawnInteraction.hours` is `{ fromHour, toHour }` on the same terms as the
+brain's `time_of_day`: a start later than the end runs through midnight, and
+equal ends are refused, since that window would never open.
+
+- **The delay is drawn as before, and the hours are checked when it comes
+  due.** `processDueRespawns` asks `GameSession.respawnHoursWaitMs`. Outside the
+  window, the deadline moves to the next time `fromHour` comes round on the
+  world's clock (`msUntilHours`; a game minute is a wall-clock second), so the
+  alarm does not fire all day.
+- **The hours come from the tile, not from the stored point.** A `SpawnPoint`
+  keeps a copy of `respawn` from the world's first load, so reading the hours
+  off the point would ignore an edit to the tile until the world was replaced.
+- **`/time` brings a held respawn forward.** A held deadline was worked out
+  from the old clock. `waitingForHours` remembers which pending respawns are
+  held for their hours. `flushClock` sets each of those deadlines to now, and
+  the next alarm checks them against the new clock. The set is not persisted.
+  After a restart a held deadline is still right, unless the clock was moved
+  while the world was down.
+
 ## A ranged `after` staggers creatures that decide on the same round
 
 `after` takes an optional `toMs`. With it, the wait is somewhere from `ms` to
@@ -10913,6 +10985,94 @@ left to right and then (for the cyclops) top to bottom. Nothing can check
 that — see *A walk cycle in the wrong row is a bug only a person can see* —
 and the facings want looking at in the game. The cyclops's 4×4 frames stand
 on base cell (3, 3), the bottom-right.
+
+## The forest wisps
+
+Three creatures that are only about at night: `ember-wisp`, `tide-wisp` and
+`moss-wisp`, one per element. Each one fights only by casting spells of its
+own element, glows in that element's colour, and is fragile up close. They are
+placed apart in the eastern forest: the ember wisp in the clearing by the
+stream at (77, 21), the tide wisp at (76, -34) and the moss wisp at (69, -61).
+They were first placed together, and three casting at one player at once is
+three times the damage the tuning below was measured for.
+
+**The art is a glow on a translucent sheet.** `bun run generate:wisps` draws a
+near-white core that darkens through the element's palette ramp and loses
+opacity with distance, eight frames a cycle, with a pulse and a 1.2-pixel bob a
+quarter-cycle apart. Alpha is snapped to four steps, so the glow reads as rings
+rather than as a smooth gradient. The sheet is `translucent` in `tilesets.json`
+(see *A translucent sheet is blended, not cut out*); on any other sheet
+everything under half alpha would be cut away and only the core would be left.
+Every frame carries the same light object, so the light is steady and the
+overlay is not re-baked as the sprite animates. The generator writes the
+sprite, the anchor, the light and the sheet's flag; the battler, brain,
+respawn, transitions and particles are authored on the tile and survive a
+re-run.
+
+**The trail is the tile's own `particles`.** A body is a placement, so the
+emitter is indexed at whatever cell the wisp stands in. When it steps, the
+emitter at the old cell is retired and its sparks finish their lives where they
+were, which is what leaves the trail. Six one-pixel sparks a second, unlit,
+white to the element's colour.
+
+**Each wisp's Arcane is exactly what its spells ask.** Arcane 20 and its
+element at 5, the requirements of its element's rung-20 stone (Ember, Frost,
+Thorns), which it casts as spell 2. Spell 1 is the rung-10 stone of the same
+element (Cinder, Sleet, Barbs) with its requirements raised to match. The
+first version had Arcane 25 against Cinder's 10. That is over double, so the
+cast was instant (see *A cast can take time*), and a wisp spawned beside a
+new character killed it before `/brain off` returned. At exactly the
+requirements both casts take their full 1–1.5 seconds, and a blow breaks a
+cast in progress, which is what makes melee its counter.
+
+**It hits lightly and often.** The pace is the stones' own cooldowns, and the
+damage is authored low on the wisp's copies, not on the stones players carry:
+1 on spell 1, 4 on Ember and Frost, 5 on Thorns. Casting at Arcane 20 adds
+`skill · DAMAGE_AT_MAX_MASTERY` to each, which is why a 1 lands as 3.5. The
+ember wisp's burn is 1–2 seconds at 20%, where the Ember stone's is 2–4
+seconds at 30%. A burn ticks a point every quarter second, so the stone's
+burn alone could be 16 points.
+
+```
+                spell 1        spell 2                 spellPower, before the target's resist
+  ember-wisp    Cinder 1.0s    Ember 1.5s + burned      3.5 / 6.6
+  tide-wisp     Sleet  1.0s    Frost 1.5s + chilled     3.5 / 6.6
+  moss-wisp     Barbs  1.0s    Thorns 1.5s + poison     3.5 / 7.7
+```
+
+In `/admin/play` a new 13-HP character standing still beside a wisp lasted
+about 10 seconds (ember), 11 (tide) and 8 (moss), taking 3 to 7 a hit. The
+first tuning, at 6.6 and 12.8, killed one in under 2 seconds.
+
+**Weak up close and hard to hit from range.** `baseHp` 24 (26 hit points),
+Toughness 2 and Agility 50. `verify battle` against a rung-15 sword kills it in
+about 6 seconds; a hunting bow lands 30% of its shots and takes about 14. The
+duel has no spells and no distance, so those figures say how fragile it is,
+not how dangerous. It has no ranged resistance: the agility is the whole of
+its defence against arrows. Its own element status is in `immuneTo`, and
+`elements` puts it on the element wheel, so a water spell takes half again
+off an ember wisp.
+
+**One wisp in a hundred carries its element's rung-10 stone** (Cinder, Sleet,
+Barbs) in its off hand, and drops it where it dies, as every kit does. A held
+stone is not one of the body's own spells, and the brain casts only those, so
+carrying it does not change how the wisp fights.
+
+**The brain hunts at range and backs off inside two cells.** It sees a player
+within 7 cells, casts spell 1 then spell 2, and walks up when neither can be
+cast. Inside 2 cells it steps away while still casting; past 4 it walks back.
+It drifts within 8 cells of its spawn, and gives up a chase past 14. The first
+row is `time_of_day 7→21 → fading`, above `attacked`, so dawn ends a fight.
+`fading` is `fade`, and `respawn.hours` 21→5 keeps it from coming back until
+night. Between 5 and 7 the wisps already on the board are still about; none
+are respawned. `appear` and `disappear` are noise dissolves edged in the
+element's light colour.
+
+**`/admin/scene` cannot show a wisp's light.** A body's own light is painted
+by `GameRenderer.emitterOverridesFor`, which the scene page does not run; the
+torch salesman is dark there too. Use `/admin/play` at night for that. The map
+editor draws its own materials and still cuts sprites at half alpha, so it
+shows a wisp as its core only.
 
 ## A trait is part of a brain, called with typed arguments
 

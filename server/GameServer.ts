@@ -844,6 +844,11 @@ export class GameServer {
   private respawnPoints = new Map<string, SpawnPoint>();
   private respawnPointsByCell = new Map<string, SpawnPoint[]>();
   private respawnPending = new Map<string, number>();
+  /**
+   * The pending respawns whose deadline is the start of their hours rather than
+   * their drawn delay, so a `/time` that moves the clock can bring them forward.
+   */
+  private waitingForHours = new Set<string>();
 
   private store(): DataStore {
     return this.env.dataStore;
@@ -1039,6 +1044,13 @@ export class GameServer {
         this.respawnPending.delete(key);
         continue;
       }
+      const outsideHoursMs = session.respawnHoursWaitMs(point);
+      if (outsideHoursMs > 0) {
+        this.respawnPending.set(key, nowMs + outsideHoursMs);
+        this.waitingForHours.add(key);
+        continue;
+      }
+      this.waitingForHours.delete(key);
       const outcome = session.respawnAt(point);
       if (outcome.kind === "blocked") {
         this.respawnPending.set(key, nowMs + RESPAWN_RETRY_MS);
@@ -1942,6 +1954,18 @@ export class GameServer {
     if (minutes === null || minutes === undefined) return;
     this.clockOffsetMinutes = minutes - minutesOfDayAt(this.now());
     this.broadcast({ type: "clock", minutesOfDay: minutes });
+    this.recheckRespawnHours();
+  }
+
+  private recheckRespawnHours() {
+    if (this.waitingForHours.size === 0) return;
+    const nowMs = this.now();
+    for (const key of this.waitingForHours) {
+      if (this.respawnPending.has(key)) this.respawnPending.set(key, nowMs);
+    }
+    this.waitingForHours.clear();
+    this.persistRespawnPending();
+    this.scheduleRespawnAlarm();
   }
 
   private flushMasteries() {
@@ -2385,6 +2409,7 @@ export class GameServer {
     this.broadcastMap = this.session.getMap();
     this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesById));
     this.respawnPending.clear();
+    this.waitingForHours.clear();
     this.persistRespawnPoints();
     this.persistRespawnPending();
     this.scheduleRespawnAlarm();
@@ -2572,6 +2597,7 @@ export class GameServer {
      * `noteDeaths` has recorded its death.
      */
     this.noteDeaths(session);
+    this.noteFades(session);
     this.releaseLingerers();
     this.broadcastSpeech(session, actors);
     this.broadcastNoise(session, actors);
@@ -2676,6 +2702,14 @@ export class GameServer {
     }
     for (const id of this.sentMotion.keys()) {
       if (!live.has(id)) this.sentMotion.delete(id);
+    }
+  }
+
+  private noteFades(session: GameSession) {
+    for (const actorId of session.drainFades()) {
+      this.sentHp.delete(actorId);
+      const point = this.respawnPoints.get(actorId);
+      if (point) this.armRespawn(point, this.now());
     }
   }
 

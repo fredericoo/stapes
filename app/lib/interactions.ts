@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
 import type { AuthoredBrain } from "./traits";
 import type { DialogDef } from "./dialog";
+import { MAX_HOUR_OF_DAY } from "./clock";
 import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
@@ -38,9 +39,15 @@ export type DecayInteraction = {
   toMs: number;
 };
 
+export type RespawnHours = {
+  fromHour: number;
+  toHour: number;
+};
+
 export type RespawnInteraction = {
   fromMs: number;
   toMs: number;
+  hours?: RespawnHours;
 };
 
 export type Affliction = {
@@ -809,10 +816,18 @@ export function resolveDecay(def: TileDef): DecayInteraction | null {
   return decay;
 }
 
+const hourOfDay = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_HOUR_OF_DAY));
+
 const respawnSchema = v.pipe(
   v.object({
     fromMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
     toMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    hours: v.optional(
+      v.pipe(
+        v.object({ fromHour: hourOfDay, toHour: hourOfDay }),
+        v.check((h) => h.fromHour !== h.toHour, "respawn hours must not start and end together"),
+      ),
+    ),
   }),
   v.check((r) => r.toMs >= r.fromMs, "respawn toMs must be at least fromMs"),
 );
@@ -1080,7 +1095,13 @@ export function interactionsForSave(
   const respawnToMs = respawn ? Math.round(respawn.toMs) : 0;
   const savedRespawn =
     respawnFromMs > 0 && respawnToMs >= respawnFromMs
-      ? { fromMs: respawnFromMs, toMs: respawnToMs }
+      ? {
+          fromMs: respawnFromMs,
+          toMs: respawnToMs,
+          ...(respawn?.hours && respawn.hours.fromHour !== respawn.hours.toHour
+            ? { hours: { fromHour: respawn.hours.fromHour, toHour: respawn.hours.toHour } }
+            : {}),
+        }
       : undefined;
   const emit = interactions?.emit;
   const receive = interactions?.receive;
