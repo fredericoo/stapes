@@ -8,6 +8,8 @@ export const TERMS = {
   heal: { label: "Heal" },
   health: { label: "Health" },
   defence: { label: "Defence" },
+  resist: { label: "Resist", spoken: "resist against magic" },
+  blow: { label: "Blocked by" },
   hit: { label: "Hit", spoken: "chance to land" },
   swing: { label: "Swing", spoken: "a blow every" },
   attackSpeed: { label: "Attack speed" },

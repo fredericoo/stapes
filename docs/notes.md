@@ -4895,6 +4895,30 @@ the same draws a bare one does — the same rule everything in a fight is under.
 The one draw defence *does* take is the guard below, and it is taken whether or
 not the defender is wearing anything.
 
+### A spell is magic unless it says it is a blow
+
+A stone that harms is **magic** by default, and magic is weighed against
+`arcaneResist` (`app/game/combat.ts`) instead of defence: the arcane resistance
+of what the target wears plus one point for every `ARCANE_LEVELS_PER_RESIST`
+levels of the target's own Arcane. Defence is not part of it. Plate used to
+take a fireball as well as it takes a sword, which made heavy armour the best
+gear against mages.
+
+A stone with `physical` set (`"blunt"` for a stomp, `"ranged"` for a thrown
+stone) is weighed as a weapon blow of that kind: defence plus the resistance to
+that kind, through the same `damageAfterDefence` a swing goes through. Its area
+follows the same rule as its bolt, because `AreaCast` carries `physical` from the
+stone.
+
+A mend is never weighed. It scales with the caster's Arcane and the stone's
+requirements through `spellPower`, as before, and neither the target's resist nor
+its defence takes anything off it.
+
+The guard roll is drawn the same way for both kinds, so a cast takes the same
+draws whichever way it is weighed. `bots/arcane.ts` prices a bolt before
+any reduction, as it did before, so a bot does not yet know that a bolt is
+better against a target in plate.
+
 ### Gear short of its requirements: slower if physical, dormant if magical
 
 `ArmorItem`, `ShieldItem` and `CharmItem` take `requirements` the way a weapon

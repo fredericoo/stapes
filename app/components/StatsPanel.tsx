@@ -128,7 +128,8 @@ const MS_PER_SECOND = 1000;
 function Combat({ attributes }: { attributes: Attributes | null }) {
   if (!attributes) return null;
 
-  const { minDamage, maxDamage, swingMs, hitChance, def, flee, reach, walkPace } = attributes;
+  const { minDamage, maxDamage, swingMs, hitChance, def, resist, flee, reach, walkPace } =
+    attributes;
 
   return (
     <>
@@ -137,10 +138,11 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
         <Reading term="damage" value={bandLabel(minDamage, maxDamage)} />
         <Reading term="defence" value={`${def}`} />
         <Reading term="swing" value={formatDuration(swingMs)} />
-        <Reading term="evasion" value={`${flee}`} />
+        <Reading term="resist" value={`${resist}`} />
         <Reading term="hit" value={`${Math.round(hitChance * 100)}%`} />
-        <Reading term="move" value={`${walkPace.toFixed(1)}c/s`} />
+        <Reading term="evasion" value={`${flee}`} />
         <Reading term="range" value={reach} />
+        <Reading term="move" value={`${walkPace.toFixed(1)}c/s`} />
       </dl>
     </>
   );

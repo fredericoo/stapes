@@ -104,6 +104,15 @@ export type ArmorItem = {
 
 export type WeaponResistances = Partial<Record<WeaponMastery, number>>;
 
+export const PHYSICAL_BLOWS = [
+  "sharp",
+  "blunt",
+  "ranged",
+  "fist",
+] as const satisfies readonly WeaponMastery[];
+
+export type PhysicalBlow = (typeof PHYSICAL_BLOWS)[number];
+
 export type ArtifactItem = {
   type: "artifact";
   pile?: number;
@@ -163,6 +172,8 @@ export type ArcaneStoneItem = {
   cooldownMs: number;
   castTimeMs?: number;
   uninterruptible?: boolean;
+  /** Absent is a magical spell, weighed against arcane resist rather than defence. */
+  physical?: PhysicalBlow;
   sound?: string;
   requirements?: Masteries;
   reach?: Reach;
@@ -531,6 +542,7 @@ export const stoneSchema = v.object({
     v.pipe(v.number(), v.integer(), v.minValue(MIN_CAST_TIME_MS), v.maxValue(MAX_CAST_TIME_MS)),
   ),
   uninterruptible: v.optional(v.boolean()),
+  physical: v.optional(v.picklist(PHYSICAL_BLOWS)),
   sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_SOUND_LENGTH))),
   requirements: v.optional(masteriesSchema),
   reach: v.optional(reachEntries),
@@ -786,6 +798,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     cooldownMs: Math.round(stone.cooldownMs),
     ...(stone.castTimeMs ? { castTimeMs: Math.round(stone.castTimeMs) } : {}),
     ...(stone.uninterruptible ? { uninterruptible: true } : {}),
+    ...(stone.physical ? { physical: stone.physical } : {}),
     ...(sound ? { sound } : {}),
     ...requirementsForSave(stone.requirements),
     ...(stone.reach ? { reach: reachForSave(stone.reach) } : {}),

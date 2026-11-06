@@ -5,6 +5,7 @@ import {
   consumeVerb,
   isRanged,
   MELEE_REACH,
+  PHYSICAL_BLOWS,
   reachOf,
   resolveItem,
   type ArcaneStoneItem,
@@ -14,6 +15,7 @@ import {
   type ConsumableItem,
   type ContainerItem,
   type ItemDef,
+  type PhysicalBlow,
   type Reach,
   type ShieldItem,
   type SpellArea,
@@ -38,8 +40,6 @@ import {
   type MasteryXp,
   MAGIC_MASTERIES,
   physicalShortfall,
-  WEAPON_MASTERIES,
-  type WeaponMastery,
   xpFromMasteries,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
@@ -77,7 +77,7 @@ export type ItemCardEffect = {
 };
 
 export type ItemCardResist = {
-  mastery: WeaponMastery;
+  mastery: PhysicalBlow;
   extra: number;
 };
 
@@ -226,6 +226,7 @@ function armorStats(
   masteries: BattlerDef["masteries"],
 ): ItemCardStat[] {
   const against = armor.type === "armor" ? resistsFrom(armor) : [];
+  const resist = armor.type === "armor" ? (armor.resist?.arcane ?? 0) : 0;
   return [
     {
       term: "defence",
@@ -233,6 +234,9 @@ function armorStats(
       tone: "good",
       ...(against.length > 0 ? { against } : {}),
     },
+    ...(resist > 0
+      ? [{ term: "resist" as const, value: `+${resist}`, tone: "good" as const }]
+      : []),
     ...encumbranceStats(armor.requirements, masteries),
   ];
 }
@@ -287,7 +291,7 @@ function stoneShortfallOf(
 
 function resistsFrom(armor: ArmorItem): ItemCardResist[] {
   const rows: ItemCardResist[] = [];
-  for (const mastery of WEAPON_MASTERIES) {
+  for (const mastery of PHYSICAL_BLOWS) {
     const extra = armor.resist?.[mastery] ?? 0;
     if (extra <= 0) continue;
     rows.push({ mastery, extra });
@@ -437,6 +441,13 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
       tone: "plain",
     });
     const area = stone.effect.area;
+    if (damage > 0 || (area?.damage ?? 0) > 0) {
+      stats.push({
+        term: "blow",
+        value: stone.physical ? `Defence (${MASTERY_LABELS[stone.physical]})` : "Resist",
+        tone: "plain",
+      });
+    }
     if (area) stats.push(...areaStats(area, on));
     const cureIds = new Set([...(stone.effect.cures ?? []), ...(area?.cures ?? [])]);
     const cures = [...cureIds].map((id) => statusDefs[id]?.name ?? id);

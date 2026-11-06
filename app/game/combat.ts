@@ -9,7 +9,7 @@ import {
   type WeaponStatus,
 } from "../lib/item";
 import { absoluteStandingElevation, getStack } from "../lib/mapData";
-import type { Masteries, WeaponMastery } from "../lib/mastery";
+import { masteryLevel, type Masteries, type WeaponMastery } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
@@ -166,6 +166,31 @@ export function guardRolled(defender: Guarded, attacker: Striking, roll: number)
 }
 
 export type Guarded = Pick<FightingStats, "def" | "resist">;
+
+export const ARCANE_LEVELS_PER_RESIST = 4;
+
+/**
+ * What a magical spell is weighed against in place of defence: the arcane
+ * resistance of what is worn, plus a point for every `ARCANE_LEVELS_PER_RESIST`
+ * levels of the body's own Arcane.
+ */
+export function arcaneResist(
+  defender: Pick<FightingStats, "resist">,
+  masteries: Masteries,
+): number {
+  return (
+    (defender.resist.arcane ?? 0) +
+    Math.floor(masteryLevel(masteries, "arcane") / ARCANE_LEVELS_PER_RESIST)
+  );
+}
+
+export function damageAfterResist(
+  potentialDamage: number,
+  resist: number,
+  guardRoll: number,
+): number {
+  return Math.max(0, potentialDamage - Math.round(guardFraction(guardRoll) * resist));
+}
 
 export type Striking = Pick<FightingStats, "mastery">;
 
