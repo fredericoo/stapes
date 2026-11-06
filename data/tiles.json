@@ -29185,6 +29185,7 @@
     "interactions": {
       "item": {
         "type": "stone",
+        "physical": "blunt",
         "effect": {
           "kind": "bolt",
           "on": "caster",
@@ -55008,6 +55009,7 @@
           {
             "type": "stone",
             "name": "Throw stone",
+            "physical": "ranged",
             "effect": {
               "kind": "bolt",
               "on": "target",
@@ -55999,6 +56001,7 @@
           {
             "type": "stone",
             "name": "Stomp",
+            "physical": "blunt",
             "effect": {
               "kind": "bolt",
               "on": "caster",
