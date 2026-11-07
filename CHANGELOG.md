@@ -1,5 +1,12 @@
 # the-last-stones
 
+## 0.14.1
+
+### Patch Changes
+
+- Being hit by a thrown stone or another physical spell now trains your Toughness, and dodging one trains your Agility, as a swing does. Throwing one yourself trains the skill of that blow, such as Ranged, instead of Arcane.
+- The chests in the room under the spawn now open in order as your rating grows: a cap and boots at 3, a bow and a wooden shield at 5, 50 arcane shards at 7, the Light stone at 10, the Spark stone at 12 and 100 arcane shards at 15. After that you are on your own.
+
 ## 0.14.0
 
 ### Minor Changes
