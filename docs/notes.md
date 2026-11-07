@@ -2523,6 +2523,26 @@ surface search looks through them to the swamp or water below and the pace
 and the wade are that tile's. A plant that lost `intangible` would make its own
 cell dry ground at full speed.
 
+**The plants are pressure plates.** Each of `reeds`, `cattails`, `duckweed`
+and `swamp-lily` swaps for its `-trodden` twin while anything with height
+stands in its cell (`gte 1`), and the twin swaps back once the cell is empty
+(`lte 0`), so a bed of reeds parts round whatever walks through it and closes
+behind. Three things keep that cheap and invisible to everything but the
+picture:
+
+- **The twin has the plant's height, `lightPassing` and `intangible`.** A swap
+  then changes nothing `ChunkedLighting.editReach` reads, so it rebakes no
+  light, and nothing the walk reads, so the pace and the wade stay the swamp's.
+  A flattened twin with `height: 0` would rebake four chunks on every step.
+- **The twin keeps the plant's clump.** A scatter tile picks its variant from
+  a hash of the cell and its own id, so a twin with another id would pick
+  another clump. Its `scatterSeed` is `scatterSeedMatching(twin, plant)`, which
+  makes the two hashes equal; the generator writes it.
+- **Every plant on the map is a plate cell.** `settlePlates` walks all of them
+  each time the board settles, wherever the players are. With the 431 on the
+  map that walk is about 56µs; `bun scripts/bench-server.ts --scenario spread`
+  read 2.46ms at p50 before and 2.40ms after.
+
 `bun run generate:swamp` draws all of them. Three things in it look arbitrary
 and are not:
 

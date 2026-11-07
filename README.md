@@ -182,7 +182,8 @@ an agent drives", lists every call.
   `water.png`'s open-water frames recoloured, faded out in opacity towards
   every side they do not connect on, on sheets marked `translucent`. `reeds`,
   `cattails`, `duckweed` and `swamp-lily` are cast through the game's
-  projection with the hats' caster. New tiles are appended to
+  projection with the hats' caster, each with a `-trodden` twin it swaps
+  for as a pressure plate while something stands in its cell. New tiles are appended to
   `data/tiles.json`; a tile already there keeps its rules and has only its
   sprite fields rewritten
 - `bun run generate:swamp-trees` — redraw `data/tilesets/swamp-trees.png`:

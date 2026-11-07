@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveScatterIndex, scatterHash } from "./scatter";
+import { resolveScatterIndex, scatterHash, scatterSeedMatching } from "./scatter";
 import { getFrames, resolveTileSprite } from "./tileResolve";
 import { allTileSprites, type TileDef, type TileSprite } from "./types";
 
@@ -167,5 +167,34 @@ describe("resolving a scatter tile's sprite", () => {
       states: { moving: { scatter: [spriteAt(10)] } },
     });
     expect(allTileSprites(walking)).toHaveLength(4);
+  });
+});
+
+describe("scatterSeedMatching", () => {
+  const faces = [spriteAt(0), spriteAt(1), spriteAt(2), spriteAt(3)];
+  const upright = grass(faces, { id: "reeds" });
+
+  function differingCells(other: TileDef): number {
+    let differ = 0;
+    for (let y = -30; y < 30; y++) {
+      for (let x = -30; x < 30; x++) {
+        if (resolveScatterIndex(x, y, 0, other, 4) !== resolveScatterIndex(x, y, 0, upright, 4)) {
+          differ++;
+        }
+      }
+    }
+    return differ;
+  }
+
+  it("makes a tile with another id pick the same face as its twin in every cell", () => {
+    const trodden = grass(faces, {
+      id: "reeds-trodden",
+      scatterSeed: scatterSeedMatching("reeds-trodden", "reeds"),
+    });
+    expect(differingCells(trodden)).toBe(0);
+  });
+
+  it("is needed: without it the twin picks a different face in most cells", () => {
+    expect(differingCells(grass(faces, { id: "reeds-trodden" }))).toBeGreaterThan(1000);
   });
 });
