@@ -78,6 +78,11 @@ has to have `verify battle` itself; on an older one it says so and stops.
   one the repo's Playwright expects is not installed there:
   `CHROMIUM_PATH=/opt/pw-browsers/chromium bun run test:perf`, and the same
   for `bun run scene`.
+- **A CSS animation in a headless screenshot of `/admin/play` is at its first
+  keyframe.** The page draws so few frames under SwiftShader that an animation
+  started 700ms earlier still reports `currentTime` 0, so anything that fades
+  in is missing from the picture. Seek it before the shot:
+  `el.getAnimations().forEach((a) => { a.pause(); a.currentTime = 300; })`.
 - **A creature in `/admin/play` acts on its own.** It wanders off, turns, or
   kills the player before the screenshot. `/brain <body> off` stops it, and
   `/face <body> <n|e|s|w>` turns it; `/tile` and `/spawn` reply with the new
