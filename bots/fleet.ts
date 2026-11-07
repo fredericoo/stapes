@@ -40,7 +40,27 @@ const OUTDATED_RETRY_MS = 60_000;
 const START_JITTER_MS = 20_000;
 
 /** A generated name somebody already has is drawn again, this many times. */
-const NAME_ATTEMPTS = 8;
+export const NAME_ATTEMPTS = 8;
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+/**
+ * Each bot is a seat that this many characters take turns at, so the hours a
+ * bot plays are spread over several characters rather than levelling one
+ * without end.
+ */
+export const ROSTER_SIZE = 4;
+
+/** How long one character plays before it signs off and another takes the seat. */
+const SESSION_MIN_MS = HOUR_MS;
+const SESSION_MAX_MS = 3 * HOUR_MS;
+
+/** How long a seat stays empty between one character signing off and the next signing in. */
+const BREAK_MIN_MS = MINUTE_MS;
+const BREAK_MAX_MS = 10 * MINUTE_MS;
+
+const CLOSE_NORMAL = 1000;
 
 /**
  * Bun's `WebSocket` takes request headers, which is how the session cookie
@@ -69,12 +89,20 @@ export type FleetConfig = {
 const OPENING: readonly Goal[] = [{ goal: "open_rewards" }, { goal: "reach_level", level: 0 }];
 
 /**
- * Bot `index`'s account: a name from the game's own generator, seeded by the
- * index and the attempt, so the same bot signs in as the same character on
- * every run and a name somebody already took is drawn again.
+ * The account of character `member` of bot `index`'s roster: a name from the
+ * game's own generator, seeded by the index, the member and the attempt, so
+ * the same seat signs in as the same characters on every run and a name
+ * somebody already took is drawn again. Member 0 keeps the seed bots had
+ * before rosters, so the characters already in a world stay in play.
  */
-function accountFor(index: number, attempt: number, password: string): BotAccount {
-  const character = randomCharacterName(seededRandom(`bot-${index}-${attempt}`));
+export function accountFor(
+  index: number,
+  member: number,
+  attempt: number,
+  password: string,
+): BotAccount {
+  const seed = member === 0 ? `bot-${index}-${attempt}` : `bot-${index}-${member}-${attempt}`;
+  const character = randomCharacterName(seededRandom(seed));
   const letters = character.replace(/[^A-Za-z]/g, "").toLowerCase();
   const username = `${letters.slice(0, MAX_USERNAME_LENGTH - 3)}bot`;
   return { username, password, character };
@@ -85,7 +113,8 @@ async function play(
   account: BotAccount,
   landmarks: Landmarks,
   logLine: (line: string) => void,
-): Promise<"again" | "outdated" | "stop"> {
+  endsAtMs: number,
+): Promise<"again" | "outdated" | "stop" | "done"> {
   const { base, origin } = fleet;
   const seat = await takeSeat(base, origin, account);
   const socket = new BunWebSocket(seat.socketUrl, {
@@ -118,12 +147,23 @@ async function play(
     bot.act(now);
   }, FRAME_MS);
 
+  let signedOff = false;
+  const shift = setTimeout(
+    () => {
+      signedOff = true;
+      log("signs off");
+      socket.close(CLOSE_NORMAL);
+    },
+    Math.max(0, endsAtMs - Date.now()),
+  );
+
   return new Promise((resolve) => {
     socket.addEventListener("close", (event) => {
       clearInterval(frame);
+      clearTimeout(shift);
       remote.dispose();
       log(`socket closed: ${event.code} ${event.reason}`);
-      resolve(closing(event.code));
+      resolve(signedOff ? "done" : closing(event.code));
     });
   });
 }
@@ -146,26 +186,72 @@ function standing(remote: RemoteSession): string {
   return `hp ${self.hp ?? "?"}/${self.maxHp ?? "?"}${rating} at ${self.x},${self.y},${self.z}`;
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Plays bot `index` until the server replaces it, signing in again after
- * every other disconnection.
+ * A roster member other than `last` whose names are not all taken, or `last`
+ * when it is the only one left, or null when none is.
  */
-export async function runBot(fleet: FleetConfig, index: number, landmarks: Landmarks) {
-  await new Promise((resolve) => setTimeout(resolve, between(Math.random, 0, START_JITTER_MS)));
-  for (let attempt = 0; attempt < NAME_ATTEMPTS;) {
-    const account = accountFor(index, attempt, fleet.password);
+export function nextMember(
+  random: () => number,
+  attempts: readonly number[],
+  last: number | null,
+): number | null {
+  const usable = attempts.flatMap((tried, member) => (tried < NAME_ATTEMPTS ? [member] : []));
+  const others = usable.filter((member) => member !== last);
+  const pool = others.length ? others : usable;
+  return pool[Math.floor(random() * pool.length)] ?? null;
+}
+
+/**
+ * Plays roster member `member` of bot `index` for one session, between
+ * `SESSION_MIN_MS` and `SESSION_MAX_MS`, signing in again after every
+ * disconnection until the session is over. A name refused by the server
+ * counts against the member in `attempts`.
+ */
+async function playSession(
+  fleet: FleetConfig,
+  index: number,
+  member: number,
+  attempts: number[],
+  landmarks: Landmarks,
+): Promise<"done" | "stop"> {
+  const endsAtMs = Date.now() + between(Math.random, SESSION_MIN_MS, SESSION_MAX_MS);
+  while (attempts[member]! < NAME_ATTEMPTS) {
+    const account = accountFor(index, member, attempts[member]!, fleet.password);
     const log = (line: string) =>
       console.log(`${new Date().toISOString()} [${account.character}] ${line}`);
     let waitMs = RECONNECT_MS;
     try {
-      const ended = await play(fleet, account, landmarks, log);
-      if (ended === "stop") return;
+      const ended = await play(fleet, account, landmarks, log, endsAtMs);
+      if (ended === "stop" || ended === "done") return ended;
       if (ended === "outdated") waitMs = OUTDATED_RETRY_MS;
     } catch (error) {
       log(String(error));
-      if (error instanceof Refused) attempt++;
+      if (error instanceof Refused) attempts[member]!++;
     }
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    if (Date.now() >= endsAtMs) return "done";
+    await sleep(waitMs);
   }
-  console.error(`[bots] bot ${index} found no name to play under`);
+  return "done";
+}
+
+/**
+ * Plays bot `index` until the server replaces it: one roster member per
+ * session, a break of between `BREAK_MIN_MS` and `BREAK_MAX_MS`, then a
+ * different member.
+ */
+export async function runBot(fleet: FleetConfig, index: number, landmarks: Landmarks) {
+  await sleep(between(Math.random, 0, START_JITTER_MS));
+  const attempts = Array.from({ length: ROSTER_SIZE }, () => 0);
+  let member: number | null = null;
+  for (;;) {
+    member = nextMember(Math.random, attempts, member);
+    if (member === null) {
+      console.error(`[bots] bot ${index} found no name to play under`);
+      return;
+    }
+    if ((await playSession(fleet, index, member, attempts, landmarks)) === "stop") return;
+    await sleep(between(Math.random, BREAK_MIN_MS, BREAK_MAX_MS));
+  }
 }

@@ -15306,12 +15306,24 @@ and plays through a `RemoteSession`, the same client state the browser keeps. Th
 tell it from a person, and nothing on the server was added for it. It never
 opens the database, so it does not compete with the server for the lock.
 
-**A bot's name is generated, and the same every run.** Bot number `i` is
-named by `randomCharacterName`, seeded with `bot-i-0`, and its username is
-that name's letters plus `bot`. `bots/account.ts` signs in, signs up if that
+**A bot is a seat that a roster of characters takes turns at.** Bot `i` has
+`ROSTER_SIZE` (four) characters. One plays for between `SESSION_MIN_MS` and
+`SESSION_MAX_MS` (one to three hours), signs off with a normal close, and the
+seat stays empty for between `BREAK_MIN_MS` and `BREAK_MAX_MS` (one to ten
+minutes) before a different member signs in. A disconnection inside a session
+signs the same character in again, with the same end time. Before rosters one
+bot played one character for as long as the process ran, and it levelled far
+past anybody else; spreading the hours over four keeps any one bot nearer a
+person's pace, and the number of accounts stays fixed.
+
+**A bot's name is generated, and the same every run.** Member 0 of bot `i` is
+named by `randomCharacterName`, seeded with `bot-i-0`, the seed bots used
+before rosters, so the characters already in a world keep playing. Member `m`
+is seeded with `bot-i-m-0`. The username is that name's letters plus `bot`. `bots/account.ts` signs in, signs up if that
 fails, and creates the character if the account has no character by that
 name. Every later run finds both. When the name or username belongs to
-somebody else, the bot draws again with `bot-i-1`, and so on.
+somebody else, the member draws again with `bot-i-1` (or `bot-i-m-1`), and so
+on; a member that runs out of `NAME_ATTEMPTS` is left out of the rotation.
 
 Better Auth limits sign-ins per client, and every bot on one machine is one
 client: ten bots starting together are refused a few times. A refused sign-in
