@@ -309,6 +309,8 @@ export type PlacedTile = {
   engraved?: string;
   rewardTag?: string;
   rewardTileIds?: string[];
+  /** How many of each `rewardTileIds` entry to give, keyed by tile id; an unlisted one gives one. */
+  rewardCounts?: Record<string, number>;
   rewardRequires?: RewardRequirements;
   depotTag?: string;
   teleportTo?: Coord;

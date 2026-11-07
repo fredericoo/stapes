@@ -152,10 +152,15 @@ export type DepotInteraction = {
 
 export type PlacedDepot = DepotInteraction & { tag: string };
 
+export type RewardItem = {
+  tileId: string;
+  count: number;
+};
+
 export type PlacedReward = {
   actionName?: string;
   tag: string;
-  itemTileIds: string[];
+  items: RewardItem[];
   requires: RewardRequirements;
 };
 
@@ -206,6 +211,8 @@ export const MAX_CRAFT_WEIGHT = 1000;
 export const MAX_CRAFT_RECIPES = 24;
 
 export const MAX_REWARD_ITEMS = MAX_CONTAINER_SIZE;
+
+export const MIN_REWARD_COUNT = 1;
 
 export type ExtractSlot = {
   tileId: string;
@@ -429,13 +436,21 @@ export const rewardRequirementsSchema = v.object({
 });
 
 /**
- * A malformed requirement falls back to asking nothing rather than voiding the
- * reward, so a typo in the editor never hides a chest the placement still names.
+ * A malformed requirement or count list falls back to asking nothing and giving
+ * one of each rather than voiding the reward, so a typo in the editor never hides
+ * a chest the placement still names.
  */
 const placedRewardSchema = v.object({
   rewardTag: v.pipe(v.string(), v.trim(), v.minLength(1)),
   rewardTileIds: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(MAX_REWARD_ITEMS)),
   rewardRequires: v.fallback(v.optional(rewardRequirementsSchema, {}), {}),
+  rewardCounts: v.fallback(
+    v.optional(
+      v.record(v.string(), v.pipe(v.number(), v.integer(), v.minValue(MIN_REWARD_COUNT))),
+      {},
+    ),
+    {},
+  ),
 });
 
 function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null {
@@ -446,7 +461,10 @@ function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null
   return {
     ...gesture,
     tag: parsed.output.rewardTag,
-    itemTileIds: parsed.output.rewardTileIds,
+    items: parsed.output.rewardTileIds.map((tileId) => ({
+      tileId,
+      count: parsed.output.rewardCounts[tileId] ?? MIN_REWARD_COUNT,
+    })),
     requires: parsed.output.rewardRequires,
   };
 }

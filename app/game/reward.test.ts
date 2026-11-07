@@ -35,6 +35,10 @@ function tile(partial: Record<string, unknown>): TileDef {
 
 const REWARD_TAG = "chest-42";
 
+const SHARD_TILE_ID = "shard";
+
+const SHARD_PILE = 5;
+
 const tiles = [
   tile({ id: "grass" }),
   tile({
@@ -53,6 +57,11 @@ const tiles = [
   }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({ id: "torch", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
+  tile({
+    id: SHARD_TILE_ID,
+    kind: "item",
+    interactions: { item: { type: "artifact", pile: SHARD_PILE } },
+  }),
   tile({
     id: BAG_TILE_ID,
     kind: "item",
@@ -100,8 +109,13 @@ function board(
   return map;
 }
 
-function draft(tag: string, tileIds: string[], minRating: number | null = null): RewardDraft {
-  return { tag, tileIds, minRating };
+function draft(
+  tag: string,
+  tileIds: string[],
+  minRating: number | null = null,
+  counts: Record<string, number> = {},
+): RewardDraft {
+  return { tag, tileIds, counts, minRating };
 }
 
 function requiring(minRating: number): MapFile {
@@ -156,14 +170,19 @@ describe("resolving a reward", () => {
     expect(rewardAt(board(), 1, 0)).toEqual({
       actionName: "Open",
       tag: REWARD_TAG,
-      itemTileIds: ["torch", "sword"],
+      items: [
+        { tileId: "torch", count: 1 },
+        { tileId: "sword", count: 1 },
+      ],
       requires: {},
     });
   });
 
   it("keeps the authored order of the items", () => {
     expect(
-      rewardAt(board("quest-chest", REWARD_TAG, ["sword", "torch"]), 1, 0)?.itemTileIds,
+      rewardAt(board("quest-chest", REWARD_TAG, ["sword", "torch"]), 1, 0)?.items.map(
+        (item) => item.tileId,
+      ),
     ).toEqual(["sword", "torch"]);
   });
 
@@ -369,6 +388,25 @@ describe("writing a reward onto a placement", () => {
     expect(at(next).rewardTileIds).toEqual(["sword"]);
   });
 
+  it("writes only the counts above one, and only for items still given", () => {
+    const next = updatePlacedReward(
+      board(),
+      1,
+      0,
+      0,
+      1,
+      draft(REWARD_TAG, ["torch", "sword"], null, { torch: 3, sword: 1, ghost: 9 }),
+    );
+
+    expect(at(next).rewardCounts).toEqual({ torch: 3 });
+  });
+
+  it("writes no counts for a reward of one of each", () => {
+    const next = updatePlacedReward(board(), 1, 0, 0, 1, draft("t", ["sword"], null, { sword: 1 }));
+
+    expect(at(next)).not.toHaveProperty("rewardCounts");
+  });
+
   it("returns the same map when nothing changed", () => {
     const before = board();
     expect(updatePlacedReward(before, 1, 0, 0, 1, draft(REWARD_TAG, ["torch", "sword"]))).toBe(
@@ -381,6 +419,7 @@ describe("writing a reward onto a placement", () => {
 
     expect(at(cleared).rewardTag).toBeUndefined();
     expect(at(cleared).rewardTileIds).toBeUndefined();
+    expect(at(cleared).rewardCounts).toBeUndefined();
   });
 
   it("survives a trip through the file", () => {
@@ -390,7 +429,10 @@ describe("writing a reward onto a placement", () => {
     expect(resolveReward(placed, tilesById[placed.tileId])).toEqual({
       actionName: "Open",
       tag: REWARD_TAG,
-      itemTileIds: ["torch", "sword"],
+      items: [
+        { tileId: "torch", count: 1 },
+        { tileId: "sword", count: 1 },
+      ],
       requires: {},
     });
   });
@@ -471,5 +513,67 @@ describe("a reward that asks for a rating", () => {
 
     expect(rows(session).find((o) => o.action === "reward")?.blocked).toBeNull();
     expect(session.interact(CHEST)).toBe(true);
+  });
+});
+
+describe("a reward that gives several of one item", () => {
+  const shardChest = (count: unknown) =>
+    replaceStack(board(), 1, 0, 0, [
+      { tileId: "grass" },
+      {
+        tileId: "quest-chest",
+        rewardTag: REWARD_TAG,
+        rewardTileIds: [SHARD_TILE_ID, "sword"],
+        rewardCounts: { [SHARD_TILE_ID]: count } as Record<string, number>,
+      },
+    ]);
+  const bagHolding = (contents: { id: string; tileId: string; count?: number }[]): Equipment => ({
+    ...emptyEquipment(),
+    bag: { id: "itm_bag", tileId: BAG_TILE_ID, contents },
+  });
+
+  it("reads the count off the placement, and one for an item it does not name", () => {
+    expect(rewardAt(shardChest(3), 1, 0)?.items).toEqual([
+      { tileId: SHARD_TILE_ID, count: 3 },
+      { tileId: "sword", count: 1 },
+    ]);
+  });
+
+  it("gives one of each when a count is malformed, rather than hiding the chest", () => {
+    expect(rewardAt(shardChest(0), 1, 0)?.items).toEqual([
+      { tileId: SHARD_TILE_ID, count: 1 },
+      { tileId: "sword", count: 1 },
+    ]);
+  });
+
+  it("lands a count above the pile size as several piles", () => {
+    const session = new GameSession(shardChest(SHARD_PILE + 2), tiles);
+
+    expect(session.interact(CHEST)).toBe(true);
+
+    const contents = session.getSnapshot().equipment.bag?.contents ?? [];
+    expect(contents.map((i) => [i.tileId, i.count ?? 1])).toEqual([
+      [SHARD_TILE_ID, SHARD_PILE],
+      [SHARD_TILE_ID, 2],
+      ["sword", 1],
+    ]);
+  });
+
+  it("needs a square for every pile it lands as", () => {
+    const reward = rewardAt(shardChest(SHARD_PILE + 2), 1, 0)!;
+
+    expect(rewardFits(reward, tilesById, bagWith(1))).toBe(true);
+    expect(rewardFits(reward, tilesById, bagWith(2))).toBe(false);
+  });
+
+  it("tops up a pile the bag already holds before taking a square", () => {
+    const reward = rewardAt(shardChest(2), 1, 0)!;
+    const crowded = bagHolding([
+      { id: "itm_shards", tileId: SHARD_TILE_ID, count: 1 },
+      { id: "itm_a", tileId: "sword" },
+      { id: "itm_b", tileId: "sword" },
+    ]);
+
+    expect(rewardFits(reward, tilesById, crowded)).toBe(true);
   });
 });

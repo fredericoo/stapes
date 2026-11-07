@@ -23,9 +23,16 @@ import {
   resolveTeleport,
   resolveCraft,
 } from "../lib/interactions";
-import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
+import {
+  armorSlotOf,
+  pileMax,
+  resolveConsumable,
+  resolveContainer,
+  resolveItem,
+} from "../lib/item";
+import type { ItemInstance } from "../lib/itemInstance";
 import type { EquipSlot } from "../lib/kit";
-import { stackWithLanding, stowFits } from "../lib/piles";
+import { stackWithLanding, stow, stowFits, withCount } from "../lib/piles";
 import type {
   Coord,
   Direction,
@@ -522,16 +529,55 @@ export function rewardFits(
 ): boolean {
   const bag = equipment.bag;
   if (!bag) return false;
+  return stowReward(bag, reward, tilesById, HYPOTHETICAL_ITEM_ID) !== null;
+}
+
+const HYPOTHETICAL_ITEM_ID = () => "itm_hypothetical";
+
+/**
+ * The bag's contents with every item of `reward` stowed, or null when any one
+ * of them does not fit. A count above an item's pile size lands as several piles,
+ * and a pile tops up one the bag already holds before it takes a square.
+ */
+export function stowReward(
+  bag: ItemInstance,
+  reward: PlacedReward,
+  tilesById: Record<string, TileDef>,
+  mintId: () => string,
+): ItemInstance[] | null {
+  if (!rewardGivable(reward, tilesById)) return null;
   const bagDef = tilesById[bag.tileId];
-  const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
-  const free = size - (bag.contents?.length ?? 0);
-  if (reward.itemTileIds.length > free) return false;
-  return rewardGivable(reward, tilesById);
+  const capacity = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
+  let contents: ItemInstance[] | null = [...(bag.contents ?? [])];
+  for (const pile of rewardPiles(reward, tilesById)) {
+    contents = stow(
+      contents,
+      withCount({ id: mintId(), tileId: pile.tileId }, pile.count),
+      capacity,
+      tilesById,
+    );
+    if (!contents) return null;
+  }
+  return contents;
+}
+
+function rewardPiles(
+  reward: PlacedReward,
+  tilesById: Record<string, TileDef>,
+): { tileId: string; count: number }[] {
+  return reward.items.flatMap(({ tileId, count }) => {
+    const most = pileMax(tilesById[tileId]!);
+    const piles: { tileId: string; count: number }[] = [];
+    for (let left = count; left > 0; left -= most) {
+      piles.push({ tileId, count: Math.min(left, most) });
+    }
+    return piles;
+  });
 }
 
 /** Whether every item `reward` names still exists and is something a bag can hold. */
 function rewardGivable(reward: PlacedReward, tilesById: Record<string, TileDef>): boolean {
-  return reward.itemTileIds.every((tileId) => {
+  return reward.items.every(({ tileId }) => {
     const def = tilesById[tileId];
     if (!def) return false;
     return resolveItem(def) != null && resolveContainer(def) == null;

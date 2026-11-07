@@ -8,10 +8,18 @@ import {
   engravedName,
   isEngravable,
 } from "../lib/engraving";
-import { MAX_REWARD_ITEMS } from "../lib/interactions";
+import { MAX_REWARD_ITEMS, MIN_REWARD_COUNT } from "../lib/interactions";
 import { MIN_RATING } from "../lib/mastery";
 import { useEditorStore } from "../editor/store";
-import { Button, Dialog, FieldLabel, Input, OptionalNumberInput, Textarea } from "../ui";
+import {
+  Button,
+  Dialog,
+  FieldLabel,
+  Input,
+  NumberInput,
+  OptionalNumberInput,
+  Textarea,
+} from "../ui";
 import { ContainerContentsField } from "./ContainerContentsField";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
@@ -83,6 +91,9 @@ export function PlacementSettingsDialog({
   const [engraved, setEngraved] = useState(placed.engraved ?? "");
   const [rewardTag, setRewardTag] = useState(placed.rewardTag ?? "");
   const [rewardTileIds, setRewardTileIds] = useState<string[]>(placed.rewardTileIds ?? []);
+  const [rewardCounts, setRewardCounts] = useState<Record<string, number>>(
+    placed.rewardCounts ?? {},
+  );
   const [rewardMinRating, setRewardMinRating] = useState<number | undefined>(
     placed.rewardRequires?.rating,
   );
@@ -101,6 +112,7 @@ export function PlacementSettingsDialog({
       store.setStackReward(stackIndex, {
         tag: rewardTag,
         tileIds: rewardTileIds,
+        counts: rewardCounts,
         minRating: rewardMinRating ?? null,
       });
     }
@@ -209,6 +221,28 @@ export function PlacementSettingsDialog({
               info={`Up to ${MAX_REWARD_ITEMS}, never a container. The player needs room for all of them at once or is refused.`}
               emptyHint="None — nothing to give means no row is offered."
             />
+
+            {rewardTileIds.length > 0 ? (
+              <div className="flex flex-col gap-1 text-xs">
+                <FieldLabel info="How many of each item the player is given. More than one square holds lands as several squares, and the player needs room for all of them.">
+                  How many
+                </FieldLabel>
+                {rewardTileIds.map((tileId) => (
+                  <label key={tileId} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-muted">
+                      {giveable.find((t) => t.id === tileId)?.name ?? tileId}
+                    </span>
+                    <NumberInput
+                      className="w-20"
+                      min={MIN_REWARD_COUNT}
+                      step={1}
+                      value={rewardCounts[tileId] ?? MIN_REWARD_COUNT}
+                      onChange={(count) => setRewardCounts({ ...rewardCounts, [tileId]: count })}
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : null}
 
             <label className="flex flex-col gap-1 text-xs">
               <FieldLabel info="A player rated below this sees the row but cannot take it, and is told the rating it needs. Leave blank to let anybody take it.">

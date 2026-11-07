@@ -108,7 +108,7 @@ import {
   reachableRemoveStatusAt,
   reachableRewardAt,
   reachableTeleportAt,
-  rewardFits,
+  stowReward,
   rewardShortfall,
   teleportFits,
   pushDirectionFrom,
@@ -4989,21 +4989,15 @@ export class GameSession implements PlaySession {
     const reward = reachableRewardAt(this.map, this.tilesById, loc, ref);
     if (!reward) return false;
     if (actor.tags.includes(reward.tag)) return false;
-    if (!rewardFits(reward, this.tilesById, actor.equipment)) return false;
     if (rewardShortfall(reward, this.ratingOf(actor))) return false;
 
     const giverDef = this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
     if (!giverDef) return false;
 
     const bag = actor.equipment.bag!;
-    const given = reward.itemTileIds.map((tileId) => ({
-      id: mintItemId(),
-      tileId,
-    }));
-    this.setEquipment(actor, {
-      ...actor.equipment,
-      bag: { ...bag, contents: [...(bag.contents ?? []), ...given] },
-    });
+    const contents = stowReward(bag, reward, this.tilesById, mintItemId);
+    if (!contents) return false;
+    this.setEquipment(actor, { ...actor.equipment, bag: { ...bag, contents } });
     this.setTags(actor, [...actor.tags, reward.tag]);
     this.say(actor.id, rewardNotice(reward, giverDef, this.tilesById));
     return true;
