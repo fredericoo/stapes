@@ -291,6 +291,7 @@ import { equipmentForBody, toppedUpKit } from "./battlerKit";
 import { type DeathCost, deathCost } from "./deathCost";
 import {
   attackerEarnings,
+  blowEarnings,
   casterEarnings,
   defenderEarnings,
   defensiveDecay,
@@ -699,7 +700,8 @@ const EXTRACT_INTERRUPTED_NOTICE = "You are interrupted";
 
 type StatusGrantOutcome = "acquired" | "refreshed" | "refused";
 
-type HealthMove = { kind: "harm" | "mend"; amount: number };
+/** `potential` is the rolled power before any guard, which is what a defender learns from. */
+type HealthMove = { kind: "harm" | "mend"; amount: number; potential: number };
 
 const ENGAGED = 0;
 const ON_SCREEN = 1;
@@ -2733,6 +2735,20 @@ export class GameSession implements PlaySession {
       }
     }
 
+    this.awardDefence(attacker, target, outcome, targetMaxHp);
+  }
+
+  private awardDefence(
+    attacker: ActorRuntime,
+    target: ActorRuntime,
+    outcome: AttackOutcome,
+    targetMaxHp: number,
+  ) {
+    if (attacker.resident && target.resident) return;
+    const attackerRating = this.ratingOf(attacker);
+    const targetRating = this.ratingOf(target);
+    if (attackerRating === null || targetRating === null) return;
+
     const defensive = experienceMultiplier(attackerRating, targetRating);
     if (!target.resident && defensive > 0) {
       this.grantExperience(
@@ -3549,6 +3565,8 @@ export class GameSession implements PlaySession {
         atSomebodyElse,
         projectile,
         landing,
+        physical: stone.physical,
+        potential: rolledMove?.kind === "harm" ? rolledMove.potential : 0,
         move,
         grants,
         cures: effect.cures ?? [],
@@ -3576,6 +3594,8 @@ export class GameSession implements PlaySession {
     atSomebodyElse: boolean;
     projectile: string | null | undefined;
     landing: CastLanding;
+    physical: PhysicalBlow | undefined;
+    potential: number;
     move: HealthMove | null;
     grants: readonly StatusGrant[];
     cures: readonly string[];
@@ -3599,6 +3619,9 @@ export class GameSession implements PlaySession {
     const centre = bolt.area ? this.areaCentreOf(subject) : null;
 
     const harmless = bolt.move?.kind === "harm" && actor && !this.mayHarm(actor, subject);
+    if (bolt.physical && bolt.atSomebodyElse && actor && this.mayHarm(actor, subject)) {
+      this.awardBlowDefence(actor, subject, bolt.landing, bolt.potential);
+    }
     if (bolt.move && !harmless) {
       this.applyHealthMove(bolt.move, subject, actor, bolt);
     }
@@ -3622,6 +3645,29 @@ export class GameSession implements PlaySession {
     const casterStats = this.battlerOf(caster);
     const dodge = casterStats ? dodgeChanceAgainst(subjectStats, casterStats) : 0;
     return rollCastLanding(stoneHitChance(stone, masteries), dodge, this.rng);
+  }
+
+  /** A physical cast teaches whoever it was thrown at what a swing of the same power would. */
+  private awardBlowDefence(
+    caster: ActorRuntime,
+    subject: ActorRuntime,
+    landing: CastLanding,
+    potential: number,
+  ) {
+    const maxHp = this.battlerOf(subject)?.maxHp;
+    if (maxHp === undefined) return;
+    this.awardDefence(
+      caster,
+      subject,
+      {
+        missed: landing === "missed",
+        dodged: landing === "dodged",
+        damage: 0,
+        potentialDamage: potential,
+        inflicted: NOTHING_INFLICTED,
+      },
+      maxHp,
+    );
   }
 
   private dodgeCast(subject: ActorRuntime, caster: ActorRuntime | undefined) {
@@ -3720,8 +3766,13 @@ export class GameSession implements PlaySession {
         this.notePendingHurt(body.id, actor.id);
         this.flagCombat(actor);
         this.flagCombat(body);
+        if (cast.physical) this.awardBlowDefence(actor, body, "landed", move.potential);
       }
-      this.applyHealthMove(move, body, actor, { ...from, atSomebodyElse: !isCaster });
+      this.applyHealthMove(move, body, actor, {
+        ...from,
+        atSomebodyElse: !isCaster,
+        physical: cast.physical,
+      });
     }
 
     if ((this.hpOf(body) ?? 0) <= 0) return;
@@ -3757,13 +3808,17 @@ export class GameSession implements PlaySession {
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
 
-    if (effect.damage < 0) return { kind: "mend", amount: Math.max(0, -rolled) };
+    if (effect.damage < 0) {
+      const amount = Math.max(0, -rolled);
+      return { kind: "mend", amount, potential: amount };
+    }
 
     const guard = spellGuard(stone.physical, context.stats, this.bodyOf(subject)?.masteries ?? {});
     const through = damageAfterGuard(rolled, guard, guardRoll);
     return {
       kind: "harm",
       amount: this.elementalDamage(subject, through, elements),
+      potential: rolled,
     };
   }
 
@@ -3775,6 +3830,7 @@ export class GameSession implements PlaySession {
       atSomebodyElse: boolean;
       elements: readonly Element[];
       blame: Blame;
+      physical?: PhysicalBlow | undefined;
     },
   ) {
     if (move.kind === "harm") {
@@ -3792,7 +3848,7 @@ export class GameSession implements PlaySession {
       if (dealt <= 0) return;
       this.applyDamage(subject, dealt, context.blame);
       if (context.atSomebodyElse && actor) {
-        this.awardCastDamage(actor, subject, dealt, context.elements);
+        this.awardCastDamage(actor, subject, dealt, context.elements, context.physical);
       }
       return;
     }
@@ -3815,15 +3871,17 @@ export class GameSession implements PlaySession {
     victim: ActorRuntime,
     damage: number,
     elements: readonly Element[],
+    physical: PhysicalBlow | undefined,
   ) {
     if (caster.resident) return;
     const body = this.bodyOf(caster);
     const victimRating = this.ratingOf(victim);
     if (!body || victimRating === null) return;
 
-    this.grantCasting(caster, damage, elements, (mastery) =>
-      masteryMultiplier(victimRating, body.masteries, mastery),
-    );
+    const multiplierFor = (mastery: Mastery) =>
+      masteryMultiplier(victimRating, body.masteries, mastery);
+    if (physical) this.grantExperience(caster, blowEarnings(damage, physical, multiplierFor));
+    else this.grantCasting(caster, damage, elements, multiplierFor);
   }
 
   private fireBolt(

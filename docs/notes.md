@@ -4999,7 +4999,14 @@ the blow exactly as `fightingStats` raises a weapon's. The target dodges with
 a dodge steps the target aside, and either one drops the bolt's damage and its
 statuses; the bolt's area still lands, since an area is not aimed at anybody.
 Magic, mends, casts on the caster and areas (a cyclops's Stomp) still always
-land. Bog imps' Throw stone hit every time before this and was most of the
+land. A physical cast also pays experience the way a swing does. The
+caster earns the blow's mastery plus the `AGILITY_SHARE_OF_OFFENCE` of Agility
+on the damage dealt (`blowEarnings` in `app/game/experience.ts`), in place of
+Arcane and the stone's elements. Whoever it was thrown at earns Toughness, or
+Agility on a dodge, through `awardDefence`, with the same threat scaling and
+per-attacker decay as a swing; an area pays Toughness to each body it hits.
+The flat `XP_PER_CAST` Arcane fee is still paid for every cast, because it is
+paid for pressing the stone, not for what the stone did. Bog imps' Throw stone hit every time before this and was most of the
 damage an imp did.
 
 A mend is never weighed. It scales with the caster's Arcane and the stone's
