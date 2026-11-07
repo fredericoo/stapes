@@ -1,5 +1,10 @@
 import { formatClock, type MinutesOfDay } from "../lib/clock";
-import type { CraftInteraction, ExtractInteraction, PlacedReward } from "../lib/interactions";
+import type {
+  CraftInteraction,
+  ExtractInteraction,
+  PlacedReward,
+  RewardItem,
+} from "../lib/interactions";
 import { DEFAULT_CRAFT_VERB, DEFAULT_EXTRACT_VERB } from "../lib/interactions";
 import { EQUIP_SLOTS } from "../lib/kit";
 import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
@@ -30,7 +35,7 @@ export function rewardNotice(
   tilesById: Record<string, TileDef>,
 ): string {
   const opening = `You ${verbOf(reward)} ${giver.name}`;
-  const items = countedItems(reward.itemTileIds, tilesById);
+  const items = countedItems(reward.items, tilesById);
   return items.length === 0 ? opening : `${opening} and receive ${items}`;
 }
 
@@ -63,10 +68,14 @@ function verbOf(reward: PlacedReward): string {
   return sentenceVerb(reward.actionName, DEFAULT_REWARD_VERB);
 }
 
-function countedItems(tileIds: string[], tilesById: Record<string, TileDef>): string {
+function oneEach(tileIds: readonly string[]): RewardItem[] {
+  return tileIds.map((tileId) => ({ tileId, count: 1 }));
+}
+
+function countedItems(items: readonly RewardItem[], tilesById: Record<string, TileDef>): string {
   const counted = new Map<string, number>();
-  for (const tileId of tileIds) {
-    counted.set(tileId, (counted.get(tileId) ?? 0) + 1);
+  for (const { tileId, count } of items) {
+    counted.set(tileId, (counted.get(tileId) ?? 0) + count);
   }
   return [...counted]
     .map(([tileId, count]) => `${count} ${tilesById[tileId]?.name ?? tileId}`)
@@ -81,7 +90,7 @@ export function extractNotice(
 ): string {
   const opening = `You ${sentenceVerb(extract.actionName, DEFAULT_EXTRACT_SENTENCE_VERB)} ${worked.name}`;
   if (tileIds.length === 0) return `${opening} and find nothing`;
-  return `${opening} and take ${countedItems([...tileIds], tilesById)}`;
+  return `${opening} and take ${countedItems(oneEach(tileIds), tilesById)}`;
 }
 
 export function craftNotice(
@@ -92,7 +101,7 @@ export function craftNotice(
 ): string {
   const opening = `You ${sentenceVerb(craft.actionName, DEFAULT_CRAFT_SENTENCE_VERB)} at ${crafter.name}`;
   if (tileIds.length === 0) return `${opening} and it comes to nothing`;
-  return `${opening} and make ${countedItems([...tileIds], tilesById)}`;
+  return `${opening} and make ${countedItems(oneEach(tileIds), tilesById)}`;
 }
 
 const DEFAULT_CRAFT_SENTENCE_VERB = DEFAULT_CRAFT_VERB.toLowerCase();

@@ -805,6 +805,8 @@ export function updatePlacedFoot(
 export type RewardDraft = {
   tag: string;
   tileIds: readonly string[];
+  /** How many of each item to give, by tile id; an id with no entry, or an entry of one, gives one. */
+  counts: Readonly<Record<string, number>>;
   minRating: number | null;
 };
 
@@ -825,11 +827,13 @@ export function updatePlacedReward(
   const live = trimmedTag !== "" && kept.length > 0;
   const nextTag = live ? trimmedTag : undefined;
   const nextIds = live ? kept : undefined;
+  const nextCounts = live ? countsAboveOne(kept, draft.counts) : undefined;
   const nextRating = live && draft.minRating !== null ? draft.minRating : undefined;
 
   if (
     placed.rewardTag === nextTag &&
     sameIds(placed.rewardTileIds, nextIds) &&
+    sameCounts(placed.rewardCounts, nextCounts) &&
     placed.rewardRequires?.rating === nextRating
   ) {
     return map;
@@ -837,12 +841,40 @@ export function updatePlacedReward(
 
   const stack = current.map((p, i) => {
     if (i !== stackIndex) return { ...p };
-    const { rewardTag: _tag, rewardTileIds: _ids, rewardRequires: _requires, ...rest } = p;
+    const {
+      rewardTag: _tag,
+      rewardTileIds: _ids,
+      rewardCounts: _counts,
+      rewardRequires: _requires,
+      ...rest
+    } = p;
     if (!live) return rest;
+    const counts = nextCounts ? { rewardCounts: nextCounts } : {};
     const requires = nextRating === undefined ? {} : { rewardRequires: { rating: nextRating } };
-    return { ...rest, rewardTag: nextTag, rewardTileIds: nextIds, ...requires };
+    return { ...rest, rewardTag: nextTag, rewardTileIds: nextIds, ...counts, ...requires };
   });
   return setStack(map, x, y, z, stack);
+}
+
+/** Only the counts that say something, so a reward of one of each writes no `rewardCounts` line. */
+function countsAboveOne(
+  tileIds: readonly string[],
+  counts: Readonly<Record<string, number>>,
+): Record<string, number> | undefined {
+  const entries = tileIds.flatMap((tileId) => {
+    const count = counts[tileId];
+    return count !== undefined && count > 1 ? [[tileId, count] as const] : [];
+  });
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function sameCounts(
+  a: Readonly<Record<string, number>> | undefined,
+  b: Readonly<Record<string, number>> | undefined,
+): boolean {
+  const aKeys = Object.keys(a ?? {});
+  if (aKeys.length !== Object.keys(b ?? {}).length) return false;
+  return aKeys.every((key) => a![key] === b?.[key]);
 }
 
 export function updatePlacedDepotTag(

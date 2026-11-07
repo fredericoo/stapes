@@ -9415,6 +9415,15 @@ in. So **nothing on the board changes at all**. What changes is the taker.
   verb nor the sprite can tell you before you walk away from it. The list row
   wears it unlit, unlike every other row, because "only once" is a property of
   the offer rather than a state you are in.
+- **A placement can give several of one item: `PlacedTile.rewardCounts`.** A
+  record keyed by tile id, beside `rewardTileIds` rather than inside it, so a
+  reward of one of each — every chest written before counts existed — writes no
+  extra line, and the editor writes only counts above one. `stowReward` is the
+  one place the reward meets the bag: a count above the item's pile size lands
+  as several piles, and each pile tops up one the bag already holds before it
+  takes a square, through the same `stow` a pick-up uses. `rewardFits` asks it
+  with a made-up id, so the check and the take cannot disagree about room. A
+  malformed count list parses as one of each, on the requirement's terms.
 - **A placement can ask something of the taker: `PlacedTile.rewardRequires`.**
   Only `rating` so far. It sits on the placement beside the tag for the same
   reason the tag does: one `quest-chest` tile is both the tutorial's free chest

@@ -197,7 +197,7 @@ function chestBoard(
 const reward = (actionName: string | undefined, itemTileIds: string[]) => ({
   ...(actionName === undefined ? {} : { actionName }),
   tag: "the-chest",
-  itemTileIds,
+  items: itemTileIds.map((tileId) => ({ tileId, count: 1 })),
   requires: {},
 });
 
@@ -220,6 +220,16 @@ describe("what a reward says", () => {
         rewardTilesById,
       ),
     ).toBe("You open Quest Chest and receive 3 Bread, 1 Rusty Sword");
+  });
+
+  it("adds a counted item's count to the quantity", () => {
+    expect(
+      rewardNotice(
+        { tag: "the-chest", items: [{ tileId: "bread", count: 50 }], requires: {} },
+        rewardTilesById["quest-chest"],
+        rewardTilesById,
+      ),
+    ).toBe("You take Quest Chest and receive 50 Bread");
   });
 
   it("falls back to taking when the author named no gesture", () => {
