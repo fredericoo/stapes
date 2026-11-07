@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { AUTOTILE_SLICE_MASKS, E, N, NE, NW, S, SE, SW, W } from "../app/lib/autotile";
+import { scatterSeedMatching } from "../app/lib/scatter";
 import { CELL_SIZE, type TileDef, type TileSprite } from "../app/lib/types";
 import { cast, shade } from "./human-parts/cast";
 import {
@@ -182,6 +183,7 @@ const STALK_BY_SEGMENT = [
 ];
 const HEAD = ["#45293f", "#6e2727", "#9e4539"];
 const PAD = ["#239063", "#1ebc73", "#91db69"];
+const SUNK_PAD = ["#239063", "#1ebc73"];
 const PETAL = ["#cf657f", "#ffffff"];
 const HEART = ["#fbb954"];
 
@@ -210,15 +212,21 @@ function stalk(base: Vec, height: number, lean: Vec, sway: number, radius: numbe
 
 type Clump = { seed: number; stalks: number; cattails: boolean };
 
-function clumpSolids({ seed, stalks, cattails }: Clump, sway: number): Solid[] {
+/**
+ * Trodden, the same stalks splay out from the middle of the cell and lie low,
+ * parted round whatever is standing there. The random draws are the same
+ * either way, so a clump keeps its shape between the two.
+ */
+function clumpSolids({ seed, stalks, cattails }: Clump, sway: number, trodden = false): Solid[] {
   const rand = random(seed);
   const solids: Solid[] = [];
   for (let i = 0; i < stalks; i++) {
     const angle = (2 * Math.PI * (i + rand() * 0.5)) / stalks;
-    const reach = 1 + rand() * 1.8;
+    const reach = 1 + rand() * 1.8 + (trodden ? 1 : 0);
     const base: Vec = [CELL / 2 + Math.cos(angle) * reach, CELL / 2 + Math.sin(angle) * reach, 0];
-    const lean: Vec = [Math.cos(angle) * 0.25, Math.sin(angle) * 0.25, 0];
-    const height = 5 + rand() * 4;
+    const splay = trodden ? 0.85 : 0.25;
+    const lean: Vec = [Math.cos(angle) * splay, Math.sin(angle) * splay, 0];
+    const height = (5 + rand() * 4) * (trodden ? 0.45 : 1);
     const swayHere = sway * (0.6 + rand() * 0.6);
     stalk(base, height, lean, swayHere, 0.6).forEach((sdf, segment) =>
       solids.push({ sdf, ramp: STALK_BY_SEGMENT[segment]!, weight: 3 }),
@@ -250,14 +258,22 @@ function pad(centre: Vec, radius: number, notch: number): Sdf {
   return minus(disc, wedge);
 }
 
-function lilySolids(seed: number, flower: boolean): Solid[] {
+/** Trodden, a pad is pushed under the surface, which darkens it, and its flower closes to a bud. */
+function lilySolids(seed: number, flower: boolean, trodden = false): Solid[] {
   const rand = random(seed);
   const pads: Solid[] = [];
   const count = flower ? 1 : 2;
   for (let i = 0; i < count; i++) {
     const centre: Vec = [2.5 + rand() * 3, 2.5 + rand() * 3, 0];
-    pads.push({ sdf: pad(centre, flower ? 2.6 : 1.8, rand() * Math.PI * 2), ramp: PAD });
-    if (flower) {
+    const disc = pad(centre, flower ? 2.6 : 1.8, rand() * Math.PI * 2);
+    pads.push({ sdf: disc, ramp: trodden ? SUNK_PAD : PAD });
+    if (flower && trodden) {
+      pads.push({
+        sdf: sphere([centre[0] - 0.5, centre[1] + 0.5, 0.9], 0.7),
+        ramp: PETAL,
+        weight: 3,
+      });
+    } else if (flower) {
       pads.push({
         sdf: sphere([centre[0] - 0.5, centre[1] + 0.5, 1.2], 0.6),
         ramp: HEART,
@@ -277,13 +293,23 @@ function lilySolids(seed: number, flower: boolean): Solid[] {
   return pads;
 }
 
-function duckweedSolids(seed: number): Solid[] {
+const PARTED_RADIUS = 2.8;
+
+/** Trodden, every frond within `PARTED_RADIUS` of the middle is pushed out to it, leaving a clear ring. */
+function duckweedSolids(seed: number, trodden = false): Solid[] {
   const rand = random(seed);
-  return Array.from({ length: 9 }, () => ({
-    sdf: cylinder([0.5 + rand() * 7, 0.5 + rand() * 7, 0], 0.45 + rand() * 0.45, 0, 0.3),
-    ramp: PAD,
-    weight: 2,
-  }));
+  return Array.from({ length: 9 }, () => {
+    let x = 0.5 + rand() * 7;
+    let y = 0.5 + rand() * 7;
+    const r = 0.45 + rand() * 0.45;
+    const off = Math.hypot(x - CELL / 2, y - CELL / 2);
+    if (trodden && off < PARTED_RADIUS) {
+      const angle = Math.atan2(y - CELL / 2, x - CELL / 2);
+      x = CELL / 2 + Math.cos(angle) * PARTED_RADIUS;
+      y = CELL / 2 + Math.sin(angle) * PARTED_RADIUS;
+    }
+    return { sdf: cylinder([x, y, 0], r, 0, 0.3), ramp: PAD, weight: 2 };
+  });
 }
 
 /** Casts solids standing in the sprite's ground cell, seen through the world's projection. */
@@ -336,49 +362,64 @@ const STANDING: StandingPlant[] = [
 
 const SWAYS = [0, 0.7];
 
-function standingTile(plant: StandingPlant, column: number): TileDef {
+const TRODDEN_ROW = STANDING_CELLS + 1;
+const TRODDEN_FLAT_COLUMN = 4;
+
+/**
+ * Each plant is a pressure plate that swaps for its trodden twin while
+ * anything with height stands in its cell and swaps back once the cell is
+ * empty. The twin has the same height, light and `intangible`, so a swap
+ * changes nothing the light bake or the walk reads.
+ */
+function treadable(upright: TileDef, trodden: TileDef): TileDef[] {
+  return [
+    {
+      ...upright,
+      interactions: { pressurePlate: { tileId: trodden.id, type: "gte", height: 1 } },
+    },
+    {
+      ...trodden,
+      scatterSeed: scatterSeedMatching(trodden.id, upright.id),
+      interactions: { pressurePlate: { tileId: upright.id, type: "lte", height: 0 } },
+    },
+  ];
+}
+
+function plantTile(
+  tileId: string,
+  name: string,
+  height: TileDef["height"],
+  anchor: { x: number; y: number },
+  scatter: TileSprite[],
+): TileDef {
   return {
-    id: plant.tileId,
-    name: plant.name,
-    height: 2,
+    id: tileId,
+    name,
+    height,
     type: "scatter",
     kind: "prop",
     attributes: {},
-    anchor: { tilesetId: PLANTS_TILESET, x: column, y: 0 },
+    anchor: { tilesetId: PLANTS_TILESET, ...anchor },
     lightPassing: true,
     intangible: true,
-    scatter: plant.clumps.map((_, variant) => ({
-      frames: SWAYS.map((_, frame) => ({
-        sprite: {
-          rect: { x: (variant * SWAYS.length + frame) * STANDING_CELLS, y: 0, w: 2, h: 2 },
-          base: { x: 1, y: 1 },
-        },
-        durationMs: SWAY_FRAME_MS,
-      })),
-      phase: SWAY_PHASE,
+    scatter,
+  };
+}
+
+function standingSprite(columns: number[], durationMs: number): TileSprite {
+  return {
+    frames: columns.map((column) => ({
+      sprite: { rect: { x: column, y: 0, w: 2, h: 2 }, base: { x: 1, y: 1 } },
+      durationMs,
     })),
   };
 }
 
-function flatTile(tileId: string, name: string, column: number): TileDef {
+function flatSprite(column: number): TileSprite {
   return {
-    id: tileId,
-    name,
-    height: 0,
-    type: "scatter",
-    kind: "prop",
-    attributes: {},
-    anchor: { tilesetId: PLANTS_TILESET, x: column, y: FLAT_ROW },
-    lightPassing: true,
-    intangible: true,
-    scatter: Array.from({ length: VARIANTS }, (_, variant) => ({
-      frames: [
-        {
-          sprite: { rect: { x: variant, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
-          durationMs: 200,
-        },
-      ],
-    })),
+    frames: [
+      { sprite: { rect: { x: column, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 },
+    ],
   };
 }
 
@@ -386,35 +427,77 @@ function plantSheet(): { sheet: PNG; tiles: TileDef[] } {
   const columnsPerPlant = VARIANTS * SWAYS.length * STANDING_CELLS;
   const sheet = new PNG({
     width: STANDING.length * columnsPerPlant * CELL,
-    height: STANDING_PX + CELL,
+    height: 2 * STANDING_PX + CELL,
   });
   sheet.data.fill(0);
-  const tiles = STANDING.map((plant, p) => {
-    plant.clumps.forEach((clump, variant) =>
+  const tiles: TileDef[] = [];
+  STANDING.forEach((plant, p) => {
+    plant.clumps.forEach((clump, variant) => {
       SWAYS.forEach((sway, frame) => {
         const column = p * columnsPerPlant + (variant * SWAYS.length + frame) * STANDING_CELLS;
-        blit(
-          sheet,
-          castSprite(clumpSolids(clump, sway), STANDING_CELLS),
-          STANDING_PX,
-          column * CELL,
-          0,
-        );
-      }),
+        const art = castSprite(clumpSolids(clump, sway), STANDING_CELLS);
+        blit(sheet, art, STANDING_PX, column * CELL, 0);
+      });
+      const trodden = castSprite(clumpSolids(clump, 0, true), STANDING_CELLS);
+      blit(
+        sheet,
+        trodden,
+        STANDING_PX,
+        (p * VARIANTS + variant) * STANDING_CELLS * CELL,
+        TRODDEN_ROW * CELL,
+      );
+    });
+    const upright = plantTile(
+      plant.tileId,
+      plant.name,
+      2,
+      { x: p * columnsPerPlant, y: 0 },
+      plant.clumps.map((_, variant) => ({
+        ...standingSprite(
+          SWAYS.map((_, frame) => (variant * SWAYS.length + frame) * STANDING_CELLS),
+          SWAY_FRAME_MS,
+        ),
+        phase: SWAY_PHASE,
+      })),
     );
-    return standingTile(plant, p * columnsPerPlant);
+    const trodden = plantTile(
+      `${plant.tileId}-trodden`,
+      `${plant.name} (trodden)`,
+      2,
+      { x: p * VARIANTS * STANDING_CELLS, y: TRODDEN_ROW },
+      plant.clumps.map((_, variant) => standingSprite([variant * STANDING_CELLS], 200)),
+    );
+    tiles.push(...treadable(upright, trodden));
   });
 
-  const flats: { tileId: string; name: string; draw: (variant: number) => Solid[] }[] = [
-    { tileId: "duckweed", name: "Duckweed", draw: (v) => duckweedSolids(100 + v) },
-    { tileId: "swamp-lily", name: "Swamp lily", draw: (v) => lilySolids(200 + v, v === 0) },
+  const flats: {
+    tileId: string;
+    name: string;
+    draw: (variant: number, trodden: boolean) => Solid[];
+  }[] = [
+    { tileId: "duckweed", name: "Duckweed", draw: (v, t) => duckweedSolids(100 + v, t) },
+    { tileId: "swamp-lily", name: "Swamp lily", draw: (v, t) => lilySolids(200 + v, v === 0, t) },
   ];
   flats.forEach((flat, f) => {
     for (let variant = 0; variant < VARIANTS; variant++) {
       const column = f * VARIANTS + variant;
-      blit(sheet, castSprite(flat.draw(variant), 1), CELL, column * CELL, STANDING_PX);
+      blit(sheet, castSprite(flat.draw(variant, false), 1), CELL, column * CELL, STANDING_PX);
+      const troddenColumn = TRODDEN_FLAT_COLUMN + column;
+      blit(sheet, castSprite(flat.draw(variant, true), 1), CELL, troddenColumn * CELL, STANDING_PX);
     }
-    tiles.push(flatTile(flat.tileId, flat.name, f * VARIANTS));
+    const variants = Array.from({ length: VARIANTS }, (_, v) => flatSprite(v));
+    tiles.push(
+      ...treadable(
+        plantTile(flat.tileId, flat.name, 0, { x: f * VARIANTS, y: FLAT_ROW }, variants),
+        plantTile(
+          `${flat.tileId}-trodden`,
+          `${flat.name} (trodden)`,
+          0,
+          { x: TRODDEN_FLAT_COLUMN + f * VARIANTS, y: FLAT_ROW },
+          variants,
+        ),
+      ),
+    );
   });
   return { sheet, tiles };
 }

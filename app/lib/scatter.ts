@@ -49,6 +49,15 @@ export function resolveScatterIndex(
   return scatterHash(x, y, z, seed) % count;
 }
 
+/**
+ * The `scatterSeed` that makes tile `id` pick, at every cell, the variant a
+ * tile `like` with no seed of its own picks there. A tile that swaps for
+ * another in place, such as a plant trodden flat, keeps its face this way.
+ */
+export function scatterSeedMatching(id: string, like: string): number {
+  return (idSeed(id) ^ idSeed(like)) >>> 0;
+}
+
 export function pickScatterSprite(tile: StateSprites, index: number): TileSprite | undefined {
   const variants = tile.scatter;
   if (!variants?.length) return undefined;

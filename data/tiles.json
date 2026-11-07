@@ -90621,7 +90621,14 @@
           "y": 0
         }
       }
-    ]
+    ],
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "reeds-trodden",
+        "type": "gte",
+        "height": 1
+      }
+    }
   },
   {
     "id": "cattails",
@@ -90714,7 +90721,14 @@
           "y": 0
         }
       }
-    ]
+    ],
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "cattails-trodden",
+        "type": "gte",
+        "height": 1
+      }
+    }
   },
   {
     "id": "duckweed",
@@ -90769,7 +90783,14 @@
           }
         ]
       }
-    ]
+    ],
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "duckweed-trodden",
+        "type": "gte",
+        "height": 1
+      }
+    }
   },
   {
     "id": "swamp-lily",
@@ -90824,6 +90845,265 @@
           }
         ]
       }
-    ]
+    ],
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "swamp-lily-trodden",
+        "type": "gte",
+        "height": 1
+      }
+    }
+  },
+  {
+    "id": "reeds-trodden",
+    "name": "Reeds (trodden)",
+    "height": 2,
+    "type": "scatter",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "swamp-plants",
+      "x": 0,
+      "y": 3
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "scatter": [
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    ],
+    "scatterSeed": 2051950789,
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "reeds",
+        "type": "lte",
+        "height": 0
+      }
+    }
+  },
+  {
+    "id": "cattails-trodden",
+    "name": "Cattails (trodden)",
+    "height": 2,
+    "type": "scatter",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "swamp-plants",
+      "x": 4,
+      "y": 3
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "scatter": [
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    ],
+    "scatterSeed": 2559132757,
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "cattails",
+        "type": "lte",
+        "height": 0
+      }
+    }
+  },
+  {
+    "id": "duckweed-trodden",
+    "name": "Duckweed (trodden)",
+    "height": 0,
+    "type": "scatter",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "swamp-plants",
+      "x": 4,
+      "y": 2
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "scatter": [
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    ],
+    "scatterSeed": 3146400573,
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "duckweed",
+        "type": "lte",
+        "height": 0
+      }
+    }
+  },
+  {
+    "id": "swamp-lily-trodden",
+    "name": "Swamp lily (trodden)",
+    "height": 0,
+    "type": "scatter",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "swamp-plants",
+      "x": 6,
+      "y": 2
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "scatter": [
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    ],
+    "scatterSeed": 4276740037,
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "swamp-lily",
+        "type": "lte",
+        "height": 0
+      }
+    }
   }
 ]
