@@ -1,5 +1,11 @@
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BASE_HP, encumbrance, fightingStats } from "../lib/battler";
+import {
+  aimedBlow,
+  DEFAULT_BASE_HP,
+  encumbrance,
+  fightingStats,
+  stoneHitChance,
+} from "../lib/battler";
 import {
   armorSlotOf,
   consumeVerb,
@@ -445,6 +451,13 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
       stats.push({
         term: "blow",
         value: stone.physical ? `Defence (${MASTERY_LABELS[stone.physical]})` : "Resist",
+        tone: "plain",
+      });
+    }
+    if (aimedBlow(stone)) {
+      stats.push({
+        term: "hit",
+        value: `${percent(stoneHitChance(stone, {}))}%`,
         tone: "plain",
       });
     }

@@ -55016,6 +55016,7 @@
             "type": "stone",
             "name": "Throw stone",
             "physical": "ranged",
+            "accuracy": 50,
             "effect": {
               "kind": "bolt",
               "on": "target",

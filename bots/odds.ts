@@ -33,7 +33,7 @@ import {
 } from "../app/lib/item";
 import type { Masteries } from "../app/lib/mastery";
 import type { StatusDef } from "../app/lib/status";
-import type { BoltTarget } from "./arcane";
+import { landingShare, type BoltTarget } from "./arcane";
 import type { TileDef } from "../app/lib/types";
 
 /** A body as a fight sees it: who it is, how hurt, and what it is under. */
@@ -117,7 +117,8 @@ function damageAtFoe(spell: ArcaneStoneItem, masteries: Masteries, target?: Bolt
       guard,
     );
   };
-  return (effect.on === "target" ? hit(effect.damage) : 0) + hit(areaAtFoe(effect)?.damage);
+  const direct = effect.on === "target" ? hit(effect.damage) : 0;
+  return direct * landingShare(spell, masteries, target) + hit(areaAtFoe(effect)?.damage);
 }
 
 function statusesAtFoe(effect: StoneEffect): readonly WeaponStatus[] {

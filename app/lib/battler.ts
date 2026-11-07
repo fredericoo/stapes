@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { type Element, ELEMENTS } from "./element";
 import {
   type ArcaneStoneItem,
+  DEFAULT_STONE_ACCURACY,
   DEFAULT_WEAPON,
   MAX_PERCENT_STAT,
   MELEE_REACH,
@@ -227,6 +228,27 @@ export function spellPower(
     (Math.abs(damage) * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY) *
     requirementShare(masteries, requirements);
   return damage < 0 ? -magnitude : magnitude;
+}
+
+/**
+ * The blow a stone throws at somebody else, which can miss and be dodged as a
+ * swing can; null for magic, a mend, and anything cast on the caster.
+ */
+export function aimedBlow(stone: ArcaneStoneItem): PhysicalBlow | null {
+  const { effect } = stone;
+  if (!stone.physical || effect.kind !== "bolt" || effect.on !== "target") return null;
+  return (effect.damage ?? 0) > 0 ? stone.physical : null;
+}
+
+/** Scaled by the mastery of the blow the way `fightingStats` scales a weapon's accuracy. */
+export function stoneHitChance(stone: ArcaneStoneItem, masteries: Masteries): number {
+  const blow = aimedBlow(stone);
+  if (!blow) return 1;
+  const skill = masteryLevel(masteries, blow) / MAX_MASTERY;
+  const accuracy = stone.accuracy ?? DEFAULT_STONE_ACCURACY;
+  return hitChanceFrom(
+    accuracy * (1 + skill * MASTERY_ACCURACY_BONUS) + skill * ACCURACY_AT_MAX_MASTERY,
+  );
 }
 
 export const MAX_SPELL_NAME_LENGTH = 48;

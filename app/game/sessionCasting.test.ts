@@ -190,6 +190,13 @@ const props: TileDef[] = [
     cooldownMs: 10_000,
     reach: { cells: 3, height: 2 },
   }),
+  stoneTile("wild-rock-stone", {
+    effect: { kind: "bolt", damage: BOLT_DAMAGE, on: "target", projectile: "arcane-mote" },
+    physical: "blunt",
+    accuracy: 0,
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 2 },
+  }),
   stoneTile("mend-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
     cooldownMs: MEND_COOLDOWN_MS,
@@ -540,12 +547,16 @@ type Square = "weapon" | "offhand" | "charm";
 function session(
   carrying: Partial<Record<Square, string>> = {},
   map: MapFile = world(),
+  seed?: number,
 ): GameSession {
   const kit = (Object.entries(carrying) as Array<[Square, string]>).map(([slot, tileId]) => ({
     slot,
     tileId,
   }));
-  return new GameSession(map, catalogueWith(kit), { statuses: catalogue });
+  return new GameSession(map, catalogueWith(kit), {
+    statuses: catalogue,
+    ...(seed === undefined ? {} : { seed }),
+  });
 }
 
 function cool(play: GameSession, square: Square, cooldownMs: number) {
@@ -1212,12 +1223,13 @@ describe("a bolt thrown at somebody", () => {
   function boltAt(
     stone: string,
     victim = "rat",
+    seed?: number,
   ): {
     play: GameSession;
     target: string;
     before: number;
   } {
-    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, victim));
+    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, victim), seed);
     const target = bodyAt(play, RAT_CELL, victim);
     play.setTarget(target);
     return { play, target, before: hpOf(play, target)! };
@@ -1245,7 +1257,33 @@ describe("a bolt thrown at somebody", () => {
     expect(facingOfCaster(play)).toBe("e");
   });
 
-  it("is never dodged, however nimble the target", () => {
+  const SEEDS = Array.from({ length: 40 }, (_, i) => i + 1);
+
+  const landedOn = (stone: string, victim: string) =>
+    SEEDS.filter((seed) => {
+      const { play, target, before } = boltAt(stone, victim, seed);
+      expect(play.cast(squareSlot("weapon"))).toBe(true);
+      return took(play, target, before) > 0;
+    }).length;
+
+  it("misses as a swing does when it is a physical blow, and its projectile flies past", () => {
+    expect(landedOn("wild-rock-stone", "rat")).toBeLessThan(SEEDS.length / 4);
+
+    const missed = SEEDS.map((seed) => boltAt("wild-rock-stone", "rat", seed)).find(
+      ({ play, target, before }) => {
+        play.cast(squareSlot("weapon"));
+        const [flight] = play.drainProjectiles();
+        return flight?.hit === false && took(play, target, before) === 0;
+      },
+    );
+    expect(missed).toBeDefined();
+  });
+
+  it("is dodged by a nimble target when it is a physical blow", () => {
+    expect(landedOn("rock-stone", "nimble-rat")).toBeLessThan(landedOn("rock-stone", "rat"));
+  });
+
+  it("is never dodged when it is magic, however nimble the target", () => {
     const { play, target, before } = boltAt("bolt-stone", "nimble-rat");
     expect(play.cast(squareSlot("weapon"))).toBe(true);
     expectThrough(took(play, target, before));

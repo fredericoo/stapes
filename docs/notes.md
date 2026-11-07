@@ -4990,6 +4990,18 @@ is weighed against defence plus the resistance to that kind, as a swing is.
 `spellGuard` is the one place that picks between the two, and its area follows
 the same rule as its bolt because `AreaCast` carries `physical` from the stone.
 
+A physical bolt thrown at somebody else is also **aimed**: it misses and is
+dodged as a swing is. `aimedBlow` (`app/lib/battler.ts`) says which stones
+these are, and `stoneHitChance` turns the stone's `accuracy` (absent is
+`DEFAULT_STONE_ACCURACY`) into a hit chance, raised by the caster's mastery of
+the blow exactly as `fightingStats` raises a weapon's. The target dodges with
+`dodgeChanceAgainst`, its Agility against the caster's. A miss floats "miss",
+a dodge steps the target aside, and either one drops the bolt's damage and its
+statuses; the bolt's area still lands, since an area is not aimed at anybody.
+Magic, mends, casts on the caster and areas (a cyclops's Stomp) still always
+land. Bog imps' Throw stone hit every time before this and was most of the
+damage an imp did.
+
 A mend is never weighed. It scales with the caster's Arcane and the stone's
 requirements through `spellPower`, and neither the target's resist nor its
 defence takes anything off it.
@@ -5000,6 +5012,8 @@ rolling: `meanThroughGuard` takes `MEAN_GUARD_SHARE` of the guard off the power.
 `boltDamage` and `bestBolt` in `bots/arcane.ts` weigh their own bolts against
 the foe, and `spellDamagePerSecond` in `bots/odds.ts` weighs a creature's
 spells against the bot, so a bot throws magic at plate and a blow at a mage.
+Both scale an aimed blow's direct hit by `landingShare`: its hit chance, less
+the target's dodge when the target's Agility is known.
 
 ### Gear short of its requirements: slower if physical, dormant if magical
 

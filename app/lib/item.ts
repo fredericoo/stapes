@@ -174,6 +174,8 @@ export type ArcaneStoneItem = {
   uninterruptible?: boolean;
   /** Absent is a magical spell, weighed against arcane resist rather than defence. */
   physical?: PhysicalBlow;
+  /** Read only on a physical bolt aimed at a target; absent is `DEFAULT_STONE_ACCURACY`. */
+  accuracy?: number;
   sound?: string;
   requirements?: Masteries;
   reach?: Reach;
@@ -260,6 +262,8 @@ export const EQUIP_FALLBACK_VERB = "Equip";
 export const UNNAMED_WEAPON = "A blow";
 
 export const UNNAMED_SPELL = "A spell";
+
+export const DEFAULT_STONE_ACCURACY = 85;
 
 export const DEFAULT_WEAPON: WeaponItem = {
   type: "weapon",
@@ -543,6 +547,7 @@ export const stoneSchema = v.object({
   ),
   uninterruptible: v.optional(v.boolean()),
   physical: v.optional(v.picklist(PHYSICAL_BLOWS)),
+  accuracy: v.optional(percent),
   sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_SOUND_LENGTH))),
   requirements: v.optional(masteriesSchema),
   reach: v.optional(reachEntries),
@@ -799,6 +804,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     ...(stone.castTimeMs ? { castTimeMs: Math.round(stone.castTimeMs) } : {}),
     ...(stone.uninterruptible ? { uninterruptible: true } : {}),
     ...(stone.physical ? { physical: stone.physical } : {}),
+    ...(stone.physical && stone.accuracy !== undefined ? { accuracy: stone.accuracy } : {}),
     ...(sound ? { sound } : {}),
     ...requirementsForSave(stone.requirements),
     ...(stone.reach ? { reach: reachForSave(stone.reach) } : {}),

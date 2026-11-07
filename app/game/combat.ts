@@ -278,6 +278,17 @@ export function rollAttack(
   };
 }
 
+export type CastLanding = "landed" | "missed" | "dodged";
+
+/** Both draws are taken whatever the first one says, for the reason `rollAttack` gives. */
+export function rollCastLanding(hitChance: number, dodge: number, rng: Rng): CastLanding {
+  const missRoll = rng.next();
+  const dodgeRoll = rng.next();
+  if (missRoll >= hitChance) return "missed";
+  if (dodgeRoll < dodge) return "dodged";
+  return "landed";
+}
+
 export function defenceAgainst(defender: Guarded, attacker: Striking): number {
   return defender.def + (defender.resist[attacker.mastery] ?? 0);
 }
