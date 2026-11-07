@@ -1,5 +1,24 @@
 # the-last-stones
 
+## 0.14.0
+
+### Minor Changes
+
+- Wisps now drift through the eastern forest at night: glowing orbs of fire, water or nature that hurl their element's spells from a distance. They are hard to hit with arrows but fall quickly to a blade, and they fade away at dawn. Now and then one carries the first arcane stone of its element.
+- The world is now an island, ringed by beaches and open sea. The western swamp is wetter, with reed beds, lilies, drowned trees and deep sinkholes, and wading through swamp water is slower than through a river. Deep water, out at sea and in the middle of the northern lake, cannot be waded at all.
+- Your stats panel now shows in gold the masteries that raise your rating: your best weapon, toughness and agility.
+- When your rating goes up, a gold burst of sparks rises from your character for everyone nearby to see, a "Rating up" banner shows your new rating, and a notice tells you the number.
+- Magic spells now ignore armour's defence. They are held back by Resist instead: arcane resistance on what you wear, plus a point for every 4 levels of your Arcane. Stomp and the bog imp's thrown stone are physical blows and still go through defence. Healing is never reduced. Your Resist shows in your stats, and every harmful stone's card says what blocks it.
+- Reeds, cattails, duckweed and lilies now part around anyone walking through them and spring back once they have passed.
+
+### Patch Changes
+
+- Item cards now list an armour's extra protection against sharp, blunt, ranged or fist blows directly under its Defence, as the points it adds on top.
+- Pressing Enter now always opens the chat field, even after you have clicked a button in the sidebar. Before, Enter pressed that button again.
+- The stairs down to the locked chests west of where you arrive are open again, and so is the opening in the south, both of which the island coastline had grassed over.
+- Casting a spell plays its burst on you again, and arrows and spells that hit a player or an armoured guard show their hit effect again.
+- Thrown stones and other physical spells aimed at you can now miss, and you can dodge them as you dodge a swing. Bog imps' stones now land about half the time.
+
 ## 0.13.1
 
 ### Patch Changes
