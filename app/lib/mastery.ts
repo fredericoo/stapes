@@ -221,16 +221,34 @@ export const MIN_RATING = 1;
 
 export const RATING_GLYPH = "*";
 
-export function rating(masteries: Masteries): number {
-  let bestWeapon = 0;
+function bestWeaponLevel(masteries: Masteries): number {
+  let best = 0;
   for (const mastery of WEAPON_MASTERIES) {
-    bestWeapon = Math.max(bestWeapon, masteryLevel(masteries, mastery));
+    best = Math.max(best, masteryLevel(masteries, mastery));
   }
+  return best;
+}
+
+export function rating(masteries: Masteries): number {
   const raw =
-    RATING_PER_BEST_WEAPON * bestWeapon +
+    RATING_PER_BEST_WEAPON * bestWeaponLevel(masteries) +
     RATING_PER_TOUGHNESS * masteryLevel(masteries, "toughness") +
     RATING_PER_AGILITY * masteryLevel(masteries, "agility");
   return Math.max(MIN_RATING, Math.round(raw));
+}
+
+/**
+ * How much of a level in this mastery `rating` counts, or 0 for one it ignores.
+ * Every weapon tied for best gets the weapon share, because raising any of them
+ * raises the rating.
+ */
+export function ratingWeight(masteries: Masteries, mastery: Mastery): number {
+  if (mastery === "toughness") return RATING_PER_TOUGHNESS;
+  if (mastery === "agility") return RATING_PER_AGILITY;
+  if (!WEAPON_MASTERIES.includes(mastery as WeaponMastery)) return 0;
+  return masteryLevel(masteries, mastery) === bestWeaponLevel(masteries)
+    ? RATING_PER_BEST_WEAPON
+    : 0;
 }
 
 export const NOTHING_BELOW_RATIO = 1 / 3;

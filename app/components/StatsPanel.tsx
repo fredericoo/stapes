@@ -3,11 +3,13 @@ import {
   MAGIC_MASTERIES,
   type Mastery,
   MASTERY_LABELS,
+  type Masteries,
   type MasteryXp,
   masteriesFromXp,
   PHYSICAL_MASTERIES,
   progressToNextLevel,
   rating,
+  ratingWeight,
   WEAPON_MASTERIES,
 } from "../lib/mastery";
 import type { Attributes } from "../game/attributes";
@@ -40,7 +42,8 @@ export function StatsPanel({
   onClose?: () => void;
   className?: string;
 }) {
-  const stars = vitals.rating ?? rating(masteriesFromXp(masteryXp));
+  const masteries = masteriesFromXp(masteryXp);
+  const stars = vitals.rating ?? rating(masteries);
 
   return (
     <HudWindow
@@ -64,7 +67,12 @@ export function StatsPanel({
 
         <h3 className={SECTION_HEADING_CLASS}>{HEADINGS.masteries}</h3>
         {MASTERY_GROUPS.map((group) => (
-          <MasteryGroup key={group.label} group={group} masteryXp={masteryXp} />
+          <MasteryGroup
+            key={group.label}
+            group={group}
+            masteryXp={masteryXp}
+            masteries={masteries}
+          />
         ))}
 
         <Combat attributes={vitals.attributes} />
@@ -93,9 +101,11 @@ const MASTERY_GROUPS: { label: string; masteries: Mastery[] }[] = [
 function MasteryGroup({
   group,
   masteryXp,
+  masteries,
 }: {
   group: { label: string; masteries: Mastery[] };
   masteryXp: MasteryXp;
+  masteries: Masteries;
 }) {
   return (
     <div className="flex flex-col gap-0.5" role="group" aria-label={`${group.label} masteries`}>
@@ -107,7 +117,7 @@ function MasteryGroup({
           return (
             <li key={mastery} className="flex min-w-0 flex-col gap-0.5">
               <span className="flex items-baseline gap-1 text-xs">
-                <span className="truncate text-paper/80">{MASTERY_LABELS[mastery]}</span>
+                <MasteryLabel mastery={mastery} weight={ratingWeight(masteries, mastery)} />
                 <span className="ml-auto tabular-nums text-paper">{level}</span>
               </span>
               <MasteryProgress mastery={mastery} level={level} progress={progressToNextLevel(xp)} />
@@ -116,6 +126,18 @@ function MasteryGroup({
         })}
       </ul>
     </div>
+  );
+}
+
+function MasteryLabel({ mastery, weight }: { mastery: Mastery; weight: number }) {
+  const label = MASTERY_LABELS[mastery];
+  if (weight <= 0) return <span className="truncate text-paper/80">{label}</span>;
+
+  return (
+    <span className="truncate text-label">
+      {label}
+      <span className="sr-only">, raises your rating</span>
+    </span>
   );
 }
 
