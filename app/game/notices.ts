@@ -20,6 +20,10 @@ export function masteryNotice(mastery: Mastery, level: number): string {
   return `Your ${mastery} mastery is now ${level}`;
 }
 
+export function ratingNotice(rating: number): string {
+  return `Your rating is now ${rating}`;
+}
+
 export function rewardNotice(
   reward: PlacedReward,
   giver: TileDef,

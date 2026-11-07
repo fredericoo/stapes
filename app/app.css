@@ -341,7 +341,9 @@ body {
    the glyph — one brick each way, corners included — which is what makes it
    read as an outline rather than eight ghost copies. */
 .world-label,
-.notice {
+.notice,
+.rating-up__title,
+.rating-up__value {
   text-shadow:
     var(--o1n) var(--o1n) 0 #000,
     0 var(--o1n) 0 #000,
@@ -575,6 +577,151 @@ body {
   max-width: 80%;
   overflow-wrap: break-word;
   z-index: 3;
+}
+
+.rating-up {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "NF Pixels", monospace;
+  line-height: 1.2;
+  z-index: 4;
+  animation: rating-up-life 2600ms ease-out forwards;
+}
+
+.rating-up__burst {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(var(--world-label-brick) * 24);
+  height: calc(var(--world-label-brick) * 24);
+}
+
+.rating-up__star {
+  width: calc(var(--world-label-brick) * 15);
+  height: calc(var(--world-label-brick) * 15);
+  overflow: visible;
+  animation: rating-up-pop 520ms ease-out both;
+}
+
+/* A diamond rather than a circle: a square border turned 45° keeps the ring on
+   the same hard-edged pixel look as the star inside it. */
+.rating-up__ring {
+  position: absolute;
+  inset: 25%;
+  border: var(--world-label-brick) solid var(--color-label);
+  rotate: 45deg;
+  opacity: 0;
+  animation: rating-up-ring 700ms ease-out 60ms both;
+}
+
+.rating-up__spark {
+  position: absolute;
+  width: var(--o2);
+  height: var(--o2);
+  background: #fffbe0;
+  box-shadow: 0 0 0 var(--world-label-brick) var(--color-label);
+  opacity: 0;
+  animation: rating-up-spark 760ms ease-out 80ms both;
+}
+
+.rating-up__title {
+  font-size: var(--world-label-size);
+  color: #fff;
+}
+
+.rating-up__value {
+  font-size: var(--world-label-size);
+  color: var(--color-label);
+  animation: rating-up-pop 520ms ease-out 120ms both;
+}
+
+@keyframes rating-up-life {
+  0% {
+    opacity: 0;
+    translate: 0 var(--o2);
+  }
+  8% {
+    opacity: 1;
+    translate: 0 0;
+  }
+  80% {
+    opacity: 1;
+    translate: 0 0;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 calc(var(--world-label-brick) * -6);
+  }
+}
+
+@keyframes rating-up-pop {
+  0% {
+    scale: 0.2;
+  }
+  45% {
+    scale: 1.3;
+  }
+  70% {
+    scale: 0.92;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+@keyframes rating-up-ring {
+  0% {
+    opacity: 1;
+    scale: 0.3;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.9;
+  }
+}
+
+@keyframes rating-up-spark {
+  0% {
+    opacity: 1;
+    translate: 0 0;
+  }
+  100% {
+    opacity: 0;
+    translate: calc(var(--dx) * var(--world-label-brick) * 14)
+      calc(var(--dy) * var(--world-label-brick) * 14);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rating-up {
+    animation-name: rating-up-fade;
+  }
+
+  .rating-up__star,
+  .rating-up__value {
+    animation: none;
+  }
+
+  .rating-up__ring,
+  .rating-up__spark {
+    display: none;
+  }
+}
+
+@keyframes rating-up-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  8%,
+  80% {
+    opacity: 1;
+  }
 }
 
 .hard-checkbox {
