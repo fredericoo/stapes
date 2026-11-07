@@ -1,7 +1,7 @@
 import type { Element } from "../lib/element";
 import type { ExtractInteraction } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
-import { MASTERIES, type Mastery, type MasteryXp } from "../lib/mastery";
+import { MASTERIES, type Mastery, type MasteryXp, type WeaponMastery } from "../lib/mastery";
 import type { AttackOutcome } from "./combat";
 
 export const XP_RATE = 0.5;
@@ -25,14 +25,22 @@ export function attackerEarnings(
   weapon: WeaponItem,
   multiplierFor: (mastery: Mastery) => number,
 ): MasteryXp {
-  if (outcome.missed || outcome.dodged || outcome.damage <= 0) return {};
+  if (outcome.missed || outcome.dodged) return {};
+  return blowEarnings(outcome.damage, weapon.mastery, multiplierFor);
+}
 
-  const earned = XP_PER_DAMAGE * outcome.damage;
+/** What landing `damage` with a blow of `mastery` pays, whether a weapon swung it or a stone threw it. */
+export function blowEarnings(
+  damage: number,
+  mastery: WeaponMastery,
+  multiplierFor: (mastery: Mastery) => number,
+): MasteryXp {
+  const earned = XP_PER_DAMAGE * damage;
   if (earned <= 0) return {};
 
   return {
     agility: earned * AGILITY_SHARE_OF_OFFENCE * multiplierFor("agility"),
-    [weapon.mastery]: earned * multiplierFor(weapon.mastery),
+    [mastery]: earned * multiplierFor(mastery),
   };
 }
 

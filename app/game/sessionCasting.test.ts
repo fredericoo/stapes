@@ -1453,6 +1453,18 @@ describe("a bolt thrown at somebody", () => {
     expect(play.masteryXpOf("local")?.arcane ?? 0).toBeGreaterThan(before + XP_PER_CAST);
   });
 
+  it("pays a physical blow's mastery and Agility, as a swing does, and no Arcane past the cast", () => {
+    const { play, target, before } = boltAt("rock-stone");
+    const xp = () => play.masteryXpOf("local") ?? {};
+    const arcane = xp().arcane ?? 0;
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    expect(took(play, target, before)).toBeGreaterThan(0);
+
+    expect(xp().blunt ?? 0).toBeGreaterThan(0);
+    expect(xp().agility ?? 0).toBeGreaterThan(0);
+    expect(xp().arcane ?? 0).toBe(arcane + XP_PER_CAST);
+  });
+
   it("takes health and leaves a status in the same cast", () => {
     const { play, target, before } = boltAt("brand-bolt-stone");
     expect(play.cast(squareSlot("weapon"))).toBe(true);
@@ -2602,15 +2614,43 @@ describe("a creature casting a spell of its own", () => {
     return tile;
   }
 
-  function burning(): GameSession {
+  function burning(physical?: string): GameSession {
+    const tile = casterTile();
+    if (physical) {
+      const battler = tile.interactions!.battler as { spells: Array<Record<string, unknown>> };
+      battler.spells[0] = { ...battler.spells[0], physical, accuracy: 100 };
+    }
     const map = replaceStack(world(), 2, 0, 0, [
       { tileId: "grass" },
       { tileId: "burner", direction: "w" },
     ]);
-    return new GameSession(map, [...props, playerTile([]), casterTile()], {
+    return new GameSession(map, [...props, playerTile([]), tile], {
       statuses: catalogue,
     });
   }
+
+  /** Read against a world with nobody casting, so the player's starting masteries cancel out. */
+  const defenceXpAfterASecond = (play: GameSession) => {
+    run(play, TICKS_PER_SECOND);
+    const xp = play.masteryXpOf("local") ?? {};
+    return (xp.toughness ?? 0) + (xp.agility ?? 0);
+  };
+
+  const unhurt = () =>
+    defenceXpAfterASecond(
+      new GameSession(world(), [...props, playerTile([])], { statuses: catalogue }),
+    );
+
+  it("trains the Toughness or Agility of whoever a physical blow was thrown at", () => {
+    expect(defenceXpAfterASecond(burning("ranged"))).toBeGreaterThan(unhurt());
+  });
+
+  it("trains nothing of whoever magic was thrown at", () => {
+    const play = burning();
+    const hp = hpOf(play)!;
+    expect(defenceXpAfterASecond(play)).toBe(unhurt());
+    expect(hpOf(play)).toBeLessThan(hp);
+  });
 
   it("casts whatever sits at the position, whatever it is called", () => {
     const tile = casterTile();
