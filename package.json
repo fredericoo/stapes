@@ -20,6 +20,7 @@
     "generate:clothes": "bun scripts/generate-clothes.ts",
     "generate:cave-wall": "bun scripts/generate-cave-wall-tileset.ts",
     "generate:masonry": "bun scripts/generate-masonry-tileset.ts",
+    "generate:swamp": "bun scripts/generate-swamp.ts",
     "generate:swamp-trees": "bun scripts/generate-swamp-trees.ts",
     "generate:waterfall": "bun scripts/generate-waterfall-tileset.ts",
     "generate:wisps": "bun scripts/generate-wisps.ts",
