@@ -1,9 +1,16 @@
 import { castDurationMs, type CastSlot, type SpellButton } from "../app/game/casting";
-import { spellGuard, type Guarded } from "../app/game/combat";
+import { dodgeChance, spellGuard, type Guarded } from "../app/game/combat";
 import { meanThroughGuard } from "../app/game/combatMetrics";
 import { affordsRecipe } from "../app/game/craft";
 import { carriedLightTileIds, magicDormant, type Equipment } from "../app/game/equipment";
-import { spellPower, type BattlerDef } from "../app/lib/battler";
+import {
+  aimedBlow,
+  fleeFrom,
+  spellPower,
+  stoneHitChance,
+  type BattlerDef,
+  type FightingStats,
+} from "../app/lib/battler";
 import { affectsBody } from "../app/lib/area";
 import { effectiveness, type Element } from "../app/lib/element";
 import type { CraftOutput, CraftRecipe } from "../app/lib/interactions";
@@ -15,7 +22,7 @@ import {
   type ArcaneStoneItem,
   type Reach,
 } from "../app/lib/item";
-import { meetsRequirements, spellElements, type Masteries } from "../app/lib/mastery";
+import { masteryLevel, meetsRequirements, spellElements, type Masteries } from "../app/lib/mastery";
 import type { StatusDef } from "../app/lib/status";
 import type { TileDef } from "../app/lib/types";
 
@@ -49,7 +56,27 @@ export function usableStone(
 }
 
 /** Who a bolt lands on, as far as what it is weighed against goes. */
-export type BoltTarget = { guard: Guarded; masteries: Masteries };
+export type BoltTarget = {
+  guard: Guarded & Partial<Pick<FightingStats, "flee" | "canDodge">>;
+  masteries: Masteries;
+};
+
+/**
+ * The share of casts whose direct hit lands: all of them for magic, and for a
+ * thrown blow its hit chance less the target's dodge, which is only counted
+ * when the target says how well it dodges.
+ */
+export function landingShare(
+  stone: ArcaneStoneItem,
+  masteries: Masteries,
+  target?: BoltTarget,
+): number {
+  if (!aimedBlow(stone)) return 1;
+  const hit = stoneHitChance(stone, masteries);
+  const { flee, canDodge } = target?.guard ?? {};
+  if (!canDodge || flee === undefined) return hit;
+  return hit * (1 - dodgeChance(flee, fleeFrom(masteryLevel(masteries, "agility"))));
+}
 
 /**
  * Health a bolt takes off somebody it is aimed at, on average, before the
@@ -73,7 +100,7 @@ export function boltDamage(
       guard,
     );
   };
-  return hit(effect.damage) + hit(area?.damage);
+  return hit(effect.damage) * landingShare(stone, masteries, target) + hit(area?.damage);
 }
 
 /** Health a stone puts back into its own caster, on average; 0 for any other stone. */

@@ -206,6 +206,8 @@ import {
   resolveBattler,
   type FightingStats,
   spellPower,
+  stoneHitChance,
+  aimedBlow,
 } from "../lib/battler";
 import {
   experienceMultiplier,
@@ -238,6 +240,9 @@ import {
   inflictedBy,
   cappedToHealth,
   rollAttack,
+  rollCastLanding,
+  type CastLanding,
+  dodgeChanceAgainst,
   strikeRecoveryMs,
   underPressure,
 } from "./combat";
@@ -3504,9 +3509,14 @@ export class GameSession implements PlaySession {
     const body = this.bodyOf(actor);
     if (!body) return;
 
+    const landing = atSomebodyElse
+      ? this.rollStoneLanding(actor, stats, stone, body.masteries)
+      : "landed";
+    const landed = landing === "landed";
+
     let flightMs = 0;
     if (atSomebodyElse) {
-      flightMs = this.fireBolt(effect.projectile, actor, subject);
+      flightMs = this.fireBolt(effect.projectile, actor, subject, landed);
       const at = this.tryLocate(actor);
       const on = this.tryLocate(subject);
       if (at && on) this.turnToward(actor, at, on);
@@ -3515,13 +3525,16 @@ export class GameSession implements PlaySession {
     const spell = this.spellName(actor, slot);
     const caster = this.bodyName(actor.id);
 
-    const move = this.rollHealthMove(subject, effect, stone, elements, {
+    /** Rolled even when the blow did not land, so a miss takes the same draws a hit does. */
+    const rolledMove = this.rollHealthMove(subject, effect, stone, elements, {
       stats,
       masteries: body.masteries,
     });
-    const grants = this.boltInflicts(effect.statuses);
+    const rolledGrants = this.boltInflicts(effect.statuses);
+    const move = landed ? rolledMove : null;
+    const grants = landed ? rolledGrants : NOTHING_INFLICTED;
 
-    if (atSomebodyElse && move?.kind === "harm") {
+    if (atSomebodyElse && (move?.kind === "harm" || !landed)) {
       this.flagCombat(actor);
       this.flagCombat(subject);
     }
@@ -3535,6 +3548,7 @@ export class GameSession implements PlaySession {
         subjectId,
         atSomebodyElse,
         projectile,
+        landing,
         move,
         grants,
         cures: effect.cures ?? [],
@@ -3561,6 +3575,7 @@ export class GameSession implements PlaySession {
     subjectId: string;
     atSomebodyElse: boolean;
     projectile: string | null | undefined;
+    landing: CastLanding;
     move: HealthMove | null;
     grants: readonly StatusGrant[];
     cures: readonly string[];
@@ -3576,7 +3591,9 @@ export class GameSession implements PlaySession {
 
     if (bolt.atSomebodyElse) this.notePendingHurt(subject.id, bolt.casterId);
 
-    this.strikeBody(bolt.subjectId, bolt.projectile);
+    if (bolt.landing === "missed") this.floatSwing(subject, "miss", 0);
+    else if (bolt.landing === "dodged") this.dodgeCast(subject, actor);
+    else this.strikeBody(bolt.subjectId, bolt.projectile);
 
     /** Read before the hit: a hit that kills takes the subject off the board, and its area still lands. */
     const centre = bolt.area ? this.areaCentreOf(subject) : null;
@@ -3588,6 +3605,33 @@ export class GameSession implements PlaySession {
 
     if ((this.hpOf(subject) ?? 0) > 0) this.afflict(subject, bolt.grants, bolt.cures, bolt);
     if (bolt.area && centre) this.landArea(centre, bolt.area, bolt);
+  }
+
+  /**
+   * Taken only for a stone that throws a blow at somebody else, which is
+   * fixed by the stone and the target rather than by any roll, so the draw
+   * count still never depends on an outcome.
+   */
+  private rollStoneLanding(
+    caster: ActorRuntime,
+    subjectStats: FightingStats,
+    stone: ArcaneStoneItem,
+    masteries: Masteries,
+  ): CastLanding {
+    if (!aimedBlow(stone)) return "landed";
+    const casterStats = this.battlerOf(caster);
+    const dodge = casterStats ? dodgeChanceAgainst(subjectStats, casterStats) : 0;
+    return rollCastLanding(stoneHitChance(stone, masteries), dodge, this.rng);
+  }
+
+  private dodgeCast(subject: ActorRuntime, caster: ActorRuntime | undefined) {
+    const on = this.tryLocate(subject);
+    const from = caster ? this.tryLocate(caster) : null;
+    if (!on || !from) return;
+    subject.strike = dodgeAway(
+      reachPointAt(this.map, this.tilesById, on),
+      reachPointAt(this.map, this.tilesById, from),
+    );
   }
 
   private areaCentreOf(actor: ActorRuntime): AreaCentre | null {
@@ -3786,12 +3830,13 @@ export class GameSession implements PlaySession {
     projectileTileId: string | undefined,
     from: ActorRuntime,
     to: ActorRuntime,
+    connected: boolean,
   ): number {
     if (!projectileTileId) return 0;
     const start = this.tryLocate(from);
     const end = this.tryLocate(to);
     if (!start || !end) return 0;
-    return this.fireProjectile(projectileTileId, start, end, true);
+    return this.fireProjectile(projectileTileId, start, end, connected);
   }
 
   private castConjure(

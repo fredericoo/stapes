@@ -7,6 +7,7 @@ import type {
   StoneSubject,
 } from "../lib/item";
 import {
+  DEFAULT_STONE_ACCURACY,
   MAX_CAST_TIME_MS,
   MAX_PERCENT_STAT,
   MAX_REACH_CELLS,
@@ -42,6 +43,7 @@ import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
   describeFlight,
+  describeLanding,
   describeReachCells,
   describeReachHeight,
   describeReachMin,
@@ -82,7 +84,7 @@ const HALF_SECOND_MS = MS_PER_SECOND / 2;
 const SECONDS_PER_MINUTE = 60;
 
 const EFFECT_INFO: Record<StoneEffectKind, string> = {
-  bolt: "Not aimed: no accuracy, no dodge — the cooldown is spent and the stone answers. Scaled by the caster's Arcane and the stone's elements, averaged; the figure is what it does for somebody who has learnt nothing. A harm goes through resist, or defence for a physical blow, and the wheel. A mend is stopped by neither, stops at full health, and trains by what it actually restored.",
+  bolt: "Magic is not aimed: no accuracy, no dodge — the cooldown is spent and the stone answers. A physical blow at a target is aimed, and misses and is dodged as a swing is. Scaled by the caster's Arcane and the stone's elements, averaged; the figure is what it does for somebody who has learnt nothing. A harm goes through resist, or defence for a physical blow, and the wheel. A mend is stopped by neither, stops at full health, and trains by what it actually restored.",
   conjure:
     "Places a tile at the target's cell, or in front of the caster with nothing targeted. The player never picks a square.",
 };
@@ -195,10 +197,22 @@ export function StoneFields({
                 />
               </div>
             </div>
+
+            {stone.physical && effect.on === "target" ? (
+              <StatField
+                label="Accuracy"
+                info={`How often the blow goes where it was aimed, raised by the caster's ${MASTERY_LABELS[stone.physical]} as a weapon's is by its mastery. Whether the target gets out of the way is their Agility against the caster's.`}
+                value={stone.accuracy ?? DEFAULT_STONE_ACCURACY}
+                min={MIN_PERCENT_STAT}
+                max={MAX_PERCENT_STAT}
+                onChange={(accuracy) => onChange({ accuracy })}
+                readout={describeLanding(stone.accuracy ?? DEFAULT_STONE_ACCURACY)}
+              />
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2">
-            <FieldLabel info="A picture only, drawn as a bow's arrow is: the health has moved before the first frame, so it cannot miss in the air. Nothing flies at the caster: a spell on the caster shows itself with a caster effect.">
+            <FieldLabel info="A picture only, drawn as a bow's arrow is: whether it hits was rolled before the first frame, so it cannot miss in the air. Nothing flies at the caster: a spell on the caster shows itself with a caster effect.">
               Projectile
             </FieldLabel>
             <div className="flex flex-wrap items-end gap-4">
