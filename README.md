@@ -177,6 +177,14 @@ an agent drives", lists every call.
   and `flagstone-floor` and `slate-floor`, each with an `-inner` variant cut by
   the wooden floor's masks for use under a half wall. New tiles are appended to
   `data/tiles.json`; a tile already there has only its sprite fields rewritten
+- `bun run generate:swamp` — redraw `data/tilesets/deep-water.png`,
+  `swamp.png` and `swamp-plants.png`. `deep-water` and `swamp` are
+  `water.png`'s open-water frames recoloured, faded out in opacity towards
+  every side they do not connect on, on sheets marked `translucent`. `reeds`,
+  `cattails`, `duckweed` and `swamp-lily` are cast through the game's
+  projection with the hats' caster. New tiles are appended to
+  `data/tiles.json`; a tile already there keeps its rules and has only its
+  sprite fields rewritten
 - `bun run generate:swamp-trees` — redraw `data/tilesets/swamp-trees.png`:
   `dead-tree`, `dead-tree-twisted`, `mossy-dead-tree` and `dead-snag`, leafless
   trees grown from a seed per species and cast through the game's projection.

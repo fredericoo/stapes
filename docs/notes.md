@@ -2492,9 +2492,9 @@ is the nearest palette colour to half body, half water. That is coarse, and it
 reads as pixel art.
 
 The shipped `water` tile is shallow: it is walkable, and it carries
-`wade: true`. Deep water, when there is some, is a liquid tile with
-`walkable: false`, and everything above about a plane something unstandable is
-lying on is now about that tile and the lilypad. The unit tests in
+`wade: true`. `deep-water` is the liquid tile with `walkable: false`, and
+everything above about a plane something unstandable is lying on is about that
+tile and the lilypad. The unit tests in
 `app/game/game.test.ts` that build an unwalkable `water` of their own are
 testing that case, not the shipped tile. A walkable pond is also somewhere a
 dropped thing can land, so a kit spilled by a death in shallow water lies in it.
@@ -2505,6 +2505,39 @@ step starts from, so the step into the water is taken at the ordinary pace and
 every step taken from the water is slow, including the one back onto the bank.
 A route prices those steps the same way — see `legCost` under "A chase is a
 route" — so it walks round water when going round is quicker.
+
+### Deep water and swamp are laid over shallow water
+
+`deep-water` and `swamp` are autotiles meant to sit on top of `water` in the
+same stack (`dirt, water, deep-water`). Each connects only to itself, and where
+it does not connect its art fades in opacity over the three pixels in from the
+edge (0, ½, 1), so the water underneath shows through and the two read as one
+body of water. The water underneath still draws the shoreline against the bank.
+A swamp laid straight on grass, with no water under it, fades into the grass,
+which reads as a marshy edge. Both sheets are `translucent` (below).
+
+The topmost-tile rule decides the rest: over `deep-water` nobody can stand, and
+over `swamp` a body wades at `walkSpeedPercent: -75`. The swamp plants
+(`reeds`, `cattails`, `duckweed`, `swamp-lily`) are `intangible`, so the
+surface search looks through them to the swamp or water below and the pace
+and the wade are that tile's. A plant that lost `intangible` would make its own
+cell dry ground at full speed.
+
+`bun run generate:swamp` draws all of them. Three things in it look arbitrary
+and are not:
+
+- **The liquids are the water's own frames, at the water's `phase` and frame
+  time.** The renderer offsets an animated tile's frame per cell by its
+  `phase`, which is what stops water repeating every 8px. A liquid without the
+  phase showed the same frame in every cell and read as a grid, and one at
+  another frame time ripples out of step with the water showing through its
+  edge.
+- **The fade has three steps, not a smooth ramp.** A blend goes through the
+  palette pass, and a faint one (a fifth of deep blue over the water's crest)
+  lands on a grey, which drew a broken grey line round every pool.
+- **A plant's stalks are shaded by height, not by the light.** Lit from above, a
+  thin upright cylinder is one dull colour all the way up, so each segment of a
+  stalk has its own two-colour ramp, lighter towards the tip.
 
 ### A translucent sheet is blended, not cut out
 
@@ -2521,9 +2554,12 @@ behind it.
   dissolves and motion ghosts each swap a mesh's material for another one built
   from the same texture, so a flag on the texture follows the mesh through all
   of them. A flag per tile would have to be carried through every swap.
-- **Only separate meshes should use it.** A still tile is merged into its
-  chunk's batch, and a whole batch would be drawn late and write no depth. The
-  wisps are bodies, so each is its own mesh.
+- **Only separate meshes, or a flat liquid, should use it.** A still tile is
+  merged into its chunk's batch, and a whole batch would be drawn late and
+  write no depth. The wisps are bodies, so each is its own mesh. `deep-water`
+  and `swamp` are merged, and that is safe only because a batch holds one
+  texture, they are flat at the bottom of their stack, and anything lying on
+  them still wins the depth test by its stack bias.
 - **Two translucent sprites do not sort against each other.** Neither writes
   depth, so where two overlap the one drawn second is on top, whichever is in
   front. Everything opaque is drawn before them and sorts correctly.
