@@ -16,6 +16,10 @@ import {
   requirementShare,
   NOTHING_BELOW_RATIO,
   rating,
+  RATING_PER_AGILITY,
+  RATING_PER_BEST_WEAPON,
+  RATING_PER_TOUGHNESS,
+  ratingWeight,
   REQUIREMENTS_MET,
   levelForXp,
   progressToNextLevel,
@@ -196,6 +200,25 @@ describe("rating", () => {
 
   it("never rates anything below the floor", () => {
     expect(rating({})).toBe(MIN_RATING);
+  });
+});
+
+describe("ratingWeight", () => {
+  it("credits only the best weapon, and the body masteries", () => {
+    const swordsman = { sharp: 40, ranged: 30, toughness: 10, agility: 10, fire: 50 };
+    expect(ratingWeight(swordsman, "sharp")).toBe(RATING_PER_BEST_WEAPON);
+    expect(ratingWeight(swordsman, "ranged")).toBe(0);
+    expect(ratingWeight(swordsman, "toughness")).toBe(RATING_PER_TOUGHNESS);
+    expect(ratingWeight(swordsman, "agility")).toBe(RATING_PER_AGILITY);
+    expect(ratingWeight(swordsman, "fire")).toBe(0);
+    expect(ratingWeight(swordsman, "mining")).toBe(0);
+  });
+
+  it("credits every weapon tied for best, since raising any one raises the rating", () => {
+    const masteries = { sharp: 20, blunt: 20, fist: 5 };
+    expect(ratingWeight(masteries, "sharp")).toBe(RATING_PER_BEST_WEAPON);
+    expect(ratingWeight(masteries, "blunt")).toBe(RATING_PER_BEST_WEAPON);
+    expect(ratingWeight(masteries, "fist")).toBe(0);
   });
 });
 
