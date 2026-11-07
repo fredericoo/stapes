@@ -10,6 +10,7 @@ import { NO_VFX } from "../lib/statusVfx";
 import type { StatusDef } from "../lib/status";
 import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
+import { RATING_UP_EFFECT } from "./ratingUp";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
 describe("reading a typed line", () => {
@@ -449,7 +450,30 @@ describe("what a command does to a body", () => {
     session.runCommand("/mastery sharp 10", "me");
 
     expect(session.getSnapshot("me").masteryXp.sharp).toBe(xpForLevel(10));
-    expect(session.drainNotices("me")).toEqual(["Your sharp mastery is now 10"]);
+    expect(session.drainNotices("me")).toContain("Your sharp mastery is now 10");
+  });
+
+  it("celebrates a rating it lifts, on the body that was lifted", () => {
+    const session = world(["me", "you"]);
+    session.drainTransitions();
+    session.runCommand("/mastery sharp 60 you", "me");
+
+    expect(session.drainNotices("you")).toContain(`Your rating is now ${ratingOf(session, "you")}`);
+    const you = session.actorSnapshots().find((a) => a.id === "you")!;
+    expect(
+      session.drainTransitions().filter((note) => note.casterEffect === RATING_UP_EFFECT),
+    ).toMatchObject([{ x: you.x, y: you.y }]);
+  });
+
+  it("celebrates nothing when the rating stays where it was", () => {
+    const session = world();
+    session.runCommand("/mastery sharp 60", "me");
+    session.drainNotices("me");
+    session.drainTransitions();
+    session.runCommand("/mastery sharp 60", "me");
+
+    expect(session.drainNotices("me")).toEqual(["Your sharp mastery is now 60"]);
+    expect(session.drainTransitions()).toEqual([]);
   });
 
   it("leaves every other mastery where the tile put it", () => {
@@ -486,14 +510,14 @@ describe("what a command does to a body", () => {
     expect(session.getSnapshot("you").masteryXp.arcane).toBe(xpForLevel(12));
     expect(session.getSnapshot("me").masteryXp.arcane).toBeUndefined();
 
-    expect(session.drainNotices("you")).toEqual(["Your arcane mastery is now 12"]);
+    expect(session.drainNotices("you")).toContain("Your arcane mastery is now 12");
     expect(session.drainNotices("me")).toEqual(["Yorick's arcane mastery is now 12"]);
   });
 
   it("says it once when the somebody else is you", () => {
     const session = world();
     session.runCommand("/mastery sharp 10 self", "me");
-    expect(session.drainNotices("me")).toHaveLength(1);
+    expect(session.drainNotices("me").filter((text) => text.includes("mastery"))).toHaveLength(1);
   });
 
   it("names the body that does not learn", () => {

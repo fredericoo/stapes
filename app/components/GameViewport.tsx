@@ -29,6 +29,7 @@ import { DEFAULT_PAD_SIDE, type PadSide } from "./padSide";
 import { SpellBar } from "./SpellBar";
 import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
 import { PvpToggle } from "./PvpToggle";
+import { RatingUpBanner } from "./RatingUpBanner";
 import { StatsPanel } from "./StatsPanel";
 import type { ActiveStatus, StatusDef } from "../lib/status";
 import { StatusStrip } from "./StatusStrip";
@@ -431,6 +432,7 @@ export function GameViewport({
               style={{ imageRendering: "pixelated" }}
             />
             <div ref={labelRef} className="world-label-layer" />
+            <RatingUpBanner rating={vitals.rating} live={live} />
           </div>
         </div>
 

@@ -126,6 +126,7 @@ import {
   giveNotice,
   masteryNotice,
   otherMasteryNotice,
+  ratingNotice,
   otherArrivalNotice,
   healthNotice,
   noRoomToLeaveNotice,
@@ -141,6 +142,7 @@ import {
   tileNotice,
   timeNotice,
 } from "./notices";
+import { RATING_UP_EFFECT } from "./ratingUp";
 import { DEFAULT_PLAY_MINUTES, msUntilHours, type MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
 import { type Blame, causeOfDeath, possessive } from "./blame";
@@ -2787,12 +2789,21 @@ export class GameSession implements PlaySession {
     }
     if (!moved) return;
 
+    const ratedBefore = this.ratingOf(actor);
     actor.masteryXp = moved;
     actor.earnedBody = null;
     this.masteriesChanged.add(actor.id);
     for (const mastery of crossed ?? []) {
       this.say(actor.id, masteryNotice(mastery, levelForXp(moved[mastery] ?? 0)));
     }
+    this.celebrateRatingRise(actor, ratedBefore);
+  }
+
+  private celebrateRatingRise(actor: ActorRuntime, before: number | null) {
+    const after = this.ratingOf(actor);
+    if (before === null || after === null || after <= before) return;
+    this.say(actor.id, ratingNotice(after));
+    this.dressCaster(actor, RATING_UP_EFFECT);
   }
 
   private spendDefensiveDecay(target: ActorRuntime, attackerId: string): number {
@@ -5205,6 +5216,7 @@ export class GameSession implements PlaySession {
     const actor = this.actors.get(targetId);
     if (!actor) return { ok: false, refusal: { kind: "noSuchTarget", typed: targetId } };
 
+    const ratedBefore = this.ratingOf(actor);
     if (!this.setMastery(actor, mastery, level)) {
       return {
         ok: false,
@@ -5216,6 +5228,7 @@ export class GameSession implements PlaySession {
     if (actor.id !== id) {
       this.say(id, otherMasteryNotice(this.bodyName(actor.id) ?? actor.id, mastery, level));
     }
+    this.celebrateRatingRise(actor, ratedBefore);
     return { ok: true, data: { command: MASTERY_COMMAND, target: actor.id, mastery, level } };
   }
 
