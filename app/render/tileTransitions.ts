@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { levelScreenOffset } from "../lib/geometry";
 import { craftEffect, pullEffect } from "../lib/interactions";
+import { drawnAs } from "../lib/mapData";
 import { hexToRgb01 } from "../lib/palette";
 import { projectileEffect } from "../lib/projectile";
 import {
@@ -13,7 +14,6 @@ import {
 import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import type { ParticleEmitterSpec } from "./particles";
 import { plumeScale } from "./plumeScale";
-import { drawnAs } from "./wornLooks";
 
 export const MAX_LIVE_TRANSITIONS = 32;
 

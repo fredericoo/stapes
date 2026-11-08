@@ -256,8 +256,20 @@ export function listChunkKeys(map: MapFile, z: number): string[] {
   return level ? Object.keys(level) : [];
 }
 
+export const DRESSED = "~";
+
+/**
+ * True when a placement in the drawn map is `tileId`, as itself or as the copy
+ * `WornLooks` dressed it in. Notes from the session name the real tile, so the
+ * renderer matches them against the drawn map through this.
+ */
+export function drawnAs(drawnId: string, tileId: string): boolean {
+  return drawnId === tileId || drawnId.startsWith(tileId + DRESSED);
+}
+
+/** Matches a dressed player too, so the drawn map weighs and stacks bodies as the real one does. */
 export function isPlayerBody(placed: PlacedTile): boolean {
-  return placed.tileId === PLAYER_TILE_ID && placed.owner != null;
+  return placed.owner != null && drawnAs(placed.tileId, PLAYER_TILE_ID);
 }
 
 export function isBodyPlacement(placed: PlacedTile, tilesById: Record<string, TileDef>): boolean {

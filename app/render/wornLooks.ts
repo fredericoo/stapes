@@ -6,19 +6,8 @@ import {
   type HumanAppearance,
   type Outfit,
 } from "../lib/humanSprite";
-import { getStack, setStacks, type StackEdit } from "../lib/mapData";
+import { DRESSED, getStack, setStacks, type StackEdit } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-
-const DRESSED = "~";
-
-/**
- * True when a placement in the drawn map is `tileId`, as itself or as the copy
- * `WornLooks` dressed it in. Notes from the session name the real tile, so the
- * renderer matches them against the drawn map through this.
- */
-export function drawnAs(drawnId: string, tileId: string): boolean {
-  return drawnId === tileId || drawnId.startsWith(tileId + DRESSED);
-}
 
 export type WornView = { map: MapFile; tilesById: Record<string, TileDef> };
 
