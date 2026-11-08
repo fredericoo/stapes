@@ -1,5 +1,11 @@
 # the-last-stones
 
+## 0.14.2
+
+### Patch Changes
+
+- Two players in the same square stand side by side again instead of one on the other's head, and the list of what is within reach shows other players in their own look and armour.
+
 ## 0.14.1
 
 ### Patch Changes
