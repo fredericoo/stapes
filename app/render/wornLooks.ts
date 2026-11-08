@@ -58,6 +58,13 @@ export class WornLooks {
     return { map: this.drawn.out, tilesById: this.catalogueOf(tilesById) };
   }
 
+  /** The dressed copy `actor` is drawn as, or null when it is drawn as its own tile. */
+  drawnTile(actor: ActorSnapshot, tilesById: Record<string, TileDef>): TileDef | null {
+    if (this.base !== tilesById) this.reset(tilesById);
+    const id = this.dressedIdFor(actor, tilesById);
+    return id ? (this.dressed.get(id) ?? null) : null;
+  }
+
   private reset(tilesById: Record<string, TileDef>) {
     this.base = tilesById;
     this.dressed.clear();

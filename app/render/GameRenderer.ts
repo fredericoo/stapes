@@ -229,6 +229,14 @@ type PointerLabel = {
  * point between them, since the total is unchanged. `| 0` keeps it a plain
  * int32 so this stays cheap to compare every frame.
  */
+function withDrawnTile(
+  option: InteractionOption,
+  looks: ReadonlyMap<string, TileDef>,
+): InteractionOption {
+  const drawnTile = option.actorId ? looks.get(option.actorId) : undefined;
+  return drawnTile ? { ...option, drawnTile } : option;
+}
+
 function healthSignature(actors: readonly ActorSnapshot[]): number {
   let signature = 0;
   for (const actor of actors) {
@@ -299,6 +307,7 @@ export class GameRenderer {
   private interactionsAt = "";
   private interactionsHealth = 0;
   private interactionsKey = "";
+  private interactionsLooks = "";
   private interactionsSent: InteractionOption[] = [];
   private interactionsActors: ActorSnapshot[] = [];
   private farSent: InteractionOption[] = [];
@@ -2058,22 +2067,43 @@ export class GameRenderer {
     if (!this.onInteractions) return;
     const near = this.refreshNearOptions(snap, camera, cut);
     const far = this.refreshFarOptions(snap, camera, nowMs, near !== "unchanged");
-    if (near === "unchanged" && !far) return;
+    const looks = this.subjectLooks(snap);
+    const looksKey = [...looks.values()].map((def) => def.id).join("|");
+    if (near === "unchanged" && !far && looksKey === this.interactionsLooks) return;
+    this.interactionsLooks = looksKey;
 
     const nearIds = new Set(this.interactionsSent.map((option) => option.id));
     const options = [
       ...this.interactionsSent,
       ...this.farSent.filter((option) => !nearIds.has(option.id)),
-    ];
+    ].map((option) => withDrawnTile(option, looks));
     const key = options
       .map(
         (o) =>
-          `${o.id}/${o.label}/${o.active}/${o.far}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`,
+          `${o.id}/${o.label}/${o.active}/${o.far}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}/${o.drawnTile?.id ?? ""}`,
       )
       .join("|");
     if (key === this.interactionsKey && near !== "waitChanged") return;
     this.interactionsKey = key;
     this.onInteractions(options);
+  }
+
+  /**
+   * What each listed body is drawn as, read every frame because another body
+   * changing its armour does not refresh the options themselves.
+   */
+  private subjectLooks(snap: GameSnapshot): Map<string, TileDef> {
+    const looks = new Map<string, TileDef>();
+    const subjects = new Set<string>();
+    for (const option of this.interactionsSent) if (option.actorId) subjects.add(option.actorId);
+    for (const option of this.farSent) if (option.actorId) subjects.add(option.actorId);
+    if (subjects.size === 0) return looks;
+    for (const actor of snap.actors) {
+      if (!subjects.has(actor.id)) continue;
+      const def = this.wornLooks.drawnTile(actor, this.tilesById);
+      if (def) looks.set(actor.id, def);
+    }
+    return looks;
   }
 
   private refreshNearOptions(

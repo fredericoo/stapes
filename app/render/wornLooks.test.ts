@@ -122,6 +122,16 @@ describe("WornLooks", () => {
     expect(elevationAt(drawn, 2, view.tilesById)).toBe(elevationAt(drawn, 1, view.tilesById));
   });
 
+  it("names the tile a body is drawn as, for the interaction list's picture", () => {
+    const looks = new WornLooks();
+
+    expect(looks.drawnTile(actor("guard", 0, { hat: "iron-helmet" }), CATALOGUE)?.human).toEqual({
+      ...GUARD.human,
+      outfit: { clothes: "white-tunic", hat: "iron-helmet" },
+    });
+    expect(looks.drawnTile(actor("guard", 0, {}), CATALOGUE)).toBeNull();
+  });
+
   it("lets a transition naming the real tile find the dressed placement it is drawn as", () => {
     const view = new WornLooks().apply(
       world(),

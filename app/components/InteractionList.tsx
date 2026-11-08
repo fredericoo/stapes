@@ -128,7 +128,7 @@ export function InteractionList({
             key={group.key}
             group={group}
             firstRow={hotkeys ? firstRows[at]! : null}
-            tile={tilesById[groupSubject(group).tileId] ?? null}
+            tile={subjectTile(groupSubject(group), tilesById)}
             tilesets={tilesets}
             onAct={onAct}
             onHover={onHover}
@@ -137,6 +137,13 @@ export function InteractionList({
       )}
     </div>
   );
+}
+
+function subjectTile(
+  subject: InteractionOption,
+  tilesById: Record<string, TileDef>,
+): TileDef | null {
+  return subject.drawnTile ?? tilesById[subject.tileId] ?? null;
 }
 
 function litClass(option: InteractionOption): string {
