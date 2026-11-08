@@ -334,7 +334,7 @@ describe("EndureIndex", () => {
     const pool = [...endure.afflicted()][0];
     expect(pool?.statuses).toHaveLength(0);
     expect(pool?.hp).toBe(TREE_DURABILITY - BURN_PER_SECOND * (BURN_MS / 1_000));
-    expect(endure.pending()).toBe(true);
+    expect(endure.pending()).toBe(false);
   });
 });
 
@@ -363,7 +363,7 @@ describe("what is reported as alight", () => {
       endure.advance(TICK_MS, catalogue);
     }
 
-    expect(endure.pending()).toBe(true);
+    expect(endure.pending()).toBe(false);
     expect(endure.afflictedPlacements()).toEqual([]);
   });
 

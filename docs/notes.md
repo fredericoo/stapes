@@ -12605,6 +12605,12 @@ nobody has set fire to costs one `size` check per tick and nothing else.
 `afflictCells` *is* seeded and maintained by `reindexCells`, because a source
 keeps working for as long as it is there.
 
+**Only a pool under a status keeps the world awake.** A pool a fire left damaged
+keeps its hp, so the damage is remembered, but nothing about it changes with
+time, so `pending` does not count it. When it did, the two flames authored on
+`data/map.json` scorched the grass beside them within seconds of loading and
+every world ticked forever.
+
 ### The ground under a flame is held like a body standing in it
 
 `tickAfflictions` is a per-tick sweep, and it goes through `EndureIndex.hold`
