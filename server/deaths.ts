@@ -82,7 +82,7 @@ export class Deaths {
   private async countBy(column: "victim_id" | "killer_id"): Promise<Map<string, number>> {
     const select = await this.db.prepare(
       `SELECT ${column} AS actor, COUNT(*) AS n FROM death
-       WHERE ${column} IN (SELECT id FROM character) GROUP BY ${column}`,
+       WHERE ${column} IS NOT NULL GROUP BY ${column}`,
     );
     const rows = (await select.all()) as { actor: string; n: number }[];
     return new Map(rows.map((row) => [row.actor, row.n]));
