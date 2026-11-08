@@ -728,6 +728,17 @@ type RouteAsked = {
   arrive: "beside" | "on";
 };
 
+type BattlerMemo = {
+  body: BattlerDef;
+  equipment: Equipment;
+  hand: Hand | null;
+  statuses: readonly StatusInstance[];
+  hp: number | null;
+  tilesById: Record<string, TileDef>;
+  statusDefs: Record<string, StatusDef>;
+  stats: FightingStats;
+};
+
 type ActorRuntime = {
   readonly id: string;
   readonly name: string | null;
@@ -741,6 +752,12 @@ type ActorRuntime = {
   extraction: ExtractionRun | null;
   casting: CastingRun | null;
   earnedBody: { authored: BattlerDef; body: BattlerDef } | null;
+  /**
+   * The last `battlerOf` answer and what it was worked out from. Every input
+   * is replaced rather than mutated when it changes, so comparing references
+   * is enough to know the answer still holds.
+   */
+  battler: BattlerMemo | null;
   nextHand: Hand;
   defensiveDecay: Map<string, { payouts: number; idleMs: number }> | null;
   assailants: Map<string, number> | null;
@@ -1042,6 +1059,7 @@ export class GameSession implements PlaySession {
       tags: opts.tagged ?? NO_TAGS,
       masteryXp: resident || !hasExperience(opts.earned) ? null : opts.earned,
       earnedBody: null,
+      battler: null,
       defensiveDecay: null,
       assailants: null,
       brain: null,
@@ -3119,15 +3137,45 @@ export class GameSession implements PlaySession {
     actor: ActorRuntime,
     hand: Hand | null = this.handOf(actor),
   ): FightingStats | null {
-    const base = this.baseBattlerOf(actor, hand);
-    if (!base) return null;
+    const body = this.bodyOf(actor);
+    if (!body) return null;
+    const memo = actor.battler;
+    if (
+      memo &&
+      memo.body === body &&
+      memo.equipment === actor.equipment &&
+      memo.hand === hand &&
+      memo.statuses === actor.statuses &&
+      memo.hp === actor.hp &&
+      memo.tilesById === this.tilesById &&
+      memo.statusDefs === this.statusDefs
+    ) {
+      return memo.stats;
+    }
+    const base = effectiveBattler(body, actor.equipment, this.tilesById, hand);
     /**
      * The stored figure rather than {@link hpOf}, which reads this function
      * and would recurse. Statuses that read HP see the raw number for this
      * reason: the clamp exists so a lowered maximum cannot leave somebody
      * overfull, not to change what they have.
      */
-    return withStatusModifiers(base, actor.statuses, this.statusDefs, actor.hp ?? base.maxHp);
+    const stats = withStatusModifiers(
+      base,
+      actor.statuses,
+      this.statusDefs,
+      actor.hp ?? base.maxHp,
+    );
+    actor.battler = {
+      body,
+      equipment: actor.equipment,
+      hand,
+      statuses: actor.statuses,
+      hp: actor.hp,
+      tilesById: this.tilesById,
+      statusDefs: this.statusDefs,
+      stats,
+    };
+    return stats;
   }
 
   private baseBattlerOf(
