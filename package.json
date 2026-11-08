@@ -28,6 +28,7 @@
     "carve:caves": "bun scripts/carve-caves.ts",
     "bench:server": "bun scripts/bench-server.ts",
     "bench:crowd": "bun scripts/bench-crowd.ts",
+    "bench:idle": "bun scripts/bench-idle.ts",
     "bench:bots": "bun scripts/bench-bots.ts",
     "bots": "bun bots/index.ts",
     "verify": "bun scripts/verify.ts",
