@@ -221,6 +221,9 @@ an agent drives", lists every call.
   how many bytes it puts on the wire. `--scenario <name>` for one,
   `--seconds <n>` for a shorter run, `--scale <n>` to put `n` of every resident
   on the map, each copy on a nearby cell with the same floor
+- `bun run bench:respawn` — take respawning items off their cells on
+  `data/map.json`, one per checkpoint, and print what each checkpoint costs
+  and how many bytes it writes
 - `bun run bench:realm` — fill a fresh database to production's size
   (`--characters` 560, `--deaths` 1650) and time the three reads a realm
   refresh makes, each `--rounds` (20) times

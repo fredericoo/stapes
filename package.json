@@ -30,6 +30,7 @@
     "bench:crowd": "bun scripts/bench-crowd.ts",
     "bench:idle": "bun scripts/bench-idle.ts",
     "bench:realm": "bun scripts/bench-realm.ts",
+    "bench:respawn": "bun scripts/bench-respawn.ts",
     "bench:bots": "bun scripts/bench-bots.ts",
     "bots": "bun bots/index.ts",
     "verify": "bun scripts/verify.ts",
