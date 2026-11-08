@@ -9240,6 +9240,17 @@ its remains on the floor and report a death nobody caused.
   loads. A creature with no respawn point, and every body `/spawn` or `/tile`
   put down, is gone for good.
 
+### A respawn point's item ids are written on their own key
+
+The shipped map has 18,948 respawn points, about 2.6 MB of JSON under
+`respawnPoints`. Only a point's `itemIds` change after load, when an item is
+picked up or grows back, so a change writes `respawnItems:<point key>` with that
+point's ids alone. Load reads the whole list, folds those keys back in, and the
+whole write it makes clears them. Before this, every pickup rewrote the whole
+list at the next checkpoint: 8 ms and 2.6 MB on an M-series Mac, against
+0.1 ms and about a hundred bytes now.
+`bun run bench:respawn` times that checkpoint.
+
 ### `/give` puts a new item where equipping by hand would
 
 `/give <item> [square] [body]` mints one item, with an item id of its own like
