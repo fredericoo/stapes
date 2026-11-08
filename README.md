@@ -221,6 +221,9 @@ an agent drives", lists every call.
   how many bytes it puts on the wire. `--scenario <name>` for one,
   `--seconds <n>` for a shorter run, `--scale <n>` to put `n` of every resident
   on the map, each copy on a nearby cell with the same floor
+- `bun run bench:realm` — fill a fresh database to production's size
+  (`--characters` 560, `--deaths` 1650) and time the three reads a realm
+  refresh makes, each `--rounds` (20) times
 - `bun run bench:idle` — load `data/map.json` into a real `GameServer`, seat
   one player and let them leave, then print how many ticks the empty world
   runs over `--seconds <n>` (20) and the CPU they cost. A world at rest runs
