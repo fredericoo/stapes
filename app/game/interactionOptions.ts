@@ -73,6 +73,8 @@ export type InteractionOption = {
   ref: ObjectRef;
   actorId: string | null;
   tileId: string;
+  /** The body as it is drawn — in its look and worn parts — when that differs from `tileId`'s own tile. */
+  drawnTile?: TileDef;
   name: string;
   health: { hp: number; maxHp: number } | null;
   active: boolean;

@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { HumanTextures } from "./humanTextures";
-import { drawnAs } from "./wornLooks";
 import { tilesetUrl } from "../lib/api";
 import {
   absoluteElevation,
@@ -31,6 +30,7 @@ import {
   changedCellsInChunk,
   changedCellsOnLevel,
   chunkKeyFor,
+  drawnAs,
   footElevation,
   getChunk,
   getStack,
@@ -489,7 +489,7 @@ export function dynamicLightTileIds(tilesById: Record<string, TileDef>): Readonl
   const ids = new Set<string>();
   for (const def of Object.values(tilesById)) {
     if (!resolveLightPassing(def)) continue;
-    if (resolveActor(def) || def.id === PLAYER_TILE_ID) ids.add(def.id);
+    if (resolveActor(def) || drawnAs(def.id, PLAYER_TILE_ID)) ids.add(def.id);
   }
   return ids;
 }

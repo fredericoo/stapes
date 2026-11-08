@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { PLAYER_TILE_ID } from "../game/constants";
 import type { ActorSnapshot } from "../game/GameSession";
-import { emptyMap, getStack, replaceStack } from "../lib/mapData";
+import { drawnAs, elevationAt, emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { TileDef } from "../lib/types";
 import { resolveTransitionSlot } from "./tileTransitions";
-import { drawnAs, WornLooks } from "./wornLooks";
+import { WornLooks } from "./wornLooks";
 
 const GUARD: TileDef = {
   id: "guard",
@@ -95,6 +96,40 @@ describe("WornLooks", () => {
 
     expect(second.map).toBe(first.map);
     expect(second.tilesById).toBe(first.tilesById);
+  });
+
+  it("keeps two dressed players in one cell side by side, not one on the other's head", () => {
+    const tiles = { ...CATALOGUE, [PLAYER_TILE_ID]: { ...GUARD, id: PLAYER_TILE_ID } };
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: PLAYER_TILE_ID, owner: "ana" },
+      { tileId: PLAYER_TILE_ID, owner: "bo" },
+    ]);
+    const look = { skin: "pale", hair: "blue", head: "bald" } as const;
+    const players = [1, 2].map(
+      (stackIndex) =>
+        ({
+          ...actor(PLAYER_TILE_ID, 0, {}, look),
+          id: `p${stackIndex}`,
+          stackIndex,
+        }) as ActorSnapshot,
+    );
+
+    const view = new WornLooks().apply(map, players, tiles);
+    const drawn = getStack(view.map, 0, 0, 0);
+
+    expect(drawn[2]!.tileId).not.toBe(PLAYER_TILE_ID);
+    expect(elevationAt(drawn, 2, view.tilesById)).toBe(elevationAt(drawn, 1, view.tilesById));
+  });
+
+  it("names the tile a body is drawn as, for the interaction list's picture", () => {
+    const looks = new WornLooks();
+
+    expect(looks.drawnTile(actor("guard", 0, { hat: "iron-helmet" }), CATALOGUE)?.human).toEqual({
+      ...GUARD.human,
+      outfit: { clothes: "white-tunic", hat: "iron-helmet" },
+    });
+    expect(looks.drawnTile(actor("guard", 0, {}), CATALOGUE)).toBeNull();
   });
 
   it("lets a transition naming the real tile find the dressed placement it is drawn as", () => {
