@@ -12266,12 +12266,14 @@ session actually ran, so a decay is reproducible from a seed and a tick count
 exactly as a fight is; `Date.now()` in `GameSession` would make a test's outcome
 depend on how fast the test ran. Three things follow:
 
-- **`isAtRest` is gated on it**, because this loop is the only clock a countdown
-  has. A world with anything decaying in it keeps ticking until that lifetime is
-  up — half a minute of blood after a fight is the intended cost, an hour-long
-  lifetime would be an hour of ticking, and it is the *longest* end of the range
-  that sets it. Lifetimes are authored in seconds so that cost is
-  visible while writing one.
+- **`isAtRest` ignores it, and the server hands over the time it slept.** A
+  world with nothing to do but decay goes to sleep. `GameServer.sleepUntilDecay`
+  sets a timer for `msUntilNextDecay`, and `wake`, however it is reached, calls
+  `passTimeAsleep` with the wall time slept, which moves the decay clock on.
+  The clock itself stays simulated, so a test that steps ticks by hand still
+  sees exact lifetimes. Until this, an hour-long berry was an hour of full ticks
+  for the whole world, and production ran a core's worth of them with nobody
+  connected. `bun run bench:idle` counts the ticks an empty world runs.
 - **An anonymous placement is keyed by cell plus tile id**, not by stack index:
   an index shifts the moment anything is placed under it, and blood in a doorway
   would forget its age every time somebody walked over it. Two placements of the

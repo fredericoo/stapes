@@ -6136,12 +6136,24 @@ export class GameSession implements PlaySession {
     };
   }
 
+  /**
+   * Simulated ms until something decays, or null. Decay does not keep the
+   * world awake: a resting world sleeps until then and is handed the time it
+   * slept through `passTimeAsleep`.
+   */
+  msUntilNextDecay(): number | null {
+    return this.decay.msUntilDue();
+  }
+
+  passTimeAsleep(ms: number) {
+    this.decay.advance(ms);
+  }
+
   isAtRest(): boolean {
     if (this.pendingHeard.length > 0) return false;
     if (this.pendingHurt.size > 0) return false;
     if (this.pendingSound.length > 0) return false;
     if (this.brainRound) return false;
-    if (this.decay.pending()) return false;
     if (this.endure.pending()) return false;
     if (this.liveProjectiles.length > 0) return false;
     if (this.liveFlightEffects.length > 0) return false;

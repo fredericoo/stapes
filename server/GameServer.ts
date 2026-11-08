@@ -818,6 +818,8 @@ export class GameServer {
   private readonly stepChains = new Map<string, number>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private tickDueAt = 0;
+  private asleepAtMs: number | null = null;
+  private decayWake: ReturnType<typeof setTimeout> | null = null;
   private consecutiveTickFailures = 0;
   private ticksStepped = 0;
   private loading: Promise<void> | null = null;
@@ -2454,10 +2456,7 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
 
-    if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
+    this.stopTicking();
     this.saveActors(session.actorIds(), true);
 
     this.session = null;
@@ -2473,10 +2472,7 @@ export class GameServer {
      * The tick and the session are dropped before the first await, so no flush
      * can write the live session back between the wipe and the reload.
      */
-    if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
+    this.stopTicking();
     this.session = null;
     this.loading = null;
 
@@ -2533,6 +2529,7 @@ export class GameServer {
 
   private wake() {
     if (this.env.manualTicks || this.timer !== null) return;
+    this.catchUpAsleep();
     this.tickDueAt = performance.now() + TICK_MS;
     this.timer = setInterval(() => this.tickIfDue(), TICK_POLL_MS);
   }
@@ -2571,10 +2568,41 @@ export class GameServer {
     if (!session || !session.isAtRest()) return;
     if (this.queuedIntents.size > 0) return;
     if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
+      this.stopTicking();
+      this.sleepUntilDecay(session);
     }
     this.saveActors(session.actorIds(), true);
+  }
+
+  /**
+   * Decay counts simulated time, so a world asleep with something decaying
+   * sets a timer for when it is due and, however it is woken, hands the
+   * session the time it slept.
+   */
+  private sleepUntilDecay(session: GameSession) {
+    this.asleepAtMs = performance.now();
+    const dueInMs = session.msUntilNextDecay();
+    if (dueInMs === null) return;
+    this.decayWake = setTimeout(() => {
+      this.decayWake = null;
+      this.wake();
+    }, dueInMs);
+  }
+
+  private catchUpAsleep() {
+    if (this.asleepAtMs === null) return;
+    this.session?.passTimeAsleep(performance.now() - this.asleepAtMs);
+    this.asleepAtMs = null;
+    if (this.decayWake !== null) clearTimeout(this.decayWake);
+    this.decayWake = null;
+  }
+
+  private stopTicking() {
+    if (this.timer !== null) clearInterval(this.timer);
+    this.timer = null;
+    if (this.decayWake !== null) clearTimeout(this.decayWake);
+    this.decayWake = null;
+    this.asleepAtMs = null;
   }
 
   private tick() {
