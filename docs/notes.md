@@ -4054,6 +4054,24 @@ one part of what is left is most of it:
   before anything has changed. Moving the cut and serialization to workers is
   the structural answer; the state it reads (held sets, subscriptions) would
   have to move with it.
+
+  **Clients with the same cut share one payload.** At a thousand spread
+  players only about a third of the payloads in a tick are distinct: two
+  clients whose cuts are the same indices into the tick's patch are sent the
+  same text, so `TextByLists` (`server/textByLists.ts`) keeps each tick's
+  payloads against the cut's index lists and writes each one once. A cut that
+  carries an object of its own — a cell filtered for that client, an arrival's
+  `spawned`, names — is written for that client alone; about nine cuts in ten
+  are indices only. A shared string is also flattened once rather than once per
+  socket. Measured alternately against the commit before it, three runs each:
+  `broadcastPatch` 4.23 → 3.87ms a tick, 24.4% → 23.0% of the profile. Run
+  beside a fresh `serializeCut` of every client's own cut, 1.2 million
+  payloads at a thousand spread and three hundred clustered matched byte for
+  byte.
+
+  Walking only the stamped indices of the tick's changes, sorted, in place of
+  asking all of them (about 80 cells, of which about 5 are in reach) measured
+  no different, and was left out.
 - **Brains ask for the nearest player by walking every player.**
   `nearestOnTile` is about seventy calls a tick at a thousand players, each a
   pass over the thousand — about 3ms a tick. A spatial answer has to keep the
