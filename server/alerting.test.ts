@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,6 +19,29 @@ let world: World;
 let webhook: ReturnType<typeof Bun.serve>;
 let posted: Embed[];
 
+async function seedDirectory(): Promise<string> {
+  const seed = join(directory, "seed");
+  await mkdir(seed, { recursive: true });
+  for (const file of ["tilesets.json", "tiles.json", "statuses.json", "traits.json"]) {
+    await copyFile(`data/${file}`, join(seed, file));
+  }
+  const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
+  await writeFile(join(seed, "map.json"), serializeMap(map));
+  return seed;
+}
+
+async function openWorld(env: Record<string, string> = {}): Promise<World> {
+  world = await World.open(
+    readConfig({
+      DATA_DIR: join(directory, "data"),
+      SEED_DIR: await seedDirectory(),
+      DISCORD_ALERTS_WEBHOOK_URL: `http://localhost:${webhook.port}/`,
+      ...env,
+    } as never),
+  );
+  return world;
+}
+
 beforeEach(async () => {
   posted = [];
   webhook = Bun.serve({
@@ -29,23 +52,7 @@ beforeEach(async () => {
       return new Response(null, { status: 204 });
     },
   });
-
   directory = await mkdtemp(join(tmpdir(), "stapes-alerting-"));
-  const seed = join(directory, "seed");
-  await mkdir(seed, { recursive: true });
-  for (const file of ["tilesets.json", "tiles.json", "statuses.json", "traits.json"]) {
-    await copyFile(`data/${file}`, join(seed, file));
-  }
-  const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
-  await writeFile(join(seed, "map.json"), serializeMap(map));
-
-  world = await World.open(
-    readConfig({
-      DATA_DIR: join(directory, "data"),
-      SEED_DIR: seed,
-      DISCORD_ALERTS_WEBHOOK_URL: `http://localhost:${webhook.port}/`,
-    } as never),
-  );
 });
 
 afterEach(async () => {
@@ -70,6 +77,7 @@ function overBudget(at: number): TickSample {
 }
 
 it("posts to the webhook when ticks go over budget, once, and again when they recover", async () => {
+  await openWorld();
   for (const minute of [1, 2, 3]) await world.tickLog.add(overBudget(minute * MINUTE));
 
   await world.checkAlerts(3 * MINUTE);
@@ -115,6 +123,7 @@ function frames(tab: string, gpu: string, slow: number): FrameReport {
 }
 
 it("posts when players' frames slow down, and leaves out tabs drawn without a GPU", async () => {
+  await openWorld();
   for (const tab of ["a", "b", "c"]) {
     await world.frameLog.add(tab, frames(tab, "ANGLE (SwiftShader Device)", 9000), MINUTE);
   }
@@ -128,4 +137,51 @@ it("posts when players' frames slow down, and leaves out tabs drawn without a GP
 
   expect(posted.map((embed) => embed.title)).toEqual(["Players' frame rates dropped"]);
   expect(posted[0]!.description).toContain("20.0% of frames");
+});
+
+describe("with a routine configured", () => {
+  const SESSION_URL = "https://claude.ai/code/session_test";
+  let routine: ReturnType<typeof Bun.serve>;
+  let fired: { authorization: string | null; text: string }[];
+  let answer: () => Response;
+
+  beforeEach(async () => {
+    fired = [];
+    answer = () => Response.json({ type: "routine_fire", claude_code_session_url: SESSION_URL });
+    routine = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const { text } = (await request.json()) as { text: string };
+        fired.push({ authorization: request.headers.get("authorization"), text });
+        return answer();
+      },
+    });
+    await openWorld({
+      CLAUDE_ROUTINE_FIRE_URL: `http://localhost:${routine.port}/fire`,
+      CLAUDE_ROUTINE_TOKEN: "token-1",
+    });
+    for (const minute of [1, 2, 3]) await world.tickLog.add(overBudget(minute * MINUTE));
+  });
+
+  afterEach(() => routine.stop(true));
+
+  it("starts one session with the samples, and links it from the alert", async () => {
+    await world.checkAlerts(3 * MINUTE);
+    await world.checkAlerts(3 * MINUTE + 1000);
+
+    expect(fired).toHaveLength(1);
+    expect(fired[0]!.authorization).toBe("Bearer token-1");
+    expect(fired[0]!.text).toContain("tick-slow");
+    expect(fired[0]!.text.match(/"at":\d+/g)).toEqual(['"at":60000', '"at":120000', '"at":180000']);
+    expect(posted[0]!.description).toContain(SESSION_URL);
+  });
+
+  it("still posts the alert when the session could not be started", async () => {
+    answer = () => new Response("rate limited", { status: 429 });
+
+    await world.checkAlerts(3 * MINUTE);
+
+    expect(posted.map((embed) => embed.title)).toEqual(["Server ticks are over budget"]);
+    expect(posted[0]!.description).not.toContain("Claude Code");
+  });
 });

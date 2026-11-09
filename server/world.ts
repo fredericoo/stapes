@@ -18,7 +18,15 @@ import { Deaths, type DeathRecord } from "./deaths";
 import { Realm, type Contender, type RealmState } from "./realm";
 import { TickMeter } from "./tickMeter";
 import { FrameLog } from "./frameLog";
-import { ALERT_TITLES, AlertBook, frameFinding, tickFindings } from "./alerts";
+import {
+  ALERT_TITLES,
+  AlertBook,
+  frameFinding,
+  tickFindings,
+  type Finding,
+  type FrameTally,
+} from "./alerts";
+import { fireRoutine } from "./routine";
 import { discordAnnouncer, logAnnouncer, type Announce } from "./discord";
 import { TICK_LOG_INTERVAL_MS, TICK_LOG_KEPT_MS, TickLog } from "./tickLog";
 import { generationalName } from "../app/lib/characterName";
@@ -28,6 +36,8 @@ import { join } from "node:path";
 const DEATH_LIST_LIMIT = 500;
 
 const REALM_REFRESH_MS = 30_000;
+
+const ROUTINE_SAMPLE_SPAN_MS = 30 * 60_000;
 
 export type PlayerEntry = RosterEntry & {
   online: boolean;
@@ -191,12 +201,19 @@ export class World {
       ...tickFindings(await this.tickLog.since(now - TICK_LOG_INTERVAL_MS * 5), now),
       ...(frames ? [frames] : []),
     ];
+    const tallies = { current, baseline };
     const { started, cleared } = this.alerts.update(findings, now);
     const link = `${this.config.PUBLIC_ORIGIN}/admin/perf`;
     for (const finding of started) {
+      const session = await this.investigate(finding, tallies, now);
       await this.announce({
         title: ALERT_TITLES[finding.rule],
-        lines: [finding.summary, ...finding.detail, this.config.PUBLIC_ORIGIN],
+        lines: [
+          finding.summary,
+          ...finding.detail,
+          ...(session ? [`Claude Code is looking into it: ${session}`] : []),
+          this.config.PUBLIC_ORIGIN,
+        ],
         tone: "alert",
         link,
       });
@@ -209,6 +226,30 @@ export class World {
         link,
       });
     }
+  }
+
+  /** Hands the finding and the samples around it to a Claude Code session, when a routine is configured. */
+  private async investigate(
+    finding: Finding,
+    frames: { current: FrameTally; baseline: FrameTally },
+    now: number,
+  ): Promise<string | null> {
+    const { CLAUDE_ROUTINE_FIRE_URL: fireUrl, CLAUDE_ROUTINE_TOKEN: token } = this.config;
+    if (!fireUrl || !token) return null;
+    const samples = await this.tickLog.since(now - ROUTINE_SAMPLE_SPAN_MS);
+    const text = [
+      `Alert: ${ALERT_TITLES[finding.rule]} (${finding.rule})`,
+      `World: ${this.config.PUBLIC_ORIGIN}`,
+      `At: ${new Date(now).toISOString()}`,
+      finding.summary,
+      ...finding.detail,
+      "",
+      `Frame tallies: ${JSON.stringify(frames)}`,
+      "",
+      `Tick samples, one a minute, oldest first (GET /api/perf/ticks has more):`,
+      ...samples.map((sample) => JSON.stringify(sample)),
+    ].join("\n");
+    return fireRoutine({ fireUrl, token }, text);
   }
 
   async testAlert(): Promise<void> {
