@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { SINGLE_PASS_DOUBLE_SIDE } from "./doubleSided";
 import { MAX_PILE_SPRITES } from "./pileLayout";
 import type { SpriteQuad } from "./spriteQuad";
 
@@ -90,7 +91,7 @@ export function makeSpriteMesh(quad: SpriteQuad, opts: SpriteMeshOptions): THREE
     blending: opts.blending,
     depthTest: false,
     depthWrite: false,
-    side: THREE.DoubleSide,
+    ...SINGLE_PASS_DOUBLE_SIDE,
     alphaTest: opts.alphaTest ?? 0,
   });
 
@@ -230,7 +231,7 @@ function makeOutlineMaterial(): THREE.ShaderMaterial {
     transparent: true,
     depthTest: false,
     depthWrite: false,
-    side: THREE.DoubleSide,
+    ...SINGLE_PASS_DOUBLE_SIDE,
     toneMapped: false,
   });
 }
@@ -399,7 +400,7 @@ export function makeCellFill(
     opacity,
     depthTest: false,
     depthWrite: false,
-    side: THREE.DoubleSide,
+    ...SINGLE_PASS_DOUBLE_SIDE,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.renderOrder = OVERLAY_RENDER_ORDER.cellFill;

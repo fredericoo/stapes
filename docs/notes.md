@@ -14852,6 +14852,36 @@ can look like it went away after a browser restart. To reproduce without editing
 anything, call `world.outlineMaterials.dispose()` between rebuilds: that is
 precisely what the old code did.
 
+### A transparent double-sided material is drawn in one pass
+
+The ortho camera is Y-down, which reverses face winding, so every sprite
+material is `DoubleSide`. Three draws a material that is `transparent`,
+`DoubleSide` and not `forceSinglePass` twice (`renderObject` in
+`three.module.js`): once as `BackSide`, once as `FrontSide`, setting
+`needsUpdate` before each. The two sides are different programs (`flipSided`
+is in the program cache key), so every such mesh cost two draw calls, a
+`useProgram` switch per draw and a full re-upload of its uniforms. Every quad
+here has one winding, so one of the two draws covered no pixel.
+
+`SINGLE_PASS_DOUBLE_SIDE` (`app/render/doubleSided.ts`) is the pair of
+settings to spread into a sprite material instead of `side: DoubleSide`. A
+material that is not transparent (the reflection pass, the VFX preview floor)
+is drawn once either way and does not need it.
+
+Measured in headless Chromium by wrapping the WebGL context's `draw*` and
+`useProgram`, before and after, the same build otherwise:
+
+| | draws before | draws after | `useProgram` before | `useProgram` after |
+|---|---|---|---|---|
+| `/admin/play`, spawn point, per frame | 421 | 219 | 405 | 4 |
+| `/admin/map`, `renderFrame` | 154 | 79 | 153 | 4 |
+| `scripts/scenes/water-kinds.json` | 64 | 36 | 58 | 3 |
+
+The five scenes in `scripts/scenes/` rendered pixel-identical before and after.
+A mesh that mixed both windings and blended would have its draw order inside
+the mesh changed by this; none does, and a closed volume seen from inside
+would be the case to check first.
+
 ### An animated tile is drawn by the shader, and only a *mobile* one leaves the batch
 
 Animation used to be a second reason for a tile to have a mesh of its own: the

@@ -107,6 +107,7 @@ import {
 } from "../lib/types";
 import { hasSpriteStates, isMobileTile } from "../lib/interactions";
 import { clumpExtents } from "./depthClump";
+import { SINGLE_PASS_DOUBLE_SIDE } from "./doubleSided";
 import { getFrames, resolveLight, resolveTileSprite } from "../lib/tileResolve";
 import {
   ChunkedLighting,
@@ -1761,7 +1762,7 @@ export class WorldRenderer {
       const tintU = tint && tint.strength > 0 ? tintUniforms(tint) : noTintUniforms();
       mat = new THREE.MeshBasicMaterial({
         map: texture,
-        side: THREE.DoubleSide,
+        ...SINGLE_PASS_DOUBLE_SIDE,
       });
       mat.onBeforeCompile = (shader) => {
         injectWorldShader(
@@ -2652,7 +2653,7 @@ export class WorldRenderer {
   ): THREE.MeshBasicMaterial {
     const lightUniforms = this.ensureLightUniforms(z);
     const cutUniforms = this.ensureCutUniforms(z);
-    const mat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    const mat = new THREE.MeshBasicMaterial({ map: texture, ...SINGLE_PASS_DOUBLE_SIDE });
     mat.onBeforeCompile = (shader) => {
       injectWorldShader(
         shader,

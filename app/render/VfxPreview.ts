@@ -7,6 +7,7 @@ import { taperedGlow, taperedTint, type StatusVfx } from "../lib/statusVfx";
 import { getFrames } from "../lib/tileResolve";
 import type { Frame, TileDef, TilesetDef } from "../lib/types";
 import { CELL_SIZE, frameIndexAtTime, HEIGHT_PER_LEVEL, spriteRect } from "../lib/types";
+import { SINGLE_PASS_DOUBLE_SIDE } from "./doubleSided";
 import { ParticleLayer } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
 import { PalettePass } from "./palettePass";
@@ -355,7 +356,7 @@ export class VfxPreview {
 
     const material = new THREE.MeshBasicMaterial({
       map: this.texture,
-      side: THREE.DoubleSide,
+      ...SINGLE_PASS_DOUBLE_SIDE,
       transparent: true,
       alphaTest: SPRITE_ALPHA_TEST,
     });
