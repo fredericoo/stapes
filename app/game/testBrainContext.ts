@@ -58,6 +58,7 @@ export function brainContext(overrides: Partial<BrainContext> = {}) {
     talking: () => false,
     inHarm: () => false,
     hurtBy: () => [],
+    struck: () => [],
     attack: vi.fn(() => false),
     cast: vi.fn((): "cast" | "casting" | "no" => "no"),
     extract: vi.fn(() => false),

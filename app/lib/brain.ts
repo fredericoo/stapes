@@ -77,6 +77,7 @@ export type BrainConditionDef =
     }
   | { cond: "heard_noise"; text?: string; cells: number }
   | { cond: "attacked" }
+  | { cond: "other_attacked"; of: Selector; cells: number }
   | { cond: "stuck" }
   | { cond: "talking" }
   | { cond: "in_harm" }
@@ -206,6 +207,7 @@ const leafSchema = v.variant("cond", [
   }),
   v.object({ cond: v.literal("stuck") }),
   v.object({ cond: v.literal("attacked") }),
+  v.object({ cond: v.literal("other_attacked"), of: selectorSchema, cells }),
   v.object({ cond: v.literal("talking") }),
   v.object({ cond: v.literal("in_harm") }),
   v.object({

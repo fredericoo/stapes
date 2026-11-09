@@ -54,6 +54,24 @@ const brawlerBrain = {
   ],
 };
 
+const guardianBrain = {
+  initial: "idle",
+  states: {
+    idle: { do: [{ action: "hold" as const }] },
+    defending: {
+      do: [{ action: "attack" as const, of: slot("foe") }, { action: "hold" as const }],
+    },
+  },
+  transitions: [
+    {
+      from: "idle",
+      if: { cond: "other_attacked" as const, of: nearest("dummy"), cells: 4 },
+      bind: { foe: ATTACKER_SELECTOR },
+      to: "defending",
+    },
+  ],
+};
+
 const RESTING_NOISE = "yawn";
 
 const REST_AFTER_MS = 1000;
@@ -164,6 +182,20 @@ const tiles: TileDef[] = [
         naturalWeapon: claws({ damage: feltBy(PLAYER_TOUGHNESS), ...CERTAIN }),
       },
       brain: brawlerBrain,
+    },
+  }),
+  tile({
+    id: "guardian",
+    height: 2,
+    actor: true,
+    walkable: false,
+    interactions: {
+      battler: {
+        baseHp: FIXTURE_BASE_HP,
+        masteries: { toughness: BRAWLER_TOUGHNESS },
+        naturalWeapon: claws({ damage: feltBy(PLAYER_TOUGHNESS), ...CERTAIN }),
+      },
+      brain: guardianBrain,
     },
   }),
   tile({
@@ -765,6 +797,31 @@ describe("a creature that fights back", () => {
     const session = new GameSession(withBody(field(), 1, 0, "brawler"), tiles);
 
     advance(session, 2000);
+
+    expect(self(session).hp).toBe(PLAYER_MAX_HP);
+  });
+
+  it("turns on whoever hits the body it guards", () => {
+    const map = withBody(withBody(field(), 1, 0, "dummy"), 0, 1, "guardian");
+    const session = new GameSession(map, tiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, 1000);
+
+    expect(self(session).hp!).toBeLessThan(PLAYER_MAX_HP);
+  });
+
+  it("leaves alone whoever hits a body it does not guard", () => {
+    const map = withBody(
+      withBody(withBody(field(), 1, 0, "anvil"), 0, 1, "guardian"),
+      -2,
+      -2,
+      "dummy",
+    );
+    const session = new GameSession(map, tiles);
+    fight(session, bodyOf(session, "anvil")!.id);
+
+    advance(session, 1000);
 
     expect(self(session).hp).toBe(PLAYER_MAX_HP);
   });

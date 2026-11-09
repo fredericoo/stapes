@@ -121,6 +121,15 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     params: [],
     make: () => ({ cond: "attacked" }),
   },
+  other_attacked: {
+    label: "other attacked",
+    hint: "Somebody swung at the chosen body since the last round, and it is within this many cells. Bind the attacker selector to remember who.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+    ],
+    make: () => ({ cond: "other_attacked", of: DEFAULT_SELECTOR, cells: 8 }),
+  },
   stuck: {
     label: "stuck",
     hint: "Every action in this state failed last turn. A state ending in hold can never be stuck.",

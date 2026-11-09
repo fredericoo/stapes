@@ -1507,6 +1507,40 @@ cause of death.
 - **The night guard crosses his door by hand.** Brain routing does not open
   doors, so the guardhouse door at 5,8 is a `switch` in its own state each
   way, and his home is the cell inside it.
+- **Lord Corvin fights with stones, and is meant to scare players off.** He
+  is in the old alderman's hall, with rating 56 from Arcane 70, between the
+  smiths and the guards. His spells are Lance, Ember, Frost and Thorns. Arcane 70
+  is more than double what each of them asks, so every cast is instant. None of
+  them hits an area: an area spell `affects: "others"` would hit his wife, and
+  nothing brings her back. He calls `fights-back` with his own `dueling` state,
+  because `townsfolk-fight` only swings.
+- **Corvin turns on whoever hits his wife.** His first row is
+  `other_attacked` of `nearest(lady-ysolde)` within 12 cells, which binds the
+  attacker as his `threat` and enters `dueling`, from every state but a fight.
+  See *`other_attacked` is a blow at somebody else*.
+- **At night both walk up to the double bed in two legs, and the second leg
+  only works because of the first.** `climbing` steps toward
+  `thing(stone-stairs)` until it is within a cell; `retiring` (Corvin) and
+  `resting` (Ysolde) then step toward `thing(bed)`. A single leg is refused
+  from the west end of the hall: a route may be at most `PATH_DETOUR_SLACK`
+  (16) steps longer than the plan distance, and the trip east to the stairs
+  and back west upstairs is longer than that from where Ysolde spends her day.
+  Both have `sight.up` 1, because `nearestThing` searches only the levels a
+  body can see. The cellar stairs and Corvin's cellar bed are below them, so
+  neither is picked.
+- **The double bed stands out from the wall, at (0..1, -30..-29) on L1.** A
+  `thing` goal arrives on a square one step from the bed square the search
+  picked, on the same level. A bed square against a wall can have one free
+  square beside it or none; whoever arrives first takes it and the other body
+  gives up. Away from the wall every bed square has free floor beside it, and
+  none of that floor is (3, -31) or (3, -30), the way off the stair landing,
+  so a body standing by the bed never blocks the stairs.
+- **Corvin and Ysolde have leashes of three cells.** A wandering brain steps
+  into a stairwell, because a stair two units down is inside the climb band
+  and `stepLeavesGround` does not count it as a drop. Their homes, (1, -27)
+  and (-1, -27), are more than three steps from the square in front of either
+  staircase. A body off its home level still routes home, but `in_range home`
+  never holds there, since `within` checks sight levels first.
 
 ### A trade is `app/game/trade.ts`, and a craft is a trade with a roll in front
 
@@ -11002,6 +11036,26 @@ path `/despawn` and a player's leaving take, not `kill`:
   whether or not anybody is near. With nobody online no brain runs at all, and
   a wisp still on the board then fades on the first turn after somebody joins.
 
+## `other_attacked` is a blow at somebody else
+
+`attacked` reads the body's own `pendingHurt`, which is drained on that
+body's turn, so nothing else could tell that it had been hit. Written for a
+creature that defends another.
+
+- **Every swing, bolt, area hit and conjuring that lands on somebody is also
+  a `Strike`** (`victimId`, `attackerId`), recorded by `notePendingHurt`
+  whoever the victim is, player or resident. Strikes collect in `pendingStrikes` during a round and are handed
+  to the next `BrainRound`, as speech is to `heard`, so every brain in that
+  round reads the same list. An attacker who is concealed is not recorded,
+  matching `hear`.
+- **The condition names whose blows count and how near they must be:** `of`
+  is a selector for the victim and `cells` the distance from the guard,
+  checked with `within`, so the victim must also be on a level the guard can
+  see. It binds the latest attacker to `memory.hurtBy`, so the `attacker`
+  selector names them, as it does after `attacked`.
+- **It cannot be added as an optional `of` on `attacked`** because a catalogue
+  selector parameter cannot be optional.
+
 ## A respawn can keep to hours
 
 `RespawnInteraction.hours` is `{ fromHour, toHour }` on the same terms as the
@@ -11271,6 +11325,17 @@ placed apart in the eastern forest: the ember wisp in the clearing by the
 stream at (77, 21), the tide wisp at (76, -34) and the moss wisp at (69, -61).
 They were first placed together, and three casting at one player at once is
 three times the damage the tuning below was measured for.
+
+**Every wisp's placement has a ring of flowers around it.** The lore says a
+flower ring marks where a wisp appears, and it is the only sign of one by day.
+Each ring is twelve flower placements in `data/map.json` on the cells between
+1.5 and 2.5 cells from the wisp. Flowers were cleared from the rest of the
+area within 3.2 cells, and trees and bushes from the ring itself, so the ring
+does not blend into the scattered flowers around it. Each ring is red or
+yellow, whichever is rarer near that spot. Nothing generates the rings: a wisp
+moved or added in the editor needs its ring painted by hand, or the lore stops
+being true there. Lord Corvin's book (`book`, in the chest in
+his cellar) is where a player reads this.
 
 **The art is a glow on a translucent sheet.** `bun run generate:wisps` draws a
 near-white core that darkens through the element's palette ramp and loses
