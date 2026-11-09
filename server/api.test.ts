@@ -21,6 +21,7 @@ import { readConfig } from "./config";
 import { World, type PlayerEntry } from "./world";
 import type { CharacterSheet } from "./GameServer";
 import type { GameSession } from "../app/game/GameSession";
+import type { TickSample } from "./tickLog";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -662,5 +663,38 @@ describe("making a character", () => {
 
     expect(response.status).toBe(400);
     expect((await me(from)).characters).toEqual(before);
+  });
+});
+
+describe("the tick log", () => {
+  function ticks(headers: Record<string, string>, since = 0): Promise<Response> {
+    return api.handle(new Request(`http://localhost/api/perf/ticks?since=${since}`, { headers }));
+  }
+
+  it("holds a sample of the ticks a world with a player in it ran", async () => {
+    await playing("Ada Lark");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await world.logTicks(1000);
+
+    const { samples } = (await (await ticks({ cookie })).json()) as { samples: TickSample[] };
+
+    expect(samples).toHaveLength(1);
+    expect(samples[0]).toMatchObject({ at: 1000, players: 1, failures: 0 });
+    expect(samples[0]!.ticks).toBeGreaterThan(0);
+    expect(samples[0]!.tick.max).toBeGreaterThanOrEqual(samples[0]!.phases.sim.p50);
+  });
+
+  it("writes nothing for a world that did not tick", async () => {
+    await world.logTicks(1000);
+
+    expect(await world.tickLog.since(0)).toEqual([]);
+  });
+
+  it("is read by an administrator and by nobody else", async () => {
+    const guest = await startGuest("Ada Lark");
+
+    expect((await ticks({ cookie })).status).toBe(200);
+    expect((await ticks({ cookie: guest })).status).toBe(404);
+    expect((await ticks({})).status).toBe(404);
   });
 });

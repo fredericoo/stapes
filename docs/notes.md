@@ -16476,3 +16476,42 @@ measures from the top of the body, so a tall creature sees over a wall a
 person cannot. And a tall creature put somewhere roofed is taken out by
 `removeUnfitPlacements` on the next save, the same as any overflow into an
 occupied level.
+
+## The world measures itself
+
+What a player's tab and the server measure about their own speed is kept in the
+world's database, because only the server process may open it
+(`server/lock.ts`) and nothing else runs beside it on the box.
+
+### Every tick is timed, and a minute of them is one row
+
+`TickMeter` (`server/tickMeter.ts`) is handed to `GameServer` by `World`.
+`tickSafely` times each tick, and `tick` marks four phases inside it:
+
+- `sim` — `session.tick`, queued steps and due respawns. Creature brains are in here.
+- `collect` — the motion events and the per-actor diffs.
+- `broadcast` — `broadcastPatch` and the chunks handed to whoever moved.
+- `flush` — every per-message flush, the actor save and the sleep check.
+
+It also records how late each tick started against `tickDueAt`. The loop is
+polled every millisecond, so lateness is how long something else held the event
+loop: a join, a checkpoint, a garbage collection.
+
+`skipped` is the number of ticks dropped when `tickIfDue` gives up on a backlog
+longer than `MAX_TICK_BACKLOG_MS`. It is the only figure that says the world ran
+slow: a tick of 40ms that is followed by a short one loses no time, and a
+skipped tick is simulated time nobody gets back.
+
+Once a minute `World.logTicks` drains the meter into `tick_window`
+(`server/tickLog.ts`) with the player count and the process's resident memory.
+The sample is JSON beside its time, as feedback's context is, so adding a phase
+is not a migration. A minute in which no tick ran writes no row: the world was
+asleep, and a row of zeros would read as a stall. Rows older than thirty days
+are deleted on each write.
+
+`GET /api/perf/ticks?since=<ms>` returns the samples to an administrator's
+session or to `Authorization: Bearer $ADMIN_SECRET`, which is how a script or an
+agent without a browser reads them.
+
+A world stepped by hand (`manualTicks`) calls `tick` without `tickSafely`, so
+its laps are ignored and it records nothing.

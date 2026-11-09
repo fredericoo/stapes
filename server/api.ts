@@ -4,6 +4,7 @@ import { readPngSize } from "../app/lib/png";
 import { readAppearance, type HumanAppearance } from "../app/lib/humanSprite";
 import { untar } from "./untar";
 import { PROTOCOL_VERSION } from "../app/net/protocol";
+import { TICK_MS } from "../app/game/constants";
 import { viewerOf, type Viewer } from "./auth";
 import { claimGuest, startGuest } from "./guests";
 import type { World } from "./world";
@@ -18,6 +19,8 @@ import {
 } from "./feedback";
 
 const FEEDBACK_LIST_LIMIT = 500;
+
+const PERF_DEFAULT_SPAN_MS = 60 * 60_000;
 
 const GUEST_SIGN_IN_PATH = "/api/auth/sign-in/anonymous";
 
@@ -344,6 +347,20 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
           message: t.Optional(t.Nullable(t.String({ maxLength: MAINTENANCE_MESSAGE_MAX_LENGTH }))),
         }),
         detail: { summary: "Close the world to everybody but administrators, or reopen it" },
+      },
+    )
+    .get(
+      "/perf/ticks",
+      async ({ headers, query, request, status }) => {
+        const allowed = (await authorized(headers.authorization, config)) || (await admin(request));
+        if (!allowed) return status(404, "Not found");
+        const since = Number(query.since ?? Date.now() - PERF_DEFAULT_SPAN_MS);
+        if (!Number.isFinite(since)) return status(400, "since is a time in milliseconds");
+        return { tickMs: TICK_MS, samples: await world.tickLog.since(since) };
+      },
+      {
+        query: t.Object({ since: t.Optional(t.String()) }),
+        detail: { summary: "Tick timings, one sample for each minute the world ticked" },
       },
     )
     .post("/backup", async ({ headers, status }) => {

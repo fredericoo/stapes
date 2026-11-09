@@ -74,6 +74,7 @@ import type {
 } from "../app/lib/types";
 import { parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
+import type { TickMeter } from "./tickMeter";
 import {
   CLOSE_REPLACED,
   CLOSE_WORLD_FULL,
@@ -796,6 +797,7 @@ export class GameServer {
       maxOnlinePlayers?: number;
       manualTicks?: { startAtMs: number };
       seed?: number;
+      tickMeter?: TickMeter;
     },
   ) {}
 
@@ -2588,20 +2590,28 @@ export class GameServer {
    * under load. If the tick replaced `this.timer`, the timeline is not this one's.
    */
   private tickIfDue() {
-    if (performance.now() < this.tickDueAt) return;
+    const late = performance.now() - this.tickDueAt;
+    if (late < 0) return;
     const timer = this.timer;
-    this.tickSafely();
+    this.tickSafely(late);
     if (this.timer !== timer) return;
     this.tickDueAt += TICK_MS;
     const now = performance.now();
-    if (now - this.tickDueAt > MAX_TICK_BACKLOG_MS) this.tickDueAt = now;
+    if (now - this.tickDueAt > MAX_TICK_BACKLOG_MS) {
+      this.env.tickMeter?.skip(Math.floor((now - this.tickDueAt) / TICK_MS));
+      this.tickDueAt = now;
+    }
   }
 
-  private tickSafely() {
+  private tickSafely(lateMs: number) {
+    const meter = this.env.tickMeter;
+    meter?.begin(lateMs);
     try {
       this.tick();
+      meter?.end({ failed: false });
       this.consecutiveTickFailures = 0;
     } catch (error) {
+      meter?.end({ failed: true });
       this.consecutiveTickFailures += 1;
       const n = this.consecutiveTickFailures;
       if (n === 1 || n % TICK_FAILURE_LOG_INTERVAL === 0) {
@@ -2655,10 +2665,12 @@ export class GameServer {
   private tick() {
     const session = this.session;
     if (!session) return;
+    const meter = this.env.tickMeter;
 
     session.tick(TICK_MS);
     this.applyQueuedSteps();
     this.processDueRespawns(this.now());
+    meter?.lap("sim");
 
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);
@@ -2687,6 +2699,7 @@ export class GameServer {
     const pvp = this.diffPvp(actors);
     const extractions = this.diffExtractions(actors);
     const castings = this.diffCastings(actors);
+    meter?.lap("collect");
     const moved = this.broadcastPatch(actors, {
       cells,
       events: this.events,
@@ -2707,6 +2720,7 @@ export class GameServer {
     this.events = [];
 
     this.streamEnteredChunks(moved);
+    meter?.lap("broadcast");
 
     this.announceDeaths();
 
@@ -2722,6 +2736,7 @@ export class GameServer {
     this.flushStatuses();
     this.saveActorsIfDue();
     this.sleepIfIdle();
+    meter?.lap("flush");
   }
 
   private collectMotionEvents(actors: ActorSnapshot[]) {
