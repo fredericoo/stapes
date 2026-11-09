@@ -59119,9 +59119,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 20,
-          "arcane": 20,
-          "toughness": 26,
+          "fist": 14,
+          "arcane": 14,
+          "toughness": 22,
           "agility": 9
         },
         "naturalWeapon": {
@@ -60593,9 +60593,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 20,
-          "arcane": 20,
-          "toughness": 26,
+          "fist": 14,
+          "arcane": 14,
+          "toughness": 22,
           "agility": 9
         },
         "naturalWeapon": {
@@ -62029,9 +62029,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 20,
-          "arcane": 20,
-          "toughness": 26,
+          "fist": 14,
+          "arcane": 14,
+          "toughness": 22,
           "agility": 9
         },
         "naturalWeapon": {

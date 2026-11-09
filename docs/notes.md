@@ -5229,7 +5229,7 @@ fights. The skeleton as it was then, born with 110, had an even level of 28
 and was rated 29 by this, against 13 before. The cave troll moved from 51 to
 61 against an even level of 38, and the cyclops from 61 to 150 against 75.
 For creatures born with 8 the rating already ran high — the wolf is rated 28
-against an even level of 15, a slime 20 against 8 — because `rating` counts a
+against an even level of 15, a slime 15 against 5 — because `rating` counts a
 weapon mastery whatever weapon it is used with.
 
 **The skeleton's strength then moved from its hit points into its
@@ -7777,12 +7777,14 @@ damage spell pays a point per point of damage, doubled against anything rated
 well above the caster's Arcane (`experienceMultiplier`), so Arcane 3 to 10 is
 about fifty Spark hits on bats and seventy-five on rats.
 
-**The slimes are rated 20 so Arcane 10 to 15 has something to practise on.**
+**The slimes are rated 15 so Arcane 10 to 15 has something to practise on.**
 Casting is weighed against the target's rating, and the creatures near the
 start are rated 7 to 10, so past Arcane 10 they pay almost nothing
 (`BENEATH_YOU_EXPONENT`): Arcane 10 to 15 was about five hundred Spark hits on
-rats. A slime at 20 pays double until Arcane 14, and the same climb is about
-ninety hits on slimes. Lowering a slime's masteries moves that wall back.
+rats. A slime at 15 pays double until Arcane 10 and its plain rate at 15. It
+was rated 20, which paid double until Arcane 14 and made slimes, beaten by a
+player at level 8, the cheapest experience on the island. Lowering a slime's
+masteries moves that wall back.
 
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
@@ -11750,31 +11752,32 @@ their rows rely on.
 ### A slime splits into two small ones
 
 `Split` used to conjure another full slime, at full health, which could split
-in its turn. Kept beside a wounded slime, a player was handed a new 41-point
-slime every minute for as long as they cared to stand there, rated 20 and so
-paying double experience to anybody below Arcane 14.
+in its turn. Kept beside a wounded slime, a player was handed a new full
+slime every minute for as long as they cared to stand there, paying
+experience at the slime's rating.
 
 **Now `Split` conjures two small slimes and consumes the slime that casts it**
 (`count: 2`, `consumesCaster`; see *A conjured body is a creature of its own*).
-A small slime has 13 hit points against its parent's 41, moves at 450ms a
+A small slime has 13 hit points against its parent's 35, moves at 450ms a
 step rather than 600, and has no `Split` of its own, so one slime is worth at
 most its own health and two small ones'. The small ones are meant to be
 dangerous only together: alone, one is as easy as a rat (a player at level 2
-wins half the time, against level 8 for the parent).
+wins half the time, against level 5 for the parent).
 
 - **The cast takes two seconds, not eight.** It still starts at 35% and is
   uninterruptible. At eight seconds the slime stood still taking blows for
-  longer than its last 14 hit points lasted, so the split almost never
+  longer than its last 12 hit points lasted, so the split almost never
   happened. Sixty fights a level in a `GameSession` with the shipped tiles,
   against a player with Sharp, Toughness and Agility at the level and that
   level's sword, counting the fights in which the slime split before it died:
 
   | level | 8 s cast | 2 s cast |
   | ----- | -------- | -------- |
-  | 10    | 0        | 57       |
-  | 15    | 0        | 60       |
-  | 20    | 0        | 52       |
-  | 33    | 1        | 7        |
+  | 5     | 17       | 57       |
+  | 10    | 0        | 38       |
+  | 15    | 0        | 41       |
+  | 20    | 0        | 19       |
+  | 33    | 1        | 6        |
 - **A small slime has no `respawn`.** It is conjured, so it has no respawn
   point, but a content save rebuilds the spawn points from the board
   (`findSpawnPoints`), and a conjured body with a `respawn` alive at that
@@ -11784,8 +11787,8 @@ wins half the time, against level 8 for the parent).
 - **Their sprites are the parent's, shrunk.** `small-slimes.png` holds every
   frame of `monsters.png`'s three slime blocks shrunk from about 11 pixels to
   7, rounded to the ellipse that fills each frame's blob, outlined in one
-  closed ring with the eyes put back, and drawn where the parent's foot is, so the small tiles keep the parent's
-  rects and only their `anchor` differs.
+  closed ring with the eyes put back, and drawn where the parent's foot is,
+  so the small tiles keep the parent's rects and only their `anchor` differs.
 
 **A slime notices a player from 8 cells, and gives up and walks home at 12.**
 Both used to be 5 and 8, so stepping three cells back ended the fight.
