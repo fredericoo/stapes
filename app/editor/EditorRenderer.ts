@@ -64,6 +64,7 @@ import {
   injectWorldShader,
 } from "../render/worldQuads";
 import { noTintUniforms } from "../render/spriteTint";
+import { SINGLE_PASS_DOUBLE_SIDE } from "../render/doubleSided";
 import { createLevelFadeCompositeMaterial, PalettePass } from "../render/palettePass";
 import {
   OVERLAY_RENDER_ORDER,
@@ -526,11 +527,7 @@ export class EditorRenderer {
       const lightUniforms = this.ensureLightUniforms(z);
       mat = new THREE.MeshBasicMaterial({
         map: texture,
-        /**
-         * The ortho camera uses top < bottom for Y-down, which reverses face
-         * winding, so DoubleSide is required here rather than incidental.
-         */
-        side: THREE.DoubleSide,
+        ...SINGLE_PASS_DOUBLE_SIDE,
       });
       mat.onBeforeCompile = (shader) => {
         injectWorldShader(

@@ -10,6 +10,7 @@ import {
   shapeHas,
 } from "../lib/particleVfx";
 import { CELL_SIZE } from "../lib/types";
+import { SINGLE_PASS_DOUBLE_SIDE } from "./doubleSided";
 import {
   type ParticleEmitterSpec,
   type ParticleReading,
@@ -214,7 +215,7 @@ export class ParticleLayer {
 
     const material = new THREE.MeshBasicMaterial({
       map: this.atlas,
-      side: THREE.DoubleSide,
+      ...SINGLE_PASS_DOUBLE_SIDE,
       transparent: true,
       depthWrite: false,
       depthTest: true,
