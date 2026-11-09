@@ -2,8 +2,8 @@ import {
   appendTile,
   getStack,
   landedPlacement,
+  type MapDraft,
   removeTileAt,
-  replaceStack,
   setStacks,
 } from "../lib/mapData";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -53,8 +53,9 @@ export function moveEntity(
   to: { x: number; y: number; z: number },
   direction: Direction | undefined,
   _tilesById?: Record<string, TileDef>,
+  draft?: MapDraft,
 ): MapFile {
-  return moveColumn(map, from, 1, to, direction);
+  return moveColumn(map, from, 1, to, direction, draft);
 }
 
 /**
@@ -68,6 +69,7 @@ export function moveColumn(
   count: number,
   to: { x: number; y: number; z: number },
   direction: Direction | undefined,
+  draft?: MapDraft,
 ): MapFile {
   const stack = getStack(map, from.x, from.y, from.z);
   const moving = stack.slice(from.stackIndex, from.stackIndex + count);
@@ -92,6 +94,7 @@ export function moveColumn(
           { x: from.x, y: from.y, z: from.z, stack: fromStack },
           { x: to.x, y: to.y, z: to.z, stack: toStack },
         ],
+    draft,
   );
 }
 
@@ -102,6 +105,7 @@ export function setEntityDirection(
   z: number,
   stackIndex: number,
   direction: Direction,
+  draft?: MapDraft,
 ): MapFile {
   const stack = getStack(map, x, y, z);
   const current = stack[stackIndex];
@@ -114,5 +118,5 @@ export function setEntityDirection(
    */
   if (current.direction === direction) return map;
   const next = stack.map((p, i) => (i === stackIndex ? { ...p, direction } : p));
-  return replaceStack(map, x, y, z, next);
+  return setStacks(map, [{ x, y, z, stack: next }], draft);
 }

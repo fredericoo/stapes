@@ -43,9 +43,10 @@ const CHUNK_CELLS = CHUNK_SIZE * CHUNK_SIZE;
 const CHUNK_MASK = CHUNK_SIZE - 1;
 
 /**
- * Chunks are never written after `setStacks` returns them, so a chunk's stacks
- * can be filed once by slot and read without building a cell-key string.
- * `setStacks` hands a copied chunk its source's index with the edits applied.
+ * Chunks are only ever written by `setStacks`, so a chunk's stacks can be
+ * filed once by slot and read without building a cell-key string. `setStacks`
+ * hands a copied chunk its source's index with the edits applied, and applies
+ * an edit written in place to the chunk's own.
  */
 const cellIndexByChunk = new WeakMap<ChunkCells, CellIndex>();
 
@@ -516,11 +517,85 @@ export type StackEdit = {
   stack: PlacedTile[];
 };
 
-export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
+/**
+ * Lets the levels and chunks one `setStacks` copied be written in place by
+ * the next, until `seal`. Seal before anything outside the writer can keep a
+ * reference to the map: what a draft owns stops being immutable, and every
+ * cache keyed on a chunk or level object assumes it is.
+ */
+export class MapDraft {
+  private owned = new WeakSet<object>();
+
+  owns(record: object): boolean {
+    return this.owned.has(record);
+  }
+
+  adopt(record: object) {
+    this.owned.add(record);
+  }
+
+  seal() {
+    this.owned = new WeakSet();
+  }
+}
+
+/**
+ * A chunk written in place keeps its identity, so a memo that takes an
+ * unchanged chunk to mean unchanged contents also compares this count.
+ */
+const writesInPlace = new WeakMap<ChunkCells, number>();
+
+export function chunkWritesInPlace(chunk: ChunkCells | undefined): number {
+  return chunk ? (writesInPlace.get(chunk) ?? 0) : 0;
+}
+
+function levelToWrite(
+  levels: Record<string, LevelChunks>,
+  zk: string,
+  draft: MapDraft | undefined,
+): LevelChunks {
+  const sourceLevel = levels[zk];
+  if (sourceLevel && draft?.owns(sourceLevel)) return sourceLevel;
+  const level = { ...sourceLevel };
+  levels[zk] = level;
+  if (sourceLevel) lineage.set(level, { parent: new WeakRef(sourceLevel), keys: [] });
+  draft?.adopt(level);
+  return level;
+}
+
+function chunkToWrite(
+  level: LevelChunks,
+  chk: string,
+  draft: MapDraft | undefined,
+): { chunk: ChunkCells; keys: string[] } {
+  const source = level[chk];
+  if (source && draft?.owns(source)) {
+    writesInPlace.set(source, chunkWritesInPlace(source) + 1);
+    return { chunk: source, keys: lineage.get(source)?.keys ?? [] };
+  }
+  const chunk: ChunkCells = { ...source };
+  level[chk] = chunk;
+  lineage.get(level)?.keys.push(chk);
+  const keys: string[] = [];
+  if (source) lineage.set(chunk, { parent: new WeakRef(source), keys });
+  const sourceIndex = source && cellIndexByChunk.get(source);
+  if (sourceIndex) cellIndexByChunk.set(chunk, sourceIndex.slice());
+  const ids = source && tileIdsByChunk.get(source);
+  if (ids) tileIdsByChunk.set(chunk, ids);
+  draft?.adopt(chunk);
+  return { chunk, keys };
+}
+
+/**
+ * With a `draft`, a level or chunk that draft copied earlier is written in
+ * place instead of copied again. The `MapFile` and its `levels` record are
+ * new on every call either way, so a changed map is still a new object.
+ */
+export function setStacks(map: MapFile, edits: readonly StackEdit[], draft?: MapDraft): MapFile {
   if (!edits.length) return map;
 
   const levels = { ...map.levels };
-  const copiedLevels = new Map<string, LevelChunks>();
+  const levelsWritten = new Map<string, LevelChunks>();
   const copied = new Map<string, ChunkCells>();
   const writtenInto = new Map<ChunkCells, string[]>();
   const inherited = new Map<ChunkCells, { ids: ReadonlySet<string>; written: PlacedTile[][] }>();
@@ -533,26 +608,17 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
 
     let chunk = copied.get(path);
     if (!chunk) {
-      let level = copiedLevels.get(zk);
+      let level = levelsWritten.get(zk);
       if (!level) {
-        const sourceLevel = levels[zk];
-        level = { ...sourceLevel };
-        copiedLevels.set(zk, level);
-        levels[zk] = level;
-        if (sourceLevel) lineage.set(level, { parent: new WeakRef(sourceLevel), keys: [] });
+        level = levelToWrite(levels, zk, draft);
+        levelsWritten.set(zk, level);
       }
-      const source = level[chk];
-      chunk = { ...source };
+      const written = chunkToWrite(level, chk, draft);
+      chunk = written.chunk;
       copied.set(path, chunk);
-      level[chk] = chunk;
-      lineage.get(level)?.keys.push(chk);
-      const keys: string[] = [];
-      writtenInto.set(chunk, keys);
-      if (source) lineage.set(chunk, { parent: new WeakRef(source), keys });
-      const ids = source && tileIdsByChunk.get(source);
+      writtenInto.set(chunk, written.keys);
+      const ids = tileIdsByChunk.get(chunk);
       if (ids) inherited.set(chunk, { ids, written: [] });
-      const sourceIndex = source && cellIndexByChunk.get(source);
-      if (sourceIndex) cellIndexByChunk.set(chunk, sourceIndex.slice());
     }
     inherited.get(chunk)?.written.push(edit.stack);
 
