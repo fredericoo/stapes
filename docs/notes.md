@@ -14462,6 +14462,18 @@ changed cells *and their ring*, and marks whichever chunk owns each cell whose
 answer moved — so a wall placed at a boundary rebuilds both sides. Skip it and
 you get a stale strip at a chunk edge that nothing later repairs.
 
+**Whether a change touches the merged batch is asked per cell, and given up
+per chunk.** `dirtyChunks` compares each changed cell's merged signature
+before and after, and rebuilds a chunk only when one moved. Past
+`MAX_ANALYSED_CELLS` changed cells in one chunk it rebuilds without asking,
+because asking would cost more than the rebuild. That limit used to be
+counted over the whole level, and a crowd crosses it: seventy bodies walking
+change a few cells in each of many chunks, so every chunk a body stepped in
+was rebuilt, with its neighbour ring, though no step touches the merged
+batch. Walking among 20 bots for 40 seconds built 146 chunks under the
+level-wide count and 47 under the per-chunk one; the rebuilds left were bushes
+being picked.
+
 Everything gameplay produces still takes the cheap path, for the reason it
 always did: a mobile tile is never in the merged batch, so a step is one mesh
 swapped inside a group that is otherwise untouched.

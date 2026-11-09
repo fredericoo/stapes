@@ -507,6 +507,12 @@ export function dynamicLightTileIds(tilesById: Record<string, TileDef>): Readonl
   return ids;
 }
 
+/**
+ * Past this many changed cells in one chunk, rebuilding the chunk costs less
+ * than asking each cell whether its merged art moved. It is counted per chunk
+ * because a crowd walking changes a few cells in each of many chunks, and none
+ * of those steps touches the merged batch.
+ */
 const MAX_ANALYSED_CELLS = 64;
 
 function withNeighbourRing(cells: Iterable<string>): Set<string> {
@@ -2051,16 +2057,28 @@ export class WorldRenderer {
       const changed = changedCellsOnLevel(prev, next, z);
       if (changed.size === 0) continue;
 
-      if (changed.size > MAX_ANALYSED_CELLS) {
-        for (const key of withNeighbourRing(changed)) {
-          const { x, y } = parseCoordKey(key);
-          const addr = chunkAddressKey(z, chunkKeyFor(x, y));
-          if (wanted.has(addr)) dirty.add(addr);
-        }
-        continue;
+      const byChunk = new Map<string, string[]>();
+      for (const key of changed) {
+        const { x, y } = parseCoordKey(key);
+        const chunk = chunkKeyFor(x, y);
+        const keys = byChunk.get(chunk);
+        if (keys) keys.push(key);
+        else byChunk.set(chunk, [key]);
       }
+      const rebuilt: string[] = [];
+      const analysed = new Set<string>();
+      for (const keys of byChunk.values()) {
+        if (keys.length > MAX_ANALYSED_CELLS) rebuilt.push(...keys);
+        else for (const key of keys) analysed.add(key);
+      }
+      for (const key of withNeighbourRing(rebuilt)) {
+        const { x, y } = parseCoordKey(key);
+        const addr = chunkAddressKey(z, chunkKeyFor(x, y));
+        if (wanted.has(addr)) dirty.add(addr);
+      }
+      if (analysed.size === 0) continue;
 
-      for (const key of this.restyled(prev, next, z, changed)) {
+      for (const key of this.restyled(prev, next, z, analysed)) {
         const { x, y } = parseCoordKey(key);
         const addr = chunkAddressKey(z, chunkKeyFor(x, y));
         if (!wanted.has(addr) || dirty.has(addr)) continue;
