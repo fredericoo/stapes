@@ -16,9 +16,11 @@ import {
   chunkIndexOf,
   chunkKeyAt,
   chunkKeyFor,
+  chunkWritesInPlace,
   elevationAt,
   getStack,
   isPlayerBody,
+  MapDraft,
   removeTileAt,
   replaceStack,
   tileIdsInChunk,
@@ -440,7 +442,7 @@ import {
   type Consumed,
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
-import { settleAllSpans, settleSpans, spanAnchor } from "../lib/footprint";
+import { settleAllSpans, settleSpans, spanAnchor, spanningTileIds } from "../lib/footprint";
 import { withTraits, type TraitCatalogue } from "../lib/traits";
 import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/projectile";
 import {
@@ -787,6 +789,7 @@ type ActorRuntime = {
     levelKey: string;
     chunkKey: string;
     chunk: ChunkCells | undefined;
+    chunkWrites: number;
   } | null;
 };
 
@@ -838,6 +841,12 @@ export class GameSession implements PlaySession {
   private set map(next: MapFile) {
     this.board = settleSpans(this.board, next, this.tilesById);
   }
+  /**
+   * Steps and turns write through this, so a crowd walking one level copies
+   * it once between seals rather than twice a step. Sealed wherever the map
+   * leaves the session.
+   */
+  private readonly draft = new MapDraft();
   private readonly actors = new Map<string, ActorRuntime>();
   private readonly residentIds = new ResidentIds((id) => this.actors.has(id));
   private readonly residentHomes = new Map<string, Coord>();
@@ -1327,7 +1336,11 @@ export class GameSession implements PlaySession {
   private tryLocate(actor: ActorRuntime): ActorLocation | null {
     const memo = actor.memo;
     if (memo?.map === this.map) return memo.loc;
-    if (memo?.chunk && this.map.levels[memo.levelKey]?.[memo.chunkKey] === memo.chunk) {
+    if (
+      memo?.chunk &&
+      this.map.levels[memo.levelKey]?.[memo.chunkKey] === memo.chunk &&
+      chunkWritesInPlace(memo.chunk) === memo.chunkWrites
+    ) {
       memo.map = this.map;
       return memo.loc;
     }
@@ -1340,12 +1353,14 @@ export class GameSession implements PlaySession {
   private remember(actor: ActorRuntime, loc: ActorLocation) {
     const zk = levelKey(loc.z);
     const ck = chunkKeyFor(loc.x, loc.y);
+    const chunk = this.map.levels[zk]?.[ck];
     actor.memo = {
       map: this.map,
       loc,
       levelKey: zk,
       chunkKey: ck,
-      chunk: this.map.levels[zk]?.[ck],
+      chunk,
+      chunkWrites: chunkWritesInPlace(chunk),
     };
   }
 
@@ -6109,6 +6124,7 @@ export class GameSession implements PlaySession {
   }
 
   getSnapshot(id: string = LOCAL_ACTOR_ID): GameSnapshot {
+    this.draft.seal();
     const self = this.actor(id);
     const actors = this.actorSnapshots();
     const mine = actors.find((a) => a.id === self.id)!;
@@ -6191,6 +6207,7 @@ export class GameSession implements PlaySession {
   }
 
   getMap(): MapFile {
+    this.draft.seal();
     return this.map;
   }
 
@@ -6205,12 +6222,15 @@ export class GameSession implements PlaySession {
     const w = actor.walk;
     if (!w) return;
     const loc = this.locate(actor);
-    this.map = moveEntity(
-      this.map,
-      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
-      w.to,
-      w.direction,
-      this.tilesById,
+    this.writeBodyEdit([loc, w.to], (draft) =>
+      moveEntity(
+        this.map,
+        { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+        w.to,
+        w.direction,
+        this.tilesById,
+        draft,
+      ),
     );
     this.forgetWalk(actor);
     actor.walk = null;
@@ -6330,7 +6350,30 @@ export class GameSession implements PlaySession {
 
   private turnActor(actor: ActorRuntime, loc: ActorLocation, direction: Direction) {
     if (actor.walk) actor.walk.direction = direction;
-    this.map = setEntityDirection(this.map, loc.x, loc.y, loc.z, loc.stackIndex, direction);
+    this.writeBodyEdit([loc], (draft) =>
+      setEntityDirection(this.map, loc.x, loc.y, loc.z, loc.stackIndex, direction, draft),
+    );
+  }
+
+  /**
+   * `settleSpans` reads what a cell held before the edit, which an edit in
+   * place overwrites. It only looks at chunks holding a multi-cell tile, so
+   * anywhere else the edit can skip it and be written through the draft.
+   */
+  private writeBodyEdit(cells: readonly Coord[], edit: (draft?: MapDraft) => MapFile) {
+    if (cells.some((cell) => this.chunkHoldsSpanning(cell))) {
+      this.map = edit();
+      return;
+    }
+    this.board = edit(this.draft);
+  }
+
+  private chunkHoldsSpanning(cell: Coord): boolean {
+    const chunk = this.map.levels[levelKey(cell.z)]?.[chunkKeyFor(cell.x, cell.y)];
+    if (!chunk) return false;
+    const present = tileIdsInChunk(chunk);
+    for (const id of spanningTileIds(this.tilesById)) if (present.has(id)) return true;
+    return false;
   }
 
   private maybeStartFall(actor: ActorRuntime) {

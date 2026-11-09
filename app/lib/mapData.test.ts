@@ -3,6 +3,8 @@ import {
   changedCellsInChunk,
   changedCellsOnLevel,
   chunkifyMap,
+  chunkWritesInPlace,
+  MapDraft,
   clearStack,
   flattenMap,
   serializeMap,
@@ -85,6 +87,46 @@ describe("mapData copy-on-write", () => {
     const next = clearStack(fixtureMap, a.x, a.y, 0);
     expect(getStack(next, a.x, a.y, 0)).toEqual([]);
     expect(getStack(next, b.x, b.y, 0)).toBe(stackB);
+  });
+});
+
+describe("a map draft", () => {
+  const z = 0;
+  const grass: PlacedTile[] = [{ tileId: "grass" }];
+  const base = setStacks(emptyMap(), [
+    { x: 0, y: 0, z, stack: grass },
+    { x: 1, y: 0, z, stack: grass },
+  ]);
+  const chunkOf = (map: MapFile) => map.levels[levelKey(z)]![chunkKeyFor(0, 0)]!;
+
+  it("writes into what it copied, and leaves the map it started from alone", () => {
+    getStack(base, 0, 0, z);
+    const draft = new MapDraft();
+    const first = setStacks(base, [{ x: 0, y: 0, z, stack: [{ tileId: "dirt" }] }], draft);
+    const second = setStacks(first, [{ x: 1, y: 0, z, stack: [{ tileId: "stone" }] }], draft);
+
+    expect(second).not.toBe(first);
+    expect(second.levels[levelKey(z)]).toBe(first.levels[levelKey(z)]);
+    expect(chunkOf(second)).toBe(chunkOf(first));
+    expect(chunkWritesInPlace(chunkOf(second))).toBe(1);
+    expect(getStack(second, 1, 0, z)).toEqual([{ tileId: "stone" }]);
+    expect(tileIdsInChunk(chunkOf(second)).has("stone")).toBe(true);
+
+    expect(getStack(base, 0, 0, z)).toBe(grass);
+    expect(getStack(base, 1, 0, z)).toBe(grass);
+    expect(tileIdsInChunk(chunkOf(base)).has("stone")).toBe(false);
+    expect([...changedCellsOnLevel(base, second, z)].sort()).toEqual(["0,0", "1,0"]);
+  });
+
+  it("copies again once sealed, so a map handed out before the seal keeps its cells", () => {
+    const draft = new MapDraft();
+    const handedOut = setStacks(base, [{ x: 0, y: 0, z, stack: [{ tileId: "dirt" }] }], draft);
+    draft.seal();
+    const after = setStacks(handedOut, [{ x: 1, y: 0, z, stack: [{ tileId: "stone" }] }], draft);
+
+    expect(chunkOf(after)).not.toBe(chunkOf(handedOut));
+    expect(getStack(handedOut, 1, 0, z)).toBe(grass);
+    expect([...changedCellsOnLevel(handedOut, after, z)]).toEqual(["1,0"]);
   });
 });
 
