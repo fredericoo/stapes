@@ -28,6 +28,10 @@ const schema = v.object({
 
   DISCORD_ALERTS_WEBHOOK_URL: v.optional(v.string()),
 
+  CLAUDE_ROUTINE_FIRE_URL: v.optional(v.string()),
+
+  CLAUDE_ROUTINE_TOKEN: v.optional(v.string()),
+
   CHECKPOINT_INTERVAL_MS: v.optional(
     v.pipe(v.string(), v.transform(Number), v.number(), v.minValue(100)),
     "2000",

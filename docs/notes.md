@@ -16606,3 +16606,25 @@ post is logged and dropped. `POST /api/perf/alerts/test` sends a test message.
 The thresholds are constants at the top of `server/alerts.ts`. They were chosen
 from the 33ms tick and not from production data, which did not exist when they
 were written.
+
+### An alert can start a Claude Code session
+
+When `CLAUDE_ROUTINE_FIRE_URL` and `CLAUDE_ROUTINE_TOKEN` are set,
+`World.investigate` posts the finding to a Claude Code routine's API trigger
+(`server/routine.ts`) before the Discord message is sent, and the message
+carries the session's link. The text it sends is the finding, the frame
+tallies and the last half hour of tick samples as JSON lines, cut to 60,000
+characters; the endpoint takes 65,536.
+
+The whole URL is configured rather than a routine id. The API is a research
+preview and its path may change, and a test points the same variable at a
+local server.
+
+It is fired once, when a rule starts, and a failure is logged and not retried.
+The endpoint has no idempotency key, so a retry after a response that was lost
+starts a second session. An alert that cannot start a session is still posted
+to Discord without the link.
+
+What the session does is the routine's saved prompt, which lives at
+claude.ai and not in this repository. `SETUP.md` has the one in use when this
+was written.

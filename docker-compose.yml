@@ -12,6 +12,8 @@ services:
       CHECKPOINT_INTERVAL_MS: ${CHECKPOINT_INTERVAL_MS:-2000}
       BACKUP_DIR: /backups
       DISCORD_ALERTS_WEBHOOK_URL: ${DISCORD_ALERTS_WEBHOOK_URL:-}
+      CLAUDE_ROUTINE_FIRE_URL: ${CLAUDE_ROUTINE_FIRE_URL:-}
+      CLAUDE_ROUTINE_TOKEN: ${CLAUDE_ROUTINE_TOKEN:-}
     volumes:
       - stapes-data:/data
       - stapes-backups:/backups
