@@ -4072,11 +4072,9 @@ one part of what is left is most of it:
   Walking only the stamped indices of the tick's changes, sorted, in place of
   asking all of them (about 80 cells, of which about 5 are in reach) measured
   no different, and was left out.
-- **Brains ask for the nearest player by walking every player.**
-  `nearestOnTile` is about seventy calls a tick at a thousand players, each a
-  pass over the thousand — about 3ms a tick. A spatial answer has to keep the
-  tie on insertion order, which is what keeps a seeded world reproducible, and
-  has to know every place a body can move.
+- **Brains asking for the nearest body now cost about 2% of the CPU, and
+  the 2% is checking chunks.** See "A brain finds the nearest body from a
+  list kept sorted by x" below.
 - **A chunk copy is 13–17µs, and the level around it is copied too.** A chunk
   is a 256-key object, which the engine keeps as a dictionary, so copying one
   rebuilds its table and allocates a new shape; the surface level is another
@@ -4109,6 +4107,58 @@ one part of what is left is most of it:
   container at 512MB by default, which a thousand players exceed before this
   work and after, so a world meant to hold a thousand needs `MEM_LIMIT`
   raised.
+
+### A brain finds the nearest body from a list kept sorted by x
+
+`nearestOnTile` used to walk every body on the tile it was asked about and
+`tryLocate` each one. At a thousand players that was about 38 calls a tick,
+each a pass over up to a thousand players, and 6.8–7.9% of the server's CPU
+in `bench:crowd`.
+
+`app/game/nearestBody.ts` keeps one `TileColumns` per tile id, built from the
+tile index. It holds where each listed body was found, sorted by x, and the
+chunk it was found in. When the board changes, a body is located again only
+if that chunk has been replaced or written in place (`chunkWritesInPlace`;
+see `MapDraft`). This is the check `tryLocate` makes: a chunk that is neither
+means nobody arrived in it or left it. Between two questions about the same
+tile, about 4% of those chunks had changed. A question binary-searches the
+brain's column and walks outward, and stops on a side once the column
+distance alone is more than the best found.
+
+**The pick did not change, ties included.** A tie goes to the body listed
+first in the tile index, which is insertion order. A tie with a body on an
+earlier tile id goes to that body. Both are what the old pass did by keeping
+only strict improvements. Whether a body still exists or is hidden can change
+without the board changing, so `nearestOnTile` still asks that live, and
+asks it only of a body that would win. `nearestBody.test.ts` holds the
+search to the old pass across board versions where bodies move, change tile,
+spawn and leave, with half the chunk writes made in place. Removing any of
+these checks turns it red: the order tie-break, the cross-tile tie, the chunk
+comparison, the write count, the re-sort, the on-tile check, the early stop,
+and each step of `relisted`.
+
+**The index is rebuilt on every spawn, and the columns are carried across
+it.** `relisted` keeps where each body still listed was found, under its new
+order, and locates only the newcomers. Without it, every spawn dropped every
+column, and a fresh column was insertion-sorted from index order, which is
+quadratic: about 0.6ms on a spawn tick at a thousand players. A fresh column
+now uses `Array.prototype.sort`. Insertion sort is kept for a refresh, where
+only a few bodies have moved a cell. The slowest 1% of ticks are spawn ticks
+on main as well: they cost about 29ms against 11ms for the others, and the
+columns are 0.4ms of that.
+
+At a thousand walking players, three runs of each taken in turn against
+main: the search went from 6.8–7.9% of samples to 2.0–2.4%, `tickBrains`
+from 2.13–2.18ms a tick to 1.49–1.61ms, and the tick's p99 from 21.9–28.3ms
+to 22.5–26.2ms. The p99 follows how many players were reborn during the run
+more closely than it follows either build. What is left is the pass that
+compares each body's chunk with the board's. Grouping bodies by chunk would
+compare each chunk once rather than once per body.
+
+**A list rebuilt on every new board was tried first and was no cheaper.**
+The board is replaced between most questions, because a brain turning to
+face somewhere writes a new board. Re-locating and sorting a thousand bodies
+each time cost as much as the pass it replaced.
 
 ## Loading a large world, profiled
 
