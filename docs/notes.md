@@ -4415,12 +4415,14 @@ So the server keeps one `announcedActors` set **per client**, and:
   nothing on the far end to patch against.
 - A body going out of reach is announced too, as `despawned`. Not a death — the
   world still has it — and the entry has to go all the same. `RemoteSession`
-  reads a body's position off its own board, and for a body it has no cell for
-  that lookup is `findActorAnywhere`: a sweep of the whole board, every frame,
-  for as long as the entry sits there. That is the 116ms frame with 108ms of
-  searching in it, and this is the arrangement that keeps it away.
+  reads a body's position off its own board, and for a body it had no cell for
+  that lookup was `findActorAnywhere`: a sweep of the whole board, every frame,
+  for as long as the entry sat there. That was the 116ms frame with 108ms of
+  searching in it. The lookup now answers from an index of the board's owners
+  (below), but an entry with no body still names nothing, no bar and no Talk
+  row, and nothing else takes it out.
 - `spawned` carries the body's cell for the same reason. Without it the first
-  lookup has no last-known cell to confirm and falls through to that same sweep
+  lookup had no last-known cell to confirm and fell through to that same sweep
   — once per body entering a subscription, which with a moving subscription is
   every creature a player walks past.
 - Their own body is never taken back from a client. The subscription is centred
@@ -4892,9 +4894,9 @@ rat is not one of the people in the world.
 
 **And `joined` does not touch the set.** It used to add an entry, and `joined`
 went to every client wherever the joiner was, so each arrival out of reach was an
-entry for a body on none of this client's cells. `locate` confirms the last
-known cell before it searches, and an entry with no cell and no body to find
-searches the whole board, every frame, and never finds anything. Nothing
+entry for a body on none of this client's cells. `locate` confirmed the last
+known cell before it searched, and an entry with no cell and no body to find
+searched the whole board, every frame, and never found anything. Nothing
 removed those entries either: no `despawned` comes for a body the client was
 never told about. A hundred players joining at once made every frame take
 about 300ms, until a reload replaced the set with the `hello`'s. A joiner in
@@ -4938,6 +4940,47 @@ The renderer is a *viewer*. Camera, roof-cut, hover and pick follow `snap.self`
 and deliberately stay single-anchor; `snap.actors` is what gets drawn and lerped.
 `GameRenderer` is typed against `PlaySession`, not `GameSession`, so a remote
 session can drive it.
+
+### A client finds a body from its owner index, never by sweeping its board
+
+`RemoteSession.find` confirms the last-known cell, then the cells around it,
+and then asks `ActorCells` (`app/net/actorCells.ts`): owner id to the cells of
+`serverMap` holding a placement of that owner. It is built in one pass over the
+`hello` map and kept up in `applyCells` from the stacks each patch replaces and
+writes, so its upkeep is the size of the patch. Every change to `serverMap`
+arrives through one of those two, which is what keeps it exact, chunks the
+client has stopped receiving included: whatever stale copy of a body such a
+chunk holds is one the index holds too.
+
+The sweep used to be the fallback, and three ordinary states put every frame
+on it. Measured on a real `hello` from the shipped map, 71 bodies and 63,000
+cells:
+
+| | sweep | index |
+| --- | --- | --- |
+| a frame on the death screen (`getSnapshot` + `spells`), p50 | 6.0ms | 0.015ms |
+| a patch while dead, p50 | 3.0ms | 0.007ms |
+| the first `getSnapshot` after a `hello`, p50 | 95ms | 2ms |
+
+- **A dead player.** The body is off the board, so every `locate` missed and
+  swept: twice a frame, and once more per patch through `rebuildPredicted`.
+  The index answers "nowhere" without reading the board.
+- **The first frame after a `hello`.** Every entry starts with no last-known
+  cell, so that frame swept once per body. The index build is a single pass,
+  about 3ms on the same map.
+- **A body more than one cell from where it was last looked for**, after a
+  slow frame, a backgrounded tab or a `teleported` reset.
+
+Two cases still sweep, both to return exactly what the sweep returned. An owner
+indexed in more than one cell (a patch wrote its body into a new cell and never
+rewrote the old one) is swept for, because the sweep's answer is the first copy
+in board order. And the predicted `map` moves the player's own body off its
+`serverMap` cell, so if the player is not in the indexed cell on `map`, that one
+lookup sweeps `map`. `landPredictedStep` and `rebuildPredicted` keep the
+player's last-known cell current, so that lookup is not reached in play.
+
+`forgetDeparted` reads only whether the index has the owner at all, which is
+the question it was sweeping `serverMap` to answer.
 
 ### The roof-cut is a structure, not a storey
 
