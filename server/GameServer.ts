@@ -23,6 +23,7 @@ import {
 import { audienceOf, cellInScope, type ScopedCell } from "../app/net/scope";
 import { handoverCellsJson, mapOfInterestJson } from "./chunkJson";
 import { NearIndex } from "./nearIndex";
+import { TextByLists } from "./textByLists";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -669,6 +670,7 @@ type TickFrame = {
     bare: Fragments<CellPatch>;
     events: Fragments<MotionEvent>;
   } & { [L in EntryList]: Fragments<SharedPatch[L][number]> };
+  payloads: TextByLists;
 };
 
 const ENTRY_LISTS = [
@@ -732,6 +734,22 @@ function serializeCut(cut: Cut, frame: TickFrame): string {
     `,"extractions":${listJson(cut.extractions, json.extractions)}` +
     `,"castings":${listJson(cut.castings, json.castings)}}`
   );
+}
+
+/** The cut's lists, in a fixed order, when every entry is an index into the frame and nothing else is in it. */
+function indexLists(cut: Cut): number[][] | null {
+  if (cut.names.length > 0 || cut.appearances.length > 0) return null;
+  const lists = [cut.cells, cut.events, ...ENTRY_LISTS.map((list) => cut[list])];
+  for (const list of lists) {
+    for (let k = 0; k < list.length; k++) if (typeof list[k] !== "number") return null;
+  }
+  return lists as number[][];
+}
+
+function cutPayload(cut: Cut, frame: TickFrame): string {
+  const lists = indexLists(cut);
+  if (lists === null) return serializeCut(cut, frame);
+  return frame.payloads.textFor(lists, () => serializeCut(cut, frame));
 }
 
 function emptyCut(): Cut {
@@ -3138,7 +3156,7 @@ export class GameServer {
                 ...wholePatch(patch),
               }));
         } else {
-          payload = isEmptyCut(mine) ? null : serializeCut(mine, frame);
+          payload = isEmptyCut(mine) ? null : cutPayload(mine, frame);
         }
         payloads.set(actorId, payload);
       }
@@ -3399,6 +3417,7 @@ export class GameServer {
         extractions: new Fragments(patch.extractions),
         castings: new Fragments(patch.castings),
       },
+      payloads: new TextByLists(),
     };
   }
 
