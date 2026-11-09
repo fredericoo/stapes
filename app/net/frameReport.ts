@@ -51,16 +51,14 @@ export function frameBucket(ms: number): number {
   return index === -1 ? FRAME_BUCKETS - 1 : index;
 }
 
-/** The upper edge of the bucket holding that fraction of the frames; the last bucket reports its lower edge. */
+/** The upper edge of the bucket holding that fraction of the frames, which for the last bucket is `Infinity`. */
 export function framePercentileMs(buckets: readonly number[], fraction: number): number {
   const total = buckets.reduce((sum, count) => sum + count, 0);
   if (!total) return 0;
   let seen = 0;
   for (let index = 0; index < buckets.length; index++) {
     seen += buckets[index]!;
-    if (seen >= total * fraction) {
-      return FRAME_BUCKET_EDGES_MS[Math.min(index, FRAME_BUCKET_EDGES_MS.length - 1)]!;
-    }
+    if (seen >= total * fraction) return FRAME_BUCKET_EDGES_MS[index] ?? Infinity;
   }
-  return FRAME_BUCKET_EDGES_MS[FRAME_BUCKET_EDGES_MS.length - 1]!;
+  return Infinity;
 }
