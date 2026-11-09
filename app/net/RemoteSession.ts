@@ -41,7 +41,13 @@ import {
   type TileTransitionNote,
 } from "../lib/tileTransition";
 import type { StrikeState } from "../game/strike";
-import { actorDirection, actorStillAt, locateActor, type ActorLocation } from "../game/actors";
+import {
+  actorDirection,
+  actorStillAt,
+  findActorAnywhere,
+  findActorNear,
+  type ActorLocation,
+} from "../game/actors";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import {
   canConsumeFrom,
@@ -135,6 +141,7 @@ import {
   type ServerMessage,
   MAX_STEPS_AHEAD,
 } from "./protocol";
+import { ActorCells } from "./actorCells";
 
 type LiveChat = ChatBubble & { elapsedMs: number };
 
@@ -179,6 +186,7 @@ type AwaitedReply = {
 export class RemoteSession implements PlaySession {
   private serverMap: MapFile = emptyMap();
   private map: MapFile = emptyMap();
+  private actorCells = new ActorCells();
   private readonly tilesById: Record<string, TileDef>;
   private selfId = "";
   private serverMinutesOfDay: MinutesOfDay = DEFAULT_PLAY_MINUTES;
@@ -412,6 +420,7 @@ export class RemoteSession implements PlaySession {
       this.setClock(message.minutesOfDay);
       this.kingId = message.kingId;
       this.serverMap = chunkifyMap(message.map as FlatMapFile);
+      this.actorCells = ActorCells.of(this.serverMap);
       this.map = this.serverMap;
       this.discardPending();
       this.attackRecoveryMs = 0;
@@ -751,6 +760,7 @@ export class RemoteSession implements PlaySession {
     if (cells.length === 0) return NO_OWNERS;
     this.applyAfflicted(cells);
     const leaving = this.ownersLeaving(cells);
+    this.actorCells.write(this.serverMap, cells);
     this.serverMap = setStacks(this.serverMap, cells);
     return leaving;
   }
@@ -774,7 +784,7 @@ export class RemoteSession implements PlaySession {
   private forgetDeparted(leaving: readonly string[]) {
     for (const id of leaving) {
       if (!this.motions.has(id)) continue;
-      if (locateActor(this.serverMap, id)) continue;
+      if (this.actorCells.cellsOf(id)) continue;
       this.forgetActor(id);
     }
   }
@@ -1044,7 +1054,7 @@ export class RemoteSession implements PlaySession {
     const step = this.pending.find((pending) => !pending.landed);
     if (!step) return null;
 
-    const at = locateActor(this.map, this.selfId, motion.lastSeen ?? undefined);
+    const at = this.find(this.map, this.selfId, motion.lastSeen);
     if (!at) return null;
 
     const carryMs = walk.elapsedMs - walk.durationMs;
@@ -1137,7 +1147,7 @@ export class RemoteSession implements PlaySession {
   }
 
   private rebuildPredicted() {
-    const at = locateActor(this.serverMap, this.selfId, this.serverSeen ?? undefined);
+    const at = this.find(this.serverMap, this.selfId, this.serverSeen);
     this.serverSeen = at;
 
     if (!at) {
@@ -1331,8 +1341,35 @@ export class RemoteSession implements PlaySession {
     return this.map;
   }
 
+  /**
+   * `actorCells` holds the cells of `serverMap`, and the predicted `map` moves
+   * only the player's own body, so only that body can be missing from its
+   * indexed cell. A body indexed in more than one cell is swept for, which
+   * returns the same copy `findActorAnywhere` always has.
+   */
+  private find(
+    map: MapFile,
+    id: string,
+    lastSeen: (Coord & { stackIndex: number }) | null,
+  ): ActorLocation | null {
+    if (lastSeen) {
+      const near = actorStillAt(map, id, lastSeen) ?? findActorNear(map, id, lastSeen);
+      if (near) return near;
+    }
+    const cells = this.actorCells.cellsOf(id);
+    if (!cells) return null;
+    if (cells.size > 1) return findActorAnywhere(map, id);
+    const [at] = cells.values();
+    const stack = getStack(map, at!.x, at!.y, at!.z);
+    const stackIndex = stack.findIndex((placed) => placed.owner === id);
+    if (stackIndex >= 0) {
+      return { x: at!.x, y: at!.y, z: at!.z, stackIndex, placed: stack[stackIndex]! };
+    }
+    return id === this.selfId && map !== this.serverMap ? findActorAnywhere(map, id) : null;
+  }
+
   private locate(id: string, motion: RemoteMotion): ActorLocation | null {
-    const found = locateActor(this.map, id, motion.lastSeen ?? undefined);
+    const found = this.find(this.map, id, motion.lastSeen);
     motion.lastSeen = found;
     if (found) {
       this.releaseArrivedWalk(motion, found);
