@@ -176,5 +176,20 @@
     "file": "swamp-plants.png",
     "width": 128,
     "height": 40
+  },
+  {
+    "id": "desert",
+    "name": "Desert",
+    "file": "desert.png",
+    "width": 72,
+    "height": 40
+  },
+  {
+    "id": "desert-dunes",
+    "name": "Desert Dunes",
+    "file": "desert-dunes.png",
+    "width": 64,
+    "height": 32,
+    "translucent": true
   }
 ]

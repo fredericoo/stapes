@@ -32,7 +32,7 @@ async function writeJson(file: string, value: unknown) {
   await fs.writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-const GENERATED_KEYS = ["type", "anchor", "sprite", "sprites", "slices"] as const;
+const GENERATED_KEYS = ["type", "anchor", "sprite", "sprites", "slices", "scatter"] as const;
 
 /** Reports whether the tile's generated fields moved; anything authored on it is left alone. */
 function updateTile(existing: TileDef, tile: TileDef): boolean {
