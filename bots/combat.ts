@@ -1,6 +1,6 @@
 import type { Equipment } from "../app/game/equipment";
 import type { ActorSnapshot } from "../app/game/GameSession";
-import { resolveBattler } from "../app/lib/battler";
+import { hurtsAnybody, resolveBattler } from "../app/lib/battler";
 import { resolveDialog } from "../app/lib/dialog";
 import { resolveConsumable } from "../app/lib/item";
 import type { StatusDef } from "../app/lib/status";
@@ -21,8 +21,7 @@ export type Rated = Pick<ActorSnapshot, "id" | "tileId" | "x" | "y" | "z" | "hp"
  */
 export function canHurt(def: TileDef | undefined): boolean {
   const battler = def ? resolveBattler(def) : null;
-  if (!battler) return false;
-  return battler.naturalWeapon.damage > 0 || (battler.spells?.length ?? 0) > 0;
+  return battler !== null && hurtsAnybody(battler);
 }
 
 /**

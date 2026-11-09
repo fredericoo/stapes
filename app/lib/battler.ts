@@ -20,6 +20,7 @@ import {
   masteriesSchema,
   masteryLevel,
   MAX_MASTERY,
+  rating,
   requirementShare,
   requirementShortfall,
   spellElements,
@@ -91,11 +92,22 @@ export function clampChance(chance: number): number {
  * solved so the curve totals `atMax` at `MAX_MASTERY` and its last point pays
  * `acceleration` times what its first point paid.
  */
+function acceleratingCurve(atMax: number, acceleration: number): { c: number; d: number } {
+  const c = (2 * atMax) / (MAX_MASTERY * (acceleration + 1));
+  return { c, d: (c * (acceleration - 1)) / (2 * MAX_MASTERY) };
+}
+
 function acceleratingTotal(level: number, atMax: number, acceleration: number): number {
   const reach = Math.max(0, level);
-  const first = (2 * atMax) / (MAX_MASTERY * (acceleration + 1));
-  const curve = (first * (acceleration - 1)) / (2 * MAX_MASTERY);
-  return first * reach + curve * reach * reach;
+  const { c, d } = acceleratingCurve(atMax, acceleration);
+  return c * reach + d * reach * reach;
+}
+
+/** The level at which `acceleratingTotal` reaches `total`: the positive root of its quadratic. */
+function levelForTotal(total: number, atMax: number, acceleration: number): number {
+  const { c, d } = acceleratingCurve(atMax, acceleration);
+  if (d === 0) return total / c;
+  return (Math.sqrt(c * c + 4 * d * total) - c) / (2 * d);
 }
 
 export const HP_AT_MAX_TOUGHNESS =
@@ -105,6 +117,39 @@ export function maxHpFrom(baseHp: number, toughness: number): number {
   return (
     baseHp + Math.round(acceleratingTotal(toughness, HP_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION))
   );
+}
+
+export const PLAYER_BASE_HP = 12;
+
+/**
+ * The Toughness a body with `PLAYER_BASE_HP` would need to have this body's
+ * hit points. Read off the unrounded curve, so a body born with the player's
+ * hit points or fewer is rated on its own Toughness to the last decimal.
+ */
+export function ratedToughness(baseHp: number, toughness: number): number {
+  const extra = baseHp - PLAYER_BASE_HP;
+  if (extra <= 0) return toughness;
+  const grown = acceleratingTotal(toughness, HP_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION);
+  return levelForTotal(grown + extra, HP_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION);
+}
+
+export function hurtsAnybody(battler: Pick<BattlerDef, "naturalWeapon" | "spells">): boolean {
+  return battler.naturalWeapon.damage > 0 || (battler.spells?.length ?? 0) > 0;
+}
+
+/**
+ * Hit points a body cannot hurt anybody with are left out, so a training dummy
+ * kept alive by ten thousand of them is not rated far above every player and
+ * paid for at the top rate.
+ */
+export function battlerRating(
+  battler: Pick<BattlerDef, "baseHp" | "masteries" | "naturalWeapon" | "spells">,
+): number {
+  if (!hurtsAnybody(battler)) return rating(battler.masteries);
+  const toughness = masteryLevel(battler.masteries, "toughness");
+  const rated = ratedToughness(battler.baseHp, toughness);
+  if (rated === toughness) return rating(battler.masteries);
+  return rating({ ...battler.masteries, toughness: rated });
 }
 
 export function defFrom(toughness: number): number {

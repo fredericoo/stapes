@@ -203,6 +203,7 @@ import {
 } from "./constants";
 import {
   type BattlerDef,
+  battlerRating,
   type NaturalSpell,
   DEFAULT_BATTLER,
   isImmune,
@@ -223,7 +224,6 @@ import {
   masteriesFromXp,
   type MasteryXp,
   MIN_RATING,
-  rating,
   spellElements,
   xpForLevel,
   xpFromMasteries,
@@ -4073,7 +4073,7 @@ export class GameSession implements PlaySession {
 
   private ratingOf(actor: ActorRuntime): number | null {
     const body = this.bodyOf(actor);
-    return body ? rating(body.masteries) : null;
+    return body ? battlerRating(body) : null;
   }
 
   private hpOf(

@@ -5182,6 +5182,43 @@ already do — and the nine creatures in `data/tiles.json` were migrated onto it
 8, which is what the constant used to be for all of them. `DEFAULT_BASE_HP` is
 now only the editor's starting value; nothing derives hit points from it.
 
+#### A rating reads the hit points a body was born with
+
+`rating` in `app/lib/mastery.ts` reads masteries alone, and for a player that
+is the whole of it: every player is born with the `player` tile's `baseHp`.
+A creature is not, and before this a skeleton born with 110 hit points was
+rated 13, on Sharp 15, Toughness 10 and Agility 10. In the Arena it beats a
+player rated 15 three times in four.
+
+**`battlerRating` (`app/lib/battler.ts`) rates the hit points a body was born
+with past `PLAYER_BASE_HP` as the Toughness that would have grown them.**
+`ratedToughness` inverts the curve `maxHpFrom` climbs, so a point of born hit
+points is rated at whatever a point of Toughness would have cost at that height
+on the curve, and no exchange rate is tuned. It is the only rating
+`GameSession.ratingOf` reads, so it is the number a creature's star shows, the
+number experience is weighed against, and the one `rated_below_self` compares.
+
+- **Fewer than a player's is not marked down.** A rat is born with 8 and is
+  rated 8, which is what the rat's `hunts-the-weaker` and `flees-the-stronger`
+  were written around. Only a body born with more moves.
+- **A body that cannot hurt anybody is rated on its masteries alone**
+  (`hurtsAnybody`, which bots' `canHurt` also reads). The training dummy is
+  born with 10,000 hit points so it never dies; counted, they rate it 286, and
+  experience against it would pay double to every player in the game.
+- **Above a player's ceiling, it keeps climbing.** The cyclops's 2,000 hit
+  points rate it 150, past the 100 no player reaches, because the curve is not
+  clamped at `MAX_MASTERY`. Experience stops paying more at `MAX_XP_MULTIPLIER`
+  long before that, so the number only says how far out of reach it is.
+
+**How well it reads.** `bun run verify battle` was run for each creature
+against a player with Sharp, Toughness and Agility at one level and that
+level's sword, and the level bisected to where the player wins half the
+fights. For the skeleton that level is 28, and it is now rated 29. The cave
+troll moved from 51 to 61 against an even level of 38, and the cyclops from 61
+to 150 against 75. For creatures born with 8 the rating already ran high —
+the wolf is rated 28 against an even level of 15, a slime 20 against 8 —
+because `rating` counts a weapon mastery whatever weapon it is used with.
+
 ### Armour is worn, and it may care what hit it
 
 **Defence has three sources and they add** (`wornDefence`): a `WeaponItem.def`
