@@ -7,10 +7,9 @@ import {
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import { getStack, listCoords, replaceStack } from "../lib/mapData";
+import { getStack, listCoords, presentLevels, replaceStack } from "../lib/mapData";
 import { MIN_EARNED_MASTERY, masteryLevel, type Masteries } from "../lib/mastery";
 import { stow } from "../lib/piles";
-import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { coveredBySomething, withinReach, type Actor, type ObjectRef } from "./affordances";
 import type { Equipment } from "./equipment";
@@ -180,7 +179,7 @@ export function withoutReservations(placed: PlacedTile): PlacedTile {
 
 export function clearExtractReservations(map: MapFile): MapFile {
   let next = map;
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       if (!stack.some((placed) => placed.extractsReserved != null)) continue;
       next = replaceStack(

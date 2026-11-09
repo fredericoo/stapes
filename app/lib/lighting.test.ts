@@ -4,6 +4,7 @@ import { chunkifyMap } from "./mapData";
 import type { FlatMapFile } from "./types";
 import {
   AMBIENT_PRESETS,
+  composeLightGrid,
   computeLighting,
   emitterCenter,
   isPitchBlack,
@@ -14,7 +15,7 @@ import {
   stackOcclusion,
 } from "./lighting";
 import type { PackedLightGrid } from "./lighting";
-import { FULL_CELL_TOP_LIGHT_SHARE, MAX_LIGHT_LEVEL } from "./lightingFlood";
+import { computeLightingFlood, FULL_CELL_TOP_LIGHT_SHARE, MAX_LIGHT_LEVEL } from "./lightingFlood";
 import { sampleIllumination } from "./clock";
 import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO, SUN_SPAN_STRIDE } from "./sunSpan";
 import type { MapFile, TileDef } from "./types";
@@ -736,6 +737,44 @@ describe("void", () => {
     const level = lit.levels.get(0)!;
     expect(sampleLevelLight(level, 1, 0)[0]).toBe(0);
     expect(sampleLevelLight(level, 2, 0)[0]).toBeGreaterThan(0.1);
+  });
+});
+
+describe("baking only the levels near the viewer", () => {
+  const ROOF_Z = 3;
+  const DEEP_FLOOR_Z = -3;
+  const BAND = { x0: -1, y0: -1, x1: 1, y1: 1, z0: -2, z1: 0 };
+  const SAMPLE_Z = -2;
+
+  function square(z: number): Array<{ x: number; y: number; z: number; tiles: string[] }> {
+    const cells = [];
+    for (let x = -1; x <= 1; x++) {
+      for (let y = -1; y <= 1; y++) cells.push({ x, y, z, tiles: ["floor"] });
+    }
+    return cells;
+  }
+
+  function bandSkyAt(map: MapFile, z: number): number {
+    const raw = computeLightingFlood(map, tilesById, undefined, undefined, BAND);
+    const grid = composeLightGrid(raw, AMBIENT_PRESETS.day);
+    return sampleLevelLight(grid.levels.get(z)!, 0, 0)[0]!;
+  }
+
+  function wholeSkyAt(map: MapFile, z: number): number {
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
+    return sampleLevelLight(grid.levels.get(z)!, 0, 0)[0]!;
+  }
+
+  it("is shaded by a roof above the levels it bakes", () => {
+    const map = mapAt([...square(ROOF_Z), ...square(DEEP_FLOOR_Z)]);
+    expect(wholeSkyAt(map, SAMPLE_Z)).toBe(0);
+    expect(bandSkyAt(map, SAMPLE_Z)).toBe(0);
+  });
+
+  it("lets daylight down a shaft whose floor is below the levels it bakes", () => {
+    const map = mapAt(square(DEEP_FLOOR_Z));
+    expect(wholeSkyAt(map, SAMPLE_Z)).toBeCloseTo(1, 5);
+    expect(bandSkyAt(map, SAMPLE_Z)).toBeCloseTo(1, 5);
   });
 });
 

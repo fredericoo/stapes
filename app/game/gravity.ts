@@ -6,6 +6,7 @@ import {
   listCoords,
   replaceStack,
   stackHeight,
+  presentLevels,
 } from "../lib/mapData";
 import { pourInto } from "../lib/piles";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -84,7 +85,7 @@ export function cellHasLooseGravity(
 
 export function findLooseGravityCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y } of listCoords(map, z)) {
       const cell = { x, y, z };
       if (cellHasLooseGravity(map, cell, tilesById)) out.push(cell);

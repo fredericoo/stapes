@@ -3,7 +3,7 @@ import { residentAt } from "./testResidents";
 import { resolveTeleport } from "../lib/interactions";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { MAX_LEVEL, normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { canTeleportFrom, reachableTeleportAt } from "./affordances";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
@@ -170,7 +170,7 @@ describe("resolveTeleport", () => {
 
   it("refuses a destination off the ends of the world rather than clamping", () => {
     expect(
-      resolveTeleport({ tileId: "ladder" }, tilesById.ladder, { x: 4, y: 4, z: 8 }),
+      resolveTeleport({ tileId: "ladder" }, tilesById.ladder, { x: 4, y: 4, z: MAX_LEVEL }),
     ).toBeNull();
   });
 

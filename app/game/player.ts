@@ -1,6 +1,5 @@
-import { listCoords } from "../lib/mapData";
+import { listCoords, presentLevels } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { PLAYER_TILE_ID } from "./constants";
 
 export type PlayerLocation = Coord & {
@@ -10,7 +9,7 @@ export type PlayerLocation = Coord & {
 
 export function findPlayers(map: MapFile): PlayerLocation[] {
   const found: PlayerLocation[] = [];
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       for (let i = 0; i < stack.length; i++) {
         const placed = stack[i]!;

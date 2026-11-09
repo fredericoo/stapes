@@ -4,7 +4,7 @@ import { circleSlice, ParticleLayer, particleWorldPx, SHAPE_SLOTS } from "./part
 import type { ParticleEmitterSpec } from "./particles";
 import type { CellHidden } from "./tileEmitters";
 import { DEFAULT_PARTICLES, type ParticleEmitterDef, PARTICLE_SHAPE_PX } from "../lib/particleVfx";
-import { noSunUniforms, type LevelLightUniforms } from "./worldQuads";
+import { depthOriginUniforms, noSunUniforms, type LevelLightUniforms } from "./worldQuads";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { coordKey } from "../lib/types";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
@@ -24,6 +24,7 @@ function lightUniforms(): LevelLightUniforms {
 function layer() {
   return new ParticleLayer(
     () => lightUniforms(),
+    depthOriginUniforms(),
     () => 0.5,
   );
 }

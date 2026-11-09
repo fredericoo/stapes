@@ -27,7 +27,7 @@ import {
 } from "../lib/interactions";
 import { armorSlotOf, resolveItem } from "../lib/item";
 import { layerForSlot, wornPartOf } from "../lib/humanParts";
-import { listCoords } from "../lib/mapData";
+import { listCoords, presentLevels } from "../lib/mapData";
 import { resolveProjectile } from "../lib/projectile";
 import { anchorFits } from "../lib/spriteAnchor";
 import { tileHumanSchema, wearsHumanSheet } from "../lib/humanSprite";
@@ -48,10 +48,8 @@ import {
 } from "../lib/traits";
 import {
   type MapFile,
-  MAX_LEVEL,
   MAX_LIGHT_LEVEL,
   maxLightRadius,
-  MIN_LEVEL,
   normalizeTileDef,
   TILE_KINDS,
   TILE_TYPES,
@@ -674,7 +672,7 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
   let count = 0;
   const unknown = new Map<string, Tally>();
   const untagged = new Map<string, Tally>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const where = `${x},${y} L${z}`;
       for (const placed of stack) {

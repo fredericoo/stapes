@@ -172,10 +172,32 @@ export function boxSurfaceElevation(box: DepthBox, screenX: number, screenY: num
   return boxSurface(box, screenX, screenY).elevation;
 }
 
+/**
+ * Both limits are measured from a {@link DepthOrigin}, not from the world's
+ * origin: cells either side of the camera's centre, and elevation units
+ * either side of the viewer's level. Only what is drawn has to fit, which is
+ * what lets the world grow in every direction without the depth buffer
+ * losing precision.
+ */
 const DEPTH_COORD_LIMIT = 256;
 const DEPTH_ELEV_LIMIT = 48;
 export const DEPTH_MAX = 2 * DEPTH_COORD_LIMIT + HEIGHT_PER_LEVEL * DEPTH_ELEV_LIMIT;
 export const DEPTH_MIN = -DEPTH_MAX;
+
+/**
+ * What a frame's ray depth is measured from: the screen pixels' `x + y`, the
+ * elevation and the stack bias that read as zero. Every fragment of a frame is
+ * shifted by the same amount, so the order between them is unchanged.
+ */
+export type DepthOrigin = { pxSum: number; elev: number; stackBias: number };
+
+export function depthOriginAt(centrePxX: number, centrePxY: number, viewerZ: number): DepthOrigin {
+  return {
+    pxSum: centrePxX + centrePxY,
+    elev: viewerZ * HEIGHT_PER_LEVEL,
+    stackBias: depthStackBias(viewerZ, 0),
+  };
+}
 
 /**
  * The nudge applied per stack index to separate coplanar surfaces, such as a
@@ -218,12 +240,17 @@ export const DEPTH_LEAST_BODY = DEPTH_STACK_BIAS / RAY_DEPTH_ELEV / 2;
  * Must beat any in-level `stackIndex`, while keeping
  * `(levelSpan * this + maxIndex) * DEPTH_STACK_BIAS` under one elevation unit
  * of ray depth, so a single elevation unit still wins over the largest bias.
+ * The span that counts is the drawn one, `2 * VIEW_LEVEL_REACH`, because the
+ * bias is measured from the viewer's level by {@link depthOriginAt}.
  */
 export const DEPTH_BIAS_PER_LEVEL = 64;
 
 export function depthStackBias(z: number, stackIndex: number): number {
   return (z - MIN_LEVEL) * DEPTH_BIAS_PER_LEVEL + stackIndex;
 }
+
+/** A view of level 0 centred on the world's origin. */
+export const GROUND_DEPTH_ORIGIN: DepthOrigin = depthOriginAt(0, 0, 0);
 
 export function snapToPixelCenter(v: number): number {
   return Math.floor(v) + 0.5;
@@ -233,13 +260,20 @@ export function planeDepthBias(box: DepthBox): number {
   return (box.southPx + box.eastPx * DEPTH_PLANE_EAST_WEIGHT) * DEPTH_PLANE_BIAS;
 }
 
-export function fragDepth(box: DepthBox, screenX: number, screenY: number, stackBias = 0): number {
+export function fragDepth(
+  box: DepthBox,
+  screenX: number,
+  screenY: number,
+  stackBias = 0,
+  origin: DepthOrigin = GROUND_DEPTH_ORIGIN,
+): number {
   const px = snapToPixelCenter(screenX);
   const py = snapToPixelCenter(screenY);
   const surface = boxSurface(box, px, py);
   const d =
-    rayDepth(px, py, surface.elevation) +
-    stackBias * DEPTH_STACK_BIAS +
+    (px + py - origin.pxSum) / CELL_SIZE +
+    RAY_DEPTH_ELEV * (surface.elevation - origin.elev) +
+    (stackBias - origin.stackBias) * DEPTH_STACK_BIAS +
     planeDepthBias(box) +
     (surface.overhang ? DEPTH_OVERHANG_BIAS : 0);
   const normalized = (DEPTH_MAX - d) / (DEPTH_MAX - DEPTH_MIN);

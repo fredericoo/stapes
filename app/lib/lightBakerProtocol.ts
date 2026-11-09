@@ -1,5 +1,6 @@
 import type { ChunkCells, MapFile, TileDef } from "./types";
 import type { WorldRect } from "./lightingChunks";
+import type { LevelRange } from "./view";
 
 export type MapPatch = {
   levels: Record<string, Record<string, ChunkCells | null> | null>;
@@ -8,7 +9,7 @@ export type MapPatch = {
 export type BakerRequest =
   | { type: "init"; tiles: TileDef[]; omit: string[]; map: MapFile }
   | { type: "patch"; patch: MapPatch }
-  | { type: "bake"; id: number; rect: WorldRect; timeMs: number };
+  | { type: "bake"; id: number; rect: WorldRect; levels: LevelRange; timeMs: number };
 
 export type WirePlanes = Array<[number, Uint8Array]>;
 
@@ -60,13 +61,20 @@ export function diffMapChunks(prev: MapFile | null, next: MapFile): MapPatch | n
   return any ? { levels } : null;
 }
 
+/**
+ * A level added or removed replaces `map.levels` rather than editing it, the
+ * same as `setStacks` does, because `presentLevels` is cached on that record.
+ */
 export function applyMapPatch(map: MapFile, patch: MapPatch) {
   for (const [lz, chunks] of Object.entries(patch.levels)) {
     if (chunks === null) {
+      if (!(lz in map.levels)) continue;
+      map.levels = { ...map.levels };
       delete map.levels[lz];
       continue;
     }
-    const level = (map.levels[lz] ??= {});
+    if (!(lz in map.levels)) map.levels = { ...map.levels, [lz]: {} };
+    const level = map.levels[lz]!;
     for (const [ck, cells] of Object.entries(chunks)) {
       if (cells === null) delete level[ck];
       else level[ck] = cells;

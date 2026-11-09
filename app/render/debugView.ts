@@ -1,5 +1,5 @@
-import { listChunkKeys } from "../lib/mapData";
-import { CELL_SIZE, CHUNK_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import { listChunkKeys, presentLevels } from "../lib/mapData";
+import { CELL_SIZE, CHUNK_SIZE } from "../lib/types";
 import type { MapFile } from "../lib/types";
 import type { WorldRect } from "../lib/lightingChunks";
 import { VIEW_PX } from "./viewport";
@@ -47,7 +47,7 @@ export function chunkColumnRectPx(key: string): PxRect {
 
 export function heldChunkColumns(map: MapFile): string[] {
   const columns = new Set<string>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (const z of presentLevels(map)) {
     for (const key of listChunkKeys(map, z)) columns.add(key);
   }
   return [...columns];
