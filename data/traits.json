@@ -1708,6 +1708,109 @@
     ]
   },
   {
+    "id": "evades-the-unreachable",
+    "name": "Evades the unreachable",
+    "hint": "Backs away from anybody who hits it from where it has no way to follow, such as across water or up a ledge, until they are out of sight or it has backed off for a while. Call it before fights-back, or fights-back turns it on them instead.",
+    "params": {
+      "safe": {
+        "kind": "cells",
+        "default": 10,
+        "label": "safe out of sight at"
+      },
+      "for": {
+        "kind": "ms",
+        "default": 5000,
+        "label": "backs off for at most"
+      },
+      "drops": {
+        "kind": "boolean",
+        "default": false,
+        "label": "allow drops"
+      }
+    },
+    "slots": {
+      "shooter": "body"
+    },
+    "states": {
+      "evading": {
+        "band": "danger",
+        "do": [
+          {
+            "action": "step_away_from",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "shooter"
+              }
+            },
+            "allowDrops": {
+              "arg": "drops"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "retarget": true,
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "attacked"
+            },
+            {
+              "cond": "unreachable",
+              "of": {
+                "type": "attacker"
+              },
+              "allowDrops": {
+                "arg": "drops"
+              }
+            }
+          ]
+        },
+        "bind": {
+          "shooter": {
+            "type": "attacker"
+          }
+        },
+        "to": "evading"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "evading",
+        "if": {
+          "cond": "out_of_los",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "shooter"
+            }
+          },
+          "cells": {
+            "arg": "safe"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "evading",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "for"
+          }
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
     "id": "follows-its-kind",
     "name": "Follows its kind",
     "hint": "Tags along after the nearest of its company it can see while nothing else is going on, and loses them past lose. Given settle and stray, it loiters close by and catches up when they get ahead.",

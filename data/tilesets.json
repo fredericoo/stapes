@@ -140,6 +140,13 @@
     "height": 256
   },
   {
+    "id": "small-slimes",
+    "name": "Small slimes",
+    "file": "small-slimes.png",
+    "width": 128,
+    "height": 192
+  },
+  {
     "id": "ramps",
     "name": "Ramps",
     "file": "ramps.png",

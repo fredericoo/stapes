@@ -7099,7 +7099,7 @@ projectile with a `hit` still plays it, and plays both if it has a
 #### A conjured body is a creature of its own
 
 A conjure whose tile is a body (`resolveActor`) — a slime's `Split` conjures
-another of itself — is given an owner and adopted as a resident on the spot,
+two small slimes — is given an owner and adopted as a resident on the spot,
 on the terms `/tile` summons by: named after the cell it lands in, which is
 its home. Without that it was a picture of a slime until the world next
 loaded and `adoptResidents` found it. It carries no `castBy` or
@@ -7109,7 +7109,7 @@ own.
 **It stands in a cell of its own.** Every other conjure lands under the body
 in the cell it aims at, which is right for a flame and wrong for a body: a
 slime splitting while it fights faces the player, and its copy would be
-placed under the player's feet. `bodyLanding` ignores the target and takes the
+placed under the player's feet. `bodyLandings` ignores the target and takes the
 first step around the caster that `canWalk` allows and no body is standing in,
 starting with the one it faces and turning clockwise. With none free the
 conjure is refused as `blocked`, like a flame cast into a wall.
@@ -11710,8 +11710,12 @@ apart from rows that could never be the first to hold.
   start, and each calls `predator`. A slime also has a trigger of its own: at
   35% or less with its prey within 8 cells it goes to `splitting`, which holds
   at `danger` so a blow cannot pull it back into the fight. That state tries
-  `Split` before it attacks, so while the spell is cooling the slime fights
-  on; see *A conjured body is a creature of its own*.
+  `Split` before it attacks, so while the spell cannot be cast the slime
+  fights on; see *A slime splits into two small ones* below.
+- **The six slimes call `evades-the-unreachable` before `predator`.** A trait's
+  triggers rank ahead of the brain's own in the same band, and its
+  `attacked` trigger has to come before `fights-back`'s or `fights-back` turns
+  the slime on whoever shot it. See *A slime splits into two small ones*.
 - **The rat** calls `flees-the-stronger`, `fights-back`, `hunts-the-weaker`,
   `scavenges` and `returns-home`. Its pack-following and its sniffing when stuck are still its
   own rows. See *A creature can hunt only what it outrates, and scavenge*.
@@ -11732,6 +11736,57 @@ cannot reach in that position. The wolf, the troll, the bog
 imp and the cyclops would each change what they do; see *A wounded wolf breaks
 off* and *The wolf we ship sleeps through the day on the surface* for what
 their rows rely on.
+
+### A slime splits into two small ones
+
+`Split` used to conjure another full slime, at full health, which could split
+in its turn. Kept beside a wounded slime, a player was handed a new 41-point
+slime every minute for as long as they cared to stand there, rated 20 and so
+paying double experience to anybody below Arcane 14.
+
+**Now `Split` conjures two small slimes and consumes the slime that casts it**
+(`count: 2`, `consumesCaster`; see *A conjured body is a creature of its own*).
+A small slime has 13 hit points against its parent's 41, moves at 450ms a
+step rather than 600, and has no `Split` of its own, so one slime is worth at
+most its own health and two small ones'. The small ones are meant to be
+dangerous only together: alone, one is as easy as a rat (a player at level 2
+wins half the time, against level 8 for the parent).
+
+- **The cast takes two seconds, not eight.** It still starts at 35% and is
+  uninterruptible. At eight seconds the slime stood still taking blows for
+  longer than its last 14 hit points lasted, so the split almost never
+  happened. Sixty fights a level in a `GameSession` with the shipped tiles,
+  against a player with Sharp, Toughness and Agility at the level and that
+  level's sword, counting the fights in which the slime split before it died:
+
+  | level | 8 s cast | 2 s cast |
+  | ----- | -------- | -------- |
+  | 10    | 0        | 57       |
+  | 15    | 0        | 60       |
+  | 20    | 0        | 52       |
+  | 33    | 1        | 7        |
+- **A small slime has no `respawn`.** It is conjured, so it has no respawn
+  point, but a content save rebuilds the spawn points from the board
+  (`findSpawnPoints`), and a conjured body with a `respawn` alive at that
+  moment would become a permanent resident.
+- **It drops nothing.** The parent's kit spills when it dies splitting, as it
+  would for any death.
+- **Their sprites are the parent's, shrunk.** `small-slimes.png` holds every
+  frame of `monsters.png`'s three slime blocks shrunk from about 11 pixels to
+  7, rounded to the ellipse that fills each frame's blob, outlined in one
+  closed ring with the eyes put back, and drawn where the parent's foot is, so the small tiles keep the parent's
+  rects and only their `anchor` differs.
+
+**A slime notices a player from 8 cells, and gives up and walks home at 12.**
+Both used to be 5 and 8, so stepping three cells back ended the fight.
+
+**A slime backs away from somebody it cannot reach.** Hit by a body it has no
+way to stand beside — `unreachable`, so across a ledge, a fence or further
+round than a chase searches — it steps away until they are 10 cells out of
+sight or five seconds have passed (`evades-the-unreachable`). Before this a
+slime held still in plain view of an archer it could not get to until it
+died. The state holds at `danger`, so a blow from somebody it could reach does
+not pull it back for those five seconds.
 
 ## A creature can hunt only what it outrates, and scavenge
 
