@@ -1504,6 +1504,21 @@ cause of death.
 - **The night guard crosses his door by hand.** Brain routing does not open
   doors, so the guardhouse door at 5,8 is a `switch` in its own state each
   way, and his home is the cell inside it.
+- **Lord Corvin fights with stones, and is meant to scare players off.** He
+  is in the old alderman's hall, with rating 56 from Arcane 70, between the
+  smiths and the guards. His spells are Lance, Ember, Frost and Thorns. Arcane 70
+  is more than double what each of them asks, so every cast is instant. None of
+  them hits an area: an area spell `affects: "others"` would hit his wife, and
+  nothing brings her back. He calls `fights-back` with his own `dueling` state,
+  because `townsfolk-fight` only swings.
+- **Corvin and Ysolde have leashes of three cells, set by where the stairs
+  are.** A wandering brain will step into a stairwell: the stair two units
+  down is inside the climb band, so `stepLeavesGround` does not count it as a
+  drop. The hall has a staircase up at its east end and one down to the cellar
+  at its west end. Corvin's home at (1, -27) and Ysolde's at (-1, -27) are more
+  than three cells from the cell in front of each staircase. Moving either of
+  them, or widening a leash, can walk them off their level, and with `sight`
+  0 up and down they cannot find their way home from there.
 
 ### A trade is `app/game/trade.ts`, and a craft is a trade with a roll in front
 
@@ -11257,7 +11272,8 @@ area within 3.2 cells, and trees and bushes from the ring itself, so the ring
 does not blend into the scattered flowers around it. Each ring is red or
 yellow, whichever is rarer near that spot. Nothing generates the rings: a wisp
 moved or added in the editor needs its ring painted by hand, or the lore stops
-being true there.
+being true there. Lord Corvin's book (`book`, in the chest in
+his cellar) is where a player reads this.
 
 **The art is a glow on a translucent sheet.** `bun run generate:wisps` draws a
 near-white core that darkens through the element's palette ramp and loses

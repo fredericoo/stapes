@@ -53543,6 +53543,1836 @@
     }
   },
   {
+    "id": "lord-corvin",
+    "name": "Lord Corvin",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "people",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 700,
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    },
+    "human": {
+      "skin": "pale",
+      "hair": "grey",
+      "head": "beard",
+      "outfit": {
+        "clothes": "purple-robe",
+        "shoes": "red-boots"
+      }
+    },
+    "interactions": {
+      "brain": {
+        "initial": "standing",
+        "states": {
+          "standing": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pacing": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "returning": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "retiring": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 6
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "dueling": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "In my own house? You will regret that."
+              }
+            ],
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "cast",
+                "spell": 2,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "cast",
+                "spell": 3,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "cast",
+                "spell": 4,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "mending": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 5
+              },
+              {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "cast",
+                "spell": 2,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "cast",
+                "spell": 3,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "cast",
+                "spell": 4,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "dueling",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "mending"
+          },
+          {
+            "from": "mending",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "mending"
+          },
+          {
+            "from": "mending",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "dueling"
+          },
+          {
+            "from": [
+              "standing",
+              "pacing",
+              "returning",
+              "retiring",
+              "snacking"
+            ],
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "standing"
+          },
+          {
+            "from": [
+              "standing",
+              "pacing"
+            ],
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
+            },
+            "to": "standing"
+          },
+          {
+            "from": [
+              "standing",
+              "pacing",
+              "returning"
+            ],
+            "if": {
+              "cond": "time_of_day",
+              "fromHour": 21,
+              "toHour": 6
+            },
+            "to": "retiring"
+          },
+          {
+            "from": "retiring",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 21,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "standing"
+          },
+          {
+            "from": [
+              "standing",
+              "pacing"
+            ],
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 3
+            },
+            "to": "returning"
+          },
+          {
+            "from": "returning",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "standing"
+          },
+          {
+            "from": "returning",
+            "if": {
+              "cond": "after",
+              "ms": 15000
+            },
+            "to": "standing"
+          },
+          {
+            "from": "standing",
+            "if": {
+              "cond": "after",
+              "ms": 9000,
+              "toMs": 16000
+            },
+            "to": "pacing"
+          },
+          {
+            "from": "pacing",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "standing"
+          },
+          {
+            "from": "pacing",
+            "if": {
+              "cond": "after",
+              "ms": 4000
+            },
+            "to": "standing"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "fights-back",
+            "with": {
+              "fight": "dueling",
+              "target": "threat",
+              "calm": 12
+            }
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "A visitor, in my hall. Wipe your boots, {partner}. The floor is worth more than they are."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "How did you get so rich?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Arcane stones. I sold more of them than any merchant this town has known, and I never once ran short."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Where they come from is the one thing I own that I have never sold, and I never will."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "It is written down, and it stays in this family. My children will have it, and their children after them. Not you."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Whose house is this?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Mine. It was the alderman's hall, until the town could not afford to heat it. I could."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "My wife keeps the rooms, the children sleep upstairs, and the cellar is nobody's business but mine."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Do you cast?",
+                "then": [
+                  {
+                    "kind": "if",
+                    "when": {
+                      "cond": "rated_below",
+                      "rating": 40
+                    },
+                    "then": [
+                      {
+                        "kind": "say",
+                        "text": "Better than anyone you have met. Men stronger than you have looked at my purse, then at my hands, and gone home."
+                      },
+                      {
+                        "kind": "say",
+                        "text": "Do not be the first who doesn't."
+                      }
+                    ],
+                    "else": [
+                      {
+                        "kind": "say",
+                        "text": "You look like you could make a fight of it. I would rather you did not try. Nobody who has tried is still talking about it."
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Close the door behind you."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 60,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 70,
+          "toughness": 45,
+          "agility": 35,
+          "fire": 15,
+          "water": 15,
+          "nature": 15
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Walking cane",
+          "damage": 3,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "blunt",
+          "requirements": {
+            "blunt": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "warded-robe",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player",
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 12,
+              "variance": 25,
+              "projectile": "arcane-lance"
+            },
+            "cooldownMs": 10000,
+            "castTimeMs": 2000,
+            "requirements": {
+              "arcane": 33
+            },
+            "reach": {
+              "cells": 7.5,
+              "height": 2
+            },
+            "name": "Lance"
+          },
+          {
+            "type": "stone",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 10,
+              "variance": 60,
+              "projectile": "ember-comet",
+              "statuses": [
+                {
+                  "id": "burned",
+                  "chance": 30,
+                  "fromMs": 2000,
+                  "toMs": 4000
+                }
+              ]
+            },
+            "cooldownMs": 5600,
+            "castTimeMs": 1500,
+            "requirements": {
+              "arcane": 20,
+              "fire": 5
+            },
+            "reach": {
+              "cells": 6.5,
+              "height": 2
+            },
+            "name": "Ember"
+          },
+          {
+            "type": "stone",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 10,
+              "variance": 25,
+              "projectile": "frost-shard",
+              "statuses": [
+                {
+                  "id": "chilled",
+                  "chance": 30,
+                  "fromMs": 4000,
+                  "toMs": 7000
+                }
+              ]
+            },
+            "cooldownMs": 7000,
+            "castTimeMs": 1500,
+            "requirements": {
+              "arcane": 20,
+              "water": 5
+            },
+            "reach": {
+              "cells": 6.5,
+              "height": 2
+            },
+            "name": "Frost"
+          },
+          {
+            "type": "stone",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 12,
+              "variance": 25,
+              "projectile": "thorn-leaf",
+              "statuses": [
+                {
+                  "id": "poison",
+                  "chance": 30,
+                  "fromMs": 5000,
+                  "toMs": 15000
+                }
+              ]
+            },
+            "cooldownMs": 8400,
+            "castTimeMs": 1500,
+            "requirements": {
+              "arcane": 20,
+              "nature": 5
+            },
+            "reach": {
+              "cells": 6.5,
+              "height": 2
+            },
+            "name": "Thorns"
+          },
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "lady-ysolde",
+    "name": "Lady Ysolde",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "people",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 650,
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "brown",
+      "head": "long-hair",
+      "outfit": {
+        "clothes": "blue-tunic",
+        "shoes": "brown-boots"
+      }
+    },
+    "interactions": {
+      "brain": {
+        "initial": "tidying",
+        "states": {
+          "tidying": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pausing": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "resting": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "tidying"
+          },
+          {
+            "from": [
+              "tidying",
+              "pausing",
+              "homing"
+            ],
+            "if": {
+              "cond": "time_of_day",
+              "fromHour": 21,
+              "toHour": 6
+            },
+            "to": "resting"
+          },
+          {
+            "from": "resting",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 21,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "tidying"
+          },
+          {
+            "from": [
+              "tidying",
+              "pausing"
+            ],
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 3
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "after",
+              "ms": 15000
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "tidying",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "tidying",
+            "if": {
+              "cond": "after",
+              "ms": 5000
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "pausing",
+            "if": {
+              "cond": "after",
+              "ms": 4000,
+              "toMs": 9000
+            },
+            "to": "tidying"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "cry": "Corvin! Corvin, help!",
+              "snack": 1,
+              "talk": "listening"
+            }
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Oh, a visitor! Corvin doesn't care for visitors. I do. It's a big house for so few voices."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "Tell me about your husband.",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Corvin? He sold arcane stones for thirty years. These days he mostly counts the money."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Every night, once I've gone up to bed, he goes down to the cellar and writes in that book of his. Every single night."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "He says it's for the children, and for their children. Half the time he sleeps down there beside it, as if somebody would steal a merchant's scribbles."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Where did his stones come from?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "He never told me. When we were young he'd go out after dark and come home at dawn, singed and soaked and grinning, with his pockets full."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "He always brought me flowers, too. I never did ask where he picked them."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Do come again. Quietly, mind. He hears everything."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player",
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "thrown-stone",
     "name": "Thrown Stone",
     "height": 0,

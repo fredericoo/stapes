@@ -301,6 +301,19 @@ Nobody above Holleg can inscribe a stone, so every stone in the world above came
 up from the buried city or came off a wisp. That is why the ring of flowers is
 worth money, and why the people who know about it do not say so.
 
+### Lord Corvin
+
+Corvin is the richest man in town. He made his fortune selling arcane stones for
+thirty years and never ran short, and he bought the old alderman's hall when the
+town could no longer afford to heat it. He is also a strong caster.
+
+He does not tell anyone where the stones came from. He wrote it down instead, in
+a book that is for his children and their children, and he writes in it every
+night in the cellar of the hall. He sleeps down there beside it. His wife,
+**Ysolde**, does not know what the book says. She remembers that when they were
+young he went out after dark, came home at dawn with his pockets full, and
+always brought her flowers.
+
 ## Open questions, deliberately unanswered
 
 Nothing above is a mystery. What is unknown is not the past but the present: the
