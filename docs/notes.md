@@ -5233,13 +5233,19 @@ against an even level of 15, a slime 15 against 5 — because `rating` counts a
 weapon mastery whatever weapon it is used with.
 
 **The skeleton's strength then moved from its hit points into its
-masteries.** It is born with 20 rather than 110, with Sharp, Blunt, Ranged
-and Arcane at 33 rather than 15, Toughness 22 rather than 10 and Agility 25
-rather than 10: 47 hit points rather than 121, rated 30, with an even level of
-26. In `verify battle --matrix` a player at level 15 still loses to it about
-three times in four, but a won fight takes 6.2s rather than 16.0s, and a
-player at level 33 wins 97% rather than 88%. Most of its danger is its kit:
-a sword, a broad axe, a mace or a bow from the level-15 rung, swung at 33.
+masteries.** It is born with 20 rather than 110, with Toughness 22 rather than
+10: 47 hit points rather than 121.
+
+**No blow of its can kill a new character outright.** It used to carry a
+sword, a broad axe, a mace or a bow from the level-15 rung, and a broad axe at
+Sharp 15 hits for up to 38 against a new character's 13 hit points. It now
+carries a rusty sword or a simple hammer, or fights with its claws, at Sharp,
+Blunt, Ranged and Arcane 20; the heaviest of those lands for at most 11.4
+(`damageAtMastery`). What it lost in the size of a blow it keeps in how often
+it swings and dodges, at Agility 35 rather than 10. It is rated 25 with an even
+level of 17. In `verify battle --matrix` a player at level 15 wins about half
+its fights (24% before), in 6.2s rather than 16.0s, and one at level 33 wins
+every fight (88% before). A new character still loses, in two blows.
 
 ### Armour is worn, and it may care what hit it
 

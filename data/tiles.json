@@ -58499,12 +58499,12 @@
       "battler": {
         "baseHp": 20,
         "masteries": {
-          "sharp": 33,
-          "blunt": 33,
-          "ranged": 33,
-          "arcane": 33,
+          "sharp": 20,
+          "blunt": 20,
+          "ranged": 20,
+          "arcane": 20,
           "toughness": 22,
-          "agility": 25
+          "agility": 35
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -58531,22 +58531,12 @@
         "kit": [
           {
             "slot": "weapon",
-            "tileId": "iron-sword",
-            "chance": 20
-          },
-          {
-            "slot": "weapon",
-            "tileId": "broad-axe",
-            "chance": 25
-          },
-          {
-            "slot": "weapon",
-            "tileId": "iron-mace",
+            "tileId": "rusty-sword",
             "chance": 33.33
           },
           {
             "slot": "weapon",
-            "tileId": "hunting-bow",
+            "tileId": "simple-hammer",
             "chance": 50
           },
           {
