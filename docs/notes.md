@@ -14486,6 +14486,27 @@ by it. If it ever does matter, the lever is re-merging a level's chunk batches
 for the draw while keeping the build per chunk, which is real work and has not
 been needed.
 
+### Reflections are asked about what changed, and answered from a grid
+
+`ReflectiveCells` answers two questions for the renderer, and both used to
+read far more of the map than the question needed. Walking `/online` among
+20 bots in headless Chromium, they were half of the `map` phase.
+
+- **Which chunks' water changed** (`changedChunks`), so that whatever
+  reflects into them is rebuilt, listed every chunk of every changed level
+  and rescanned each changed chunk cell by cell. It now takes the chunks
+  written since the last frame and compares only the cells written, through
+  the same per-stack reading `cellsIn` uses. `cellsIn` itself reads a copied
+  chunk from its source's answer plus the cells the copy wrote.
+- **Where a quad's waterline is** probed the 5×5 cells around it on four
+  levels, building a chunk key and a cell key per probe, for every quad of a
+  chunk being built. `waterlinesIn` fills one dense grid per level for the
+  chunk and its reach and answers from it. `reflections.test.ts` checks it
+  against `waterlineNear` cell by cell, ties included.
+
+Building chunks took 448ms of a 40-second walk, 285ms of it reflections;
+after, reflections were 46ms of a 60-second walk.
+
 ### Levels are chunked; keep it that way
 
 `map.levels[z]` is `Record<chunkKey, Record<cellKey, PlacedTile[]>>`, not a flat

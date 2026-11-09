@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tile } from "../lib/testTile";
-import { chunkifyMap, replaceStack } from "../lib/mapData";
-import { MAP_FILE_VERSION, coordKey, levelKey } from "../lib/types";
+import { chunkKeyFor, chunkifyMap, flattenMap, replaceStack, setStacks } from "../lib/mapData";
+import { CHUNK_SIZE, MAP_FILE_VERSION, coordKey, levelKey } from "../lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
 import {
   MAX_REFLECTIVE_TILES,
@@ -18,6 +18,7 @@ const tiles: Record<string, TileDef> = {
   grass: tile({ id: "grass" }),
   rock: tile({ id: "rock", height: 2 }),
   water: tile({ id: "water", reflective: MIRROR }),
+  body: tile({ id: "body" }),
 };
 
 function mapAt(cells: Array<{ x: number; y: number; z?: number; tiles: string[] }>): MapFile {
@@ -95,6 +96,38 @@ describe("ReflectiveCells.waterlineNear", () => {
   });
 });
 
+describe("ReflectiveCells.waterlinesIn", () => {
+  it("answers what waterlineNear does for every cell of a chunk, across chunk edges and levels", () => {
+    const map = mapAt([
+      { x: -1, y: 5, tiles: ["water"] },
+      { x: 3, y: -1, tiles: ["rock", "water"] },
+      { x: 12, y: 3, tiles: ["rock", "water"] },
+      { x: 13, y: 2, tiles: ["water"] },
+      { x: 16, y: 16, tiles: ["water"] },
+      { x: 18, y: 7, tiles: ["rock", "water"] },
+      { x: 8, y: 8, z: -2, tiles: ["water"] },
+      { x: 5, y: 12, z: 1, tiles: ["water"] },
+    ]);
+    const cells = cellsFor(tiles);
+    for (const z of [0, 1]) {
+      const at = cells.waterlinesIn(map, 0, 0, z, CHUNK_SIZE);
+      const dense: Array<number | null> = [];
+      const probed: Array<number | null> = [];
+      for (let y = 0; y < CHUNK_SIZE; y++) {
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+          dense.push(at(x, y));
+          probed.push(cells.waterlineNear(map, x, y, z));
+        }
+      }
+      expect(
+        new Set(probed).size,
+        "the scene should hold several distinct answers",
+      ).toBeGreaterThan(3);
+      expect(dense).toEqual(probed);
+    }
+  });
+});
+
 describe("ReflectiveCells.changedChunks", () => {
   it("reports a chunk only when its reflective cells change", () => {
     const before = mapAt([{ x: 0, y: 0, tiles: ["grass"] }]);
@@ -103,6 +136,36 @@ describe("ReflectiveCells.changedChunks", () => {
     const waterAdded = replaceStack(before, 1, 0, 0, [{ tileId: "water" }]);
     expect(cells.changedChunks(before, grassMoved, 0)).toEqual([]);
     expect(cells.changedChunks(before, waterAdded, 0)).toHaveLength(1);
+  });
+
+  it("ignores a body wading across a pool, and reports the pool drying up", () => {
+    const pool = [0, 1, 2].map((x) => ({ x, y: 0, tiles: ["water"] }));
+    const before = mapAt([...pool, { x: 40, y: 40, tiles: ["water"] }]);
+    const cells = cellsFor(tiles);
+    const waded = setStacks(before, [
+      { x: 0, y: 0, z: 0, stack: [{ tileId: "water" }] },
+      { x: 1, y: 0, z: 0, stack: [{ tileId: "water" }, { tileId: "body" }] },
+    ]);
+    const dried = setStacks(waded, [{ x: 2, y: 0, z: 0, stack: [{ tileId: "grass" }] }]);
+    expect(cells.changedChunks(before, waded, 0)).toEqual([]);
+    expect(cells.changedChunks(waded, dried, 0)).toEqual([chunkKeyFor(2, 0)]);
+  });
+});
+
+describe("ReflectiveCells.cellsIn", () => {
+  it("reads a copied chunk the same as a chunk it has never seen", () => {
+    const before = mapAt([0, 1, 2, 3].map((x) => ({ x, y: 0, tiles: ["water"] })));
+    const after = setStacks(before, [
+      { x: 1, y: 0, z: 0, stack: [{ tileId: "grass" }] },
+      { x: 2, y: 0, z: 0, stack: [{ tileId: "rock" }, { tileId: "water" }] },
+      { x: 5, y: 0, z: 0, stack: [{ tileId: "water" }] },
+    ]);
+    const chunk = chunkKeyFor(0, 0);
+    const cells = cellsFor(tiles);
+    cells.cellsIn(before, 0, chunk);
+    const fresh = cellsFor(tiles).cellsIn(chunkifyMap(flattenMap(after)), 0, chunk);
+    expect(fresh?.size).toBe(4);
+    expect(new Map(cells.cellsIn(after, 0, chunk))).toEqual(new Map(fresh));
   });
 });
 

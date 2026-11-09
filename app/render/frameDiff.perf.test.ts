@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { changedCellsOnLevel, chunkifyMap, setStacks } from "../lib/mapData";
+import { tile } from "../lib/testTile";
 import { CHUNK_SIZE, MAP_FILE_VERSION, coordKey, levelKey } from "../lib/types";
-import type { FlatMapFile, MapFile } from "../lib/types";
+import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
+import { ReflectiveCells, reflectiveTileIndex } from "./reflections";
+
+const tiles: Record<string, TileDef> = {
+  grass: tile({ id: "grass" }),
+  water: tile({ id: "water", reflective: { colors: ["#335c8c"], opacity: 0.4 } }),
+  body: tile({ id: "body" }),
+};
 
 const SMALL_SIDE = 2;
 const LARGE_SIDE = 64;
@@ -73,6 +81,15 @@ describe("diffing two frames of a walking client", () => {
       [coordKey(0, 0), coordKey(1, 0), coordKey(0, 1), coordKey(1, 1)].sort(),
     );
     expect(ratioOf(({ before, after }) => changedCellsOnLevel(before, after, 0))).toBeLessThan(
+      MAX_RATIO,
+    );
+  });
+
+  it(`ReflectiveCells.changedChunks costs the same on a level ${(LARGE_SIDE / SMALL_SIDE) ** 2}x the size`, () => {
+    const cells = new ReflectiveCells(tiles, reflectiveTileIndex(tiles));
+    const { before, after } = walkingFrames(LARGE_SIDE);
+    expect(cells.changedChunks(before, after, 0)).toEqual([]);
+    expect(ratioOf(({ before, after }) => cells.changedChunks(before, after, 0))).toBeLessThan(
       MAX_RATIO,
     );
   });

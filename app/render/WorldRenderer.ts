@@ -2782,9 +2782,16 @@ export class WorldRenderer {
   }
 
   /** The waterline a quad reflects onto, or null when it stands nowhere near one or is under it. */
-  private reflectionWaterline(map: MapFile, item: BuildItem, z: number): number | null {
+  private reflectionWaterline(
+    map: MapFile,
+    item: BuildItem,
+    z: number,
+    waterlineAt?: (x: number, y: number) => number | null,
+  ): number | null {
     if (item.reflect) return null;
-    const waterElev = this.reflective().cells.waterlineNear(map, item.lightX0, item.lightY0, z);
+    const waterElev = waterlineAt
+      ? waterlineAt(item.lightX0, item.lightY0)
+      : this.reflective().cells.waterlineNear(map, item.lightX0, item.lightY0, z);
     if (waterElev == null || item.box.top <= waterElev || item.footElev < waterElev) return null;
     return waterElev;
   }
@@ -2800,11 +2807,14 @@ export class WorldRenderer {
     if (!cells.any || !first) return;
     if (!cells.chunkNeighbourhoodReflects(map, z, first.lightX0, first.lightY0, CHUNK_SIZE)) return;
 
+    const x0 = Math.floor(first.lightX0 / CHUNK_SIZE) * CHUNK_SIZE;
+    const y0 = Math.floor(first.lightY0 / CHUNK_SIZE) * CHUNK_SIZE;
+    const waterlineAt = cells.waterlinesIn(map, x0, y0, z, CHUNK_SIZE);
     for (const [tex, items] of staticByTex) {
       const quads: BuildItem[] = [];
       const pivots: ReflectionPivot[] = [];
       for (const item of items) {
-        const waterElev = this.reflectionWaterline(map, item, z);
+        const waterElev = this.reflectionWaterline(map, item, z, waterlineAt);
         if (waterElev == null) continue;
         quads.push(item);
         pivots.push(reflectionPivot(item, waterElev));

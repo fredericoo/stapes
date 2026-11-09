@@ -1,24 +1,30 @@
 import * as THREE from "three";
 import { PX_PER_HEIGHT, absoluteElevation } from "../lib/geometry";
 import {
+  changedCellsInChunk,
+  changedChunkKeysOnLevel,
+  chunkCopiedFrom,
   chunkKeyFor,
   elevationAfter,
   footElevation,
   getChunk,
-  listChunkKeys,
 } from "../lib/mapData";
 import {
   CELL_SIZE,
+  CHUNK_SIZE,
   DEFAULT_REFLECTION_FADE_PX,
   DEFAULT_REFLECTION_OPACITY,
   MAX_REFLECTIVE_COLORS,
   coordKey,
   facingKeysFor,
+  parseCoordKey,
   isDirectional,
   spriteRect,
   type Frame,
+  type ChunkCells,
   type MapFile,
   type Octant,
+  type PlacedTile,
   type OverrideSpriteState,
   type SpriteState,
   type TileDef,
@@ -435,19 +441,46 @@ export class ReflectiveCells {
 
   cellsIn(map: MapFile, z: number, chunk: string): ReadonlyMap<string, number> | undefined {
     const cells = getChunk(map, z, chunk);
-    if (!cells) return undefined;
+    return cells && this.cellsOf(cells, z);
+  }
+
+  /**
+   * A chunk copied from one already read is read from its source's answer
+   * plus the cells the copy wrote, so a body stepping through a lake does not
+   * rescan the lake.
+   */
+  private cellsOf(cells: ChunkCells, z: number): ReadonlyMap<string, number> {
     let found = this.byChunk.get(cells);
     if (found) return found;
-    found = new Map();
-    for (const key in cells) {
-      let elev = 0;
-      for (const placed of cells[key]!) {
-        const foot = footElevation(elev, placed);
-        if (this.index.has(placed.tileId)) found.set(key, absoluteElevation(z, foot));
-        elev = elevationAfter(elev, placed, this.tilesById);
+    const copied = chunkCopiedFrom(cells);
+    const source = copied && this.byChunk.get(copied.from);
+    if (source) {
+      found = new Map(source);
+      for (const key of copied.keys) {
+        const elev = this.elevationOf(cells[key], z);
+        if (elev === undefined) found.delete(key);
+        else found.set(key, elev);
+      }
+    } else {
+      found = new Map();
+      for (const key in cells) {
+        const elev = this.elevationOf(cells[key], z);
+        if (elev !== undefined) found.set(key, elev);
       }
     }
     this.byChunk.set(cells, found);
+    return found;
+  }
+
+  private elevationOf(stack: PlacedTile[] | undefined, z: number): number | undefined {
+    if (!stack) return undefined;
+    let found: number | undefined;
+    let elev = 0;
+    for (const placed of stack) {
+      const foot = footElevation(elev, placed);
+      if (this.index.has(placed.tileId)) found = absoluteElevation(z, foot);
+      elev = elevationAfter(elev, placed, this.tilesById);
+    }
     return found;
   }
 
@@ -469,15 +502,26 @@ export class ReflectiveCells {
    */
   changedChunks(prev: MapFile, next: MapFile, z: number): string[] {
     if (!this.any) return [];
-    const keys = new Set([...listChunkKeys(prev, z), ...listChunkKeys(next, z)]);
     const changed: string[] = [];
-    for (const chunk of keys) {
-      if (getChunk(prev, z, chunk) === getChunk(next, z, chunk)) continue;
-      if (!sameCells(this.cellsIn(prev, z, chunk), this.cellsIn(next, z, chunk))) {
-        changed.push(chunk);
-      }
+    for (const chunk of changedChunkKeysOnLevel(prev, next, z)) {
+      const before = getChunk(prev, z, chunk);
+      const after = getChunk(next, z, chunk);
+      const known = before && after && this.byChunk.get(before) && this.byChunk.get(after);
+      const same = known
+        ? sameCells(this.byChunk.get(before)!, this.byChunk.get(after)!)
+        : this.sameCellsWritten(prev, next, z, chunk);
+      if (!same) changed.push(chunk);
     }
     return changed;
+  }
+
+  private sameCellsWritten(prev: MapFile, next: MapFile, z: number, chunk: string): boolean {
+    const before = getChunk(prev, z, chunk);
+    const after = getChunk(next, z, chunk);
+    for (const key of changedCellsInChunk(prev, next, z, chunk)) {
+      if (this.elevationOf(before?.[key], z) !== this.elevationOf(after?.[key], z)) return false;
+    }
+    return true;
   }
 
   /**
@@ -490,6 +534,83 @@ export class ReflectiveCells {
       if (found != null) return found;
     }
     return null;
+  }
+
+  /**
+   * `waterlineNear` for each cell of the `size`-square block from (x0, y0),
+   * answered from one dense grid per level filled from the reflective cells,
+   * where probing cell by cell builds two key strings per probe.
+   */
+  waterlinesIn(
+    map: MapFile,
+    x0: number,
+    y0: number,
+    z: number,
+    size: number,
+  ): (x: number, y: number) => number | null {
+    const gx0 = x0 - REFLECTION_BACK_REACH_CELLS;
+    const gy0 = y0 - REFLECTION_BACK_REACH_CELLS;
+    const span = size + REFLECTION_BACK_REACH_CELLS + REFLECTION_REACH_CELLS;
+    const grids: Array<Float64Array | null> = [];
+    for (let wz = z; wz >= z - REFLECTION_LEVELS_BELOW; wz--) {
+      grids.push(this.denseWaterlines(map, wz, gx0, gy0, span));
+    }
+    if (grids.every((grid) => grid === null)) return () => null;
+
+    return (x, y) => {
+      if (!Number.isInteger(x) || !Number.isInteger(y)) return this.waterlineNear(map, x, y, z);
+      if (x < x0 || y < y0 || x >= x0 + size || y >= y0 + size) {
+        return this.waterlineNear(map, x, y, z);
+      }
+      for (const grid of grids) {
+        if (!grid) continue;
+        let best: number | null = null;
+        let bestDist = Infinity;
+        for (let dy = -REFLECTION_BACK_REACH_CELLS; dy <= REFLECTION_REACH_CELLS; dy++) {
+          const row = (y + dy - gy0) * span - gx0;
+          for (let dx = -REFLECTION_BACK_REACH_CELLS; dx <= REFLECTION_REACH_CELLS; dx++) {
+            const elev = grid[row + x + dx]!;
+            if (Number.isNaN(elev)) continue;
+            const dist = Math.abs(dx) + Math.abs(dy);
+            if (dist >= bestDist) continue;
+            best = elev;
+            bestDist = dist;
+          }
+        }
+        if (best != null) return best;
+      }
+      return null;
+    };
+  }
+
+  private denseWaterlines(
+    map: MapFile,
+    z: number,
+    gx0: number,
+    gy0: number,
+    span: number,
+  ): Float64Array | null {
+    let grid: Float64Array | null = null;
+    const cx0 = Math.floor(gx0 / CHUNK_SIZE);
+    const cy0 = Math.floor(gy0 / CHUNK_SIZE);
+    const cx1 = Math.floor((gx0 + span - 1) / CHUNK_SIZE);
+    const cy1 = Math.floor((gy0 + span - 1) / CHUNK_SIZE);
+    for (let cx = cx0; cx <= cx1; cx++) {
+      for (let cy = cy0; cy <= cy1; cy++) {
+        const cells = this.cellsIn(map, z, chunkKeyFor(cx * CHUNK_SIZE, cy * CHUNK_SIZE));
+        if (!cells) continue;
+        for (const [key, elev] of cells) {
+          const { x, y } = parseCoordKey(key);
+          const gx = x - gx0;
+          const gy = y - gy0;
+          if (!Number.isInteger(gx) || !Number.isInteger(gy)) continue;
+          if (gx < 0 || gy < 0 || gx >= span || gy >= span) continue;
+          grid ??= new Float64Array(span * span).fill(Number.NaN);
+          grid[gy * span + gx] = elev;
+        }
+      }
+    }
+    return grid;
   }
 
   private waterlineOnLevel(map: MapFile, x: number, y: number, z: number): number | null {

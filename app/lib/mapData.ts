@@ -224,6 +224,17 @@ export function changedCellsOnLevel(
   return out;
 }
 
+export function changedChunkKeysOnLevel(prev: MapFile, next: MapFile, z: number): string[] {
+  const before = prev.levels[levelKey(z)];
+  const after = next.levels[levelKey(z)];
+  if (before === after) return [];
+  const written = before && after ? keysWrittenBetween(before, after) : null;
+  const keys = written ?? [...Object.keys(before ?? {}), ...Object.keys(after ?? {})];
+  const out: string[] = [];
+  for (const chk of new Set(keys)) if (before?.[chk] !== after?.[chk]) out.push(chk);
+  return out;
+}
+
 export type ChunkFilter = (
   before: ChunkCells | undefined,
   after: ChunkCells | undefined,
