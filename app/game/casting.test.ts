@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
-import { ARMOR_SLOTS, resolveCharm, resolveItem, resolveStone } from "../lib/item";
+import {
+  ARMOR_SLOTS,
+  type ConjureEffect,
+  resolveCharm,
+  resolveItem,
+  resolveStone,
+} from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { spellElements } from "../lib/mastery";
 import { resolveCraft } from "../lib/interactions";
@@ -24,7 +30,7 @@ import {
   type CastContext,
   type CasterPoint,
   type CastPoint,
-  conjureLanding,
+  conjureLandings,
   spellPress,
   spellReading,
 } from "./casting";
@@ -373,6 +379,8 @@ describe("a stone that acts on its caster", () => {
 });
 
 describe("a conjuring stone", () => {
+  const FIRE: ConjureEffect = { kind: "conjure", tileId: "fire" };
+
   it("can be cast with nothing targeted", () => {
     expect(castability(context({ weapon: instance("flame-stone") }), squareSlot("weapon"))).toEqual(
       { ok: true },
@@ -392,26 +400,20 @@ describe("a conjuring stone", () => {
 
   it("lands on the cell the caster faces", () => {
     const state = context({});
-    expect(conjureLanding(state, "fire")).toEqual({ at: { x: 1, y: 0, z: 0 } });
+    expect(conjureLandings(state, FIRE)).toEqual([{ at: { x: 1, y: 0, z: 0 } }]);
 
     const west = context({}, { caster: { ...HERE, x: 3, facing: "w" } });
-    expect(conjureLanding(west, "fire")).toEqual({ at: { x: 2, y: 0, z: 0 } });
+    expect(conjureLandings(west, FIRE)).toEqual([{ at: { x: 2, y: 0, z: 0 } }]);
   });
 
   it("lands beneath whoever is standing in the cell it faces", () => {
     const state = context({}, { map: inFront("rat") });
-    expect(conjureLanding(state, "fire")).toEqual({
-      at: { x: 1, y: 0, z: 0 },
-      under: 1,
-    });
+    expect(conjureLandings(state, FIRE)).toEqual([{ at: { x: 1, y: 0, z: 0 }, under: 1 }]);
   });
 
   it("lands beneath a target, so they are standing in it", () => {
     const state = context({}, { target: point(2) });
-    expect(conjureLanding(state, "fire")).toEqual({
-      at: { x: 2, y: 0, z: 0 },
-      under: 1,
-    });
+    expect(conjureLandings(state, FIRE)).toEqual([{ at: { x: 2, y: 0, z: 0 }, under: 1 }]);
   });
 
   it.each(["wall", "bush", "water"])("refuses to conjure where a %s is in front", (tileId) => {
@@ -423,6 +425,31 @@ describe("a conjuring stone", () => {
       ok: false,
       reason: "blocked",
     });
+  });
+});
+
+describe("a conjure that stands up bodies", () => {
+  const walled = [
+    { x: 0, y: -1 },
+    { x: 0, y: 1 },
+    { x: -1, y: 0 },
+  ].reduce(
+    (map, { x, y }) => replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "wall" }]),
+    open(6),
+  );
+  const standing = replaceStack(walled, 0, 0, 0, [{ tileId: "grass" }, { tileId: "body" }]);
+  const twoRats: ConjureEffect = { kind: "conjure", tileId: "rat", count: 2 };
+
+  it("gives the first the caster's own cell when it consumes the caster", () => {
+    const state = context({}, { map: standing });
+    expect(conjureLandings(state, { ...twoRats, consumesCaster: true })).toEqual([
+      { at: { x: 0, y: 0, z: 0 } },
+      { at: { x: 1, y: 0, z: 0 } },
+    ]);
+  });
+
+  it("is refused unless every body it stands up has a cell", () => {
+    expect(conjureLandings(context({}, { map: standing }), twoRats)).toBeNull();
   });
 });
 

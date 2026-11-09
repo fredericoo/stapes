@@ -9,6 +9,7 @@ import type {
 import {
   DEFAULT_STONE_ACCURACY,
   MAX_CAST_TIME_MS,
+  MAX_CONJURED_BODIES,
   MAX_PERCENT_STAT,
   MAX_REACH_CELLS,
   MAX_REACH_HEIGHT,
@@ -33,7 +34,7 @@ import {
 import { beats, EFFECTIVENESS_EDGE, type Element, ELEMENTS } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import { projectileTiles, resolveProjectile } from "../lib/projectile";
-import type { TileDef, TilesetDef } from "../lib/types";
+import { resolveActor, type TileDef, type TilesetDef } from "../lib/types";
 import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
 import { ARCANE_LEVELS_PER_RESIST } from "../game/combat";
 import { AreaFields } from "./AreaFields";
@@ -86,7 +87,7 @@ const SECONDS_PER_MINUTE = 60;
 const EFFECT_INFO: Record<StoneEffectKind, string> = {
   bolt: "Magic is not aimed: no accuracy, no dodge — the cooldown is spent and the stone answers. A physical blow at a target is aimed, and misses and is dodged as a swing is. Scaled by the caster's Arcane and the stone's elements, averaged; the figure is what it does for somebody who has learnt nothing. A harm goes through resist, or defence for a physical blow, and the wheel. A mend is stopped by neither, stops at full health, and trains by what it actually restored.",
   conjure:
-    "Places a tile at the target's cell, or in front of the caster with nothing targeted. The player never picks a square.",
+    "Places a tile at the target's cell, or in front of the caster with nothing targeted. The player never picks a square. A body stands in a free cell beside the caster instead.",
 };
 
 export function StoneFields({
@@ -105,6 +106,10 @@ export function StoneFields({
   const effect = stone.effect;
   const reach = reachOf(stone);
   const patchReach = (fields: Partial<Reach>) => onChange({ reach: { ...reach, ...fields } });
+
+  const conjured =
+    effect.kind === "conjure" ? tiles.find((t) => t.id === effect.tileId) : undefined;
+  const conjuresBody = conjured !== undefined && resolveActor(conjured);
 
   const conjureOptions = tiles.map((tile) => ({
     value: tile.id,
@@ -271,21 +276,43 @@ export function StoneFields({
           />
         </div>
       ) : (
-        <label className="flex flex-col gap-1 text-xs">
-          <FieldLabel info="Give it a decay lifetime, or the battlefield fills with everything anybody has ever cast.">
-            Tile
-          </FieldLabel>
-          <Select
-            value={effect.tileId || null}
-            onValueChange={(tileId) =>
-              onChange({ effect: { kind: "conjure", tileId: tileId ?? "" } })
-            }
-            options={conjureOptions}
-            placeholder="Pick a tile…"
-            className="w-48"
-            ariaLabel="Tile this stone conjures"
-          />
-        </label>
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1 text-xs">
+            <FieldLabel info="Give it a decay lifetime, or the battlefield fills with everything anybody has ever cast.">
+              Tile
+            </FieldLabel>
+            <Select
+              value={effect.tileId || null}
+              onValueChange={(tileId) => onChange({ effect: { ...effect, tileId: tileId ?? "" } })}
+              options={conjureOptions}
+              placeholder="Pick a tile…"
+              className="w-48"
+              ariaLabel="Tile this stone conjures"
+            />
+          </label>
+          {conjuresBody ? (
+            <div className="flex flex-wrap items-end gap-4">
+              <StatField
+                label="Bodies"
+                info="How many it stands up, each in a free cell a step from the caster. Refused unless every one fits."
+                value={effect.count ?? 1}
+                min={1}
+                max={MAX_CONJURED_BODIES}
+                onChange={(count) =>
+                  onChange({ effect: { ...effect, count: count > 1 ? count : undefined } })
+                }
+              />
+              <SwitchField
+                checked={effect.consumesCaster === true}
+                onCheckedChange={(consumesCaster) =>
+                  onChange({ effect: { ...effect, consumesCaster: consumesCaster || undefined } })
+                }
+                label="Consumes the caster"
+                info="The caster dies as it lands, whatever health it had left, and the first body takes its cell. A player who casts it dies as from any other blow."
+              />
+            </div>
+          ) : null}
+        </div>
       )}
 
       <CasterEffectFields

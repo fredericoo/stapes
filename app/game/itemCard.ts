@@ -468,11 +468,15 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
       stats.push({ term: "cures", value: cures.join(", "), tone: "good" });
     }
   } else {
+    const count = stone.effect.count ?? 1;
     stats.push({
       term: "conjure",
-      value: "A tile",
+      value: count > 1 ? `${count} tiles` : "A tile",
       tone: "plain",
     });
+    if (stone.effect.consumesCaster) {
+      stats.push({ term: "costs", value: "Your life", tone: "bad" });
+    }
   }
 
   stats.push({

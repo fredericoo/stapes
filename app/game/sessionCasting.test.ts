@@ -475,6 +475,11 @@ const props: TileDef[] = [
     effect: { kind: "conjure", tileId: "rat" },
     cooldownMs: 10_000,
   }),
+  stoneTile("split-stone", {
+    effect: { kind: "conjure", tileId: "rat", count: 2, consumesCaster: true },
+    cooldownMs: 10_000,
+    sound: "*squelch*",
+  }),
   tile({
     id: "formed-flame",
     intangible: true,
@@ -963,6 +968,19 @@ describe("conjuring", () => {
     expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(getStack(play.getMap(), 1, 0, 0).filter((p) => p.tileId === "rat")).toHaveLength(1);
     expect(bodyAt(play, { x: 0, y: 1, z: 0 })).not.toBe("");
+  });
+
+  it("kills a caster it consumes and stands its bodies in its cell and beside it", () => {
+    const play = session({ weapon: "split-stone" });
+
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    expect(play.hasActor("local")).toBe(false);
+    expect(play.drainDeaths().map((death) => [death.id, death.blame])).toEqual([
+      ["local", { source: "split-stone" }],
+    ]);
+    expect(bodyAt(play, { x: 0, y: 0, z: 0 })).not.toBe("");
+    expect(bodyAt(play, { x: 1, y: 0, z: 0 })).not.toBe("");
+    expect(play.drainNoise().map((noise) => noise.text)).toEqual(["*squelch*"]);
   });
 
   it("refuses to conjure into a wall, and spends nothing", () => {

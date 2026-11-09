@@ -7102,6 +7102,23 @@ first step around the caster that `canWalk` allows and no body is standing in,
 starting with the one it faces and turning clockwise. With none free the
 conjure is refused as `blocked`, like a flame cast into a wall.
 
+**`count` stands up several, and `consumesCaster` spends the caster on them.**
+Both are on the conjure effect, written for the slime's `Split`. Each body
+takes the next free step round the caster, and `conjureLandings` refuses the
+cast as `blocked` unless every one has a cell, so a split in a corridor is not
+cast and the slime fights on. A thing is always one: it lands in one cell.
+
+A conjure that consumes its caster kills it with `kill`, blamed on the spell,
+before the bodies arrive, and the first body takes the caster's own cell.
+`bodyLandings` judges that cell on a copy of the board with the caster taken
+off it, and `placeConjured` checks each cell again as it fills it, because the
+caster's kit has spilled there in between. It is a death rather than a `fade`
+on purpose: what the spell costs is the caster's remaining health, so the kit
+spills, the remains drop, the respawn point is armed by `noteDeaths`, and a
+player who casts one dies on the terms of any other death. The stone's sound
+is placed where the caster stood, located before the effect, since after it
+there is no caster to locate.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own
