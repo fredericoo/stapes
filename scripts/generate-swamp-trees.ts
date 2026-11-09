@@ -1,5 +1,6 @@
 import { PNG } from "pngjs";
 import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "../app/lib/types";
+import { add, castSprite, type Hit, normalise, scale, type Vec3 } from "./limb-caster";
 import { paint, writeTileset } from "./tileset-output";
 
 const TILESET_ID = "swamp-trees";
@@ -11,9 +12,7 @@ const SPRITE_PX = SPRITE_CELLS * CELL;
 /** The ground cell is the sprite's south-east one, so the tree has two cells to lean and spread into. */
 const GROUND_PX = SPRITE_PX - CELL;
 const CANOPY_TOP_PX = SPRITE_PX - 2;
-
-const SUPERSAMPLE = 3;
-const MARCH_STEP_PX = 1 / 32;
+const PROJECTION = { spritePx: SPRITE_PX, groundPx: GROUND_PX, topPx: CANOPY_TOP_PX };
 
 /** Palette indices. */
 const DUSK = 22;
@@ -26,7 +25,6 @@ const SAGE = 25;
 const BARK_RAMP = [DUSK, PLUM, AUBERGINE, NIGHT];
 const MOSS_RAMP = [LICHEN, SAGE, SAGE, SAGE];
 
-type Vec3 = [number, number, number];
 /** `mossy` limbs grow moss strands; a `strand` is one. */
 type Limb = {
   from: Vec3;
@@ -36,7 +34,6 @@ type Limb = {
   mossy: boolean;
   strand: boolean;
 };
-type Bounded = Limb & { low: number; high: number };
 
 /**
  * A tree grows from the middle of its cell: a trunk of `kinks` bends that wander
@@ -122,18 +119,6 @@ function random(seed: number): () => number {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function add(a: Vec3, b: Vec3): Vec3 {
-  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-}
-
-function scale(a: Vec3, k: number): Vec3 {
-  return [a[0] * k, a[1] * k, a[2] * k];
-}
-
-function normalise(a: Vec3): Vec3 {
-  return scale(a, 1 / Math.hypot(...a));
 }
 
 const MIN_LIMB_RADIUS_PX = 0.5;
@@ -222,72 +207,12 @@ function strands(limbs: Limb[], seed: number): Limb[] {
     });
 }
 
-type Hit = { normal: Vec3; limb: Limb };
-
-/** How far `p` is inside the tapered capsule round a limb; positive is inside. */
-function insideLimb(limb: Limb, p: Vec3): { depth: number; axis: Vec3 } {
-  const d: Vec3 = [limb.to[0] - limb.from[0], limb.to[1] - limb.from[1], limb.to[2] - limb.from[2]];
-  const rel: Vec3 = [p[0] - limb.from[0], p[1] - limb.from[1], p[2] - limb.from[2]];
-  const lengthSq = d[0] ** 2 + d[1] ** 2 + d[2] ** 2;
-  const t = Math.max(0, Math.min(1, (rel[0] * d[0] + rel[1] * d[1] + rel[2] * d[2]) / lengthSq));
-  const axis = add(limb.from, scale(d, t));
-  const radius = limb.radiusFrom + (limb.radiusTo - limb.radiusFrom) * t;
-  const off = Math.hypot(p[0] - axis[0], p[1] - axis[1], p[2] - axis[2]);
-  return { depth: radius - off, axis };
-}
-
-/**
- * Walks the view ray down from above the tallest limb. A point at height `z` is
- * drawn `z` pixels up and to the left of where it stands, so the ray through
- * sprite pixel `u, v` meets `u - GROUND_PX + z, v - GROUND_PX + z` at that height.
- */
-function castRay(limbs: Bounded[], u: number, v: number): Hit | null {
-  for (let z = CANOPY_TOP_PX; z > 0; z -= MARCH_STEP_PX) {
-    const p: Vec3 = [u - GROUND_PX + z, v - GROUND_PX + z, z];
-    for (const limb of limbs) {
-      if (z < limb.low || z > limb.high) continue;
-      const { depth, axis } = insideLimb(limb, p);
-      if (depth >= 0)
-        return { limb, normal: normalise([p[0] - axis[0], p[1] - axis[1], p[2] - axis[2]]) };
-    }
-  }
-  return null;
-}
-
 /** Lit from the south-west, as every other block here: bands across the screen from that edge. */
-function shade({ normal, limb }: Hit): number {
+function shade({ normal, limb }: Hit<Limb>): number {
   const ramp = limb.strand ? MOSS_RAMP : BARK_RAMP;
   const across = (normal[0] - normal[1]) / Math.SQRT2 - normal[2] * 0.5;
   const band = Math.floor(((across + 1) / 2) * ramp.length);
   return ramp[Math.max(0, Math.min(ramp.length - 1, band))]!;
-}
-
-/** A limb thinner than a pixel still draws when a third of the pixel's samples meet it. */
-const COVERAGE_SHARE = 1 / 4;
-
-function bounded(limb: Limb): Bounded {
-  const reach = Math.max(limb.radiusFrom, limb.radiusTo);
-  return {
-    ...limb,
-    low: Math.min(limb.from[2], limb.to[2]) - reach,
-    high: Math.max(limb.from[2], limb.to[2]) + reach,
-  };
-}
-
-function samplePixel(limbs: Bounded[], u: number, v: number): number | null {
-  const votes = new Map<number, number>();
-  let hits = 0;
-  for (let j = 0; j < SUPERSAMPLE; j++) {
-    for (let i = 0; i < SUPERSAMPLE; i++) {
-      const hit = castRay(limbs, u + (i + 0.5) / SUPERSAMPLE, v + (j + 0.5) / SUPERSAMPLE);
-      if (!hit) continue;
-      hits++;
-      const index = shade(hit);
-      votes.set(index, (votes.get(index) ?? 0) + 1);
-    }
-  }
-  if (hits < SUPERSAMPLE * SUPERSAMPLE * COVERAGE_SHARE) return null;
-  return [...votes].sort((a, b) => b[1] - a[1])[0]![0];
 }
 
 function treeTile(species: Species, column: number): TileDef {
@@ -320,13 +245,10 @@ async function main() {
   sheet.data.fill(0);
   const tiles = SPECIES.map((species, column) => {
     const trunk = grow(species);
-    const limbs = [...trunk, ...strands(trunk, species.seed)].map(bounded);
-    for (let v = 0; v < SPRITE_PX; v++) {
-      for (let u = 0; u < SPRITE_PX; u++) {
-        const index = samplePixel(limbs, u, v);
-        if (index !== null) paint(sheet, column * SPRITE_PX + u, v, index);
-      }
-    }
+    const limbs = [...trunk, ...strands(trunk, species.seed)];
+    castSprite(limbs, PROJECTION, shade, (u, v, index) =>
+      paint(sheet, column * SPRITE_PX + u, v, index),
+    );
     return treeTile(species, column);
   });
   await writeTileset(TILESET_ID, "Swamp Trees", sheet, tiles);
