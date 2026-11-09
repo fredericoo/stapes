@@ -1,0 +1,25 @@
+{
+  "time": "12:00",
+  "zoom": 4,
+  "look": [7, 5],
+  "cells": [
+    { "from": [-6, -6], "to": [20, 18], "tiles": ["sand-dunes"] },
+    { "from": [-6, -6], "to": [20, -3], "tiles": ["sand-dunes", "water"] },
+    { "from": [-6, -6], "to": [20, -5], "tiles": ["water", "deep-water"] },
+    { "at": [4, 2], "tiles": ["sand-dunes", "sand-dune"] },
+    { "at": [16, 7], "tiles": ["sand-dunes", "sand-dune-crescent"] },
+    { "at": [2, 12], "tiles": ["sand-dunes", "sand-dune-crescent"] },
+    { "at": [9, 3], "tiles": ["sand-dunes", "saguaro"] },
+    { "at": [15, 1], "tiles": ["sand-dunes", "barrel-cactus"] },
+    { "at": [12, 11], "tiles": ["sand-dunes", "prickly-pear"] },
+    { "at": [6, 8], "tiles": ["sand-dunes", "bleached-bones"] },
+    { "at": [7, 9], "tiles": ["sand-dunes", "bleached-bones"] },
+    { "at": [3, 6], "tiles": ["sand-dunes", "bleached-bones"] },
+    { "at": [10, 7], "tiles": ["sand-dunes", "bleached-bones"] },
+    { "at": [0, 4], "tiles": ["sand-dunes", "dead-tree"] },
+    { "at": [14, 13], "tiles": ["sand-dunes", "dead-tree"] },
+    { "at": [18, 3], "tiles": ["sand-dunes", "dead-tree"] },
+    { "at": [5, 4], "tiles": ["sand-dunes", { "tile": "fire-slime", "facing": "s" }] },
+    { "at": [9, 13], "tiles": ["sand-dunes", { "tile": "skeleton", "facing": "s" }] }
+  ]
+}

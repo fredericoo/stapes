@@ -200,6 +200,19 @@ an agent drives", lists every call.
   out in opacity. The sheet is marked `translucent`. It writes the sprite and
   its light, and leaves the battler, brain, respawn and particles authored on
   the tile alone
+- `bun run generate:desert` — redraw `data/tilesets/desert.png`,
+  `data/tilesets/desert-dunes.png` and their tiles. `sand-dunes` is a scatter
+  tile that is plain sand in all but about one cell in nine, where it wears one
+  of five curved dents, each with a plain border so any face sits beside any
+  other without a seam; the script refuses a face that marks its border.
+  `sand-dune` and `sand-dune-crescent` are 4×4 dunes placed over several
+  cells: a height field cast through the game's projection, with the crest on
+  the 45-degree diagonal and the slip face drawn as shadow at an opacity, on a
+  sheet marked `translucent`. `bleached-bones` scatters a skull, a rib cage and
+  loose bones. `saguaro`, `barrel-cactus` and `prickly-pear` are cast with
+  `scripts/limb-caster.ts`, the caster the swamp trees use. `PREVIEW=<dir>`
+  also writes `sand-dunes.png` there, a field of the sand faces picked the way
+  the renderer picks them
 - `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
   spinner: a crystal modelled in Three.js, rendered in headless Chromium and
   snapped to the logo's sixteen colours. Shape, light and timing are constants
