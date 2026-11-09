@@ -145,6 +145,10 @@ const MIGRATIONS: readonly string[] = [
    )`,
   `ALTER TABLE character ADD COLUMN appearance TEXT`,
   `CREATE TABLE IF NOT EXISTS character_serial (serial INTEGER PRIMARY KEY AUTOINCREMENT)`,
+  `CREATE TABLE IF NOT EXISTS tick_window (
+     at     INTEGER PRIMARY KEY,
+     sample TEXT NOT NULL
+   )`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

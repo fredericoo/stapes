@@ -16,6 +16,8 @@ import type { Database } from "./db";
 import { Feedback } from "./feedback";
 import { Deaths, type DeathRecord } from "./deaths";
 import { Realm, type Contender, type RealmState } from "./realm";
+import { TickMeter } from "./tickMeter";
+import { TICK_LOG_INTERVAL_MS, TICK_LOG_KEPT_MS, TickLog } from "./tickLog";
 import { generationalName } from "../app/lib/characterName";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -36,6 +38,7 @@ export class World {
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private alarmTimer: ReturnType<typeof setTimeout> | null = null;
   private realmTimer: ReturnType<typeof setInterval> | null = null;
+  private tickLogTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
   private readonly adminSockets = new WeakSet<GameSocket>();
   private readonly characterOf = new WeakMap<GameSocket, string>();
@@ -50,6 +53,8 @@ export class World {
     readonly maintenance: Maintenance,
     readonly feedback: Feedback,
     readonly deaths: Deaths,
+    readonly tickLog: TickLog,
+    private readonly tickMeter: TickMeter,
     private readonly realm: Realm,
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
@@ -77,11 +82,13 @@ export class World {
     await seedAdmin(auth, db);
 
     const deaths = new Deaths(db);
+    const tickMeter = new TickMeter();
     const server = new GameServer(context, {
       dataStore: new DataStore(blobs),
       nameOf: (actorId) => characters.nameOf(actorId),
       appearanceOf: (actorId) => characters.appearanceOf(actorId),
       deathsOf: (actorId) => deaths.countOf(actorId),
+      tickMeter,
     });
     const world = new World(
       server,
@@ -93,6 +100,8 @@ export class World {
       await Maintenance.load(db),
       new Feedback(db),
       deaths,
+      new TickLog(db),
+      tickMeter,
       await Realm.load(db, store),
       blobs,
       db,
@@ -106,6 +115,7 @@ export class World {
     world.startKeepalive();
     await world.refreshRealm();
     world.startRealmRefresh();
+    world.startTickLog();
     return world;
   }
 
@@ -136,6 +146,27 @@ export class World {
         console.error("[world] realm refresh failed", error);
       });
     }, REALM_REFRESH_MS);
+  }
+
+  private startTickLog() {
+    this.tickLogTimer = setInterval(() => {
+      void this.logTicks().catch((error: unknown) => {
+        console.error("[world] tick log failed", error);
+      });
+    }, TICK_LOG_INTERVAL_MS);
+  }
+
+  /** Writes nothing for an interval in which no tick ran, which is a world asleep. */
+  async logTicks(now = Date.now()): Promise<void> {
+    const window = this.tickMeter.drain();
+    if (!window) return;
+    await this.tickLog.add({
+      ...window,
+      at: now,
+      players: this.playerCount,
+      rssMb: Math.round(process.memoryUsage.rss() / 1_048_576),
+    });
+    await this.tickLog.prune(now - TICK_LOG_KEPT_MS);
   }
 
   get realmState(): RealmState {
@@ -313,6 +344,8 @@ export class World {
     if (this.alarmTimer) clearTimeout(this.alarmTimer);
     if (this.keepaliveTimer) clearInterval(this.keepaliveTimer);
     if (this.realmTimer) clearInterval(this.realmTimer);
+    if (this.tickLogTimer) clearInterval(this.tickLogTimer);
+    this.tickLogTimer = null;
     this.checkpointTimer = null;
     this.realmTimer = null;
     this.alarmTimer = null;
