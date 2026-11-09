@@ -222,6 +222,14 @@ function parseBoardKey(key: string): { levelKey: string; chunkKey: string } | nu
 
 const RESPAWN_POINTS_KEY = "respawnPoints";
 
+/**
+ * A point's `itemIds` are the only part of it that changes after load, so they
+ * are written under this prefix, one key per point, rather than rewriting
+ * every point under `RESPAWN_POINTS_KEY`. Load folds them back in and the
+ * next whole write clears them.
+ */
+const RESPAWN_ITEMS_KEY_PREFIX = "respawnItems:";
+
 const RESPAWN_PENDING_KEY = "respawnPending";
 
 const RESPAWN_RETRY_MS = 5_000;
@@ -818,6 +826,8 @@ export class GameServer {
   private readonly stepChains = new Map<string, number>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private tickDueAt = 0;
+  private asleepAtMs: number | null = null;
+  private decayWake: ReturnType<typeof setTimeout> | null = null;
   private consecutiveTickFailures = 0;
   private ticksStepped = 0;
   private loading: Promise<void> | null = null;
@@ -843,6 +853,7 @@ export class GameServer {
   private static readonly MAX_LINGER_MS = 15 * 60_000;
   private respawnPoints = new Map<string, SpawnPoint>();
   private respawnPointsByCell = new Map<string, SpawnPoint[]>();
+  private readonly respawnItemKeys = new Set<string>();
   private respawnPending = new Map<string, number>();
   /**
    * The pending respawns whose deadline is the start of their hours rather than
@@ -926,9 +937,7 @@ export class GameServer {
     if (!session) return;
     const tilesById = tilesByIdFromList(this.tiles);
 
-    const stored = resumed
-      ? await this.ctx.storage.get<SpawnPoint[]>(RESPAWN_POINTS_KEY)
-      : undefined;
+    const stored = resumed ? await this.storedRespawnPoints() : undefined;
     const points = (stored ?? findSpawnPoints(session.getMap(), tilesById))
       .filter((point) => {
         const def = tilesById[point.placed.tileId];
@@ -995,12 +1004,36 @@ export class GameServer {
     };
   }
 
+  private async storedRespawnPoints(): Promise<SpawnPoint[] | undefined> {
+    const points = await this.ctx.storage.get<SpawnPoint[]>(RESPAWN_POINTS_KEY);
+    const items = await this.ctx.storage.list<string[]>({ prefix: RESPAWN_ITEMS_KEY_PREFIX });
+    for (const key of items.keys()) this.respawnItemKeys.add(key);
+    if (!points) return undefined;
+    return points.map((point) => {
+      const itemIds = items.get(RESPAWN_ITEMS_KEY_PREFIX + point.key);
+      return itemIds ? { ...point, itemIds } : point;
+    });
+  }
+
   private persistRespawnPoints() {
     this.ctx.storage
       .put(RESPAWN_POINTS_KEY, [...this.respawnPoints.values()], {
         allowUnconfirmed: true,
       })
       .catch(GameServer.reportWriteFailure("respawn points write"));
+    if (this.respawnItemKeys.size === 0) return;
+    this.ctx.storage
+      .delete([...this.respawnItemKeys])
+      .catch(GameServer.reportWriteFailure("respawn items clear"));
+    this.respawnItemKeys.clear();
+  }
+
+  private persistRespawnItems(point: SpawnPoint) {
+    const key = RESPAWN_ITEMS_KEY_PREFIX + point.key;
+    this.respawnItemKeys.add(key);
+    this.ctx.storage
+      .put(key, point.itemIds ?? [], { allowUnconfirmed: true })
+      .catch(GameServer.reportWriteFailure("respawn items write"));
   }
 
   private persistRespawnPending() {
@@ -1035,7 +1068,6 @@ export class GameServer {
     if (!session || this.respawnPending.size === 0) return;
 
     let dirty = false;
-    let pointsDirty = false;
     for (const [key, dueAtMs] of this.respawnPending) {
       if (dueAtMs > nowMs) continue;
       dirty = true;
@@ -1058,9 +1090,8 @@ export class GameServer {
       }
       this.respawnPending.delete(key);
       this.dead.delete(key);
-      if (this.adoptSpawnedItem(point, outcome.itemId)) pointsDirty = true;
+      if (this.adoptSpawnedItem(point, outcome.itemId)) this.persistRespawnItems(point);
     }
-    if (pointsDirty) this.persistRespawnPoints();
     this.collectTransitionEvents(session);
     if (dirty) {
       this.persistRespawnPending();
@@ -1079,18 +1110,16 @@ export class GameServer {
     const session = this.session;
     if (!session || this.respawnPointsByCell.size === 0) return;
     const nowMs = this.now();
-    let pointsDirty = false;
     for (const { cell } of cells) {
       const points = this.respawnPointsByCell.get(cellKey(cell));
       if (!points) continue;
       for (const point of points) {
-        if (this.forgetDepartedItems(point)) pointsDirty = true;
+        if (this.forgetDepartedItems(point)) this.persistRespawnItems(point);
         if (this.respawnPending.has(point.key)) continue;
         if (isSpawnFilled(session.getMap(), point)) continue;
         this.armRespawn(point, nowMs);
       }
     }
-    if (pointsDirty) this.persistRespawnPoints();
   }
 
   private forgetDepartedItems(point: SpawnPoint): boolean {
@@ -2454,10 +2483,7 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
 
-    if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
+    this.stopTicking();
     this.saveActors(session.actorIds(), true);
 
     this.session = null;
@@ -2473,10 +2499,7 @@ export class GameServer {
      * The tick and the session are dropped before the first await, so no flush
      * can write the live session back between the wipe and the reload.
      */
-    if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
+    this.stopTicking();
     this.session = null;
     this.loading = null;
 
@@ -2533,6 +2556,7 @@ export class GameServer {
 
   private wake() {
     if (this.env.manualTicks || this.timer !== null) return;
+    this.catchUpAsleep();
     this.tickDueAt = performance.now() + TICK_MS;
     this.timer = setInterval(() => this.tickIfDue(), TICK_POLL_MS);
   }
@@ -2571,10 +2595,41 @@ export class GameServer {
     if (!session || !session.isAtRest()) return;
     if (this.queuedIntents.size > 0) return;
     if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
+      this.stopTicking();
+      this.sleepUntilDecay(session);
     }
     this.saveActors(session.actorIds(), true);
+  }
+
+  /**
+   * Decay counts simulated time, so a world asleep with something decaying
+   * sets a timer for when it is due and, however it is woken, hands the
+   * session the time it slept.
+   */
+  private sleepUntilDecay(session: GameSession) {
+    this.asleepAtMs = performance.now();
+    const dueInMs = session.msUntilNextDecay();
+    if (dueInMs === null) return;
+    this.decayWake = setTimeout(() => {
+      this.decayWake = null;
+      this.wake();
+    }, dueInMs);
+  }
+
+  private catchUpAsleep() {
+    if (this.asleepAtMs === null) return;
+    this.session?.passTimeAsleep(performance.now() - this.asleepAtMs);
+    this.asleepAtMs = null;
+    if (this.decayWake !== null) clearTimeout(this.decayWake);
+    this.decayWake = null;
+  }
+
+  private stopTicking() {
+    if (this.timer !== null) clearInterval(this.timer);
+    this.timer = null;
+    if (this.decayWake !== null) clearTimeout(this.decayWake);
+    this.decayWake = null;
+    this.asleepAtMs = null;
   }
 
   private tick() {

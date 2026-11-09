@@ -265,21 +265,22 @@ describe("DecayIndex", () => {
 
   it("holds nothing until something decaying is armed", () => {
     const index = armed(replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]));
-    expect(index.pending()).toBe(false);
+    expect(index.msUntilDue()).toBeNull();
   });
 
   it("yields an entry only once its lifetime has elapsed", () => {
     const index = armed(replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "blood" }]));
-    expect(index.pending()).toBe(true);
+    expect(index.msUntilDue()).toBe(BLOOD_MS);
 
     index.advance(BLOOD_MS - 1);
+    expect(index.msUntilDue()).toBe(1);
     expect(index.takeDue()).toEqual([]);
 
     index.advance(1);
     expect(index.takeDue()).toEqual([
       { kind: "placement", cell: ORIGIN, tileId: "blood", dueMs: BLOOD_MS },
     ]);
-    expect(index.pending()).toBe(false);
+    expect(index.msUntilDue()).toBeNull();
   });
 
   it("keeps the deadline a placement already has when its cell is re-armed", () => {
@@ -462,16 +463,20 @@ describe("GameSession decay", () => {
     expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass"]);
   });
 
-  it("does not rest while anything is counting down", () => {
+  it("rests while something counts down, and turns it once handed the time it slept", () => {
     const map = withIdlePlayer(
       replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "stain" }]),
     );
     const session = new GameSession(map, tiles);
-    expect(session.isAtRest()).toBe(false);
-
-    run(session, STAIN_MS);
-    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass"]);
+    session.tick(TICK_MS);
     expect(session.isAtRest()).toBe(true);
+    const dueInMs = session.msUntilNextDecay();
+    expect(dueInMs).not.toBeNull();
+
+    session.passTimeAsleep(dueInMs!);
+    session.tick(TICK_MS);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass"]);
+    expect(session.msUntilNextDecay()).toBeNull();
   });
 
   it("leaves a world with nothing decaying at rest", () => {

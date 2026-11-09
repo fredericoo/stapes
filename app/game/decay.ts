@@ -78,8 +78,10 @@ export class DecayIndex {
     this.elapsedMs += tickMs;
   }
 
-  pending(): boolean {
-    return this.entries.size > 0;
+  /** Simulated ms until the soonest entry is due, or null when nothing is counting down. */
+  msUntilDue(): number | null {
+    if (this.entries.size === 0) return null;
+    return Math.max(0, this.nextDueMs - this.elapsedMs);
   }
 
   armCell(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>) {

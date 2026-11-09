@@ -15,7 +15,7 @@ import {
 } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt, MS_PER_CLOCK_MINUTE } from "../app/lib/clock";
 import { resolvePush } from "../app/lib/interactions";
-import { chunkifyMap, chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
+import { chunkifyMap, chunkKeyFor, getStack, listCoords, replaceStack } from "../app/lib/mapData";
 import { BODY_REACH_ON_LEVEL, INTEREST_REACH_CHUNKS } from "../app/net/interest";
 import { xpForLevel } from "../app/lib/mastery";
 import { CHUNK_SIZE, levelKey } from "../app/lib/types";
@@ -2193,6 +2193,43 @@ describe("respawn", () => {
     );
     expect(points?.map((p) => p.key)).toEqual([GNOME_OWNER]);
     expect(points?.[0]?.ownerId).toBe(GNOME_OWNER);
+  });
+
+  it("writes a picked item's point on its own key, and folds it back in on resume", async () => {
+    const BERRY_X = 1;
+    const flat = mapWithGnome();
+    flat.levels["0"]![`${BERRY_X},0`] = [
+      { tileId: "grass" },
+      { tileId: "berry", itemId: "itm_resume" },
+    ];
+    await harness.blobs.put("map.json", JSON.stringify(flat), JSON_TYPE);
+    await connect("alice");
+    const berryKey = `obj:0:${BERRY_X},0|berry`;
+    const stored = () =>
+      runInDurableObject(stub(), async (_instance, state) => {
+        await (state.storage as WorldStore).flush();
+        return {
+          points:
+            await state.storage.get<Array<{ key: string; itemIds?: string[] }>>("respawnPoints"),
+          items: await state.storage.get<string[]>(`respawnItems:${berryKey}`),
+        };
+      });
+    await stored();
+
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const session = (instance as unknown as { session: { map: MapFile } }).session;
+      session.map = replaceStack(session.map, BERRY_X, 0, 0, [{ tileId: "grass" }]);
+    });
+    await wait(TICK_MS * 4);
+    const picked = await stored();
+    expect(picked.items).toEqual([]);
+    expect(picked.points?.find((p) => p.key === berryKey)?.itemIds).toEqual(["itm_resume"]);
+
+    await simulateEviction();
+    await connect("alice");
+    const resumed = await stored();
+    expect(resumed.points?.find((p) => p.key === berryKey)?.itemIds).toEqual([]);
+    expect(resumed.items).toBeUndefined();
   });
 
   it("gives a resumed creature back the home its stored spawn point was authored at", async () => {

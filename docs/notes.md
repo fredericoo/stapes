@@ -9236,6 +9236,17 @@ its remains on the floor and report a death nobody caused.
   loads. A creature with no respawn point, and every body `/spawn` or `/tile`
   put down, is gone for good.
 
+### A respawn point's item ids are written on their own key
+
+The shipped map has 18,948 respawn points, about 2.6 MB of JSON under
+`respawnPoints`. Only a point's `itemIds` change after load, when an item is
+picked up or grows back, so a change writes `respawnItems:<point key>` with that
+point's ids alone. Load reads the whole list, folds those keys back in, and the
+whole write it makes clears them. Before this, every pickup rewrote the whole
+list at the next checkpoint: 8 ms and 2.6 MB on an M-series Mac, against
+0.1 ms and about a hundred bytes now.
+`bun run bench:respawn` times that checkpoint.
+
 ### `/give` puts a new item where equipping by hand would
 
 `/give <item> [square] [body]` mints one item, with an item id of its own like
@@ -12262,12 +12273,14 @@ session actually ran, so a decay is reproducible from a seed and a tick count
 exactly as a fight is; `Date.now()` in `GameSession` would make a test's outcome
 depend on how fast the test ran. Three things follow:
 
-- **`isAtRest` is gated on it**, because this loop is the only clock a countdown
-  has. A world with anything decaying in it keeps ticking until that lifetime is
-  up — half a minute of blood after a fight is the intended cost, an hour-long
-  lifetime would be an hour of ticking, and it is the *longest* end of the range
-  that sets it. Lifetimes are authored in seconds so that cost is
-  visible while writing one.
+- **`isAtRest` ignores it, and the server hands over the time it slept.** A
+  world with nothing to do but decay goes to sleep. `GameServer.sleepUntilDecay`
+  sets a timer for `msUntilNextDecay`, and `wake`, however it is reached, calls
+  `passTimeAsleep` with the wall time slept, which moves the decay clock on.
+  The clock itself stays simulated, so a test that steps ticks by hand still
+  sees exact lifetimes. Until this, an hour-long berry was an hour of full ticks
+  for the whole world, and production ran a core's worth of them with nobody
+  connected. `bun run bench:idle` counts the ticks an empty world runs.
 - **An anonymous placement is keyed by cell plus tile id**, not by stack index:
   an index shifts the moment anything is placed under it, and blood in a doorway
   would forget its age every time somebody walked over it. Two placements of the
@@ -12600,6 +12613,12 @@ the first time something is actually inflicted on it — so a world full of tree
 nobody has set fire to costs one `size` check per tick and nothing else.
 `afflictCells` *is* seeded and maintained by `reindexCells`, because a source
 keeps working for as long as it is there.
+
+**Only a pool under a status keeps the world awake.** A pool a fire left damaged
+keeps its hp, so the damage is remembered, but nothing about it changes with
+time, so `pending` does not count it. When it did, the two flames authored on
+`data/map.json` scorched the grass beside them within seconds of loading and
+every world ticked forever.
 
 ### The ground under a flame is held like a body standing in it
 

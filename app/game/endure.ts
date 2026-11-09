@@ -139,8 +139,15 @@ export class EndureIndex {
     this.rng = rng;
   }
 
+  /**
+   * Only a pool under a status changes with time; one left damaged by a fire
+   * that has gone out keeps its hp but needs no ticks.
+   */
   pending(): boolean {
-    return this.pools.size > 0;
+    for (const pool of this.pools.values()) {
+      if (pool.statuses.length > 0) return true;
+    }
+    return false;
   }
 
   statusesAt(cell: Coord, tileId: string): readonly StatusInstance[] {
