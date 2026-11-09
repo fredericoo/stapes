@@ -15399,6 +15399,15 @@ affordable is worth keeping:
   compiled at either ~23ms or ~29ms depending on the process. Walking the cells
   a second time is far cheaper than the bake losing its compilation. Measure
   before folding anything else into that loop.
+- **A change of phase rewrites only the level planes that differ.** The window's
+  grid is a new object per phase, and assembling it from every chunk cost 8.9ms
+  p50 on the fixture town (9 chunks, 20 levels), several times a second.
+  `assemblePacked` copies the grid it assembled last and writes again only the
+  planes that are not the array already there. That works because `sharePlanes`
+  gives a level the array another phase of the same chunk already holds when the
+  bytes are equal, which they are for about three levels in four. The same
+  flicker now costs 0.8ms. A grid handed out is never written again, so the
+  textures in `WorldRenderer` hold copies of it, not the arrays themselves.
 - **Phase lookups are memoised per clock reading** (`ChunkedLighting.defPhase`).
   A frame asks for the same tile's phase once per chunk of the window, up to
   three times over; answering it walks the tile's frames. Without the memo a

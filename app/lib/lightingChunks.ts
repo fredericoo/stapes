@@ -67,39 +67,106 @@ export type ChunkBaker = {
 
 const MAX_INFLIGHT_BAKES = 1;
 
-function blitPacked(
-  planesByZ: Map<number, { rgba: Uint8Array; sun: Uint8Array }>,
-  chunk: ChunkLight,
-  ox: number,
-  oy: number,
+type PackedPlanes = { rgba: Uint8Array; sun: Uint8Array };
+
+type PackedAssembly = { grid: PackedLightGrid; sources: Map<string, ChunkLight> };
+
+function copyPackedPlanes(grid: PackedLightGrid): Map<number, PackedPlanes> {
+  const out = new Map<number, PackedPlanes>();
+  for (const [z, level] of grid.levels) {
+    out.set(z, { rgba: new Uint8Array(level.rgba), sun: new Uint8Array(level.sun) });
+  }
+  return out;
+}
+
+/**
+ * Writes one chunk's place in the window: the levels whose plane is not the
+ * one `shown` there already, and nothing over the levels it has dropped.
+ */
+function repaintChunk(
+  planesByZ: Map<number, PackedPlanes>,
+  shown: ChunkLight | undefined,
+  planes: ChunkLight | undefined,
+  firstCell: number,
   w: number,
   h: number,
 ) {
-  for (const [z, plane] of chunk) {
+  for (const [z, plane] of planes ?? []) {
+    if (shown?.get(z) === plane) continue;
     let dst = planesByZ.get(z);
     if (!dst) {
       dst = { rgba: new Uint8Array(w * h * PACKED_STRIDE), sun: emptySunSpans(w * h) };
       planesByZ.set(z, dst);
     }
-    for (let row = 0; row < LIGHT_CHUNK_SIZE; row++) {
-      const dstRow = oy * LIGHT_CHUNK_SIZE + row;
-      for (let col = 0; col < LIGHT_CHUNK_SIZE; col++) {
-        const src = (row * LIGHT_CHUNK_SIZE + col) * RAW_STRIDE;
-        const cell = dstRow * w + ox * LIGHT_CHUNK_SIZE + col;
-        dst.rgba.set(plane.subarray(src, src + PACKED_STRIDE), cell * PACKED_STRIDE);
-        dst.sun[cell * SUN_SPAN_STRIDE] = plane[src + PACKED_STRIDE]!;
-        dst.sun[cell * SUN_SPAN_STRIDE + 1] = plane[src + PACKED_STRIDE + 1]!;
-      }
+    blitPlane(dst, plane, firstCell, w);
+  }
+  for (const z of shown?.keys() ?? []) {
+    const dst = planes?.has(z) ? undefined : planesByZ.get(z);
+    if (dst) clearPlane(dst, firstCell, w);
+  }
+}
+
+function clearPlane(dst: PackedPlanes, firstCell: number, w: number) {
+  for (let row = 0; row < LIGHT_CHUNK_SIZE; row++) {
+    const rowCell = firstCell + row * w;
+    const endCell = rowCell + LIGHT_CHUNK_SIZE;
+    dst.rgba.fill(0, rowCell * PACKED_STRIDE, endCell * PACKED_STRIDE);
+    fillNoSun(dst.sun, rowCell, endCell);
+  }
+}
+
+function fillNoSun(sun: Uint8Array, firstCell: number, endCell: number) {
+  for (let s = firstCell * SUN_SPAN_STRIDE; s < endCell * SUN_SPAN_STRIDE; s += SUN_SPAN_STRIDE) {
+    sun[s] = SUN_SPAN_NEVER_LO;
+    sun[s + 1] = SUN_SPAN_NEVER_HI;
+  }
+}
+
+function blitPlane(dst: PackedPlanes, plane: Uint8Array, firstCell: number, w: number) {
+  const { rgba, sun } = dst;
+  let src = 0;
+  for (let row = 0; row < LIGHT_CHUNK_SIZE; row++) {
+    const rowCell = firstCell + row * w;
+    let p = rowCell * PACKED_STRIDE;
+    let s = rowCell * SUN_SPAN_STRIDE;
+    for (let col = 0; col < LIGHT_CHUNK_SIZE; col++) {
+      rgba[p++] = plane[src++]!;
+      rgba[p++] = plane[src++]!;
+      rgba[p++] = plane[src++]!;
+      rgba[p++] = plane[src++]!;
+      sun[s++] = plane[src++]!;
+      sun[s++] = plane[src++]!;
     }
   }
 }
 
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * A flicker changes the few levels its light reaches and leaves the rest of
+ * the chunk byte for byte as another phase baked it. Handing those levels the
+ * other phase's array is what lets the window tell, by identity, which levels
+ * a change of phase has to write again.
+ */
+function sharePlanes(planes: ChunkLight, others: Iterable<ChunkLight>): ChunkLight {
+  const held = [...others];
+  const out: ChunkLight = new Map();
+  for (const [z, plane] of planes) {
+    const twin = held.map((other) => other.get(z)).find((p) => p && sameBytes(p, plane));
+    out.set(z, twin ?? plane);
+  }
+  return out;
+}
+
 function emptySunSpans(cells: number): Uint8Array {
   const out = new Uint8Array(cells * SUN_SPAN_STRIDE);
-  for (let i = 0; i < cells; i++) {
-    out[i * SUN_SPAN_STRIDE] = SUN_SPAN_NEVER_LO;
-    out[i * SUN_SPAN_STRIDE + 1] = SUN_SPAN_NEVER_HI;
-  }
+  fillNoSun(out, 0, cells);
   return out;
 }
 
@@ -258,7 +325,7 @@ export class ChunkedLighting {
   private lastBakedChunks = 0;
   private version = 0;
   private assembled: { key: string; grid: LightGrid } | null = null;
-  private packed: { key: string; grid: PackedLightGrid } | null = null;
+  private packed: ({ key: string; span: string } & PackedAssembly) | null = null;
   private tick = 0;
   private phaseMemo: { timeMs: number; byDef: Map<string, string> } | null = null;
   private lastCentre: { x: number; y: number } | null = null;
@@ -370,7 +437,10 @@ export class ChunkedLighting {
       entry.animated = baked.animated;
     }
     if (entry.stale) entry.byPhase.clear();
-    entry.byPhase.set(this.phaseOf(baked.animated, timeMs), baked.planes);
+    entry.byPhase.set(
+      this.phaseOf(baked.animated, timeMs),
+      sharePlanes(baked.planes, entry.byPhase.values()),
+    );
     entry.usedAt = this.tick;
     if (entry.dirtyAt <= at) entry.stale = false;
     this.cache.set(key, entry);
@@ -719,24 +789,31 @@ export class ChunkedLighting {
       this.prefetchRing(map, rect, timeMs);
     }
 
-    const key = [
-      "packed",
-      chunkSpanKey(rect, this.levels),
-      this.version,
-      this.windowPhaseKey(rect, timeMs),
-    ].join("|");
+    const span = chunkSpanKey(rect, this.levels);
+    const key = ["packed", span, this.version, this.windowPhaseKey(rect, timeMs)].join("|");
     if (this.packed?.key === key) {
       this.touchWindow(rect);
       this.evictColdest();
       return this.packed.grid;
     }
-    const grid = this.assemblePacked(rect, timeMs);
-    this.packed = { key, grid };
+    const before = this.packed?.span === span ? this.packed : null;
+    const assembly = this.assemblePacked(rect, timeMs, before);
+    this.packed = { key, span, ...assembly };
     this.evictColdest();
-    return grid;
+    return assembly.grid;
   }
 
-  private assemblePacked(rect: WorldRect, timeMs: number): PackedLightGrid {
+  /**
+   * A flicker or a finished bake changes a chunk or two of a window that is
+   * otherwise the grid assembled last time, so `before` is copied whole and
+   * only the chunks holding different planes are written again. `before` must
+   * cover the same chunks and levels.
+   */
+  private assemblePacked(
+    rect: WorldRect,
+    timeMs: number,
+    before: PackedAssembly | null,
+  ): PackedAssembly {
     const cx0 = chunkOf(rect.x0);
     const cy0 = chunkOf(rect.y0);
     const cx1 = chunkOf(rect.x1);
@@ -746,19 +823,26 @@ export class ChunkedLighting {
     const w = (cx1 - cx0 + 1) * LIGHT_CHUNK_SIZE;
     const h = (cy1 - cy0 + 1) * LIGHT_CHUNK_SIZE;
 
-    const planesByZ = new Map<number, { rgba: Uint8Array; sun: Uint8Array }>();
+    const planesByZ = before ? copyPackedPlanes(before.grid) : new Map<number, PackedPlanes>();
+    const sources = new Map<string, ChunkLight>();
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
-        const held = this.drawable(cx, cy, timeMs);
-        if (!held) continue;
-        this.cache.get(this.key(cx, cy))!.usedAt = this.tick;
-        blitPacked(planesByZ, held.planes, cx - cx0, cy - cy0, w, h);
+        const key = this.key(cx, cy);
+        const planes = this.drawable(cx, cy, timeMs)?.planes;
+        const shown = before?.sources.get(key);
+        if (planes) {
+          this.cache.get(key)!.usedAt = this.tick;
+          sources.set(key, planes);
+        }
+        if (planes === shown) continue;
+        const firstCell = (cy - cy0) * LIGHT_CHUNK_SIZE * w + (cx - cx0) * LIGHT_CHUNK_SIZE;
+        repaintChunk(planesByZ, shown, planes, firstCell, w, h);
       }
     }
 
     const levels = new Map<number, PackedLevelLight>();
     for (const [z, plane] of planesByZ) levels.set(z, { x0, y0, w, h, ...plane });
-    return { levels };
+    return { grid: { levels }, sources };
   }
 
   private assemble(rect: WorldRect, ambient: [number, number, number], timeMs: number): LightGrid {

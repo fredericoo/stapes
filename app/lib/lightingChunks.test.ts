@@ -757,6 +757,27 @@ describe("a flickering emitter", () => {
     expect(chunked.bakedLastCall).toBe(0);
   });
 
+  it("assembles each phase on top of the last exactly as it would from nothing", () => {
+    function bytesOf(grid: ReturnType<ChunkedLighting["packedGridFor"]>): string {
+      return [...grid.levels.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([z, level]) => `${z}:${level.rgba.join(",")}:${level.sun.join(",")}`)
+        .join("|");
+    }
+
+    const reused = new ChunkedLighting(tilesById, omit);
+    const seen = new Set<string>();
+    for (const timeMs of [0, FLICKER_FRAME_MS, 0, FLICKER_FRAME_MS * 3]) {
+      const onTop = bytesOf(reused.packedGridFor(mapFile, inBand(lit), timeMs));
+      const fromNothing = bytesOf(
+        new ChunkedLighting(tilesById, omit).packedGridFor(mapFile, inBand(lit), timeMs),
+      );
+      expect(onTop === fromNothing, `the grid at ${timeMs}ms differs`).toBe(true);
+      seen.add(onTop);
+    }
+    expect(seen.size, "the phases must differ for this to compare anything").toBeGreaterThan(1);
+  });
+
   it("leaves light no flicker reaches untouched", () => {
     const far: WorldRect = { x0: 200, y0: 200, x1: 230, y1: 230 };
     const chunked = new ChunkedLighting(tilesById, omit);
