@@ -309,8 +309,9 @@ town could no longer afford to heat it. He is also a strong caster.
 
 He does not tell anyone where the stones came from. He wrote it down instead, in
 a book that is for his children and their children, and he writes in it every
-night in the cellar of the hall. He sleeps down there beside it. His wife,
-**Ysolde**, does not know what the book says. She remembers that when they were
+night in the cellar of the hall. He sleeps down there beside it. He will kill
+anyone who raises a hand to his wife, **Ysolde**. She does not know what the
+book says. She remembers that when they were
 young he went out after dark, came home at dawn with his pockets full, and
 always brought her flowers.
 

@@ -1511,6 +1511,10 @@ cause of death.
   them hits an area: an area spell `affects: "others"` would hit his wife, and
   nothing brings her back. He calls `fights-back` with his own `dueling` state,
   because `townsfolk-fight` only swings.
+- **Corvin turns on whoever hits his wife.** His first row is
+  `other_attacked` of `nearest(lady-ysolde)` within 12 cells, which binds the
+  attacker as his `threat` and enters `dueling`, from every state but a fight.
+  See *`other_attacked` is a blow at somebody else*.
 - **Corvin and Ysolde have leashes of three cells, set by where the stairs
   are.** A wandering brain will step into a stairwell: the stair two units
   down is inside the climb band, so `stepLeavesGround` does not count it as a

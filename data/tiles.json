@@ -54101,6 +54101,34 @@
         },
         "transitions": [
           {
+            "from": [
+              "standing",
+              "pacing",
+              "returning",
+              "retiring",
+              "snacking",
+              "listening"
+            ],
+            "if": {
+              "cond": "other_attacked",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "lady-ysolde"
+                  ]
+                }
+              },
+              "cells": 12
+            },
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            },
+            "to": "dueling"
+          },
+          {
             "from": "dueling",
             "if": {
               "cond": "health",
