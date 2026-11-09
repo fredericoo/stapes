@@ -14402,6 +14402,20 @@ if (before?.[key] === after[key]) continue;     // cell unchanged
 Do not hash map contents to detect changes. A per-frame content hash used to
 cost ~1ms; the identity checks that replaced it cost nothing.
 
+**Two copies of one version are diffed from that version.**
+`changedCellsOnLevel` finds what was written by following the copy lineage
+`setStacks` records, rather than comparing every key. A walking client draws a
+predicted map: its own step laid on the latest server map
+(`RemoteSession.rebuildPredicted`). The frame before was laid on the server
+map before that one, so neither frame is a copy of the other. Following only
+the newer map's lineage never reached the older map, gave up after
+`MAX_LINEAGE_STEPS`, and fell back to comparing every chunk of the level and
+every cell of each chunk that differed, on every frame the player walked.
+`keysWrittenBetween` walks both lineages a step at a time until they meet.
+`app/render/frameDiff.perf.test.ts` times one walking frame on a level 1024
+times the size of another: the sweep put that ratio near 2000, and it is now
+near 1.
+
 ### A mutation that changes nothing must return the same object
 
 Downstream, a new map object *is* an edit: it invalidates light chunks and

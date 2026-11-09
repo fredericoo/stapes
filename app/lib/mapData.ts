@@ -134,17 +134,41 @@ const lineage = new WeakMap<object, Lineage>();
 
 const MAX_LINEAGE_STEPS = 1024;
 
-function keysWrittenSince(ancestor: object, record: object): string[] | null {
-  const keys: string[] = [];
-  let at = record;
+type LineageWalk = { at: object | undefined; keys: string[]; seen: Map<object, number> };
+
+/**
+ * Takes one step up a walk's lineage. Returns the version it reached when the
+ * other walk has already been there, which is where the two copies diverged.
+ */
+function stepLineage(walk: LineageWalk, other: LineageWalk): object | undefined {
+  const link = walk.at && lineage.get(walk.at);
+  const parent = link?.parent.deref();
+  if (!link || parent === undefined) {
+    walk.at = undefined;
+    return undefined;
+  }
+  for (const key of link.keys) walk.keys.push(key);
+  walk.at = parent;
+  walk.seen.set(parent, walk.keys.length);
+  return other.seen.has(parent) ? parent : undefined;
+}
+
+/**
+ * Every key written into either record since the version they were both
+ * copied from. The two walks go up a step at a time, so two copies of one
+ * parent meet after a step each however much history is behind them: the
+ * predicted map a client draws is a copy of a different server version every
+ * frame, and is never an ancestor of the next one.
+ */
+function keysWrittenBetween(a: object, b: object): string[] | null {
+  const fromA: LineageWalk = { at: a, keys: [], seen: new Map([[a, 0]]) };
+  const fromB: LineageWalk = { at: b, keys: [], seen: new Map([[b, 0]]) };
   for (let steps = 0; steps < MAX_LINEAGE_STEPS; steps++) {
-    const link = lineage.get(at);
-    if (!link) return null;
-    for (const key of link.keys) keys.push(key);
-    const parent = link.parent.deref();
-    if (parent === undefined) return null;
-    if (parent === ancestor) return keys;
-    at = parent;
+    if (!fromA.at && !fromB.at) return null;
+    const metByA = stepLineage(fromA, fromB);
+    if (metByA) return [...fromA.keys, ...fromB.keys.slice(0, fromB.seen.get(metByA))];
+    const metByB = stepLineage(fromB, fromA);
+    if (metByB) return [...fromA.keys.slice(0, fromA.seen.get(metByB)), ...fromB.keys];
   }
   return null;
 }
@@ -160,7 +184,7 @@ export function chunkCopiedFrom(
 
 function addChangedCells(out: Set<string>, a: ChunkCells | undefined, b: ChunkCells | undefined) {
   if (a === b) return;
-  const written = a && b ? keysWrittenSince(a, b) : null;
+  const written = a && b ? keysWrittenBetween(a, b) : null;
   if (written) {
     for (const key of written) if (a![key] !== b![key]) out.add(key);
     return;
@@ -188,7 +212,7 @@ export function changedCellsOnLevel(
     if (a === b || (chunkFilter && !chunkFilter(a, b))) return;
     addChangedCells(out, a, b);
   };
-  const chunks = before && after ? keysWrittenSince(before, after) : null;
+  const chunks = before && after ? keysWrittenBetween(before, after) : null;
   if (chunks) {
     for (const chk of chunks) add(before![chk], after![chk]);
     return out;
