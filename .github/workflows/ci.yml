@@ -71,8 +71,8 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+      - name: Install Chromium and WebKit
+        run: bunx playwright install --with-deps chromium webkit
 
       - name: Renderer perf
         run: bun run test:perf

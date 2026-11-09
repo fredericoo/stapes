@@ -25,8 +25,6 @@ await bundle.restore(config.CLIENT_BUILD_ID);
 
 const sockets = new WeakMap<object, GameSocket>();
 
-const COMPRESS_MIN_LENGTH = 512;
-
 const app = new Elysia({
   websocket: { perMessageDeflate: PER_MESSAGE_DEFLATE },
 })
@@ -34,7 +32,7 @@ const app = new Elysia({
   .ws(GAME_SOCKET_PATH, {
     open(ws) {
       const socket = new GameSocket({
-        send: (data) => void ws.send(data, data.length >= COMPRESS_MIN_LENGTH),
+        send: (data, compress) => void ws.send(data, compress === true),
         close: (code, reason) => void ws.close(code, reason),
         get closed() {
           return ws.readyState !== 1;

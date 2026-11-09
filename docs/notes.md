@@ -4081,7 +4081,7 @@ one part of what is left is most of it:
   3KB. The dedicated compressors are slower at these sizes, not faster. A
   thousand clients at 30 a second is 30,000 frames a second, which deflated is
   over half a second of the tick thread's every second; with `--deflate` on,
-  the bench's rate halves. It is off for a different reason — Safari cannot read
+  the bench's rate halves. It is off for patches for a different reason — Safari cannot read
   what Bun compresses (see "A frame is compressed only when `send` is told
   to") — and what that costs is bandwidth: about 60KB/s per player. The patch
   was made smaller since by shortening the ids in it; see "Actor ids are
@@ -4662,12 +4662,33 @@ compressed messages had been read fine all along.
   (uNetworking/uWebSockets#1347), but that was not this: the failing direction
   was the server's.
 
-So `PER_MESSAGE_DEFLATE` in `server/sockets.ts` is `false`, and every frame
-goes out as it is, as it did before the change above. `server/sockets.test.ts`
-checks the frames themselves: whatever the setting, the socket must never send
-a sealed compressed frame, and everything it sends must read back through one
-decompressor kept for the connection. Turning compression back on is that one
-setting, and it needs a real Safari before it ships.
+**Only the `hello` is compressed now.** A WebKit probe against a Bun server
+(Playwright's WebKit, which drops the connection exactly as Safari did) settled
+what Safari tolerates:
+
+- **A sealed message breaks the connection at the next frame of any kind.**
+  A sealed message followed by a raw one closed with 1006 after the first; so
+  did sealed, raw, open. Open, raw, open was read in full and stayed open. So
+  sending only the large messages compressed is not enough on its own: what
+  matters is that no message Bun compresses comes out sealed.
+- **Where Bun stops sealing is the size of the compressed output**, about 4KB
+  to 4.9KB in the probe, not the size of the message. A `hello` for the shipped
+  map is far above that, but one for a tiny or very uniform world is not.
+
+So `PER_MESSAGE_DEFLATE` in `server/sockets.ts` is `true`, `GameServer`
+passes `compress` only for the `hello`, and every `hello` carries
+`HELLO_PADDING`: 6KB of random bytes as base64, drawn once per process, which
+cannot deflate below about 6KB and so keeps even an empty world's `hello`
+open. Old clients ignore the field, because a valibot object drops keys it
+does not name. Every other frame goes out raw, for the CPU cost measured above.
+
+`server/sockets.test.ts` checks the frames: a padded one-cell `hello`, a large
+one and raw patches in between, none sealed, all read back through one
+decompressor kept for the connection. Without the padding it fails. The
+Playwright `webkit` project runs `e2e/socket.spec.ts` and the guest join in
+`e2e/session.spec.ts`, so a change that seals a frame again reconnects in a
+loop there before it reaches a player. With every frame compressed, that spec
+saw thirteen reconnects in WebKit and none in Chromium.
 
 ## The wire is patches plus motion events
 

@@ -1,4 +1,4 @@
-import type { GameSocket, WorldContext } from "./sockets";
+import { type GameSocket, HELLO_PADDING, type WorldContext } from "./sockets";
 import { BARE, isBare, outfitKey, type HumanAppearance } from "../app/lib/humanSprite";
 import * as v from "valibot";
 import {
@@ -1749,7 +1749,8 @@ export class GameServer {
     };
     const map = mapOfInterestJson(session.getMap(), chunks, held);
     ws.send(
-      `{"type":"hello","selfId":${JSON.stringify(actorId)},"map":${map},${JSON.stringify(rest).slice(1)}`,
+      `{"type":"hello","selfId":${JSON.stringify(actorId)},"map":${map},"padding":"${HELLO_PADDING}",${JSON.stringify(rest).slice(1)}`,
+      true,
     );
     if (session.hiddenOf(actorId)) {
       ws.send(JSON.stringify({ type: "hidden", on: true } satisfies ServerMessage));
