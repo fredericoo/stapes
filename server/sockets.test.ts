@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { connect } from "node:net";
 import { constants, createInflateRaw, inflateRawSync, type InflateRaw } from "node:zlib";
-import { PER_MESSAGE_DEFLATE } from "./sockets";
+import { HELLO_PADDING, PER_MESSAGE_DEFLATE } from "./sockets";
 
 type Frame = { compressed: boolean; payload: Buffer };
 
@@ -91,14 +91,21 @@ function sealed(payload: Buffer): boolean {
 }
 
 describe("the game socket's frames", () => {
-  it("never sends a compressed frame sealed with a final block", async () => {
+  it("never sends a compressed frame sealed with a final block, a tiny hello included", async () => {
     const cell = JSON.stringify({ x: 21, y: -101, z: 0, stack: [{ tileId: "grass-2" }] });
-    const messages = [
-      JSON.stringify({ type: "patch", cells: Array(8).fill(JSON.parse(cell)) }),
-      JSON.stringify({ type: "patch", cells: Array(60).fill(JSON.parse(cell)) }),
-      JSON.stringify({ type: "patch", cells: Array(600).fill(JSON.parse(cell)) }),
-      JSON.stringify({ type: "hello", pad: randomBytes(300_000).toString("base64") }),
+    const patch = (count: number) =>
+      JSON.stringify({ type: "patch", cells: Array(count).fill(JSON.parse(cell)) });
+    const hello = (count: number) =>
+      `{"type":"hello","padding":"${HELLO_PADDING}","cells":${JSON.stringify(Array(count).fill(JSON.parse(cell)))}}`;
+    const sends: { message: string; compress: boolean }[] = [
+      { message: hello(1), compress: true },
+      { message: patch(8), compress: false },
+      { message: patch(600), compress: false },
+      { message: hello(20_000), compress: true },
+      { message: patch(60), compress: false },
+      { message: hello(1), compress: true },
     ];
+    const messages = sends.map((send) => send.message);
     const server = Bun.serve({
       port: 0,
       fetch(request, srv) {
@@ -107,7 +114,7 @@ describe("the game socket's frames", () => {
       websocket: {
         perMessageDeflate: PER_MESSAGE_DEFLATE,
         open(ws) {
-          for (const message of messages) ws.send(message, true);
+          for (const { message, compress } of sends) ws.send(message, compress);
         },
         message() {},
       },

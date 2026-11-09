@@ -370,6 +370,7 @@ export type ServerMessage =
       type: "hello";
       selfId: string;
       map: unknown;
+      padding?: string;
       actorIds: string[];
       playerCount?: number;
       minutesOfDay: number;
@@ -639,6 +640,8 @@ const serverMessageSchema = v.variant("type", [
     type: v.literal("hello"),
     selfId: v.string(),
     map: v.unknown(),
+    /** Random text that keeps a compressed `hello` from being sealed; see `HELLO_PADDING`. */
+    padding: v.optional(v.string()),
     actorIds: v.array(v.string()),
     playerCount: v.optional(v.number()),
     minutesOfDay: v.number(),
