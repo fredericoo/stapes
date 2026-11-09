@@ -14,11 +14,28 @@ export default defineConfig({
   timeout: 60_000,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    ...devices["Desktop Chrome"],
     baseURL: BASE,
     trace: "on-first-retry",
-    launchOptions: { executablePath: process.env.CHROMIUM_PATH },
   },
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: { executablePath: process.env.CHROMIUM_PATH },
+      },
+    },
+    /**
+     * Safari reads the game socket differently from Chrome, and once lost
+     * every connection after its first frame while Chrome played normally. So
+     * the specs that go through the socket run in WebKit as well.
+     */
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+      testMatch: ["session.spec.ts", "socket.spec.ts"],
+    },
+  ],
   webServer: {
     command: "bun run scripts/dev.ts",
     env: {
