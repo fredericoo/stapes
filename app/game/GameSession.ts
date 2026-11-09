@@ -43,6 +43,7 @@ import {
 import {
   type ArcaneStoneItem,
   type CharmItem,
+  type ConjureEffect,
   type ConsumableItem,
   isItem,
   isRanged,
@@ -203,6 +204,7 @@ import {
 } from "./constants";
 import {
   type BattlerDef,
+  battlerRating,
   type NaturalSpell,
   DEFAULT_BATTLER,
   isImmune,
@@ -223,7 +225,6 @@ import {
   masteriesFromXp,
   type MasteryXp,
   MIN_RATING,
-  rating,
   spellElements,
   xpForLevel,
   xpFromMasteries,
@@ -279,7 +280,8 @@ import {
   castAreaOf,
   type CastProgress,
   type CastSlot,
-  conjureLanding,
+  type ConjureLanding,
+  conjureLandings,
   coolingNotice,
   naturalSlot,
   needsTarget,
@@ -2079,6 +2081,7 @@ export class GameSession implements PlaySession {
         return body ? this.ratingOf(body) : null;
       },
       ownRating: () => this.ratingOf(actor),
+      reaches: (id, allowDrops) => this.reaches(actor, loc, id, allowDrops),
       fade: () => {
         fading = true;
       },
@@ -3552,11 +3555,12 @@ export class GameSession implements PlaySession {
     this.grantExperience(actor, practiceEarnings(elements));
     this.dressCaster(actor, stone.casterEffect);
 
+    const heardAt = this.tryLocate(actor);
     if (stone.effect.kind === "bolt") {
       this.castBolt(actor, slot, stone, stone.effect, elements);
-    } else this.castConjure(actor, context, stone.effect.tileId, elements);
+    } else this.castConjure(actor, slot, context, stone.effect, elements);
 
-    this.recordCastSound(actor, stone);
+    if (heardAt) this.recordCastSound(actor, heardAt, stone);
   }
 
   private spellName(actor: ActorRuntime, slot: CastSlot): string {
@@ -3566,11 +3570,9 @@ export class GameSession implements PlaySession {
     return this.tilesById[held.tileId]?.name ?? held.tileId;
   }
 
-  private recordCastSound(actor: ActorRuntime, stone: ArcaneStoneItem) {
+  private recordCastSound(actor: ActorRuntime, at: ActorLocation, stone: ArcaneStoneItem) {
     if (!stone.sound?.trim()) return;
-    const loc = this.tryLocate(actor);
-    if (!loc) return;
-    this.recordNoise(actor.id, loc, stone.sound);
+    this.recordNoise(actor.id, at, stone.sound);
   }
 
   private cancelCasting(actor: ActorRuntime, notice?: string) {
@@ -3991,19 +3993,39 @@ export class GameSession implements PlaySession {
 
   private castConjure(
     actor: ActorRuntime,
+    slot: CastSlot,
     context: CastContext,
-    tileId: string,
+    effect: ConjureEffect,
     elements: readonly Element[],
   ) {
-    const def = this.tilesById[tileId];
+    const def = this.tilesById[effect.tileId];
     if (!def) return;
 
-    const where = conjureLanding(context, tileId);
-    if (!where) return;
-    const at = where.at;
+    const landings = conjureLandings(context, effect);
+    if (!landings) return;
 
-    const casting = this.tryLocate(actor);
-    if (casting) this.turnToward(actor, casting, at);
+    if (effect.consumesCaster) {
+      this.kill(actor, { source: this.spellName(actor, slot) });
+    } else {
+      const casting = this.tryLocate(actor);
+      if (casting) this.turnToward(actor, casting, landings[0]!.at);
+    }
+
+    for (const landing of landings) this.placeConjured(actor, def, landing, elements);
+  }
+
+  /**
+   * Checked again because a consumed caster has died between the landing being
+   * found and the body arriving, and may have spilled its kit into that cell.
+   */
+  private placeConjured(
+    actor: ActorRuntime,
+    def: TileDef,
+    where: ConjureLanding,
+    elements: readonly Element[],
+  ) {
+    const at = where.at;
+    if (!canPlace(this.map, at.x, at.y, at.z, def, this.tilesById).ok) return;
 
     const stack = getStack(this.map, at.x, at.y, at.z);
     const stoodId = where.under == null ? undefined : stack[where.under]?.owner;
@@ -4073,7 +4095,7 @@ export class GameSession implements PlaySession {
 
   private ratingOf(actor: ActorRuntime): number | null {
     const body = this.bodyOf(actor);
-    return body ? rating(body.masteries) : null;
+    return body ? battlerRating(body) : null;
   }
 
   private hpOf(
@@ -4276,6 +4298,16 @@ export class GameSession implements PlaySession {
       failed.allowDrops === route.allowDrops &&
       failed.arrive === route.arrive
     );
+  }
+
+  private reaches(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    targetId: string,
+    allowDrops: boolean | undefined,
+  ): boolean {
+    const at = this.walkGoalCell({ of: "body", id: targetId });
+    return at !== null && this.routeStep(actor, loc, at, allowDrops) !== null;
   }
 
   private setWalkOrder(

@@ -24,7 +24,7 @@ import {
   type Transition,
   transitionSchema,
 } from "./tileTransition";
-import { HEIGHT_PER_LEVEL, type TileDef } from "./types";
+import { DIRECTIONS, HEIGHT_PER_LEVEL, type TileDef } from "./types";
 
 export type Reach = {
   cells: number;
@@ -136,7 +136,22 @@ export type StoneEffect =
       cures?: string[];
       area?: SpellArea;
     }
-  | { kind: "conjure"; tileId: string };
+  | ConjureEffect;
+
+/**
+ * `count` is how many bodies it stands up, each in a cell of its own; a thing is
+ * always one. `consumesCaster` kills the caster as it lands, and its cell is
+ * the first one a body takes.
+ */
+export type ConjureEffect = {
+  kind: "conjure";
+  tileId: string;
+  count?: number;
+  consumesCaster?: boolean;
+};
+
+/** The caster's own cell and the cells a step away. */
+export const MAX_CONJURED_BODIES = DIRECTIONS.length + 1;
 
 /**
  * What a bolt does to every body in a shape around where it lands, on top of
@@ -530,6 +545,10 @@ const stoneEffectSchema = v.variant("kind", [
   v.object({
     kind: v.literal("conjure"),
     tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+    count: v.optional(
+      v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CONJURED_BODIES)),
+    ),
+    consumesCaster: v.optional(v.boolean()),
   }),
 ]);
 
@@ -815,7 +834,12 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
 
 function stoneEffectForSave(effect: StoneEffect): StoneEffect {
   if (effect.kind === "conjure") {
-    return { kind: "conjure", tileId: effect.tileId.trim() };
+    return {
+      kind: "conjure",
+      tileId: effect.tileId.trim(),
+      ...(effect.count && effect.count > 1 ? { count: Math.round(effect.count) } : {}),
+      ...(effect.consumesCaster ? { consumesCaster: true } : {}),
+    };
   }
   const statuses = statusGrantsForSave(effect.statuses);
   const cures = curesForSave(effect.cures);

@@ -1,6 +1,6 @@
 import type { NaturalSpell } from "../lib/battler";
 import type { AreaShape } from "../lib/area";
-import type { ArcaneStoneItem, Reach, StoneSubject } from "../lib/item";
+import type { ArcaneStoneItem, ConjureEffect, Reach, StoneSubject } from "../lib/item";
 import { reachOf, resolveStone } from "../lib/item";
 import {
   type Masteries,
@@ -9,7 +9,7 @@ import {
   requirementShare,
   REQUIREMENTS_MET,
 } from "../lib/mastery";
-import { getStack, isBodyPlacement } from "../lib/mapData";
+import { getStack, isBodyPlacement, removeTileAt } from "../lib/mapData";
 import type { AnchoredSprite, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { DIRECTIONS, resolveActor } from "../lib/types";
 import { canPlace } from "../lib/validation";
@@ -155,7 +155,7 @@ function reachability(context: CastContext, stone: ArcaneStoneItem): Castability
     return refused("peaceful");
   }
 
-  if (stone.effect.kind === "conjure" && !conjureLanding(context, stone.effect.tileId)) {
+  if (stone.effect.kind === "conjure" && !conjureLandings(context, stone.effect)) {
     return refused("blocked");
   }
 
@@ -179,10 +179,14 @@ export type ConjureLanding = {
   under?: number;
 };
 
-export function conjureLanding(context: CastContext, tileId: string): ConjureLanding | null {
-  const def = context.tilesById[tileId];
+/** Every cell the conjure fills, or null when they will not all fit. */
+export function conjureLandings(
+  context: CastContext,
+  effect: ConjureEffect,
+): ConjureLanding[] | null {
+  const def = context.tilesById[effect.tileId];
   if (!def) return null;
-  if (resolveActor(def)) return bodyLanding(context, def);
+  if (resolveActor(def)) return bodyLandings(context, def, effect);
 
   const target = context.target;
   const landing: ConjureLanding | null = target
@@ -191,7 +195,7 @@ export function conjureLanding(context: CastContext, tileId: string): ConjureLan
   if (!landing) return null;
 
   const { at } = landing;
-  return canPlace(context.map, at.x, at.y, at.z, def, context.tilesById).ok ? landing : null;
+  return canPlace(context.map, at.x, at.y, at.z, def, context.tilesById).ok ? [landing] : null;
 }
 
 function cellInFront(context: CastContext): ConjureLanding | null {
@@ -207,23 +211,39 @@ function cellInFront(context: CastContext): ConjureLanding | null {
 
 /**
  * A conjured body stands in a cell of its own rather than under whoever is
- * there, so it takes the first free step around the caster, starting with the
- * one it faces, and ignores the target.
+ * there, so each takes the next free step around the caster, starting with the
+ * one it faces, and ignores the target. A caster the conjure consumes gives up
+ * its own cell first, judged on the board without it.
  */
-function bodyLanding(context: CastContext, def: TileDef): ConjureLanding | null {
+function bodyLandings(
+  context: CastContext,
+  def: TileDef,
+  effect: ConjureEffect,
+): ConjureLanding[] | null {
   const { caster, map, tilesById } = context;
   const body = tilesById[caster.tileId];
   if (!body) return null;
+  const wanted = effect.count ?? 1;
+  const landings: ConjureLanding[] = [];
+
+  if (effect.consumesCaster) {
+    const vacated = removeTileAt(map, caster.x, caster.y, caster.z, caster.stackIndex);
+    if (canPlace(vacated, caster.x, caster.y, caster.z, def, tilesById).ok) {
+      landings.push({ at: { x: caster.x, y: caster.y, z: caster.z } });
+    }
+  }
+
   const start = DIRECTIONS.indexOf(caster.facing);
-  for (let turn = 0; turn < DIRECTIONS.length; turn++) {
+  for (let turn = 0; turn < DIRECTIONS.length && landings.length < wanted; turn++) {
     const facing = DIRECTIONS[(start + turn) % DIRECTIONS.length]!;
     const step = canWalk(map, caster, facing, body, tilesById);
     if (!step.ok) continue;
     const { to } = step;
+    if (landings.some(({ at }) => at.x === to.x && at.y === to.y && at.z === to.z)) continue;
     if (lowestBodyIn(getStack(map, to.x, to.y, to.z), tilesById) !== undefined) continue;
-    if (canPlace(map, to.x, to.y, to.z, def, tilesById).ok) return { at: to };
+    if (canPlace(map, to.x, to.y, to.z, def, tilesById).ok) landings.push({ at: to });
   }
-  return null;
+  return landings.length === wanted ? landings : null;
 }
 
 function lowestBodyIn(

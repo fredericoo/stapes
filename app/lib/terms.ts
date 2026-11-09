@@ -22,6 +22,7 @@ export const TERMS = {
   cooldown: { label: "Cooldown" },
   subject: { label: "Hits" },
   conjure: { label: "Puts" },
+  costs: { label: "Costs" },
   cures: { label: "Cures" },
   area: { label: "Area" },
   areaDamage: { label: "Area damage" },

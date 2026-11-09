@@ -5,6 +5,7 @@ import { type Hand, HANDS, weaponInHand, weaponSwungBy } from "../game/equipment
 import {
   ACCURACY_AT_MAX_MASTERY,
   type BattlerDef,
+  battlerRating,
   DAMAGE_AT_MAX_MASTERY,
   type FightingStats,
   weaponHandling,
@@ -67,7 +68,12 @@ export function ArenaFighterPanel({
         </p>
       )}
 
-      <Masteries title={title} fighter={fighter} onChange={onChange} />
+      <Masteries
+        title={title}
+        fighter={fighter}
+        stars={body ? battlerRating(body) : rating(fighter.masteries)}
+        onChange={onChange}
+      />
 
       <Equipment
         title={title}
@@ -90,10 +96,12 @@ export function ArenaFighterPanel({
 function Masteries({
   title,
   fighter,
+  stars,
   onChange,
 }: {
   title: string;
   fighter: ArenaFighter;
+  stars: number;
   onChange: (next: ArenaFighter) => void;
 }) {
   const set = (mastery: Mastery, level: number) =>
@@ -109,7 +117,7 @@ function Masteries({
     <fieldset className="flex flex-col gap-2">
       <legend className="flex w-full items-baseline justify-between text-[11px] font-bold uppercase text-muted">
         <span>Masteries</span>
-        <Rating value={rating(fighter.masteries)} className="normal-case text-ink" />
+        <Rating value={stars} className="normal-case text-ink" />
       </legend>
       <div className="grid grid-cols-4 gap-2">
         {MASTERIES.map((mastery) => (

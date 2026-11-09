@@ -3208,6 +3208,18 @@ would be the pathfinder deciding where something wants to hide. It is a sound
 argument for a worse animal — see "Running away is a flood, not a direction"
 below, which is what replaced it and why.
 
+**`unreachable` is the half of `stuck` an author could not ask for.** A fight
+state is written `attack`, `step_toward`, `hold`, and both of the first two
+fail when the creature stands beside its prey waiting for its windup — so a
+fight state without the `hold` is `stuck` on every swing, and one with it is
+never `stuck` at all, not even with a river between them. The condition asks
+`routeStep` the question the step would ask, from the body's cell to stand
+beside the one it names, so it shares the failed-route memory: asked and then
+walked in the same round, a failure is searched for once. A success is
+searched for twice. The slimes ask it only on the round they are hit, which
+is the case it was written for: something shooting them from where they
+cannot follow.
+
 ## Clicking walks you there, following walks you after them, and neither travels
 
 `app/game/walkTo.ts` holds an errand — a cell, or a body — and hands the step
@@ -5182,6 +5194,53 @@ already do — and the nine creatures in `data/tiles.json` were migrated onto it
 8, which is what the constant used to be for all of them. `DEFAULT_BASE_HP` is
 now only the editor's starting value; nothing derives hit points from it.
 
+#### A rating reads the hit points a body was born with
+
+`rating` in `app/lib/mastery.ts` reads masteries alone, and for a player that
+is the whole of it: every player is born with the `player` tile's `baseHp`.
+A creature is not, and before this a skeleton born with 110 hit points was
+rated 13, on Sharp 15, Toughness 10 and Agility 10. In the Arena it beats a
+player rated 15 three times in four.
+
+**`battlerRating` (`app/lib/battler.ts`) rates the hit points a body was born
+with past `PLAYER_BASE_HP` as the Toughness that would have grown them.**
+`ratedToughness` inverts the curve `maxHpFrom` climbs, so a point of born hit
+points is rated at whatever a point of Toughness would have cost at that height
+on the curve, and no exchange rate is tuned. It is the only rating
+`GameSession.ratingOf` reads, so it is the number a creature's star shows, the
+number experience is weighed against, and the one `rated_below_self` compares.
+
+- **Fewer than a player's is not marked down.** A rat is born with 8 and is
+  rated 8, which is what the rat's `hunts-the-weaker` and `flees-the-stronger`
+  were written around. Only a body born with more moves.
+- **A body that cannot hurt anybody is rated on its masteries alone**
+  (`hurtsAnybody`, which bots' `canHurt` also reads). The training dummy is
+  born with 10,000 hit points so it never dies; counted, they rate it 286, and
+  experience against it would pay double to every player in the game.
+- **Above a player's ceiling, it keeps climbing.** The cyclops's 2,000 hit
+  points rate it 150, past the 100 no player reaches, because the curve is not
+  clamped at `MAX_MASTERY`. Experience stops paying more at `MAX_XP_MULTIPLIER`
+  long before that, so the number only says how far out of reach it is.
+
+**How well it reads.** `bun run verify battle` was run for each creature
+against a player with Sharp, Toughness and Agility at one level and that
+level's sword, and the level bisected to where the player wins half the
+fights. The skeleton as it was then, born with 110, had an even level of 28
+and was rated 29 by this, against 13 before. The cave troll moved from 51 to
+61 against an even level of 38, and the cyclops from 61 to 150 against 75.
+For creatures born with 8 the rating already ran high — the wolf is rated 28
+against an even level of 15, a slime 15 against 5 — because `rating` counts a
+weapon mastery whatever weapon it is used with.
+
+**The skeleton's strength then moved from its hit points into its
+masteries.** It is born with 20 rather than 110, with Sharp, Blunt, Ranged
+and Arcane at 33 rather than 15, Toughness 22 rather than 10 and Agility 25
+rather than 10: 47 hit points rather than 121, rated 30, with an even level of
+26. In `verify battle --matrix` a player at level 15 still loses to it about
+three times in four, but a won fight takes 6.2s rather than 16.0s, and a
+player at level 33 wins 97% rather than 88%. Most of its danger is its kit:
+a sword, a broad axe, a mace or a bow from the level-15 rung, swung at 33.
+
 ### Armour is worn, and it may care what hit it
 
 **Defence has three sources and they add** (`wornDefence`): a `WeaponItem.def`
@@ -7050,7 +7109,7 @@ projectile with a `hit` still plays it, and plays both if it has a
 #### A conjured body is a creature of its own
 
 A conjure whose tile is a body (`resolveActor`) — a slime's `Split` conjures
-another of itself — is given an owner and adopted as a resident on the spot,
+two small slimes — is given an owner and adopted as a resident on the spot,
 on the terms `/tile` summons by: named after the cell it lands in, which is
 its home. Without that it was a picture of a slime until the world next
 loaded and `adoptResidents` found it. It carries no `castBy` or
@@ -7060,10 +7119,27 @@ own.
 **It stands in a cell of its own.** Every other conjure lands under the body
 in the cell it aims at, which is right for a flame and wrong for a body: a
 slime splitting while it fights faces the player, and its copy would be
-placed under the player's feet. `bodyLanding` ignores the target and takes the
+placed under the player's feet. `bodyLandings` ignores the target and takes the
 first step around the caster that `canWalk` allows and no body is standing in,
 starting with the one it faces and turning clockwise. With none free the
 conjure is refused as `blocked`, like a flame cast into a wall.
+
+**`count` stands up several, and `consumesCaster` spends the caster on them.**
+Both are on the conjure effect, written for the slime's `Split`. Each body
+takes the next free step round the caster, and `conjureLandings` refuses the
+cast as `blocked` unless every one has a cell, so a split in a corridor is not
+cast and the slime fights on. A thing is always one: it lands in one cell.
+
+A conjure that consumes its caster kills it with `kill`, blamed on the spell,
+before the bodies arrive, and the first body takes the caster's own cell.
+`bodyLandings` judges that cell on a copy of the board with the caster taken
+off it, and `placeConjured` checks each cell again as it fills it, because the
+caster's kit has spilled there in between. It is a death rather than a `fade`
+on purpose: what the spell costs is the caster's remaining health, so the kit
+spills, the remains drop, the respawn point is armed by `noteDeaths`, and a
+player who casts one dies on the terms of any other death. The stone's sound
+is placed where the caster stood, located before the effect, since after it
+there is no caster to locate.
 
 #### A conjure lands where the caster could step, or is not cast
 
@@ -7701,12 +7777,14 @@ damage spell pays a point per point of damage, doubled against anything rated
 well above the caster's Arcane (`experienceMultiplier`), so Arcane 3 to 10 is
 about fifty Spark hits on bats and seventy-five on rats.
 
-**The slimes are rated 20 so Arcane 10 to 15 has something to practise on.**
+**The slimes are rated 15 so Arcane 10 to 15 has something to practise on.**
 Casting is weighed against the target's rating, and the creatures near the
 start are rated 7 to 10, so past Arcane 10 they pay almost nothing
 (`BENEATH_YOU_EXPONENT`): Arcane 10 to 15 was about five hundred Spark hits on
-rats. A slime at 20 pays double until Arcane 14, and the same climb is about
-ninety hits on slimes. Lowering a slime's masteries moves that wall back.
+rats. A slime at 15 pays double until Arcane 10 and its plain rate at 15. It
+was rated 20, which paid double until Arcane 14 and made slimes, beaten by a
+player at level 8, the cheapest experience on the island. Lowering a slime's
+masteries moves that wall back.
 
 **The two mends are the other direction of the same arm.** Verdance is the
 two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
@@ -11644,8 +11722,12 @@ apart from rows that could never be the first to hold.
   start, and each calls `predator`. A slime also has a trigger of its own: at
   35% or less with its prey within 8 cells it goes to `splitting`, which holds
   at `danger` so a blow cannot pull it back into the fight. That state tries
-  `Split` before it attacks, so while the spell is cooling the slime fights
-  on; see *A conjured body is a creature of its own*.
+  `Split` before it attacks, so while the spell cannot be cast the slime
+  fights on; see *A slime splits into two small ones* below.
+- **The six slimes call `evades-the-unreachable` before `predator`.** A trait's
+  triggers rank ahead of the brain's own in the same band, and its
+  `attacked` trigger has to come before `fights-back`'s or `fights-back` turns
+  the slime on whoever shot it. See *A slime splits into two small ones*.
 - **The rat** calls `flees-the-stronger`, `fights-back`, `hunts-the-weaker`,
   `scavenges` and `returns-home`. Its pack-following and its sniffing when stuck are still its
   own rows. See *A creature can hunt only what it outrates, and scavenge*.
@@ -11666,6 +11748,58 @@ cannot reach in that position. The wolf, the troll, the bog
 imp and the cyclops would each change what they do; see *A wounded wolf breaks
 off* and *The wolf we ship sleeps through the day on the surface* for what
 their rows rely on.
+
+### A slime splits into two small ones
+
+`Split` used to conjure another full slime, at full health, which could split
+in its turn. Kept beside a wounded slime, a player was handed a new full
+slime every minute for as long as they cared to stand there, paying
+experience at the slime's rating.
+
+**Now `Split` conjures two small slimes and consumes the slime that casts it**
+(`count: 2`, `consumesCaster`; see *A conjured body is a creature of its own*).
+A small slime has 13 hit points against its parent's 35, moves at 450ms a
+step rather than 600, and has no `Split` of its own, so one slime is worth at
+most its own health and two small ones'. The small ones are meant to be
+dangerous only together: alone, one is as easy as a rat (a player at level 2
+wins half the time, against level 5 for the parent).
+
+- **The cast takes two seconds, not eight.** It still starts at 35% and is
+  uninterruptible. At eight seconds the slime stood still taking blows for
+  longer than its last 12 hit points lasted, so the split almost never
+  happened. Sixty fights a level in a `GameSession` with the shipped tiles,
+  against a player with Sharp, Toughness and Agility at the level and that
+  level's sword, counting the fights in which the slime split before it died:
+
+  | level | 8 s cast | 2 s cast |
+  | ----- | -------- | -------- |
+  | 5     | 17       | 57       |
+  | 10    | 0        | 38       |
+  | 15    | 0        | 41       |
+  | 20    | 0        | 19       |
+  | 33    | 1        | 6        |
+- **A small slime has no `respawn`.** It is conjured, so it has no respawn
+  point, but a content save rebuilds the spawn points from the board
+  (`findSpawnPoints`), and a conjured body with a `respawn` alive at that
+  moment would become a permanent resident.
+- **It drops nothing.** The parent's kit spills when it dies splitting, as it
+  would for any death.
+- **Their sprites are the parent's, shrunk.** `small-slimes.png` holds every
+  frame of `monsters.png`'s three slime blocks shrunk from about 11 pixels to
+  7, rounded to the ellipse that fills each frame's blob, outlined in one
+  closed ring with the eyes put back, and drawn where the parent's foot is,
+  so the small tiles keep the parent's rects and only their `anchor` differs.
+
+**A slime notices a player from 8 cells, and gives up and walks home at 12.**
+Both used to be 5 and 8, so stepping three cells back ended the fight.
+
+**A slime backs away from somebody it cannot reach.** Hit by a body it has no
+way to stand beside — `unreachable`, so across a ledge, a fence or further
+round than a chase searches — it steps away until they are 10 cells out of
+sight or five seconds have passed (`evades-the-unreachable`). Before this a
+slime held still in plain view of an archer it could not get to until it
+died. The state holds at `danger`, so a blow from somebody it could reach does
+not pull it back for those five seconds.
 
 ## A creature can hunt only what it outrates, and scavenge
 

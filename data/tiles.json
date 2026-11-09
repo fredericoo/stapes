@@ -58497,14 +58497,14 @@
         ]
       },
       "battler": {
-        "baseHp": 110,
+        "baseHp": 20,
         "masteries": {
-          "sharp": 15,
-          "blunt": 15,
-          "ranged": 15,
-          "arcane": 15,
-          "toughness": 10,
-          "agility": 10
+          "sharp": 33,
+          "blunt": 33,
+          "ranged": 33,
+          "arcane": 33,
+          "toughness": 22,
+          "agility": 25
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -59097,6 +59097,10 @@
         ],
         "traits": [
           {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
             "trait": "predator",
             "with": {
               "fight": "engulfing",
@@ -59104,9 +59108,9 @@
                 "player",
                 "rat"
               ],
-              "within": 5,
-              "calm": 8,
-              "leash": 8,
+              "within": 8,
+              "calm": 12,
+              "leash": 12,
               "target": "prey"
             }
           }
@@ -59115,9 +59119,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 20,
-          "arcane": 20,
-          "toughness": 26,
+          "fist": 14,
+          "arcane": 14,
+          "toughness": 22,
           "agility": 9
         },
         "naturalWeapon": {
@@ -59165,10 +59169,12 @@
             "name": "Split",
             "effect": {
               "kind": "conjure",
-              "tileId": "water-slime"
+              "tileId": "small-water-slime",
+              "count": 2,
+              "consumesCaster": true
             },
             "cooldownMs": 60000,
-            "castTimeMs": 8000,
+            "castTimeMs": 2000,
             "uninterruptible": true,
             "sound": "*squelch*"
           }
@@ -59177,6 +59183,690 @@
       "respawn": {
         "fromMs": 60000,
         "toMs": 120000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "small-water-slime",
+    "name": "Small Water Slime",
+    "height": 1,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "small-slimes",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 0.75,
+      "ttlFromMs": 700,
+      "ttlToMs": 1500,
+      "spawnRadiusCells": 0.2,
+      "spawnElevFrom": 1,
+      "spawnElevTo": 2,
+      "riseFrom": -1,
+      "riseTo": 1,
+      "driftCellsPerSecond": 0.15,
+      "lit": true,
+      "ownDepth": false,
+      "gravity": 1.2,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.9,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.5,
+          "color": "#8ecbff"
+        },
+        {
+          "at": 1,
+          "color": "#1d2b53"
+        }
+      ]
+    },
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 450,
+    "swims": true,
+    "interactions": {
+      "brain": {
+        "initial": "oozing",
+        "states": {
+          "oozing": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ]
+          },
+          "engulfing": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*plip*"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
+            "trait": "predator",
+            "with": {
+              "fight": "engulfing",
+              "prey": [
+                "player",
+                "rat"
+              ],
+              "within": 8,
+              "calm": 12,
+              "leash": 12,
+              "target": "prey"
+            }
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 4,
+        "masteries": {
+          "fist": 14,
+          "arcane": 10,
+          "toughness": 8,
+          "agility": 14
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Acid",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 80,
+          "variance": 40,
+          "spd": 40,
+          "reach": {
+            "cells": 1.5,
+            "height": 1
+          },
+          "mastery": "fist",
+          "statuses": [
+            {
+              "id": "chilled",
+              "chance": 10,
+              "fromMs": 8000,
+              "toMs": 15000
+            }
+          ]
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "immuneTo": [
+          "chilled"
+        ],
+        "elements": [
+          "water"
+        ]
       }
     },
     "states": {
@@ -59881,6 +60571,10 @@
         ],
         "traits": [
           {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
             "trait": "predator",
             "with": {
               "fight": "engulfing",
@@ -59888,9 +60582,9 @@
                 "player",
                 "rat"
               ],
-              "within": 5,
-              "calm": 8,
-              "leash": 8,
+              "within": 8,
+              "calm": 12,
+              "leash": 12,
               "target": "prey"
             }
           }
@@ -59899,9 +60593,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 20,
-          "arcane": 20,
-          "toughness": 26,
+          "fist": 14,
+          "arcane": 14,
+          "toughness": 22,
           "agility": 9
         },
         "naturalWeapon": {
@@ -59949,10 +60643,12 @@
             "name": "Split",
             "effect": {
               "kind": "conjure",
-              "tileId": "fire-slime"
+              "tileId": "small-fire-slime",
+              "count": 2,
+              "consumesCaster": true
             },
             "cooldownMs": 60000,
-            "castTimeMs": 8000,
+            "castTimeMs": 2000,
             "uninterruptible": true,
             "sound": "*squelch*"
           }
@@ -59961,6 +60657,694 @@
       "respawn": {
         "fromMs": 60000,
         "toMs": 120000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "small-fire-slime",
+    "name": "Small Fire Slime",
+    "height": 1,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "small-slimes",
+      "x": 0,
+      "y": 8
+    },
+    "lightPassing": true,
+    "particles": {
+      "ratePerSecond": 2.0,
+      "ttlFromMs": 500,
+      "ttlToMs": 1000,
+      "spawnRadiusCells": 0.2,
+      "spawnElevFrom": 1,
+      "spawnElevTo": 1,
+      "riseFrom": 2,
+      "riseTo": 4,
+      "driftCellsPerSecond": 0.18,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -0.4,
+      "offsetX": "0.175 * AGE_SEC * AGE_SEC",
+      "offsetY": "-0.1 * AGE_SEC * AGE_SEC",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffe0a0"
+        },
+        {
+          "at": 0.18,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.45,
+          "color": "#7b3b2a"
+        },
+        {
+          "at": 1,
+          "color": "#4b4158"
+        }
+      ]
+    },
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 450,
+    "swims": true,
+    "interactions": {
+      "brain": {
+        "initial": "oozing",
+        "states": {
+          "oozing": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ]
+          },
+          "engulfing": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*plip*"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
+            "trait": "predator",
+            "with": {
+              "fight": "engulfing",
+              "prey": [
+                "player",
+                "rat"
+              ],
+              "within": 8,
+              "calm": 12,
+              "leash": 12,
+              "target": "prey"
+            }
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 4,
+        "masteries": {
+          "fist": 14,
+          "arcane": 10,
+          "toughness": 8,
+          "agility": 14
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Acid",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 80,
+          "variance": 40,
+          "spd": 40,
+          "reach": {
+            "cells": 1.5,
+            "height": 1
+          },
+          "mastery": "fist",
+          "statuses": [
+            {
+              "id": "burned",
+              "chance": 10,
+              "fromMs": 8000,
+              "toMs": 15000
+            }
+          ]
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "immuneTo": [
+          "burned"
+        ],
+        "elements": [
+          "fire"
+        ]
       }
     },
     "states": {
@@ -60623,6 +62007,10 @@
         ],
         "traits": [
           {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
             "trait": "predator",
             "with": {
               "fight": "engulfing",
@@ -60630,9 +62018,9 @@
                 "player",
                 "rat"
               ],
-              "within": 5,
-              "calm": 8,
-              "leash": 8,
+              "within": 8,
+              "calm": 12,
+              "leash": 12,
               "target": "prey"
             }
           }
@@ -60641,9 +62029,9 @@
       "battler": {
         "baseHp": 8,
         "masteries": {
-          "fist": 20,
-          "arcane": 20,
-          "toughness": 26,
+          "fist": 14,
+          "arcane": 14,
+          "toughness": 22,
           "agility": 9
         },
         "naturalWeapon": {
@@ -60691,10 +62079,12 @@
             "name": "Split",
             "effect": {
               "kind": "conjure",
-              "tileId": "nature-slime"
+              "tileId": "small-nature-slime",
+              "count": 2,
+              "consumesCaster": true
             },
             "cooldownMs": 60000,
-            "castTimeMs": 8000,
+            "castTimeMs": 2000,
             "uninterruptible": true,
             "sound": "*squelch*"
           }
@@ -60703,6 +62093,652 @@
       "respawn": {
         "fromMs": 60000,
         "toMs": 120000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 10,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 14,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          },
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "small-nature-slime",
+    "name": "Small Slime",
+    "height": 1,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "small-slimes",
+      "x": 0,
+      "y": 16
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 450,
+    "swims": true,
+    "interactions": {
+      "brain": {
+        "initial": "oozing",
+        "states": {
+          "oozing": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ]
+          },
+          "engulfing": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*plip*"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
+            "trait": "predator",
+            "with": {
+              "fight": "engulfing",
+              "prey": [
+                "player",
+                "rat"
+              ],
+              "within": 8,
+              "calm": 12,
+              "leash": 12,
+              "target": "prey"
+            }
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 4,
+        "masteries": {
+          "fist": 14,
+          "arcane": 10,
+          "toughness": 8,
+          "agility": 14
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Acid",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 80,
+          "variance": 40,
+          "spd": 40,
+          "reach": {
+            "cells": 1.5,
+            "height": 1
+          },
+          "mastery": "fist",
+          "statuses": [
+            {
+              "id": "poison",
+              "chance": 10,
+              "fromMs": 8000,
+              "toMs": 15000
+            }
+          ]
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "immuneTo": [
+          "poison"
+        ],
+        "elements": [
+          "nature"
+        ]
       }
     },
     "states": {

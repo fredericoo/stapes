@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
+import { PLAYER_TILE_ID } from "../game/constants";
 import {
   ACCURACY_AT_MAX_MASTERY,
   battlerIssues,
+  battlerRating,
   castingSkill,
   DAMAGE_AT_MAX_MASTERY,
   DEFAULT_BASE_HP,
@@ -15,12 +18,15 @@ import {
   MASTERY_ACCURACY_BONUS,
   MASTERY_DAMAGE_BONUS,
   MIN_HANDLING,
+  PLAYER_BASE_HP,
   weaponHandling,
   spellPower,
   resolveBattler,
 } from "./battler";
 import { MELEE_REACH, MIN_STONE_COOLDOWN_MS, type WeaponItem } from "./item";
+import { MAX_MASTERY, rating } from "./mastery";
 import { tile } from "./testTile";
+import { normalizeTiles } from "./types";
 
 function weapon(overrides: Partial<WeaponItem> = {}): WeaponItem {
   return {
@@ -53,6 +59,39 @@ describe("hit points and flee", () => {
 
   it("lets evasion run past the percent scale, since it is not a chance", () => {
     expect(fleeFrom(1000)).toBeGreaterThan(100);
+  });
+});
+
+describe("battlerRating", () => {
+  const fighter = { sharp: 20, toughness: 10, agility: 10 };
+
+  it("rates the player's own body on its masteries alone, at every Toughness", () => {
+    const playerTile = normalizeTiles(tilesJson as unknown[]).find((t) => t.id === PLAYER_TILE_ID);
+    const player = playerTile && resolveBattler(playerTile);
+    expect(player?.baseHp).toBe(PLAYER_BASE_HP);
+    for (let toughness = 0; toughness <= MAX_MASTERY; toughness++) {
+      const masteries = { ...fighter, toughness };
+      expect(battlerRating({ ...player!, masteries })).toBe(rating(masteries));
+    }
+  });
+
+  it("does not mark down a body born with fewer hit points than a player", () => {
+    expect(battlerRating({ ...body(fighter), baseHp: 1 })).toBe(rating(fighter));
+  });
+
+  it("rates hit points born past a player's as the Toughness that would have grown them", () => {
+    const grownFrom10To40 = maxHpFrom(PLAYER_BASE_HP, 40) - maxHpFrom(PLAYER_BASE_HP, 10);
+    const born = { ...body(fighter), baseHp: PLAYER_BASE_HP + grownFrom10To40 };
+    expect(battlerRating(born)).toBe(rating({ ...fighter, toughness: 40 }));
+  });
+
+  it("leaves out the hit points of a body that cannot hurt anybody", () => {
+    const dummy = {
+      ...body(fighter),
+      baseHp: 10_000,
+      naturalWeapon: { ...DEFAULT_BATTLER.naturalWeapon, damage: 0 },
+    };
+    expect(battlerRating(dummy)).toBe(rating(fighter));
   });
 });
 
