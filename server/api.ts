@@ -395,6 +395,16 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         detail: { summary: "Frame timings as each tab reported them" },
       },
     )
+    .post(
+      "/perf/alerts/test",
+      async ({ headers, request, status }) => {
+        const allowed = (await authorized(headers.authorization, config)) || (await admin(request));
+        if (!allowed) return status(404, "Not found");
+        await world.testAlert();
+        return { ok: true as const };
+      },
+      { detail: { summary: "Send a test alert to wherever alerts go" } },
+    )
     .post("/backup", async ({ headers, status }) => {
       if (!(await authorized(headers.authorization, config))) {
         return status(404, "Not found");

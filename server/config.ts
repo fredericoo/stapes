@@ -26,6 +26,8 @@ const schema = v.object({
 
   OPENAI_API_KEY: v.optional(v.string()),
 
+  DISCORD_ALERTS_WEBHOOK_URL: v.optional(v.string()),
+
   CHECKPOINT_INTERVAL_MS: v.optional(
     v.pipe(v.string(), v.transform(Number), v.number(), v.minValue(100)),
     "2000",

@@ -18,6 +18,8 @@ import { Deaths, type DeathRecord } from "./deaths";
 import { Realm, type Contender, type RealmState } from "./realm";
 import { TickMeter } from "./tickMeter";
 import { FrameLog } from "./frameLog";
+import { ALERT_TITLES, AlertBook, frameFinding, tickFindings } from "./alerts";
+import { discordAnnouncer, logAnnouncer, type Announce } from "./discord";
 import { TICK_LOG_INTERVAL_MS, TICK_LOG_KEPT_MS, TickLog } from "./tickLog";
 import { generationalName } from "../app/lib/characterName";
 import { mkdir } from "node:fs/promises";
@@ -43,6 +45,8 @@ export class World {
   private draining = false;
   private readonly adminSockets = new WeakSet<GameSocket>();
   private readonly characterOf = new WeakMap<GameSocket, string>();
+  private readonly alerts = new AlertBook();
+  private readonly announce: Announce;
 
   private constructor(
     readonly server: GameServer,
@@ -61,7 +65,11 @@ export class World {
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
-  ) {}
+  ) {
+    this.announce = config.DISCORD_ALERTS_WEBHOOK_URL
+      ? discordAnnouncer(config.DISCORD_ALERTS_WEBHOOK_URL)
+      : logAnnouncer;
+  }
 
   static async open(config: Config): Promise<World> {
     const db = await openWorldDatabaseExclusively(config.databasePath);
@@ -118,6 +126,7 @@ export class World {
     world.startKeepalive();
     await world.refreshRealm();
     world.startRealmRefresh();
+    await world.frameLog.load(Date.now());
     world.startTickLog();
     return world;
   }
@@ -153,9 +162,11 @@ export class World {
 
   private startTickLog() {
     this.tickLogTimer = setInterval(() => {
-      void this.logTicks().catch((error: unknown) => {
-        console.error("[world] tick log failed", error);
-      });
+      void this.logTicks()
+        .then(() => this.checkAlerts())
+        .catch((error: unknown) => {
+          console.error("[world] tick log failed", error);
+        });
     }, TICK_LOG_INTERVAL_MS);
   }
 
@@ -170,6 +181,42 @@ export class World {
       rssMb: Math.round(process.memoryUsage.rss() / 1_048_576),
     });
     await this.tickLog.prune(now - TICK_LOG_KEPT_MS);
+  }
+
+  /** Announces a rule when it starts firing and when it stops, and says nothing in between. */
+  async checkAlerts(now = Date.now()): Promise<void> {
+    const { current, baseline } = this.frameLog.tallies(now);
+    const frames = frameFinding(current, baseline);
+    const findings = [
+      ...tickFindings(await this.tickLog.since(now - TICK_LOG_INTERVAL_MS * 5), now),
+      ...(frames ? [frames] : []),
+    ];
+    const { started, cleared } = this.alerts.update(findings, now);
+    const link = `${this.config.PUBLIC_ORIGIN}/admin/perf`;
+    for (const finding of started) {
+      await this.announce({
+        title: ALERT_TITLES[finding.rule],
+        lines: [finding.summary, ...finding.detail, this.config.PUBLIC_ORIGIN],
+        tone: "alert",
+        link,
+      });
+    }
+    for (const rule of cleared) {
+      await this.announce({
+        title: `Resolved: ${ALERT_TITLES[rule]}`,
+        lines: [this.config.PUBLIC_ORIGIN],
+        tone: "resolved",
+        link,
+      });
+    }
+  }
+
+  async testAlert(): Promise<void> {
+    await this.announce({
+      title: "Test alert",
+      lines: ["Sent by hand to check that alerts arrive.", this.config.PUBLIC_ORIGIN],
+      tone: "test",
+    });
   }
 
   get realmState(): RealmState {

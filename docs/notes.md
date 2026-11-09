@@ -16570,3 +16570,39 @@ frames slower than thirty a second, which is every bucket from
 
 A percentile of bucket counts is a bucket edge and not a measurement, so the
 page prints `<19ms` and not `19ms`.
+
+### An alert is announced when it starts and when it stops
+
+After each minute's tick sample is written, `World.checkAlerts` runs the rules
+in `server/alerts.ts`:
+
+- `tick-slow` — tick p95 over `TICK_MS` in each of the last three samples. One
+  slow minute is a join burst or a checkpoint; three is load.
+- `world-slow` — over a tenth of the ticks due in the last three minutes were
+  skipped, which is a world under 27 ticks a second. One skipped tick is not a
+  finding: a garbage collection pause skips a few.
+- `tick-failing` — a tick threw in the last minute. `tickSafely` keeps the
+  world running through it and logs the first and every three-hundredth, so
+  without this nobody is told.
+- `frames-slow` — in the last half hour, the share of frames slower than thirty
+  a second was over 5% and over twice the share of the day before, with at
+  least three tabs and ten thousand frames reporting. It compares against the
+  day rather than a fixed number because the usual share depends on who is
+  playing: a population of old phones sits above any fixed threshold.
+
+The frame rule reads tallies `FrameLog` keeps in memory, filled from the table
+at boot. Parsing a day of reports each minute would hold the event loop for
+longer than a tick. Reports whose `gpu` names SwiftShader or llvmpipe are left
+out of the tallies, so a Playwright run against a deployed world cannot fire it.
+
+`AlertBook` announces a rule when its first finding arrives and again when five
+minutes pass without one. Its state is in memory, so a rule that is firing
+across a deploy is announced a second time by the new process.
+
+`DISCORD_ALERTS_WEBHOOK_URL` is where the announcements go
+(`server/discord.ts`); unset, they are written to the server's log. A failed
+post is logged and dropped. `POST /api/perf/alerts/test` sends a test message.
+
+The thresholds are constants at the top of `server/alerts.ts`. They were chosen
+from the 33ms tick and not from production data, which did not exist when they
+were written.
