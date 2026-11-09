@@ -5225,11 +5225,21 @@ number experience is weighed against, and the one `rated_below_self` compares.
 **How well it reads.** `bun run verify battle` was run for each creature
 against a player with Sharp, Toughness and Agility at one level and that
 level's sword, and the level bisected to where the player wins half the
-fights. For the skeleton that level is 28, and it is now rated 29. The cave
-troll moved from 51 to 61 against an even level of 38, and the cyclops from 61
-to 150 against 75. For creatures born with 8 the rating already ran high —
-the wolf is rated 28 against an even level of 15, a slime 20 against 8 —
-because `rating` counts a weapon mastery whatever weapon it is used with.
+fights. The skeleton as it was then, born with 110, had an even level of 28
+and was rated 29 by this, against 13 before. The cave troll moved from 51 to
+61 against an even level of 38, and the cyclops from 61 to 150 against 75.
+For creatures born with 8 the rating already ran high — the wolf is rated 28
+against an even level of 15, a slime 20 against 8 — because `rating` counts a
+weapon mastery whatever weapon it is used with.
+
+**The skeleton's strength then moved from its hit points into its
+masteries.** It is born with 20 rather than 110, with Sharp, Blunt, Ranged
+and Arcane at 33 rather than 15, Toughness 22 rather than 10 and Agility 25
+rather than 10: 47 hit points rather than 121, rated 30, with an even level of
+26. In `verify battle --matrix` a player at level 15 still loses to it about
+three times in four, but a won fight takes 6.2s rather than 16.0s, and a
+player at level 33 wins 97% rather than 88%. Most of its danger is its kit:
+a sword, a broad axe, a mace or a bow from the level-15 rung, swung at 33.
 
 ### Armour is worn, and it may care what hit it
 

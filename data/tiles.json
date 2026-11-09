@@ -58497,14 +58497,14 @@
         ]
       },
       "battler": {
-        "baseHp": 110,
+        "baseHp": 20,
         "masteries": {
-          "sharp": 15,
-          "blunt": 15,
-          "ranged": 15,
-          "arcane": 15,
-          "toughness": 10,
-          "agility": 10
+          "sharp": 33,
+          "blunt": 33,
+          "ranged": 33,
+          "arcane": 33,
+          "toughness": 22,
+          "agility": 25
         },
         "naturalWeapon": {
           "type": "weapon",
