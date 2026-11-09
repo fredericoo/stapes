@@ -2699,7 +2699,7 @@ export class GameSession implements PlaySession {
     }
 
     this.applyDamage(target, outcome.damage, blow.blame);
-    if (outcome.inflicted.length > 0 && (this.hpOf(target) ?? 0) > 0) {
+    if (outcome.inflicted.length > 0 && this.hpAfterHit(target) > 0) {
       for (const grant of outcome.inflicted) {
         this.grantStatus(target, grant, undefined, undefined, {
           ...blow.blame,
@@ -3708,7 +3708,7 @@ export class GameSession implements PlaySession {
       this.applyHealthMove(bolt.move, subject, actor, bolt);
     }
 
-    if ((this.hpOf(subject) ?? 0) > 0) this.afflict(subject, bolt.grants, bolt.cures, bolt);
+    if (this.hpAfterHit(subject) > 0) this.afflict(subject, bolt.grants, bolt.cures, bolt);
     if (bolt.area && centre) this.landArea(centre, bolt.area, bolt);
   }
 
@@ -4064,6 +4064,16 @@ export class GameSession implements PlaySession {
   private ratingOf(actor: ActorRuntime): number | null {
     const body = this.bodyOf(actor);
     return body ? rating(body.masteries) : null;
+  }
+
+  /**
+   * A hit that kills has already taken the body off the board and the actor
+   * out of `actors`, and `hpOf` would then sweep the whole board looking for
+   * the body before answering null.
+   */
+  private hpAfterHit(actor: ActorRuntime): number {
+    if (this.actors.get(actor.id) !== actor) return 0;
+    return this.hpOf(actor) ?? 0;
   }
 
   private hpOf(
