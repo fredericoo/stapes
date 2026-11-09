@@ -43596,6 +43596,44 @@
     }
   },
   {
+    "id": "book",
+    "name": "%s's book",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 19,
+      "y": 12
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "artifact"
+      }
+    }
+  },
+  {
     "id": "mud",
     "name": "Mud",
     "height": 0,
