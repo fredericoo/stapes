@@ -1,6 +1,8 @@
 import * as v from "valibot";
 import { FRAME_BUCKETS, FRAME_REPORT_INTERVAL_MS, type FrameReport } from "../app/net/frameReport";
 import { FRAME_PHASES } from "../app/render/frameProfile";
+import { slowShare } from "../app/lib/frameSummary";
+import type { FrameTally } from "./alerts";
 import type { Database } from "./db";
 
 export const MAX_FRAME_REPORT_BYTES = 4096;
@@ -13,6 +15,10 @@ export const FRAME_LOG_KEPT_MS = 30 * 24 * 60 * 60_000;
 export const FRAME_LOG_READ_LIMIT = 5000;
 
 const PRUNE_INTERVAL_MS = 60 * 60_000;
+
+export const FRAME_CURRENT_MS = 30 * 60_000;
+
+export const FRAME_BASELINE_MS = 24 * 60 * 60_000;
 
 const count = v.pipe(v.number(), v.integer(), v.minValue(0));
 const duration = v.pipe(v.number(), v.minValue(0));
@@ -53,6 +59,33 @@ export function readFrameReport(sent: unknown): FrameReport | null {
 
 type Row = { at: number; report: string };
 
+type Recent = { at: number; tab: string; frames: number; slow: number; software: boolean };
+
+/** Headless browsers draw without a GPU, and their frame times say nothing about a player's. */
+const SOFTWARE_RENDERER = /swiftshader|llvmpipe|software/i;
+
+function recentOf(report: FrameReport, at: number): Recent {
+  const frames = report.buckets.reduce((sum, count) => sum + count, 0);
+  return {
+    at,
+    tab: report.tab,
+    frames,
+    slow: Math.round(slowShare(report.buckets) * frames),
+    software: SOFTWARE_RENDERER.test(report.device.gpu ?? ""),
+  };
+}
+
+function tallyOf(recent: readonly Recent[]): FrameTally {
+  const drawn = recent.filter((one) => !one.software);
+  const frames = drawn.reduce((sum, one) => sum + one.frames, 0);
+  const slow = drawn.reduce((sum, one) => sum + one.slow, 0);
+  return {
+    tabs: new Set(drawn.map((one) => one.tab)).size,
+    frames,
+    slowShare: frames ? slow / frames : 0,
+  };
+}
+
 /**
  * A row holds no account. The sender must be signed in so that the endpoint is
  * not open to the internet, and the account is used only to space its reports.
@@ -60,8 +93,26 @@ type Row = { at: number; report: string };
 export class FrameLog {
   private readonly lastFrom = new Map<string, number>();
   private prunedAt = 0;
+  private recent: Recent[] = [];
 
   constructor(private readonly db: Database) {}
+
+  /** Fills the tallies from what a previous process stored, so a restart does not lose the day they compare against. */
+  async load(now: number): Promise<void> {
+    this.recent = (await this.since(now - FRAME_BASELINE_MS)).map((report) =>
+      recentOf(report, report.at),
+    );
+  }
+
+  /** The last half hour, and the rest of the last day before it. */
+  tallies(now: number): { current: FrameTally; baseline: FrameTally } {
+    this.recent = this.recent.filter((one) => one.at > now - FRAME_BASELINE_MS);
+    const split = now - FRAME_CURRENT_MS;
+    return {
+      current: tallyOf(this.recent.filter((one) => one.at > split)),
+      baseline: tallyOf(this.recent.filter((one) => one.at <= split)),
+    };
+  }
 
   tooSoon(userId: string, now: number): boolean {
     const last = this.lastFrom.get(userId);
@@ -70,6 +121,7 @@ export class FrameLog {
 
   async add(userId: string, report: FrameReport, now: number): Promise<void> {
     this.lastFrom.set(userId, now);
+    this.recent.push(recentOf(report, now));
     const insert = await this.db.prepare("INSERT INTO frame_report (at, report) VALUES (?, ?)");
     await insert.run([now, JSON.stringify(report)]);
     if (now - this.prunedAt >= PRUNE_INTERVAL_MS) await this.prune(now);

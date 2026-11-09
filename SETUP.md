@@ -685,6 +685,34 @@ secret and use **Re-run failed jobs** on that run rather than deploying again.
 
 ---
 
+## 10. Alerts
+
+The server checks its own tick timings and its players' frame reports once a
+minute (`docs/notes.md`, "The world measures itself") and posts to a Discord
+channel when a rule starts firing and when it stops.
+
+1. In Discord, make a channel for alerts, then **Edit channel → Integrations →
+   Webhooks → New webhook** and copy its URL. Use a different channel from the
+   changelog's: that one is public.
+2. In Coolify, add it to the production application's environment variables as
+   `DISCORD_ALERTS_WEBHOOK_URL` and redeploy. Do the same on staging with its
+   own webhook if you want staging's alerts; every message ends with the
+   world's `PUBLIC_ORIGIN`, so one channel can take both.
+3. Check that it arrives:
+
+```bash
+curl -fsS -X POST https://stapes.example.com/api/perf/alerts/test \
+  -H "Authorization: Bearer $ADMIN_SECRET"
+```
+
+Without the variable the server writes its alerts to its own log and posts
+nothing.
+
+**A server that has stopped cannot say so.** These alerts come from the process
+they are about. Point an uptime monitor outside the box at
+`https://stapes.example.com/api/health`, expecting `"status":"ok"`, and have it
+post to the same channel.
+
 ## What it costs
 
 Prices below are **gross** — what actually leaves your account. Hetzner's site

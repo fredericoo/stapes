@@ -11,6 +11,7 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:-}
       CHECKPOINT_INTERVAL_MS: ${CHECKPOINT_INTERVAL_MS:-2000}
       BACKUP_DIR: /backups
+      DISCORD_ALERTS_WEBHOOK_URL: ${DISCORD_ALERTS_WEBHOOK_URL:-}
     volumes:
       - stapes-data:/data
       - stapes-backups:/backups
