@@ -38753,7 +38753,7 @@
       "-5,-32": [{"tileId":"grass-2"},{"tileId":"dirt"},{"tileId":"wooden-floor"},{"tileId":"sw2"}],
       "-5,-31": [{"tileId":"wooden-floor"},{"tileId":"torch","direction":"s"}],
       "-5,-30": [{"tileId":"wooden-floor"}],
-      "-5,-29": [{"tileId":"wooden-floor"}],
+      "-5,-29": [{"tileId":"wooden-floor"},{"tileId":"fence"}],
       "-5,-26": [{"tileId":"wooden-floor"}],
       "-5,-25": [{"tileId":"grass-2"},{"tileId":"dirt"},{"tileId":"wooden-floor"},{"tileId":"sw2"}],
       "-5,-24": [{"tileId":"grass-2"}],
