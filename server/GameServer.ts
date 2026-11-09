@@ -3581,7 +3581,9 @@ export class GameServer {
 
     const cellStamp = near.cellStamp;
     let cellsNear = near.cells.markWithinReach(at.x, at.y, at.z, cellStamp, mark);
-    for (const i of near.everywhereCells) {
+    const everywhereCells = near.everywhereCells;
+    for (let k = 0; k < everywhereCells.length; k++) {
+      const i = everywhereCells[k]!;
       if (cellStamp[i] === mark) continue;
       cellStamp[i] = mark;
       cellsNear++;
@@ -3628,7 +3630,9 @@ export class GameServer {
 
     const eventStamp = near.eventStamp;
     let eventsNear = near.events.markWithinReach(at.x, at.y, at.z, eventStamp, mark);
-    for (const j of near.everywhereEvents) {
+    const everywhereEvents = near.everywhereEvents;
+    for (let k = 0; k < everywhereEvents.length; k++) {
+      const j = everywhereEvents[k]!;
       if (eventStamp[j] === mark) continue;
       eventStamp[j] = mark;
       eventsNear++;
