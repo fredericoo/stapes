@@ -1298,7 +1298,8 @@ export class WorldRenderer {
    * lands, so no stale chunk means the light on screen is the current light.
    */
   isSettled(): boolean {
-    return this.isReady() && this.lighting.staleChunks === 0;
+    if (!this.isReady()) return false;
+    return !this.view || this.lighting.staleChunksIn(this.lightWindow(this.view)) === 0;
   }
 
   dispose() {

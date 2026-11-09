@@ -819,9 +819,12 @@ same calls work against a pull request's preview, signed in as its seeded
 admin, and not only against a dev server.
 
 **`ready()` waits for four things, in order:** the session to be connected, a
-first frame painted, no chunk's light stale, and the page's fonts loaded. A
-chunk whose light is being re-baked stays stale until the worker's result lands,
-so no stale chunk means the light on screen is the current light. It polls with
+first frame painted, no chunk in the light window stale, and the page's fonts
+loaded. A chunk whose light is being re-baked stays stale until the worker's
+result lands, so no stale chunk in the window means the light on screen is the
+current light. A cached chunk the window has left is not baked again until a
+window reaches it, so counting the whole cache could wait for ever: a creature
+stepping near where the camera first stood was enough. It polls with
 `setTimeout` rather than on animation frames, because a headless browser drawing
 through SwiftShader can go seconds between frames.
 

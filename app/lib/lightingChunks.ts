@@ -285,6 +285,21 @@ export class ChunkedLighting {
     return n;
   }
 
+  /**
+   * Only these can be on screen: a chunk outside every window drawn since it
+   * went stale, or baked for another band of levels, is not baked again until
+   * a window reaches it.
+   */
+  staleChunksIn(window: LightWindow): number {
+    let n = 0;
+    for (let cy = chunkOf(window.y0); cy <= chunkOf(window.y1); cy++) {
+      for (let cx = chunkOf(window.x0); cx <= chunkOf(window.x1); cx++) {
+        if (this.cache.get(chunkCacheKey(cx, cy, window.levels))?.stale) n++;
+      }
+    }
+    return n;
+  }
+
   get bakedLastCall(): number {
     return this.lastBakedChunks;
   }
