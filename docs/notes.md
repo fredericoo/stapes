@@ -3970,15 +3970,11 @@ one part of what is left is most of it:
 - **A chunk copy is 13–17µs, and the level around it is copied too.** A chunk
   is a 256-key object, which the engine keeps as a dictionary, so copying one
   rebuilds its table and allocates a new shape; the surface level is another
-  200 keys. A step copies both twice: on the turn and on the commit. In a
-  profile at a thousand players these copies (`cloneObject`, called from
-  `setStacks`) were 12.5% of all samples, a third of it the level. Editing in
-  place is not an option: tile-id sets, location memos and the JSON caches all
-  assume a chunk object never changes. Editing only the copies made during the
-  current tick in place would keep that true for everything outside the tick,
-  but not inside it: `GameSession.tryLocate` takes an unchanged chunk object to
-  mean an unmoved body, so a chunk edited in place would need its own record of
-  having changed.
+  391 keys, and that one grows with the map. A step writes twice, on the turn
+  and on the commit. Steps and turns now write through a `MapDraft` (below), so
+  a level or chunk is copied at most once between two seals and written in
+  place after that. What is left is the first copy of each chunk: a thousand
+  walkers are mostly in different chunks.
 - **Smaller exits from optimized code remain.** `reachSinceLastCut`,
   `scopedPatchFor`, `cellsOfChangedReach`, `reachFromScratch`,
   `withStatusModifiers` and `setStacks` still leave optimized code about
@@ -14320,12 +14316,33 @@ emits cells in a stable (x, y) order so a one-cell edit is a one-line diff.
 Batch multi-cell edits through `setStacks` in one call so each chunk is copied
 once — `moveEntity` touches two cells and does exactly that.
 
+**A `MapDraft` lets a session write into what it copied.** `GameSession`
+passes one to `setStacks` for steps and turns, and a level or chunk that draft
+copied is written in place by the next of them instead of copied again. Three
+things keep that safe, and each is load-bearing:
+
+- **It is sealed wherever the map leaves the session** (`getMap`,
+  `getSnapshot`). Everything the server keeps — `broadcastMap`, the chunk JSON
+  caches, reach — only ever sees sealed objects, which are never written
+  again. A new reader of the session's map has to seal too.
+- **`tryLocate` compares `chunkWritesInPlace` as well as the chunk object.**
+  It takes an unchanged chunk to mean an unmoved body, and a chunk written in
+  place keeps its identity.
+- **An edit in a chunk holding a multi-cell tile still copies.** `settleSpans`
+  reads what a cell held before the edit, which an edit in place overwrites.
+  It only reads chunks holding such a tile, so the draft is safe everywhere
+  else.
+
+The `MapFile` and its `levels` record are still new on every edit, so a
+changed map is still a new object.
+
 **`getStack` reads a chunk through a slot index, not its cell keys.** The first
 read of a chunk files its stacks in a `CHUNK_SIZE²` array kept in a `WeakMap`
 on the chunk, and `setStacks` hands each copy its source's array with the edits
 applied, so a read builds no `"x,y"` string. That is only correct while a chunk
-is never written after `setStacks` returns it: a chunk edited in place keeps
-answering with the stacks it held when it was first read. Fractional
+is only written by `setStacks`, which also updates the array when a draft
+writes in place: a chunk edited any other way keeps answering with the stacks
+it held when it was first read. Fractional
 coordinates are not slots and go through the cell key as before. On the fixture
 town it took a `getStack` call from about 155ns to 95ns.
 
