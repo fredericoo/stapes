@@ -72,6 +72,7 @@ export type BrainContext = {
   heard(): readonly Utterance[];
   heardNoise(): readonly Sound[];
   hurtBy(): readonly string[];
+  struck(): readonly Strike[];
   attack(actorId: string): boolean;
   cast(spell: number, targetId?: string | null): "cast" | "casting" | "no";
   extract(at: Coord, tileId: string): boolean;
@@ -97,6 +98,11 @@ export type Utterance = {
 export type Sound = {
   sourceId: string;
   text: string;
+};
+
+export type Strike = {
+  victimId: string;
+  attackerId: string;
 };
 
 export function initialMemory(brain: BrainDef): BrainMemory {
@@ -324,6 +330,8 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       return heardNoiseFrom(condition, memory, ctx);
     case "attacked":
       return struckBy(memory, ctx);
+    case "other_attacked":
+      return otherStruckBy(condition, memory, ctx);
     case "talking":
       return ctx.talking();
     case "in_harm":
@@ -361,6 +369,25 @@ function struckBy(memory: BrainMemory, ctx: BrainContext): boolean {
   if (latest === undefined) return false;
   memory.hurtBy = latest;
   return true;
+}
+
+function otherStruckBy(
+  condition: Extract<BrainConditionDef, { cond: "other_attacked" }>,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): boolean {
+  const victim = boundBody(identify(condition.of, memory, ctx));
+  if (victim === null) return false;
+  const at = ctx.positionOf(victim);
+  if (at === null || !within(ctx.self, at, condition.cells, ctx.sight)) return false;
+  const strikes = ctx.struck();
+  for (let i = strikes.length - 1; i >= 0; i--) {
+    const strike = strikes[i]!;
+    if (strike.victimId !== victim) continue;
+    memory.hurtBy = strike.attackerId;
+    return true;
+  }
+  return false;
 }
 
 function walkAlongRoute(

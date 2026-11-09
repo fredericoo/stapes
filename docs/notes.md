@@ -10994,6 +10994,26 @@ path `/despawn` and a player's leaving take, not `kill`:
   whether or not anybody is near. With nobody online no brain runs at all, and
   a wisp still on the board then fades on the first turn after somebody joins.
 
+## `other_attacked` is a blow at somebody else
+
+`attacked` reads the body's own `pendingHurt`, which is drained on that
+body's turn, so nothing else could tell that it had been hit. Written for a
+creature that defends another.
+
+- **Every swing, bolt, area hit and conjuring that lands on somebody is also
+  a `Strike`** (`victimId`, `attackerId`), recorded by `notePendingHurt`
+  whoever the victim is, player or resident. Strikes collect in `pendingStrikes` during a round and are handed
+  to the next `BrainRound`, as speech is to `heard`, so every brain in that
+  round reads the same list. An attacker who is concealed is not recorded,
+  matching `hear`.
+- **The condition names whose blows count and how near they must be:** `of`
+  is a selector for the victim and `cells` the distance from the guard,
+  checked with `within`, so the victim must also be on a level the guard can
+  see. It binds the latest attacker to `memory.hurtBy`, so the `attacker`
+  selector names them, as it does after `attacked`.
+- **It cannot be added as an optional `of` on `attacked`** because a catalogue
+  selector parameter cannot be optional.
+
 ## A respawn can keep to hours
 
 `RespawnInteraction.hours` is `{ fromHour, toHour }` on the same terms as the

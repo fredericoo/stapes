@@ -392,6 +392,7 @@ import {
   type SightLevels,
   type StandOff,
   type Sound,
+  type Strike,
   type Utterance,
   type WalkGoal,
   type WalkOrderState,
@@ -718,6 +719,7 @@ type BrainRound = {
   perTick: number;
   sounds: readonly Sound[];
   heard: readonly Utterance[];
+  strikes: readonly Strike[];
   minutesOfDay: MinutesOfDay;
 };
 type BlowInFlight = {
@@ -919,6 +921,7 @@ export class GameSession implements PlaySession {
   private pendingHeard: Utterance[] = [];
   private readonly pendingHurt = new Map<string, string[]>();
   private pendingSound: Sound[] = [];
+  private pendingStrikes: Strike[] = [];
   private brainRound: BrainRound | null = null;
   private pendingDamage: DamageNumber[] = [];
   private liveDamage: DamageNumber[] = [];
@@ -1610,6 +1613,7 @@ export class GameSession implements PlaySession {
       this.pendingHeard = [];
       this.pendingHurt.clear();
       this.pendingSound = [];
+      this.pendingStrikes = [];
       this.brainRound = null;
       return;
     }
@@ -1647,10 +1651,12 @@ export class GameSession implements PlaySession {
       perTick: 0,
       sounds: this.pendingSound,
       heard: this.pendingHeard,
+      strikes: this.pendingStrikes,
       minutesOfDay: this.clock(),
     };
     this.pendingSound = [];
     this.pendingHeard = [];
+    this.pendingStrikes = [];
 
     const players = this.playersThisRound();
     const ranked: { actor: ActorRuntime; attention: Attention; order: number }[] = [];
@@ -2055,6 +2061,7 @@ export class GameSession implements PlaySession {
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
       hurtBy: () => hurt,
+      struck: () => round.strikes,
       attack: (id) => this.orderAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
@@ -2949,6 +2956,9 @@ export class GameSession implements PlaySession {
    * player would never leave `pendingHurt` and would keep `isAtRest` false.
    */
   private notePendingHurt(targetId: string, attackerId: string) {
+    if (!this.isConcealed(attackerId)) {
+      this.pendingStrikes.push({ victimId: targetId, attackerId });
+    }
     if (!this.actors.get(targetId)?.resident) return;
     const attackers = this.pendingHurt.get(targetId);
     if (attackers) attackers.push(attackerId);
@@ -6238,6 +6248,7 @@ export class GameSession implements PlaySession {
     if (this.pendingHeard.length > 0) return false;
     if (this.pendingHurt.size > 0) return false;
     if (this.pendingSound.length > 0) return false;
+    if (this.pendingStrikes.length > 0) return false;
     if (this.brainRound) return false;
     if (this.endure.pending()) return false;
     if (this.liveProjectiles.length > 0) return false;
