@@ -10888,6 +10888,26 @@ player is pointed to.
   guard than a new one means nobody is warned. `gateGuards.test.ts` covers the
   once-per-approach loop.
 
+### Surface hostiles get harder with distance from the city
+
+The level-0 hostiles in `data/map.json` are placed in rings, so a player
+walking out of any gate meets them in the order they can handle:
+
+- **Within about 30 cells of a gate**: rats in pairs. Nothing else is
+  closer than 22 cells to a gate; a few `nature-slime` sit between 22 and 36.
+- **On the beach** (the `grass-2, dirt` strip beside the shore's
+  `dirt, water`): `water-slime`, between about 30 and 70 cells from the wall.
+- **About 35 to 65 cells from the wall**: snakes, alone.
+- **Deep forest at least 60 cells from the wall**: four wolves, alone, each
+  on a clearing with trees on at least 50 of the 121 cells around it and at
+  least 15 cells from any water. Wolves do not go on the beach.
+
+Deer, rabbits, the wisps and the swamp's bog imps are outside this scheme and
+stay where they were authored, as do the caves. The south guard's warning
+still names snakes, which now start about 35 cells past it rather than at the
+gate. A creature placed by hand in the wrong ring is not caught by anything;
+check it against these bands.
+
 ### The wolf we ship sleeps through the day on the surface
 
 Awake is `or[below_level 0, time_of_day 19→6]`: night on the surface, or any
