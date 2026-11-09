@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ItemInstance } from "../lib/itemInstance";
-import { emptyMap, getStack, replaceStack } from "../lib/mapData";
+import { MapDraft, emptyMap, getStack, replaceStack, setStacks } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS } from "./constants";
-import { DecayIndex, applyDecay, findDecayCells } from "./decay";
+import { DecayIndex, applyDecay, applyItemDecay, findDecayCells } from "./decay";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { Rng } from "./rng";
@@ -914,5 +914,69 @@ describe("what a dead battler leaves on the floor", () => {
       "grass",
       "rotten-berry",
     ]);
+  });
+});
+
+describe("an item decay sweeping a chunk it has swept before", () => {
+  const BERRY_DUE = { kind: "item", itemId: "itm_berry", tileId: "berry", dueMs: 0 } as const;
+  const AWAY = { x: 0, y: 0 };
+  const HERE = { x: 20, y: 20 };
+  const berry: PlacedTile = { tileId: "berry", itemId: "itm_berry" };
+  const crateOf = (contents: ItemInstance[]): PlacedTile => ({
+    tileId: "crate",
+    itemId: "itm_crate",
+    contents,
+  });
+
+  function rot(map: MapFile): MapFile {
+    return applyItemDecay(map, [], [BERRY_DUE], tilesById, () => "itm_minted").map;
+  }
+
+  const arrivals: Record<string, () => { before: MapFile; arrive: (map: MapFile) => MapFile }> = {
+    "that was in a crate all along": () => ({
+      before: replaceStack(emptyMap(), HERE.x, HERE.y, 0, [
+        { tileId: "grass" },
+        crateOf([{ id: "itm_berry", tileId: "berry" }]),
+      ]),
+      arrive: (map) => map,
+    }),
+    "put into a crate already on the floor": () => ({
+      before: replaceStack(emptyMap(), HERE.x, HERE.y, 0, [{ tileId: "grass" }, crateOf([])]),
+      arrive: (map) =>
+        replaceStack(map, HERE.x, HERE.y, 0, [
+          { tileId: "grass" },
+          crateOf([{ id: "itm_berry", tileId: "berry" }]),
+        ]),
+    }),
+    "carried over from another chunk": () => ({
+      before: replaceStack(
+        replaceStack(emptyMap(), AWAY.x, AWAY.y, 0, [{ tileId: "grass" }, berry]),
+        HERE.x,
+        HERE.y,
+        0,
+        [{ tileId: "grass" }],
+      ),
+      arrive: (map) =>
+        setStacks(map, [
+          { ...AWAY, z: 0, stack: [{ tileId: "grass" }] },
+          { ...HERE, z: 0, stack: [{ tileId: "grass" }, berry] },
+        ]),
+    }),
+    "written in place by the draft that copied the chunk": () => {
+      const draft = new MapDraft();
+      return {
+        before: setStacks(emptyMap(), [{ ...HERE, z: 0, stack: [{ tileId: "grass" }] }], draft),
+        arrive: (map) =>
+          setStacks(map, [{ ...HERE, z: 0, stack: [{ tileId: "grass" }, berry] }], draft),
+      };
+    },
+  };
+
+  it.each(Object.keys(arrivals))("turns a berry %s", (name) => {
+    const { before, arrive } = arrivals[name]!();
+    rot(before);
+    const after = rot(arrive(before));
+    const top = getStack(after, HERE.x, HERE.y, 0).at(-1)!;
+    expect(top.contents?.[0]?.tileId ?? top.tileId).toBe("rotten-berry");
   });
 });
