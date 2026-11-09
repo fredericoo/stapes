@@ -871,6 +871,7 @@ export class GameSession implements PlaySession {
   private readonly residentHomes = new Map<string, Coord>();
   private readonly walkingInto = new Map<string, ActorRuntime[]>();
   private tileIndex: Map<string, string[]> | null = null;
+  private unclaimedOwners: Set<string> | null = null;
   private columns: {
     index: Map<string, string[]>;
     byTile: Map<string, TileColumns>;
@@ -1153,7 +1154,7 @@ export class GameSession implements PlaySession {
   ) {
     if (this.actors.has(id)) return;
     const { at } = restored;
-    let where: (Coord & { stackIndex: number }) | null = findActorAnywhere(this.map, id);
+    let where: (Coord & { stackIndex: number }) | null = this.claimKeptBody(id);
     if (!where) {
       const cell = at ? findEntryCell(this.map, this.tilesById, at, this.spawnAt) : this.spawnAt;
       const stackIndex = getStack(this.map, cell.x, cell.y, cell.z).length;
@@ -1167,6 +1168,20 @@ export class GameSession implements PlaySession {
     const actor = this.actors.get(id)!;
     const placed = actorStillAt(this.map, id, where);
     if (placed) this.remember(actor, placed);
+  }
+
+  /**
+   * Only the board a session starts from can hold a body nobody is playing:
+   * every body placed later gets its actor at once, and a body leaves the
+   * board with its actor. So the owners without an actor are read once, and
+   * the board is swept for a body only when one of them comes back.
+   */
+  private claimKeptBody(id: string): (Coord & { stackIndex: number }) | null {
+    this.unclaimedOwners ??= new Set(
+      [...listActorOwners(this.map)].filter((owner) => !this.actors.has(owner)),
+    );
+    if (!this.unclaimedOwners.delete(id)) return null;
+    return findActorAnywhere(this.map, id);
   }
 
   actorPosition(id: string): ActorPosition | null {

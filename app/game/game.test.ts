@@ -1879,3 +1879,35 @@ describe("the snapshots of the actors a filter keeps", () => {
     expect(kept.map((snapshot) => snapshot.id)).toEqual(["c", "d", "e"]);
   });
 });
+
+describe("a body the board kept", () => {
+  const KEPT_AT = { x: 4, y: 4, z: 0 };
+  const SPAWN_AT = { x: 0, y: 0, z: 0 };
+
+  function keptFor(owner: string): GameSession {
+    let map = emptyMap();
+    for (let x = -6; x <= 6; x++) {
+      for (let y = -6; y <= 6; y++) map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, KEPT_AT.x, KEPT_AT.y, KEPT_AT.z, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "s", owner },
+    ]);
+    return new GameSession(map, tiles, { actorIds: [], spawnAt: { ...SPAWN_AT, stackIndex: 1 } });
+  }
+
+  function bodiesOf(session: GameSession, owner: string): number {
+    return session.actorSnapshots().filter((snapshot) => snapshot.id === owner).length;
+  }
+
+  it("is taken back by its owner, after others have come and gone", () => {
+    const session = keptFor("kept");
+
+    session.spawn("newcomer", { at: { x: -3, y: -3, z: 0 } });
+    session.despawn("newcomer");
+    session.spawn("kept", { at: { x: -3, y: -3, z: 0 } });
+
+    expect(session.actorPosition("kept")).toMatchObject(KEPT_AT);
+    expect(bodiesOf(session, "kept")).toBe(1);
+  });
+});
