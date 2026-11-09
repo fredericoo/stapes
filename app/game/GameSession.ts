@@ -2081,6 +2081,7 @@ export class GameSession implements PlaySession {
         return body ? this.ratingOf(body) : null;
       },
       ownRating: () => this.ratingOf(actor),
+      reaches: (id, allowDrops) => this.reaches(actor, loc, id, allowDrops),
       fade: () => {
         fading = true;
       },
@@ -4297,6 +4298,16 @@ export class GameSession implements PlaySession {
       failed.allowDrops === route.allowDrops &&
       failed.arrive === route.arrive
     );
+  }
+
+  private reaches(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    targetId: string,
+    allowDrops: boolean | undefined,
+  ): boolean {
+    const at = this.walkGoalCell({ of: "body", id: targetId });
+    return at !== null && this.routeStep(actor, loc, at, allowDrops) !== null;
   }
 
   private setWalkOrder(

@@ -3208,6 +3208,18 @@ would be the pathfinder deciding where something wants to hide. It is a sound
 argument for a worse animal — see "Running away is a flood, not a direction"
 below, which is what replaced it and why.
 
+**`unreachable` is the half of `stuck` an author could not ask for.** A fight
+state is written `attack`, `step_toward`, `hold`, and both of the first two
+fail when the creature stands beside its prey waiting for its windup — so a
+fight state without the `hold` is `stuck` on every swing, and one with it is
+never `stuck` at all, not even with a river between them. The condition asks
+`routeStep` the question the step would ask, from the body's cell to stand
+beside the one it names, so it shares the failed-route memory: asked and then
+walked in the same round, a failure is searched for once. A success is
+searched for twice. The slimes ask it only on the round they are hit, which
+is the case it was written for: something shooting them from where they
+cannot follow.
+
 ## Clicking walks you there, following walks you after them, and neither travels
 
 `app/game/walkTo.ts` holds an errand — a cell, or a body — and hands the step

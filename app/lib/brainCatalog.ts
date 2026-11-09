@@ -201,6 +201,15 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     params: [{ key: "of", kind: "selector", label: "of" }],
     make: () => ({ cond: "rated_below_self", of: DEFAULT_SELECTOR }),
   },
+  unreachable: {
+    label: "unreachable",
+    hint: "The body this names is somewhere this body has no way to walk to and stand beside: across water it will not wade, up a ledge it cannot climb, or further round than a chase goes. Asks the route a step toward them would take. A body that is gone is never unreachable.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "allowDrops", kind: "boolean", label: "allow drops" },
+    ],
+    make: () => ({ cond: "unreachable", of: DEFAULT_SELECTOR }),
+  },
   carrying: {
     label: "carrying",
     hint: "There is something in this body's bag. Leave the tile empty for anything at all. A body with no bag carries nothing.",

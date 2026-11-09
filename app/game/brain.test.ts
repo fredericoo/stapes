@@ -626,8 +626,31 @@ describe("chasing round an obstacle", () => {
     };
   }
 
+  function waryBrain(): BrainDef {
+    const stalk = stalkBrain();
+    return {
+      ...stalk,
+      states: {
+        ...stalk.states,
+        wary: { onEnter: [{ effect: "noise", text: "hm" }], do: [{ action: "hold" }] },
+      },
+      transitions: [
+        { from: "hunt", if: { cond: "unreachable", of: slot("prey") }, to: "wary" },
+        ...stalk.transitions,
+      ],
+    };
+  }
+
   const hunters: TileDef[] = [
     ...tiles,
+    tile({
+      id: "wary-hunter",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: waryBrain() },
+    }),
     tile({
       id: "hunter",
       height: 2,
@@ -785,6 +808,23 @@ describe("chasing round an obstacle", () => {
     advance(session, BRAIN_TICK_MS * 2);
 
     expect(between(session)).toBeLessThan(3);
+  });
+
+  function noisesOver(session: GameSession, ms: number): string[] {
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
+    }
+    return heard;
+  }
+
+  it("tells somebody across water it cannot swim from somebody it can walk to", () => {
+    expect(noisesOver(acrossRiver("wary-hunter"), BRAIN_TICK_MS * 6)).toContain("hm");
+
+    const ford = acrossRiver("wary-hunter");
+    ford.runCommand("/tile plank 1 0 0", "alice");
+    expect(noisesOver(ford, BRAIN_TICK_MS * 6)).not.toContain("hm");
   });
 
   it("crosses a way that opened after it found none", () => {
@@ -1046,6 +1086,7 @@ describe("giving up", () => {
       nameOf: (id: string) => id,
       ratingOf: () => null,
       ownRating: () => null,
+      reaches: () => true,
       fade: vi.fn(),
     };
 
@@ -1837,6 +1878,7 @@ describe("a deer that yelps", () => {
       nameOf: (id: string) => id,
       ratingOf: () => null,
       ownRating: () => null,
+      reaches: () => true,
       fade: vi.fn(),
     };
 
@@ -1920,6 +1962,7 @@ describe("a deer that yelps", () => {
       nameOf: (id: string) => id,
       ratingOf: () => null,
       ownRating: () => null,
+      reaches: () => true,
       fade: vi.fn(),
     };
 

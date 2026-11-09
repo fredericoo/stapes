@@ -87,6 +87,7 @@ export type BrainContext = {
   nameOf(actorId: string): string | null;
   ratingOf(actorId: string): number | null;
   ownRating(): number | null;
+  reaches(actorId: string, allowDrops: boolean | undefined): boolean;
   fade(): void;
 };
 
@@ -360,6 +361,11 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       const id = boundBody(identify(condition.of, memory, ctx));
       const rated = id === null ? null : ctx.ratingOf(id);
       return rated !== null && rated < own;
+    }
+    case "unreachable": {
+      const id = boundBody(identify(condition.of, memory, ctx));
+      if (id === null || ctx.positionOf(id) === null) return false;
+      return !ctx.reaches(id, condition.allowDrops);
     }
   }
 }
