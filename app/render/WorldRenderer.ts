@@ -1931,7 +1931,7 @@ export class WorldRenderer {
     let tex = this.sunTextures.get(z);
     if (!tex || tex.image.width !== w || tex.image.height !== h) {
       tex?.dispose();
-      tex = new THREE.DataTexture(spans, w, h, THREE.RGFormat);
+      tex = new THREE.DataTexture(spans.slice(), w, h, THREE.RGFormat);
       tex.magFilter = THREE.LinearFilter;
       tex.minFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
@@ -1956,7 +1956,7 @@ export class WorldRenderer {
     let tex = this.lightTextures.get(z);
     if (!tex || tex.image.width !== level.w || tex.image.height !== level.h) {
       tex?.dispose();
-      tex = new THREE.DataTexture(level.rgba, level.w, level.h, THREE.RGBAFormat);
+      tex = new THREE.DataTexture(level.rgba.slice(), level.w, level.h, THREE.RGBAFormat);
       tex.magFilter = THREE.LinearFilter;
       tex.minFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
