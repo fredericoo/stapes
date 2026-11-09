@@ -17,6 +17,7 @@ import { Feedback } from "./feedback";
 import { Deaths, type DeathRecord } from "./deaths";
 import { Realm, type Contender, type RealmState } from "./realm";
 import { TickMeter } from "./tickMeter";
+import { FrameLog } from "./frameLog";
 import { TICK_LOG_INTERVAL_MS, TICK_LOG_KEPT_MS, TickLog } from "./tickLog";
 import { generationalName } from "../app/lib/characterName";
 import { mkdir } from "node:fs/promises";
@@ -54,6 +55,7 @@ export class World {
     readonly feedback: Feedback,
     readonly deaths: Deaths,
     readonly tickLog: TickLog,
+    readonly frameLog: FrameLog,
     private readonly tickMeter: TickMeter,
     private readonly realm: Realm,
     private readonly rawBlobs: Blobs,
@@ -101,6 +103,7 @@ export class World {
       new Feedback(db),
       deaths,
       new TickLog(db),
+      new FrameLog(db),
       tickMeter,
       await Realm.load(db, store),
       blobs,

@@ -52,6 +52,7 @@ import { inscribedNearby, type NearbyInscription } from "./nearbyInscriptions";
 import { BLOCKED_INK, INTERACTION_COLORS } from "./interactionColors";
 import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
+import type { FrameMeter } from "./frameMeter";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
 import {
@@ -328,6 +329,7 @@ export class GameRenderer {
   private dropDrag: { from: SlotRef; tileId: string; point: { x: number; y: number } } | null =
     null;
   private profiler = new FrameProfiler();
+  private frameMeter: FrameMeter | null = null;
   private disposed = false;
   private raf = 0;
   private lastTime = 0;
@@ -430,6 +432,10 @@ export class GameRenderer {
 
   debugReading(): DebugReading | null {
     return this.world.debugReading();
+  }
+
+  setFrameMeter(meter: FrameMeter | null) {
+    this.frameMeter = meter;
   }
 
   setOnStats(cb: ((stats: FrameStats) => void) | null) {
@@ -822,6 +828,7 @@ export class GameRenderer {
       if (!this.running || this.disposed) return;
       this.raf = requestAnimationFrame(loop);
       const now = performance.now();
+      this.frameMeter?.frame(now - this.lastTime);
       const dt = Math.min(100, now - this.lastTime);
       this.lastTime = now;
       this.minutesOfDay = this.clockNow(now);
@@ -833,7 +840,10 @@ export class GameRenderer {
       this.profiler.frame(performance.now() - frameStart);
 
       const stats = this.profiler.report(now);
-      if (stats) this.onStats?.(stats);
+      if (stats) {
+        this.frameMeter?.phases(stats);
+        this.onStats?.(stats);
+      }
     };
     this.raf = requestAnimationFrame(loop);
   }

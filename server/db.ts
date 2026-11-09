@@ -149,6 +149,12 @@ const MIGRATIONS: readonly string[] = [
      at     INTEGER PRIMARY KEY,
      sample TEXT NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS frame_report (
+     id     INTEGER PRIMARY KEY AUTOINCREMENT,
+     at     INTEGER NOT NULL,
+     report TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS frame_report_at ON frame_report(at)`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {
