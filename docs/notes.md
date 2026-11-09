@@ -819,9 +819,12 @@ same calls work against a pull request's preview, signed in as its seeded
 admin, and not only against a dev server.
 
 **`ready()` waits for four things, in order:** the session to be connected, a
-first frame painted, no chunk's light stale, and the page's fonts loaded. A
-chunk whose light is being re-baked stays stale until the worker's result lands,
-so no stale chunk means the light on screen is the current light. It polls with
+first frame painted, no chunk in the light window stale, and the page's fonts
+loaded. A chunk whose light is being re-baked stays stale until the worker's
+result lands, so no stale chunk in the window means the light on screen is the
+current light. A cached chunk the window has left is not baked again until a
+window reaches it, so counting the whole cache could wait for ever: a creature
+stepping near where the camera first stood was enough. It polls with
 `setTimeout` rather than on animation frames, because a headless browser drawing
 through SwiftShader can go seconds between frames.
 
@@ -14402,6 +14405,20 @@ if (before?.[key] === after[key]) continue;     // cell unchanged
 Do not hash map contents to detect changes. A per-frame content hash used to
 cost ~1ms; the identity checks that replaced it cost nothing.
 
+**Two copies of one version are diffed from that version.**
+`changedCellsOnLevel` finds what was written by following the copy lineage
+`setStacks` records, rather than comparing every key. A walking client draws a
+predicted map: its own step laid on the latest server map
+(`RemoteSession.rebuildPredicted`). The frame before was laid on the server
+map before that one, so neither frame is a copy of the other. Following only
+the newer map's lineage never reached the older map, gave up after
+`MAX_LINEAGE_STEPS`, and fell back to comparing every chunk of the level and
+every cell of each chunk that differed, on every frame the player walked.
+`keysWrittenBetween` walks both lineages a step at a time until they meet.
+`app/render/frameDiff.perf.test.ts` times one walking frame on a level 1024
+times the size of another: the sweep put that ratio near 2000, and it is now
+near 1.
+
 ### A mutation that changes nothing must return the same object
 
 Downstream, a new map object *is* an edit: it invalidates light chunks and
@@ -14448,6 +14465,18 @@ changed cells *and their ring*, and marks whichever chunk owns each cell whose
 answer moved — so a wall placed at a boundary rebuilds both sides. Skip it and
 you get a stale strip at a chunk edge that nothing later repairs.
 
+**Whether a change touches the merged batch is asked per cell, and given up
+per chunk.** `dirtyChunks` compares each changed cell's merged signature
+before and after, and rebuilds a chunk only when one moved. Past
+`MAX_ANALYSED_CELLS` changed cells in one chunk it rebuilds without asking,
+because asking would cost more than the rebuild. That limit used to be
+counted over the whole level, and a crowd crosses it: seventy bodies walking
+change a few cells in each of many chunks, so every chunk a body stepped in
+was rebuilt, with its neighbour ring, though no step touches the merged
+batch. Walking among 20 bots for 40 seconds built 146 chunks under the
+level-wide count and 47 under the per-chunk one; the rebuilds left were bushes
+being picked.
+
 Everything gameplay produces still takes the cheap path, for the reason it
 always did: a mobile tile is never in the merged batch, so a step is one mesh
 swapped inside a group that is otherwise untouched.
@@ -14471,6 +14500,47 @@ cost is in the noise at this count, and a modern GPU is nowhere near troubled
 by it. If it ever does matter, the lever is re-merging a level's chunk batches
 for the draw while keeping the build per chunk, which is real work and has not
 been needed.
+
+### Reflections are asked about what changed, and answered from a grid
+
+`ReflectiveCells` answers two questions for the renderer, and both used to
+read far more of the map than the question needed. Walking `/online` among
+20 bots in headless Chromium, they were half of the `map` phase.
+
+- **Which chunks' water changed** (`changedChunks`), so that whatever
+  reflects into them is rebuilt, listed every chunk of every changed level
+  and rescanned each changed chunk cell by cell. It now takes the chunks
+  written since the last frame and compares only the cells written, through
+  the same per-stack reading `cellsIn` uses. `cellsIn` itself reads a copied
+  chunk from its source's answer plus the cells the copy wrote.
+- **Where a quad's waterline is** probed the 5×5 cells around it on four
+  levels, building a chunk key and a cell key per probe, for every quad of a
+  chunk being built. `waterlinesIn` fills one dense grid per level for the
+  chunk and its reach and answers from it. `reflections.test.ts` checks it
+  against `waterlineNear` cell by cell, ties included.
+
+Building chunks took 448ms of a 40-second walk, 285ms of it reflections;
+after, reflections were 46ms of a 60-second walk.
+
+### A chunk entering the margin is built a few a frame
+
+The mesh window reaches `MESH_WINDOW_MARGIN` cells past the view so that a
+chunk exists before it is seen. Every chunk entering it used to be built on
+the frame it entered, so walking into a fresh chunk column built several
+chunks on one frame. Now only a chunk within `MESH_BUILD_NOW_MARGIN` of the
+view is built at once: art stands up to `REFLECTION_REACH_CELLS` above its
+cell, so anything nearer could already be drawn into the frame. The rest are
+queued and built nearest first by `buildQueuedChunks`, for
+`CHUNK_BUILD_BUDGET_MS` a frame and always at least one.
+
+- **A queued chunk that comes within the near margin before its turn is built
+  at once by `syncChunks`.** A machine too slow to drain the queue gets the
+  old behaviour back, never a hole.
+- **`isSettled` waits for the queue**, so `ready()` and `bun run scene` still
+  mean that every chunk the window wants exists.
+- **A chunk with nothing drawable gets no geometry**, so it is remembered by
+  identity in `emptyChunks`. Without that it is queued again on every sync
+  and the queue never empties.
 
 ### Levels are chunked; keep it that way
 
@@ -15472,13 +15542,6 @@ ticks starts from a timer.
 
 Not yet fixed, and worth knowing before you profile something else:
 
-- **A chunk that comes into range is built in the frame it does.** Geometry is
-  per (level, chunk) now — see the section above — so the cliff that used to be
-  a whole floor is at most `CHUNK_SIZE` squared. What is left is that the build
-  happens on one frame rather than spread over several: walking into a fresh
-  chunk column of dense cave is a handful of chunks at once. `MESH_WINDOW_MARGIN`
-  is what buys the warning, and a budget that built one chunk per frame out of a
-  queue is the structural answer if it is ever felt.
 - **A route search costs about 50µs a node.** Every neighbour it looks at asks
   `listStandingSurfaces`, which reads every level the map holds in the column
   (and the one above each) through `stackOnLevel`, and `canWalk`, which asks it again; each read builds a level,

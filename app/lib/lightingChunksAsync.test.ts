@@ -95,6 +95,25 @@ describe("off-thread chunk refresh", () => {
     expect(lighting.staleChunks).toBe(0);
   });
 
+  it("counts a chunk stale in a window only while that window covers it", async () => {
+    const baker = new ManualBaker();
+    const lighting = new ChunkedLighting(tilesById, omit);
+    lighting.setBaker(baker);
+    const elsewhere = inBand({ x0: 200, y0: 200, x1: 216, y1: 216 });
+
+    lighting.syncTo(null, base);
+    lighting.packedGridFor(base, inBand(WINDOW));
+    await baker.flush();
+    lighting.packedGridFor(base, elsewhere);
+    await baker.flush();
+
+    const lit = putTorch(base);
+    baker.map = lit;
+    lighting.syncTo(base, lit);
+    expect(lighting.staleChunksIn(inBand(WINDOW))).toBeGreaterThan(0);
+    expect(lighting.staleChunksIn(elsewhere)).toBe(0);
+  });
+
   it("matches what the synchronous path would have produced", async () => {
     const baker = new ManualBaker();
     const async_ = new ChunkedLighting(tilesById, omit);
