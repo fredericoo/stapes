@@ -306,6 +306,7 @@ import {
 import { mintItemIds } from "./itemIds";
 import { dodgeAway, outranksSwing, swingToward, type StrikeState } from "./strike";
 import { planDistanceSq, type ReachPoint } from "./distance";
+import { type BodyBoard, nearestOnTiles, TileColumns } from "./nearestBody";
 import {
   ageEffects,
   ageFlights,
@@ -870,6 +871,23 @@ export class GameSession implements PlaySession {
   private readonly residentHomes = new Map<string, Coord>();
   private readonly walkingInto = new Map<string, ActorRuntime[]>();
   private tileIndex: Map<string, string[]> | null = null;
+  private columns: {
+    index: Map<string, string[]>;
+    byTile: Map<string, TileColumns>;
+    before: Map<string, TileColumns> | null;
+  } | null = null;
+  private readonly bodyBoard: BodyBoard = {
+    chunkAt: (levelKey, chunkKey) => this.map.levels[levelKey]?.[chunkKey],
+    writesInPlace: chunkWritesInPlace,
+    locate: (id) => {
+      const actor = this.actors.get(id);
+      const loc = actor ? this.tryLocate(actor) : null;
+      const memo = actor?.memo;
+      if (!loc || !memo) return null;
+      const { levelKey, chunkKey, chunk } = memo;
+      return { x: loc.x, y: loc.y, tileId: loc.placed.tileId, levelKey, chunkKey, chunk };
+    },
+  };
   private readonly spawnAt: Coord & { stackIndex: number };
   private readonly equipmentChanged = new Set<string>();
   readonly depots: DepotLedger;
@@ -4356,39 +4374,35 @@ export class GameSession implements PlaySession {
   }
 
   private nearestOnTile(selfId: string, from: Coord, tileIds: readonly string[]): string | null {
-    let best: string | null = null;
-    let bestSteps = Infinity;
-    for (const tileId of tileIds) {
-      for (const id of this.actorsOnTile(tileId)) {
-        if (id === selfId) continue;
-        const actor = this.actors.get(id);
-        if (!actor || actor.hidden) continue;
-        const loc = this.tryLocate(actor);
-        /**
-         * The tile is re-checked against the board rather than taken from
-         * the index. Positions are read live here — the index only says who
-         * is worth asking about — so an entry that has gone stale costs a
-         * lookup instead of naming the wrong body.
-         */
-        if (!loc || loc.placed.tileId !== tileId) continue;
-        const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
-        if (steps < bestSteps) {
-          bestSteps = steps;
-          best = actor.id;
-        }
-      }
-    }
-    return best;
+    const accept = (id: string) => {
+      if (id === selfId) return false;
+      const actor = this.actors.get(id);
+      return actor !== undefined && !actor.hidden;
+    };
+    return nearestOnTiles(tileIds, (tileId) => this.columnsOnTile(tileId), from, accept);
   }
 
   /**
-   * Insertion order is inherited from `actors` and is load-bearing: two
-   * bodies exactly as far away must resolve the same way on every run, or a
-   * seeded world stops being reproducible.
+   * Each tile's list is in the index's order, which is inherited from `actors`
+   * and is load-bearing: two bodies exactly as far away must resolve the same
+   * way on every run, or a seeded world stops being reproducible. Whether a
+   * body still exists or is hidden can change without the board changing, so
+   * `nearestOnTile` asks that live rather than `TileColumns`.
    */
-  private actorsOnTile(tileId: string): readonly string[] {
-    this.tileIndex ??= this.buildTileIndex();
-    return this.tileIndex.get(tileId) ?? NO_ACTORS;
+  private columnsOnTile(tileId: string): TileColumns {
+    const index = (this.tileIndex ??= this.buildTileIndex());
+    if (this.columns?.index !== index) {
+      this.columns = { index, byTile: new Map(), before: this.columns?.byTile ?? null };
+    }
+    let columns = this.columns.byTile.get(tileId);
+    if (!columns) {
+      const ids = index.get(tileId) ?? NO_ACTORS;
+      const before = this.columns.before?.get(tileId);
+      columns = before ? before.relisted(ids) : TileColumns.listing(tileId, ids);
+      this.columns.byTile.set(tileId, columns);
+    }
+    columns.refresh(this.map, this.bodyBoard);
+    return columns;
   }
 
   private nearestThing(

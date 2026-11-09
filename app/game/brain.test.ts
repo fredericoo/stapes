@@ -671,6 +671,38 @@ describe("chasing round an obstacle", () => {
     });
   }
 
+  const WEST: Coord = { x: -4, y: 0, z: 0 };
+  const SOUTH_EAST: Coord = { x: 2, y: 2, z: 0 };
+
+  function hunterBetween(arrivals: readonly Coord[]): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "hunter");
+    const session = new GameSession(map, hunters, {
+      actorIds: [],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+    arrivals.forEach((at, index) => session.spawn(`player-${index}`, { at }));
+    return session;
+  }
+
+  function hunterCell(session: GameSession): Coord {
+    const hunter = session.actorSnapshots().find((a) => a.tileId === "hunter")!;
+    return { x: hunter.x, y: hunter.y, z: hunter.z };
+  }
+
+  it("goes after whoever arrived first when two are as near as each other", () => {
+    const westFirst = hunterBetween([WEST, SOUTH_EAST]);
+    const southEastFirst = hunterBetween([SOUTH_EAST, WEST]);
+
+    advance(westFirst, BRAIN_TICK_MS * 3);
+    advance(southEastFirst, BRAIN_TICK_MS * 3);
+
+    expect(hunterCell(westFirst).x).toBeLessThan(0);
+    const other = hunterCell(southEastFirst);
+    expect(other.x + other.y).toBeGreaterThan(0);
+  });
+
   function between(session: GameSession): number {
     const actors = session.actorSnapshots();
     const hunter = actors.find((a) => a.tileId !== "player")!;
