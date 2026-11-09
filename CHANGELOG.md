@@ -1,5 +1,25 @@
 # the-last-stones
 
+## 0.15.0
+
+### Minor Changes
+
+- The island reaches further north: past the cyclops hut, a desert stretches to the sea, with the odd dune, cactus, dead tree and bleached bone across the sand. Fire slimes and a few wolves roam it, and skeletons guard a half-buried ruin at its heart.
+- Lord Corvin, a wealthy and dangerous mage, now lives in the old alderman's hall with his wife Ysolde. He will fight anyone who attacks her, and at night they both go up to bed. The hall has bedrooms upstairs and a cellar where he keeps a book he writes in every night. Look out for rings of flowers in the wilds, too.
+- Slimes are a little weaker and rated lower. A wounded slime now splits into two small slimes, and the split uses up what was left of it: small slimes have far less health but come at you together. Slimes spot you from further away, follow you further, and back off when you shoot them from somewhere they cannot reach. Skeletons have much less health, and their rating now shows how dangerous they are, as does the rating of any creature born much tougher than you.
+- The wilds now get harder the further you walk from the city. Rats and a few nature slimes wait just outside the gates, water slimes live on the beaches, snakes start further out, and wolves keep to the island's far edges.
+- A body flashes white for an instant when a blow or bolt wounds it, so you can feel each hit land.
+
+### Patch Changes
+
+- The death screen no longer stutters, and the world appears without a pause when you are reborn, rejoin or reconnect.
+- Joining the world and coming back after a death download far less, so both are quicker on a slow connection.
+- The world no longer hitches every couple of seconds while people pick berries and other things that grow back, and it rests properly when nobody is around, so the game should feel smoother when it gets busy.
+- The world takes about half as much work to draw each frame, so the game runs more smoothly on slower computers and phones.
+- The world no longer stutters for a moment each time a berry, a piece of meat or a cheese goes stale or rots away.
+- The server spends less time on every step taken in the world, so a crowded server keeps up better.
+- Walking through a busy area no longer stutters: other players and creatures moving nearby cost far less to draw, and new ground coming into view is prepared over several frames instead of all at once.
+
 ## 0.14.2
 
 ### Patch Changes
