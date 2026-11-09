@@ -285,6 +285,22 @@ times before.
 
 The human will remember all of it, and can walk out.
 
+### The wisps
+
+Wisps are small creatures of a single element — fire, water or growth — that
+come out only at night and are gone by morning. A wisp always appears in the
+same place, and that place is marked by **a ring of flowers** that is there by
+day as well. Anyone who knows what the ring means can find a wisp before dark.
+
+A wisp is frail at arm's length and dangerous at a distance. A blade kills one
+quickly, because it has almost nothing to take a blow with. Its spells are what
+kill people, and they hurt most the people who cannot cast. When a wisp dies it
+leaves **arcane stones** behind.
+
+Nobody above Holleg can inscribe a stone, so every stone in the world above came
+up from the buried city or came off a wisp. That is why the ring of flowers is
+worth money, and why the people who know about it do not say so.
+
 ## Open questions, deliberately unanswered
 
 Nothing above is a mystery. What is unknown is not the past but the present: the

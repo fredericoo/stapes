@@ -11249,6 +11249,16 @@ stream at (77, 21), the tide wisp at (76, -34) and the moss wisp at (69, -61).
 They were first placed together, and three casting at one player at once is
 three times the damage the tuning below was measured for.
 
+**Every wisp's placement has a ring of flowers around it.** The lore says a
+flower ring marks where a wisp appears, and it is the only sign of one by day.
+Each ring is twelve flower placements in `data/map.json` on the cells between
+1.5 and 2.5 cells from the wisp. Flowers were cleared from the rest of the
+area within 3.2 cells, and trees and bushes from the ring itself, so the ring
+does not blend into the scattered flowers around it. Each ring is red or
+yellow, whichever is rarer near that spot. Nothing generates the rings: a wisp
+moved or added in the editor needs its ring painted by hand, or the lore stops
+being true there.
+
 **The art is a glow on a translucent sheet.** `bun run generate:wisps` draws a
 near-white core that darkens through the element's palette ramp and loses
 opacity with distance, eight frames a cycle, with a pulse and a 1.2-pixel bob a
