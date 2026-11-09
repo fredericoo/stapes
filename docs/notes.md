@@ -16515,3 +16515,45 @@ agent without a browser reads them.
 
 A world stepped by hand (`manualTicks`) calls `tick` without `tickSafely`, so
 its laps are ignored and it records nothing.
+
+### A tab counts the time between its frames, and reports every five minutes
+
+`FrameProfiler` times the script inside a frame. A frame that the browser
+drew late, or that the GPU took long over, costs the player the same and shows
+in none of those numbers. `FrameMeter` (`app/render/frameMeter.ts`) instead
+counts the interval from one `requestAnimationFrame` callback to the next, in
+eight buckets whose edges (`FRAME_BUCKET_EDGES_MS`) sit between the intervals
+of 120, 90, 60, 45, 30 and 20 frames a second. A display's own rate fills one
+bucket, and a missed frame lands in a later one, so a 120Hz laptop and a 60Hz
+phone can be compared by the share of frames past their own bucket. Counts
+rather than samples, so the reports of many tabs add up.
+
+An interval of a second or more is counted as a gap and left out: the tab was
+in the background, where `requestAnimationFrame` does not run.
+
+`startFrameReports` (`app/net/frameReporter.ts`) sends the counts every five
+minutes and when the page is hidden, with `navigator.sendBeacon`, to
+`POST /api/perf/frames`. It goes over HTTP and not the game socket, so it is
+outside `PROTOCOL_VERSION` and nothing about it runs in a tick. A report carries:
+
+- a random id made when the page loaded, and the build the tab is running
+  (`import.meta.env.BUILD_ID`). A deploy restarts the server and tabs reconnect
+  without reloading, so the server's active build is not the tab's;
+- the canvas size, whether lighting is on, and the position rounded down to 16
+  cells, which is enough to find a slow part of the map;
+- the mean and worst of each `FrameProfiler` phase;
+- the device: user agent, platform, screen, viewport, pixel ratio, cores,
+  memory and the WebGL renderer, from `browserContext`.
+
+Only `/online` reports (`reportFrames` on `WorldPage`); `/admin/play` runs its
+world in a worker and would report the administrator's laptop.
+
+The server (`server/frameLog.ts`) checks the shape with valibot, refuses a
+report over 4KB or one from an account that sent another in the last thirty
+seconds, and stores the rest as JSON in `frame_report` for thirty days. The
+sender has to be signed in, which every player is, but the row does not hold
+the account. `GET /api/perf/frames?since=<ms>` reads them back under the same
+rule as `/api/perf/ticks`.
+
+Headless Chromium draws with SwiftShader, so a report from a Playwright run
+shows frames of 100ms and more. Its `gpu` field names SwiftShader.

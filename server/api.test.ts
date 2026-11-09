@@ -22,6 +22,7 @@ import { World, type PlayerEntry } from "./world";
 import type { CharacterSheet } from "./GameServer";
 import type { GameSession } from "../app/game/GameSession";
 import type { TickSample } from "./tickLog";
+import type { FrameReport } from "../app/net/frameReport";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -696,5 +697,67 @@ describe("the tick log", () => {
     expect((await ticks({ cookie })).status).toBe(200);
     expect((await ticks({ cookie: guest })).status).toBe(404);
     expect((await ticks({})).status).toBe(404);
+  });
+});
+
+describe("frame reports", () => {
+  const report: FrameReport = {
+    tab: "tab-1",
+    build: "abc123",
+    spanMs: 300_000,
+    frames: 17_000,
+    buckets: [0, 0, 16_900, 60, 30, 8, 2, 0],
+    worstMs: 71,
+    gaps: 1,
+    phases: { draw: { mean: 2.1, worst: 9.4 } },
+    canvas: "1280x720",
+    lighting: true,
+    area: { x: 16, y: 32, z: 0 },
+    device: {
+      userAgent: "test",
+      platform: "Linux",
+      mobile: false,
+      screen: "1920x1080",
+      viewport: "1280x720",
+      devicePixelRatio: 2,
+      cores: 8,
+      memoryGb: 8,
+      gpu: "ANGLE (test)",
+    },
+  };
+
+  async function stored(): Promise<unknown[]> {
+    const response = await api.handle(
+      new Request("http://localhost/api/perf/frames?since=0", { headers: { cookie } }),
+    );
+    return ((await response.json()) as { reports: unknown[] }).reports;
+  }
+
+  it("keeps what a signed-in tab sent, without the account that sent it", async () => {
+    const guest = await startGuest("Ada Lark");
+
+    expect((await call("/perf/frames", report, guest)).status).toBe(200);
+
+    const [kept] = await stored();
+    expect(kept).toEqual({ ...report, at: expect.any(Number) });
+  });
+
+  it("refuses a second report from the same account straight after the first", async () => {
+    const guest = await startGuest("Ada Lark");
+    await call("/perf/frames", report, guest);
+
+    expect((await call("/perf/frames", report, guest)).status).toBe(429);
+    expect(await stored()).toHaveLength(1);
+  });
+
+  it("stores nothing from a signed-out tab, or that is not a report", async () => {
+    const guest = await startGuest("Ada Lark");
+
+    expect((await call("/perf/frames", report)).status).toBe(401);
+    expect((await call("/perf/frames", { ...report, buckets: [1, 2] }, guest)).status).toBe(400);
+    expect((await call("/perf/frames", { ...report, note: "x".repeat(5000) }, guest)).status).toBe(
+      400,
+    );
+    expect(await stored()).toEqual([]);
   });
 });

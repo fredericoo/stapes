@@ -39,8 +39,18 @@ function releaseDates(): Record<string, string> {
   }
 }
 
+/** `deploy.yml` uploads the client under the commit it was built from, so this is that build's id. */
+function buildId(): string | null {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
+
 export default defineConfig({
   define: {
+    "import.meta.env.BUILD_ID": JSON.stringify(buildId() ?? undefined),
     "import.meta.env.RELEASE_DATES": JSON.stringify(JSON.stringify(releaseDates())),
   },
   server: {

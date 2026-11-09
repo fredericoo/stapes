@@ -17,6 +17,7 @@ import {
   MAX_FEEDBACK_CONTEXT_BYTES,
   MAX_FEEDBACK_LENGTH,
 } from "./feedback";
+import { MAX_FRAME_REPORT_BYTES, readFrameReport } from "./frameLog";
 
 const FEEDBACK_LIST_LIMIT = 500;
 
@@ -184,6 +185,23 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
           context: t.Optional(t.Record(t.String(), t.Unknown())),
         }),
       },
+    )
+    .post(
+      "/perf/frames",
+      async ({ body, request, status }) => {
+        const viewer = await signedIn(request);
+        if (!viewer) return status(401, "Sign in first");
+        if (JSON.stringify(body).length > MAX_FRAME_REPORT_BYTES) {
+          return status(400, "That report is too large.");
+        }
+        const report = readFrameReport(body);
+        if (!report) return status(400, "That is not a frame report.");
+        const now = Date.now();
+        if (world.frameLog.tooSoon(viewer.id, now)) return status(429, "Too soon.");
+        await world.frameLog.add(viewer.id, report, now);
+        return { ok: true as const };
+      },
+      { body: t.Unknown() },
     )
     .get("/feedback", async ({ request, status }) => {
       if (!(await admin(request))) return status(404, "Not found");
@@ -361,6 +379,20 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       {
         query: t.Object({ since: t.Optional(t.String()) }),
         detail: { summary: "Tick timings, one sample for each minute the world ticked" },
+      },
+    )
+    .get(
+      "/perf/frames",
+      async ({ headers, query, request, status }) => {
+        const allowed = (await authorized(headers.authorization, config)) || (await admin(request));
+        if (!allowed) return status(404, "Not found");
+        const since = Number(query.since ?? Date.now() - PERF_DEFAULT_SPAN_MS);
+        if (!Number.isFinite(since)) return status(400, "since is a time in milliseconds");
+        return { reports: await world.frameLog.since(since) };
+      },
+      {
+        query: t.Object({ since: t.Optional(t.String()) }),
+        detail: { summary: "Frame timings as each tab reported them" },
       },
     )
     .post("/backup", async ({ headers, status }) => {

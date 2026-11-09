@@ -5,6 +5,8 @@ import { hasUnseenRelease, loadSeenVersion, saveSeenVersion } from "./changelogS
 import { InvisibleToggle } from "./InvisibleToggle";
 import { DeathScreen } from "./DeathScreen";
 import { FeedbackButton } from "./FeedbackButton";
+import { FrameMeter } from "../render/frameMeter";
+import { startFrameReports } from "../net/frameReporter";
 import { FrameStatsReadout } from "./FrameStatsReadout";
 import { GameViewport } from "./GameViewport";
 import { InkDocument } from "./InkDocument";
@@ -82,6 +84,7 @@ export function WorldPage({
   menuAttention = false,
   admin = false,
   lightingToggle = false,
+  reportFrames = false,
   onLeave,
   onRefused,
 }: {
@@ -94,6 +97,7 @@ export function WorldPage({
   menuAttention?: boolean;
   admin?: boolean;
   lightingToggle?: boolean;
+  reportFrames?: boolean;
   onLeave?: () => void;
   onRefused?: () => void;
 }) {
@@ -156,6 +160,7 @@ export function WorldPage({
   const paintedRef = useRef(painted);
   paintedRef.current = painted;
   const stapesLog = useMemo(() => new StapesEventLog(), []);
+  const frameMeter = useMemo(() => new FrameMeter(), []);
   const [players, setPlayers] = useState<number | null>(null);
   const [hidden, setHidden] = useState(false);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
@@ -346,6 +351,7 @@ export function WorldPage({
         renderer.setDebugView(debugViewRequested(window.location.search));
         renderer.setMinutesOfDay(remote.minutesOfDay());
         renderer.setOnStats(setStats);
+        renderer.setFrameMeter(frameMeter);
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
         renderer.setOnConversation(setConversation);
@@ -444,7 +450,20 @@ export function WorldPage({
       if (stopRef.current === stop) stopRef.current = null;
       stop();
     };
-  }, [tiles, tilesets, link, assetsReady, stapesLog]);
+  }, [tiles, tilesets, link, assetsReady, stapesLog, frameMeter]);
+
+  useEffect(() => {
+    if (!reportFrames) return;
+    return startFrameReports(frameMeter, () => {
+      const canvas = canvasRef.current;
+      const self = sessionRef.current?.getSnapshot().self;
+      return {
+        canvas: canvas && { width: canvas.width, height: canvas.height },
+        lighting: lightingRef.current,
+        position: self ? { x: self.x, y: self.y, z: self.z } : null,
+      };
+    });
+  }, [reportFrames, frameMeter]);
 
   const statusChip = (
     <span

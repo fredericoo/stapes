@@ -22,4 +22,4 @@
 - `release.yml` has no concurrency group on purpose. Only the run for the release PR's merge commit has no pending changesets, so it is the only one that tags and deploys; a group would cancel it while queued behind two newer pushes, and the version would stay untagged.
 - If a release tagged but did not deploy (a failed or cancelled production job), a re-run finds the tag and publishes nothing. Deploy it by hand: `gh workflow run deploy.yml --ref v<version> -f environment=production`. The same command with an older tag rolls production back.
 - Production gets its pre-deploy snapshot only on a release now. Staging gets none; see the comment in `deploy.yml`.
-
+- `vite.config.ts` defines `import.meta.env.BUILD_ID` as the commit the client was built from, and `deploy.yml` uploads that client under `github.sha`. A frame report names its build with the first, and they are the same commit only because the build job builds the checkout it uploads.
