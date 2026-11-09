@@ -53957,7 +53957,12 @@
               {
                 "action": "step_toward",
                 "of": {
-                  "type": "home"
+                  "type": "thing",
+                  "data": {
+                    "tileIds": [
+                      "bed"
+                    ]
+                  }
                 }
               },
               {
@@ -54097,6 +54102,24 @@
                 "action": "hold"
               }
             ]
+          },
+          "climbing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "thing",
+                  "data": {
+                    "tileIds": [
+                      "stone-stairs"
+                    ]
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -54105,6 +54128,7 @@
               "standing",
               "pacing",
               "returning",
+              "climbing",
               "retiring",
               "snacking",
               "listening"
@@ -54163,6 +54187,7 @@
               "standing",
               "pacing",
               "returning",
+              "climbing",
               "retiring",
               "snacking"
             ],
@@ -54233,6 +54258,45 @@
               "cond": "time_of_day",
               "fromHour": 21,
               "toHour": 6
+            },
+            "to": "climbing"
+          },
+          {
+            "from": "climbing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 21,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "standing"
+          },
+          {
+            "from": "climbing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "stone-stairs"
+                  ]
+                }
+              },
+              "cells": 1
+            },
+            "to": "retiring"
+          },
+          {
+            "from": "climbing",
+            "if": {
+              "cond": "after",
+              "ms": 20000
             },
             "to": "retiring"
           },
@@ -54448,7 +54512,7 @@
           }
         },
         "sight": {
-          "up": 0,
+          "up": 1,
           "down": 0
         },
         "kit": [
@@ -55103,7 +55167,30 @@
               {
                 "action": "step_toward",
                 "of": {
-                  "type": "home"
+                  "type": "thing",
+                  "data": {
+                    "tileIds": [
+                      "bed"
+                    ]
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "climbing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "thing",
+                  "data": {
+                    "tileIds": [
+                      "stone-stairs"
+                    ]
+                  }
                 }
               },
               {
@@ -55136,6 +55223,45 @@
               "cond": "time_of_day",
               "fromHour": 21,
               "toHour": 6
+            },
+            "to": "climbing"
+          },
+          {
+            "from": "climbing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 21,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "tidying"
+          },
+          {
+            "from": "climbing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "stone-stairs"
+                  ]
+                }
+              },
+              "cells": 1
+            },
+            "to": "resting"
+          },
+          {
+            "from": "climbing",
+            "if": {
+              "cond": "after",
+              "ms": 20000
             },
             "to": "resting"
           },
@@ -55319,7 +55445,7 @@
           }
         },
         "sight": {
-          "up": 0,
+          "up": 1,
           "down": 0
         },
         "kit": [

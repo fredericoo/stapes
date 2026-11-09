@@ -1515,14 +1515,29 @@ cause of death.
   `other_attacked` of `nearest(lady-ysolde)` within 12 cells, which binds the
   attacker as his `threat` and enters `dueling`, from every state but a fight.
   See *`other_attacked` is a blow at somebody else*.
-- **Corvin and Ysolde have leashes of three cells, set by where the stairs
-  are.** A wandering brain will step into a stairwell: the stair two units
-  down is inside the climb band, so `stepLeavesGround` does not count it as a
-  drop. The hall has a staircase up at its east end and one down to the cellar
-  at its west end. Corvin's home at (1, -27) and Ysolde's at (-1, -27) are more
-  than three cells from the cell in front of each staircase. Moving either of
-  them, or widening a leash, can walk them off their level, and with `sight`
-  0 up and down they cannot find their way home from there.
+- **At night both walk up to the double bed in two legs, and the second leg
+  only works because of the first.** `climbing` steps toward
+  `thing(stone-stairs)` until it is within a cell; `retiring` (Corvin) and
+  `resting` (Ysolde) then step toward `thing(bed)`. A single leg is refused
+  from the west end of the hall: a route may be at most `PATH_DETOUR_SLACK`
+  (16) steps longer than the plan distance, and the trip east to the stairs
+  and back west upstairs is longer than that from where Ysolde spends her day.
+  Both have `sight.up` 1, because `nearestThing` searches only the levels a
+  body can see. The cellar stairs and Corvin's cellar bed are below them, so
+  neither is picked.
+- **The double bed stands out from the wall, at (0..1, -30..-29) on L1.** A
+  `thing` goal arrives on a square one step from the bed square the search
+  picked, on the same level. A bed square against a wall can have one free
+  square beside it or none; whoever arrives first takes it and the other body
+  gives up. Away from the wall every bed square has free floor beside it, and
+  none of that floor is (3, -31) or (3, -30), the way off the stair landing,
+  so a body standing by the bed never blocks the stairs.
+- **Corvin and Ysolde have leashes of three cells.** A wandering brain steps
+  into a stairwell, because a stair two units down is inside the climb band
+  and `stepLeavesGround` does not count it as a drop. Their homes, (1, -27)
+  and (-1, -27), are more than three steps from the square in front of either
+  staircase. A body off its home level still routes home, but `in_range home`
+  never holds there, since `within` checks sight levels first.
 
 ### A trade is `app/game/trade.ts`, and a craft is a trade with a roll in front
 
