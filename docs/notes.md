@@ -7953,6 +7953,28 @@ the frame is drawn from for 320ms, by up to 6 world pixels.
   is built. The shake carries nothing the health bar and the red number do not
   also show.
 
+## A wound flashes the body white for four frames
+
+`app/render/hitFlash.ts` decides which bodies flash; `GameRenderer.withHitFlash`
+puts them in the frame's sprite tints as a full white tint (`strength` 1,
+`keepLuma` 0), which takes the place of any status tint on that body.
+
+- **Counted in drawn frames, not milliseconds.** A frame at 60Hz is 16.7ms, so
+  a flash shorter than that is drawn in one frame or none depending on where
+  the blow lands in it. Four frames (about 67ms at 60Hz) is always visible and
+  still too short to read as a status; two read as too faint a hit. On a slow
+  frame rate it lasts longer in milliseconds.
+- **The source is the damage receipts**, as for the shake, and only a `hit`
+  with an amount above zero flashes: a miss, a block or a heal does not. Each
+  receipt flashes once, tracked by id, and not when it is already older than
+  `HIT_FLASH_STALE_MS` at first sight, so reconnecting into a fight does not
+  flash every body with a number still rising.
+- **It is lit like the sprite.** The tint mixes into the texture colour before
+  the light is applied, so in a dark room the flash is as bright as the body's
+  light allows, not pure white.
+- **It costs one material per texture and level**, cached by `materialFor`
+  like any status tint, sharing the world shader program.
+
 ## A clock counted in ticks runs out on its last tick
 
 `TICK_MS` is `1000 / 30`, which a double cannot hold: it is

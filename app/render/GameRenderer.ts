@@ -115,6 +115,7 @@ import { heldWeaponReaches, rangedWeaponReaches, reachPointAt } from "../game/co
 import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
+import { HitFlash, HIT_FLASH_TINT } from "./hitFlash";
 import { NoticeQueue, NotificationLayer } from "./notifications";
 import { healthBarColor, healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
@@ -337,6 +338,7 @@ export class GameRenderer {
   private damageLayer: DamageNumberLayer | null = null;
   private readonly shake = new ScreenShake();
   private readonly shakenBy = new Set<string>();
+  private readonly hitFlash = new HitFlash();
   private readonly shakeEnabled =
     typeof window === "undefined" ||
     typeof window.matchMedia !== "function" ||
@@ -2029,7 +2031,7 @@ export class GameRenderer {
           : undefined,
       spriteStates: spriteStatesFor(seen.actors),
       emitterOverrides: this.withFlightLights(snap, this.emitterOverridesFor(seen)),
-      spriteTints: vfx.tints,
+      spriteTints: this.withHitFlash(snap, seen.actors, vfx.tints),
       wading: wadingFor(worn.map, seen.actors, worn.tilesById),
       particleEmitters: this.withFlightEffects(snap, vfx.emitters),
       roofCut: cut,
@@ -2325,6 +2327,25 @@ export class GameRenderer {
     for (const id of this.damageAnchors.keys()) {
       if (!live.has(id)) this.damageAnchors.delete(id);
     }
+  }
+
+  /** A flash outranks any status tint on the same body for its few frames. */
+  private withHitFlash(
+    snap: GameSnapshot,
+    actors: GameSnapshot["actors"],
+    tints: ReadonlyMap<string, StatusTint> | undefined,
+  ): ReadonlyMap<string, StatusTint> | undefined {
+    const flashing = this.hitFlash.frame(snap.damage);
+    if (flashing.size === 0) return tints;
+    const out = new Map(tints);
+    for (const actor of actors) {
+      if (!flashing.has(actor.id)) continue;
+      out.set(
+        tileInstanceKey({ x: actor.x, y: actor.y, z: actor.z, stackIndex: actor.stackIndex }),
+        HIT_FLASH_TINT,
+      );
+    }
+    return out;
   }
 
   private statusVfxFor(
