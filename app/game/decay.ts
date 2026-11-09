@@ -4,8 +4,16 @@ import { isItem, resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { countOf, peelOne, stackWithItem, stow, withCount } from "../lib/piles";
 import type { StackEdit } from "../lib/mapData";
-import { getStack, listCoords, presentLevels, replaceStack, setStacks } from "../lib/mapData";
+import {
+  getStack,
+  listCoords,
+  presentLevels,
+  replaceStack,
+  setStacks,
+  tileIdsInChunk,
+} from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
+import { levelKey, parseCoordKey } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 import { carriedInstances, EQUIPMENT_SLOTS, type Equipment } from "./equipment";
 import { type SlotKind, slotAccepts } from "./itemMoves";
@@ -499,16 +507,28 @@ function decayedBoard(
 ): DecayResult {
   const edits: StackEdit[] = [];
   const changed: Coord[] = [];
+  const dueTileIds = new Set(due.values());
   for (const z of presentLevels(map)) {
-    for (const { x, y, stack } of listCoords(map, z)) {
-      const next = decayedItemsInStack(stack, due, tilesById, mintId);
-      if (!next) continue;
-      if (!canReplaceStack(map, x, y, z, next, tilesById).ok) continue;
-      edits.push({ x, y, z, stack: next });
-      changed.push({ x, y, z });
+    const level = map.levels[levelKey(z)]!;
+    for (const chk in level) {
+      const chunk = level[chk]!;
+      if (!holdsAny(tileIdsInChunk(chunk), dueTileIds)) continue;
+      for (const key in chunk) {
+        const next = decayedItemsInStack(chunk[key]!, due, tilesById, mintId);
+        if (!next) continue;
+        const { x, y } = parseCoordKey(key);
+        if (!canReplaceStack(map, x, y, z, next, tilesById).ok) continue;
+        edits.push({ x, y, z, stack: next });
+        changed.push({ x, y, z });
+      }
     }
   }
   return { map: setStacks(map, edits), changed };
+}
+
+function holdsAny(present: ReadonlySet<string>, wanted: ReadonlySet<string>): boolean {
+  for (const tileId of wanted) if (present.has(tileId)) return true;
+  return false;
 }
 
 export type Kit = { id: string; equipment: Equipment };

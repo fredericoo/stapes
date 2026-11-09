@@ -87,13 +87,35 @@ export function stackOnLevel(
 
 const tileIdsByChunk = new WeakMap<ChunkCells, ReadonlySet<string>>();
 
+/**
+ * Every tile id placed in the chunk or held in a placement's `contents`. A
+ * chunk copied by `setStacks` inherits its source's set plus what was written,
+ * so the set can list a tile that has since left but never misses one.
+ */
 export function tileIdsInChunk(chunk: ChunkCells): ReadonlySet<string> {
   const cached = tileIdsByChunk.get(chunk);
   if (cached) return cached;
   const found = new Set<string>();
-  for (const key in chunk) for (const placed of chunk[key]!) found.add(placed.tileId);
+  for (const key in chunk) {
+    for (const placed of chunk[key]!) {
+      found.add(placed.tileId);
+      if (placed.contents) addHeldTileIds(found, placed.contents);
+    }
+  }
   tileIdsByChunk.set(chunk, found);
   return found;
+}
+
+function addHeldTileIds(into: Set<string>, contents: readonly ItemInstance[]) {
+  for (const held of contents) {
+    into.add(held.tileId);
+    if (held.contents) addHeldTileIds(into, held.contents);
+  }
+}
+
+function listsEveryTileId(ids: ReadonlySet<string>, placed: PlacedTile | ItemInstance): boolean {
+  if (!ids.has(placed.tileId)) return false;
+  return placed.contents?.every((held) => listsEveryTileId(ids, held)) ?? true;
 }
 
 const chunkKeys = new Map<number, string>();
@@ -750,9 +772,10 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[], draft?: Map
     let next: Set<string> | null = null;
     for (const stack of written) {
       for (const placed of stack) {
-        if ((next ?? ids).has(placed.tileId)) continue;
+        if (listsEveryTileId(next ?? ids, placed)) continue;
         next ??= new Set(ids);
         next.add(placed.tileId);
+        if (placed.contents) addHeldTileIds(next, placed.contents);
       }
     }
     tileIdsByChunk.set(chunk, next ?? ids);

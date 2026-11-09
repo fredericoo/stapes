@@ -12629,6 +12629,17 @@ board. The cost is charged per *tick that has a thing due*, never per thing —
 `takeDue` hands over everything ripe at that instant — and blood, the population
 that actually runs to hundreds, is anonymous and never reaches this pass.
 
+The board walk reads only the chunks whose `tileIdsInChunk` holds one of the
+due tile ids. That set is worked out from what the chunk holds, placements and
+what is in their `contents`, and a chunk `setStacks` copies or writes in place
+keeps its set plus the tile ids written, so it can list a berry that has left
+but never misses one that arrived. Nothing remembers where a thing went. A thing
+turns only when its tile id is the one its entry names, so a chunk without that
+id has nothing to turn, and the cells that are read are read in the same order,
+so ids are minted in the same order. Reading every cell of the shipped map made
+a tick with one berry due take about 53ms; reading only its chunk takes about
+3ms, against under 1ms for a tick with nothing due.
+
 Three refusals, all of them "it stays what it is, and is armed again for free the
 next time its holder is touched":
 
