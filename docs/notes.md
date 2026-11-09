@@ -4142,8 +4142,9 @@ one part of what is left is most of it:
 - **Garbage collection pauses the tick for about 9ms, sometimes 19ms**, about
   twice a second at a thousand players.
 - **A `hello` is about 16ms and 2.4MB.** One goes out on every join and
-  rebirth. `spawn` still sweeps the board once, to find a body a checkpoint
-  kept, before it places a new one.
+  rebirth. `spawn` sweeps the board for a kept body only for an owner the
+  board started with; see "The slowest ticks were deaths, and a body nobody
+  had" below.
 - **Memory.** At a thousand walking players, the branch point and the end of
   this work taken in turn: resident memory averaged 520–600MB before and
   550–625MB after, about 30MB more. The live heap after a full collection
@@ -4156,6 +4157,42 @@ one part of what is left is most of it:
   container at 512MB by default, which a thousand players exceed before this
   work and after, so a world meant to hold a thousand needs `MEM_LIMIT`
   raised.
+
+### The slowest ticks were deaths, and a body nobody had
+
+At a thousand players the slowest 1% of ticks took about 30ms against 11ms
+for the rest. Timing every phase of every tick showed what they had in
+common: `landArrivedBlows` took about 7ms against 0.15ms, because somebody
+died. Spawns cost the same in slow ticks as in the rest.
+
+**A killing hit swept the board for the body it had just removed.**
+`landBolt` and `landSwing` ask the target's hp after the damage, to decide
+whether its statuses still land. `kill` has already deleted the actor and
+taken its body off the board, so `hpOf` reached `tryLocate`, which missed at
+the last-seen cell and nearby, and then ran `findActorAnywhere` over every
+chunk, twice (`handOf` and `bodyOf`). `hpAfterHit` now answers 0 for an actor
+no longer in `actors`.
+
+**`spawn` swept the board on every join and rebirth for a body a checkpoint
+kept.** That was 3.2% of CPU, run on the event loop between ticks, and it
+almost never found anything. Only the board a session starts from can hold a
+body without an actor: every body placed later gets its actor at once
+(`spawn`, `addResident`, summoning), and `kill`, `despawn` and
+`reapAbsentActors` take a body off the board with its actor. `claimKeptBody`
+reads the owners without an actor once, on the first spawn, and sweeps only
+when one of them comes back. A new way of putting an owned body on the board
+without adding its actor would break this, and the body would be
+duplicated rather than claimed.
+
+To find a cost like this, wrap the bench's tick so it keeps each phase's time
+per tick, and compare the slowest 1% with the rest. `bun:jsc`'s `heapSize`
+never dropped across a tick, so it cannot show whether a tick collected
+garbage. A CPU profile walked by caller is what named `findActorAnywhere`:
+4% of all samples, from two callers nobody expected.
+
+At a thousand walking players, three runs of each taken in turn against main:
+`findActorAnywhere` went from 3.8–4.2% of samples to none, and the tick's p99
+from 17.3–20.2ms to 16.5–17.0ms.
 
 ### A brain finds the nearest body from a list kept sorted by x
 

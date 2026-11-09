@@ -875,6 +875,7 @@ export class GameSession implements PlaySession {
   private readonly residentHomes = new Map<string, Coord>();
   private readonly walkingInto = new Map<string, ActorRuntime[]>();
   private tileIndex: Map<string, string[]> | null = null;
+  private unclaimedOwners: Set<string> | null = null;
   private columns: {
     index: Map<string, string[]>;
     byTile: Map<string, TileColumns>;
@@ -1158,7 +1159,7 @@ export class GameSession implements PlaySession {
   ) {
     if (this.actors.has(id)) return;
     const { at } = restored;
-    let where: (Coord & { stackIndex: number }) | null = findActorAnywhere(this.map, id);
+    let where: (Coord & { stackIndex: number }) | null = this.claimKeptBody(id);
     if (!where) {
       const cell = at ? findEntryCell(this.map, this.tilesById, at, this.spawnAt) : this.spawnAt;
       const stackIndex = getStack(this.map, cell.x, cell.y, cell.z).length;
@@ -1172,6 +1173,20 @@ export class GameSession implements PlaySession {
     const actor = this.actors.get(id)!;
     const placed = actorStillAt(this.map, id, where);
     if (placed) this.remember(actor, placed);
+  }
+
+  /**
+   * Only the board a session starts from can hold a body nobody is playing:
+   * every body placed later gets its actor at once, and a body leaves the
+   * board with its actor. So the owners without an actor are read once, and
+   * the board is swept for a body only when one of them comes back.
+   */
+  private claimKeptBody(id: string): (Coord & { stackIndex: number }) | null {
+    this.unclaimedOwners ??= new Set(
+      [...listActorOwners(this.map)].filter((owner) => !this.actors.has(owner)),
+    );
+    if (!this.unclaimedOwners.delete(id)) return null;
+    return findActorAnywhere(this.map, id);
   }
 
   actorPosition(id: string): ActorPosition | null {
@@ -2709,7 +2724,7 @@ export class GameSession implements PlaySession {
     }
 
     this.applyDamage(target, outcome.damage, blow.blame);
-    if (outcome.inflicted.length > 0 && (this.hpOf(target) ?? 0) > 0) {
+    if (outcome.inflicted.length > 0 && this.hpAfterHit(target) > 0) {
       for (const grant of outcome.inflicted) {
         this.grantStatus(target, grant, undefined, undefined, {
           ...blow.blame,
@@ -3720,7 +3735,7 @@ export class GameSession implements PlaySession {
       this.applyHealthMove(bolt.move, subject, actor, bolt);
     }
 
-    if ((this.hpOf(subject) ?? 0) > 0) this.afflict(subject, bolt.grants, bolt.cures, bolt);
+    if (this.hpAfterHit(subject) > 0) this.afflict(subject, bolt.grants, bolt.cures, bolt);
     if (bolt.area && centre) this.landArea(centre, bolt.area, bolt);
   }
 
@@ -4096,6 +4111,16 @@ export class GameSession implements PlaySession {
   private ratingOf(actor: ActorRuntime): number | null {
     const body = this.bodyOf(actor);
     return body ? battlerRating(body) : null;
+  }
+
+  /**
+   * A hit that kills has already taken the body off the board and the actor
+   * out of `actors`, and `hpOf` would then sweep the whole board looking for
+   * the body before answering null.
+   */
+  private hpAfterHit(actor: ActorRuntime): number {
+    if (this.actors.get(actor.id) !== actor) return 0;
+    return this.hpOf(actor) ?? 0;
   }
 
   private hpOf(

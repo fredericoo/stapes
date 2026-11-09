@@ -107,12 +107,17 @@ export function adoptAuthoredPlayer(map: MapFile, ownerId: string): MapFile {
   return adoptBodyAt(map, requireSinglePlayer(map), ownerId);
 }
 
+/** Walks the chunk records directly, for the reason `findActorAnywhere` does. */
 export function listActorOwners(map: MapFile): ReadonlySet<string> {
   const owners = new Set<string>();
   for (const z of presentLevels(map)) {
-    for (const { stack } of listCoords(map, z)) {
-      for (const placed of stack) {
-        if (placed.owner) owners.add(placed.owner);
+    const level = map.levels[levelKey(z)];
+    if (!level) continue;
+    for (const chunk of Object.values(level)) {
+      for (const key in chunk) {
+        for (const placed of chunk[key]!) {
+          if (placed.owner) owners.add(placed.owner);
+        }
       }
     }
   }
