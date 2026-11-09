@@ -43,6 +43,7 @@ import {
   chunkAddressKey,
   type MeshWindow,
   parseChunkAddress,
+  MESH_BUILD_NOW_MARGIN,
   visibleChunkKeys,
 } from "./meshWindow";
 import {
@@ -77,6 +78,7 @@ import { countOf } from "../lib/piles";
 import { cutMaskFor } from "./cutMask";
 import type {
   Frame,
+  ChunkCells,
   MapFile,
   Octant,
   PlacedTile,
@@ -203,6 +205,9 @@ type AnimatedInstance = {
 };
 
 const PROJECTILE_STACK_BIAS = 32;
+
+/** A quarter of the 8.3ms a frame has at 120fps. */
+const CHUNK_BUILD_BUDGET_MS = 2;
 
 const WADING_RENDER_ORDER = 0.5;
 
@@ -664,6 +669,9 @@ export class WorldRenderer {
   private transitioningMeshes = new Set<THREE.Mesh>();
   private currentMotions: ReadonlyMap<string, TileMotion> = new Map();
   private chunksToRebuild = new Set<string>();
+  private chunksToBuild = new Set<string>();
+  /** A chunk that drew nothing is not built again until an edit gives it a new identity. */
+  private emptyChunks = new WeakSet<ChunkCells>();
   private transitionGroup: THREE.Group;
   private projectileMeshes = new Map<string, ProjectileMesh>();
   private projectileGroup: THREE.Group;
@@ -825,6 +833,7 @@ export class WorldRenderer {
       this.applyMap(view.map, this.meshWindow(view), false);
       this.applyRoofCut(view.roofCut);
       this.flushChunkRebuilds();
+      this.buildQueuedChunks(this.cameraWindow(view));
     });
     if (this.lightingEnabled) {
       this.time("light", () => this.updateLighting(view));
@@ -1298,7 +1307,7 @@ export class WorldRenderer {
    * lands, so no stale chunk means the light on screen is the current light.
    */
   isSettled(): boolean {
-    if (!this.isReady()) return false;
+    if (!this.isReady() || this.chunksToBuild.size > 0) return false;
     return !this.view || this.lighting.staleChunksIn(this.lightWindow(this.view)) === 0;
   }
 
@@ -1977,6 +1986,8 @@ export class WorldRenderer {
     }
     this.levelGroups.clear();
     this.chunkGeometry.clear();
+    this.chunksToBuild.clear();
+    this.emptyChunks = new WeakSet();
     for (const table of this.animTablesByZ.values()) table.dispose();
     this.animTablesByZ.clear();
     for (const u of this.animUniformsByZ.values()) u.uAnimEnabled.value = 0;
@@ -1993,6 +2004,7 @@ export class WorldRenderer {
   private syncChunks(next: MapFile, window: MeshWindow) {
     const prev = this.prevMap;
     const wanted = visibleChunkKeys(next, window);
+    const needed = visibleChunkKeys(next, window, MESH_BUILD_NOW_MARGIN);
     const dirty = prev ? this.dirtyChunks(prev, next, wanted, window.levels) : wanted;
     if (prev && prev !== next) {
       this.markReflectionNeighbours(prev, next, wanted, dirty, window.levels);
@@ -2013,6 +2025,13 @@ export class WorldRenderer {
         continue;
       }
       if (!built) {
+        const cells = getChunk(next, z, chunk);
+        if (cells && this.emptyChunks.has(cells)) continue;
+        if (!needed.has(key)) {
+          this.chunksToBuild.add(key);
+          continue;
+        }
+        this.chunksToBuild.delete(key);
         this.buildChunk(next, z, chunk);
         meshesChanged = true;
         continue;
@@ -2022,10 +2041,42 @@ export class WorldRenderer {
       meshesChanged = true;
     }
 
+    for (const key of this.chunksToBuild) if (!wanted.has(key)) this.chunksToBuild.delete(key);
+
     this.rebuildAnimatedIndex();
     if (meshesChanged) this.world.updateMatrixWorld(true);
     this.prevMap = next;
     this.meshedWindow = window;
+  }
+
+  /**
+   * Builds the queued chunks nearest the window first, until the frame's
+   * budget is spent, and always at least one so the queue drains on a slow
+   * machine too.
+   */
+  private buildQueuedChunks(window: WorldRect) {
+    const map = this.prevMap;
+    if (this.chunksToBuild.size === 0 || !map) return;
+    const midX = (window.x0 + window.x1) / 2;
+    const midY = (window.y0 + window.y1) / 2;
+    const queue = [...this.chunksToBuild].map((key) => {
+      const { z, chunk } = parseChunkAddress(key);
+      const { x, y } = parseCoordKey(chunk);
+      const dx = (x + 0.5) * CHUNK_SIZE - z - midX;
+      const dy = (y + 0.5) * CHUNK_SIZE - z - midY;
+      return { key, z, chunk, distance: dx * dx + dy * dy };
+    });
+    queue.sort((a, b) => a.distance - b.distance);
+
+    const deadline = performance.now() + CHUNK_BUILD_BUDGET_MS;
+    for (const { key, z, chunk } of queue) {
+      this.chunksToBuild.delete(key);
+      if (!this.chunkGeometry.has(key)) this.buildChunk(map, z, chunk);
+      if (performance.now() >= deadline) break;
+    }
+    this.rebuildAnimatedIndex();
+    this.world.updateMatrixWorld(true);
+    this.needsRender = true;
   }
 
   private markReflectionNeighbours(
@@ -2165,7 +2216,10 @@ export class WorldRenderer {
         items.push(item);
       }
     }
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      this.emptyChunks.add(cells);
+      return;
+    }
 
     const group = new THREE.Group();
     group.name = `chunk:${z}:${chunk}`;

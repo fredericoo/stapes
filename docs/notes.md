@@ -14522,6 +14522,26 @@ read far more of the map than the question needed. Walking `/online` among
 Building chunks took 448ms of a 40-second walk, 285ms of it reflections;
 after, reflections were 46ms of a 60-second walk.
 
+### A chunk entering the margin is built a few a frame
+
+The mesh window reaches `MESH_WINDOW_MARGIN` cells past the view so that a
+chunk exists before it is seen. Every chunk entering it used to be built on
+the frame it entered, so walking into a fresh chunk column built several
+chunks on one frame. Now only a chunk within `MESH_BUILD_NOW_MARGIN` of the
+view is built at once: art stands up to `REFLECTION_REACH_CELLS` above its
+cell, so anything nearer could already be drawn into the frame. The rest are
+queued and built nearest first by `buildQueuedChunks`, for
+`CHUNK_BUILD_BUDGET_MS` a frame and always at least one.
+
+- **A queued chunk that comes within the near margin before its turn is built
+  at once by `syncChunks`.** A machine too slow to drain the queue gets the
+  old behaviour back, never a hole.
+- **`isSettled` waits for the queue**, so `ready()` and `bun run scene` still
+  mean that every chunk the window wants exists.
+- **A chunk with nothing drawable gets no geometry**, so it is remembered by
+  identity in `emptyChunks`. Without that it is queued again on every sync
+  and the queue never empties.
+
 ### Levels are chunked; keep it that way
 
 `map.levels[z]` is `Record<chunkKey, Record<cellKey, PlacedTile[]>>`, not a flat
@@ -15522,13 +15542,6 @@ ticks starts from a timer.
 
 Not yet fixed, and worth knowing before you profile something else:
 
-- **A chunk that comes into range is built in the frame it does.** Geometry is
-  per (level, chunk) now — see the section above — so the cliff that used to be
-  a whole floor is at most `CHUNK_SIZE` squared. What is left is that the build
-  happens on one frame rather than spread over several: walking into a fresh
-  chunk column of dense cave is a handful of chunks at once. `MESH_WINDOW_MARGIN`
-  is what buys the warning, and a budget that built one chunk per frame out of a
-  queue is the structural answer if it is ever felt.
 - **A route search costs about 50µs a node.** Every neighbour it looks at asks
   `listStandingSurfaces`, which reads every level the map holds in the column
   (and the one above each) through `stackOnLevel`, and `canWalk`, which asks it again; each read builds a level,
