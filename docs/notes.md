@@ -16557,3 +16557,16 @@ rule as `/api/perf/ticks`.
 
 Headless Chromium draws with SwiftShader, so a report from a Playwright run
 shows frames of 100ms and more. Its `gpu` field names SwiftShader.
+
+### `/admin/perf` is both logs as tables
+
+The page reads `/api/perf/ticks` and `/api/perf/frames` for the last hour, six
+hours or day. Ticks are one row a minute, newest first, with a figure in red
+when it is over the tick's 33ms or when a tick was skipped or threw. Frame
+reports are summed by build, graphics card, canvas size, device or map area
+(`groupFrameReports` in `app/lib/frameSummary.ts`) and ordered by the share of
+frames slower than thirty a second, which is every bucket from
+`SLOW_FRAME_BUCKET` on.
+
+A percentile of bucket counts is a bucket edge and not a measurement, so the
+page prints `<19ms` and not `19ms`.

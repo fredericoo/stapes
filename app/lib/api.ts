@@ -2,6 +2,8 @@ import { treaty } from "@elysiajs/eden";
 import type { Api } from "../../server/api";
 import type { DeathRecord } from "../../server/deaths";
 import type { FeedbackEntry } from "../../server/feedback";
+import type { StoredFrameReport } from "../../server/frameLog";
+import type { TickSample } from "../../server/tickLog";
 import type { MaintenanceState } from "../../server/maintenance";
 import type { PlayerEntry } from "../../server/world";
 import type { RealmState } from "../../server/realm";
@@ -103,6 +105,16 @@ export async function saveMaintenance(
 
 export async function fetchFeedback(): Promise<FeedbackEntry[]> {
   return unwrap(await client.api.feedback.get()).entries;
+}
+
+export async function fetchTickSamples(
+  since: number,
+): Promise<{ tickMs: number; samples: TickSample[] }> {
+  return unwrap(await client.api.perf.ticks.get({ query: { since: String(since) } }));
+}
+
+export async function fetchFrameReports(since: number): Promise<StoredFrameReport[]> {
+  return unwrap(await client.api.perf.frames.get({ query: { since: String(since) } })).reports;
 }
 
 export async function fetchPlayers(): Promise<PlayerEntry[]> {

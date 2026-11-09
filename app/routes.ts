@@ -28,6 +28,7 @@ export default [
     route("actions", "routes/admin/actions.tsx"),
     route("feedback", "routes/admin/feedback.tsx"),
     route("players", "routes/admin/players.tsx"),
+    route("perf", "routes/admin/perf.tsx"),
     route("players/:characterId", "routes/admin/player.tsx"),
   ]),
 ] satisfies RouteConfig;
