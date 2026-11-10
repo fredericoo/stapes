@@ -117,8 +117,8 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
   },
   attacked: {
     label: "attacked",
-    hint: "Somebody swung at this creature since its last turn. Bind the attacker selector to remember who.",
-    params: [],
+    hint: "Somebody swung at this creature since its last turn, or within this many ms when a time is given. Its `not` with a time is a creature that only breaks off once the blows have stopped. Bind the attacker selector to remember who.",
+    params: [{ key: "withinMs", kind: "number", label: "within ms", min: 0, optional: true }],
     make: () => ({ cond: "attacked" }),
   },
   other_attacked: {

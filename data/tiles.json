@@ -32798,7 +32798,13 @@
             "to": "hunting"
           },
           {
-            "from": "any",
+            "from": [
+              "lurking",
+              "hunting",
+              "investigating",
+              "casting",
+              "homing"
+            ],
             "if": {
               "cond": "in_los",
               "of": {
@@ -32932,6 +32938,12 @@
               "ms": 900
             },
             "to": "lurking"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
           }
         ]
       },
@@ -46482,24 +46494,39 @@
           {
             "from": "fighting",
             "if": {
-              "combinator": "or",
+              "combinator": "and",
               "rules": [
                 {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 10
+                  "combinator": "or",
+                  "rules": [
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "home"
+                      },
+                      "cells": 10
+                    },
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "slot",
+                        "data": {
+                          "name": "threat"
+                        }
+                      },
+                      "cells": 10
+                    }
+                  ]
                 },
                 {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "attacked",
+                      "withinMs": 8000
                     }
-                  },
-                  "cells": 10
+                  ]
                 }
               ]
             },
@@ -46551,7 +46578,17 @@
                         "bat",
                         "bog-imp",
                         "cave-troll",
-                        "cyclops"
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
                       ]
                     }
                   },
@@ -46571,7 +46608,17 @@
                     "bat",
                     "bog-imp",
                     "cave-troll",
-                    "cyclops"
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
                   ]
                 }
               }
@@ -47527,24 +47574,39 @@
           {
             "from": "fighting",
             "if": {
-              "combinator": "or",
+              "combinator": "and",
               "rules": [
                 {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 10
+                  "combinator": "or",
+                  "rules": [
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "home"
+                      },
+                      "cells": 10
+                    },
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "slot",
+                        "data": {
+                          "name": "threat"
+                        }
+                      },
+                      "cells": 10
+                    }
+                  ]
                 },
                 {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "attacked",
+                      "withinMs": 8000
                     }
-                  },
-                  "cells": 10
+                  ]
                 }
               ]
             },
@@ -47593,7 +47655,17 @@
                         "bat",
                         "bog-imp",
                         "cave-troll",
-                        "cyclops"
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
                       ]
                     }
                   },
@@ -47613,7 +47685,17 @@
                     "bat",
                     "bog-imp",
                     "cave-troll",
-                    "cyclops"
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
                   ]
                 }
               }
@@ -48504,24 +48586,39 @@
           {
             "from": "fighting",
             "if": {
-              "combinator": "or",
+              "combinator": "and",
               "rules": [
                 {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 10
+                  "combinator": "or",
+                  "rules": [
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "home"
+                      },
+                      "cells": 10
+                    },
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "slot",
+                        "data": {
+                          "name": "threat"
+                        }
+                      },
+                      "cells": 10
+                    }
+                  ]
                 },
                 {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "attacked",
+                      "withinMs": 8000
                     }
-                  },
-                  "cells": 10
+                  ]
                 }
               ]
             },
@@ -48573,7 +48670,17 @@
                         "bat",
                         "bog-imp",
                         "cave-troll",
-                        "cyclops"
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
                       ]
                     }
                   },
@@ -48593,7 +48700,17 @@
                     "bat",
                     "bog-imp",
                     "cave-troll",
-                    "cyclops"
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
                   ]
                 }
               }
@@ -50688,24 +50805,39 @@
           {
             "from": "fighting",
             "if": {
-              "combinator": "or",
+              "combinator": "and",
               "rules": [
                 {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "home"
-                  },
-                  "cells": 12
+                  "combinator": "or",
+                  "rules": [
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "home"
+                      },
+                      "cells": 12
+                    },
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "slot",
+                        "data": {
+                          "name": "threat"
+                        }
+                      },
+                      "cells": 10
+                    }
+                  ]
                 },
                 {
-                  "cond": "out_of_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "threat"
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "attacked",
+                      "withinMs": 8000
                     }
-                  },
-                  "cells": 10
+                  ]
                 }
               ]
             },
@@ -50754,7 +50886,17 @@
                         "bat",
                         "bog-imp",
                         "cave-troll",
-                        "cyclops"
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
                       ]
                     }
                   },
@@ -50774,7 +50916,17 @@
                     "bat",
                     "bog-imp",
                     "cave-troll",
-                    "cyclops"
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
                   ]
                 }
               }
@@ -50804,7 +50956,17 @@
                         "bat",
                         "bog-imp",
                         "cave-troll",
-                        "cyclops"
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
                       ]
                     }
                   },
@@ -50824,7 +50986,17 @@
                     "bat",
                     "bog-imp",
                     "cave-troll",
-                    "cyclops"
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
                   ]
                 }
               }
@@ -50854,7 +51026,17 @@
                         "bat",
                         "bog-imp",
                         "cave-troll",
-                        "cyclops"
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
                       ]
                     }
                   },
@@ -50874,7 +51056,17 @@
                     "bat",
                     "bog-imp",
                     "cave-troll",
-                    "cyclops"
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
                   ]
                 }
               }
@@ -50904,7 +51096,17 @@
                         "bat",
                         "bog-imp",
                         "cave-troll",
-                        "cyclops"
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
                       ]
                     }
                   },
@@ -50924,7 +51126,17 @@
                     "bat",
                     "bog-imp",
                     "cave-troll",
-                    "cyclops"
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
                   ]
                 }
               }
@@ -50954,7 +51166,17 @@
                         "bat",
                         "bog-imp",
                         "cave-troll",
-                        "cyclops"
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
                       ]
                     }
                   },
@@ -50974,7 +51196,17 @@
                     "bat",
                     "bog-imp",
                     "cave-troll",
-                    "cyclops"
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
                   ]
                 }
               }
@@ -72722,10 +72954,7 @@
             "to": "hunting"
           },
           {
-            "from": [
-              "drifting",
-              "homing"
-            ],
+            "from": "drifting",
             "if": {
               "cond": "in_los",
               "of": {
@@ -72764,6 +72993,35 @@
                 }
               },
               "cells": 14
+            },
+            "to": "homing"
+          },
+          {
+            "from": [
+              "hunting",
+              "backing"
+            ],
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 14
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "attacked",
+                      "withinMs": 8000
+                    }
+                  ]
+                }
+              ]
             },
             "to": "homing"
           },
@@ -73298,10 +73556,7 @@
             "to": "hunting"
           },
           {
-            "from": [
-              "drifting",
-              "homing"
-            ],
+            "from": "drifting",
             "if": {
               "cond": "in_los",
               "of": {
@@ -73340,6 +73595,35 @@
                 }
               },
               "cells": 14
+            },
+            "to": "homing"
+          },
+          {
+            "from": [
+              "hunting",
+              "backing"
+            ],
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 14
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "attacked",
+                      "withinMs": 8000
+                    }
+                  ]
+                }
+              ]
             },
             "to": "homing"
           },
@@ -73874,10 +74158,7 @@
             "to": "hunting"
           },
           {
-            "from": [
-              "drifting",
-              "homing"
-            ],
+            "from": "drifting",
             "if": {
               "cond": "in_los",
               "of": {
@@ -73916,6 +74197,35 @@
                 }
               },
               "cells": 14
+            },
+            "to": "homing"
+          },
+          {
+            "from": [
+              "hunting",
+              "backing"
+            ],
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 14
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "attacked",
+                      "withinMs": 8000
+                    }
+                  ]
+                }
+              ]
             },
             "to": "homing"
           },

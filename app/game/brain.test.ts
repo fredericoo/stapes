@@ -714,6 +714,31 @@ describe("chasing round an obstacle", () => {
     return { x: hunter.x, y: hunter.y, z: hunter.z };
   }
 
+  it("ends on a diagonal cell when bodies hold the four cells beside its prey", () => {
+    const PREY = { x: 3, y: 0 };
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "stalker");
+    map = withPlayerAt(map, PREY.x, PREY.y);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      map = withDeer(map, PREY.x + dx, PREY.y + dy, "deer-holding");
+    }
+    const session = new GameSession(map, hunters, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+
+    advance(session, BRAIN_TICK_MS * 12);
+
+    const stalker = session.actorSnapshots().find((a) => a.tileId === "stalker")!;
+    expect([Math.abs(stalker.x - PREY.x), Math.abs(stalker.y - PREY.y)]).toEqual([1, 1]);
+  });
+
   it("goes after whoever arrived first when two are as near as each other", () => {
     const westFirst = hunterBetween([WEST, SOUTH_EAST]);
     const southEastFirst = hunterBetween([SOUTH_EAST, WEST]);
@@ -5026,5 +5051,46 @@ describe("casting a spell of its own", () => {
     const c = ctx({ nearestOnTile: () => null });
     stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
     expect(c.cast).toHaveBeenCalledWith(2, null);
+  });
+});
+
+describe("a blow remembered for a while", () => {
+  const HOLD_MS = 2000;
+  const brain: BrainDef = {
+    initial: "fighting",
+    states: { fighting: { do: [{ action: "hold" }] }, leaving: { do: [{ action: "hold" }] } },
+    transitions: [
+      {
+        from: "fighting",
+        if: {
+          combinator: "and",
+          not: true,
+          rules: [{ cond: "attacked", withinMs: HOLD_MS }],
+        },
+        to: "leaving",
+      },
+    ],
+  };
+
+  it("keeps a body in its fight until the blows have stopped for that long", () => {
+    let blows: string[] = ["alice"];
+    const ctx = brainContext({ hurtBy: () => blows });
+    const memory = initialMemory(brain);
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx);
+    blows = [];
+    for (let elapsed = 0; elapsed < HOLD_MS; elapsed += BRAIN_TICK_MS) {
+      stepBrain(brain, memory, BRAIN_TICK_MS, ctx);
+    }
+    expect(memory.state).toBe("fighting");
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx);
+    expect(memory.state).toBe("leaving");
+  });
+
+  it("leaves at once when nobody has hit it", () => {
+    const memory = initialMemory(brain);
+    stepBrain(brain, memory, BRAIN_TICK_MS, brainContext());
+    expect(memory.state).toBe("leaving");
   });
 });

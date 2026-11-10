@@ -873,3 +873,104 @@ describe("the rat we ship", () => {
     expect(hpOfAlice(game)).toBe(before);
   });
 });
+
+describe("the troll and the wisp we ship", () => {
+  const shipped = traitsById(traitsJson as unknown[]);
+  const NIGHT_MINUTES = 23 * 60;
+  const CREATURE_AT = { x: 0, y: 0 };
+
+  function player(reachCells: number): TileDef {
+    return tile({
+      id: "player",
+      height: 3,
+      kind: "battler",
+      directional: true,
+      walkable: false,
+      variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
+      interactions: {
+        battler: {
+          baseHp: 1000,
+          masteries: { sharp: 50 },
+          naturalWeapon: {
+            type: "weapon",
+            damage: 1,
+            def: 0,
+            accuracy: 100,
+            variance: 0,
+            spd: 50,
+            reach: { cells: reachCells, height: 2 },
+            mastery: "sharp",
+          },
+        },
+      },
+    });
+  }
+
+  function world(creature: string, playerAt: { x: number; y: number }, reachCells: number) {
+    const tiles = normalizeTiles(tilesJson as unknown[]).map((def) =>
+      def.id === "player" ? player(reachCells) : def,
+    );
+    let map = emptyMap();
+    for (let x = -20; x <= 40; x++) {
+      for (let y = -4; y <= 4; y++) map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, CREATURE_AT.x, CREATURE_AT.y, 0, [
+      { tileId: "grass" },
+      { tileId: creature },
+    ]);
+    return { map, tiles, playerAt };
+  }
+
+  function start({ map, tiles, playerAt }: ReturnType<typeof world>): GameSession {
+    const withPlayer = replaceStack(map, playerAt.x, playerAt.y, 0, [
+      ...getStack(map, playerAt.x, playerAt.y, 0),
+      { tileId: "player", direction: "w", owner: "alice" },
+    ]);
+    return new GameSession(withPlayer, tiles, {
+      actorIds: ["alice"],
+      traits: shipped,
+      clock: () => NIGHT_MINUTES,
+    });
+  }
+
+  const find = (game: GameSession, tileId: string) =>
+    game.actorSnapshots().find((actor) => actor.tileId === tileId)!;
+
+  const apart = (game: GameSession, tileId: string) =>
+    Math.abs(find(game, tileId).x - find(game, "player").x) +
+    Math.abs(find(game, tileId).y - find(game, "player").y);
+
+  it("backs a troll away from somebody hitting it from water it cannot enter", () => {
+    const PLAYER_AT = { x: 3, y: 0 };
+    const land = world("cave-troll", PLAYER_AT, 4.5);
+    let map = land.map;
+    for (let x = 1; x <= 8; x++) {
+      for (let y = -4; y <= 4; y++) map = replaceStack(map, x, y, 0, [{ tileId: "water" }]);
+    }
+    const game = start({ ...land, map });
+    game.setTarget(find(game, "cave-troll").id, "alice");
+    game.setAttackMode(true, "alice");
+
+    let furthest = 0;
+    for (let elapsed = 0; elapsed < 6000; elapsed += TICK_MS) {
+      game.tick(TICK_MS);
+      furthest = Math.max(furthest, apart(game, "cave-troll"));
+    }
+    expect(furthest).toBeGreaterThan(PLAYER_AT.x + 3);
+  });
+
+  it("sends a wisp home once a chase has taken it past its leash", () => {
+    const LEASH = 14;
+    const RUN_TO = 36;
+    const game = start(world("ember-wisp", { x: 5, y: 0 }, 1.5));
+
+    for (let elapsed = 0; find(game, "player").x < RUN_TO; elapsed += TICK_MS) {
+      if (elapsed > 60_000) throw new Error("the player never got there");
+      game.requestStep("alice", "e");
+      game.tick(TICK_MS);
+    }
+    for (let elapsed = 0; elapsed < 10_000; elapsed += TICK_MS) game.tick(TICK_MS);
+
+    expect(find(game, "ember-wisp").x).toBeLessThanOrEqual(LEASH);
+  });
+});
