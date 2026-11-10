@@ -714,6 +714,31 @@ describe("chasing round an obstacle", () => {
     return { x: hunter.x, y: hunter.y, z: hunter.z };
   }
 
+  it("ends on a diagonal cell when bodies hold the four cells beside its prey", () => {
+    const PREY = { x: 3, y: 0 };
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "stalker");
+    map = withPlayerAt(map, PREY.x, PREY.y);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      map = withDeer(map, PREY.x + dx, PREY.y + dy, "deer-holding");
+    }
+    const session = new GameSession(map, hunters, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+
+    advance(session, BRAIN_TICK_MS * 12);
+
+    const stalker = session.actorSnapshots().find((a) => a.tileId === "stalker")!;
+    expect([Math.abs(stalker.x - PREY.x), Math.abs(stalker.y - PREY.y)]).toEqual([1, 1]);
+  });
+
   it("goes after whoever arrived first when two are as near as each other", () => {
     const westFirst = hunterBetween([WEST, SOUTH_EAST]);
     const southEastFirst = hunterBetween([SOUTH_EAST, WEST]);

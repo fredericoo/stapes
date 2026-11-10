@@ -3070,6 +3070,16 @@ carry it.
   the two are not both null: the first falls through to the next line of the
   priority list, and so does the second, but only the second is a `stuck` an
   author can transition on.
+- **Beside a body hemmed in by bodies includes the four diagonal cells.**
+  "Beside" is one step away, so four bats on the four sides of a player left
+  every other creature with no cell to end a route on: its `step_toward`
+  failed and it stood where it was while the player fought the bats.
+  `GameSession.hemmedIn` asks whether the walker can stand in none of the four
+  cells and a body holds at least one of them, and `routeStep` then searches
+  with `cornerOf`, which arrives on any of the eight cells round the goal. A
+  weapon reaching 1.5 cells strikes from a diagonal. Four walls do not count,
+  because nothing strikes round their corners, and a route to a thing or a
+  cell is unchanged.
 - **A drop is a one-way edge, and which legs may take one is one setting with
   three values.** `PathOptions.drops` is `"never"` (the default), `"toGoal"` or
   `"anywhere"`; a creature's `allowDrops` maps onto the outer two and reads

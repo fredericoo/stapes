@@ -64,6 +64,7 @@ import { affectsBody } from "../lib/area";
 import { appendItem, landingIndex, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
+  DIRECTIONS,
   HEIGHT_PER_LEVEL,
   MAX_STACK_HEIGHT,
   MAX_LEVEL,
@@ -72,7 +73,13 @@ import {
   levelKey,
   resolveActor,
 } from "../lib/types";
-import { canPlace, canReplaceStack, fitsAtElevation, tilesByIdFromList } from "../lib/validation";
+import {
+  canPlace,
+  canReplaceStack,
+  fitsAtElevation,
+  fitsTile,
+  tilesByIdFromList,
+} from "../lib/validation";
 import {
   actorDirection,
   adoptAuthoredPlayer,
@@ -367,6 +374,7 @@ import {
   findRefuge,
   HOME_DETOUR_SLACK,
   HOME_PATH_MAX_NODES,
+  type Reaching,
   unsafeToStepOn,
   wadesIn,
 } from "./pathfinding";
@@ -733,8 +741,17 @@ type RouteAsked = {
   from: string;
   to: string;
   allowDrops: boolean | undefined;
-  arrive: "beside" | "on";
+  arrive: "beside" | "on" | "corner";
 };
+
+/** Arrives on any of the eight cells round `goal` on its level, a diagonal one being two steps out. */
+function cornerOf(goal: Coord): Reaching {
+  return {
+    within: 2,
+    accepts: (at) =>
+      at.z === goal.z && Math.max(Math.abs(at.x - goal.x), Math.abs(at.y - goal.y)) === 1,
+  };
+}
 
 type BattlerMemo = {
   body: BattlerDef;
@@ -4279,11 +4296,18 @@ export class GameSession implements PlaySession {
     at: Coord,
     allowDrops: boolean | undefined,
     arrive: "beside" | "on" = "beside",
+    aroundBody = false,
   ): Direction | "arrived" | null {
-    const route: RouteAsked = { from: walkKey(loc), to: walkKey(at), allowDrops, arrive };
+    const def = this.defFor(actor);
+    const corner = aroundBody && arrive === "beside" && this.hemmedIn(loc, at, def);
+    const route: RouteAsked = {
+      from: walkKey(loc),
+      to: walkKey(at),
+      allowDrops,
+      arrive: corner ? "corner" : arrive,
+    };
     if (this.failedJustNow(actor, route)) return null;
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
-    const def = this.defFor(actor);
     const homeward = actor.home !== null && walkKey(actor.home) === walkKey(at);
     const found = findPath(
       this.map,
@@ -4294,7 +4318,7 @@ export class GameSession implements PlaySession {
       this.statusDefs,
       {
         drops: allowDrops ? "anywhere" : "never",
-        arrive,
+        arrive: corner ? cornerOf(at) : arrive,
         avoidWade: !def.swims,
         ...(homeward && { maxNodes: HOME_PATH_MAX_NODES, detourSlack: HOME_DETOUR_SLACK }),
       },
@@ -4305,6 +4329,29 @@ export class GameSession implements PlaySession {
     }
     actor.failedRoute = null;
     return found.route[0]?.direction ?? "arrived";
+  }
+
+  /**
+   * True when this body can stand in none of the four cells a step from `at`
+   * and a body holds at least one of them. A route "beside" somebody
+   * surrounded that way has no cell to end on, though a weapon reaching 1.5
+   * cells still strikes from a diagonal one. Four walls do not count: nothing
+   * strikes round their corners.
+   */
+  private hemmedIn(loc: Coord, at: Coord, def: TileDef): boolean {
+    let crowded = false;
+    for (const direction of DIRECTIONS) {
+      const { dx, dy } = DIR_DELTA[direction];
+      const x = at.x + dx;
+      const y = at.y + dy;
+      if (loc.x === x && loc.y === y && loc.z === at.z) return false;
+      const held = getStack(this.map, x, y, at.z).some(
+        (placed) => placed.owner != null && !(def.id === PLAYER_TILE_ID && isPlayerBody(placed)),
+      );
+      if (!held && fitsTile(this.map, x, y, at.z, def, this.tilesById).ok) return false;
+      crowded ||= held;
+    }
+    return crowded;
   }
 
   /**
@@ -4332,7 +4379,7 @@ export class GameSession implements PlaySession {
     allowDrops: boolean | undefined,
   ): boolean {
     const at = this.walkGoalCell({ of: "body", id: targetId });
-    return at !== null && this.routeStep(actor, loc, at, allowDrops) !== null;
+    return at !== null && this.routeStep(actor, loc, at, allowDrops, "beside", true) !== null;
   }
 
   private setWalkOrder(
@@ -4357,7 +4404,14 @@ export class GameSession implements PlaySession {
       return "blocked";
     }
 
-    const direction = this.routeStep(actor, loc, at, order.allowDrops, order.arrive);
+    const direction = this.routeStep(
+      actor,
+      loc,
+      at,
+      order.allowDrops,
+      order.arrive,
+      order.goal.of === "body",
+    );
     if (direction === null || direction === "arrived") {
       actor.walkOrder = null;
       return direction === "arrived" ? "arrived" : "blocked";
