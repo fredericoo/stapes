@@ -35,6 +35,7 @@ export type BrainMemory = {
   started: boolean;
   heardFrom: string | null;
   hurtBy: string | null;
+  lastBlow: { by: string; agoMs: number } | null;
 };
 
 export type ActionStatus = "success" | "failure" | "running";
@@ -117,6 +118,7 @@ export function initialMemory(brain: BrainDef): BrainMemory {
     started: false,
     heardFrom: null,
     hurtBy: null,
+    lastBlow: null,
   };
 }
 
@@ -330,7 +332,9 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
     case "heard_noise":
       return heardNoiseFrom(condition, memory, ctx);
     case "attacked":
-      return struckBy(memory, ctx);
+      return condition.withinMs === undefined
+        ? struckBy(memory, ctx)
+        : struckWithin(memory, condition.withinMs);
     case "other_attacked":
       return otherStruckBy(condition, memory, ctx);
     case "talking":
@@ -368,6 +372,19 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       return !ctx.reaches(id, condition.allowDrops);
     }
   }
+}
+
+function struckWithin(memory: BrainMemory, withinMs: number): boolean {
+  const blow = memory.lastBlow;
+  if (blow === null || blow.agoMs > withinMs) return false;
+  memory.hurtBy = blow.by;
+  return true;
+}
+
+function rememberBlow(memory: BrainMemory, tickMs: number, ctx: BrainContext) {
+  const latest = ctx.hurtBy().at(-1);
+  if (latest !== undefined) memory.lastBlow = { by: latest, agoMs: 0 };
+  else if (memory.lastBlow) memory.lastBlow.agoMs += tickMs;
 }
 
 function struckBy(memory: BrainMemory, ctx: BrainContext): boolean {
@@ -547,6 +564,7 @@ export function stepBrain(
   memory.hurtBy = null;
 
   memory.msInState += tickMs;
+  rememberBlow(memory, tickMs, ctx);
 
   const transition = firstMatch(brain, memory, ctx);
   if (transition) {

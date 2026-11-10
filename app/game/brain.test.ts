@@ -5053,3 +5053,44 @@ describe("casting a spell of its own", () => {
     expect(c.cast).toHaveBeenCalledWith(2, null);
   });
 });
+
+describe("a blow remembered for a while", () => {
+  const HOLD_MS = 2000;
+  const brain: BrainDef = {
+    initial: "fighting",
+    states: { fighting: { do: [{ action: "hold" }] }, leaving: { do: [{ action: "hold" }] } },
+    transitions: [
+      {
+        from: "fighting",
+        if: {
+          combinator: "and",
+          not: true,
+          rules: [{ cond: "attacked", withinMs: HOLD_MS }],
+        },
+        to: "leaving",
+      },
+    ],
+  };
+
+  it("keeps a body in its fight until the blows have stopped for that long", () => {
+    let blows: string[] = ["alice"];
+    const ctx = brainContext({ hurtBy: () => blows });
+    const memory = initialMemory(brain);
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx);
+    blows = [];
+    for (let elapsed = 0; elapsed < HOLD_MS; elapsed += BRAIN_TICK_MS) {
+      stepBrain(brain, memory, BRAIN_TICK_MS, ctx);
+    }
+    expect(memory.state).toBe("fighting");
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx);
+    expect(memory.state).toBe("leaving");
+  });
+
+  it("leaves at once when nobody has hit it", () => {
+    const memory = initialMemory(brain);
+    stepBrain(brain, memory, BRAIN_TICK_MS, brainContext());
+    expect(memory.state).toBe("leaving");
+  });
+});

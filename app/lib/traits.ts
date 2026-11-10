@@ -259,6 +259,7 @@ const NUMBER_KINDS: Record<string, ParamKind> = {
   ms: "ms",
   toMs: "ms",
   atLeastMs: "ms",
+  withinMs: "ms",
   atMostPercent: "percent",
   fromHour: "hour",
   toHour: "hour",
