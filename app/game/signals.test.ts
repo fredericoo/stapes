@@ -14,6 +14,7 @@ import {
   settleSignals,
 } from "./signals";
 import { tile } from "../lib/testTile";
+import { residentAt } from "./testResidents";
 
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 
@@ -380,6 +381,58 @@ describe("GameSession signals", () => {
     const released = session.getSnapshot().map;
     expect(stackIds(released, 2, 0)).toEqual(["grass", "plate"]);
     expect(stackIds(released, 6, 0)).toEqual(["grass", "door"]);
+  });
+
+  it("pushes a body out of a doorway its channel closes, the way it was facing", () => {
+    let map = emptyMap();
+    for (let x = 0; x <= 4; x++) {
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "plate", channel: "gate-a" }]);
+    map = replaceStack(map, 3, 0, 0, [{ tileId: "grass" }, { tileId: "door", channel: "gate-a" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+    const session = new GameSession(map, tiles);
+
+    step(session, "e");
+    expect(stackIds(session.getSnapshot().map, 3, 0)).toEqual(["grass", "door-open"]);
+
+    step(session, "e");
+    const closed = session.getSnapshot().map;
+    expect(stackIds(closed, 3, 0)).toEqual(["grass", "door"]);
+    expect(stackIds(closed, 4, 0)).toEqual(["grass", "player"]);
+  });
+
+  it("keeps a door open on a body with nowhere to go, and closes it once there is room", () => {
+    const ox = tile({ id: "ox", height: 4, walkable: false, actor: true, affectedByGravity: true });
+    let map = emptyMap();
+    for (let x = 0; x <= 7; x++) map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
+    map = replaceStack(map, 0, 1, 0, [
+      { tileId: "grass" },
+      { tileId: "torch-lit", channel: "gate-a" },
+    ]);
+    map = replaceStack(map, 5, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door", channel: "gate-a" },
+      { tileId: "ox", direction: "e" },
+    ]);
+    for (const x of [4, 6])
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }, { tileId: "ox" }]);
+    for (const y of [-1, 1]) map = replaceStack(map, 5, y, 0, [{ tileId: "wall" }]);
+    const session = new GameSession(map, [...tiles, ox]);
+    const behind = residentAt(session, 6, 0);
+    expect(stackIds(session.getSnapshot().map, 5, 0)).toEqual(["grass", "door-open", "ox"]);
+
+    expect(session.interact({ x: 0, y: 1, z: 0, stackIndex: 1 })).toBe(true);
+    run(session, TICKS_PER_STEP);
+    expect(stackIds(session.getSnapshot().map, 5, 0)).toEqual(["grass", "door-open", "ox"]);
+
+    expect(session.requestStep(behind, "e")).toBe("started");
+    run(session, TICKS_PER_STEP);
+    const closed = session.getSnapshot().map;
+    expect(stackIds(closed, 5, 0)).toEqual(["grass", "door"]);
+    expect(stackIds(closed, 6, 0)).toEqual(["grass", "ox"]);
+    expect(stackIds(closed, 7, 0)).toEqual(["grass", "ox"]);
   });
 
   it("opens a door already held by a load at load time", () => {

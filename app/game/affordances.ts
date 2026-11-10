@@ -44,6 +44,7 @@ import type {
 import { footprintOf, HEIGHT_PER_LEVEL, MAX_LEVEL, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
+import { evictionsFor } from "./doorway";
 import { handAccepts, handHasRoomFor, wornAccepts, type Equipment } from "./equipment";
 import { pushDestination, pushedColumn, pushedHeight } from "./push";
 
@@ -174,12 +175,13 @@ export function switchWouldFit(
   tilesById: Record<string, TileDef>,
   ref: ObjectRef,
   targetTileId: string,
+  awayFrom?: Coord,
 ): boolean {
   if (!tilesById[targetTileId]) return false;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   if (!stack[ref.stackIndex]) return false;
   const next = stack.map((p, i) => (i === ref.stackIndex ? { ...p, tileId: targetTileId } : p));
-  return canReplaceStack(map, ref.x, ref.y, ref.z, next, tilesById).ok;
+  return evictionsFor(map, tilesById, ref, next, awayFrom) !== null;
 }
 
 export function canSwitchFrom(
@@ -191,7 +193,7 @@ export function canSwitchFrom(
   const def = interactiveDefAt(map, tilesById, actor, ref);
   const sw = def && resolveSwitch(def);
   if (!def || !sw || !pushDirectionFrom(actor, ref)) return false;
-  return switchWouldFit(map, tilesById, ref, sw.targetTileId);
+  return switchWouldFit(map, tilesById, ref, sw.targetTileId, actor);
 }
 
 export function canPushFrom(

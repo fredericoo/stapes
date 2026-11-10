@@ -25,6 +25,7 @@ import {
 } from "./movement";
 import { findPlayers, requireSinglePlayer } from "./player";
 import { tile } from "../lib/testTile";
+import { residentAt } from "./testResidents";
 
 function advance(session: GameSession, ms: number) {
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
@@ -1741,6 +1742,68 @@ describe("GameSession switch", () => {
     expect(getStack(session.getSnapshot().map, 1, 0, 0)[1]).toEqual({
       tileId: "door-open",
       direction: "s",
+    });
+  });
+
+  describe("closing a door on a body", () => {
+    const doorway = tile({
+      id: "doorway",
+      height: 4,
+      intangible: true,
+      walkable: false,
+      interactions: { switch: { targetTileId: "door-tall" } },
+    });
+    const withDoorway = [...tiles, doorway];
+    const tileIdsAt = (session: GameSession, x: number) =>
+      getStack(session.getMap(), x, 0, 0).map((p) => p.tileId);
+
+    it("pushes whoever stands in the doorway out, away from the one closing it", () => {
+      let map = mapWithSwitchable("doorway");
+      map = replaceStack(map, 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "doorway" },
+        { tileId: "deer", direction: "w" },
+      ]);
+      const session = new GameSession(map, withDoorway);
+
+      expect(session.activateSwitch(doorRef)).toBe(true);
+      expect(tileIdsAt(session, 1)).toEqual(["grass", "door-tall"]);
+      expect(tileIdsAt(session, 2)).toEqual(["grass", "deer"]);
+    });
+
+    it("stops a body already walking into the doorway where it set off from", () => {
+      let map = mapWithSwitchable("doorway");
+      map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "deer", direction: "w" }]);
+      const session = new GameSession(map, withDoorway);
+      const deer = residentAt(session, 2, 0);
+
+      expect(session.requestStep(deer, "w")).toBe("started");
+      session.tick(TICK_MS);
+      expect(session.activateSwitch(doorRef)).toBe(true);
+
+      advance(session, WALK_DURATION_MS);
+      expect(tileIdsAt(session, 1)).toEqual(["grass", "door-tall"]);
+      expect(tileIdsAt(session, 2)).toEqual(["grass", "deer"]);
+    });
+
+    it("stays open when the body in it has nowhere to step", () => {
+      let map = mapWithSwitchable("doorway");
+      map = replaceStack(map, 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "doorway" },
+        { tileId: "deer", direction: "w" },
+      ]);
+      for (const [x, y] of [
+        [2, 0],
+        [1, -1],
+        [1, 1],
+      ] as const) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+      }
+      const session = new GameSession(map, withDoorway);
+
+      expect(session.activateSwitch(doorRef)).toBe(false);
+      expect(tileIdsAt(session, 1)).toEqual(["grass", "doorway", "deer"]);
     });
   });
 

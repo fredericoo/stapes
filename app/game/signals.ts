@@ -79,9 +79,7 @@ export function readChannels(
   return state;
 }
 
-function swapReceiverAt(
-  map: MapFile,
-  cell: Coord,
+function receiverSwapAt(
   stack: PlacedTile[],
   i: number,
   state: ChannelState,
@@ -96,9 +94,41 @@ function swapReceiverAt(
   if (!receiveTriggers(receive, powered)) {
     return null;
   }
+  return stack.map((p, j) => (j === i ? { ...p, tileId: receive.tileId } : p));
+}
 
-  const next = stack.map((p, j) => (j === i ? { ...p, tileId: receive.tileId } : p));
+function swapReceiverAt(
+  map: MapFile,
+  cell: Coord,
+  stack: PlacedTile[],
+  i: number,
+  state: ChannelState,
+  tilesById: Record<string, TileDef>,
+): PlacedTile[] | null {
+  const next = receiverSwapAt(stack, i, state, tilesById);
+  if (!next) return null;
   return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok ? next : null;
+}
+
+export type ReceiverSwap = { cell: Coord; next: PlacedTile[] };
+
+/** Every stack a settle would swap a receiver in, before asking whether the swap fits. */
+export function receiverSwaps(
+  map: MapFile,
+  cells: Iterable<Coord>,
+  tilesById: Record<string, TileDef>,
+  extra: Iterable<ExtraEmitter> = [],
+): ReceiverSwap[] {
+  const wired = [...cells];
+  const state = readChannels(map, wired, tilesById, extra);
+  const swaps: ReceiverSwap[] = [];
+  for (const cell of wired) {
+    const stack = getStack(map, cell.x, cell.y, cell.z);
+    let next = stack;
+    for (let i = 0; i < stack.length; i++) next = receiverSwapAt(next, i, state, tilesById) ?? next;
+    if (next !== stack) swaps.push({ cell, next });
+  }
+  return swaps;
 }
 
 function settledStack(

@@ -1316,8 +1316,8 @@ else the question is what somebody may walk into, and there a body weighs
 nothing. There the question is what a tile may *become* underneath whoever is
 already standing on it — a door swinging shut in an occupied doorway, a plate
 whose pressed form is taller than its resting one — and a weightless body would
-let both close through the person in them. Closing a door on somebody is refused,
-and it is refused for two people as firmly as for one.
+let both close through the person in them. `canReplaceStack` refuses the closed
+door with a body in it, for two people as firmly as for one.
 
 They do not stack on each other there either, which is the half the crowd made
 necessary: two people in a doorway are side by side, not shoulder-on-head, and
@@ -1325,6 +1325,26 @@ summing them puts four units of person in a two-unit level. That refused every
 plate, signal and decay in the cell for as long as two people stood in it — a
 pressure plate you could jam by standing on it with a friend. Only the tallest
 body counts, and it counts from the scenery under it.
+
+**A door that closes on a body pushes it out.** `canReplaceStack` refusing is
+what says a body is in the way, and `evictionsFor` (`app/game/doorway.ts`) turns
+that refusal into a step: when the new stack fits without the bodies, each one is
+moved to a neighbouring cell `canWalk` allows, tried away from whoever closed
+the door, then the way the body faces, then the rest. `GameSession.makeRoom`
+moves them with `moveThrough`, so a client is told `teleported` and the body
+snaps rather than slides. A body with no cell to go to keeps the door open.
+`canSwitchFrom` asks the same function, so the client offers Close exactly when
+the server will do it. A hand switch goes through `activateSwitch`; a door on a
+channel goes through `receiverSwaps` in `settleBoardNow`, which lists the swaps
+a settle is about to make so room is made before `settleSignals` asks whether
+they fit. Pressure plates are not included.
+
+**A body walking into the cell is stopped instead.** A walking body stays in the
+cell it set off from until `commitWalk` moves it, and `commitWalk` does not ask
+again whether it fits. A door closed during the step used to pass
+`canReplaceStack`, because the doorway's stack was empty, and the walker was then
+committed on top of the closed door, a level up, where it could neither see nor
+route. `makeRoom` reads `walkingInto` for the cell and cancels those walks.
 
 **What pays for the crowd is `guardShare`, not the floor plan.** Standing in one
 cell used to be impossible, so nothing had to price it; now eight people can

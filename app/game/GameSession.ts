@@ -432,12 +432,14 @@ import {
 } from "./area";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
+import { evictionsFor } from "./doorway";
 import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressurePlates";
 import {
   cellIsWired,
   channelPowered,
   findWiredCells,
   readChannels,
+  receiverSwaps,
   settleSignals,
   type ExtraEmitter,
 } from "./signals";
@@ -1396,6 +1398,14 @@ export class GameSession implements PlaySession {
     }
 
     if (this.wiredCells.size > 0) {
+      for (const swap of receiverSwaps(
+        this.map,
+        this.wiredCells.values(),
+        this.tilesById,
+        emitters,
+      )) {
+        this.makeRoom(swap.cell, swap.next);
+      }
       const { map, changed } = settleSignals(
         this.map,
         this.wiredCells.values(),
@@ -5990,13 +6000,58 @@ export class GameSession implements PlaySession {
     const sw = def && resolveSwitch(def);
     if (!def || !sw) return false;
 
-    const stack = getStack(this.map, ref.x, ref.y, ref.z);
-    const next = stack.map((placed, i) =>
-      i === ref.stackIndex ? { ...placed, tileId: sw.targetTileId } : placed,
-    );
+    const before = getStack(this.map, ref.x, ref.y, ref.z);
+    const swap = (stack: PlacedTile[], at: number) =>
+      stack.map((placed, i) => (i === at ? { ...placed, tileId: sw.targetTileId } : placed));
+    const evicted = this.makeRoom(ref, swap(before, ref.stackIndex), loc);
+    if (evicted === null) return false;
+
+    const under = before.slice(0, ref.stackIndex);
+    const stackIndex =
+      ref.stackIndex -
+      under.filter((placed) => placed.owner != null && evicted.has(placed.owner)).length;
+    const next = swap(getStack(this.map, ref.x, ref.y, ref.z), stackIndex);
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return true;
+  }
+
+  /**
+   * Clears a cell for a stack that is about to grow into its bodies: each body
+   * in it steps out, and each body walking into it stops where it set off
+   * from, because `commitWalk` does not ask again whether its step still fits.
+   * Answers with the owners it moved out, or null when one had nowhere to go.
+   */
+  private makeRoom(cell: Coord, next: PlacedTile[], awayFrom?: Coord): Set<string> | null {
+    const evictions = evictionsFor(this.map, this.tilesById, cell, next, awayFrom, (to, owner) => {
+      const body = this.actors.get(owner);
+      return body === undefined || this.destinationTaken(to, body);
+    });
+    if (evictions === null) return null;
+
+    const walkers = (this.walkingInto.get(walkKey(cell)) ?? []).filter(
+      (walker) => this.actors.get(walker.id) === walker,
+    );
+    const arriving = walkers.map((walker) => this.locate(walker).placed);
+    const closesOnWalkers =
+      evictions.length > 0 ||
+      !canReplaceStack(this.map, cell.x, cell.y, cell.z, [...next, ...arriving], this.tilesById).ok;
+    if (closesOnWalkers) {
+      for (const walker of walkers) {
+        this.forgetWalk(walker);
+        walker.walk = null;
+        walker.walkOrder = null;
+        this.pendingTeleports.push(walker.id);
+      }
+    }
+
+    for (const { owner, to } of evictions) {
+      const body = this.actors.get(owner);
+      if (!body) continue;
+      this.moveThrough(body, to);
+      this.arriveIn(body);
+    }
+    return new Set(evictions.map((eviction) => eviction.owner));
   }
 
   canTeleport(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
