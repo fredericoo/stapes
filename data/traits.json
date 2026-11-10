@@ -2207,7 +2207,7 @@
   {
     "id": "townsfolk-fight",
     "name": "Townsfolk who fight",
-    "hint": "Fights whoever hits it while they stay near and it stays within the leash of home, heals itself with a spell of its own once it is down to a share of its health, then walks home. Snacks with another spell whenever it is not fed and nobody is talking to it.",
+    "hint": "Fights whoever hits it while they stay near and it stays within the leash of home, or for as long as the blows keep landing, heals itself with a spell of its own once it is down to a share of its health, then walks home. Snacks with another spell whenever it is not fed and nobody is talking to it.",
     "params": {
       "leash": {
         "kind": "cells",
@@ -2480,28 +2480,43 @@
       {
         "from": "fighting",
         "if": {
-          "combinator": "or",
+          "combinator": "and",
           "rules": [
             {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": {
-                "arg": "leash"
-              }
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": {
+                    "arg": "leash"
+                  }
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": {
+                    "arg": "calm"
+                  }
+                }
+              ]
             },
             {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "threat"
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "attacked",
+                  "withinMs": 8000
                 }
-              },
-              "cells": {
-                "arg": "calm"
-              }
+              ]
             }
           ]
         },

@@ -3661,6 +3661,16 @@ than reporting, which is how it went unnoticed for as long as it did. Asked
 through `tryLocate` now, on exactly the terms `buildTileIndex` and `attentive`
 have always asked: no body on the board, no turn.
 
+## A leash waits for the blows to stop
+
+A creature that walks home at a distance from home could be shot on the way: it
+turned on the blow for one round, found itself past the leash again and went
+back to walking. `attacked` takes an optional `withinMs`, read from
+`BrainMemory.lastBlow`, which `stepBrain` ages every round. The wisps, the four
+guards and the `townsfolk-fight` trait put `not attacked within 8000` on the row
+that sends them home, so they stay in the fight for as long as blows land less
+than eight seconds apart, and leave once somebody only runs.
+
 ## Running away is a flood, not a direction
 
 `step_away_from` scored the four neighbouring cells and took whichever opened
