@@ -37,6 +37,23 @@ jobs:
       - name: World tests
         run: bun run test:server
 
+      - name: Nowhere on the map strands a player
+        run: |
+          mkdir -p stranded
+          bun run verify stranded --image stranded/map.png
+
+      - name: Write the stranded places down for the artifact
+        if: failure()
+        run: bun run --silent verify stranded --json > stranded/report.json || true
+
+      - name: Upload the map of stranded places
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stranded
+          path: stranded/
+          if-no-files-found: ignore
+
       - name: Build client
         run: bun run build
 

@@ -29,7 +29,9 @@ const RAMP = {
   outline: hex("#6e2727"),
   top: hex("#fbb954"),
   speck: hex("#e6904e"),
-  side: hex("#9e4539"),
+  /** The colours `half-stone` has on the same two faces, so a ramp reads as one block with the stone under it. */
+  south: { base: hex("#e6904e"), speck: hex("#9e4539") },
+  east: { base: hex("#9e4539"), speck: hex("#6e2727") },
 };
 const STAIRS = {
   tread: hex("#9babb2"),
@@ -70,8 +72,8 @@ const stairSurface =
     (RISE / STEPS) * Math.min(Math.ceil(climbed(facing, x, y) * STEPS), STEPS);
 
 type Hit =
-  | { face: "top"; x: number; y: number }
-  | { face: "south" | "east"; outer: boolean; x: number; y: number };
+  | { face: "top"; x: number; y: number; h: number }
+  | { face: "south" | "east"; outer: boolean; x: number; y: number; h: number };
 
 const inCell = (v: number) => v >= 0 && v < CELL_SIZE;
 
@@ -87,11 +89,11 @@ function cast(surface: Surface, X: number, Y: number): Hit | null {
     const x = X + PX_PER_HEIGHT * h;
     const y = Y + PX_PER_HEIGHT * h;
     if (inCell(x) && inCell(y) && h <= surface(x, y)) {
-      if (!prev || surface(x, y) - h < ON_SURFACE) return { face: "top", x, y };
-      if (!inCell(prev.y)) return { face: "south", outer: true, x, y };
-      if (!inCell(prev.x)) return { face: "east", outer: true, x, y };
+      if (!prev || surface(x, y) - h < ON_SURFACE) return { face: "top", x, y, h };
+      if (!inCell(prev.y)) return { face: "south", outer: true, x, y, h };
+      if (!inCell(prev.x)) return { face: "east", outer: true, x, y, h };
       const face = surface(x, prev.y) < h ? "south" : "east";
-      return { face, outer: false, x, y };
+      return { face, outer: false, x, y, h };
     }
     prev = { x, y };
   }
@@ -105,8 +107,10 @@ function speckled(x: number, y: number): boolean {
 }
 
 function rampColour(hit: Hit): Rgba {
-  if (hit.face !== "top") return RAMP.side;
-  return speckled(hit.x, hit.y) ? RAMP.speck : RAMP.top;
+  if (hit.face === "top") return speckled(hit.x, hit.y) ? RAMP.speck : RAMP.top;
+  const along = hit.face === "south" ? hit.x : hit.y;
+  const { base, speck } = RAMP[hit.face];
+  return speckled(along + 3, hit.h * PX_PER_HEIGHT + 5) ? speck : base;
 }
 
 /**
@@ -128,15 +132,17 @@ function drawSprite(
   top: number,
   surface: Surface,
   colour: (hit: Hit) => Rgba,
-  outline: Rgba | null,
+  outline: { colour: Rgba; along: "rows" | "columns" } | null,
 ) {
+  const outer = outline?.along === "columns" ? SPRITE_PX : 0;
+  const started = new Uint8Array(SPRITE_PX);
   for (let sy = 0; sy < SPRITE_PX; sy++) {
-    let first = true;
     for (let sx = 0; sx < SPRITE_PX; sx++) {
       const hit = cast(surface, sx - CELL_SIZE + 0.5, sy - CELL_SIZE + 0.5);
       if (!hit) continue;
-      const rgba = outline && first && hit.face === "top" ? outline : colour(hit);
-      first = false;
+      const line = outer ? sx : sy;
+      const rgba = outline && !started[line] && hit.face === "top" ? outline.colour : colour(hit);
+      started[line] = 1;
       paintRgba(sheet, left + sx, top + sy, rgba);
     }
   }
@@ -192,7 +198,12 @@ await assertClimbsUphill(TILE_IDS);
 const sheet = new PNG({ width: DIRECTIONS.length * SPRITE_PX, height: 2 * SPRITE_PX });
 DIRECTIONS.forEach((facing, column) => {
   const left = column * SPRITE_PX;
-  drawSprite(sheet, left, 0, rampSurface(facing), rampColour, RAMP.outline);
+  /**
+   * The outline runs along the side of the ramp, never across it: across, it
+   * is a bar at the join of the two cells that make one level's climb.
+   */
+  const along = facing === "n" || facing === "s" ? "rows" : "columns";
+  drawSprite(sheet, left, 0, rampSurface(facing), rampColour, { colour: RAMP.outline, along });
   const stairs = stairSurface(facing);
   drawSprite(sheet, left, SPRITE_PX, stairs, (hit) => stairColour(facing, stairs, hit), null);
 });

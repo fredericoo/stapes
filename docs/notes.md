@@ -16742,3 +16742,120 @@ measures from the top of the body, so a tall creature sees over a wall a
 person cannot. And a tall creature put somewhere roofed is taken out by
 `removeUnfitPlacements` on the next save, the same as any overflow into an
 occupied level.
+
+## Hills are cut from noise, and the ramps are placed by what the cliffs severed
+
+`bun run raise:hills` (`../scripts/raise-hills.ts`) gave the surface its relief.
+It is a script over `data/map.json`, like `carve:caves`, and what it writes is
+ordinary authored content: nothing in the game knows a hill from a platform
+somebody stacked by hand.
+
+**What is raised.** Only open country: a level-0 stack of `grass-2` or
+`sand-dunes` with nothing on it but trees, bushes, flowers and grass, with
+nothing on any level above it, outside the town's rectangle and its margin.
+Everything else is a blocker — paths, water, swamp, buildings, creatures, the
+sand dunes with a footprint, the cave mouth — and ground within `margin` cells
+of a blocker stays at level 0. Paths therefore run through valleys, and no
+creature, building, sign or chest is on a different level than it was.
+
+**Relief.** Fractal Perlin noise, sampled at a point displaced by two more
+noise fields. Without the displacement the hills are round blobs; with it they
+have spurs and ridges. A fourth, wide field scales the relief, so the tall
+ground gathers in a few ranges and the rest rolls. The value is cut into whole
+levels, since a level is the only height a cliff can be: a half-level step is
+climbable from any side and would need no ramp.
+
+**Terraces.** Level `n` is kept only where every cell within `terraceWidth` is
+at least level `n - 1`. That is what leaves room for a ramp at every cliff, and
+it stops two cliffs meeting in one wall two levels tall, which no two-cell ramp
+climbs. Hollows and bumps of a few cells are filled and levelled.
+
+**Ramps.** A site is four cells in a line: open ground at the foot, the two
+ramp cells, and open ground at the head, where open means a player could walk
+to it before. A site counts only if the walkable ground on its own level at
+both ends is at least `minUsefulCells`, so no ramp leads up to three cells
+between trees. Sites are taken in two passes. The first spreads them out, one
+per `rampSpacing` cells, on straight stretches of cliff and on south and east
+faces first, since those are the faces the projection shows. The second takes
+any site that joins two pieces of ground the first left apart.
+
+**What a cliff cut off is put back on one level.** Trees break a hilltop into
+pockets, and a cliff through open country leaves slivers on both sides. A
+piece smaller than `minUsefulCells` gets no ramp; it is moved to the level of
+the largest piece it was cut from, up or down, and the terraces are cut again.
+Flattening everything within a terrace width of such a piece, which is what the
+first version did, took most of the walkable hills with it: 5,691 cells stayed
+raised against 9,865. Two pieces that are both large and have no site between
+them are lowered to the lower of the two. A lift the terrace rule refuses
+would be asked for again every round, so lifting stops after six rounds and
+the rest is lowered, which ends because caps only fall.
+
+A hill with nothing but trees on top gets no ramp, because there is nowhere
+on it to walk to. Of the 41 hills, 23 have ramps and 18 are wooded.
+
+**Ledges.** A raised lawn is the same green as the lawn below it, and from the
+north and west no cliff face shows, so `grass-ledge` and `sand-ledge`
+(`../scripts/generate-ledges.ts`) put a tufted rim on every raised cell beside
+a drop. They are autotiles laid over the ground only on those cells. They
+connect to the ground tile, which is why the fill under a higher level keeps
+its ground tile at the bottom: a level-1 lawn then runs under the level-2 cliff
+without a rim at its foot.
+
+**The check is the game's.** The script walks the map before and after with
+`navigationLegs`, without the legs that drop off a ledge, and writes nothing if
+a cell that could be walked to before cannot be walked to at its new level.
+The walk without drops matters: a body can fall off any cliff, so with drops
+every valley is reachable from a hilltop that nothing leads up.
+
+**It runs once.** The script refuses a map that already holds a ledge tile.
+To cut different hills, start from a map without them.
+
+The run raised 9,865 of 41,796 open cells, 844 of them to level 2 or above and
+82 to level 3, with 38 ramps.
+
+**The edge of every raised floor was in shadow.** `bakeSunSpans` gave a span
+only to occupied cells, and the shader filters the span texture. The cell at
+the edge of a hilltop was therefore blended with the air beside it, which had
+no span and read as never lit, and half of each edge cell and any tree on it
+was drawn dark. Air beside an occupied cell on its level now gets a span of
+its own. Roofs had the same band.
+
+**Bridges.** `bridgeSites` hangs up to `HILLS.bridges` decks between two pieces
+of high ground on one level that are each worth a ramp and are not already one
+piece, in a straight line over lower ground. Sites that cross a path or a
+river come first, and bridges are kept `bridgeSpacing` apart. The deck follows
+the bridge west of the town: `wooden-floor` three wide with a `fence` on the
+outer rows, and one cell of deck and rail on the ground at each end, because
+`wooden-floor` is drawn short of its cell's edge and a deck that stops at the
+gap ends before the ground begins. The run placed two, both on level 1: eleven cells south from
+(3, -72) and five cells south from (-59, 63).
+
+**Ramp sprites.** A level's climb is two ramp cells, and `generate:ramps` drew
+each with an outline down its west edge and both side faces in one brown. On a
+ramp climbing east or west the outline fell across the slope, as a bar at the
+join of the two cells, and the south face did not match the `half-stone` under
+the upper cell. The outline now runs along the side of the ramp, and the south
+and east faces take the colours `half-stone` has on those faces.
+
+## Nowhere on the map may strand a player
+
+A body can step off any ledge and fall, so every cliff, wall walk and roof is
+a one-way leg into wherever it lands. `findStranded` (`../app/verify/stranded.ts`)
+walks the map from the authored player with every leg `navigationLegs` offers,
+then walks the same legs backwards from the start. A cell the first walk
+reaches and the second does not is one a player can get into and not out of.
+`bun run verify stranded` prints those places with the legs that lead into
+each, and CI runs it. With `--image` it also draws the surface from above with
+the stranded cells in red, which CI uploads as the `stranded` artifact when the
+step fails.
+
+The hills added none. The check found three places that were already there:
+pockets of grass closed in by trees against the outside of the town wall,
+which a player on the wall walk could drop into, at (13, -39), (18, -39) and
+(24, -17). One tree was taken out of the ring round each, at (14, -43),
+(20, -40) and (26, -18). `raise:hills` runs the same check before it writes and
+refuses a map that strands more cells than the one it was given.
+
+Creatures are taken off the board before the walk, because a body in a
+doorway is in the way for a moment and not for good. Nothing is exempt yet;
+a place meant as a trap would need a list of exceptions in the command.

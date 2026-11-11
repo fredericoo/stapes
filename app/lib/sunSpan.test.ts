@@ -129,4 +129,13 @@ describe("bakeSunSpans", () => {
     const span = spanAt(sealed, 0, -1);
     for (const arc of [0, EARLY, NOON, LATE, 1]) expect(litAt(span, arc)).toBe(false);
   });
+  it("gives the open air beside a raised floor the sun the floor has", () => {
+    const hill = rowMap([
+      ...floorsFrom(-20, 20),
+      ...[0, 1, 2].map((x) => ({ x, tiles: ["floor", "wall"] })),
+      ...floorsFrom(0, 2, 1),
+    ]);
+    for (const x of [-1, 3]) expect(litAt(spanAt(hill, x, 1), NOON)).toBe(true);
+    expect(litAt(spanAt(hill, 6, 1), NOON)).toBe(false);
+  });
 });

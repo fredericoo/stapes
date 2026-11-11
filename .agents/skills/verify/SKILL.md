@@ -10,8 +10,9 @@ description: >
 # Showing that a change works
 
 `bun run verify <command>` runs the game's own code on this checkout and prints
-what it found. It is evidence for a pull request, not a CI gate: nothing runs it
-unless you do, and it needs no server, database or account. Every command
+what it found. It is evidence for a pull request and needs no server, database
+or account. CI runs one of the commands, `stranded`; nothing runs the others
+unless you do. Every command
 prints the commit it ran on, and says so when the tree has uncommitted changes.
 `--json` prints exactly one JSON object on stdout; without it you get a short
 table. `bun run verify --help` lists the commands, and
@@ -22,6 +23,7 @@ table. `bun run verify --help` lists the commands, and
 | You changed | Run | It answers |
 | --- | --- | --- |
 | anything in `data/`: tiles, statuses, tilesets, the map | `bun run verify content` | Does every tile, status, brain and dialog load, and does every id they name exist? |
+| `data/map.json`, or anything in how a body walks, climbs, drops or teleports | `bun run verify stranded` | Starting where a player starts, is there anywhere they can get to and not get back from? |
 | combat numbers, a weapon, a creature's stats | `bun run verify battle <a> <b> --against main`, for example `bun run verify battle wolf player:sharp=15,agility=15,toughness=15,weapon=knights-sword --against main` | Who wins, how often and how fast, sampled over seeds beside the closed-form figures, and how far each figure moved from `main`? |
 
 `verify content` exits 1 on an error in tiles, statuses or tilesets and prints
@@ -29,6 +31,17 @@ each finding with its file, the id and what is wrong. What it finds in
 `data/map.json` is a warning and does not change the exit code. `--data <dir>`
 checks a copy of the content directory instead, which is how to show that it
 catches a fault: seed the fault into a copy and run it there.
+
+`verify stranded` walks the map with `navigationLegs`, every leg a body can
+take: steps, drops off a ledge, doors, ladders and portals. It exits 1 if any
+cell that can be reached that way has no route back to the start, and lists
+each such place with the legs that lead into it, which are the ledges to fix.
+Creatures are taken off the board first. `--image <file.png>` also draws the
+surface from above with every stranded cell in red, the cell each way in
+leaves from in yellow and a red frame round each place. CI runs it, so a map edit that leaves
+a pit with no way out fails the build and uploads that picture and the JSON
+report as the `stranded` artifact; the fix is a ramp, a ladder or a gap in
+whatever closes the place in.
 
 `verify battle` fights through the Arena's own `Duel`, every seed both ways
 round. A side is a battler tile id, or one with masteries and equipment by
