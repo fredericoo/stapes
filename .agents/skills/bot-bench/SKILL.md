@@ -73,7 +73,7 @@ intervals beside it suggest.
 - **deaths/h**, **kills/h** — per bot-hour, counted in the server's `kill`,
   so both versions are counted the same way whatever their bots log. Kills
   are of anything but another bench bot.
-- **gold** — the currency a bot carries at the end.
+- **gold** — the currency a bot carries or has stashed in a depot at the end.
 - **gear worth** — `gearWorth` summed over what it wears at the end, measured
   by the checkout you run from, not by either version.
 - **top mastery** — its highest mastery level at the end.

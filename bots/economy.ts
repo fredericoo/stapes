@@ -1,10 +1,12 @@
 import { carriedInstances, type Equipment } from "../app/game/equipment";
 import { affordsRecipe } from "../app/game/craft";
+import type { Depots } from "../app/game/depot";
+import { capacityOf } from "../app/game/itemMoves";
 import { carriedCount, planTrade } from "../app/game/trade";
 import type { BattlerDef } from "../app/lib/battler";
 import type { TradeSide } from "../app/lib/dialog";
 import { resolveCraft, type CraftRecipe } from "../app/lib/interactions";
-import { countOf } from "../app/lib/piles";
+import { countOf, stow } from "../app/lib/piles";
 import type { StatusDef } from "../app/lib/status";
 import { resolveLight } from "../app/lib/tileResolve";
 import type { TileDef } from "../app/lib/types";
@@ -30,6 +32,20 @@ export const MIN_GAIN = 0.25;
 export const UNPRICED_WORTH = 1;
 
 export type Deal = { readonly offer: Offer; readonly amount: number; readonly why: string };
+
+/**
+ * One move at a depot: a thing out of the bag into the stash, or a thing out
+ * of the stash tagged `tag` into the bag. `from` is its place in the bag's
+ * contents or in the stash, as either is now.
+ */
+export type BankMove =
+  | { readonly kind: "deposit"; readonly tileId: string; readonly from: number }
+  | {
+      readonly kind: "withdraw";
+      readonly tileId: string;
+      readonly from: number;
+      readonly tag: string;
+    };
 
 /**
  * What a bot knows about the economy: every trade every NPC offers, read
@@ -89,21 +105,23 @@ export class Economy {
   }
 
   /**
-   * The trades worth going to make now, most wanted first: food when the bag
-   * holds less than half of `FOOD_RESERVE`, then every upgrade the bot can
-   * pay for.
+   * The trades worth going to make now, most wanted first: every upgrade the
+   * bot can pay for, then food when the bag holds less than half of
+   * `FOOD_RESERVE`. The upgrade comes first because a bot that has just died
+   * has no food and all its money in a depot: with food first it would take
+   * the price of a weapon out of the stash and spend it on pies.
    */
   purchases(equipment: Equipment, body: BattlerDef): Deal[] {
     const out: Deal[] = [];
+    for (const { offer } of this.upgrades(equipment, body)) {
+      if (this.affordable(offer, equipment, 1) > 0) out.push({ offer, amount: 1, why: "upgrade" });
+    }
     const food = this.foodCount(equipment);
     if (food < FOOD_RESERVE / 2) {
       for (const offer of this.foodOffers()) {
         const amount = this.affordable(offer, equipment, FOOD_RESERVE - food);
         if (amount > 0) out.push({ offer, amount, why: "food" });
       }
-    }
-    for (const { offer } of this.upgrades(equipment, body)) {
-      if (this.affordable(offer, equipment, 1) > 0) out.push({ offer, amount: 1, why: "upgrade" });
     }
     return out;
   }
@@ -140,6 +158,77 @@ export class Economy {
       out.push({ offer, amount, why: "sale" });
     }
     return out;
+  }
+
+  /**
+   * What the bot would do at a depot as it is now, in order. With an upgrade
+   * it can already pay for it does nothing, because the next thing to do is
+   * buy it. Otherwise it takes out what completes the price of the best
+   * upgrade it could then pay for, and with none of those it puts in the
+   * money and upgrade inputs it carries. Death takes the bag and leaves the
+   * depot. `sold` says whether the bot knows where an offer's NPC is: what
+   * is taken out for a seller nobody has found would be put straight back.
+   */
+  bankMoves(
+    equipment: Equipment,
+    body: BattlerDef,
+    depots: Depots,
+    sold: (offer: Offer) => boolean,
+  ): BankMove[] {
+    const upgrades = this.upgrades(equipment, body);
+    const reachable = upgrades.filter(({ offer }) => sold(offer));
+    if (reachable.some(({ offer }) => this.affordable(offer, equipment, 1) > 0)) return [];
+    for (const { offer } of reachable) {
+      const withdrawal = this.withdrawalFor(offer, equipment, depots);
+      if (withdrawal) return withdrawal;
+    }
+    const saved = new Set(upgrades.flatMap(({ offer }) => offer.take.map((side) => side.tileId)));
+    const moves: BankMove[] = [];
+    (equipment.bag?.contents ?? []).forEach(({ tileId }, from) => {
+      if (tileId === this.currency || saved.has(tileId))
+        moves.push({ kind: "deposit", tileId, from });
+    });
+    return moves;
+  }
+
+  /**
+   * The piles to take out of one stash so that the bot can pay for `offer`,
+   * or null when no stash completes the price or the bag has no room for
+   * them. Whole piles move, so what is left over goes back in afterwards.
+   */
+  private withdrawalFor(offer: Offer, equipment: Equipment, depots: Depots): BankMove[] | null {
+    const bag = equipment.bag;
+    if (!bag) return null;
+    const capacity = capacityOf(bag, this.tilesById);
+    for (const [tag, stash] of Object.entries(depots)) {
+      let contents = bag.contents ?? [];
+      const moves: BankMove[] = [];
+      for (const side of offer.take) {
+        let short = side.count - carriedCount(this.tilesById, equipment, side.tileId);
+        stash.forEach((instance, from) => {
+          if (short <= 0 || instance.tileId !== side.tileId) return;
+          const stowed = stow(contents, instance, capacity, this.tilesById);
+          if (!stowed) return;
+          contents = stowed;
+          short -= countOf(instance);
+          moves.push({ kind: "withdraw", tileId: instance.tileId, from, tag });
+        });
+      }
+      if (moves.length === 0) continue;
+      if (this.affordable(offer, { ...equipment, bag: { ...bag, contents } }, 1) > 0) return moves;
+    }
+    return null;
+  }
+
+  /** What `moves` put into the depot would be worth, in the currency. */
+  depositWorth(equipment: Equipment, moves: readonly BankMove[]): number {
+    const contents = equipment.bag?.contents ?? [];
+    let worth = 0;
+    for (const move of moves) {
+      const instance = move.kind === "deposit" ? contents[move.from] : undefined;
+      if (instance) worth += this.unitWorth(instance.tileId) * countOf(instance);
+    }
+    return worth;
   }
 
   /**

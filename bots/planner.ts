@@ -29,6 +29,10 @@ export type Situation = {
   readonly lostKitAt: Coord | null;
   /** It carries stones worth forging and knows where a forge is. */
   readonly canForge: boolean;
+  /** A depot it knows of holds what completes the price of an upgrade. */
+  readonly canWithdraw: boolean;
+  /** It carries money and upgrade inputs worth the walk to a depot it knows of. */
+  readonly canStash: boolean;
 };
 
 export const NOTHING_TO_DO: Situation = {
@@ -39,6 +43,8 @@ export const NOTHING_TO_DO: Situation = {
   hasFood: false,
   lostKitAt: null,
   canForge: false,
+  canWithdraw: false,
+  canStash: false,
 };
 
 export type Observation = {
@@ -107,7 +113,8 @@ export const REST_SPELL_SECONDS = 30;
 
 /**
  * The opening goals in order, then a loop that plays the game: go back for
- * the bag it died with, buy what it can afford, sell what it does not need,
+ * the bag it died with, take out of a depot what completes a purchase, buy
+ * what it can afford, sell what it does not need, stash what it is saving,
  * forge the stones it carries, and otherwise hunt, breaking off now and then
  * to gather the money that hunting does not pay. A recovering bot rests while
  * it has food and gathers when it has none, since bushes give food and health
@@ -151,8 +158,10 @@ export class ProgressPlanner implements Planner {
   private next({ goal, nowMs, situation }: Observation): Goal {
     const fresh = (kind: Goal["goal"]) =>
       nowMs - (this.failedAt.get(kind) ?? -Infinity) > FAILED_GOAL_MS;
+    if (situation.canWithdraw && fresh("bank")) return this.leaveHunt({ goal: "bank" });
     if (situation.canBuy && fresh("shop")) return this.leaveHunt({ goal: "shop" });
     if (situation.canSell && fresh("sell")) return this.leaveHunt({ goal: "sell" });
+    if (situation.canStash && fresh("bank")) return this.leaveHunt({ goal: "bank" });
     if (situation.recovering && situation.hasFood) {
       return this.leaveHunt({ goal: "rest", seconds: REST_SPELL_SECONDS });
     }

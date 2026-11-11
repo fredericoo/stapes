@@ -1,13 +1,14 @@
 import * as v from "valibot";
 import { cellGoal, levelGoal, type NavGoal } from "../app/game/navigation";
 import type { ObjectRef } from "../app/game/affordances";
+import type { Depots } from "../app/game/depot";
 import type { Equipment } from "../app/game/equipment";
 import { MAX_LEVEL, MIN_LEVEL, type Coord } from "../app/lib/types";
 import type { ActorSnapshot } from "../app/game/GameSession";
 import type { BattlerDef } from "../app/lib/battler";
 import { rating } from "../app/lib/mastery";
 import { forgeOrders, type ForgeOrder } from "./arcane";
-import type { Deal, Economy } from "./economy";
+import type { BankMove, Deal, Economy } from "./economy";
 import { exploredKey, type Knowledge } from "./knowledge";
 import type { Landmarks } from "./memory";
 
@@ -26,6 +27,7 @@ export const goalSchema = v.variant("goal", [
   v.object({ goal: v.literal("shop") }),
   v.object({ goal: v.literal("sell") }),
   v.object({ goal: v.literal("forge") }),
+  v.object({ goal: v.literal("bank") }),
   v.object({
     goal: v.literal("gather"),
     pulls: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
@@ -56,6 +58,8 @@ export function describeGoal(goal: Goal): string {
       return "sell what I carry and do not need";
     case "forge":
       return "forge the stones I carry";
+    case "bank":
+      return "stash what I am saving, or take out what I can now spend";
     case "gather":
       return `gather ${goal.pulls} times`;
     case "rest":
@@ -65,13 +69,15 @@ export function describeGoal(goal: Goal): string {
 
 /**
  * What a bot does on arriving: press a thing, talk an NPC through a trade,
- * work a resource until it gives, or craft a recipe at a crafter.
+ * work a resource until it gives, craft a recipe at a crafter, or move
+ * things between its bag and the stash a depot opens onto.
  */
 export type Act =
   | { readonly kind: "press"; readonly ref: ObjectRef }
   | { readonly kind: "talk"; readonly deal: Deal; readonly at: Coord }
   | { readonly kind: "gather"; readonly ref: ObjectRef }
   | { readonly kind: "craft"; readonly ref: ObjectRef; readonly recipe: number }
+  | { readonly kind: "bank"; readonly ref: ObjectRef; readonly tag: string }
   | { readonly kind: "visit"; readonly tileId: string; readonly at: Coord };
 
 /**
@@ -111,11 +117,15 @@ export type Holdings = {
   readonly body: BattlerDef | null;
 };
 
-/** What the bot knows of trade: the catalogue's offers, the fleet's memory, and who is in view. */
+/**
+ * What the bot knows of trade: the catalogue's offers, the fleet's memory,
+ * who is in view, and what its own stashes hold.
+ */
 export type Market = {
   readonly economy: Economy;
   readonly landmarks: Landmarks;
   readonly bodies: readonly ActorSnapshot[];
+  readonly depots: Depots;
 };
 
 /**
@@ -177,6 +187,19 @@ export function nextErrand(
         exploreErrand(knowledge, self, null, recall) ??
         "exhausted"
       );
+    }
+    case "bank": {
+      if (!holdings.body) return "done";
+      const sold = (offer: Deal["offer"]) =>
+        whereIs(offer.npc, self, market, recall.skipped) !== null;
+      const moves = market.economy.bankMoves(
+        holdings.equipment,
+        holdings.body,
+        market.depots,
+        sold,
+      );
+      if (moves.length === 0) return "done";
+      return bankErrand(moves[0]!, knowledge, self, recall, market) ?? "exhausted";
     }
     case "gather": {
       if (recall.pulls >= goal.pulls || !holdings.body) return "done";
@@ -327,6 +350,42 @@ function forgeErrand(
     };
   }
   for (const tileId of crafters) {
+    const at = market.landmarks
+      .where(tileId, self)
+      .find((spot) => !recall.skipped.has(landmarkKey(tileId, spot)));
+    if (at)
+      return { nav: cellGoal(at, "beside"), act: { kind: "visit", tileId, at }, explores: null };
+  }
+  return null;
+}
+
+/**
+ * The walk to the nearest depot `move` can be made at: any that opens for a
+ * deposit, and one onto the stash that holds the thing for a withdrawal.
+ * With none in what the bot has seen, it walks to where the fleet remembers
+ * a depot, which shows it the tag.
+ */
+function bankErrand(
+  move: BankMove,
+  knowledge: Knowledge,
+  self: Coord,
+  recall: Recall,
+  market: Market,
+): Errand | null {
+  const seen = knowledge.depots();
+  for (const { ref, tileId } of seen) market.landmarks.saw(tileId, ref);
+  const nearest = seen
+    .filter(({ tag }) => move.kind === "deposit" || tag === move.tag)
+    .filter(({ ref }) => !recall.skipped.has(refKey(ref)))
+    .sort((a, b) => distance(self, a.ref) - distance(self, b.ref))[0];
+  if (nearest) {
+    return {
+      nav: knowledge.depotGoal(nearest.ref),
+      act: { kind: "bank", ref: nearest.ref, tag: nearest.tag },
+      explores: null,
+    };
+  }
+  for (const tileId of knowledge.depotTileIds()) {
     const at = market.landmarks
       .where(tileId, self)
       .find((spot) => !recall.skipped.has(landmarkKey(tileId, spot)));

@@ -121,6 +121,26 @@ function forgeWorld(rewards: string[]): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
+/**
+ * A field with the bot, a pile of `shards` beside it, the town's depot a few
+ * cells east, and, when the test wants sellers, the blacksmith at the far end
+ * with the pie maker beside him.
+ */
+function depotWorld(shards: number, { sellers = false } = {}): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 7; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["1,3"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  cells["2,3"]!.push({ tileId: "arcane-shard", itemId: "found", count: shards });
+  cells["6,2"]!.push({ tileId: "silver-chest", depotTag: "town" });
+  if (sellers) {
+    cells["14,3"]!.push({ tileId: "blacksmith", direction: "w" });
+    cells["14,5"]!.push({ tileId: "pie-maker", direction: "w" });
+  }
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
 let harness: Harness;
 
 beforeEach(async () => {
@@ -455,6 +475,48 @@ it("takes the shards out of a dropped bag when it already wears one like it", as
 
   expect(remote.getSnapshot().equipment.bag?.tileId).toBe("basic-bag");
   expect(carried(remote)).toContain("arcane-shard");
+});
+
+function stashed(remote: RemoteSession): Array<{ tileId: string; count?: number }> {
+  return (remote.getSnapshot().depots.town ?? []).map(({ tileId, count }) => ({ tileId, count }));
+}
+
+it("stashes shards it cannot spend yet in the depot, where a death does not take them", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(depotWorld(12)), JSON_TYPE);
+  const { remote, clock } = await joinBot();
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 },
+  });
+
+  await play(bot, remote, () => stashed(remote).length > 0, clock);
+
+  expect(stashed(remote)).toEqual([{ tileId: "arcane-shard", count: 12 }]);
+  expect(carried(remote)).not.toContain("arcane-shard");
+});
+
+it("takes its savings out of the depot once they complete a price, and spends them on the weapon, not on food", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(depotWorld(10, { sellers: true })), JSON_TYPE);
+  await harness.store.put("depot:bot", {
+    depots: { town: [{ id: "saved", tileId: "arcane-shard", count: 10 }] },
+    savedAt: 0,
+  });
+  const { remote, clock } = await joinBot();
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, style: "blunt", wanderChance: 0 },
+  });
+
+  await play(
+    bot,
+    remote,
+    () => remote.getSnapshot().equipment.weapon?.tileId === "simple-hammer",
+    clock,
+  );
+
+  expect(remote.getSnapshot().equipment.weapon?.tileId).toBe("simple-hammer");
+  expect(stashed(remote)).toEqual([]);
+  expect(carried(remote)).not.toContain("apple-pie");
 });
 
 it("forges the blank stone from the chest at the stone forge", async () => {
