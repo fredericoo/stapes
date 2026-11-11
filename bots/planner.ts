@@ -19,6 +19,11 @@ export type Situation = {
    * `restedHpShare`, so it starts no fight.
    */
   readonly recovering: boolean;
+  /**
+   * While it recovers, the safe ground it should recover on, when that is
+   * worth the walk from where it stands (`refugeFor`).
+   */
+  readonly refugeAt: Coord | null;
   /** It carries food that heals, which is the only way health comes back. */
   readonly hasFood: boolean;
   /**
@@ -40,6 +45,7 @@ export const NOTHING_TO_DO: Situation = {
   canSell: false,
   canGather: false,
   recovering: false,
+  refugeAt: null,
   hasFood: false,
   lostKitAt: null,
   canForge: false,
@@ -116,9 +122,10 @@ export const REST_SPELL_SECONDS = 30;
  * the bag it died with, take out of a depot what completes a purchase, buy
  * what it can afford, sell what it does not need, stash what it is saving,
  * forge the stones it carries, and otherwise hunt, breaking off now and then
- * to gather the money that hunting does not pay. A recovering bot rests while
- * it has food and gathers when it has none, since bushes give food and health
- * comes back only from food.
+ * to gather the money that hunting does not pay. A recovering bot first goes
+ * to safe ground when it knows some worth the walk, then rests while it has
+ * food and gathers when it has none, since bushes give food and health comes
+ * back only from food.
  */
 export class ProgressPlanner implements Planner {
   private at = 0;
@@ -162,6 +169,9 @@ export class ProgressPlanner implements Planner {
     if (situation.canBuy && fresh("shop")) return this.leaveHunt({ goal: "shop" });
     if (situation.canSell && fresh("sell")) return this.leaveHunt({ goal: "sell" });
     if (situation.canStash && fresh("bank")) return this.leaveHunt({ goal: "bank" });
+    if (situation.recovering && situation.refugeAt && fresh("refuge")) {
+      return this.leaveHunt({ goal: "refuge", ...situation.refugeAt });
+    }
     if (situation.recovering && situation.hasFood) {
       return this.leaveHunt({ goal: "rest", seconds: REST_SPELL_SECONDS });
     }
