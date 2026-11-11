@@ -18,6 +18,7 @@ import { tilesByIdFromList } from "../app/lib/validation";
 import { RemoteSession } from "../app/net/RemoteSession";
 import { Harness, Pair } from "../server/testHarness";
 import { Bot } from "./Bot";
+import { Landmarks } from "./memory";
 import {
   ProgressPlanner,
   ScriptedPlanner,
@@ -138,6 +139,16 @@ function depotWorld(shards: number, { sellers = false } = {}): FlatMapFile {
     cells["14,3"]!.push({ tileId: "blacksmith", direction: "w" });
     cells["14,5"]!.push({ tileId: "pie-maker", direction: "w" });
   }
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+/** A long, narrow field with the bot at its west end. */
+function corridorWorld(length: number): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < length; x++) {
+    for (let y = 0; y < 8; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["2,4"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
@@ -663,3 +674,43 @@ it.each([
 
   expect(mended(remote)).toBe(true);
 });
+
+it.each([
+  { fears: true, dread: DEFAULT_TEMPERAMENT.dread },
+  { fears: false, dread: 0 },
+])(
+  "explores short of where the fleet saw a creature it cannot survive, and past it when it does not fear it (fears: $fears)",
+  async ({ fears, dread }) => {
+    await harness.blobs.put("map.json", JSON.stringify(corridorWorld(120)), JSON_TYPE);
+    const { remote, clock } = await joinBot();
+    const landmarks = new Landmarks(":memory:");
+    const wolfAt = { x: 52, y: 4, z: 0 };
+    landmarks.saw("wolf", wolfAt);
+    const bot = new Bot(remote, new ScriptedPlanner([{ goal: "explore" }]), tilesById, statuses, {
+      random: () => 0.5,
+      landmarks,
+      temperament: {
+        ...DEFAULT_TEMPERAMENT,
+        dread,
+        wanderChance: 0,
+        loiterMinMs: 200,
+        loiterMaxMs: 400,
+      },
+    });
+    let east = 0;
+    await play(
+      bot,
+      remote,
+      () => {
+        east = Math.max(east, remote.getSnapshot().self.x);
+        return clock.ms >= 60_000;
+      },
+      clock,
+    );
+
+    expect(east).toBeGreaterThan(20);
+    expect(east < wolfAt.x - 8).toBe(fears);
+    landmarks.close();
+  },
+  60_000,
+);
