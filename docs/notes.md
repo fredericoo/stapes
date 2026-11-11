@@ -16222,6 +16222,11 @@ to the next leg's direction as soon as the current walk is heading for the
 right cell, so the client's prediction starts the next step the moment this
 one lands, and the bot does not stop on every cell. The bot plans again when
 it ends up off its route, or when it has not moved for `STUCK_AFTER_MS`.
+A drop leg is chained like a walk when the step in progress is heading for
+the cell the drop lands on. The step out of an open door is planned as a drop
+onto the next cell, and while the `Pilot` waited for a fall that never came,
+the held key carried the bot along the path until it counted itself lost,
+stopped and hesitated.
 Being hurt interrupts the route: the bot targets the nearest creature within
 two cells and fights until that creature is gone or out of reach. When a goal
 asks for a place nobody has seen, such as a level with no known way up, the
@@ -16289,7 +16294,11 @@ remembering cells would creep along the map's edge one cell at a time. With no
 unexplored edge left, the bot roams to a known cell on its own level between
 `ROAM_NEAR_CELLS` and `ROAM_FAR_CELLS` away, again in a block it has not
 visited. When it runs out of those, it forgets every block it has visited and
-starts again.
+starts again, in the same search. A `hunt` explores the same way and used not
+to forget: once a bot had visited every block in reach it failed with "found
+no way to hunt", stood `FAILED_PAUSE_MS`, was given the hunt again by
+`ProgressPlanner` (which never rests the hunt) and failed again, for as long
+as 101 seconds in one measured stand.
 
 A route to an explore target is searched with `EXPLORE_MAX_NODES` rather than
 the full budget, and up to `EXPLORE_ATTEMPTS` targets are tried. A search for
@@ -16298,7 +16307,12 @@ the bot loiters for between its temperament's `loiterMinMs` and `loiterMaxMs` (a
 creature along its way awake on the server, so the loitering is also how it
 limits its load on the server. A goal that finds no route waits
 `FAILED_PAUSE_MS` before it is searched again, so the bot does not search
-every frame.
+every frame. A hunt is the exception: it has no place of its own to reach,
+and when none of the edges it tried has a route it wanders a few cells and
+looks about instead, which spaces the searches out without standing 15
+seconds. In the failed hunts inspected, hundreds of unexplored edges were
+known, and the `EXPLORE_ATTEMPTS` nearest all lacked a route within
+`EXPLORE_MAX_NODES`; the search after the pause usually failed the same way.
 
 **A bot explores, hunts and gathers only inside its home range.** Eighteen
 new characters on the shipped map for half an hour each died 71 times; 48 of
@@ -16589,9 +16603,12 @@ whose actor id sorts before its own. Once within `COMPANY_CELLS` it waits a
 glance's time and looks again, rather than exploring. Following only towards
 lower ids gives every group one player who follows nobody and explores for
 the rest; when each of two bots walked towards the other, they met, explored
-apart and met again. The leader may be a person, and a bot following a person
-who stands still in town stands with them until `ProgressPlanner` gives it
-another goal.
+apart and met again. It waits once per cell the leader stands on: a leader
+still on the same cell after the glance is resting, gathering, trading or
+stuck, and the bot explores on its own until the leader moves (`waitedBeside`).
+Before that, a follower stood with a leader that stood still for as long as it
+did, glance after glance, and on the shipped map that was the largest single
+share of the time bots stood still, more than fighting.
 
 **A bot goes back for the bag it died with.** A dead player drops its whole kit
 where it fell (`dropKit`), the bag whole with the money and food in it. The bot remembers
@@ -16641,20 +16658,51 @@ after the same rabbit. Three things now separate them:
   expects to lose.
 - **Hesitation.** A bot waits a random time between `reactionMinMs` and
   `reactionMaxMs` before it charts a new errand or sets off after prey, drawn
-  afresh each time. The start is staggered too: each bot waits up to
+  afresh each time: on a new goal, after arriving, after being knocked off its
+  route. It does not hesitate when a pause ends, because a pause (a glance, a
+  loiter) is already the bot standing and deciding. The start is staggered too: each bot waits up to
   `START_JITTER_MS` before its first sign-in.
 - **Prey choice.** `choosePrey` picks at random among the `preyChoices` best.
 
 - **Wandering.** Before each new errand, with probability `wanderChance`, a
   bot first walks to a spot between `wanderNearCells` and `wanderFarCells`
   away and looks about for a few seconds. It walks a route in stretches of
-  `stretchMinLegs` to `stretchMaxLegs` legs, stopping after each one to
-  hesitate and decide again, which is when it may wander. A wander never
-  takes a drop, so it cannot strand the bot below where it was going.
+  `stretchMinLegs` to `stretchMaxLegs` legs. Past the end of one, the next
+  time the bot is between two steps, it charts again and drives the new
+  route in the same frame, which is when it may wander. It does not stop
+  first: it used to stop and hesitate there, on a route it had already
+  chosen. A chained walk is rarely between steps, so this mostly happens at a
+  door, a ladder or a drop, where the `Pilot` cannot chain; a door or a ladder
+  ahead is pressed first and charted after. A wander never takes a drop, so
+  it cannot strand the bot below where it was going.
 
 Without wandering, bots crossed the tutorial in single file, as if they
 already knew the way. With it, six bots started together came out onto the
 surface 68 to 208 seconds in.
+
+**Standing still is measured by cause.** Eighteen bots for half an hour each
+on the shipped map (three seeds of six), on `main` at `cc433a9`, before the
+home range, reading the bot's state every frame it was alive and on the same
+cell as the frame before:
+
+| share of time alive | before | after |
+|---|---|---|
+| standing, all causes | 46.6% | 43.3% |
+| hesitating after a pause ended | 4.0% | 0.2% |
+| pause after a failed goal | 3.4% | 0.2% |
+| waiting beside a leader | 3.3% | 2.2% |
+| hesitating after being knocked off a route | 2.6% | 3.4% |
+| glancing after a wander | 5.8% | 7.1% |
+| fighting | 5.9% | 7.0% |
+
+Stands of 20 seconds or more fell from 8.6 to 4.6 a bot-hour and the longest
+from 139 to 50 seconds; those left are resting, gathering and loitering,
+which are choices. "found no way to hunt" fell from 103 to 6. The stop at the
+end of a stretch was smaller than it looked, under 1% before: a chained walk
+is rarely between steps when the bot decides. Glancing rose because every
+stretch end and every hunt without a route may now wander. The opening goals
+finished 109 to 217 seconds in before and 103 to 233 after, so starting
+together still does not mean moving together.
 
 **A bot always wears a light if it has one.** `nextDressing`
 (`bots/dress.ts`) runs before the goal, every frame. When nothing the bot
