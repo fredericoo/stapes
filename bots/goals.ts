@@ -12,6 +12,7 @@ import type { BankMove, Deal, Economy } from "./economy";
 import { inRange, type HomeRange } from "./homeRange";
 import { exploredKey, type Knowledge } from "./knowledge";
 import type { Landmarks } from "./memory";
+import { pullWorth, worthTowards } from "./objective";
 import { havenGoal } from "./refuge";
 
 const level = v.pipe(v.number(), v.integer(), v.minValue(MIN_LEVEL), v.maxValue(MAX_LEVEL));
@@ -112,6 +113,12 @@ export type Recall = {
    * or null while the bot does not know where home is.
    */
   readonly range: HomeRange | null;
+  /**
+   * Whether a route from home reaches a cell without crossing a danger, for
+   * the places a gather or a hunt for an objective heads for. Absent, every
+   * cell inside the range counts.
+   */
+  readonly reaches?: (cell: Coord) => boolean;
 };
 
 /**
@@ -136,6 +143,13 @@ export type Market = {
   readonly landmarks: Landmarks;
   readonly bodies: readonly ActorSnapshot[];
   readonly depots: Depots;
+  /** What the bot's objective needs from gathering, when that is what it gathers for. */
+  readonly gatherFor?: string;
+  /**
+   * Creatures that drop what the bot's objective needs from hunting, most
+   * a kill first, when that is what it hunts for.
+   */
+  readonly quarry?: readonly string[];
 };
 
 /**
@@ -218,13 +232,15 @@ export function nextErrand(
     case "explore":
     case "hunt":
       return (
+        (goal.goal === "hunt" ? quarryErrand(self, recall, market) : null) ??
         exploreErrand(
           knowledge,
           self,
           goal.goal === "explore" ? (goal.toward ?? null) : null,
           recall,
           recall.range,
-        ) ?? "exhausted"
+        ) ??
+        "exhausted"
       );
     case "refuge": {
       const nav = havenGoal(goal);
@@ -319,7 +335,9 @@ function talkErrand(
 /**
  * The nearest resource in what the bot has seen whose yield it wants, else
  * the nearest the fleet remembers. A resource with every pull taken by
- * somebody else, or outside the bot's range, is passed over.
+ * somebody else, or outside the bot's range, is passed over. Gathering for
+ * an objective takes only what gives towards it, and ranks it by the steps
+ * walked for each expected unit.
  */
 function gatherErrand(
   knowledge: Knowledge,
@@ -328,12 +346,21 @@ function gatherErrand(
   recall: Recall,
   market: Market,
 ): Errand | null {
-  const wanted = market.economy.wanted(holdings.equipment, holdings.body!);
-  const inside = (cell: Coord) => !recall.range || inRange(recall.range, cell);
+  const inside = (cell: Coord) => insideRange(recall, cell);
+  const { gatherFor, economy } = market;
+  const worth = (tileId: string) => {
+    const def = economy.tilesById[tileId];
+    return gatherFor === undefined ? 1 : def ? pullWorth(economy, def, gatherFor) : 0;
+  };
+  const wanted =
+    gatherFor === undefined
+      ? economy.wanted(holdings.equipment, holdings.body!)
+      : (yielded: string) => worthTowards(economy, yielded, gatherFor) > 0;
+  const cost = (at: Coord, tileId: string) => (distance(self, at) + 1) / worth(tileId);
   const found = knowledge
     .resources(wanted)
     .filter(({ ref }) => !recall.skipped.has(refKey(ref)) && !recall.avoid(ref))
-    .sort((a, b) => distance(self, a.ref) - distance(self, b.ref));
+    .sort((a, b) => cost(a.ref, a.tileId) - cost(b.ref, b.tileId));
   for (const { ref, tileId } of found) market.landmarks.saw(tileId, ref);
   const nearest = found.find(({ ref }) => inside(ref));
   if (nearest) {
@@ -343,7 +370,8 @@ function gatherErrand(
       explores: null,
     };
   }
-  for (const tileId of knowledge.resourceTileIds(wanted)) {
+  const remembered = knowledge.resourceTileIds(wanted).sort((a, b) => worth(b) - worth(a));
+  for (const tileId of remembered) {
     const at = market.landmarks
       .where(tileId, self)
       .find(
@@ -354,6 +382,30 @@ function gatherErrand(
       return { nav: cellGoal(at, "beside"), act: { kind: "visit", tileId, at }, explores: null };
   }
   return null;
+}
+
+/**
+ * The walk to where the fleet last saw a creature the objective hunts for,
+ * the one that drops most a kill first. Prey in sight is fought before any
+ * errand, so this is only for when none is.
+ */
+function quarryErrand(self: Coord, recall: Recall, market: Market): Errand | null {
+  const inside = (cell: Coord) => insideRange(recall, cell);
+  for (const tileId of market.quarry ?? []) {
+    const at = market.landmarks
+      .where(tileId, self)
+      .find(
+        (spot) =>
+          !recall.skipped.has(landmarkKey(tileId, spot)) && !recall.avoid(spot) && inside(spot),
+      );
+    if (at)
+      return { nav: cellGoal(at, "beside"), act: { kind: "visit", tileId, at }, explores: null };
+  }
+  return null;
+}
+
+function insideRange(recall: Recall, cell: Coord): boolean {
+  return (!recall.range || inRange(recall.range, cell)) && (recall.reaches?.(cell) ?? true);
 }
 
 /**

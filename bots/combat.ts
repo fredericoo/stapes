@@ -35,12 +35,17 @@ export function creaturesAround<T extends Rated>(
   tilesById: Record<string, TileDef>,
 ): T[] {
   return actors.filter((a) => {
-    if (a.id === self.id || a.tileId === PLAYER_TILE_ID) return false;
+    if (a.id === self.id) return false;
     if (a.hp !== null && a.hp <= 0) return false;
     const def = tilesById[a.tileId];
-    const battler = def && resolveBattler(def);
-    return !!battler && battler.pvp !== true && resolveDialog(def) === null;
+    return def !== undefined && isCreature(def);
   });
+}
+
+export function isCreature(def: TileDef): boolean {
+  if (def.id === PLAYER_TILE_ID) return false;
+  const battler = resolveBattler(def);
+  return battler !== null && battler.pvp !== true && resolveDialog(def) === null;
 }
 
 export type PreyChoice<T> = {
@@ -53,13 +58,16 @@ export type PreyChoice<T> = {
   readonly skipped: (id: string) => boolean;
   /** Prey another player is already beside, which goes first: the fight is shared. */
   readonly shared: (prey: T) => boolean;
+  /** Prey that drops what the bot's objective needs, which goes next. */
+  readonly yields?: (prey: T) => boolean;
 };
 
 /**
  * The creature to hunt: one the bot expects to beat by at least `courage`
  * (`fightOdds`), never one whose rating is unknown. Among those, prey another
- * player is beside comes first, then one that teaches something before one
- * that does not, then the nearest; the pick is random among the first
+ * player is beside comes first, then one that drops what the bot's
+ * objective needs, then one that teaches something before one that does
+ * not, then the nearest; the pick is random among the first
  * `choices`, so two bots alone in one place do not always set off after the
  * same rabbit.
  */
@@ -73,7 +81,8 @@ export function choosePrey<T extends Rated>(
   const candidates = creaturesAround(self, actors, tilesById).filter(
     (a) => a.rating !== null && !how.skipped(a.id) && how.margin(a) >= how.courage,
   );
-  const rank = (a: T) => (how.shared(a) ? 0 : 2) + ((a.rating ?? 0) >= floor ? 0 : 1);
+  const rank = (a: T) =>
+    (how.shared(a) ? 0 : 4) + (how.yields?.(a) ? 0 : 2) + ((a.rating ?? 0) >= floor ? 0 : 1);
   candidates.sort((a, b) => rank(a) - rank(b) || steps(self, a) - steps(self, b));
   const best = candidates.slice(0, Math.max(1, how.choices));
   return best[Math.floor(how.random() * best.length)] ?? null;

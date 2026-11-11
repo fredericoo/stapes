@@ -3,6 +3,7 @@ import { createOpenaiChat } from "@tanstack/ai-openai";
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { describeGoal, goalSchema, type Goal } from "./goals";
+import { describeObjective } from "./objective";
 import type { Decision, Observation, Planner } from "./planner";
 
 export const BOT_MODEL = "gpt-5-nano";
@@ -188,7 +189,7 @@ export function openaiPlanner(
  * answered again.
  */
 export function brief(observation: Observation, seenSeq: number): string {
-  const { self, players, goal, peaceful, recent } = observation;
+  const { self, players, goal, peaceful, recent, objective } = observation;
   const nowMs = recent.at(-1)?.atMs ?? 0;
   const health = self.hp === null ? "" : `, health ${self.hp}/${self.maxHp ?? "?"}`;
   const around = players.length
@@ -202,6 +203,7 @@ export function brief(observation: Observation, seenSeq: number): string {
   return [
     `You are at ${self.x},${self.y},${self.z}${health}.`,
     `Goal: ${goal ? describeGoal(goal) : "none"}. Peaceful: ${peaceful ? "yes" : "no"}.`,
+    `Working towards: ${objective ? describeObjective(objective) : "nothing"}.`,
     `Players you can see: ${around}.`,
     `Why you are deciding now: ${observation.reason}${observation.outcome ? ` (${observation.outcome})` : ""}.`,
     "What happened, oldest first:",

@@ -59,6 +59,7 @@ export class Economy {
   /** Tiles with a recipe that turns something into food that heals, such as a fire. */
   readonly cookers: ReadonlySet<string>;
   private readonly forging: ReadonlySet<string>;
+  private aim: Offer | null = null;
 
   constructor(
     readonly tilesById: Record<string, TileDef>,
@@ -127,13 +128,23 @@ export class Economy {
   }
 
   /**
-   * The upgrade worth most for what it costs, which is what the bot saves
-   * for when it can afford none.
+   * The offer the bot's objective is to obtain. It is what the bot saves for
+   * while it is still an upgrade, so the bot picks up and keeps its inputs.
+   */
+  aimAt(offer: Offer | null) {
+    this.aim = offer;
+  }
+
+  /**
+   * The upgrade the bot aims at, else the one worth most for what it costs,
+   * which is what the bot saves for when it can afford none.
    */
   savingFor(equipment: Equipment, body: BattlerDef): Offer | null {
+    const upgrades = this.upgrades(equipment, body);
+    if (upgrades.some(({ offer }) => offer === this.aim)) return this.aim;
     let best: Offer | null = null;
     let bestRatio = 0;
-    for (const { offer, gain } of this.upgrades(equipment, body)) {
+    for (const { offer, gain } of upgrades) {
       const ratio = gain / Math.max(1, this.price(offer));
       if (ratio > bestRatio) {
         best = offer;
@@ -280,7 +291,7 @@ export class Economy {
   }
 
   /** The most money any NPC pays for one of these, or 0. */
-  private salePrice(tileId: string): number {
+  salePrice(tileId: string): number {
     let best = 0;
     for (const offer of this.offers) {
       const side = offer.take.length === 1 ? offer.take[0]! : null;

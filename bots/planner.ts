@@ -1,5 +1,6 @@
 import type { Coord } from "../app/lib/types";
 import type { Goal } from "./goals";
+import { nextNeed, progressOf, type Objective } from "./objective";
 import type { Recalled } from "./recollection";
 
 export type AskReason = "start" | "done" | "failed" | "timer" | "died" | "heard";
@@ -38,6 +39,8 @@ export type Situation = {
   readonly canWithdraw: boolean;
   /** It carries money and upgrade inputs worth the walk to a depot it knows of. */
   readonly canStash: boolean;
+  /** Upgrades it knows how to work towards, best first (`objectivesFor`). */
+  readonly objectives: readonly Objective[];
 };
 
 export const NOTHING_TO_DO: Situation = {
@@ -51,6 +54,7 @@ export const NOTHING_TO_DO: Situation = {
   canForge: false,
   canWithdraw: false,
   canStash: false,
+  objectives: [],
 };
 
 export type Observation = {
@@ -64,6 +68,8 @@ export type Observation = {
   readonly players: readonly Someone[];
   readonly peaceful: boolean;
   readonly recent: readonly Recalled[];
+  /** What the bot is working towards, with its progress as of this ask. */
+  readonly objective: Objective | null;
 };
 
 /** Each field left out leaves that part of the bot as it was. */
@@ -72,6 +78,8 @@ export type Decision = {
   readonly say?: string;
   /** A peaceful bot hunts nothing, and fights only what attacks it. */
   readonly peaceful?: boolean;
+  /** What the bot works towards from now on; null is nothing. */
+  readonly objective?: Objective | null;
 };
 
 export interface Planner {
@@ -118,27 +126,78 @@ export const FAILED_GOAL_MS = 3 * 60_000;
 export const REST_SPELL_SECONDS = 30;
 
 /**
+ * An objective whose progress has not grown for this long is dropped, and
+ * not taken up again for as long.
+ */
+export const OBJECTIVE_STALL_MS = 10 * 60_000;
+
+/**
+ * Another objective replaces the one held only when its `worth` is this many
+ * times as much, so a bot does not drop its progress over a small difference.
+ */
+export const OBJECTIVE_SWITCH_RATIO = 1.5;
+
+/**
  * The opening goals in order, then a loop that plays the game: go back for
  * the bag it died with, take out of a depot what completes a purchase, buy
  * what it can afford, sell what it does not need, stash what it is saving,
- * forge the stones it carries, and otherwise hunt, breaking off now and then
- * to gather the money that hunting does not pay. A recovering bot first goes
- * to safe ground when it knows some worth the walk, then rests while it has
- * food and gathers when it has none, since bushes give food and health comes
- * back only from food.
+ * forge the stones it carries, and otherwise work towards its objective:
+ * hunt what drops the input it lacks, or gather what yields it. With no
+ * objective it hunts, breaking off now and then to gather the money that
+ * hunting does not pay. A recovering bot first goes to safe ground when it
+ * knows some worth the walk, then rests while it has food and gathers when
+ * it has none, since bushes give food and health comes back only from food.
  */
 export class ProgressPlanner implements Planner {
   private at = 0;
   private huntingSinceMs: number | null = null;
   private failedAt = new Map<Goal["goal"], number>();
   private given: Goal | null = null;
+  private held: { key: string; best: number; sinceMs: number } | null = null;
+  private droppedAt = new Map<string, number>();
 
   constructor(private readonly opening: readonly Goal[]) {}
 
   async decide(observation: Observation): Promise<Decision | null> {
-    const goal = this.choose(observation);
+    const objective = this.aim(observation);
+    const goal = this.choose(observation, objective);
     if (goal) this.given = goal;
-    return goal ? { goal } : null;
+    return goal ? { goal, objective } : { objective };
+  }
+
+  /**
+   * The objective to work towards: the one held, until it is finished or
+   * unreachable, its progress stalls for `OBJECTIVE_STALL_MS`, or another is
+   * worth `OBJECTIVE_SWITCH_RATIO` times as much; else the best on offer.
+   * Time spent on the opening or on a walk back to the bag is not a stall,
+   * since the objective chooses nothing then.
+   */
+  private aim({ situation, nowMs }: Observation): Objective | null {
+    const recent = (key: string | null) =>
+      key !== null && nowMs - (this.droppedAt.get(key) ?? -Infinity) <= OBJECTIVE_STALL_MS;
+    const open = situation.objectives.filter((o) => !recent(o.key) && !recent(needKey(o)));
+    const held = this.held;
+    const current = held && open.find((o) => o.key === held.key);
+    if (!held || !current) return this.adopt(open[0] ?? null, nowMs);
+    const progress = progressOf(current);
+    const busy = this.at < this.opening.length || situation.lostKitAt !== null;
+    if (progress > held.best || busy) {
+      held.best = progress;
+      held.sinceMs = nowMs;
+    } else if (nowMs - held.sinceMs > OBJECTIVE_STALL_MS) {
+      this.droppedAt.set(held.key, nowMs);
+      const stalled = needKey(current);
+      if (stalled !== null) this.droppedAt.set(stalled, nowMs);
+      return this.adopt(open.find((o) => o !== current && needKey(o) !== stalled) ?? null, nowMs);
+    }
+    const best = open[0]!;
+    if (best.worth > current.worth * OBJECTIVE_SWITCH_RATIO) return this.adopt(best, nowMs);
+    return current;
+  }
+
+  private adopt(objective: Objective | null, nowMs: number): Objective | null {
+    this.held = objective && { key: objective.key, best: progressOf(objective), sinceMs: nowMs };
+    return objective;
   }
 
   /**
@@ -146,7 +205,7 @@ export class ProgressPlanner implements Planner {
    * is the one this planner last gave; only finishing an opening goal moves
    * the opening on.
    */
-  private choose(observation: Observation): Goal | null {
+  private choose(observation: Observation, objective: Objective | null): Goal | null {
     const { reason, goal, nowMs } = observation;
     if (reason === "failed" && goal) this.failedAt.set(goal.goal, nowMs);
     if (reason === "heard") return null;
@@ -159,10 +218,10 @@ export class ProgressPlanner implements Planner {
       return this.opening[this.at]!;
     }
     if (reason === "timer" && goal && goal.goal !== "hunt") return null;
-    return this.next(observation);
+    return this.next(observation, objective);
   }
 
-  private next({ goal, nowMs, situation }: Observation): Goal {
+  private next({ goal, nowMs, situation }: Observation, objective: Objective | null): Goal {
     const fresh = (kind: Goal["goal"]) =>
       nowMs - (this.failedAt.get(kind) ?? -Infinity) > FAILED_GOAL_MS;
     if (situation.canWithdraw && fresh("bank")) return this.leaveHunt({ goal: "bank" });
@@ -178,7 +237,9 @@ export class ProgressPlanner implements Planner {
     if (situation.canForge && fresh("forge")) return this.leaveHunt({ goal: "forge" });
     const hunted = this.huntingSinceMs === null ? 0 : nowMs - this.huntingSinceMs;
     const gather = situation.canGather && fresh("gather");
-    if (gather && (situation.recovering || hunted >= HUNT_SPELL_MS)) {
+    const via = objective ? nextNeed(objective)?.via : undefined;
+    const spell = via === undefined && hunted >= HUNT_SPELL_MS;
+    if (gather && (situation.recovering || via === "gather" || spell)) {
       if (goal?.goal === "gather") return goal;
       return this.leaveHunt({ goal: "gather", pulls: GATHER_PULLS });
     }
@@ -190,4 +251,13 @@ export class ProgressPlanner implements Planner {
     this.huntingSinceMs = null;
     return goal;
   }
+}
+
+/**
+ * What an objective works on next and how, so a stall on one input by one
+ * source sets aside every objective that would go on to the same work.
+ */
+function needKey(objective: Objective): string | null {
+  const need = nextNeed(objective);
+  return need && `need:${need.tileId}:${need.via}`;
 }
