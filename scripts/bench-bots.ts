@@ -86,6 +86,7 @@ type BotRun = {
   deaths: number;
   kills: number;
   recoveringMs: number;
+  standingMs: number;
   bagWalks: BagWalks;
   equipment: Equipment;
   depots: Depots;
@@ -150,6 +151,8 @@ type Seat = {
   deaths: number;
   kills: number;
   recoveringMs: number;
+  standingMs: number;
+  lastCell: string;
 };
 
 type KillHook = { kill: (target: { id: string }, blame?: { byId?: string }) => void };
@@ -236,6 +239,8 @@ async function play(seed: number, bots: number, hours: number, mapPath: string) 
       deaths: 0,
       kills: 0,
       recoveringMs: 0,
+      standingMs: 0,
+      lastCell: "",
     });
   }
   countKills(harness, seats);
@@ -275,6 +280,20 @@ function frame(seat: Seat, nowMs: number) {
   seat.bot.steer(nowMs);
   if (isRecovering(seat.bot)) seat.recoveringMs += FRAME_MS;
   if ((nowMs - seat.decideOffsetMs) % DECIDE_MS === 0) seat.bot.act(nowMs);
+  if (isStanding(seat)) seat.standingMs += FRAME_MS;
+}
+
+/**
+ * Standing is a live body neither stepping nor falling, on the cell it held
+ * last frame. It is read from the body, as a player watching would see it,
+ * so no version's own idea of what it is doing is trusted.
+ */
+function isStanding(seat: Seat): boolean {
+  const self = seat.remote.isDead() ? null : seat.remote.selfSnapshot();
+  const cell = self ? `${self.x},${self.y},${self.z}` : "";
+  const standing = self !== null && !self.walk && !self.fall && cell === seat.lastCell;
+  seat.lastCell = cell;
+  return standing;
 }
 
 function report(seat: Seat): BotRun {
@@ -284,6 +303,7 @@ function report(seat: Seat): BotRun {
     deaths: seat.deaths,
     kills: seat.kills,
     recoveringMs: seat.recoveringMs,
+    standingMs: seat.standingMs,
     bagWalks: seat.planner.walks,
     equipment: snapshot.equipment,
     depots: snapshot.depots,
@@ -351,6 +371,13 @@ const METRICS: readonly Metric[] = [
     label: "time recovering %",
     of: (run) =>
       (PERCENT * sum(run.bots.map((bot) => bot.recoveringMs))) /
+      (run.bots.length * run.hours * MS_PER_HOUR),
+    digits: 1,
+  },
+  {
+    label: "time standing %",
+    of: (run) =>
+      (PERCENT * sum(run.bots.map((bot) => bot.standingMs))) /
       (run.bots.length * run.hours * MS_PER_HOUR),
     digits: 1,
   },

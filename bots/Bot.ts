@@ -332,8 +332,8 @@ type Course =
       readonly kind: "travel";
       readonly errand: Errand;
       readonly pilot: Pilot;
-      /** Legs left when this stretch ends and the bot stops to decide again. */
-      readonly stopAtRemaining: number;
+      /** Legs left when this stretch ends and the bot decides again, still walking. */
+      readonly rechartAtRemaining: number;
       readonly wandering: boolean;
     }
   | { readonly kind: "press"; readonly ref: ObjectRef; readonly sinceMs: number }
@@ -468,6 +468,8 @@ export class Bot {
   private turnedBack = new Map<string, number>();
   /** The player last walked over to, so joining the same one is told once. */
   private leaderId: string | null = null;
+  /** The leader last waited beside, by id and cell, so a leader standing still is waited for once. */
+  private waitedBeside: string | null = null;
   private deaths = 0;
   private kills = 0;
   private summarizedAtMs: number | null = null;
@@ -660,7 +662,10 @@ export class Bot {
     }
 
     if (this.course.kind === "pause") {
-      if (nowMs >= this.course.untilMs) this.course = { kind: "idle" };
+      if (nowMs < this.course.untilMs) return;
+      this.course = { kind: "idle" };
+      /** A pause is the bot already standing and looking about, so no hesitation follows it. */
+      this.reactAtMs = nowMs;
       return;
     }
 
@@ -709,9 +714,15 @@ export class Bot {
       this.course = { kind: "idle" };
       return;
     }
-    if (!self.walk && !self.fall && travel.pilot.remaining <= travel.stopAtRemaining) {
+    const { pilot } = travel;
+    if (self.walk || self.fall || self.slide || pilot.remaining > travel.rechartAtRemaining) return;
+    const leg = pilot.legs[pilot.legs.length - pilot.remaining];
+    if (leg?.kind === "use" || leg?.opens) return;
+    this.chart(snapshot, nowMs);
+    if (this.course.kind === "travel") {
+      this.course.pilot.drive(this.body, self, snapshot.map, nowMs);
+    } else {
       this.body.setInput({ directions: [] });
-      this.course = { kind: "idle" };
     }
   }
 
@@ -719,9 +730,15 @@ export class Bot {
    * Sometimes, before a new errand, the bot first wanders a few cells to one
    * side and looks about. Returns whether it set off.
    */
-  private wander(knowledge: Knowledge, world: NavWorld, at: Coord, nowMs: number): boolean {
-    const { wanderChance, wanderNearCells, wanderFarCells } = this.temperament;
-    if (this.random() >= wanderChance) return false;
+  private wander(
+    knowledge: Knowledge,
+    world: NavWorld,
+    at: Coord,
+    nowMs: number,
+    chance = this.temperament.wanderChance,
+  ): boolean {
+    const { wanderNearCells, wanderFarCells } = this.temperament;
+    if (this.random() >= chance) return false;
     const spots = knowledge.standingCellsAround(at, wanderNearCells, wanderFarCells);
     if (spots.length === 0) return false;
     const spot = spots[Math.floor(this.random() * spots.length)]!;
@@ -745,7 +762,7 @@ export class Bot {
       kind: "travel",
       errand,
       pilot: new Pilot(at, legs, this.tilesById),
-      stopAtRemaining: Math.max(0, legs.length - stretch),
+      rechartAtRemaining: Math.max(0, legs.length - stretch),
       wandering,
     };
   }
@@ -779,6 +796,7 @@ export class Bot {
       range: this.homeRange(snapshot),
     };
     const market = this.market(snapshot);
+    let forgotten = false;
     for (let attempts = 0; attempts < EXPLORE_ATTEMPTS;) {
       const next = nextErrand(goal, knowledge, at, holdings, recall, market);
       if (next === "done") {
@@ -803,9 +821,27 @@ export class Bot {
         this.skipped.add(skipKey(errand.act));
         continue;
       }
+      /**
+       * Every place nearby has been explored: start again rather than fail,
+       * as the explore goal does, or a hunt fails here for good.
+       */
+      if (!errand && !forgotten && (goal.goal === "hunt" || goal.goal === "explore")) {
+        this.explored.clear();
+        forgotten = true;
+        continue;
+      }
       if (!errand?.explores) break;
       this.explored.add(exploredKey(errand.explores));
       attempts++;
+    }
+    /**
+     * A hunt has no place of its own to reach, so when no edge it tried has a
+     * route it wanders and looks about, which spaces out the searches as
+     * `FAILED_PAUSE_MS` would, without standing.
+     */
+    if (goal.goal === "hunt" && this.wander(knowledge, world, at, nowMs, 1)) {
+      this.happen("found no way to the edges nearest you, so looking about");
+      return;
     }
     if (goal.goal === "explore") this.explored.clear();
     this.finish("failed", `found no way to ${describeGoal(goal)} in what you have seen`);
@@ -814,12 +850,17 @@ export class Bot {
   /**
    * A hunting bot with no prey in sight walks over to its leader
    * (`leaderOf`) rather than exploring alone, and waits a glance's time once
-   * it has caught up. Returns whether that took the errand.
+   * it has caught up. A leader still on the same cell after that wait is
+   * resting, gathering or lost, and the bot goes its own way until the leader
+   * moves. Returns whether that took the errand.
    */
   private keepCompany(snapshot: GameSnapshot, world: NavWorld, at: Coord, nowMs: number): boolean {
     const leader = leaderOf(snapshot.self, snapshot.actors);
     if (!leader) return false;
+    const beside = `${leader.id}@${cellOf(leader)}`;
+    if (this.waitedBeside === beside) return false;
     if (steps(at, leader) <= COMPANY_CELLS) {
+      this.waitedBeside = beside;
       const { glanceMinMs, glanceMaxMs } = this.temperament;
       this.course = {
         kind: "pause",

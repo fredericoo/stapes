@@ -19,6 +19,7 @@ import { RemoteSession } from "../app/net/RemoteSession";
 import { Harness, Pair } from "../server/testHarness";
 import { Bot } from "./Bot";
 import { Landmarks } from "./memory";
+import { COMPANY_CELLS } from "./company";
 import {
   ProgressPlanner,
   ScriptedPlanner,
@@ -814,3 +815,109 @@ it.each([
   },
   60_000,
 );
+
+/** A lane three cells deep and 40 long, with the bot at its west end. */
+function laneWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 40; x++) {
+    for (let y = 0; y < 3; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["0,1"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+/**
+ * A path one cell wide and 40 long with a shut door every ten cells, and the
+ * bot at its west end. A door is where a walk stops being one chained step
+ * after another, which is when a bot used to stop and decide again.
+ */
+function doorsWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 40; x++) cells[`${x},0`] = [{ tileId: "grass-2" }];
+  for (const x of [10, 20, 30]) cells[`${x},0`]!.push({ tileId: "door-closed" });
+  cells["0,0"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+it("opens the doors along a known route without stopping to decide again", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(doorsWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot();
+  const reactionMs = 1_000;
+  const bot = new Bot(
+    remote,
+    new ScriptedPlanner([{ goal: "go_to", x: 38, y: 0, z: 0 }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: {
+        ...DEFAULT_TEMPERAMENT,
+        wanderChance: 0,
+        stretchMinLegs: 4,
+        stretchMaxLegs: 4,
+        reactionMinMs: reactionMs,
+        reactionMaxMs: reactionMs,
+      },
+    },
+  );
+  let last = "";
+  let standingMs = 0;
+  let longestStandMs = 0;
+  const arrived = () => {
+    const self = remote.selfSnapshot();
+    if (!self || self.x >= 37) return true;
+    const cell = `${self.x},${self.y}`;
+    const standing = self.x > 0 && !self.walk && !self.fall && cell === last;
+    standingMs = standing ? standingMs + FRAME_MS : 0;
+    longestStandMs = Math.max(longestStandMs, standingMs);
+    last = cell;
+    return false;
+  };
+
+  await play(bot, remote, arrived, clock);
+
+  expect(remote.selfSnapshot()?.x).toBeGreaterThanOrEqual(37);
+  expect(longestStandMs).toBeLessThan(reactionMs / 2);
+});
+
+it("starts exploring again once it has explored everywhere it can hunt, rather than failing", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(laneWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot();
+  const lines: string[] = [];
+  const bot = new Bot(remote, new ScriptedPlanner([{ goal: "hunt" }]), tilesById, statuses, {
+    random: () => 0.5,
+    log: (line) => lines.push(line),
+    temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, loiterMinMs: 0, loiterMaxMs: 0 },
+  });
+
+  await play(bot, remote, () => clock.ms >= 90_000, clock);
+
+  expect(lines.filter((line) => line.includes("found no way to hunt"))).toEqual([]);
+}, 60_000);
+
+it("waits beside a leader who stands still once, then goes hunting on its own", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(laneWorld()), JSON_TYPE);
+  const person = new Pair();
+  person.onClientMessage = (data) => void harness.server.webSocketMessage(person.server, data);
+  await harness.server.join(person.server, "a-person", { admin: false });
+  const { remote, clock } = await joinBot();
+  const bot = new Bot(remote, new ScriptedPlanner([{ goal: "hunt" }]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: {
+      ...DEFAULT_TEMPERAMENT,
+      wanderChance: 0,
+      glanceMinMs: 2_000,
+      glanceMaxMs: 2_000,
+    },
+  });
+  const apart = () => {
+    const { self, actors } = remote.getSnapshot();
+    const leader = actors.find((actor) => actor.id === "a-person");
+    if (!leader) throw new Error("the leader is out of sight");
+    return Math.abs(leader.x - self.x) + Math.abs(leader.y - self.y);
+  };
+
+  await play(bot, remote, () => apart() > COMPANY_CELLS + 2 || clock.ms >= 30_000, clock);
+
+  expect(apart()).toBeGreaterThan(COMPANY_CELLS + 2);
+}, 60_000);
