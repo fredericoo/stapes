@@ -204,6 +204,7 @@ import {
   DAMAGE_NUMBER_LIFETIME_MS,
   FAILED_ROUTE_MEMORY_MS,
   FALL_MS_PER_HEIGHT,
+  LOOT_LIFETIME_MS,
   NOISE_LIFETIME_MS,
   PLAYER_TILE_ID,
   STRIKE_DURATION_MS,
@@ -443,8 +444,8 @@ import {
   settleSignals,
   type ExtraEmitter,
 } from "./signals";
-import type { ItemDecay, PlacementDecay } from "./decay";
-import { DecayIndex, applyDecay, applyItemDecay, findDecayCells } from "./decay";
+import type { ItemDecay, LootDecay, PlacementDecay } from "./decay";
+import { DecayIndex, applyDecay, applyItemDecay, applyLootDecay, findDecayCells } from "./decay";
 import {
   EndureIndex,
   type AfflictedPlacement,
@@ -734,6 +735,8 @@ type BrainRound = {
   strikes: readonly Strike[];
   minutesOfDay: MinutesOfDay;
 };
+type Dropped = { cell: Coord; placements: readonly PlacedTile[] };
+
 type BlowInFlight = {
   remainingMs: number;
   land: () => void;
@@ -1550,6 +1553,7 @@ export class GameSession implements PlaySession {
 
     const placements = due.filter((entry): entry is PlacementDecay => entry.kind === "placement");
     const items = due.filter((entry): entry is ItemDecay => entry.kind === "item");
+    const loot = due.filter((entry): entry is LootDecay => entry.kind === "loot");
 
     const turned = applyDecay(this.map, placements, this.tilesById);
     this.map = turned.map;
@@ -1567,6 +1571,15 @@ export class GameSession implements PlaySession {
       changed.push(...rotted.changed);
       for (const [actorId, equipment] of rotted.equipment) {
         this.setEquipment(this.actor(actorId), equipment);
+      }
+    }
+
+    if (loot.length > 0) {
+      const cleared = applyLootDecay(this.map, loot, this.tilesById);
+      this.map = cleared.map;
+      changed.push(...cleared.changed);
+      for (const gone of cleared.removed) {
+        this.noteTransition("disappear", gone.tileId, gone.cell, gone.fromIndex);
       }
     }
 
@@ -3075,10 +3088,12 @@ export class GameSession implements PlaySession {
       const carried = target.resident
         ? spilled(target.equipment, this.tilesById)
         : this.packsOf(target.equipment);
-      this.dropKit(carried, loc);
+      const kit = this.dropKit(carried, loc);
+      const remains = this.dropRemains(target, loc, blame);
+      if (target.resident) {
+        for (const dropped of [kit, remains]) if (dropped) this.armLoot(dropped);
+      }
     }
-
-    if (loc) this.dropRemains(target, loc, blame);
 
     this.pendingDeaths.push(this.deathOf(target, loc, blame));
 
@@ -3135,14 +3150,26 @@ export class GameSession implements PlaySession {
    * All or nothing: a floor without room for the whole kit takes none of it,
    * and the kit is lost with the body rather than half of it left behind.
    */
-  private dropKit(carried: readonly ItemInstance[], at: ActorLocation) {
-    if (carried.length === 0) return;
-    this.dropOnFloor(at, carried.map(placementFromInstance), this.midBody(at));
+  private dropKit(carried: readonly ItemInstance[], at: ActorLocation): Dropped | null {
+    if (carried.length === 0) return null;
+    const placements = carried.map(placementFromInstance);
+    const cell = this.dropOnFloor(at, placements, this.midBody(at));
+    return cell && { cell, placements };
   }
 
-  private dropOnFloor(where: Coord, placements: PlacedTile[], tossedFrom?: MidBody): boolean {
+  /**
+   * An item that poured into a pile already on the floor no longer exists
+   * under its own id, so its entry finds nothing and the pile stays.
+   */
+  private armLoot({ cell, placements }: Dropped) {
+    for (const placed of placements) {
+      if (placed.itemId) this.decay.armLoot(placed.itemId, cell, LOOT_LIFETIME_MS);
+    }
+  }
+
+  private dropOnFloor(where: Coord, placements: PlacedTile[], tossedFrom?: MidBody): Coord | null {
     const at = landingFor(this.map, where, placements, this.tilesById);
-    if (!at) return false;
+    if (!at) return null;
 
     let tossed = 0;
     for (const placed of placements) {
@@ -3152,22 +3179,24 @@ export class GameSession implements PlaySession {
         tossed++;
       }
     }
-    return true;
+    return { x: at.x, y: at.y, z: at.z };
   }
 
-  private dropRemains(target: ActorRuntime, at: ActorLocation, blame?: Blame) {
+  private dropRemains(target: ActorRuntime, at: ActorLocation, blame?: Blame): Dropped | null {
     const def = this.tilesById[at.placed.tileId];
     const remains = def ? resolveBattler(def)?.remains : undefined;
-    if (!remains || !this.tilesById[remains]) return;
+    if (!remains || !this.tilesById[remains]) return null;
 
-    this.dropOnFloor(at, [
+    const placements: PlacedTile[] = [
       {
         tileId: remains,
         itemId: mintItemId(),
         engraved: bodyNameFor({ tileId: at.placed.tileId, name: target.name }, this.tilesById),
         ...(blame ? { description: causeOfDeath(blame) } : {}),
       },
-    ]);
+    ];
+    const cell = this.dropOnFloor(at, placements);
+    return cell && { cell, placements };
   }
 
   private ageProjectiles(tickMs: number) {

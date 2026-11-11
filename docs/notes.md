@@ -13144,6 +13144,33 @@ authored numbers are legible: `burned` takes `ceil(MAX_HP / 100)` every 250 ms,
 so anything under a hundred durability loses exactly four a second. Grass at 12
 is three seconds; a tree at 28 is seven.
 
+### What a creature drops is gone after ten minutes
+
+A resident's death drops its kit and its remains (`dropKit`, `dropRemains`),
+and nothing took them away again: leather piled up outside every wolf den and
+bones covered the crypt floor. Each item a resident's death puts on the floor
+now gets a `loot` entry in `DecayIndex` (`armLoot`), due `LOOT_LIFETIME_MS`
+after it fell, and `applyLootDecay` removes it then.
+
+- **It is removed only from the cell it landed in.** The entry holds the item
+  id and the landing cell, and the cell is the only place it looks. A thing a
+  player picked up, or carried off and dropped elsewhere, is theirs and stays,
+  without any move having to cancel the entry. A thing picked up and put back
+  in the same cell before the time is up still goes.
+- **A player's death arms nothing.** What a player drops is theirs to come
+  back for.
+- **The lifetime is fixed, not drawn**, so dropping loot costs the world's dice
+  nothing and no creature rolls differently because a boar died.
+- **It sits beside the tile's own decay.** The entry is keyed `loot|<id>`, apart
+  from the `item|<id>` entry a rotting tile gets, so raw meat a wolf dropped
+  still turns rotten on its own clock. A tile that turns keeps its item id, so
+  the loot entry removes whatever it has turned into.
+- **An item that poured into a pile already there** no longer exists under its
+  own id; its entry finds nothing and the pile stays.
+- **It is not saved**, like the rest of the index. A world resumed from a
+  checkpoint keeps the loot that was on its floor. A deploy rebuilds the map
+  from `data/` and clears it anyway.
+
 ### Beside the map, on the decay index's terms
 
 `EndureIndex` holds the pools. An `hp` written onto the placement would ride the

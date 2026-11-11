@@ -36,3 +36,5 @@ export const NOISE_LIFETIME_MS = 2_000;
 
 /** Must stay below `MIN_ATTACK_TICKS` in `combat.ts`. */
 export const STRIKE_DURATION_MS = 150;
+
+export const LOOT_LIFETIME_MS = 10 * 60 * 1000;
