@@ -13705,6 +13705,32 @@ the same rule when it reaches a shader as a number. The dissolve edge
 entry back through `THREE.Color` as the sRGB the scene target stores, so a table
 written in sRGB fails the ramp tests.
 
+### A tile laid by the hundred emits from one placement in N, and by the hour
+
+`TileDef.particles` alone means every placement on the board emits all day,
+which is right for a torch and wrong for a tree: `appendVisibleTileEmitters`
+stops at `MAX_VISIBLE_TILE_EMITTERS`, and a forest would reach it before the
+camp fire in the middle got a turn.
+
+`TileDef.particleRule` (`app/lib/particleRule.ts`) narrows it. `oneIn` keeps
+one cell in that many, chosen by `scatterHash` of the cell, so every client
+picks the same placements and a cell keeps its emitter across rebuilds.
+`hours` is a span of the game's day, running through midnight when `from` is
+after `to`. Fireflies over reeds and cattails are `{ oneIn: 5, hours: { from:
+20, to: 5 } }`; leaves from `tree` and pollen from the flowers run by day.
+
+- **The cell is chosen when the chunk is meshed; the hour is asked every time
+  the emitters are collected.** A chosen cell's spec carries `sparse`, and
+  `appendVisibleTileEmitters` drops it outside its hours, so dusk needs no
+  rebuild. Particles already flying live out their time.
+- **Emitters without a rule are taken first.** The cap is shared, and the
+  thinned-out ones are the ones a player would not miss.
+- **Only a placement on the board is thinned.** A body, a projectile's trail
+  and a status plume read `particles` on other paths and never see the rule.
+- **Reeds and cattails are written by `bun run generate:swamp`**, so their
+  fireflies are `FIREFLIES` in `scripts/generate-swamp.ts`; an edit made only in
+  the tile editor is lost the next time that script runs.
+
 ### A particle's path is a formula of its age, added to where it would be
 
 `driftCellsPerSecond` is symmetric — a per-axis roll in ±drift, drawn once at

@@ -1,4 +1,5 @@
 import type { DepthBox } from "../lib/geometry";
+import type { HourSpan } from "../lib/particleRule";
 import { compileOffsets, type OffsetScope, type ParticleOffsets } from "../lib/particleOffset";
 import { compileRamp, MAX_LIVE_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 
@@ -26,6 +27,8 @@ export type ParticleEmitterSpec = {
    * wait for a whole particle of their own and many would never spawn one.
    */
   startDebt?: number;
+  /** Set on a tile's emitter that a `TileParticleRule` thinned out; see `appendVisibleTileEmitters`. */
+  sparse?: { hours?: HourSpan };
 };
 
 type EmitterState = {

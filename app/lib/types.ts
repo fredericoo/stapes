@@ -2,6 +2,7 @@ import * as v from "valibot";
 import type { TileHuman } from "./humanSprite";
 import type { Element } from "./element";
 import type { TileInteractions } from "./interactions";
+import type { TileParticleRule } from "./particleRule";
 import { particleEmitterSchema, type ParticleEmitterDef } from "./particleVfx";
 import { parseTileTransitions, type TileTransitions } from "./tileTransition";
 import type { ItemInstance } from "./itemInstance";
@@ -194,6 +195,7 @@ export type TileDef = StateSprites & {
   climbFrom?: Partial<Record<FacingKey, Partial<Record<Direction, boolean>>>>;
   interactions?: TileInteractions;
   particles?: ParticleEmitterDef;
+  particleRule?: TileParticleRule;
   transitions?: TileTransitions;
   states?: Partial<Record<OverrideSpriteState, StateSprites>>;
   /** Drawn from the human parts in this look instead of the anchor's sheet; see `humanSprite`. */

@@ -2,6 +2,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { AUTOTILE_SLICE_MASKS, E, N, NE, NW, S, SE, SW, W } from "../app/lib/autotile";
+import type { TileParticleRule } from "../app/lib/particleRule";
+import type { ParticleEmitterDef } from "../app/lib/particleVfx";
 import { scatterSeedMatching } from "../app/lib/scatter";
 import { CELL_SIZE, type TileDef, type TileSprite } from "../app/lib/types";
 import { cast, shade } from "./human-parts/cast";
@@ -173,6 +175,59 @@ const FLAT_ROW = STANDING_CELLS;
 const SWAY_FRAME_MS = 700;
 /** Neighbouring clumps sway a frame apart, so a bed of reeds does not move as one. */
 const SWAY_PHASE = { x: 1, y: 0 };
+
+const FIREFLIES: ParticleEmitterDef = {
+  ratePerSecond: 0.5,
+  ttlFromMs: 3000,
+  ttlToMs: 5000,
+  spawnRadiusCells: 1,
+  spawnElevFrom: 1,
+  spawnElevTo: 4,
+  riseFrom: -0.2,
+  riseTo: 0.3,
+  driftCellsPerSecond: 0.2,
+  gravity: 0,
+  offsetX: "0.4 * sin(AGE_SEC * 1.3 + SEED * 2 * PI)",
+  offsetY: "0.3 * cos(AGE_SEC * 0.9 + SEED * 2 * PI)",
+  offsetElev: "0.6 * sin(AGE_SEC * 2 + SEED * 2 * PI)",
+  lit: false,
+  ownDepth: false,
+  shape: null,
+  sizeFromPx: 1,
+  sizeToPx: null,
+  radiusFromPx: 0,
+  radiusToPx: 0,
+  alphaFrom: 1,
+  alphaTo: 1,
+  ramp: [
+    {
+      at: 0,
+      color: "#165a4c",
+    },
+    {
+      at: 0.15,
+      color: "#d5e04b",
+    },
+    {
+      at: 0.45,
+      color: "#91db69",
+    },
+    {
+      at: 0.6,
+      color: "#165a4c",
+    },
+    {
+      at: 0.8,
+      color: "#d5e04b",
+    },
+    {
+      at: 1,
+      color: "#165a4c",
+    },
+  ],
+};
+
+const FIREFLY_RULE: TileParticleRule = { oneIn: 5, hours: { from: 20, to: 5 } };
 const VARIANTS = 2;
 
 /** A stalk is shaded by height rather than by the light: lit from above, a thin upright cylinder is the same dull colour all the way up. */
@@ -467,7 +522,9 @@ function plantSheet(): { sheet: PNG; tiles: TileDef[] } {
       { x: p * VARIANTS * STANDING_CELLS, y: TRODDEN_ROW },
       plant.clumps.map((_, variant) => standingSprite([variant * STANDING_CELLS], 200)),
     );
-    tiles.push(...treadable(upright, trodden));
+    tiles.push(
+      ...treadable({ ...upright, particles: FIREFLIES, particleRule: FIREFLY_RULE }, trodden),
+    );
   });
 
   const flats: {

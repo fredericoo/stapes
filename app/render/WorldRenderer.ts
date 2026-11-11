@@ -27,6 +27,7 @@ import {
 } from "../lib/lighting";
 import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO } from "../lib/sunSpan";
 import { sampleIllumination } from "../lib/clock";
+import { ruleSelectsCell } from "../lib/particleRule";
 import {
   changedCellsInChunk,
   changedCellsOnLevel,
@@ -861,7 +862,13 @@ export class WorldRenderer {
     if (view.particleEmitters) keepVisiblePlumes(view.particleEmitters, hidden, out);
     if (this.tileEmittersByLevel.size === 0 && this.liveTransitions.size === 0) return out;
 
-    appendVisibleTileEmitters(this.tileEmittersByLevel, this.cameraWindow(view), hidden, out);
+    appendVisibleTileEmitters(
+      this.tileEmittersByLevel,
+      this.cameraWindow(view),
+      hidden,
+      out,
+      view.minutesOfDay,
+    );
     const board = out.length;
     appendTransitionEmitters(out, this.liveTransitions.values(), this.animClock);
     let kept = board;
@@ -2426,20 +2433,22 @@ export class WorldRenderer {
         footprintOf(def, placed.direction),
       );
 
-      const emitter: ParticleEmitterSpec | undefined = def.particles
-        ? {
-            id: tileEmitterId(instanceKey),
-            config: def.particles,
-            cx: x + CELL_CENTRE,
-            cy: y + CELL_CENTRE,
-            footElev: foot,
-            z,
-            box,
-            stackBias,
-            taper: 1,
-            scale: 1,
-          }
-        : undefined;
+      const emitter: ParticleEmitterSpec | undefined =
+        def.particles && ruleSelectsCell(def.particleRule, x, y, z)
+          ? {
+              id: tileEmitterId(instanceKey),
+              config: def.particles,
+              cx: x + CELL_CENTRE,
+              cy: y + CELL_CENTRE,
+              footElev: foot,
+              z,
+              box,
+              stackBias,
+              taper: 1,
+              scale: 1,
+              sparse: def.particleRule ? { hours: def.particleRule.hours } : undefined,
+            }
+          : undefined;
 
       for (let i = 0; i < offsets.length; i++) {
         const offset = offsets[i]!;
