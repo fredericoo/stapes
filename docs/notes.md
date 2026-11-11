@@ -16300,6 +16300,65 @@ limits its load on the server. A goal that finds no route waits
 `FAILED_PAUSE_MS` before it is searched again, so the bot does not search
 every frame.
 
+**A bot explores, hunts and gathers only inside its home range.** Eighteen
+new characters on the shipped map for half an hour each died 71 times; 48 of
+the 49 deaths on the surface were 50 or more cells from where they were
+reborn, at ratings 3 to 9, and 22 were to wolves the bot could not outrun.
+A wolf notices at 9 cells and walks a step in 140 ms against a player's
+200 ms, and a bot usually sees it only once it has been noticed; the median
+time from half health to death was 2.8 seconds. Backing away and recovering
+cannot help there, so the rule is about where the bot is willing to head at
+all. Routes still pay `THREAT_PENALTY` as before.
+
+`bots/homeRange.ts` works the range out, per level, as a distance from home
+(steps, a level counting four):
+
+- **Home** is where the fleet was last reborn (`Landmarks.reborn`), or, until
+  any bot has died, where this bot first stood. The first snapshots after
+  rebirth can still show the place of death, so the place reborn is the
+  first cell the bot is seen on that is not that one.
+- **It widens with experience.** The fleet keeps, per level and per rating,
+  the furthest from home a bot has stood while neither recovering nor
+  backing away (`Landmarks.ventured`). A bot heads up to
+  `VENTURE_STEP_CELLS` past the furthest any bot rated no higher has stood,
+  so a fresh fleet starts near home and every bot that goes further and
+  lives moves the edge out for the rest.
+- **It stops short of what kills.** Every place the fleet saw a creature the
+  bot fears (`fearedTiles`) and cannot outwalk, less that creature's berth,
+  and every place a bot rated at least as high died
+  (`Landmarks.died`, which keeps the highest rating that died within
+  `SAME_PLACE_CELLS`), less `THREAT_BERTH_CELLS`, caps the range on that
+  level. Only creatures the bot cannot outwalk count, because backing away
+  already keeps it clear of slower ones; deaths cover whatever else kills.
+  Hostiles are placed in rings by distance from the city (#580), so the
+  nearest sighting of a kind marks where its country starts in every
+  direction. A danger on another level does not cap this one, or a troll in
+  a cave under the city would keep bots off the surface around it.
+- **It is never under `HOME_RANGE_MIN_CELLS`**, so a wolf seen chasing a bot
+  to the gate does not pin the fleet inside the walls.
+
+A bot that outgrows a creature stops fearing it and stops being capped by
+it, and a death caps only bots no stronger than the one that died, so a
+strong bot roams the same country it used to be kept out of. Nothing in this
+reads the map or names a place: on another map the range is learned the same
+way.
+
+`explore`, and `hunt` when it sees no prey, head only for cells in range.
+Once every edge and roam spot in range is explored, the bot roams anywhere in
+range rather than failing the goal; standing outside it, as after the
+tutorial or a chase, it walks back to a cell near home first. `gather` passes
+over resources outside it, seen or remembered. Other goals (`shop`, `sell`,
+`forge`, `reach_level`, `go_to`) explore without it, because they look for a
+particular place, and the opening goals have to cross the tutorial, which
+need not lie anywhere near home.
+
+On the bench (`--hours 0.5 --seeds 4`, six bots a seed), deaths an hour fell
+from 7.9 to 3.6, and the paired difference of -4.3 leaves out zero. Kills an
+hour went from 40 to 53, which is within noise. Top mastery and gear worth
+did not move. Gold at the end fell from 6.2 to 4.0, a significant fall. That
+is likely because `gather` no longer walks to a remembered resource far
+out.
+
 **A bot judges a fight by working it out, and acts before the goal does.**
 `fightOdds` (`bots/odds.ts`) estimates how long the bot would take to kill a
 creature and how long the creature would take to kill it, both from the

@@ -28,7 +28,7 @@ import {
   type Reach,
 } from "../app/lib/item";
 import type { ItemInstance } from "../app/lib/itemInstance";
-import type { Masteries } from "../app/lib/mastery";
+import { rating, type Masteries } from "../app/lib/mastery";
 import { getStack } from "../app/lib/mapData";
 import { countOf, stowFits } from "../app/lib/piles";
 import type { StatusDef } from "../app/lib/status";
@@ -80,6 +80,7 @@ import {
   type Market,
   whereIs,
 } from "./goals";
+import { Homestead, outwalks, type HomeRange } from "./homeRange";
 import { exploredKey, Knowledge } from "./knowledge";
 import { Landmarks, SAME_PLACE_CELLS } from "./memory";
 import { Pilot } from "./Pilot";
@@ -475,6 +476,7 @@ export class Bot {
   private readonly temperament: Temperament;
   private readonly economy: Economy;
   private readonly landmarks: Landmarks;
+  private readonly homestead: Homestead;
   private peaceful = false;
   private readonly memory = new Recollection();
   private heard = new Set<string>();
@@ -492,6 +494,7 @@ export class Bot {
     this.random = options.random ?? Math.random;
     this.temperament = options.temperament ?? DEFAULT_TEMPERAMENT;
     this.landmarks = options.landmarks ?? new Landmarks(":memory:");
+    this.homestead = new Homestead(this.landmarks);
     this.economy = new Economy(tilesById, statusDefs, this.temperament.style);
     this.harmful = harmfulTileIds(tilesById, statusDefs);
   }
@@ -547,6 +550,7 @@ export class Bot {
         }
       : null;
     this.summarize(snapshot, body, nowMs);
+    if (body) this.homestead.stood(self, rating(body.masteries), !this.recovering && !this.flight);
     this.remember(snapshot);
     this.dress(snapshot, nowMs);
     this.eat(snapshot, nowMs);
@@ -569,7 +573,11 @@ export class Bot {
       this.recovering = false;
       this.rememberLostKit();
       this.diedAt = this.lastAt;
-      if (this.lastAt) this.fearDeathPlace(this.lastAt, nowMs);
+      if (this.lastAt) {
+        this.fearDeathPlace(this.lastAt, nowMs);
+        const body = this.lastKit && bodyOf(this.tilesById, this.lastKit.masteryXp);
+        this.homestead.died(this.lastAt, body ? rating(body.masteries) : null);
+      }
       this.deaths++;
       this.happen("you died, dropped your bag and lost a tenth of every mastery's experience");
       this.ask("died", null);
@@ -768,6 +776,7 @@ export class Bot {
       random: this.random,
       pulls: this.pulls,
       avoid: (cell: Coord) => inZone(zones, cell),
+      range: this.homeRange(snapshot),
     };
     const market = this.market(snapshot);
     for (let attempts = 0; attempts < EXPLORE_ATTEMPTS;) {
@@ -1472,6 +1481,21 @@ export class Bot {
     }
     this.sizing.zones = zones;
     return zones;
+  }
+
+  /**
+   * Where the bot is willing to explore, hunt and gather: short of the
+   * creatures it fears and cannot outwalk, and of where bots at least as
+   * strong died (`bots/homeRange.ts`).
+   */
+  private homeRange(snapshot: GameSnapshot): HomeRange | null {
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    const player = this.tilesById[PLAYER_TILE_ID];
+    if (!body || !player) return null;
+    const feared = [...this.fearedTiles(snapshot)]
+      .filter((tileId) => !outwalks(player, this.tilesById[tileId]!))
+      .map((tileId) => ({ tileId, cells: this.berthOf(tileId) }));
+    return this.homestead.range(rating(body.masteries), feared, THREAT_BERTH_CELLS);
   }
 
   /**
