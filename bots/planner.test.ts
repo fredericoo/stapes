@@ -70,3 +70,31 @@ it("rests a recovering bot that has food, gathers for one that has none, and hun
   });
   expect(await ask({ ...NOTHING_TO_DO, hasFood: true, canGather: true })).toEqual({ goal: "hunt" });
 });
+
+it("sends a recovering bot to safe ground before it rests or gathers, and rests where it is once the walk has failed", async () => {
+  const planner = new ProgressPlanner([]);
+  const ask = async (reason: AskReason, goal: Goal | null, situation: Situation) =>
+    (
+      await planner.decide({
+        reason,
+        goal,
+        outcome: null,
+        nowMs: 0,
+        situation,
+        self: { name: "bot", x: 0, y: 0, z: 0, hp: 3, maxHp: 10 },
+        players: [],
+        peaceful: false,
+        recent: [],
+      })
+    )?.goal ?? null;
+  const haven = { x: 40, y: 2, z: 0 };
+  const exposed = { ...NOTHING_TO_DO, recovering: true, refugeAt: haven, canGather: true };
+  const refuge = { goal: "refuge", ...haven } as const;
+
+  expect(await ask("done", null, { ...exposed, hasFood: true })).toEqual(refuge);
+  expect(await ask("done", null, exposed)).toEqual(refuge);
+  expect(await ask("failed", refuge, { ...exposed, hasFood: true })).toEqual({
+    goal: "rest",
+    seconds: REST_SPELL_SECONDS,
+  });
+});

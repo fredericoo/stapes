@@ -16227,7 +16227,7 @@ two cells and fights until that creature is gone or out of reach. When a goal
 asks for a place nobody has seen, such as a level with no known way up, the
 bot explores towards it instead of giving up.
 
-**A planner chooses the goal, and nothing finer.** A goal is one of eleven:
+**A planner chooses the goal, and nothing finer.** A goal is one of twelve:
 
 - `reach_level`
 - `go_to`
@@ -16239,6 +16239,7 @@ bot explores towards it instead of giving up.
 - `forge`
 - `bank`
 - `gather`
+- `refuge`
 - `rest`
 
 `goalSchema` validates every goal. The planner is asked:
@@ -16461,9 +16462,10 @@ it is recovering until it is back to `restedHpShare` (about 0.9):
 - it picks no prey, whatever food it carries;
 - it eats whenever no mending status is running, not only below
   `eatHpShare`, because without one resting gives nothing back;
-- it asks the planner at once, and `ProgressPlanner` gives it `rest` for
-  `REST_SPELL_SECONDS` at a time while it has food, or `gather` while it has
-  none, because bushes give berries.
+- it asks the planner at once, and `ProgressPlanner` gives it `refuge` when
+  `Situation.refugeAt` names safe ground worth the walk (below), then `rest`
+  for `REST_SPELL_SECONDS` at a time while it has food, or `gather` while it
+  has none, because bushes give berries.
 
 It still backs away from threats and fights back while resting. Before this,
 a bot carrying one berry counted as able to heal and hunted on: an overnight
@@ -16472,6 +16474,51 @@ without once waiting for it to work. Hunting again at `huntHpShare` itself
 would send the bot into the next fight half dead, which is why recovery stops
 higher than it starts. Food is bought back up to `FOOD_RESERVE` once the bag
 holds less than half of it.
+
+**A hurt bot recovers on safe ground.** Recovery is a minute or more of
+standing still, and where the bot stands decides whether it lives. Eighteen
+new characters played for half an hour each on the shipped map died 71
+times; they entered recovery 78 times and got back to `restedHpShare` 13
+times, 62 of the deaths came while recovering, and 49 died with no healing
+food in the bag. `rest` stood still wherever the hurt came, and `gather`
+walked to the nearest bush wherever that was.
+
+`refugeFor` (`bots/refuge.ts`) picks where to recover from what the bot can
+know, never from coordinates:
+
+- **A haven** is a place a bot was reborn or where an NPC with a dialog stands
+  or was seen. Bots learn the first: after a death, the first cell the bot
+  stands on at full health somewhere other than where it died is written to
+  `Landmarks` under `REBIRTH_MARK`, so the whole fleet, and the next run,
+  knows it. A haven is safe when no creature that can hurt was remembered or
+  is seen within its berth (`HURT_BERTH_CELLS`, or the creature's
+  `noticeCells` when further) and the bot itself has no scare there.
+- **Staying costs `EXPOSED_STEPS` for each creature** whose berth reaches
+  where the bot stands. **Walking costs the steps**, plus `PASSING_STEPS` for
+  each other creature whose berth the straight way to the haven passes
+  through. The bot walks to the cheapest haven when that is less than staying
+  plus `NEAR_REFUGE_STEPS`, so with nothing near it walks only to safe ground
+  close by, and rests where it stands when safe ground is far. A bot within
+  `HAVEN_CELLS` of a safe haven is already on it.
+
+`Bot.situation` works this out on every ask while the bot recovers, and
+`ProgressPlanner` asks for `refuge` before `rest` and `gather`. Buying,
+selling and banking still come first, since sellers stand in town. A walk
+that finds no route fails, and the bot recovers where it is for
+`FAILED_GOAL_MS`. On the way, `Bot.evade` and `Bot.fight` run as they do
+under any goal. A bot with no food walks to the haven before it gathers, so
+the nearest bush it then finds is the one nearest safe ground.
+
+The haven leaves out the fleet's danger zones (`dangerZones`), and counts
+creatures itself: `fearedTiles` judges every tile that can hurt, townsfolk
+among them, so a bot that would lose to the pie maker keeps routes and
+explores clear of the pie maker's stall as it would of a wolf's den.
+
+In a bench of six bots for half a game-hour over four seeds
+(`bun run bench:bots --hours 0.5 --seeds 4`), deaths an hour went from 8.2
+to 7.3 and time recovering from 18.8% to 17.0%, with neither difference
+significant (deaths: −0.9, 95% interval −6.5 to 4.7). Four half-hour seeds
+are too few to show an effect of that size either way.
 
 **Bots hunt together.** Prey another player stands within `ALLY_CELLS` of
 goes first in `choosePrey`, ahead of prey that teaches more or is nearer:

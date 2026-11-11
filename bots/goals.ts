@@ -11,6 +11,7 @@ import { forgeOrders, type ForgeOrder } from "./arcane";
 import type { BankMove, Deal, Economy } from "./economy";
 import { exploredKey, type Knowledge } from "./knowledge";
 import type { Landmarks } from "./memory";
+import { havenGoal } from "./refuge";
 
 const level = v.pipe(v.number(), v.integer(), v.minValue(MIN_LEVEL), v.maxValue(MAX_LEVEL));
 const coordinate = v.pipe(v.number(), v.integer());
@@ -32,6 +33,7 @@ export const goalSchema = v.variant("goal", [
     goal: v.literal("gather"),
     pulls: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
   }),
+  v.object({ goal: v.literal("refuge"), x: coordinate, y: coordinate, z: level }),
   v.object({
     goal: v.literal("rest"),
     seconds: v.pipe(v.number(), v.minValue(1), v.maxValue(300)),
@@ -62,6 +64,8 @@ export function describeGoal(goal: Goal): string {
       return "stash what I am saving, or take out what I can now spend";
     case "gather":
       return `gather ${goal.pulls} times`;
+    case "refuge":
+      return `go to safe ground at ${goal.x},${goal.y} on level ${goal.z} to recover`;
     case "rest":
       return `rest for ${goal.seconds}s`;
   }
@@ -215,6 +219,10 @@ export function nextErrand(
           recall,
         ) ?? "exhausted"
       );
+    case "refuge": {
+      const nav = havenGoal(goal);
+      return nav.reached(self) ? "done" : { nav, act: null, explores: null };
+    }
     case "rest":
       return "rest";
   }

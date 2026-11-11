@@ -18,6 +18,7 @@ import { tilesByIdFromList } from "../app/lib/validation";
 import { RemoteSession } from "../app/net/RemoteSession";
 import { Harness, Pair } from "../server/testHarness";
 import { Bot } from "./Bot";
+import { Landmarks } from "./memory";
 import {
   ProgressPlanner,
   ScriptedPlanner,
@@ -25,6 +26,7 @@ import {
   type Observation,
   type Planner,
 } from "./planner";
+import { HAVEN_CELLS } from "./refuge";
 import { DEFAULT_TEMPERAMENT } from "./temperament";
 
 const JSON_TYPE = "application/json";
@@ -165,6 +167,17 @@ function sealedCaveWorld(): FlatMapFile {
   }
   cells["0,0"]!.push({ tileId: "nature-slime", direction: "e" });
   cells["3,0"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+/** A long field with the bot at its west end and the pie maker at its east end. */
+function longFieldWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 64; x++) {
+    for (let y = 0; y < 9; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["2,4"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  cells["60,4"]!.push({ tileId: "pie-maker", direction: "w" });
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
@@ -722,4 +735,32 @@ it.each([
   );
 
   expect(mended(remote)).toBe(true);
+});
+
+it("walks a hurt bot away from where the fleet saw a wolf to the pie maker", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(longFieldWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot(true);
+  const landmarks = new Landmarks(":memory:");
+  landmarks.saw("wolf", { x: 4, y: 8, z: 0 });
+  landmarks.saw("pie-maker", { x: 60, y: 4, z: 0 });
+  const goals: string[] = [];
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 },
+    landmarks,
+    log: (line) => {
+      const set = /your goal is now: (.*)$/.exec(line);
+      if (set) goals.push(set[1]!);
+    },
+  });
+  remote.say("/health 3");
+  const atPieMaker = () => {
+    const { self } = remote.getSnapshot();
+    return Math.abs(self.x - 60) + Math.abs(self.y - 4) <= HAVEN_CELLS;
+  };
+
+  await play(bot, remote, () => atPieMaker() && goals.length > 1, clock);
+
+  expect(atPieMaker()).toBe(true);
+  expect(goals[1]).toBe("go to safe ground at 60,4 on level 0 to recover");
 });
