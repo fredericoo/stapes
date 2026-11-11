@@ -11,6 +11,7 @@ import { capacityOf } from "../app/game/itemMoves";
 import {
   cellGoal,
   NAVIGATION_MAX_NODES,
+  planBestRoute,
   planRoute,
   type NavGoal,
   type NavLeg,
@@ -129,9 +130,10 @@ export const THREAT_PENALTY = 6;
 
 export const EAT_RETRY_MS = 3_000;
 
-/** Backing away is to a cell this far off, as far from the danger as any. */
-export const FLEE_NEAR_CELLS = 8;
-
+/**
+ * Backing away searches outward over cells within this many steps of the bot
+ * for the one it can reach that is furthest from the danger.
+ */
 export const FLEE_FAR_CELLS = 18;
 
 export const FLEE_MS = 6_000;
@@ -410,6 +412,12 @@ export class Bot {
   private chase: { pilot: Pilot; toward: string; plannedMs: number } | null = null;
   /** A flight backs away from `from`, the nearest danger, which a flame stone is cast at. */
   private flight: { pilot: Pilot; untilMs: number; from: string } | null = null;
+  /**
+   * Where the bot and its dangers stood when a search found nowhere to back
+   * away to. Until one of them moves the search would find nowhere again, so
+   * it is not repeated.
+   */
+  private noRefuge: string | null = null;
   /** The faster threat the bot last stood still for, and until when. */
   private holding: { id: string; untilMs: number } | null = null;
   private preySkipped = new Map<string, number>();
@@ -893,17 +901,26 @@ export class Bot {
       return true;
     }
 
+    const at = { x: self.x, y: self.y, z: self.z };
+    const standing = [cellOf(at), ...dangers.map((d) => `${d.id}@${cellOf(d)}`)].join(";");
+    if (standing === this.noRefuge) return false;
     const knowledge = new Knowledge(snapshot.map, snapshot.actors, this.tilesById, this.statusDefs);
     const world = knowledge.world(self.id, this.threatPenalty(snapshot));
-    const at = { x: self.x, y: self.y, z: self.z };
-    const away = (cell: Coord) => Math.min(...dangers.map((d) => steps(cell, d)));
-    const refuges = knowledge
-      .standingCellsAround(at, FLEE_NEAR_CELLS, FLEE_FAR_CELLS)
-      .sort((a, b) => away(b) - away(a))
-      .slice(0, EXPLORE_ATTEMPTS);
-    for (const refuge of refuges) {
-      const route = planRoute(world, at, cellGoal(refuge, "on"), SHORT_ROUTE_MAX_NODES);
-      if (!route.ok) continue;
+    const here = this.refugeWorth(at, dangers);
+    const refuge = planBestRoute(
+      world,
+      at,
+      (cell) => {
+        const worth = this.refugeWorth(cell, dangers);
+        return worth > here ? worth : -Infinity;
+      },
+      (cell) =>
+        steps(cell, at) <= FLEE_FAR_CELLS &&
+        dangers.every((d) => reach(cell, d) > STRIKE_REACH_CELLS),
+      SHORT_ROUTE_MAX_NODES,
+    );
+    this.noRefuge = refuge ? null : standing;
+    if (refuge) {
       if (!this.flight) {
         this.happen(`backing away from ${dangers.map(nameOf).join(", ")}`);
         this.turnBack();
@@ -915,7 +932,7 @@ export class Bot {
       if (this.foe) this.disengage();
       const from = dangers.sort((a, b) => reach(self, a) - reach(self, b))[0]!.id;
       this.flight = {
-        pilot: new Pilot(at, route.legs, this.tilesById),
+        pilot: new Pilot(at, refuge.legs, this.tilesById),
         untilMs: nowMs + FLEE_MS,
         from,
       };
@@ -923,6 +940,15 @@ export class Bot {
       return true;
     }
     return false;
+  }
+
+  /**
+   * How good a place `cell` is to back away to from `dangers`: its distance
+   * from the nearest of them. Backing away goes only to a cell worth more
+   * than where the bot stands.
+   */
+  private refugeWorth(cell: Coord, dangers: readonly ActorSnapshot[]): number {
+    return Math.min(...dangers.map((d) => steps(cell, d)));
   }
 
   /**

@@ -16360,6 +16360,24 @@ Every frame, before its goal, a bot checks three things in order:
    from one errand, such as a reward a snake lies beside, the bot gives that
    errand up rather than walking at it and backing off again.
 
+   **Where to back away to is what the bot can reach.** `planBestRoute`
+   (`app/game/navigation.ts`) searches outward from the bot in order of route
+   cost, over cells within `FLEE_FAR_CELLS` steps of it, and takes the route
+   to the cell `refugeWorth` rates highest: the furthest from the nearest
+   danger, and only one further than where the bot stands. The search never
+   steps within `STRIKE_REACH_CELLS` of a danger. Before this, the bot sorted
+   the standing cells 8 to 18 cells off by straight-line distance from the
+   danger and searched a route to each of the first four. Underground those
+   are usually behind a wall: in the tutorial cave around -8,41,-2 to
+   -8,48,-2 none of the four was reachable, so the bot stood and fought a
+   nature-slime three times slower than itself, and ten of 71 deaths in one
+   measured run were beside the chest at -8,48,-2. The four failed searches
+   took about 470ms there; the outward search takes about 5ms and finds a
+   cell 21 steps from the danger, up the ladder. A search that finds nowhere
+   is not repeated until the bot or one of its dangers stands in another
+   cell, because short of the map changing nothing else alters its answer; it used to run again every
+   decision, and one cornered bot stalled every bot on its worker thread.
+
    **The fleet remembers where it saw danger.** `Landmarks` also records
    every creature that can hurt where it was seen. Each bot works out which
    creatures it would lose to at full health (`fearedTiles`, worked out again
