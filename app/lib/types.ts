@@ -164,6 +164,19 @@ export type TileReflective = {
   turbulence: number;
 };
 
+export const MAX_SWAY_PX = 3;
+
+/**
+ * The art leans with the wind in whole pixels, up and to the right, which is
+ * across the up-and-left diagonal the projection draws height along. Nothing
+ * moves within `rootPx` of the sprite's bottom-right corner along that
+ * diagonal, and the far end moves `px` in a full gust.
+ */
+export type TileSway = {
+  px: number;
+  rootPx: number;
+};
+
 export type TileDef = StateSprites & {
   id: string;
   name: string;
@@ -191,6 +204,7 @@ export type TileDef = StateSprites & {
   walkSpeedPercent?: number;
   wade?: boolean;
   reflective?: TileReflective;
+  sway?: TileSway;
   climbFrom?: Partial<Record<FacingKey, Partial<Record<Direction, boolean>>>>;
   interactions?: TileInteractions;
   particles?: ParticleEmitterDef;

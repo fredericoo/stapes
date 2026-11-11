@@ -12,7 +12,7 @@ import {
   PX_PER_HEIGHT,
   RAY_DEPTH_ELEV,
 } from "../lib/geometry";
-import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileSway } from "../lib/types";
 import { SUN_EDGE_ARC } from "../lib/sunSpan";
 import { ANIM_GLSL_FUNCTION, NO_ANIMATION } from "./animTable";
 import {
@@ -55,6 +55,7 @@ export type Quad = {
   unlit: boolean;
   /** One-based reflective tile slot, or absent; see `reflectiveTileIndex`. */
   reflect?: number;
+  sway?: TileSway;
 };
 
 export type LevelLightUniforms = {
@@ -116,6 +117,19 @@ export type LevelAnimUniforms = {
   uAnimEnabled: { value: number };
 };
 
+export type WindUniforms = {
+  uWindStep: { value: number };
+};
+
+export const NO_WIND_UNIFORMS: WindUniforms = { uWindStep: { value: 0 } };
+
+/** The wind is sampled this often, so a world with trees in view redraws at this rate and no faster. */
+export const WIND_STEP_MS = 120;
+
+export function windStepAt(clockMs: number): number {
+  return Math.floor(clockMs / WIND_STEP_MS);
+}
+
 export function noAnimUniforms(placeholder: THREE.Texture): LevelAnimUniforms {
   return {
     uAnimTable: { value: placeholder },
@@ -133,16 +147,22 @@ const BOX_COMPONENTS = 4;
  */
 const SPAN_COMPONENTS = 2;
 const WADE_COMPONENTS = 2;
+const SWAY_COMPONENTS = 4;
+const SWAY_BEND_COMPONENTS = 2;
 
 const WADE_ALPHA = 0.5;
 
 const SUN_BOUNCE = 0.5;
 
+/** Radians of gust phase per cell, and per second. */
+const WIND_GUST_CELLS = 0.45;
+const WIND_GUST_SPEED = 1.5;
+
 /**
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v17";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v19";
 
 /** The world shader with the reflection lookup, which only `WorldRenderer`'s tile materials carry. */
 export const REFLECTING_WORLD_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-reflect`;
@@ -182,6 +202,32 @@ function writeQuadBox(
   }
 }
 
+/**
+ * `aSway` is each corner's place in its own quad, in art pixels: across from the
+ * left edge and up from the foot, then the quad's width and height. The
+ * fragment shader needs them to move whole pixels and to stop at the quad's edge,
+ * where the atlas holds some other sprite.
+ */
+function writeQuadSway(
+  sways: Float32Array,
+  bends: Float32Array,
+  quadIndex: number,
+  q: Pick<Quad, "w" | "h" | "sway">,
+) {
+  if (!q.sway) return;
+  const sb = quadIndex * VERTS_PER_QUAD * SWAY_COMPONENTS;
+  const bb = quadIndex * VERTS_PER_QUAD * SWAY_BEND_COMPONENTS;
+  for (let v = 0; v < VERTS_PER_QUAD; v++) {
+    const o = sb + v * SWAY_COMPONENTS;
+    sways[o] = v % 2 === 0 ? 0 : q.w;
+    sways[o + 1] = v < 2 ? 0 : q.h;
+    sways[o + 2] = q.w;
+    sways[o + 3] = q.h;
+    bends[bb + v * SWAY_BEND_COMPONENTS] = q.sway.px;
+    bends[bb + v * SWAY_BEND_COMPONENTS + 1] = q.sway.rootPx;
+  }
+}
+
 export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const n = quads.length;
   const positions = new Float32Array(n * VERTS_PER_QUAD * 3);
@@ -194,6 +240,8 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
   const reflects = new Float32Array(n * VERTS_PER_QUAD);
+  const sways = new Float32Array(n * VERTS_PER_QUAD * SWAY_COMPONENTS);
+  const swayBends = new Float32Array(n * VERTS_PER_QUAD * SWAY_BEND_COMPONENTS);
   const indices = n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
   for (let i = 0; i < n; i++) {
@@ -240,6 +288,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     reflects.fill(q.reflect ?? 0, vb, vb + VERTS_PER_QUAD);
 
     writeQuadBox(boxes, stacks, spans, i, q.box, q.stackBias);
+    writeQuadSway(sways, swayBends, i, q);
 
     const [lsx, lsy] = lightCellsPerPixel(q);
     const row = q.animRow ?? NO_ANIMATION;
@@ -272,6 +321,8 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
   geo.setAttribute("aReflect", new THREE.BufferAttribute(reflects, 1));
+  geo.setAttribute("aSway", new THREE.BufferAttribute(sways, SWAY_COMPONENTS));
+  geo.setAttribute("aSwayBend", new THREE.BufferAttribute(swayBends, SWAY_BEND_COMPONENTS));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -301,6 +352,9 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   const lightScales = new Float32Array([lsx, lsy, lsx, lsy, lsx, lsy, lsx, lsy]);
   const anims = new Float32Array(VERTS_PER_QUAD * 2);
   for (let v = 0; v < VERTS_PER_QUAD; v++) anims[v * 2] = NO_ANIMATION;
+  const sways = new Float32Array(VERTS_PER_QUAD * SWAY_COMPONENTS);
+  const swayBends = new Float32Array(VERTS_PER_QUAD * SWAY_BEND_COMPONENTS);
+  writeQuadSway(sways, swayBends, 0, q);
 
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
@@ -315,6 +369,8 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
     "aReflect",
     new THREE.BufferAttribute(new Float32Array(VERTS_PER_QUAD).fill(q.reflect ?? 0), 1),
   );
+  geo.setAttribute("aSway", new THREE.BufferAttribute(sways, SWAY_COMPONENTS));
+  geo.setAttribute("aSwayBend", new THREE.BufferAttribute(swayBends, SWAY_BEND_COMPONENTS));
   geo.setAttribute(
     "aWade",
     new THREE.BufferAttribute(new Float32Array(VERTS_PER_QUAD * WADE_COMPONENTS), WADE_COMPONENTS),
@@ -387,8 +443,9 @@ export function injectWorldShader(
   depth: DepthOriginUniforms,
   transition: TransitionUniforms = NO_TRANSITION_UNIFORMS,
   reflect: ReflectionUniforms = NO_REFLECTION_UNIFORMS,
+  wind: WindUniforms = NO_WIND_UNIFORMS,
 ) {
-  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, depth, transition, reflect);
+  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, depth, transition, reflect, wind);
   const reflectGlsl = (snippet: string) => (reflect === NO_REFLECTION_UNIFORMS ? "" : snippet);
   shader.vertexShader = shader.vertexShader
     .replace(
@@ -402,6 +459,10 @@ attribute vec2 aSpan;
 attribute vec2 aLightScale;
 attribute vec2 aAnim;
 attribute vec2 aWade;
+attribute vec4 aSway;
+attribute vec2 aSwayBend;
+varying vec4 vSway;
+varying vec2 vSwayBend;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -425,6 +486,8 @@ vStack = aStack;
 vSpan = max(aSpan, vec2(1.0));
 vLightScale = aLightScale;
 vWade = aWade;
+vSway = aSway;
+vSwayBend = aSwayBend;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
 ${TRANSITION_GLSL_VERTEX}
 ${reflectGlsl(REFLECT_GLSL_VERTEX)}
@@ -452,6 +515,9 @@ uniform vec2 uCutOrigin;
 uniform vec2 uCutSize;
 uniform float uCutEnabled;
 uniform vec3 uDepthOrigin;
+uniform float uWindStep;
+varying vec4 vSway;
+varying vec2 vSwayBend;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -463,6 +529,16 @@ varying vec2 vWade;
 ${TINT_GLSL_COMMON}
 ${TRANSITION_GLSL_COMMON}
 ${reflectGlsl(REFLECT_GLSL_COMMON)}
+vec2 swayUvShift = vec2(0.0);
+// Two waves crossing at an angle, so gusts run north-west to south-east
+// without every gust being the same length. The result is 0 in still air and 1
+// in a full gust.
+float windGust(vec2 cell) {
+  float t = uWindStep * ${glsl(WIND_STEP_MS / 1000)};
+  float along = (cell.x + cell.y) * ${glsl(WIND_GUST_CELLS)} - t * ${glsl(WIND_GUST_SPEED)};
+  float across = (cell.x * 0.9 - cell.y * 0.4) * ${glsl(WIND_GUST_CELLS)} + t * ${glsl(WIND_GUST_SPEED * 1.7)};
+  return smoothstep(0.3, 0.9, 0.5 + 0.35 * sin(along) + 0.15 * sin(across));
+}
 // A sun texel holds the arc span (start, end) from which the cell sees the
 // sun; filtering blends neighbouring spans, which is what slides a shadow
 // edge across a cell instead of flipping it.
@@ -475,6 +551,31 @@ float sunThrough(vec2 uv) {
     .replace(
       "#include <map_fragment>",
       `#include <map_fragment>
+#ifdef USE_MAP
+if (vSwayBend.x > 0.0) {
+  // Measured at the art pixel's centre, so a pixel moves whole or not at all.
+  vec2 swayToCentre = floor(vWorldPx) + 0.5 - vWorldPx;
+  float swayAcross = vSway.x + swayToCentre.x;
+  float swayUp = vSway.y - swayToCentre.y;
+  // The projection draws height up and to the left, so that diagonal from the
+  // quad's bottom-right corner is how far up the plant a pixel is. The lean is
+  // along the other diagonal, on which this distance does not change, so no
+  // pixel is drawn twice or left out.
+  float swayAlong = (vSway.z - swayAcross + swayUp) * 0.5;
+  float swayReach = (vSway.z + vSway.w) * 0.5;
+  float swayBend = clamp((swayAlong - vSwayBend.y) / max(swayReach - vSwayBend.y, 1.0), 0.0, 1.0);
+  float swayPx = floor(vSwayBend.x * swayBend * windGust(vBox.xy / ${glsl(CELL_SIZE)}) + 0.5);
+  if (swayPx > 0.0) {
+    // Past the quad's own edge the atlas holds a different sprite.
+    if (swayAcross - swayPx < 0.0 || swayUp - swayPx < 0.0) discard;
+    swayUvShift = swayPx * vec2(
+      -dFdx(vMapUv.x) / dFdx(vWorldPx.x),
+      dFdy(vMapUv.y) / dFdy(vWorldPx.y)
+    );
+    diffuseColor = vec4(diffuse, opacity) * texture2D(map, vMapUv + swayUvShift);
+  }
+}
+#endif
 ${TRANSITION_GLSL_SNAP}
 // vBox.xy is this quad's unshifted base cell, constant across the quad
 // however tall the sprite is, so a tall wall is cut with the cell it stands on.

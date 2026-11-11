@@ -439,7 +439,7 @@ if (uFxEnabled > 0.5) {
     dFdy(vMapUv).y / dFdy(vFxPx).y
   );
   diffuseColor =
-    vec4(diffuse, opacity) * texture2D(map, vMapUv + (fxPx - vFxPx) * fxUvPerArtPx);
+    vec4(diffuse, opacity) * texture2D(map, vMapUv + swayUvShift + (fxPx - vFxPx) * fxUvPerArtPx);
   #endif
 }
 `;

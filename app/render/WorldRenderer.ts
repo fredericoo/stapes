@@ -145,6 +145,8 @@ import {
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
   injectWorldShader,
+  windStepAt,
+  type WindUniforms,
   type LevelAnimUniforms,
   depthOriginUniforms,
   noAnimUniforms,
@@ -558,6 +560,7 @@ type ChunkGeometry = {
   group: THREE.Group;
   /** Holds reflective quads, so the reflection target has to be drawn while it is meshed. */
   reflects: boolean;
+  sways: boolean;
   z: number;
   chunk: string;
   animated: AnimatedInstance[];
@@ -694,6 +697,7 @@ export class WorldRenderer {
   private sunTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private readonly depthUniforms = depthOriginUniforms();
+  private readonly windUniforms: WindUniforms = { uWindStep: { value: 0 } };
   private lightingKey = "";
   private staticLightGrid: PackedLightGrid | null = null;
   private shownLightGrid: PackedLightGrid | null = null;
@@ -1228,8 +1232,19 @@ export class WorldRenderer {
       this.particles.update(dt, this.plumeCellHidden);
       this.needsRender = true;
     }
+    if (this.updateWind()) this.needsRender = true;
     if (!this.updateAnimations()) return;
     this.needsRender = true;
+  }
+
+  private updateWind(): boolean {
+    const step = windStepAt(this.animClock);
+    if (step === this.windUniforms.uWindStep.value) return false;
+    this.windUniforms.uWindStep.value = step;
+    for (const entry of this.chunkGeometry.values()) {
+      if (entry.sways) return true;
+    }
+    return false;
   }
 
   start() {
@@ -1774,6 +1789,7 @@ export class WorldRenderer {
           this.depthUniforms,
           undefined,
           this.reflectionUniforms,
+          this.windUniforms,
         );
       };
       mat.customProgramCacheKey = () => REFLECTING_WORLD_SHADER_CACHE_KEY;
@@ -2231,6 +2247,7 @@ export class WorldRenderer {
     const entry: ChunkGeometry = {
       group,
       reflects: items.some((item) => (item.reflect ?? 0) > 0),
+      sways: items.some((item) => item.sway !== undefined),
       z,
       chunk,
       animated: [],
@@ -2283,7 +2300,7 @@ export class WorldRenderer {
       if (item.anim || item.tileKey) continue;
       const b = item.box;
       const a = item.mergedAnim;
-      sig += `${item.x},${item.y},${item.w},${item.h}|${item.u0},${item.v0},${item.u1},${item.v1}|${b.eastPx},${b.southPx},${b.foot},${b.top}|${item.stackBias}|${item.unlit ? 1 : 0}|${item.texture.uuid}|${a ? `${a.frames.length},${a.phaseMs}` : ""}~`;
+      sig += `${item.x},${item.y},${item.w},${item.h}|${item.u0},${item.v0},${item.u1},${item.v1}|${b.eastPx},${b.southPx},${b.foot},${b.top}|${item.stackBias}|${item.unlit ? 1 : 0}|${item.texture.uuid}|${a ? `${a.frames.length},${a.phaseMs}` : ""}|${item.sway ? `${item.sway.px},${item.sway.rootPx}` : ""}~`;
     }
     return sig;
   }
@@ -2459,6 +2476,7 @@ export class WorldRenderer {
           standsOnFeet,
           mirrorUv: standsOnFeet ? mirrorUvShift(def, art, tileset) : undefined,
           reflect: this.reflective().index.get(def.id),
+          sway: def.sway,
           lightX0: x,
           lightY0: y,
           lightX1: x + 1,
@@ -2663,6 +2681,8 @@ export class WorldRenderer {
         this.ensureAnimUniforms(z),
         this.depthUniforms,
         uniforms,
+        undefined,
+        this.windUniforms,
       );
     };
     mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;

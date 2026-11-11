@@ -15331,6 +15331,40 @@ editor did exactly that — `setSprite({ frames: next })` — which made every f
 edit in the dialog, including changing a duration, silently unphase the tile.
 Spread the sprite.
 
+### A tile that sways is sheared by the fragment shader, a whole pixel at a time
+
+`TileDef.sway` — `{ px: 2, rootPx: 6 }` on the tree — leans the art with the
+wind as gusts cross the map. The tile editor's "Sways in the wind" switch
+writes it.
+
+- **Height is the up-and-left diagonal, and the lean is across it.** The
+  projection draws a tree's trunk rising toward the top left, so a shear by
+  horizontal rows bends the art against its own axis. How far up the plant a
+  pixel is, is its distance from the quad's bottom-right corner along that
+  diagonal. Nothing within `rootPx` of the corner moves, the far end moves `px`
+  in a full gust, and what is between moves a share of that rounded to a whole
+  pixel. The move is up and to the right. That distance is the same for every
+  pixel on an up-and-right line, so the shear never draws one art pixel twice
+  or drops one.
+- **Fragment, not vertex.** Moving a quad's vertices shears it smoothly, and
+  at any zoom above one that splits art pixels. The fragment shader works out
+  where in the sprite it is at the art pixel's centre and resamples the texture
+  that many texels down and to the left. `aSway` carries each corner's position
+  inside its own quad for that, and `aSwayBend` the tile's two numbers.
+- **The lean stops at the quad's left and bottom edges.** A texel outside the
+  sprite's rect belongs to whatever the atlas holds there, so those fragments
+  are discarded. Art drawn against the top or right edge of its rect loses
+  pixels in a gust; give it a margin.
+- **The wind has a step, and the step is what redraws.** `uWindStep` is the
+  animation clock divided by `WIND_STEP_MS`. `updateWind` asks for a frame only
+  when the step changes and some meshed chunk holds a swaying quad, so a
+  forest in view redraws about eight times a second and a cave does not redraw
+  at all.
+- **Only the drawing moves.** The light, the sun shadow and the reflection in
+  water are those of the tile standing still.
+- **`EditorRenderer` does not pass the wind**, so the map editor shows every
+  plant upright.
+
 ### The water autotile is generated from two masks, not drawn
 
 `bun run generate:water` writes `data/tilesets/water.png` and the `water` tile's

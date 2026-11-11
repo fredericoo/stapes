@@ -1,0 +1,17 @@
+{
+  "time": "12:00",
+  "zoom": 6,
+  "clockMs": 2400,
+  "cells": [
+    { "from": [0, 0], "to": [9, 9], "tiles": ["grass-2"] },
+    { "at": [2, 2], "tiles": ["grass-2", "tree"] },
+    { "at": [4, 2], "tiles": ["grass-2", "tree"] },
+    { "at": [6, 2], "tiles": ["grass-2", "tree"] },
+    { "at": [8, 3], "tiles": ["grass-2", "dead-tree"] },
+    { "at": [2, 5], "tiles": ["grass-2", "bush"] },
+    { "at": [4, 5], "tiles": ["grass-2", "small-bush"] },
+    { "at": [6, 5], "tiles": ["grass-2", "bush-3"] },
+    { "from": [1, 7], "to": [4, 8], "tiles": ["grass-2", "red-flowers"] },
+    { "from": [5, 7], "to": [8, 8], "tiles": ["grass-2", "yellow-flowers"] }
+  ]
+}
