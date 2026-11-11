@@ -5,6 +5,7 @@ import { FRAME, tile } from "../lib/testTile";
 import type { MapFile, TileDef } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
 import { BRAIN_TICK_MS, TICK_MS, WANTED_MS } from "./constants";
+import { COMBAT_DURATION_MS } from "../lib/status";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { brainContext } from "./testBrainContext";
 
@@ -233,6 +234,21 @@ describe("a report", () => {
     expect(session.isWanted(LOCAL_ACTOR_ID)).toBe(true);
 
     session.passTimeAsleep(WANTED_MS);
+    expect(session.isWanted(LOCAL_ACTOR_ID)).toBe(false);
+  });
+
+  it("is cleared by turning PvP off, which waits until the fighting is over", () => {
+    const session = new GameSession(street([[1, "townsfolk"]]), tiles, {
+      actorIds: [LOCAL_ACTOR_ID],
+    });
+    strike(session, 1);
+    run(session, 1_000);
+
+    expect(session.setPvp(false)).toBe(false);
+    expect(session.isWanted(LOCAL_ACTOR_ID)).toBe(true);
+
+    run(session, COMBAT_DURATION_MS);
+    expect(session.setPvp(false)).toBe(true);
     expect(session.isWanted(LOCAL_ACTOR_ID)).toBe(false);
   });
 });

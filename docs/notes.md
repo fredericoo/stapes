@@ -11326,7 +11326,11 @@ named body (`other_attacked`), and nothing reached further than that.
 
 The list (`GameSession.wanted`) is ms left per body. It counts down in `tick`
 and in `passTimeAsleep`, and a body's entry is removed when it dies, so dying
-clears a player's name. It is not saved: a restart or a deploy forgets every
+clears a player's name. So does turning PvP off: `setPvp(false)` removes the
+entry. It needs no check of its own to stop a player shedding their name
+mid-chase, because `canSetPvp` already refuses anybody in combat, and every
+blow given or taken restarts that status's `COMBAT_DURATION_MS`. A player has
+to get away from the guards and wait it out first. It is not saved: a restart or a deploy forgets every
 crime, as it forgets brain memory.
 
 A resident can be reported too. A wolf that bites a townsperson in front of a

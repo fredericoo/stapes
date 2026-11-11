@@ -4282,6 +4282,7 @@ export class GameSession implements PlaySession {
     if (!actor) return false;
     if (!this.canSetPvp(id)) return false;
     actor.pvp = enabled;
+    if (!enabled) this.wanted.delete(id);
     return true;
   }
 
