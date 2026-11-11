@@ -683,6 +683,20 @@ describe("time of day", () => {
       CLOCK_TOLERANCE_MINUTES,
     );
   });
+
+  it("gives everybody the weather /weather names, and a newcomer the same in the hello", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    const wanted = alice.hello.weather === "fog" ? "rain" : "fog";
+
+    command(alice.ws, `/weather ${wanted}`);
+
+    const weather = await nextMessageOfType(bob.ws, "weather");
+    expect(weather.weather).toBe(wanted);
+    const carol = await connect("carol");
+    expect(carol.hello.weather).toBe(wanted);
+  });
 });
 
 describe("surviving eviction", () => {

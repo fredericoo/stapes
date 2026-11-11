@@ -1,3 +1,4 @@
+import type { WeatherKind } from "../lib/weather";
 import {
   MAX_HELD_TRANSITIONS,
   transitionOf,
@@ -152,6 +153,7 @@ import {
   statusesClearedNotice,
   tileNotice,
   timeNotice,
+  weatherNotice,
 } from "./notices";
 import { RATING_UP_EFFECT } from "./ratingUp";
 import { DEFAULT_PLAY_MINUTES, msUntilHours, type MinutesOfDay } from "../lib/clock";
@@ -175,6 +177,8 @@ import {
   STATUS_COMMAND,
   TILE_COMMAND,
   TIME_COMMAND,
+  WEATHER_COMMAND,
+  type WeatherCommand,
   type BrainCommand,
   type FaceCommand,
   type Command,
@@ -925,6 +929,7 @@ export class GameSession implements PlaySession {
   private readonly extractionChanged = new Set<string>();
   private readonly masteriesChanged = new Set<string>();
   private pendingClockSet: MinutesOfDay | null = null;
+  private pendingWeatherSet: { weather: WeatherKind | null } | null = null;
   private readonly clock: () => MinutesOfDay;
   private readonly plateCells = new Map<string, Coord>();
   private readonly wiredCells = new Map<string, Coord>();
@@ -5279,6 +5284,13 @@ export class GameSession implements PlaySession {
     return minutes;
   }
 
+  /** Null when no command set the weather; `weather: null` when one handed it back to `weatherAt`. */
+  drainWeatherSet(): { weather: WeatherKind | null } | null {
+    const set = this.pendingWeatherSet;
+    this.pendingWeatherSet = null;
+    return set;
+  }
+
   canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.readyToAct(actor)) return false;
@@ -5514,6 +5526,8 @@ export class GameSession implements PlaySession {
         return this.runMoveCommand(command, id);
       case TIME_COMMAND:
         return this.runTimeCommand(command, id);
+      case WEATHER_COMMAND:
+        return this.runWeatherCommand(command, id);
       case SPAWN_COMMAND:
         return this.runSpawnCommand(command, id);
       case DESPAWN_COMMAND:
@@ -5548,6 +5562,12 @@ export class GameSession implements PlaySession {
     this.pendingClockSet = command.minutes;
     this.say(id, timeNotice(command.minutes));
     return { ok: true, data: { command: TIME_COMMAND, minutes: command.minutes } };
+  }
+
+  private runWeatherCommand(command: WeatherCommand, id: string): CommandOutcome {
+    this.pendingWeatherSet = { weather: command.weather };
+    this.say(id, weatherNotice(command.weather));
+    return { ok: true, data: { command: WEATHER_COMMAND, weather: command.weather } };
   }
 
   private canStandIn(def: TileDef, to: Coord): boolean {

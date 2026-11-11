@@ -1,4 +1,5 @@
 import type { MinutesOfDay } from "../lib/clock";
+import { WEATHER_KINDS, isWeatherKind, type WeatherKind } from "../lib/weather";
 import { MAX_CONSUMABLE_HP_SHIFT } from "../lib/item";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { MASTERIES, MAX_MASTERY, MIN_EARNED_MASTERY, type Mastery } from "../lib/mastery";
@@ -21,6 +22,7 @@ export const HEALTH_COMMAND = "health";
 export const GOTO_COMMAND = "goto";
 export const MOVE_COMMAND = "move";
 export const TIME_COMMAND = "time";
+export const WEATHER_COMMAND = "weather";
 export const SPAWN_COMMAND = "spawn";
 export const DESPAWN_COMMAND = "despawn";
 export const GIVE_COMMAND = "give";
@@ -32,6 +34,7 @@ export const STATUS_CLEAR_ARGUMENT = "clear";
 export const STATUS_OFF_ARGUMENT = "off";
 export const BRAIN_OFF_ARGUMENT = "off";
 export const BRAIN_ON_ARGUMENT = "on";
+export const WEATHER_AUTO_ARGUMENT = "auto";
 
 export type CommandName =
   | typeof MASTERY_COMMAND
@@ -41,6 +44,7 @@ export type CommandName =
   | typeof GOTO_COMMAND
   | typeof MOVE_COMMAND
   | typeof TIME_COMMAND
+  | typeof WEATHER_COMMAND
   | typeof SPAWN_COMMAND
   | typeof DESPAWN_COMMAND
   | typeof GIVE_COMMAND
@@ -56,6 +60,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z] [body]`,
   [MOVE_COMMAND]: `${COMMAND_PREFIX}${MOVE_COMMAND} <east> <south> [up]`,
   [TIME_COMMAND]: `${COMMAND_PREFIX}${TIME_COMMAND} <hh:mm>`,
+  [WEATHER_COMMAND]: `${COMMAND_PREFIX}${WEATHER_COMMAND} <${WEATHER_KINDS.join(" | ")} | ${WEATHER_AUTO_ARGUMENT}>`,
   [SPAWN_COMMAND]: `${COMMAND_PREFIX}${SPAWN_COMMAND} <tile> <x> <y> [z]`,
   [DESPAWN_COMMAND]: `${COMMAND_PREFIX}${DESPAWN_COMMAND} <body>`,
   [GIVE_COMMAND]: `${COMMAND_PREFIX}${GIVE_COMMAND} <item> [square] [body]`,
@@ -114,6 +119,11 @@ export type Command =
       minutes: MinutesOfDay;
     }
   | {
+      name: typeof WEATHER_COMMAND;
+      /** Null hands the weather back to `weatherAt`. */
+      weather: WeatherKind | null;
+    }
+  | {
       name: typeof SPAWN_COMMAND;
       tileId: string;
       at: MapCell;
@@ -150,6 +160,7 @@ export type TileCommand = Extract<Command, { name: typeof TILE_COMMAND }>;
 export type StatusCommand = Extract<Command, { name: typeof STATUS_COMMAND }>;
 export type HealthCommand = Extract<Command, { name: typeof HEALTH_COMMAND }>;
 export type TimeCommand = Extract<Command, { name: typeof TIME_COMMAND }>;
+export type WeatherCommand = Extract<Command, { name: typeof WEATHER_COMMAND }>;
 export type SpawnCommand = Extract<Command, { name: typeof SPAWN_COMMAND }>;
 export type DespawnCommand = Extract<Command, { name: typeof DESPAWN_COMMAND }>;
 export type GiveCommand = Extract<Command, { name: typeof GIVE_COMMAND }>;
@@ -184,6 +195,7 @@ export type CommandRefusal =
   | { kind: "unknownStatus"; typed: string; known: readonly string[] }
   | { kind: "badHealth"; typed: string }
   | { kind: "badTime"; typed: string }
+  | { kind: "badWeather"; typed: string }
   | { kind: "unharmableTarget"; name: string }
   | { kind: "immuneTarget"; name: string; status: string }
   | { kind: "notABody"; typed: string }
@@ -215,6 +227,7 @@ export type CommandData =
   | { command: typeof MASTERY_COMMAND; target: string; mastery: Mastery; level: number }
   | { command: typeof GOTO_COMMAND | typeof MOVE_COMMAND; target: string; at: Coord }
   | { command: typeof TIME_COMMAND; minutes: MinutesOfDay }
+  | { command: typeof WEATHER_COMMAND; weather: WeatherKind | null }
   | { command: typeof SPAWN_COMMAND; tileId: string; at: Coord }
   | { command: typeof DESPAWN_COMMAND; target: string; at: Coord }
   | {
@@ -269,6 +282,8 @@ export function parseCommand(raw: string): CommandParse {
       return parseMoveArguments(args);
     case TIME_COMMAND:
       return parseTimeArguments(args);
+    case WEATHER_COMMAND:
+      return parseWeatherArguments(args);
     case SPAWN_COMMAND:
       return parseSpawnArguments(args);
     case DESPAWN_COMMAND:
@@ -640,6 +655,19 @@ function parseTimeArguments(args: string[]): CommandParse {
     ok: true,
     command: { name: TIME_COMMAND, minutes: hours * MINUTES_PER_HOUR + minutes },
   };
+}
+
+function parseWeatherArguments(args: string[]): CommandParse {
+  if (args.length !== 1) {
+    return { ok: false, refusal: { kind: "badArguments", command: WEATHER_COMMAND } };
+  }
+  const [token = ""] = args;
+  const typed = token.toLowerCase();
+  if (typed === WEATHER_AUTO_ARGUMENT) {
+    return { ok: true, command: { name: WEATHER_COMMAND, weather: null } };
+  }
+  if (!isWeatherKind(typed)) return { ok: false, refusal: { kind: "badWeather", typed: token } };
+  return { ok: true, command: { name: WEATHER_COMMAND, weather: typed } };
 }
 
 export function resolveCell(at: CellRequest, from: Coord): Coord {

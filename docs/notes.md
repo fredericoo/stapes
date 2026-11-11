@@ -9420,7 +9420,7 @@ A line beginning with `/` is an instruction rather than something to say.
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
 The verbs are `/mastery`, `/tile`, `/spawn`, `/despawn`, `/give`, `/status`,
-`/health`, `/brain`, `/face`, `/fire`, `/goto`, `/move` and `/time`; `COMMAND_USAGE` in
+`/health`, `/brain`, `/face`, `/fire`, `/goto`, `/move`, `/time` and `/weather`; `COMMAND_USAGE` in
 `app/game/commands.ts` is the grammar of each, and is the line a player is shown
 when they get one wrong.
 
@@ -9813,6 +9813,100 @@ beyond a time that does not parse.
 - **It says the hour back.** Moving within the night plateau (00:00–04:00)
   changes nothing on screen, so a silent success would read as a dropped
   command.
+
+## The weather is the server's, one for the whole world
+
+`clear`, `rain` or `fog` (`app/lib/weather.ts`). Every client is told the same
+one, in `hello` and in a `weather` message whenever it changes.
+
+- **It is a function of the wall clock.** `weatherAt` hashes the number of the
+  three-game-hour spell the world is in, so the weather needs no row in the
+  database, survives a restart and is the same on any machine. `/weather rain`
+  sets it by hand and `/weather auto` hands it back; like the clock's offset
+  the hand-set weather lives on `GameServer` and a deploy forgets it.
+- **`flushWeather` runs in the tick as well as after a message.** The spell
+  changes while nobody types anything, which the clock never needed: a client
+  runs its own clock forward and cannot work out the weather for itself only
+  because a command may have set it.
+- **Rain is drawn by the world shader, and only where the sky reaches.** The
+  light map's alpha is each cell's sky factor: 1 under open sky and a
+  fifteenth less for every step under cover. Rain is drawn on fragments whose
+  factor is at least `OPEN_SKY_FACTOR`, so it falls on a roof and on the
+  street and not on the floor of the house the roof was cut away from, and
+  never underground. With lighting switched off there is no sky factor and no
+  rain is drawn.
+- **Fog covers everything from ground level up, and asks the sky only below
+  it.** The first version asked every fragment for its sky factor, as rain
+  does, and whatever had none showed through the fog: a cell under a tree, the
+  inside of a wall, a roof's edge, a lamp's unlit flame. A fragment knows its
+  level from `vBox.z`, so at level 0 and above fog is drawn whatever the cell,
+  lit or not, and particles are handed the weather uniforms so a plume goes
+  too. Below ground the sky factor still decides, which fills an open pit and
+  leaves a cave clear. The floor of the house you stand in is fogged past the
+  fade like everything else.
+- **Rain falls down and to the right**, because the projection draws height up
+  and to the left. A streak runs along one diagonal of art pixels and is
+  placed in world pixels, so it does not slide when the camera moves.
+- **Fog is an opacity, and the palette pass does the rest.** Past
+  `FOG_CLEAR_CELLS` from the viewer the fog colour is mixed over the fragment,
+  more with distance, until `FOG_FADE_CELLS` further it is all there is. The
+  palette pass snaps the mix, so the edge is a few rings of palette colours;
+  the fade is seven cells wide so that there are several rings and not one.
+- **A lamp burns a hole in fog.** The fog over a fragment is cut by the block
+  light round it, none at `FOG_LIGHT_FROM` and all at `FOG_LIGHT_TO`. The
+  cells round it are asked because a wall or a tree holds no light of its own
+  and would stand fogged in the middle of the hole. A carried torch counts, so
+  holding one widens what its bearer sees.
+- **The rain and fog code is not in the shader on a clear day.** Each block
+  sits inside `#ifdef WEATHER_RAIN` or `#ifdef WEATHER_FOG`, and every world
+  material shares one `defines` object that `updateWeather` sets while `uRain`
+  or `uFog` is above zero, recompiling them when it changes. A branch on the
+  uniform was not enough. The browser specs draw through SwiftShader, which
+  runs both sides of a branch for every fragment and masks the result, so
+  fog's light samples were paid for in clear weather and two specs that wait
+  on a 60-second combat timer ran out of it on CI. The cost is a recompile,
+  and a hitch, as weather comes on and goes off. A transition's material is
+  made per transition and keeps the defines it was compiled with.
+- **Fog costs three light samples a fragment, and none near the viewer.** The
+  first version took five: the cell and its four neighbours. The light map is
+  filtered, so a sample on a cell's corner is the mean of the four cells that
+  meet there; two opposite corners reach all eight neighbours, and the mean is
+  doubled so a wall with lit floor on one side reads as bright as the floor.
+  Inside the clear ring the whole block is skipped. `lightNear`, which
+  `fogHides` uses, still takes the brightest of the cell and its four
+  neighbours; the two agree except at the rim of a hole.
+- **Fog stays out of the building the viewer is in.** The roof cut is that
+  building: every cell it hides on any level is under its roof. Those cells go
+  into `uShelterMask`, laid out as the cut mask is and read by the cell each
+  quad stands on, and fog skips them. A cut too large to be a building has no
+  cells and shelters nothing. Seen from outside, a building is fogged like
+  anything else; its inside was behind its roof already.
+- **What fog covers is also taken off the screen above it.** `fogHides` asks
+  what the shader asks: the distance, the level, the lamp light and the
+  shelter. `GameRenderer.isOutOfSight` uses it beside the pitch-black test, so
+  a body in the fog has no name, no health bar and cannot be targeted. It
+  counts a cell as hidden from halfway through the fade (`FOG_HIDES_CELLS`),
+  because the palette pass has already snapped a half-fogged body to the fog's
+  colour by then, and a name left over it floats on nothing. The body is still
+  sent to the client: the fog is drawn, not enforced.
+- **Unlit quads and particles get no rain.** Rain is inside the lit branch of
+  the shader; fog is outside it.
+- **The sky is dimmer under both** (`illuminationUnder`), which is the only
+  part of weather the light uniforms see. The bake does not change.
+- **A frame every `WEATHER_STEP_MS` while either shows.** `updateWeather` eases
+  `uRain` and `uFog` over four seconds on a change and snaps them on the first
+  view, so somebody who joins in the rain sees rain at once.
+
+- **`WEATHER=clear` (or `rain`, `fog`) takes the place of `weatherAt`**: the
+  world has that weather whenever no command has set another, and
+  `/weather auto` goes back to it. `playwright.config.ts` sets it to
+  `clear`: the browser specs run on a software rasteriser with seconds between
+  frames, and which weather the wall clock had rolled changed what they drew
+  from run to run. A preview that should show rain to whoever opens it can
+  set it too.
+
+`bun run scene` takes `"weather": "rain"`; fog is measured from the cell in
+`look`.
 
 ## A reward happens to the player, not to the board
 

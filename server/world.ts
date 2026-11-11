@@ -82,6 +82,7 @@ export class World {
       nameOf: (actorId) => characters.nameOf(actorId),
       appearanceOf: (actorId) => characters.appearanceOf(actorId),
       deathsOf: (actorId) => deaths.countOf(actorId),
+      weather: config.WEATHER,
     });
     const world = new World(
       server,

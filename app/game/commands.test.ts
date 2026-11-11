@@ -1439,6 +1439,26 @@ describe("firing a projectile", () => {
   });
 });
 
+describe("setting the weather", () => {
+  it("reads a kind of weather, and auto as handing it back", () => {
+    expect(parseCommand("/weather rain")).toEqual({
+      ok: true,
+      command: { name: "weather", weather: "rain" },
+    });
+    expect(parseCommand("/weather auto")).toEqual({
+      ok: true,
+      command: { name: "weather", weather: null },
+    });
+  });
+
+  it("names the word that is not a kind of weather", () => {
+    expect(parseCommand("/weather snow")).toEqual({
+      ok: false,
+      refusal: { kind: "badWeather", typed: "snow" },
+    });
+  });
+});
+
 const MINUTES_PER_HOUR = 60;
 const SIX_PM_MINUTES = 18 * MINUTES_PER_HOUR;
 const HALF_SIX_AM_MINUTES = 6 * MINUTES_PER_HOUR + 30;

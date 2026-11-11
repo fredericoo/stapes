@@ -76,6 +76,7 @@ import { approachStand, WalkTo, type WalkView } from "../game/walkTo";
 import { listFarOptions } from "../game/farInteractions";
 import { resolveDialog } from "../lib/dialog";
 import type { EmitterOverride } from "../lib/lighting";
+import type { WeatherKind } from "../lib/weather";
 import { DEFAULT_PLAY_MINUTES, clockAfter, wrapMinutes, type MinutesOfDay } from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
 import { DWELL_MS } from "../lib/useDwell";
@@ -264,6 +265,7 @@ export class GameRenderer {
   private statusDefs: Record<string, StatusDef> = {};
   private readonly remaining = new SmoothedRemaining();
   private minutesOfDay: number = DEFAULT_PLAY_MINUTES;
+  private weather: WeatherKind = "clear";
   private clockAnchorMinutes: MinutesOfDay = DEFAULT_PLAY_MINUTES;
   private clockAnchorAtMs = 0;
   private clockPaused = false;
@@ -397,6 +399,10 @@ export class GameRenderer {
   setDirections(directions: HeldDirections) {
     this.directions = directions;
     this.walkTo = new WalkTo(directions);
+  }
+
+  setWeather(weather: WeatherKind) {
+    this.weather = weather;
   }
 
   setMinutesOfDay(m: MinutesOfDay) {
@@ -1415,8 +1421,12 @@ export class GameRenderer {
     return drawn === snap.map ? snap : { ...snap, map: drawn };
   }
 
-  private isInDarkness(snap: GameSnapshot, actor: ActorSnapshot): boolean {
-    return actor.id !== snap.self.id && this.world.isCellPitchBlack(actor.x, actor.y, actor.z);
+  private isOutOfSight(snap: GameSnapshot, actor: ActorSnapshot): boolean {
+    if (actor.id === snap.self.id) return false;
+    return (
+      this.world.isCellPitchBlack(actor.x, actor.y, actor.z) ||
+      this.world.fogHides(actor.x, actor.y, actor.z)
+    );
   }
 
   private targetOutline(snap: GameSnapshot): ObjectRef | null {
@@ -1575,7 +1585,9 @@ export class GameRenderer {
     if (!isCellVisible(snap.map, this.tilesById, ref, snap.self.z, this.roofCutFor(snap))) {
       return false;
     }
-    return !this.world.isCellPitchBlack(ref.x, ref.y, ref.z);
+    return (
+      !this.world.isCellPitchBlack(ref.x, ref.y, ref.z) && !this.world.fogHides(ref.x, ref.y, ref.z)
+    );
   }
 
   private enforceTargetVisibility(snap: GameSnapshot, camera: { x: number; y: number }) {
@@ -1804,7 +1816,7 @@ export class GameRenderer {
     for (const actor of snap.actors) {
       if (actor.hidden || actor.hp === null || actor.maxHp === null) continue;
       if (!this.isVisibleBody(snap, actor, camera, cut)) continue;
-      if (this.isInDarkness(snap, actor)) continue;
+      if (this.isOutOfSight(snap, actor)) continue;
 
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);
@@ -2024,6 +2036,8 @@ export class GameRenderer {
       camera: drawn,
       zoom,
       minutesOfDay: this.minutesOfDay,
+      weather: this.weather,
+      viewerPx: { x: camera.x + this.spanPx() / 2, y: camera.y + this.spanPx() / 2 },
       tileMotions: motions.length > 0 ? motions : undefined,
       projectiles:
         snap.projectiles.length > 0
@@ -2224,7 +2238,7 @@ export class GameRenderer {
       (actor) =>
         actor.id === snap.targetId ||
         actor.id === following ||
-        (this.isVisibleBody(snap, actor, camera, cut) && !this.isInDarkness(snap, actor)),
+        (this.isVisibleBody(snap, actor, camera, cut) && !this.isOutOfSight(snap, actor)),
     );
   }
 
@@ -2232,7 +2246,7 @@ export class GameRenderer {
     const following = this.walkTo?.followingId;
     return snap.actors.filter(
       (actor) =>
-        actor.id !== snap.targetId && actor.id !== following && this.isInDarkness(snap, actor),
+        actor.id !== snap.targetId && actor.id !== following && this.isOutOfSight(snap, actor),
     );
   }
 

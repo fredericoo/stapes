@@ -51,7 +51,9 @@ export default function ScenePage() {
           },
           zoom: built.zoom,
           minutesOfDay: built.minutesOfDay,
+          weather: built.weather,
         });
+        world.snapWeather();
 
         const startedAt = performance.now();
         while (!world.isSettled()) {

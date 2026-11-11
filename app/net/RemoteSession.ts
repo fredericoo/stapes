@@ -1,3 +1,4 @@
+import type { WeatherKind } from "../lib/weather";
 import { areaBurstEffects } from "../game/area";
 import {
   BARE,
@@ -243,6 +244,8 @@ export class RemoteSession implements PlaySession {
   private hidden = false;
   private onHidden: ((hidden: boolean) => void) | null = null;
   private onClockSet: ((minutes: MinutesOfDay) => void) | null = null;
+  private serverWeather: WeatherKind = "clear";
+  private onWeatherSet: ((weather: WeatherKind) => void) | null = null;
   private nextRequestId = 0;
   private readonly awaitingReplies = new Map<number, AwaitedReply>();
   private onServerMessage: ((message: ServerMessage) => void) | null = null;
@@ -362,6 +365,19 @@ export class RemoteSession implements PlaySession {
     this.onClockSet = cb;
   }
 
+  weather(): WeatherKind {
+    return this.serverWeather;
+  }
+
+  setOnWeatherSet(cb: ((weather: WeatherKind) => void) | null) {
+    this.onWeatherSet = cb;
+  }
+
+  private setWeather(weather: WeatherKind) {
+    this.serverWeather = weather;
+    this.onWeatherSet?.(weather);
+  }
+
   setOnServerMessage(cb: ((message: ServerMessage) => void) | null) {
     this.onServerMessage = cb;
   }
@@ -405,6 +421,11 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (message.type === "weather") {
+      this.setWeather(message.weather);
+      return;
+    }
+
     if (message.type === "players") {
       this.setPlayers(message.playerCount);
       return;
@@ -418,6 +439,7 @@ export class RemoteSession implements PlaySession {
     if (message.type === "hello") {
       this.selfId = message.selfId;
       this.setClock(message.minutesOfDay);
+      this.setWeather(message.weather);
       this.kingId = message.kingId;
       this.serverMap = chunkifyMap(message.map as FlatMapFile);
       this.actorCells = ActorCells.of(this.serverMap);
