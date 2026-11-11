@@ -142,6 +142,9 @@ bun run scene scripts/scenes/cyclops-pond.json --out before.png
 - **Before and after from one scene file.** Render it on the base commit and on
   the branch, with the same `--size`, and the only difference is the change.
   Keep a scene that shows something worth checking again in `scripts/scenes/`.
+- **`"clockMs": 2400` runs the animation clock that far before the shot**, for
+  anything drawn from the clock: an animated tile's frame, a plant mid-gust.
+  Without it the clock is zero.
 - **It takes about 20 seconds**, most of it starting `bun dev`. With `bun dev`
   already running, `--url <client origin>` skips that.
 - **What it cannot show:** anything that needs the game running, such as a
