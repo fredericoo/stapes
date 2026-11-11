@@ -152,6 +152,33 @@ function corridorWorld(length: number): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
+/**
+ * A cave corridor running east from a nature-slime, with the bot a few cells
+ * along it, and a wide room behind the corridor's south wall that nothing
+ * leads into. Every cell in the room is further from the slime than the
+ * corridor's end, and none of them can be walked to.
+ */
+function sealedCaveWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  const wall = (): PlacedTile[] => [{ tileId: "dirt" }, { tileId: "cave-wall" }];
+  for (let x = -1; x <= 15; x++) {
+    cells[`${x},-1`] = wall();
+    cells[`${x},1`] = wall();
+    cells[`${x},13`] = wall();
+  }
+  for (let x = 0; x <= 14; x++) {
+    cells[`${x},0`] = [{ tileId: "dirt" }];
+    for (let y = 2; y <= 12; y++) cells[`${x},${y}`] = [{ tileId: "dirt" }];
+  }
+  for (let y = 0; y <= 12; y++) {
+    cells[`-1,${y}`] = wall();
+    cells[`15,${y}`] = wall();
+  }
+  cells["0,0"]!.push({ tileId: "nature-slime", direction: "e" });
+  cells["3,0"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
 let harness: Harness;
 
 beforeEach(async () => {
@@ -294,6 +321,39 @@ it("waits for a faster creature that has seen it, rather than backing away", asy
   await play(bot, remote, decided, clock);
 
   expect(lines.find((line) => /backing away|cannot outrun/.test(line))).toContain("cannot outrun");
+});
+
+it("backs away along the corridor from a slower creature when the cells furthest from it are walled off", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(sealedCaveWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot(true);
+  const lines: string[] = [];
+  const bot = new Bot(
+    remote,
+    new ScriptedPlanner([{ goal: "rest", seconds: 300 }]),
+    tilesById,
+    statuses,
+    {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread: 1_000 },
+      log: (line) => lines.push(line),
+    },
+  );
+  const apart = () => {
+    const { self, actors } = remote.getSnapshot();
+    const slime = actors.find((a) => a.tileId === "nature-slime");
+    return slime ? Math.abs(self.x - slime.x) + Math.abs(self.y - slime.y) : 0;
+  };
+  const decided = () =>
+    lines.some((line) => /backing away|standing to fight|attacked you/.test(line));
+
+  await play(bot, remote, decided, clock);
+  const startMs = clock.ms;
+  await play(bot, remote, () => clock.ms - startMs >= 3_000, clock);
+
+  expect(lines.find((line) => /backing away|standing to fight|attacked you/.test(line))).toContain(
+    "backing away",
+  );
+  expect(apart()).toBeGreaterThan(6);
 });
 
 /** Answers every ask with `rest`, and keeps what it was asked. */

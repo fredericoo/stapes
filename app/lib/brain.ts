@@ -11,11 +11,13 @@ export type Selector =
   | { type: "slot"; data: { name: string } }
   | { type: "speaker" }
   | { type: "attacker" }
-  | { type: "home" };
+  | { type: "home" }
+  | { type: "wanted" };
 
 export const SPEAKER_SELECTOR: Selector = { type: "speaker" };
 export const ATTACKER_SELECTOR: Selector = { type: "attacker" };
 export const HOME_SELECTOR: Selector = { type: "home" };
+export const WANTED_SELECTOR: Selector = { type: "wanted" };
 
 export function nearest(...tileIds: string[]): Selector {
   return { type: "nearest", data: { tileIds } };
@@ -78,6 +80,8 @@ export type BrainConditionDef =
   | { cond: "heard_noise"; text?: string; cells: number }
   | { cond: "attacked"; withinMs?: number }
   | { cond: "other_attacked"; of: Selector; cells: number }
+  | { cond: "witnessed"; of: Selector; cells: number }
+  | { cond: "alerted" }
   | { cond: "stuck" }
   | { cond: "talking" }
   | { cond: "in_harm" }
@@ -103,6 +107,7 @@ export type BrainActionDef =
   | { action: "wait"; ms: number }
   | { action: "walk_n_steps"; steps: number; allowDrops?: boolean }
   | { action: "attack"; of: Selector }
+  | { action: "report"; of: Selector; cells: number }
   | { action: "cast"; spell: number; of?: Selector }
   | { action: "extract"; of: Selector }
   | { action: "switch"; of: Selector }
@@ -168,6 +173,7 @@ const selectorSchema = v.variant("type", [
   v.object({ type: v.literal("speaker") }),
   v.object({ type: v.literal("attacker") }),
   v.object({ type: v.literal("home") }),
+  v.object({ type: v.literal("wanted") }),
 ]);
 
 const cells = v.pipe(v.number(), v.integer(), v.minValue(0));
@@ -209,6 +215,8 @@ const leafSchema = v.variant("cond", [
   v.object({ cond: v.literal("stuck") }),
   v.object({ cond: v.literal("attacked"), withinMs: v.optional(durationMs) }),
   v.object({ cond: v.literal("other_attacked"), of: selectorSchema, cells }),
+  v.object({ cond: v.literal("witnessed"), of: selectorSchema, cells }),
+  v.object({ cond: v.literal("alerted") }),
   v.object({ cond: v.literal("talking") }),
   v.object({ cond: v.literal("in_harm") }),
   v.object({
@@ -276,6 +284,7 @@ const actionSchema = v.variant("action", [
     allowDrops,
   }),
   v.object({ action: v.literal("attack"), of: selectorSchema }),
+  v.object({ action: v.literal("report"), of: selectorSchema, cells }),
   v.object({
     action: v.literal("cast"),
     spell: v.pipe(v.number(), v.integer(), v.minValue(1)),

@@ -198,5 +198,12 @@
     "width": 64,
     "height": 32,
     "translucent": true
+  },
+  {
+    "id": "ledges",
+    "name": "Ledges",
+    "file": "ledges.png",
+    "width": 16,
+    "height": 376
   }
 ]

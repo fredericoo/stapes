@@ -170,7 +170,7 @@ function columnTops(g: SunGrid): Float32Array {
 }
 
 /**
- * For every occupied, sky-lit cell, the widest span of the sun's east-to-west
+ * For every sky-lit cell that is occupied or beside one on its level, the widest span of the sun's east-to-west
  * arc from which a parallel ray reaches it. The arc leans south by
  * {@link SUN_TILT_RAD}, so every ray from one cell lies in one plane (see
  * `rowAt`), and each level is read from the row where the ray enters it. That
@@ -199,7 +199,8 @@ export function bakeSunSpans(g: SunGrid): Uint8Array {
     for (let ly = 0; ly < g.h; ly++) {
       for (let lx = 0; lx < g.w; lx++) {
         const i = lz * slice + ly * g.w + lx;
-        if (!g.occupied[i] || g.sky[i]! <= SKY_LIT) continue;
+        if (g.sky[i]! <= SKY_LIT) continue;
+        if (!g.occupied[i] && !besideOccupied(g, lx, ly, lz)) continue;
         const gap = litGap(g, tops, reachable, scratch, lx, ly, lz);
         if (!gap) continue;
         out[i * SUN_SPAN_STRIDE] = encodeAngle(gap[0]);
@@ -208,6 +209,22 @@ export function bakeSunSpans(g: SunGrid): Uint8Array {
     }
   }
   return out;
+}
+
+/**
+ * The shader filters the span texture, so a cell at the edge of a raised floor
+ * is blended with the open air beside it on its own level. Left without a span
+ * that air reads as never lit, and the edge of every hilltop and roof is drawn
+ * in shadow.
+ */
+function besideOccupied(g: SunGrid, lx: number, ly: number, lz: number): boolean {
+  const plane = lz * g.w * g.h;
+  for (let y = Math.max(0, ly - 1); y <= Math.min(g.h - 1, ly + 1); y++) {
+    for (let x = Math.max(0, lx - 1); x <= Math.min(g.w - 1, lx + 1); x++) {
+      if (g.occupied[plane + y * g.w + x]) return true;
+    }
+  }
+  return false;
 }
 
 function litGap(

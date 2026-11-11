@@ -3,6 +3,7 @@ import {
   ATTACKER_SELECTOR,
   HOME_SELECTOR,
   SPEAKER_SELECTOR,
+  WANTED_SELECTOR,
   fromStates,
   isSelector,
   isSpeakerFilter,
@@ -217,6 +218,7 @@ export function selectorVocabulary(
     { key: "speaker", label: "speaker", make: () => SPEAKER_SELECTOR, tiles: [] },
     { key: "attacker", label: "attacker", make: () => ATTACKER_SELECTOR, tiles: [] },
     { key: "home", label: "home", make: () => HOME_SELECTOR, tiles: [] },
+    { key: "wanted", label: "wanted", make: () => WANTED_SELECTOR, tiles: [] },
   ];
 
   const slots = new Set<string>(slotNames);

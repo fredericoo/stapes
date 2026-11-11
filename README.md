@@ -224,6 +224,19 @@ an agent drives", lists every call.
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as
   it stands without touching it
+- `bun run raise:hills` — raise hills and mountains out of the open country in
+  `data/map.json` and put ramps on them, then walk the map with the game's own
+  movement rules and refuse to write it if a cell a player could walk to before
+  can no longer be walked to. The shape of the relief is the `HILLS` block at
+  the top of the script; `--dry-run` reports without writing
+- `bun run verify stranded` — walk `data/map.json` from where a player starts,
+  drops off ledges included, and list every place they could get to and not
+  leave. `--image <file.png>` draws the map with those places in red. CI runs
+  it and, when it fails, uploads the picture as the `stranded` artifact
+- `bun run generate:ledges` — draw `data/tilesets/ledges.png` and write the
+  `grass-ledge` and `sand-ledge` tiles: the tufted rim `raise:hills` lays on
+  the ground wherever it stops at a drop, so two levels of the same grass do
+  not read as one
 - `bun run seed` — copy `data/` into the `blob` table of the database in
   `DATA_DIR`. The server has to be stopped, since it holds the file, and the
   world keeps its checkpoint. Rarely needed: every deploy already does this
