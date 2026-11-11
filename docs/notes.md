@@ -16545,11 +16545,12 @@ walked to the nearest bush wherever that was.
 `refugeFor` (`bots/refuge.ts`) picks where to recover from what the bot can
 know, never from coordinates:
 
-- **A haven** is a place a bot was reborn or where an NPC with a dialog stands
-  or was seen. Bots learn the first: after a death, the first cell the bot
-  stands on at full health somewhere other than where it died is written to
-  `Landmarks` under `REBIRTH_MARK`, so the whole fleet, and the next run,
-  knows it. A haven is safe when no creature that can hurt was remembered or
+- **A haven** is where the fleet was last reborn (`Landmarks.home`, which
+  `Homestead` writes for the home range) or where an NPC with a dialog stands
+  or was seen. Only the last rebirth place is kept, so on a map with several,
+  the others are havens only if an NPC stands there. `Homestead.home` is not
+  used, because until a bot has died it is wherever that bot first stood. A
+  haven is safe when no creature that can hurt was remembered or
   is seen within its berth (`HURT_BERTH_CELLS`, or the creature's
   `noticeCells` when further) and the bot itself has no scare there.
 - **Staying costs `EXPOSED_STEPS` for each creature** whose berth reaches

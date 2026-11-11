@@ -93,7 +93,7 @@ import {
   type Situation,
 } from "./planner";
 import { Recollection } from "./recollection";
-import { REBIRTH_MARK, refugeFor, type Ground } from "./refuge";
+import { refugeFor, type Ground } from "./refuge";
 
 export const THINK_EVERY_MS = 30_000;
 
@@ -447,8 +447,6 @@ export class Bot {
     zones?: Zone[];
   } | null = null;
   private feared: { key: string; tiles: ReadonlySet<string> } | null = null;
-  /** Where the bot died, until it has been reborn and has told the fleet where that put it. */
-  private diedAt: Coord | null = null;
   /** Where the bot stood last decision, which is where its bag lies if it has just died. */
   private lastAt: Coord | null = null;
   /** What the bot wore last decision, which is the bag it left if it has just died. */
@@ -536,7 +534,6 @@ export class Bot {
     const hurt = this.lastHp !== null && self.hp !== null && self.hp < this.lastHp;
     this.lastHp = self.hp;
     this.checkRecovery(self);
-    this.learnRebirth(self);
     this.lastAt = { x: self.x, y: self.y, z: self.z };
     this.lastKit = { equipment: snapshot.equipment, masteryXp: snapshot.masteryXp };
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
@@ -572,7 +569,6 @@ export class Bot {
       this.looting = null;
       this.recovering = false;
       this.rememberLostKit();
-      this.diedAt = this.lastAt;
       if (this.lastAt) {
         this.fearDeathPlace(this.lastAt, nowMs);
         const body = this.lastKit && bodyOf(this.tilesById, this.lastKit.masteryXp);
@@ -1300,18 +1296,6 @@ export class Bot {
     this.recovering = true;
     this.happen("hurt, so recovering before starting another fight");
     this.pendingAsk ??= { reason: "timer", outcome: null };
-  }
-
-  /**
-   * The first frames after rebirth can still show the bot where it died, so
-   * the place is taken once it stands somewhere else at full health.
-   */
-  private learnRebirth(self: ActorSnapshot) {
-    const died = this.diedAt;
-    if (!died || self.hp === null || self.hp !== self.maxHp || cellOf(self) === cellOf(died))
-      return;
-    this.diedAt = null;
-    this.landmarks.saw(REBIRTH_MARK, self);
   }
 
   /**

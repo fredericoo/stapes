@@ -8,9 +8,6 @@ import { canHurt, steps } from "./combat";
 import type { Landmarks } from "./memory";
 import { noticeCells } from "./odds";
 
-/** The key `Landmarks` keeps the places bots were reborn under. No tile id holds an `@`. */
-export const REBIRTH_MARK = "@rebirth";
-
 /** A bot within this many steps of a haven is on it. */
 export const HAVEN_CELLS = 4;
 
@@ -79,10 +76,15 @@ export function havenGoal(at: Coord): NavGoal {
   };
 }
 
-/** Where bots were reborn, and where NPCs with a dialog stand or were seen. */
+/**
+ * Where the fleet was last reborn (`Landmarks.home`), and where NPCs with a
+ * dialog stand or were seen. `Homestead.home` is not used: before any bot has
+ * died it falls back to where this bot first stood, which may be anywhere.
+ */
 function havens(ground: Ground, self: Coord): Coord[] {
   const { landmarks, tilesById, bodies } = ground;
-  const out = landmarks.where(REBIRTH_MARK, self);
+  const home = landmarks.home();
+  const out = home ? [home] : [];
   for (const def of Object.values(tilesById)) {
     if (def.id !== PLAYER_TILE_ID && resolveDialog(def)) out.push(...landmarks.where(def.id, self));
   }
