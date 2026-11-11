@@ -312,6 +312,44 @@ export function planRoute(
   return { ok: false, why: "budget", explored: maxNodes };
 }
 
+/**
+ * Searches outward from `from` in order of cost, through cells `within`
+ * allows, and returns the route to the reached cell that `score` rates
+ * highest, or null when none rates above `-Infinity`. Of equal scores the
+ * cheapest wins, because cells are scored in the order they are settled.
+ */
+export function planBestRoute(
+  world: NavWorld,
+  from: Coord,
+  score: (cell: Coord) => number,
+  within: (cell: Coord) => boolean,
+  maxNodes = NAVIGATION_MAX_NODES,
+): { to: Coord; legs: NavLeg[] } | null {
+  const frontier = new Frontier();
+  const best = new Map<string, number>();
+  frontier.push({ at: from, g: 0, f: 0, cameFrom: null, leg: null });
+  best.set(cellKey(from), 0);
+  let chosen: { node: Node; score: number } | null = null;
+
+  for (let expanded = 0; expanded < maxNodes; expanded++) {
+    const node = frontier.pop();
+    if (!node) break;
+    if (node.g > (best.get(cellKey(node.at)) ?? Infinity)) continue;
+    const rated = score(node.at);
+    if (rated > (chosen?.score ?? -Infinity)) chosen = { node, score: rated };
+
+    for (const leg of navigationLegs(world, node.at)) {
+      if (!within(leg.to)) continue;
+      const key = cellKey(leg.to);
+      const g = node.g + costOf(world, node.at, leg);
+      if (g >= (best.get(key) ?? Infinity)) continue;
+      best.set(key, g);
+      frontier.push({ at: leg.to, g, f: g, cameFrom: node, leg });
+    }
+  }
+  return chosen && { to: chosen.node.at, legs: unwind(chosen.node) };
+}
+
 function unwind(node: Node): NavLeg[] {
   const legs: NavLeg[] = [];
   for (let at: Node | null = node; at?.leg; at = at.cameFrom) legs.push(at.leg);
