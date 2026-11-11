@@ -29,7 +29,7 @@ import {
 import type { ItemInstance } from "../app/lib/itemInstance";
 import type { Masteries } from "../app/lib/mastery";
 import { getStack } from "../app/lib/mapData";
-import { stowFits } from "../app/lib/piles";
+import { countOf, stowFits } from "../app/lib/piles";
 import type { StatusDef } from "../app/lib/status";
 import type { Coord, PlacedTile, TileDef } from "../app/lib/types";
 import type { RemoteSession } from "../app/net/RemoteSession";
@@ -64,7 +64,7 @@ import {
 import { ALLY_CELLS, alliesBeside, COMPANY_CELLS, companyGoal, leaderOf } from "./company";
 import { nextDressing } from "./dress";
 import { creatureSwing, fightOdds, noticeCells, slowsItsTarget, swingsOf } from "./odds";
-import { Economy, FOOD_RESERVE, type Deal } from "./economy";
+import { Economy, FOOD_RESERVE, type BankMove, type Deal } from "./economy";
 import { bodyOf, rangedReach, wornWorth } from "./gear";
 import { between, DEFAULT_TEMPERAMENT, type Temperament } from "./temperament";
 import {
@@ -258,6 +258,25 @@ export const TALK_GIVE_UP_MS = 5_000;
 export const TALK_RETRY_MS = 1_200;
 
 /**
+ * One thing is moved into or out of a depot this often: the server answers a
+ * move a tick later, and the next move is read off what the bag and the stash
+ * hold then.
+ */
+export const BANK_MOVE_MS = 1_000;
+
+/** A depot that has taken no move in this long is given up. */
+export const BANK_GIVE_UP_MS = 4_000;
+
+/**
+ * A walk to the depot to put things in is made for at least this much, in
+ * the currency, and one more for every `STASH_STEPS_PER_WORTH` steps of the
+ * walk. A walk to take out what completes a purchase is always made.
+ */
+export const STASH_MIN_WORTH = 5;
+
+export const STASH_STEPS_PER_WORTH = 10;
+
+/**
  * Kiting routes keep off the cells beside the foe, which the board has no
  * body on, by charging this much for each.
  */
@@ -336,6 +355,13 @@ type Course =
       readonly ref: ObjectRef;
       readonly recipe: number;
       readonly sinceMs: number;
+    }
+  | {
+      readonly kind: "bank";
+      readonly ref: ObjectRef;
+      readonly tag: string;
+      readonly sinceMs: number;
+      readonly movedMs: number;
     }
   | {
       readonly kind: "cook";
@@ -584,6 +610,11 @@ export class Bot {
 
     if (this.course.kind === "craft") {
       this.forge(this.course, nowMs);
+      return;
+    }
+
+    if (this.course.kind === "bank") {
+      this.bank(snapshot, this.course, nowMs);
       return;
     }
 
@@ -1516,7 +1547,12 @@ export class Bot {
   }
 
   private market(snapshot: GameSnapshot): Market {
-    return { economy: this.economy, landmarks: this.landmarks, bodies: snapshot.actors };
+    return {
+      economy: this.economy,
+      landmarks: this.landmarks,
+      bodies: snapshot.actors,
+      depots: snapshot.depots,
+    };
   }
 
   /** What the bot does at the end of a walk, by what the walk was for. */
@@ -1533,6 +1569,15 @@ export class Bot {
         return;
       case "craft":
         this.course = { kind: "craft", ref: act.ref, recipe: act.recipe, sinceMs: nowMs };
+        return;
+      case "bank":
+        this.course = {
+          kind: "bank",
+          ref: act.ref,
+          tag: act.tag,
+          sinceMs: nowMs,
+          movedMs: -Infinity,
+        };
         return;
       case "talk":
         this.course = {
@@ -1679,6 +1724,82 @@ export class Bot {
       this.happen(`could not craft at ${course.ref.x},${course.ref.y}`);
       this.course = { kind: "idle" };
     }
+  }
+
+  /**
+   * Makes the next move at the depot it walked to, one every `BANK_MOVE_MS`,
+   * until `Economy.bankMoves` has none left for this stash. Each move is read
+   * off the bag and the stash as they are now, so a move the server has
+   * answered is never sent twice.
+   */
+  private bank(snapshot: GameSnapshot, course: Extract<Course, { kind: "bank" }>, nowMs: number) {
+    if (nowMs - course.movedMs < BANK_MOVE_MS) return;
+    const move = this.bankMoves(snapshot).find(
+      (candidate) => candidate.kind === "deposit" || candidate.tag === course.tag,
+    );
+    if (!move) {
+      this.course = { kind: "idle" };
+      return;
+    }
+    const sent =
+      move.kind === "deposit"
+        ? this.body.moveItem(
+            { kind: "contents", index: move.from },
+            { kind: "depot", ref: course.ref, index: 0 },
+          )
+        : this.body.moveItem({ kind: "depot", ref: course.ref, index: move.from }, INTO_BAG);
+    const name = this.tilesById[move.tileId]?.name ?? move.tileId;
+    if (sent) {
+      this.happen(move.kind === "deposit" ? `stashed ${name}` : `took ${name} out of your stash`);
+      this.course = { ...course, sinceMs: nowMs, movedMs: nowMs };
+      return;
+    }
+    if (nowMs - course.sinceMs > BANK_GIVE_UP_MS) {
+      this.skipped.add(refKey(course.ref));
+      this.happen(`could not use the depot at ${course.ref.x},${course.ref.y}`);
+      this.course = { kind: "idle" };
+    }
+  }
+
+  /** What the bot would do at a depot now, counting only sellers it knows the place of. */
+  private bankMoves(snapshot: GameSnapshot): BankMove[] {
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    if (!body) return [];
+    const market = this.market(snapshot);
+    return this.economy.bankMoves(
+      snapshot.equipment,
+      body,
+      snapshot.depots,
+      (offer) => whereIs(offer.npc, snapshot.self, market, this.skipped) !== null,
+    );
+  }
+
+  /**
+   * The walk to a depot worth making now, if any: one to take out what
+   * completes a purchase always is, and one to put things in only when they
+   * are worth `STASH_MIN_WORTH` plus one for every `STASH_STEPS_PER_WORTH`
+   * steps to the nearest depot, so a bot does not cross the map to stash one
+   * shard.
+   */
+  private banking(snapshot: GameSnapshot, knowledge: Knowledge): BankMove["kind"] | null {
+    const moves = this.bankMoves(snapshot);
+    const first = moves[0];
+    if (!first) return null;
+    const self = snapshot.self;
+    const seen = knowledge.depots();
+    for (const { ref, tileId } of seen) this.landmarks.saw(tileId, ref);
+    const places: Coord[] = seen
+      .filter(({ tag }) => first.kind === "deposit" || tag === first.tag)
+      .map(({ ref }) => ref);
+    if (places.length === 0) {
+      for (const tileId of knowledge.depotTileIds())
+        places.push(...this.landmarks.where(tileId, self));
+    }
+    if (places.length === 0) return null;
+    if (first.kind === "withdraw") return "withdraw";
+    const away = Math.min(...places.map((place) => steps(self, place)));
+    const worth = this.economy.depositWorth(snapshot.equipment, moves);
+    return worth >= STASH_MIN_WORTH + away / STASH_STEPS_PER_WORTH ? "deposit" : null;
   }
 
   /**
@@ -1999,6 +2120,7 @@ export class Bot {
       .some((tileId) => this.landmarks.where(tileId, self).length > 0);
     const market = this.market(snapshot);
     const known = (deal: Deal) => whereIs(deal.offer.npc, self, market, this.skipped) !== null;
+    const banking = this.banking(snapshot, knowledge);
     return {
       canBuy: this.economy.purchases(equipment, body).some(known),
       canSell: this.economy.sales(equipment, body).some(known),
@@ -2007,6 +2129,8 @@ export class Bot {
       hasFood: healingFood(equipment, this.tilesById, this.statusDefs) !== null,
       lostKitAt: this.kitToFetch(snapshot),
       canForge: this.knowsAForge(knowledge, equipment, body, self),
+      canWithdraw: banking === "withdraw",
+      canStash: banking === "deposit",
     };
   }
 
@@ -2118,9 +2242,13 @@ export class Bot {
     this.summarizedAtMs = nowMs;
     const { currency, taste } = this.economy;
     const gold = currency ? carriedCount(this.tilesById, snapshot.equipment, currency) : 0;
+    const stash = Object.values(snapshot.depots)
+      .flat()
+      .filter((instance) => instance.tileId === currency)
+      .reduce((total, instance) => total + countOf(instance), 0);
     const gear = body ? wornWorth(snapshot.equipment, this.tilesById, body, taste) : 0;
     this.log(
-      `summary deaths=${this.deaths} kills=${this.kills} gold=${gold} gear=${gear.toFixed(1)}`,
+      `summary deaths=${this.deaths} kills=${this.kills} gold=${gold} stash=${stash} gear=${gear.toFixed(1)}`,
     );
   }
 
@@ -2149,6 +2277,7 @@ function busyWithHands(course: Course): boolean {
     course.kind === "gather" ||
     course.kind === "press" ||
     course.kind === "craft" ||
+    course.kind === "bank" ||
     course.kind === "cook"
   );
 }
@@ -2162,6 +2291,7 @@ function skipKey(act: Act): string {
     case "press":
     case "gather":
     case "craft":
+    case "bank":
       return refKey(act.ref);
     case "talk":
       return landmarkKey(act.deal.offer.npc, act.at);

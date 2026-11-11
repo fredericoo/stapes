@@ -16,9 +16,15 @@ import {
   tileIdsInChunk,
   presentLevels,
 } from "../app/lib/mapData";
+import { depotAt } from "../app/game/depot";
 import { pullsFreeAt } from "../app/game/extract";
 import { hasLineOfSight } from "../app/game/sight";
-import { resolveExtract, resolveReward } from "../app/lib/interactions";
+import {
+  resolveDepot,
+  resolveDepotDef,
+  resolveExtract,
+  resolveReward,
+} from "../app/lib/interactions";
 import type { StatusDef } from "../app/lib/status";
 import { levelKey, parseCoordKey } from "../app/lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../app/lib/types";
@@ -105,6 +111,32 @@ export class Knowledge {
     return {
       reached: (cell) =>
         reachableCraftAt(this.board, this.tilesById, standingIn(this.board, cell), ref) !== null,
+      estimate: (cell) => Math.max(0, Math.abs(cell.x - ref.x) + Math.abs(cell.y - ref.y) - 1),
+    };
+  }
+
+  /** Tiles that open a depot when placed with a tag. */
+  depotTileIds(): string[] {
+    return Object.values(this.tilesById)
+      .filter((def) => resolveDepotDef(def) !== null)
+      .map((def) => def.id);
+  }
+
+  /** Every remembered depot that opens, with the tag of the stash it opens onto. */
+  depots(): Array<{ ref: ObjectRef; tileId: string; tag: string }> {
+    const out: Array<{ ref: ObjectRef; tileId: string; tag: string }> = [];
+    this.placementsOf(new Set(this.depotTileIds()), (ref, def, placed) => {
+      const depot = resolveDepot(placed, def);
+      if (depot) out.push({ ref, tileId: def.id, tag: depot.tag });
+    });
+    return out;
+  }
+
+  /** Anywhere the depot at `ref` can be reached into from. */
+  depotGoal(ref: ObjectRef): NavGoal {
+    return {
+      reached: (cell) =>
+        depotAt(this.board, this.tilesById, standingIn(this.board, cell), ref) !== null,
       estimate: (cell) => Math.max(0, Math.abs(cell.x - ref.x) + Math.abs(cell.y - ref.y) - 1),
     };
   }

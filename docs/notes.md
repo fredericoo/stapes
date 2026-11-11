@@ -16039,9 +16039,10 @@ played from somewhere else, stops a bot.
 `<ISO time> [Name] hp 14/20 *3 at 10,4,0 <what happened>`: health, rating
 and cell from `selfSnapshot`, or `-` while the bot is dead or not yet placed.
 Every `SUMMARY_EVERY_MS` (five minutes) each bot also logs
-`summary deaths= kills= gold= gear=`: its deaths and kills since it signed
-in, the currency it carries, and `wornWorth`, what everything it wears is
-worth on the scale `bestUpgrade` gains by. The counts start again when the
+`summary deaths= kills= gold= stash= gear=`: its deaths and kills since it
+signed in, the currency it carries, the currency in its depots, and
+`wornWorth`, what everything it wears is worth on the scale `bestUpgrade`
+gains by. The counts start again when the
 bot signs in again, so a rate is the difference between two summaries of one
 session. A creature that dies is despawned in the tick of the killing blow,
 so the bot almost never sees its body: a foe that vanishes while a blow on it
@@ -16121,7 +16122,7 @@ two cells and fights until that creature is gone or out of reach. When a goal
 asks for a place nobody has seen, such as a level with no known way up, the
 bot explores towards it instead of giving up.
 
-**A planner chooses the goal, and nothing finer.** A goal is one of ten:
+**A planner chooses the goal, and nothing finer.** A goal is one of eleven:
 
 - `reach_level`
 - `go_to`
@@ -16131,6 +16132,7 @@ bot explores towards it instead of giving up.
 - `shop`
 - `sell`
 - `forge`
+- `bank`
 - `gather`
 - `rest`
 
@@ -16156,7 +16158,9 @@ against a real `GameServer` over the real protocol.
 `ProgressPlanner` is what `bun run bots` uses. It plays the same two opening
 goals, then loops: `shop` when the bot can pay for something it needs from a
 seller somebody knows the place of, `sell` when it carries something it does
-not need that a seller pays money for, and otherwise `hunt`. After
+not need that a seller pays money for, `bank` when a depot holds what
+completes a purchase or what it carries is worth stashing (below), and
+otherwise `hunt`. After
 `HUNT_SPELL_MS` (four minutes) of hunting it goes to `gather` for
 `GATHER_PULLS` pulls when it knows of a resource worth working, because
 hunting grows mastery and pays in skins but the shops want shards, and on the
@@ -16561,14 +16565,56 @@ its `CommandPath`, which is also the counter a conversation waits at.
 the bots names `arcane-shard`. `Economy` (`bots/economy.ts`) turns the offers
 into decisions:
 
-- `purchases`: food when the bag has none that heals, up to
-  `FOOD_RESERVE`, then every upgrade it can pay for that adds at least
-  `MIN_GAIN`.
+- `purchases`: every upgrade it can pay for that adds at least `MIN_GAIN`,
+  then food when the bag has none that heals, up to `FOOD_RESERVE`. The
+  upgrade comes first because of the depot (below).
 - `savingFor`: the upgrade with the best gain for its price, whose inputs
   (skins, for the tanner) are kept and picked up.
 - `sales`: anything carried beyond the food reserve that an NPC pays money
   for, unless it is being saved.
 - `wanted`: what is worth picking up off the floor.
+
+**A bot keeps what it is saving in a depot.** Death takes the bag and leaves
+the depot. Eighteen new characters played for half an hour each on the
+shipped map died about eight times an hour, left the bag where it fell 69
+times out of 71, and never showed more than 14 shards in a five-minute
+summary; the cheapest weapon costs 20. `Economy.bankMoves` says
+what a bot would do at a depot as it is now:
+
+- With an upgrade it can already pay for, nothing: the next thing to do is
+  buy it.
+- Otherwise it takes out the piles that complete the price of the best
+  upgrade it could then pay for, from one stash, when the bag has room for
+  them. Whole piles move, so what is left after the purchase goes back in.
+- With none of those, it puts in the money and the upgrade inputs it carries
+  (the tiles any offer in `upgrades` asks for, such as skins for the tanner).
+
+Only offers whose NPC the bot knows the place of count for the first two.
+Money taken out for a seller nobody has found cannot be spent, and would go
+straight back in.
+
+`Situation.canWithdraw` is true whenever a depot onto the stash that
+completes a price is known. `Situation.canStash` is true when what would go
+in is worth `STASH_MIN_WORTH` plus one for every `STASH_STEPS_PER_WORTH`
+steps to the nearest depot, so a bot does not cross the map to stash one
+shard. `ProgressPlanner` asks for `bank` before `shop` to take out and after
+`sell` to put in. Taking out comes first because `canBuy` is also true for
+food: a bot with ten shards on it, ten in the stash and no food would
+otherwise spend the ten it carries on pies, one shop away from a weapon.
+Money in the stash is never taken out for food, and `purchases` puts an
+upgrade it can pay for before food for the same reason: a bot that has just
+died has no food and all its money in the stash, and with food first it
+would take out the price of a weapon and spend it on pies. Savings go on
+gear, and a bot out of food and money picks berries. At the depot
+the bot makes one move every `BANK_MOVE_MS`, each read off the bag and the
+stash as the server last sent them, because the server answers a move a tick
+later and a pile taken out shifts the ones after it.
+
+A depot is found the way a forge is: any placement in what the bot has seen
+that opens (`Knowledge.depots`, which needs the placement's `depotTag`), else
+a place the fleet remembers a depot tile, which the bot walks to and then
+reads the tag off. A stash is per account and every bot has its own account,
+so bots do not share one.
 
 **A trade is a conversation driven to one counter.** `nextTalk` answers a
 menu with the option whose branch holds the target trade, or one whose `goto`

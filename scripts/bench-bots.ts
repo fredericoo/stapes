@@ -3,9 +3,11 @@ import { existsSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { TICK_MS } from "../app/game/constants";
+import type { Depots } from "../app/game/depot";
 import type { Equipment } from "../app/game/equipment";
 import { carriedCount } from "../app/game/trade";
 import { MASTERIES, levelForXp, type MasteryXp } from "../app/lib/mastery";
+import { countOf } from "../app/lib/piles";
 import { statusesById, type StatusDef } from "../app/lib/status";
 import { traitsById, withTraits } from "../app/lib/traits";
 import { normalizeTileDef, type TileDef } from "../app/lib/types";
@@ -86,6 +88,7 @@ type BotRun = {
   recoveringMs: number;
   bagWalks: BagWalks;
   equipment: Equipment;
+  depots: Depots;
   masteryXp: MasteryXp;
 };
 
@@ -283,6 +286,7 @@ function report(seat: Seat): BotRun {
     recoveringMs: seat.recoveringMs,
     bagWalks: seat.planner.walks,
     equipment: snapshot.equipment,
+    depots: snapshot.depots,
     masteryXp: snapshot.masteryXp,
   };
 }
@@ -309,9 +313,14 @@ function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0);
 }
 
+/** The currency a bot carries and has stashed: a bot that banks would otherwise read as poorer. */
 function goldOf(bot: BotRun, { tilesById, statuses }: Measure): number {
   const { currency } = new Economy(tilesById, statuses, bot.style);
-  return currency ? carriedCount(tilesById, bot.equipment, currency) : 0;
+  if (!currency) return 0;
+  const stashed = Object.values(bot.depots)
+    .flat()
+    .filter((instance) => instance.tileId === currency);
+  return carriedCount(tilesById, bot.equipment, currency) + sum(stashed.map(countOf));
 }
 
 /** What everything the bot wears is worth, on the scale its gear choices are made on. */
