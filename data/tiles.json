@@ -33496,6 +33496,10 @@
           }
         ],
         "pile": 3
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -33957,6 +33961,10 @@
           }
         ],
         "pile": 3
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -34930,6 +34938,10 @@
         "tileId": "stale-cheese",
         "fromMs": 3600000,
         "toMs": 3600000
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -35072,6 +35084,10 @@
           }
         ],
         "pile": 8
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -35121,6 +35137,10 @@
           }
         ],
         "pile": 4
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
