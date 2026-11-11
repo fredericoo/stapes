@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { WEATHER_KINDS } from "../app/lib/weather";
 
 const schema = v.object({
   PORT: v.optional(v.pipe(v.string(), v.transform(Number), v.number()), "3000"),
@@ -23,6 +24,8 @@ const schema = v.object({
   ),
 
   BOT_PASSWORD: v.optional(v.string(), "wanderer-bot-password"),
+
+  WEATHER: v.optional(v.picklist(WEATHER_KINDS)),
 
   OPENAI_API_KEY: v.optional(v.string()),
 

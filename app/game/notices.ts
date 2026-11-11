@@ -1,3 +1,4 @@
+import { WEATHER_KINDS, type WeatherKind } from "../lib/weather";
 import { formatClock, type MinutesOfDay } from "../lib/clock";
 import type {
   CraftInteraction,
@@ -146,6 +147,8 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return `Nothing will fit at ${cellName(refusal.at)}`;
     case "badHealth":
       return `"${refusal.typed}" is not a number of hit points. Say a figure, or one with a + or - in front of it`;
+    case "badWeather":
+      return `"${refusal.typed}" is not a kind of weather. Say ${WEATHER_KINDS.join(", ")} or auto`;
     case "badTime":
       return `"${refusal.typed}" is not a time. Write it like 18:00, from 00:00 to 23:59`;
     case "unharmableTarget":
@@ -251,6 +254,16 @@ export function noRouteNotice(why: PathRefusal): string {
     case "budget":
       return "There is no short way there";
   }
+}
+
+const WEATHER_NOTICES: Record<WeatherKind, string> = {
+  clear: "The sky is now clear",
+  rain: "It is now raining",
+  fog: "It is now foggy",
+};
+
+export function weatherNotice(weather: WeatherKind | null): string {
+  return weather ? WEATHER_NOTICES[weather] : "The weather is now left to itself";
 }
 
 export function timeNotice(minutes: MinutesOfDay): string {

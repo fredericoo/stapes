@@ -41,6 +41,7 @@ export default defineConfig({
     env: {
       STAPES_CLIENT_PORT: PORT,
       STAPES_SERVER_PORT: SERVER_PORT,
+      WEATHER: "clear",
     },
     url: `${BASE}/admin/map`,
     reuseExistingServer: !process.env.CI,

@@ -28,6 +28,7 @@ import {
 import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO } from "../lib/sunSpan";
 import { sampleIllumination } from "../lib/clock";
 import { ruleSelectsCell } from "../lib/particleRule";
+import { fogHidesAt, illuminationUnder, type WeatherKind } from "../lib/weather";
 import {
   changedCellsInChunk,
   changedCellsOnLevel,
@@ -146,6 +147,10 @@ import {
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
   injectWorldShader,
+  weatherStepAt,
+  setWeatherDefines,
+  type WeatherDefines,
+  weatherUniforms,
   type LevelAnimUniforms,
   depthOriginUniforms,
   noAnimUniforms,
@@ -441,6 +446,10 @@ export type WorldView = {
   camera: { x: number; y: number };
   zoom: number;
   minutesOfDay: number;
+  /** Clear when absent. */
+  weather?: WeatherKind;
+  /** Where fog is measured from, in world pixels; the middle of the view when absent. */
+  viewerPx?: { x: number; y: number };
   tileMotions?: TileMotion[];
   projectiles?: ProjectileView[];
   transitions?: readonly HeldTransition[];
@@ -598,6 +607,24 @@ function rectSignature(rect: WorldRect | null): string {
   return rect ? `${rect.x0},${rect.y0},${rect.x1},${rect.y1}` : "-";
 }
 
+const WEATHER_EASE_MS = 4_000;
+
+const FOG_LIGHT_CELLS = [
+  [0, 0],
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+
+/** Fog is this grey in the dark and takes the rest of its colour from the sky. */
+const FOG_BASE = 0.04;
+const FOG_FROM_SKY = 0.75;
+
+function easedToward(value: number, target: number, step: number): number {
+  return target > value ? Math.min(target, value + step) : Math.max(target, value - step);
+}
+
 function sameWindow(a: MeshWindow | null, b: MeshWindow): boolean {
   return (
     a !== null &&
@@ -695,6 +722,13 @@ export class WorldRenderer {
   private sunTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private readonly depthUniforms = depthOriginUniforms();
+  private readonly weatherUniforms = weatherUniforms();
+  /** Shared by every world material, so setting a define and recompiling them switches the weather code on or off. */
+  private readonly weatherDefines: WeatherDefines = {};
+  /** False until the first view's weather has been shown, so a player who joins in the rain sees rain at once. */
+  private weatherSnapped = false;
+  private sheltered: ReadonlySet<string> = new Set();
+  private shelterTexture: THREE.DataTexture | null = null;
   private lightingKey = "";
   private staticLightGrid: PackedLightGrid | null = null;
   private shownLightGrid: PackedLightGrid | null = null;
@@ -780,12 +814,19 @@ export class WorldRenderer {
 
     const white = new Uint8Array([255, 255, 255, 255]);
     this.whiteTex = new THREE.DataTexture(white, 1, 1, THREE.RGBAFormat);
+    this.weatherUniforms.uShelterMask.value = this.whiteTex;
     this.whiteTex.magFilter = THREE.LinearFilter;
     this.whiteTex.minFilter = THREE.LinearFilter;
     this.whiteTex.generateMipmaps = false;
     this.whiteTex.needsUpdate = true;
 
-    this.particles = new ParticleLayer((z) => this.ensureLightUniforms(z), this.depthUniforms);
+    this.particles = new ParticleLayer(
+      (z) => this.ensureLightUniforms(z),
+      this.depthUniforms,
+      undefined,
+      this.weatherUniforms,
+      this.weatherDefines,
+    );
     this.world.add(this.particles.mesh);
     this.particles.mesh.updateMatrixWorld(true);
 
@@ -1189,6 +1230,39 @@ export class WorldRenderer {
       group.visible = !cutHidesWholeLevel(cut, z);
     }
     for (const z of this.cutUniformsByZ.keys()) this.writeCutMask(z);
+    this.writeShelterMask();
+  }
+
+  /**
+   * The roof cut is the building the viewer is inside, so every cell it hides
+   * on any level is a cell under that building's roof. A cut too large to be a
+   * building has no cells, and shelters nothing.
+   */
+  private writeShelterMask() {
+    const u = this.weatherUniforms;
+    const sheltered = new Set<string>();
+    for (const cells of this.roofCut?.cells?.values() ?? []) {
+      for (const key of cells) sheltered.add(key);
+    }
+    this.sheltered = sheltered;
+    this.shelterTexture?.dispose();
+    this.shelterTexture = null;
+    const mask = cutMaskFor(sheltered);
+    if (!mask) {
+      u.uShelterEnabled.value = 0;
+      u.uShelterMask.value = this.whiteTex;
+      return;
+    }
+    const texture = new THREE.DataTexture(mask.data, mask.w, mask.h, THREE.RedFormat);
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.unpackAlignment = 1;
+    texture.needsUpdate = true;
+    this.shelterTexture = texture;
+    u.uShelterMask.value = texture;
+    u.uShelterOrigin.value.set(mask.x0, mask.y0);
+    u.uShelterSize.value.set(mask.w, mask.h);
+    u.uShelterEnabled.value = 1;
   }
 
   private writeCutMask(z: number) {
@@ -1235,8 +1309,75 @@ export class WorldRenderer {
       this.particles.update(dt, this.plumeCellHidden);
       this.needsRender = true;
     }
+    if (this.updateWeather(dt)) this.needsRender = true;
     if (!this.updateAnimations()) return;
     this.needsRender = true;
+  }
+
+  /** Rain and fog come on and go off over `WEATHER_EASE_MS`, and ask for a frame each weather step while either shows. */
+  private updateWeather(dt: number): boolean {
+    const u = this.weatherUniforms;
+    const weather = this.view?.weather ?? "clear";
+    const ease = this.weatherSnapped ? dt / WEATHER_EASE_MS : 1;
+    this.weatherSnapped = this.view !== null;
+    const rain = easedToward(u.uRain.value, weather === "rain" ? 1 : 0, ease);
+    const fog = easedToward(u.uFog.value, weather === "fog" ? 1 : 0, ease);
+    const easing = rain !== u.uRain.value || fog !== u.uFog.value;
+    u.uRain.value = rain;
+    u.uFog.value = fog;
+    if (setWeatherDefines(this.weatherDefines, rain > 0, fog > 0)) {
+      for (const mat of this.materials.values()) mat.needsUpdate = true;
+      this.particles.recompile();
+    }
+    if (rain === 0 && fog === 0) return easing;
+    const step = weatherStepAt(this.animClock);
+    if (step === u.uWeatherStep.value) return easing;
+    u.uWeatherStep.value = step;
+    return true;
+  }
+
+  /** Shows the view's weather at full strength at once, as a still picture needs. */
+  snapWeather() {
+    this.weatherSnapped = false;
+    this.updateWeather(0);
+    this.needsRender = true;
+  }
+
+  /** Whether fog covers a cell completely, which is when whatever is drawn over the world there should go too. */
+  fogHides(x: number, y: number, z: number): boolean {
+    if (this.weatherUniforms.uFog.value < 1) return false;
+    if (this.sheltered.has(coordKey(x, y))) return false;
+    const sky = z >= 0 ? 1 : this.skyFactorAt(x, y, z);
+    const origin = baseCellWorldOrigin(x, y, z, 0);
+    const viewer = this.weatherUniforms.uViewerPx.value;
+    const cells =
+      Math.hypot(origin.x + CELL_SIZE / 2 - viewer.x, origin.y + CELL_SIZE / 2 - viewer.y) /
+      CELL_SIZE;
+    return fogHidesAt(cells, z, sky, this.lightNear(x, y, z));
+  }
+
+  /** The brightest channel of the block light at a cell and its four neighbours, 0 to 1; the fog shader reads much the same from the filtered map. */
+  private lightNear(x: number, y: number, z: number): number {
+    const level = this.lightingEnabled ? this.shownLightGrid?.levels.get(z) : undefined;
+    if (!level) return 0;
+    let brightest = 0;
+    for (const [dx, dy] of FOG_LIGHT_CELLS) {
+      const lx = x + dx - level.x0;
+      const ly = y + dy - level.y0;
+      if (lx < 0 || ly < 0 || lx >= level.w || ly >= level.h) continue;
+      const i = (ly * level.w + lx) * 4;
+      brightest = Math.max(brightest, level.rgba[i]!, level.rgba[i + 1]!, level.rgba[i + 2]!);
+    }
+    return brightest / 255;
+  }
+
+  private skyFactorAt(x: number, y: number, z: number): number {
+    const level = this.lightingEnabled ? this.shownLightGrid?.levels.get(z) : undefined;
+    if (!level) return 0;
+    const lx = x - level.x0;
+    const ly = y - level.y0;
+    if (lx < 0 || ly < 0 || lx >= level.w || ly >= level.h) return 0;
+    return level.rgba[(ly * level.w + lx) * 4 + 3]! / 255;
   }
 
   start() {
@@ -1324,6 +1465,7 @@ export class WorldRenderer {
     this.stop();
     this.resizeObserver?.disconnect();
     this.palettePass.dispose();
+    this.shelterTexture?.dispose();
     this.reflectionTarget?.dispose();
     for (const mat of this.reflectionMaterials.values()) mat.dispose();
     this.reflectionMaterials.clear();
@@ -1690,6 +1832,11 @@ export class WorldRenderer {
     const viewW = this.canvasW / zoom;
     const viewH = this.canvasH / zoom;
     setDepthOrigin(this.depthUniforms, depthOriginAt(camX + viewW / 2, camY + viewH / 2, viewerZ));
+    const viewer = this.view?.viewerPx;
+    this.weatherUniforms.uViewerPx.value.set(
+      viewer?.x ?? camX + viewW / 2,
+      viewer?.y ?? camY + viewH / 2,
+    );
     this.camera.left = camX;
     this.camera.right = camX + viewW;
     this.camera.top = camY;
@@ -1781,9 +1928,11 @@ export class WorldRenderer {
           this.depthUniforms,
           undefined,
           this.reflectionUniforms,
+          this.weatherUniforms,
         );
       };
       mat.customProgramCacheKey = () => REFLECTING_WORLD_SHADER_CACHE_KEY;
+      mat.defines = this.weatherDefines;
       this.materials.set(key, mat);
     }
     mat.transparent = true;
@@ -1860,7 +2009,15 @@ export class WorldRenderer {
 
     this.lightBaker?.syncMap(view.map);
 
-    const { ambient, sun, sunArc } = sampleIllumination(view.minutesOfDay);
+    const { ambient, sun, sunArc } = illuminationUnder(
+      view.weather ?? "clear",
+      sampleIllumination(view.minutesOfDay),
+    );
+    this.weatherUniforms.uFogColor.value.set(
+      FOG_BASE + ambient[0] * FOG_FROM_SKY,
+      FOG_BASE + ambient[1] * FOG_FROM_SKY,
+      FOG_BASE + ambient[2] * FOG_FROM_SKY,
+    );
     this.pendingAmbient = ambient;
     this.pendingSun = { color: sun, arc: sunArc };
     for (const u of this.lightUniformsByZ.values()) this.applyIllumination(u);
@@ -2672,9 +2829,12 @@ export class WorldRenderer {
         this.ensureAnimUniforms(z),
         this.depthUniforms,
         uniforms,
+        undefined,
+        this.weatherUniforms,
       );
     };
     mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
+    mat.defines = this.weatherDefines;
     mat.transparent = true;
     mat.depthTest = true;
     cutOrBlend(mat, texture);

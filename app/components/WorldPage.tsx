@@ -335,6 +335,7 @@ export function WorldPage({
         });
       });
       remote.setOnClockSet((minutes) => rendererRef.current?.setMinutesOfDay(minutes));
+      remote.setOnWeatherSet((weather) => rendererRef.current?.setWeather(weather));
 
       remote.setOnReady(() => {
         if (disposed || renderer) return;
@@ -345,6 +346,7 @@ export function WorldPage({
         renderer.setLightingEnabled(lightingRef.current);
         renderer.setDebugView(debugViewRequested(window.location.search));
         renderer.setMinutesOfDay(remote.minutesOfDay());
+        renderer.setWeather(remote.weather());
         renderer.setOnStats(setStats);
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);

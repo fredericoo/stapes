@@ -14,6 +14,14 @@ import {
 } from "../lib/geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import { SUN_EDGE_ARC } from "../lib/sunSpan";
+import {
+  FOG_CLEAR_CELLS,
+  FOG_FADE_CELLS,
+  FOG_LIGHT_FROM,
+  FOG_LIGHT_TO,
+  FOG_SKY_FULL,
+  OPEN_SKY_FACTOR,
+} from "../lib/weather";
 import { ANIM_GLSL_FUNCTION, NO_ANIMATION } from "./animTable";
 import {
   NO_REFLECTION_UNIFORMS,
@@ -116,6 +124,61 @@ export type LevelAnimUniforms = {
   uAnimEnabled: { value: number };
 };
 
+export type WeatherUniforms = {
+  /** 0 to 1 each, so a change of weather can come on over a few seconds. */
+  uRain: { value: number };
+  uFog: { value: number };
+  uWeatherStep: { value: number };
+  uViewerPx: { value: THREE.Vector2 };
+  uFogColor: { value: THREE.Vector3 };
+  /** The cells of the building the viewer is inside, which fog stays out of; laid out as the cut mask is. */
+  uShelterMask: { value: THREE.Texture | null };
+  uShelterOrigin: { value: THREE.Vector2 };
+  uShelterSize: { value: THREE.Vector2 };
+  uShelterEnabled: { value: number };
+};
+
+export function weatherUniforms(): WeatherUniforms {
+  return {
+    uRain: { value: 0 },
+    uFog: { value: 0 },
+    uWeatherStep: { value: 0 },
+    uViewerPx: { value: new THREE.Vector2() },
+    uFogColor: { value: new THREE.Vector3() },
+    uShelterMask: { value: null },
+    uShelterOrigin: { value: new THREE.Vector2() },
+    uShelterSize: { value: new THREE.Vector2(1, 1) },
+    uShelterEnabled: { value: 0 },
+  };
+}
+
+export const NO_WEATHER_UNIFORMS = weatherUniforms();
+
+/**
+ * The rain and fog code is compiled into a material only while its define is
+ * set. A branch on a uniform is not enough: a software rasteriser runs both
+ * sides of it for every fragment and masks the result, so fog's light samples
+ * were paid for on a clear day.
+ */
+export type WeatherDefines = { WEATHER_RAIN?: ""; WEATHER_FOG?: "" };
+
+/** Whether the defines changed, which is when every material sharing them has to be recompiled. */
+export function setWeatherDefines(defines: WeatherDefines, rain: boolean, fog: boolean): boolean {
+  if ("WEATHER_RAIN" in defines === rain && "WEATHER_FOG" in defines === fog) return false;
+  if (rain) defines.WEATHER_RAIN = "";
+  else delete defines.WEATHER_RAIN;
+  if (fog) defines.WEATHER_FOG = "";
+  else delete defines.WEATHER_FOG;
+  return true;
+}
+
+/** Rain is redrawn this often, and fog drifts on the same clock. */
+export const WEATHER_STEP_MS = 60;
+
+export function weatherStepAt(clockMs: number): number {
+  return Math.floor(clockMs / WEATHER_STEP_MS);
+}
+
 export function noAnimUniforms(placeholder: THREE.Texture): LevelAnimUniforms {
   return {
     uAnimTable: { value: placeholder },
@@ -138,11 +201,22 @@ const WADE_ALPHA = 0.5;
 
 const SUN_BOUNCE = 0.5;
 
+/** One diagonal line of art pixels in this many carries rain, a streak every `RAIN_GAP_PX` along it. */
+const RAIN_LANE_SHARE = 0.16;
+const RAIN_GAP_PX = 40;
+const RAIN_STREAK_PX = 4;
+const RAIN_PX_PER_STEP = 5;
+const RAIN_MIX = 0.55;
+const RAIN_COLOR = "vec3(0.61, 0.67, 0.7)";
+/** The share of open-sky pixels a drop is landing on at any moment. */
+const SPLASH_SHARE = 0.004;
+const SPLASH_STEPS = 3;
+
 /**
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v17";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v18-weather-6";
 
 /** The world shader with the reflection lookup, which only `WorldRenderer`'s tile materials carry. */
 export const REFLECTING_WORLD_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-reflect`;
@@ -387,8 +461,19 @@ export function injectWorldShader(
   depth: DepthOriginUniforms,
   transition: TransitionUniforms = NO_TRANSITION_UNIFORMS,
   reflect: ReflectionUniforms = NO_REFLECTION_UNIFORMS,
+  weather: WeatherUniforms = NO_WEATHER_UNIFORMS,
 ) {
-  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, depth, transition, reflect);
+  Object.assign(
+    shader.uniforms,
+    lightUniforms,
+    tint,
+    cut,
+    anim,
+    depth,
+    transition,
+    reflect,
+    weather,
+  );
   const reflectGlsl = (snippet: string) => (reflect === NO_REFLECTION_UNIFORMS ? "" : snippet);
   shader.vertexShader = shader.vertexShader
     .replace(
@@ -452,6 +537,15 @@ uniform vec2 uCutOrigin;
 uniform vec2 uCutSize;
 uniform float uCutEnabled;
 uniform vec3 uDepthOrigin;
+uniform float uRain;
+uniform float uFog;
+uniform float uWeatherStep;
+uniform vec2 uViewerPx;
+uniform vec3 uFogColor;
+uniform sampler2D uShelterMask;
+uniform vec2 uShelterOrigin;
+uniform vec2 uShelterSize;
+uniform float uShelterEnabled;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -463,6 +557,11 @@ varying vec2 vWade;
 ${TINT_GLSL_COMMON}
 ${TRANSITION_GLSL_COMMON}
 ${reflectGlsl(REFLECT_GLSL_COMMON)}
+float weatherHash(vec2 p) {
+  vec3 q = fract(vec3(p.xyx) * 0.1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y) * q.z);
+}
 // A sun texel holds the arc span (start, end) from which the cell sees the
 // sun; filtering blends neighbouring spans, which is what slides a shadow
 // edge across a cell instead of flipping it.
@@ -511,7 +610,70 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   }
   vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + sun * uSunColor + lightTexel.rgb);
   diffuseColor.rgb *= light;
+#ifdef WEATHER_RAIN
+  if (uRain > 0.0 && lightTexel.a >= ${glsl(OPEN_SKY_FACTOR)}) {
+    // Height is drawn up and to the left, so rain falls down and to the right:
+    // a lane is one such diagonal of art pixels, and a streak moves along it.
+    vec2 rainPx = floor(depthPx);
+    float lane = rainPx.x - rainPx.y;
+    float laneRoll = weatherHash(vec2(lane, 7.0));
+    if (laneRoll < ${glsl(RAIN_LANE_SHARE)} * uRain) {
+      float along = floor((rainPx.x + rainPx.y) * 0.5) - uWeatherStep * ${glsl(RAIN_PX_PER_STEP)};
+      float inGap = mod(along + laneRoll * 977.0, ${glsl(RAIN_GAP_PX)});
+      if (inGap < ${glsl(RAIN_STREAK_PX)}) {
+        diffuseColor.rgb = mix(diffuseColor.rgb, ${RAIN_COLOR} * light, ${glsl(RAIN_MIX)});
+      }
+    }
+    float splashRoll = weatherHash(rainPx + floor(uWeatherStep / ${glsl(SPLASH_STEPS)}) * 17.0);
+    if (splashRoll < ${glsl(SPLASH_SHARE)} * uRain) {
+      diffuseColor.rgb = mix(diffuseColor.rgb, ${RAIN_COLOR} * light, ${glsl(RAIN_MIX)});
+    }
+  }
+#endif
 }
+#ifdef WEATHER_FOG
+if (uFog > 0.0) {
+  float fogDrift = sin((depthPx.x + depthPx.y) * 0.05 + uWeatherStep * 0.02) * ${glsl(CELL_SIZE * 0.75)};
+  float fogCells = (length(depthPx - uViewerPx) + fogDrift) / ${glsl(CELL_SIZE)};
+  float fogThick = smoothstep(0.0, 1.0, (fogCells - ${glsl(FOG_CLEAR_CELLS)}) / ${glsl(FOG_FADE_CELLS)});
+  // Everything below is skipped inside the clear ring round the viewer, where
+  // there is no fog to cut.
+  if (fogThick > 0.0) {
+    // From ground level up fog covers everything, lit or not. A cell under a
+    // tree or inside a wall has no sky of its own, so asking each fragment
+    // for its sky left those showing through. Below ground the sky decides,
+    // which is what fills an open pit and leaves a cave clear.
+    float fogSky = 1.0;
+    if (uLightingEnabled > 0.5) {
+      vec2 fogLightCell = vLightUv + (depthPx - vWorldPx) * vLightScale;
+      vec2 fogLightUv = (fogLightCell - uLightOrigin) / uLightSize;
+      vec4 fogTexel = texture2D(uLightMap, fogLightUv);
+      if (vBox.z < 0.0) fogSky = smoothstep(0.0, ${glsl(FOG_SKY_FULL)}, fogTexel.a);
+      // A lamp burns a hole in the fog. A wall or a tree holds no light of
+      // its own, so the cells round it are asked too, or it would stand
+      // fogged in the middle of the hole. The light map is filtered, so a
+      // sample on a cell's corner is the mean of the four cells that meet
+      // there, and two opposite corners reach all eight neighbours; doubling
+      // the mean keeps a wall with lit floor on one side as bright as the floor.
+      vec2 fogHalfCell = 0.5 / uLightSize;
+      vec3 fogRound = 2.0 * max(
+        texture2D(uLightMap, fogLightUv + fogHalfCell).rgb,
+        texture2D(uLightMap, fogLightUv - fogHalfCell).rgb
+      );
+      vec3 fogLight = max(fogTexel.rgb, fogRound);
+      fogSky *= 1.0 - smoothstep(${glsl(FOG_LIGHT_FROM)}, ${glsl(FOG_LIGHT_TO)}, max(fogLight.r, max(fogLight.g, fogLight.b)));
+    } else if (vBox.z < 0.0) {
+      fogSky = 0.0;
+    }
+    // The building the viewer stands in, by the cell each quad stands on, as the roof cut reads it.
+    if (uShelterEnabled > 0.5) {
+      vec2 shelterUv = (vBox.xy / ${glsl(CELL_SIZE)} - 0.5 - uShelterOrigin) / uShelterSize;
+      if (texture2D(uShelterMask, shelterUv).r > 0.5) fogSky = 0.0;
+    }
+    diffuseColor.rgb = mix(diffuseColor.rgb, uFogColor, fogThick * fogSky * uFog);
+  }
+}
+#endif
 ${TRANSITION_GLSL_EDGE}
 // A ray cast from this pixel: each visible (south/east/top) face caps how far
 // it climbs before leaving the box, so the exit point is the lowest of them.

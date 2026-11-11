@@ -1,3 +1,4 @@
+import { WEATHER_KINDS, type WeatherKind } from "../lib/weather";
 import * as v from "valibot";
 import type { WornLayer } from "../lib/humanParts";
 import { CAST_SQUARES, type CastProgress, type CastSlot } from "../game/casting";
@@ -359,6 +360,10 @@ export type ServerMessage =
       minutesOfDay: number;
     }
   | {
+      type: "weather";
+      weather: WeatherKind;
+    }
+  | {
       type: "king";
       actorId: string | null;
     }
@@ -374,6 +379,7 @@ export type ServerMessage =
       actorIds: string[];
       playerCount?: number;
       minutesOfDay: number;
+      weather: WeatherKind;
       kingId: string | null;
       hps: HpPatch[];
       names: NamePatch[];
@@ -645,6 +651,7 @@ const serverMessageSchema = v.variant("type", [
     actorIds: v.array(v.string()),
     playerCount: v.optional(v.number()),
     minutesOfDay: v.number(),
+    weather: v.optional(v.picklist(WEATHER_KINDS), "clear"),
     kingId: v.optional(v.nullable(v.string()), () => null),
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
@@ -723,6 +730,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("clock"),
     minutesOfDay: v.number(),
+  }),
+  v.object({
+    type: v.literal("weather"),
+    weather: v.picklist(WEATHER_KINDS),
   }),
   v.object({
     type: v.literal("hidden"),
@@ -941,7 +952,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 37;
+export const PROTOCOL_VERSION = 38;
 
 export const MAX_STEPS_AHEAD = 5;
 

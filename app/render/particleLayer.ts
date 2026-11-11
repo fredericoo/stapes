@@ -21,6 +21,9 @@ import { noTintUniforms } from "./spriteTint";
 import type { CellHidden } from "./tileEmitters";
 import {
   injectWorldShader,
+  NO_WEATHER_UNIFORMS,
+  type WeatherUniforms,
+  type WeatherDefines,
   noAnimUniforms,
   noCutUniforms,
   type DepthOriginUniforms,
@@ -195,6 +198,8 @@ export class ParticleLayer {
     lightUniformsFor: (z: number) => LevelLightUniforms,
     private readonly depthUniforms: DepthOriginUniforms,
     random?: Random,
+    private readonly weather: WeatherUniforms = NO_WEATHER_UNIFORMS,
+    private readonly weatherDefines: WeatherDefines = {},
   ) {
     this.system = new ParticleSystem(random);
     this.lightUniformsFor = lightUniformsFor;
@@ -207,6 +212,11 @@ export class ParticleLayer {
     this.mesh.updateMatrix();
     this.mesh.renderOrder = PARTICLE_RENDER_ORDER;
     this.mesh.visible = false;
+  }
+
+  /** Called when the defines the materials share have changed. */
+  recompile() {
+    for (const material of this.materials.values()) material.needsUpdate = true;
   }
 
   private materialFor(z: number): THREE.MeshBasicMaterial {
@@ -230,10 +240,14 @@ export class ParticleLayer {
         noCutUniforms(this.atlas),
         noAnimUniforms(this.atlas),
         this.depthUniforms,
+        undefined,
+        undefined,
+        this.weather,
       );
       injectParticleShader(shader);
     };
     material.customProgramCacheKey = () => PARTICLE_SHADER_CACHE_KEY;
+    material.defines = this.weatherDefines;
     this.materials.set(z, material);
     return material;
   }
@@ -467,7 +481,7 @@ export class ParticleLayer {
   }
 }
 
-const PARTICLE_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-particles-v2`;
+const PARTICLE_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-particles-v4`;
 
 /**
  * This must run after `injectWorldShader`. Both patch `#include <common>` and

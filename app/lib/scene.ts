@@ -1,4 +1,5 @@
 import { emptyMap, replaceStack } from "./mapData";
+import type { WeatherKind } from "./weather";
 import { DIRECTIONS, type Direction, type MapFile, type PlacedTile, type TileDef } from "./types";
 
 export type ScenePlacement = string | { tile: string; facing?: Direction; variant?: string };
@@ -21,6 +22,8 @@ export type Scene = {
   /** The cell drawn at the centre of the view; the middle of the scene when absent. */
   look?: [number, number] | [number, number, number];
   lighting?: boolean;
+  /** Clear when absent. Fog is measured from the cell in `look`. */
+  weather?: WeatherKind;
 };
 
 export type BuiltScene = {
@@ -29,6 +32,7 @@ export type BuiltScene = {
   zoom: number;
   look: { x: number; y: number; z: number };
   lighting: boolean;
+  weather: WeatherKind;
 };
 
 export const DEFAULT_SCENE_ZOOM = 6;
@@ -66,6 +70,7 @@ export function buildScene(scene: Scene, tilesById: Record<string, TileDef>): Bu
     zoom: scene.zoom ?? DEFAULT_SCENE_ZOOM,
     look,
     lighting: scene.lighting ?? true,
+    weather: scene.weather ?? "clear",
   };
 }
 

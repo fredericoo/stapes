@@ -43,6 +43,7 @@ import type { CommandReply } from "../app/game/commands";
 import { resolveRespawn } from "../app/lib/interactions";
 import { battlerIssues } from "../app/lib/battler";
 import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock";
+import { weatherAt, type WeatherKind } from "../app/lib/weather";
 import { masteriesFromXp, masteryXpBlockSchema, rating, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
@@ -796,6 +797,8 @@ export class GameServer {
       maxOnlinePlayers?: number;
       manualTicks?: { startAtMs: number };
       seed?: number;
+      /** The weather the world has when no command has set one; `weatherAt` decides when absent. */
+      weather?: WeatherKind;
     },
   ) {}
 
@@ -809,6 +812,8 @@ export class GameServer {
    */
   private readonly lives = new Map<string, Life>();
   private clockOffsetMinutes = 0;
+  private weatherSetByHand: WeatherKind | null = null;
+  private weatherSent: WeatherKind | null = null;
   private tiles: TileDef[] = [];
   private statusDefs: Record<string, StatusDef> = {};
   private traits: TraitCatalogue = {};
@@ -1744,6 +1749,7 @@ export class GameServer {
       statuses: session.statusPatchesOf(actorId) ?? [],
       ...(attachment?.admin ? { playerCount: this.playerCount() } : {}),
       minutesOfDay: this.minutesOfDay(),
+      weather: this.weather(),
       kingId: this.kingId,
       ...(diedAway ? { diedAway } : {}),
     };
@@ -1835,6 +1841,7 @@ export class GameServer {
     this.flushNextBlow();
     this.flushNotices();
     this.flushClock();
+    this.flushWeather();
     this.flushMasteries();
     this.flushStatuses();
     this.wake();
@@ -2004,6 +2011,20 @@ export class GameServer {
     this.clockOffsetMinutes = minutes - minutesOfDayAt(this.now());
     this.broadcast({ type: "clock", minutesOfDay: minutes });
     this.recheckRespawnHours();
+  }
+
+  private weather(): WeatherKind {
+    return this.weatherSetByHand ?? this.env.weather ?? weatherAt(this.now());
+  }
+
+  /** Sends the weather when a command set it or `weatherAt` moved on to its next spell. */
+  private flushWeather() {
+    const before = this.weatherSent ?? this.weather();
+    const set = this.session?.drainWeatherSet();
+    if (set) this.weatherSetByHand = set.weather;
+    const weather = this.weather();
+    this.weatherSent = weather;
+    if (weather !== before) this.broadcast({ type: "weather", weather });
   }
 
   private recheckRespawnHours() {
@@ -2718,6 +2739,7 @@ export class GameServer {
     this.flushNextBlow();
     this.flushNotices();
     this.flushCommandReplies();
+    this.flushWeather();
     this.flushMasteries();
     this.flushStatuses();
     this.saveActorsIfDue();
