@@ -3,10 +3,11 @@ import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { type Command, commitOf, describeCommit, type Outcome, UsageError } from "./verify/cli";
 import { battle } from "./verify/battle";
 import { content } from "./verify/content";
+import { stranded } from "./verify/stranded";
 
 const ROOT = join(import.meta.dir, "..");
 
-const COMMANDS: readonly Command[] = [content, battle];
+const COMMANDS: readonly Command[] = [content, stranded, battle];
 
 const COMMON_OPTIONS: ParseArgsOptionsConfig = {
   json: { type: "boolean" },
@@ -19,7 +20,7 @@ function overview(): string {
     "Usage: bun run verify <command> [options]",
     "",
     "Runs the game's own code on this checkout and prints what it found, as evidence that a",
-    "change does what its PR says. Nothing here is a CI gate and nothing needs a server.",
+    "change does what its PR says. Nothing needs a server, and CI runs only `stranded`.",
     "",
     "Commands:",
     ...COMMANDS.map((command) => `  ${command.name.padEnd(width)}  ${command.summary}`),
