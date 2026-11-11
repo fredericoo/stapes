@@ -32,3 +32,25 @@ it("shares what one bot saw with another that opens the same file, one place per
   ]);
   other.close();
 });
+
+it("shares deaths at the strongest rating that died there, how far each rating has been, and where bots are reborn", () => {
+  dir = mkdtempSync(join(tmpdir(), "landmarks-"));
+  const path = join(dir, "world.db");
+  const first = new Landmarks(path);
+  first.died({ x: 60, y: 0, z: 0 }, 5, 0);
+  first.died({ x: 62, y: 0, z: 0 }, 3, 1);
+  first.ventured(0, 3, 40, 2);
+  first.ventured(0, 3, 30, 3);
+  first.ventured(0, 7, 90, 4);
+  first.reborn({ x: 1, y: 2, z: 0 }, 5);
+  first.close();
+
+  const other = new Landmarks(path);
+  expect(other.deaths(6)).toEqual([{ at: { x: 62, y: 0, z: 0 }, rating: 5 }]);
+  expect([other.farthest(0, 2, 6), other.farthest(0, 5, 6), other.farthest(0, 7, 6)]).toEqual([
+    0, 40, 90,
+  ]);
+  expect(other.farthest(-1, 7, 6)).toBe(0);
+  expect(other.home(6)).toEqual({ x: 1, y: 2, z: 0 });
+  other.close();
+});

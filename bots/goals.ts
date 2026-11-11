@@ -9,6 +9,7 @@ import type { BattlerDef } from "../app/lib/battler";
 import { rating } from "../app/lib/mastery";
 import { forgeOrders, type ForgeOrder } from "./arcane";
 import type { BankMove, Deal, Economy } from "./economy";
+import { inRange, type HomeRange } from "./homeRange";
 import { exploredKey, type Knowledge } from "./knowledge";
 import type { Landmarks } from "./memory";
 
@@ -102,6 +103,11 @@ export type Recall = {
    * something this bot fears, and where the bot itself backed away or died.
    */
   readonly avoid: (cell: Coord) => boolean;
+  /**
+   * The ground an explore, a hunt or a gather heads for (`bots/homeRange.ts`),
+   * or null while the bot does not know where home is.
+   */
+  readonly range: HomeRange | null;
 };
 
 /**
@@ -213,6 +219,7 @@ export function nextErrand(
           self,
           goal.goal === "explore" ? (goal.toward ?? null) : null,
           recall,
+          recall.range,
         ) ?? "exhausted"
       );
     case "rest":
@@ -233,27 +240,41 @@ export const ROAM_FAR_CELLS = 60;
  * A walk to an unexplored place: one of the nearest edge cells while any are
  * left, else a known cell a roam's distance away. With `toward`, only cells
  * nearer that point than the bot is count, so "explore north" never settles
- * for what is behind it.
+ * for what is behind it. With a `range`, only cells inside it count, and
+ * once none is left unexplored the bot roams inside it, or walks home when it
+ * stands outside it.
  */
 export function exploreErrand(
   knowledge: Knowledge,
   self: Coord,
   toward: { x: number; y: number } | null,
   recall: Recall,
+  range: HomeRange | null = null,
 ): Errand | null {
   const start = toward ? planDistance(self, toward) : 0;
+  const inside = (cell: Coord) => !range || inRange(range, cell);
   const fresh = (cell: Coord) =>
     !recall.explored.has(exploredKey(cell)) &&
     !recall.avoid(cell) &&
+    inside(cell) &&
     (!toward || planDistance(cell, toward) < start);
   const edges = knowledge
     .frontierCells()
     .filter(fresh)
     .sort((a, b) => distance(self, a) - distance(self, b))
     .slice(0, EXPLORE_CHOICES);
-  const choices = edges.length
-    ? edges
-    : knowledge.standingCellsAround(self, ROAM_NEAR_CELLS, ROAM_FAR_CELLS).filter(fresh);
+  const roams = edges.length
+    ? []
+    : knowledge.standingCellsAround(self, ROAM_NEAR_CELLS, ROAM_FAR_CELLS);
+  let choices = edges.length ? edges : roams.filter(fresh);
+  if (choices.length === 0 && range) {
+    choices = roams.filter((cell) => inside(cell) && !recall.avoid(cell));
+    if (choices.length === 0) {
+      choices = knowledge
+        .standingCellsAround(range.home, 0, ROAM_NEAR_CELLS)
+        .filter((cell) => !recall.avoid(cell));
+    }
+  }
   if (choices.length === 0) return null;
   const target = choices[Math.floor(recall.random() * choices.length)]!;
   return { nav: cellGoal(target, "on"), act: null, explores: target };
@@ -290,7 +311,7 @@ function talkErrand(
 /**
  * The nearest resource in what the bot has seen whose yield it wants, else
  * the nearest the fleet remembers. A resource with every pull taken by
- * somebody else is passed over.
+ * somebody else, or outside the bot's range, is passed over.
  */
 function gatherErrand(
   knowledge: Knowledge,
@@ -300,12 +321,13 @@ function gatherErrand(
   market: Market,
 ): Errand | null {
   const wanted = market.economy.wanted(holdings.equipment, holdings.body!);
+  const inside = (cell: Coord) => !recall.range || inRange(recall.range, cell);
   const found = knowledge
     .resources(wanted)
     .filter(({ ref }) => !recall.skipped.has(refKey(ref)) && !recall.avoid(ref))
     .sort((a, b) => distance(self, a.ref) - distance(self, b.ref));
   for (const { ref, tileId } of found) market.landmarks.saw(tileId, ref);
-  const nearest = found[0];
+  const nearest = found.find(({ ref }) => inside(ref));
   if (nearest) {
     return {
       nav: cellGoal(nearest.ref, "beside"),
@@ -316,7 +338,10 @@ function gatherErrand(
   for (const tileId of knowledge.resourceTileIds(wanted)) {
     const at = market.landmarks
       .where(tileId, self)
-      .find((spot) => !recall.skipped.has(landmarkKey(tileId, spot)) && !recall.avoid(spot));
+      .find(
+        (spot) =>
+          !recall.skipped.has(landmarkKey(tileId, spot)) && !recall.avoid(spot) && inside(spot),
+      );
     if (at)
       return { nav: cellGoal(at, "beside"), act: { kind: "visit", tileId, at }, explores: null };
   }
