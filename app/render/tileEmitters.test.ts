@@ -16,6 +16,9 @@ import type { MapFile } from "../lib/types";
 import { coordKey } from "../lib/types";
 import { isCellVisible } from "./cameraSight";
 
+const NOON = 12 * 60;
+const MIDNIGHT = 0;
+
 const cutting = (
   floor: number,
   ...cells: Array<{ x: number; y: number; z: number }>
@@ -63,6 +66,7 @@ describe("culling the board's plumes", () => {
       WINDOW,
       undefined,
       [],
+      NOON,
     );
     expect(out).toEqual([inside]);
   });
@@ -70,18 +74,24 @@ describe("culling the board's plumes", () => {
   it("keeps a plume just off screen, whose sparks can still drift into it", () => {
     const justOutside = at(WINDOW.x1 + PARTICLE_WINDOW_MARGIN, 5);
     const wellOutside = at(WINDOW.x1 + PARTICLE_WINDOW_MARGIN + 1, 5);
-    const out = appendVisibleTileEmitters(byLevel(justOutside, wellOutside), WINDOW, undefined, []);
+    const out = appendVisibleTileEmitters(
+      byLevel(justOutside, wellOutside),
+      WINDOW,
+      undefined,
+      [],
+      NOON,
+    );
     expect(out).toEqual([justOutside]);
   });
 
   it("gives each level its own reach rather than the union of every level", () => {
     const eastEdge = WINDOW.x1 + PARTICLE_WINDOW_MARGIN;
     const beyondGround = at(eastEdge + 2, 5, 2);
-    const out = appendVisibleTileEmitters(byLevel(beyondGround), WINDOW, undefined, []);
+    const out = appendVisibleTileEmitters(byLevel(beyondGround), WINDOW, undefined, [], NOON);
     expect(out).toEqual([beyondGround]);
 
     expect(
-      appendVisibleTileEmitters(byLevel(at(eastEdge + 2, 5, 0)), WINDOW, undefined, []),
+      appendVisibleTileEmitters(byLevel(at(eastEdge + 2, 5, 0)), WINDOW, undefined, [], NOON),
     ).toEqual([]);
   });
 
@@ -92,6 +102,7 @@ describe("culling the board's plumes", () => {
       WINDOW,
       cutting(0, { x: 6, y: 6, z: 1 }, { x: 7, y: 7, z: 2 }),
       [],
+      NOON,
     );
     expect(out).toEqual([under]);
   });
@@ -103,18 +114,25 @@ describe("culling the board's plumes", () => {
       WINDOW,
       cutting(0, { x: 6, y: 6, z: 1 }),
       [],
+      NOON,
     );
     expect(out).toEqual([neighbour]);
   });
 
   it("shows every level when nothing is cut", () => {
-    const out = appendVisibleTileEmitters(byLevel(at(5, 5, 0), at(6, 6, 1)), WINDOW, undefined, []);
+    const out = appendVisibleTileEmitters(
+      byLevel(at(5, 5, 0), at(6, 6, 1)),
+      WINDOW,
+      undefined,
+      [],
+      NOON,
+    );
     expect(out).toHaveLength(2);
   });
 
   it("leaves the caller's plumes in front of the board's", () => {
     const status = { ...at(5, 5), id: "rat:burning" };
-    const out = appendVisibleTileEmitters(byLevel(at(6, 6)), WINDOW, undefined, [status]);
+    const out = appendVisibleTileEmitters(byLevel(at(6, 6)), WINDOW, undefined, [status], NOON);
     expect(out[0]).toBe(status);
     expect(out).toHaveLength(2);
   });
@@ -125,7 +143,7 @@ describe("culling the board's plumes", () => {
       id: tileEmitterId(`0:5,5:${i}`),
     }));
     const status = { ...at(5, 5), id: "rat:burning" };
-    const out = appendVisibleTileEmitters(byLevel(...crowd), WINDOW, undefined, [status]);
+    const out = appendVisibleTileEmitters(byLevel(...crowd), WINDOW, undefined, [status], NOON);
     expect(out).toHaveLength(MAX_VISIBLE_TILE_EMITTERS + 1);
   });
 });
@@ -152,17 +170,25 @@ describe("a plume under the ground the viewer stands on", () => {
       !isCellVisible(map, tilesById, { x, y, z }, viewerZ, cut);
 
   it("drops a fire one storey down from a viewer on the ground above it", () => {
-    expect(appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(), 0), [])).toEqual([]);
+    expect(appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(), 0), [], NOON)).toEqual(
+      [],
+    );
   });
 
   it("keeps it when the ground over it is open", () => {
-    const out = appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(true), 0), []);
+    const out = appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(true), 0), [], NOON);
     expect(out).toEqual([FIRE]);
   });
 
   it("keeps it for a viewer down in the cave, whose cut takes the ground away", () => {
     const whole: RoofCut = { floor: -1, cells: null };
-    const out = appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(), -1, whole), []);
+    const out = appendVisibleTileEmitters(
+      byLevel(FIRE),
+      WINDOW,
+      seenFrom(cave(), -1, whole),
+      [],
+      NOON,
+    );
     expect(out).toEqual([FIRE]);
   });
 });
@@ -175,5 +201,28 @@ describe("addressing one cell's plumes", () => {
 
   it("does not read a neighbouring cell as its own", () => {
     expect(tileEmitterId("0:1,20:0").startsWith(tileEmitterPrefix(0, 1, 2))).toBe(false);
+  });
+});
+
+describe("emitters thinned out by a particle rule", () => {
+  const sparseAt = (x: number, y: number, hours?: { from: number; to: number }) => ({
+    ...at(x, y),
+    sparse: { hours },
+  });
+
+  it("are left out outside their hours", () => {
+    const fireflies = sparseAt(5, 5, { from: 20, to: 5 });
+    expect(appendVisibleTileEmitters(byLevel(fireflies), WINDOW, undefined, [], NOON)).toEqual([]);
+    expect(appendVisibleTileEmitters(byLevel(fireflies), WINDOW, undefined, [], MIDNIGHT)).toEqual([
+      fireflies,
+    ]);
+  });
+
+  it("are taken after every emitter without a rule, so they cannot crowd a torch out of the cap", () => {
+    const leaves = Array.from({ length: MAX_VISIBLE_TILE_EMITTERS }, () => sparseAt(5, 5));
+    const torch = at(6, 6);
+    const out = appendVisibleTileEmitters(byLevel(...leaves, torch), WINDOW, undefined, [], NOON);
+    expect(out).toHaveLength(MAX_VISIBLE_TILE_EMITTERS);
+    expect(out[0]).toBe(torch);
   });
 });

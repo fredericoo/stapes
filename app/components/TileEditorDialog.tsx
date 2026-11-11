@@ -22,6 +22,7 @@ import type {
 } from "../lib/types";
 import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import { ParticleFields } from "./ParticleFields";
+import { ParticleRuleFields } from "./ParticleRuleFields";
 import { ReflectiveFields } from "./ReflectiveFields";
 import { ProjectileTab } from "./ProjectileTab";
 import { VfxPreview } from "./VfxPreview";
@@ -616,6 +617,7 @@ export function TileEditorDialog({
       scatterSeed: draft.type === "scatter" && draft.scatterSeed ? draft.scatterSeed : undefined,
       climbFrom: climbFromForSave(draft, climbByFacing),
       particles: draft.particles,
+      particleRule: draft.particles ? draft.particleRule : undefined,
       transitions: draft.transitions,
       interactions: interactionsForSave(draft.interactions),
       states: statesForSave(draft),
@@ -1730,6 +1732,10 @@ export function TileEditorDialog({
                       />
                     </div>
                   </div>
+                  <ParticleRuleFields
+                    rule={draft.particleRule}
+                    onChange={(particleRule) => setDraft({ ...draft, particleRule })}
+                  />
                 </>
               ) : null}
             </div>
