@@ -11332,6 +11332,44 @@ crime, as it forgets brain memory.
 A resident can be reported too. A wolf that bites a townsperson in front of a
 witness becomes wanted, and the guards hunt it, which is what a town would do.
 
+### What the town does about it
+
+Three traits use those pieces, each handed the same `town` list: the eighteen
+human residents, guards included. The training dummy is not on it, so hitting
+it is not a crime.
+
+- **`raises-the-alarm`** is called by every townsperson who does not fight:
+  the eight `townsfolk-flee` callers, the torch salesman and the town crier.
+  On `witnessed` it cries out ("Guards! Guards!") and walks toward the nearest
+  body on `guards`, and away from the culprit when there is no route. Within
+  three cells of a guard it names the culprit and runs `report`, then goes back
+  to `rest`. It gives up after `patience`. Anyone wanted that it can see, it
+  keeps clear of (`shunning`).
+- **It is called before `townsfolk-flee`**, so a victim with nobody watching
+  still runs for the guards. Its `witnessed` trigger and the flee's `attacked`
+  trigger hold in the same round at the same band, and the tie goes to the
+  earlier call. Called second, the victim fled and nobody reported.
+- **`townsfolk-fight`** turns on whoever it sees strike the town and on anyone
+  wanted it can see, in its own `fighting`, on its own leash.
+- **`keeps-the-peace`** is called by the four guards. An `alerted` guard hunts
+  the culprit in the guard's `hunting` state. A guard that sees the blow
+  itself reports first (`calling`), so the culprit is wanted and the guards
+  within earshot join in. A guard hunts anyone wanted it can see, and walks
+  back (`recovering`) once it is `leash` cells from home or has lost its
+  quarry.
+- **A guard's `fighting` and `healing` hold at `fight`.** They were `idle`, the
+  default for a brain's own states, and a hunt trigger would have taken a
+  guard out of a fight with a wolf to chase a player.
+- **The guards' flat `from: any` rows still run.** A culprit who hits back
+  takes the guard into `fighting`, which has the gate's ten-cell leash, and a
+  hungry guard still stops to snack. Back in `recovering`, a guard that can
+  still see the culprit hunts again.
+- **A hunt reaches further than a guard can see.** The leash is 40 cells, so
+  `brainReach` keeps a guard attentive with a player within 40 cells. That is
+  four bodies.
+- **Lord Corvin and the cat call neither trait.** Corvin already turns on
+  whoever hits Ysolde. Neither is a witness the guards hear from.
+
 ## A respawn can keep to hours
 
 `RespawnInteraction.hours` is `{ fromHour, toHour }` on the same terms as the
@@ -11821,7 +11859,8 @@ hand-written one it replaced: every state asks the same rows in the same order,
 apart from rows that could never be the first to hold.
 
 - **The townsfolk who run** — the potion salesman, tanner, pie maker, miner,
-  peat cutter, beggar and lamplighter — are one call to `townsfolk-flee` each.
+  peat cutter, beggar and lamplighter — are one call to `townsfolk-flee` each,
+  after a call to `raises-the-alarm`.
   The miner, peat cutter, beggar and lamplighter hand it the state they listen
   in as `talk`; the shopkeepers serve only from their idle state, so they do
   not.

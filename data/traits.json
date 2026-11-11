@@ -2207,7 +2207,7 @@
   {
     "id": "townsfolk-fight",
     "name": "Townsfolk who fight",
-    "hint": "Fights whoever hits it while they stay near and it stays within the leash of home, or for as long as the blows keep landing, heals itself with a spell of its own once it is down to a share of its health, then walks home. Snacks with another spell whenever it is not fed and nobody is talking to it.",
+    "hint": "Fights whoever hits it while they stay near and it stays within the leash of home, or for as long as the blows keep landing, heals itself with a spell of its own once it is down to a share of its health, then walks home. Snacks with another spell whenever it is not fed and nobody is talking to it. Turns on whoever it sees strike one of the town, and on anybody wanted that it can see.",
     "params": {
       "leash": {
         "kind": "cells",
@@ -2240,6 +2240,15 @@
         "kind": "ms",
         "default": 20000,
         "label": "walks home for at most"
+      },
+      "town": {
+        "kind": "bodies",
+        "label": "counts as the town"
+      },
+      "seen": {
+        "kind": "cells",
+        "default": 8,
+        "label": "sees within"
       }
     },
     "slots": {
@@ -2371,6 +2380,47 @@
         "bind": {
           "threat": {
             "type": "attacker"
+          }
+        },
+        "to": "fighting"
+      },
+      {
+        "band": "danger",
+        "if": {
+          "cond": "witnessed",
+          "of": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "town"
+              }
+            }
+          },
+          "cells": {
+            "arg": "seen"
+          }
+        },
+        "bind": {
+          "threat": {
+            "type": "attacker"
+          }
+        },
+        "to": "fighting"
+      },
+      {
+        "band": "danger",
+        "if": {
+          "cond": "in_los",
+          "of": {
+            "type": "wanted"
+          },
+          "cells": {
+            "arg": "seen"
+          }
+        },
+        "bind": {
+          "threat": {
+            "type": "wanted"
           }
         },
         "to": "fighting"
@@ -2557,6 +2607,388 @@
           "id": "fed"
         },
         "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "raises-the-alarm",
+    "name": "Raises the alarm",
+    "hint": "When it sees somebody strike one of the town, it cries out and runs to the nearest guard, then names the culprit, which puts them on the wanted list and sends every guard who hears it after them. Gives up if it cannot reach a guard in time. Keeps clear of anybody wanted that it can see.",
+    "params": {
+      "town": {
+        "kind": "bodies",
+        "label": "counts as the town"
+      },
+      "guards": {
+        "kind": "bodies",
+        "label": "runs to"
+      },
+      "seen": {
+        "kind": "cells",
+        "default": 8,
+        "label": "sees within"
+      },
+      "earshot": {
+        "kind": "cells",
+        "default": 10,
+        "label": "is heard within"
+      },
+      "calm": {
+        "kind": "cells",
+        "default": 10,
+        "label": "keeps clear while within"
+      },
+      "cry": {
+        "kind": "text",
+        "default": "Guards! Guards!",
+        "label": "cries as it runs"
+      },
+      "accuse": {
+        "kind": "text",
+        "default": "It was {culprit}! Stop them!",
+        "label": "says to the guard"
+      },
+      "patience": {
+        "kind": "ms",
+        "default": 60000,
+        "label": "runs for at most"
+      }
+    },
+    "slots": {
+      "culprit": "body"
+    },
+    "states": {
+      "alarming": {
+        "band": "danger",
+        "onEnter": [
+          {
+            "effect": "say",
+            "text": {
+              "arg": "cry"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "nearest",
+              "data": {
+                "tileIds": {
+                  "arg": "guards"
+                }
+              }
+            }
+          },
+          {
+            "action": "step_away_from",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "culprit"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "accusing": {
+        "band": "danger",
+        "onEnter": [
+          {
+            "effect": "say",
+            "text": {
+              "arg": "accuse"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "report",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "culprit"
+              }
+            },
+            "cells": {
+              "arg": "earshot"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "shunning": {
+        "band": "danger",
+        "do": [
+          {
+            "action": "step_away_from",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "culprit"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "band": "danger",
+        "if": {
+          "cond": "witnessed",
+          "of": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "town"
+              }
+            }
+          },
+          "cells": {
+            "arg": "seen"
+          }
+        },
+        "bind": {
+          "culprit": {
+            "type": "attacker"
+          }
+        },
+        "to": "alarming"
+      },
+      {
+        "band": "danger",
+        "if": {
+          "cond": "in_los",
+          "of": {
+            "type": "wanted"
+          },
+          "cells": {
+            "arg": "seen"
+          }
+        },
+        "bind": {
+          "culprit": {
+            "type": "wanted"
+          }
+        },
+        "to": "shunning"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "alarming",
+        "if": {
+          "cond": "in_range",
+          "of": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "guards"
+              }
+            }
+          },
+          "cells": 3
+        },
+        "to": "accusing"
+      },
+      {
+        "from": "alarming",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "patience"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "accusing",
+        "if": {
+          "cond": "after",
+          "ms": 1500
+        },
+        "to": "rest"
+      },
+      {
+        "from": "shunning",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "culprit"
+            }
+          },
+          "cells": {
+            "arg": "calm"
+          }
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "keeps-the-peace",
+    "name": "Keeps the peace",
+    "hint": "Hunts whoever it is told about, and whoever is wanted that it can see. Seeing somebody strike one of the town itself, it reports them first, so the culprit is wanted and every guard within earshot joins in. Walks back once it is past the leash from home or has lost its quarry.",
+    "params": {
+      "hunt": {
+        "kind": "state",
+        "band": "fight",
+        "label": "hunts in"
+      },
+      "target": {
+        "kind": "slot",
+        "holds": "body",
+        "label": "target"
+      },
+      "back": {
+        "kind": "state",
+        "label": "walks back in"
+      },
+      "town": {
+        "kind": "bodies",
+        "label": "counts as the town"
+      },
+      "seen": {
+        "kind": "cells",
+        "default": 10,
+        "label": "sees within"
+      },
+      "earshot": {
+        "kind": "cells",
+        "default": 15,
+        "label": "is heard within"
+      },
+      "leash": {
+        "kind": "cells",
+        "default": 40,
+        "label": "hunts within"
+      }
+    },
+    "states": {
+      "calling": {
+        "band": "fight",
+        "do": [
+          {
+            "action": "report",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "target"
+              }
+            },
+            "cells": {
+              "arg": "earshot"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "band": "fight",
+        "if": {
+          "cond": "alerted"
+        },
+        "bind": {
+          "target": {
+            "type": "attacker"
+          }
+        },
+        "to": "hunt"
+      },
+      {
+        "band": "fight",
+        "if": {
+          "cond": "witnessed",
+          "of": {
+            "type": "nearest",
+            "data": {
+              "tileIds": {
+                "arg": "town"
+              }
+            }
+          },
+          "cells": {
+            "arg": "seen"
+          }
+        },
+        "bind": {
+          "target": {
+            "type": "attacker"
+          }
+        },
+        "to": "calling"
+      },
+      {
+        "band": "fight",
+        "if": {
+          "cond": "in_los",
+          "of": {
+            "type": "wanted"
+          },
+          "cells": {
+            "arg": "seen"
+          }
+        },
+        "bind": {
+          "target": {
+            "type": "wanted"
+          }
+        },
+        "to": "hunt"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "calling",
+        "if": {
+          "cond": "after",
+          "ms": 0
+        },
+        "to": "hunt"
+      },
+      {
+        "from": "hunt",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "home"
+          },
+          "cells": {
+            "arg": "leash"
+          }
+        },
+        "to": "back"
+      },
+      {
+        "from": "hunt",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "target"
+            }
+          },
+          "cells": {
+            "arg": "leash"
+          }
+        },
+        "to": "back"
       }
     ]
   }

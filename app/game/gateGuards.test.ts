@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
+import traitsJson from "../../data/traits.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
+import { traitsById } from "../lib/traits";
 import type { MapFile } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
@@ -10,13 +12,14 @@ import { GameSession } from "./GameSession";
 
 const tiles = normalizeTiles(tilesJson as unknown[]);
 const statuses = statusesById(statusesJson as unknown[]);
+const traits = traitsById(traitsJson as unknown[]);
 
 const FIELD_HALF_CELLS = 16;
 const NEAR_CELLS = 3;
 const FAR_CELLS = 15;
 const SETTLE_TICKS = 10;
 
-const atGate = (guard: string) => new GameSession(gateWith(guard), tiles, { statuses });
+const atGate = (guard: string) => new GameSession(gateWith(guard), tiles, { statuses, traits });
 
 function gateWith(guard: string): MapFile {
   let map = emptyMap();
