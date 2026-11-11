@@ -13357,6 +13357,10 @@
           "up": 0,
           "down": 0
         }
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -14204,6 +14208,37 @@
         ],
         "traits": [
           {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          },
+          {
             "trait": "townsfolk-flee",
             "with": {
               "snack": 1
@@ -14458,6 +14493,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -14872,7 +14911,27 @@
             "with": {
               "leash": 8,
               "heal": 1,
-              "snack": 2
+              "snack": 2,
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
             }
           }
         ]
@@ -15947,6 +16006,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -16361,7 +16424,27 @@
             "with": {
               "leash": 8,
               "heal": 1,
-              "snack": 2
+              "snack": 2,
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
             }
           }
         ]
@@ -17212,6 +17295,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -17622,6 +17709,37 @@
           }
         ],
         "traits": [
+          {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          },
           {
             "trait": "townsfolk-flee",
             "with": {
@@ -18375,6 +18493,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -33476,6 +33598,10 @@
           }
         ],
         "pile": 3
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -33937,6 +34063,10 @@
           }
         ],
         "pile": 3
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -34910,6 +35040,10 @@
         "tileId": "stale-cheese",
         "fromMs": 3600000,
         "toMs": 3600000
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -35052,6 +35186,10 @@
           }
         ],
         "pile": 8
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -35101,6 +35239,10 @@
           }
         ],
         "pile": 4
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -40190,6 +40332,37 @@
         ],
         "traits": [
           {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          },
+          {
             "trait": "townsfolk-flee",
             "with": {
               "snack": 1
@@ -40459,6 +40632,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -40873,7 +41050,27 @@
             "with": {
               "leash": 8,
               "heal": 1,
-              "snack": 2
+              "snack": 2,
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
             }
           }
         ]
@@ -41173,6 +41370,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -41711,6 +41912,37 @@
         ],
         "traits": [
           {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          },
+          {
             "trait": "townsfolk-flee",
             "with": {
               "snack": 1,
@@ -41988,6 +42220,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -42528,6 +42764,37 @@
         ],
         "traits": [
           {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          },
+          {
             "trait": "townsfolk-flee",
             "with": {
               "snack": 1,
@@ -42764,6 +43031,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -45667,6 +45938,39 @@
             },
             "to": "pausing"
           }
+        ],
+        "traits": [
+          {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          }
         ]
       },
       "dialog": {
@@ -45816,6 +46120,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -46324,7 +46632,8 @@
               {
                 "action": "hold"
               }
-            ]
+            ],
+            "band": "fight"
           },
           "recovering": {
             "do": [
@@ -46366,7 +46675,8 @@
               {
                 "action": "hold"
               }
-            ]
+            ],
+            "band": "fight"
           },
           "snacking": {
             "do": [
@@ -46394,6 +46704,37 @@
           },
           "warned": {
             "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "hunting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Halt, {threat}!"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
               {
                 "action": "hold"
               }
@@ -46748,6 +47089,36 @@
             },
             "to": "warned"
           }
+        ],
+        "traits": [
+          {
+            "trait": "keeps-the-peace",
+            "with": {
+              "hunt": "hunting",
+              "target": "threat",
+              "back": "recovering",
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          }
         ]
       },
       "dialog": {
@@ -47015,6 +47386,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -47424,7 +47799,8 @@
               {
                 "action": "hold"
               }
-            ]
+            ],
+            "band": "fight"
           },
           "recovering": {
             "do": [
@@ -47466,13 +47842,45 @@
               {
                 "action": "hold"
               }
-            ]
+            ],
+            "band": "fight"
           },
           "snacking": {
             "do": [
               {
                 "action": "cast",
                 "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "hunting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Halt, {threat}!"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -47757,6 +48165,36 @@
             },
             "to": "watching"
           }
+        ],
+        "traits": [
+          {
+            "trait": "keeps-the-peace",
+            "with": {
+              "hunt": "hunting",
+              "target": "threat",
+              "back": "recovering",
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          }
         ]
       },
       "dialog": {
@@ -48017,6 +48455,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -48416,7 +48858,8 @@
               {
                 "action": "hold"
               }
-            ]
+            ],
+            "band": "fight"
           },
           "recovering": {
             "do": [
@@ -48458,7 +48901,8 @@
               {
                 "action": "hold"
               }
-            ]
+            ],
+            "band": "fight"
           },
           "snacking": {
             "do": [
@@ -48486,6 +48930,37 @@
           },
           "warned": {
             "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "hunting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Halt, {threat}!"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
               {
                 "action": "hold"
               }
@@ -48840,6 +49315,36 @@
             },
             "to": "warned"
           }
+        ],
+        "traits": [
+          {
+            "trait": "keeps-the-peace",
+            "with": {
+              "hunt": "hunting",
+              "target": "threat",
+              "back": "recovering",
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          }
         ]
       },
       "dialog": {
@@ -49149,6 +49654,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -49976,6 +50485,39 @@
             },
             "to": "walk0"
           }
+        ],
+        "traits": [
+          {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          }
         ]
       },
       "dialog": {
@@ -50144,6 +50686,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -50655,7 +51201,8 @@
               {
                 "action": "hold"
               }
-            ]
+            ],
+            "band": "fight"
           },
           "recovering": {
             "do": [
@@ -50697,13 +51244,45 @@
               {
                 "action": "hold"
               }
-            ]
+            ],
+            "band": "fight"
           },
           "snacking": {
             "do": [
               {
                 "action": "cast",
                 "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "hunting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Halt, {threat}!"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -51625,6 +52204,36 @@
             },
             "to": "walking"
           }
+        ],
+        "traits": [
+          {
+            "trait": "keeps-the-peace",
+            "with": {
+              "hunt": "hunting",
+              "target": "threat",
+              "back": "recovering",
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          }
         ]
       },
       "dialog": {
@@ -51856,6 +52465,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -52307,6 +52920,37 @@
         ],
         "traits": [
           {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          },
+          {
             "trait": "townsfolk-flee",
             "with": {
               "cry": "Please! I've nothing worth taking!",
@@ -52579,6 +53223,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -53160,6 +53808,37 @@
         ],
         "traits": [
           {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          },
+          {
             "trait": "townsfolk-flee",
             "with": {
               "snack": 1,
@@ -53322,6 +54001,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     },
     "states": {
@@ -54981,6 +55664,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     }
   },
@@ -55572,6 +56259,37 @@
         ],
         "traits": [
           {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "potion-salesman",
+                "blacksmith",
+                "armourer",
+                "tanner",
+                "pie-maker",
+                "bartender",
+                "miner",
+                "peat-cutter",
+                "torch-salesman",
+                "town-crier",
+                "beggar",
+                "lamplighter",
+                "lord-corvin",
+                "lady-ysolde",
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ],
+              "guards": [
+                "north-gate-guard",
+                "east-gate-guard",
+                "south-gate-guard",
+                "patrolling-guard"
+              ]
+            }
+          },
+          {
             "trait": "townsfolk-flee",
             "with": {
               "cry": "Corvin! Corvin, help!",
@@ -55755,6 +56473,10 @@
             }
           }
         ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
       }
     }
   },

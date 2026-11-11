@@ -204,10 +204,12 @@ import {
   DAMAGE_NUMBER_LIFETIME_MS,
   FAILED_ROUTE_MEMORY_MS,
   FALL_MS_PER_HEIGHT,
+  LOOT_LIFETIME_MS,
   NOISE_LIFETIME_MS,
   PLAYER_TILE_ID,
   STRIKE_DURATION_MS,
   TICK_MS,
+  WANTED_MS,
 } from "./constants";
 import {
   type BattlerDef,
@@ -396,6 +398,7 @@ import {
   enterBrainState,
   initialMemory,
   stepBrain,
+  within,
   withinSightLevels,
   type BrainMemory,
   type FoundThing,
@@ -443,8 +446,8 @@ import {
   settleSignals,
   type ExtraEmitter,
 } from "./signals";
-import type { ItemDecay, PlacementDecay } from "./decay";
-import { DecayIndex, applyDecay, applyItemDecay, findDecayCells } from "./decay";
+import type { ItemDecay, LootDecay, PlacementDecay } from "./decay";
+import { DecayIndex, applyDecay, applyItemDecay, applyLootDecay, findDecayCells } from "./decay";
 import {
   EndureIndex,
   type AfflictedPlacement,
@@ -734,6 +737,8 @@ type BrainRound = {
   strikes: readonly Strike[];
   minutesOfDay: MinutesOfDay;
 };
+type Dropped = { cell: Coord; placements: readonly PlacedTile[] };
+
 type BlowInFlight = {
   remainingMs: number;
   land: () => void;
@@ -942,6 +947,10 @@ export class GameSession implements PlaySession {
   private nextSpeechId = 0;
   private pendingHeard: Utterance[] = [];
   private readonly pendingHurt = new Map<string, string[]>();
+  /** Who each resident has been told about since its last turn, kept like `pendingHurt`. */
+  private readonly pendingAlerts = new Map<string, string[]>();
+  /** Ms each wanted body has left on the town's list, in the order they were first reported. */
+  private readonly wanted = new Map<string, number>();
   private pendingSound: Sound[] = [];
   private pendingStrikes: Strike[] = [];
   private brainRound: BrainRound | null = null;
@@ -1241,6 +1250,7 @@ export class GameSession implements PlaySession {
     this.forgetWalk(leaving);
     this.actors.delete(id);
     this.pendingHurt.delete(id);
+    this.pendingAlerts.delete(id);
     const loc = this.tryLocate(leaving);
     this.forgetTileIndex();
     if (loc && !leaving.hidden) {
@@ -1534,6 +1544,7 @@ export class GameSession implements PlaySession {
     }
     this.tickStandingStatuses(tickMs);
     this.decay.advance(tickMs);
+    this.ageWanted(tickMs);
     this.applyDueDecay();
     this.tickAfflictions(tickMs);
     this.applyWornThrough(tickMs);
@@ -1550,6 +1561,7 @@ export class GameSession implements PlaySession {
 
     const placements = due.filter((entry): entry is PlacementDecay => entry.kind === "placement");
     const items = due.filter((entry): entry is ItemDecay => entry.kind === "item");
+    const loot = due.filter((entry): entry is LootDecay => entry.kind === "loot");
 
     const turned = applyDecay(this.map, placements, this.tilesById);
     this.map = turned.map;
@@ -1567,6 +1579,15 @@ export class GameSession implements PlaySession {
       changed.push(...rotted.changed);
       for (const [actorId, equipment] of rotted.equipment) {
         this.setEquipment(this.actor(actorId), equipment);
+      }
+    }
+
+    if (loot.length > 0) {
+      const cleared = applyLootDecay(this.map, loot, this.tilesById);
+      this.map = cleared.map;
+      changed.push(...cleared.changed);
+      for (const gone of cleared.removed) {
+        this.noteTransition("disappear", gone.tileId, gone.cell, gone.fromIndex);
       }
     }
 
@@ -1658,6 +1679,7 @@ export class GameSession implements PlaySession {
       this.pendingHurt.clear();
       this.pendingSound = [];
       this.pendingStrikes = [];
+      this.pendingAlerts.clear();
       this.brainRound = null;
       return;
     }
@@ -2007,7 +2029,7 @@ export class GameSession implements PlaySession {
   ): Attention | null {
     const hitBy = this.pendingHurt.get(actor.id);
     if (players.talkedTo.has(actor.id) || this.fightingAPlayer(actor, hitBy)) return ENGAGED;
-    let attention: Attention | null = hitBy ? IN_REACH : null;
+    let attention: Attention | null = hitBy || this.pendingAlerts.has(actor.id) ? IN_REACH : null;
     const loc = this.tryLocate(actor);
     if (!loc) return attention;
     const reach = Math.max(BRAIN_ATTENTION_FLOOR_CELLS, this.reachOf(this.defFor(actor)));
@@ -2065,6 +2087,8 @@ export class GameSession implements PlaySession {
       return;
     }
     const hurt = this.takeHurt(actor);
+    const alerts = this.pendingAlerts.get(actor.id) ?? EMPTY_ATTACKERS;
+    this.pendingAlerts.delete(actor.id);
 
     const brain = resolveBrain(this.defFor(actor));
     if (!brain) return;
@@ -2106,6 +2130,13 @@ export class GameSession implements PlaySession {
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
       hurtBy: () => hurt,
       struck: () => round.strikes,
+      alerts: () => alerts,
+      tileOf: (id) => {
+        const body = this.actors.get(id);
+        return body ? this.defFor(body).id : null;
+      },
+      nearestWanted: () => this.nearestWanted(actor.id, loc, sight),
+      report: (culpritId, cells) => this.reportCrime(actor, loc, culpritId, cells),
       attack: (id) => this.orderAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
@@ -2129,6 +2160,59 @@ export class GameSession implements PlaySession {
       },
     });
     if (fading) this.fadeAway(actor);
+  }
+
+  private ageWanted(ms: number) {
+    for (const [id, leftMs] of this.wanted) {
+      if (leftMs > ms) this.wanted.set(id, leftMs - ms);
+      else this.wanted.delete(id);
+    }
+  }
+
+  /**
+   * Puts `culpritId` on the town's wanted list, or restarts its time there,
+   * and tells every resident within `cells` of the reporter on its next turn.
+   */
+  private reportCrime(
+    reporter: ActorRuntime,
+    from: Coord,
+    culpritId: string,
+    cells: number,
+  ): boolean {
+    if (culpritId === reporter.id || !this.actors.has(culpritId)) return false;
+    this.wanted.set(culpritId, WANTED_MS);
+    for (const listener of this.actors.values()) {
+      if (!listener.resident || listener === reporter || listener.id === culpritId) continue;
+      const at = this.actorCell(listener.id);
+      if (!at) continue;
+      const sight = this.battlerOf(listener)?.sight ?? DEFAULT_BATTLER.sight;
+      if (!within(at, from, cells, sight)) continue;
+      const told = this.pendingAlerts.get(listener.id);
+      if (told) told.push(culpritId);
+      else this.pendingAlerts.set(listener.id, [culpritId]);
+    }
+    return true;
+  }
+
+  /** A tie goes to whoever was reported first, so a seeded world picks the same way every run. */
+  private nearestWanted(selfId: string, from: Coord, sight: SightLevels): string | null {
+    let best: string | null = null;
+    let bestSteps = Number.POSITIVE_INFINITY;
+    for (const id of this.wanted.keys()) {
+      if (id === selfId || this.isConcealed(id)) continue;
+      const at = this.actorCell(id);
+      if (!at || !withinSightLevels(from, at, sight)) continue;
+      const steps = Math.abs(at.x - from.x) + Math.abs(at.y - from.y);
+      if (steps < bestSteps) {
+        best = id;
+        bestSteps = steps;
+      }
+    }
+    return best;
+  }
+
+  isWanted(id: string): boolean {
+    return this.wanted.has(id);
   }
 
   /**
@@ -3066,6 +3150,8 @@ export class GameSession implements PlaySession {
       ? removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex)
       : despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
+    this.pendingAlerts.delete(target.id);
+    this.wanted.delete(target.id);
     for (const actor of this.actors.values()) {
       if (actor.targetId === target.id) actor.targetId = null;
       actor.assailants?.delete(target.id);
@@ -3075,10 +3161,12 @@ export class GameSession implements PlaySession {
       const carried = target.resident
         ? spilled(target.equipment, this.tilesById)
         : this.packsOf(target.equipment);
-      this.dropKit(carried, loc);
+      const kit = this.dropKit(carried, loc);
+      const remains = this.dropRemains(target, loc, blame);
+      if (target.resident) {
+        for (const dropped of [kit, remains]) if (dropped) this.armLoot(dropped);
+      }
     }
-
-    if (loc) this.dropRemains(target, loc, blame);
 
     this.pendingDeaths.push(this.deathOf(target, loc, blame));
 
@@ -3135,14 +3223,26 @@ export class GameSession implements PlaySession {
    * All or nothing: a floor without room for the whole kit takes none of it,
    * and the kit is lost with the body rather than half of it left behind.
    */
-  private dropKit(carried: readonly ItemInstance[], at: ActorLocation) {
-    if (carried.length === 0) return;
-    this.dropOnFloor(at, carried.map(placementFromInstance), this.midBody(at));
+  private dropKit(carried: readonly ItemInstance[], at: ActorLocation): Dropped | null {
+    if (carried.length === 0) return null;
+    const placements = carried.map(placementFromInstance);
+    const cell = this.dropOnFloor(at, placements, this.midBody(at));
+    return cell && { cell, placements };
   }
 
-  private dropOnFloor(where: Coord, placements: PlacedTile[], tossedFrom?: MidBody): boolean {
+  /**
+   * An item that poured into a pile already on the floor no longer exists
+   * under its own id, so its entry finds nothing and the pile stays.
+   */
+  private armLoot({ cell, placements }: Dropped) {
+    for (const placed of placements) {
+      if (placed.itemId) this.decay.armLoot(placed.itemId, cell, LOOT_LIFETIME_MS);
+    }
+  }
+
+  private dropOnFloor(where: Coord, placements: PlacedTile[], tossedFrom?: MidBody): Coord | null {
     const at = landingFor(this.map, where, placements, this.tilesById);
-    if (!at) return false;
+    if (!at) return null;
 
     let tossed = 0;
     for (const placed of placements) {
@@ -3152,22 +3252,24 @@ export class GameSession implements PlaySession {
         tossed++;
       }
     }
-    return true;
+    return { x: at.x, y: at.y, z: at.z };
   }
 
-  private dropRemains(target: ActorRuntime, at: ActorLocation, blame?: Blame) {
+  private dropRemains(target: ActorRuntime, at: ActorLocation, blame?: Blame): Dropped | null {
     const def = this.tilesById[at.placed.tileId];
     const remains = def ? resolveBattler(def)?.remains : undefined;
-    if (!remains || !this.tilesById[remains]) return;
+    if (!remains || !this.tilesById[remains]) return null;
 
-    this.dropOnFloor(at, [
+    const placements: PlacedTile[] = [
       {
         tileId: remains,
         itemId: mintItemId(),
         engraved: bodyNameFor({ tileId: at.placed.tileId, name: target.name }, this.tilesById),
         ...(blame ? { description: causeOfDeath(blame) } : {}),
       },
-    ]);
+    ];
+    const cell = this.dropOnFloor(at, placements);
+    return cell && { cell, placements };
   }
 
   private ageProjectiles(tickMs: number) {
@@ -4180,6 +4282,7 @@ export class GameSession implements PlaySession {
     if (!actor) return false;
     if (!this.canSetPvp(id)) return false;
     actor.pvp = enabled;
+    if (!enabled) this.wanted.delete(id);
     return true;
   }
 
@@ -6408,11 +6511,13 @@ export class GameSession implements PlaySession {
 
   passTimeAsleep(ms: number) {
     this.decay.advance(ms);
+    this.ageWanted(ms);
   }
 
   isAtRest(): boolean {
     if (this.pendingHeard.length > 0) return false;
     if (this.pendingHurt.size > 0) return false;
+    if (this.pendingAlerts.size > 0) return false;
     if (this.pendingSound.length > 0) return false;
     if (this.pendingStrikes.length > 0) return false;
     if (this.brainRound) return false;

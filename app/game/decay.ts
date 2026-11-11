@@ -28,6 +28,10 @@ function itemEntryKey(itemId: string): string {
   return `item|${itemId}`;
 }
 
+function lootEntryKey(itemId: string): string {
+  return `loot|${itemId}`;
+}
+
 export type PlacementDecay = {
   kind: "placement";
   cell: Coord;
@@ -42,7 +46,14 @@ export type ItemDecay = {
   dueMs: number;
 };
 
-export type DecayEntry = PlacementDecay | ItemDecay;
+export type LootDecay = {
+  kind: "loot";
+  itemId: string;
+  cell: Coord;
+  dueMs: number;
+};
+
+export type DecayEntry = PlacementDecay | ItemDecay | LootDecay;
 
 export function cellHasDecay(
   map: MapFile,
@@ -135,6 +146,17 @@ export class DecayIndex {
       tileId,
       dueMs: this.elapsedMs + this.rollLifetimeMs(decay),
     });
+  }
+
+  /**
+   * A fixed lifetime rather than a drawn one, so dropping loot costs the
+   * world's dice nothing. Keyed apart from `itemEntryKey`, so a dropped berry
+   * still rots on its own clock as well.
+   */
+  armLoot(itemId: string, cell: Coord, lifetimeMs: number) {
+    const key = lootEntryKey(itemId);
+    if (this.entries.has(key)) return;
+    this.file(key, { kind: "loot", itemId, cell: { ...cell }, dueMs: this.elapsedMs + lifetimeMs });
   }
 
   private file(key: string, entry: DecayEntry) {
@@ -553,4 +575,33 @@ export function applyItemDecay(
     if (next) equipment.set(kit.id, next);
   }
   return { ...decayedBoard(map, due, tilesById, mintId), equipment };
+}
+
+export type LootDecayResult = DecayResult & {
+  removed: { cell: Coord; tileId: string; fromIndex: number }[];
+};
+
+/**
+ * Removes each entry's item from the cell it landed in, and nowhere else: a
+ * thing somebody picked up or carried off is theirs, and stays.
+ */
+export function applyLootDecay(
+  map: MapFile,
+  entries: Iterable<LootDecay>,
+  tilesById: Record<string, TileDef>,
+): LootDecayResult {
+  const changed: Coord[] = [];
+  const removed: LootDecayResult["removed"] = [];
+  let next = map;
+  for (const { itemId, cell } of entries) {
+    const stack = getStack(next, cell.x, cell.y, cell.z);
+    const fromIndex = stack.findIndex((placed) => placed.itemId === itemId);
+    if (fromIndex < 0) continue;
+    const kept = stack.filter((_, i) => i !== fromIndex);
+    if (!canReplaceStack(next, cell.x, cell.y, cell.z, kept, tilesById).ok) continue;
+    removed.push({ cell, tileId: stack[fromIndex]!.tileId, fromIndex });
+    next = replaceStack(next, cell.x, cell.y, cell.z, kept);
+    changed.push(cell);
+  }
+  return { map: next, changed, removed };
 }

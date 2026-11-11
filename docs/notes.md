@@ -11297,6 +11297,83 @@ creature that defends another.
 - **It cannot be added as an optional `of` on `attacked`** because a catalogue
   selector parameter cannot be optional.
 
+## A town remembers who struck one of its own
+
+Four brain pieces, all general, that the town's traits are written with.
+Before them a creature could react to a blow on itself (`attacked`) or on one
+named body (`other_attacked`), and nothing reached further than that.
+
+- **`witnessed { of, cells }`** holds when a `Strike` from the round landed on a
+  body `of` names, within `cells` and in plain view (`canSee`). A selector that
+  names tiles counts every body on them, not only the nearest one, because a
+  witness cares that one of the town was hit, whichever it was. It binds the
+  attacker to `memory.hurtBy`, so `attacker` names them, as after `attacked`.
+  The victim's tile is read live through `BrainContext.tileOf` rather than
+  recorded on the strike.
+- **The `report { of, cells }` action** puts the body `of` names on the
+  session's wanted list for `WANTED_MS`, restarting its time if it is already
+  there, and queues an alert for every resident within `cells` of the reporter
+  (`reportCrime`). It succeeds every time it runs, so a state that reports
+  should leave after a round; the town's traits leave after 1.5 seconds.
+- **`alerted`** reads those alerts. They wait in `pendingAlerts` for the
+  listener's next turn, on the same terms as `pendingHurt`, so a guard that
+  dozed through the round still hears it, and a body with an alert waiting
+  counts as `IN_REACH` for attention, so it gets that turn soon. It binds the
+  reported body to `memory.hurtBy`.
+- **The `wanted` selector** is the nearest body on the list, on a level the
+  creature can see, at any distance; conditions add the distance and the line
+  of sight. A tie goes to whoever was reported first.
+
+The list (`GameSession.wanted`) is ms left per body. It counts down in `tick`
+and in `passTimeAsleep`, and a body's entry is removed when it dies, so dying
+clears a player's name. So does turning PvP off: `setPvp(false)` removes the
+entry. It needs no check of its own to stop a player shedding their name
+mid-chase, because `canSetPvp` already refuses anybody in combat, and every
+blow given or taken restarts that status's `COMBAT_DURATION_MS`. A player has
+to get away from the guards and wait it out first. It is not saved: a restart or a deploy forgets every
+crime, as it forgets brain memory.
+
+A resident can be reported too. A wolf that bites a townsperson in front of a
+witness becomes wanted, and the guards hunt it, which is what a town would do.
+
+### What the town does about it
+
+Three traits use those pieces, each handed the same `town` list: the eighteen
+human residents, guards included. The training dummy is not on it, so hitting
+it is not a crime.
+
+- **`raises-the-alarm`** is called by every townsperson who does not fight:
+  the eight `townsfolk-flee` callers, the torch salesman and the town crier.
+  On `witnessed` it cries out ("Guards! Guards!") and walks toward the nearest
+  body on `guards`, and away from the culprit when there is no route. Within
+  three cells of a guard it names the culprit and runs `report`, then goes back
+  to `rest`. It gives up after `patience`. Anyone wanted that it can see, it
+  keeps clear of (`shunning`).
+- **It is called before `townsfolk-flee`**, so a victim with nobody watching
+  still runs for the guards. Its `witnessed` trigger and the flee's `attacked`
+  trigger hold in the same round at the same band, and the tie goes to the
+  earlier call. Called second, the victim fled and nobody reported.
+- **`townsfolk-fight`** turns on whoever it sees strike the town and on anyone
+  wanted it can see, in its own `fighting`, on its own leash.
+- **`keeps-the-peace`** is called by the four guards. An `alerted` guard hunts
+  the culprit in the guard's `hunting` state. A guard that sees the blow
+  itself reports first (`calling`), so the culprit is wanted and the guards
+  within earshot join in. A guard hunts anyone wanted it can see, and walks
+  back (`recovering`) once it is `leash` cells from home or has lost its
+  quarry.
+- **A guard's `fighting` and `healing` hold at `fight`.** They were `idle`, the
+  default for a brain's own states, and a hunt trigger would have taken a
+  guard out of a fight with a wolf to chase a player.
+- **The guards' flat `from: any` rows still run.** A culprit who hits back
+  takes the guard into `fighting`, which has the gate's ten-cell leash, and a
+  hungry guard still stops to snack. Back in `recovering`, a guard that can
+  still see the culprit hunts again.
+- **A hunt reaches further than a guard can see.** The leash is 40 cells, so
+  `brainReach` keeps a guard attentive with a player within 40 cells. That is
+  four bodies.
+- **Lord Corvin and the cat call neither trait.** Corvin already turns on
+  whoever hits Ysolde. Neither is a witness the guards hear from.
+
 ## A respawn can keep to hours
 
 `RespawnInteraction.hours` is `{ fromHour, toHour }` on the same terms as the
@@ -11786,7 +11863,8 @@ hand-written one it replaced: every state asks the same rows in the same order,
 apart from rows that could never be the first to hold.
 
 - **The townsfolk who run** — the potion salesman, tanner, pie maker, miner,
-  peat cutter, beggar and lamplighter — are one call to `townsfolk-flee` each.
+  peat cutter, beggar and lamplighter — are one call to `townsfolk-flee` each,
+  after a call to `raises-the-alarm`.
   The miner, peat cutter, beggar and lamplighter hand it the state they listen
   in as `talk`; the shopkeepers serve only from their idle state, so they do
   not.
@@ -13143,6 +13221,33 @@ Durability reads directly as seconds of fire, which is the only reason the
 authored numbers are legible: `burned` takes `ceil(MAX_HP / 100)` every 250 ms,
 so anything under a hundred durability loses exactly four a second. Grass at 12
 is three seconds; a tree at 28 is seven.
+
+### What a creature drops is gone after ten minutes
+
+A resident's death drops its kit and its remains (`dropKit`, `dropRemains`),
+and nothing took them away again: leather piled up outside every wolf den and
+bones covered the crypt floor. Each item a resident's death puts on the floor
+now gets a `loot` entry in `DecayIndex` (`armLoot`), due `LOOT_LIFETIME_MS`
+after it fell, and `applyLootDecay` removes it then.
+
+- **It is removed only from the cell it landed in.** The entry holds the item
+  id and the landing cell, and the cell is the only place it looks. A thing a
+  player picked up, or carried off and dropped elsewhere, is theirs and stays,
+  without any move having to cancel the entry. A thing picked up and put back
+  in the same cell before the time is up still goes.
+- **A player's death arms nothing.** What a player drops is theirs to come
+  back for.
+- **The lifetime is fixed, not drawn**, so dropping loot costs the world's dice
+  nothing and no creature rolls differently because a boar died.
+- **It sits beside the tile's own decay.** The entry is keyed `loot|<id>`, apart
+  from the `item|<id>` entry a rotting tile gets, so raw meat a wolf dropped
+  still turns rotten on its own clock. A tile that turns keeps its item id, so
+  the loot entry removes whatever it has turned into.
+- **An item that poured into a pile already there** no longer exists under its
+  own id; its entry finds nothing and the pile stays.
+- **It is not saved**, like the rest of the index. A world resumed from a
+  checkpoint keeps the loot that was on its floor. A deploy rebuilds the map
+  from `data/` and clears it anyway.
 
 ### Beside the map, on the decay index's terms
 

@@ -1,6 +1,7 @@
 import {
   MAX_HEALTH_PERCENT,
   leavesFrom,
+  tilesNamedBy,
   type BrainCondition,
   type BrainActionDef,
   type BrainConditionDef,
@@ -74,6 +75,10 @@ export type BrainContext = {
   heardNoise(): readonly Sound[];
   hurtBy(): readonly string[];
   struck(): readonly Strike[];
+  alerts(): readonly string[];
+  tileOf(actorId: string): string | null;
+  nearestWanted(): string | null;
+  report(culpritId: string, cells: number): boolean;
   attack(actorId: string): boolean;
   cast(spell: number, targetId?: string | null): "cast" | "casting" | "no";
   extract(at: Coord, tileId: string): boolean;
@@ -186,6 +191,8 @@ function identify(selector: Selector, memory: BrainMemory, ctx: BrainContext): B
     }
     case "home":
       return null;
+    case "wanted":
+      return asBody(ctx.nearestWanted());
   }
 }
 
@@ -337,6 +344,10 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
         : struckWithin(memory, condition.withinMs);
     case "other_attacked":
       return otherStruckBy(condition, memory, ctx);
+    case "witnessed":
+      return sawStrike(condition, memory, ctx);
+    case "alerted":
+      return alertedTo(memory, ctx);
     case "talking":
       return ctx.talking();
     case "in_harm":
@@ -413,6 +424,38 @@ function otherStruckBy(
   return false;
 }
 
+/**
+ * A selector that names tiles counts every body on them, not only the
+ * nearest: a witness cares that one of the town was struck, whichever.
+ */
+function sawStrike(
+  condition: Extract<BrainConditionDef, { cond: "witnessed" }>,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): boolean {
+  const tileIds = tilesNamedBy(condition.of);
+  const named = tileIds.length > 0 ? null : boundBody(identify(condition.of, memory, ctx));
+  if (tileIds.length === 0 && named === null) return false;
+  const strikes = ctx.struck();
+  for (let i = strikes.length - 1; i >= 0; i--) {
+    const strike = strikes[i]!;
+    const victim = strike.victimId;
+    const counts = named === null ? tileIds.includes(ctx.tileOf(victim) ?? "") : victim === named;
+    if (!counts) continue;
+    if (!inSight(ctx.positionOf(victim), condition.cells, ctx)) continue;
+    memory.hurtBy = strike.attackerId;
+    return true;
+  }
+  return false;
+}
+
+function alertedTo(memory: BrainMemory, ctx: BrainContext): boolean {
+  const latest = ctx.alerts().at(-1);
+  if (latest === undefined) return false;
+  memory.hurtBy = latest;
+  return true;
+}
+
 function walkAlongRoute(
   goal: WalkGoal,
   allowDrops: boolean | undefined,
@@ -468,6 +511,11 @@ function runAction(
       const id = boundBody(identify(action.of, memory, ctx));
       if (id === null) return "failure";
       return ctx.attack(id) ? "success" : "failure";
+    }
+    case "report": {
+      const id = boundBody(identify(action.of, memory, ctx));
+      if (id === null) return "failure";
+      return ctx.report(id, action.cells) ? "success" : "failure";
     }
     case "cast": {
       const id = action.of ? boundBody(identify(action.of, memory, ctx)) : undefined;
