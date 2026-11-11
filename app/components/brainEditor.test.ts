@@ -166,6 +166,7 @@ describe("offering selectors", () => {
       "speaker",
       "attacker",
       "home",
+      "wanted",
     ]);
   });
 
@@ -188,6 +189,7 @@ describe("offering selectors", () => {
       "speaker",
       "attacker",
       "home",
+      "wanted",
       "$spooked",
     ]);
   });

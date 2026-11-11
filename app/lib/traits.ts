@@ -251,7 +251,7 @@ type Visitor = {
   problem(at: string, message: string): void;
 };
 
-const WANTS_A_BODY = new Set(["attack", "attack_range", "cast"]);
+const WANTS_A_BODY = new Set(["attack", "attack_range", "cast", "report"]);
 const WANTS_A_THING = new Set(["extract", "switch", "consume"]);
 
 const NUMBER_KINDS: Record<string, ParamKind> = {
@@ -586,6 +586,7 @@ function selectorHolds(selector: unknown, visit: Visitor): SlotHolds | undefined
     case "attacker":
     case "speaker":
     case "nearest":
+    case "wanted":
       return "body";
     case "thing":
       return "thing";

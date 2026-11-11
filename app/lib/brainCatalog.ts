@@ -1,4 +1,5 @@
 import {
+  ATTACKER_SELECTOR,
   MAX_HEALTH_PERCENT,
   MAX_HOUR_OF_DAY,
   nearest,
@@ -129,6 +130,21 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
       { key: "cells", kind: "number", label: "cells", min: 0 },
     ],
     make: () => ({ cond: "other_attacked", of: DEFAULT_SELECTOR, cells: 8 }),
+  },
+  witnessed: {
+    label: "witnessed",
+    hint: "Somebody struck a body this names since the last round, in plain view within this many cells. A nearest body counts every body on its tiles, not only the nearest, so it reads as one of the town was hit. Bind the attacker selector to remember who struck.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+    ],
+    make: () => ({ cond: "witnessed", of: DEFAULT_SELECTOR, cells: 8 }),
+  },
+  alerted: {
+    label: "alerted",
+    hint: "Somebody near this body reported a culprit since its last turn. Bind the attacker selector to remember who was reported.",
+    params: [],
+    make: () => ({ cond: "alerted" }),
   },
   stuck: {
     label: "stuck",
@@ -286,6 +302,15 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
     hint: "Swing at a target in an adjacent cell. Fails when out of reach, still recovering, or aimed at something with no hit points.",
     params: [{ key: "of", kind: "selector", label: "of" }],
     make: () => ({ action: "attack", of: DEFAULT_SELECTOR }),
+  },
+  report: {
+    label: "report",
+    hint: "Puts the body this names on the town's wanted list for five minutes, and alerts every creature within this many cells to it. The wanted selector finds whoever is on the list. Fails on a body that is gone or on itself.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+    ],
+    make: () => ({ action: "report", of: ATTACKER_SELECTOR, cells: 8 }),
   },
   cast: {
     label: "cast",

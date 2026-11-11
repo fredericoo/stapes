@@ -209,6 +209,7 @@ import {
   PLAYER_TILE_ID,
   STRIKE_DURATION_MS,
   TICK_MS,
+  WANTED_MS,
 } from "./constants";
 import {
   type BattlerDef,
@@ -397,6 +398,7 @@ import {
   enterBrainState,
   initialMemory,
   stepBrain,
+  within,
   withinSightLevels,
   type BrainMemory,
   type FoundThing,
@@ -945,6 +947,10 @@ export class GameSession implements PlaySession {
   private nextSpeechId = 0;
   private pendingHeard: Utterance[] = [];
   private readonly pendingHurt = new Map<string, string[]>();
+  /** Who each resident has been told about since its last turn, kept like `pendingHurt`. */
+  private readonly pendingAlerts = new Map<string, string[]>();
+  /** Ms each wanted body has left on the town's list, in the order they were first reported. */
+  private readonly wanted = new Map<string, number>();
   private pendingSound: Sound[] = [];
   private pendingStrikes: Strike[] = [];
   private brainRound: BrainRound | null = null;
@@ -1244,6 +1250,7 @@ export class GameSession implements PlaySession {
     this.forgetWalk(leaving);
     this.actors.delete(id);
     this.pendingHurt.delete(id);
+    this.pendingAlerts.delete(id);
     const loc = this.tryLocate(leaving);
     this.forgetTileIndex();
     if (loc && !leaving.hidden) {
@@ -1537,6 +1544,7 @@ export class GameSession implements PlaySession {
     }
     this.tickStandingStatuses(tickMs);
     this.decay.advance(tickMs);
+    this.ageWanted(tickMs);
     this.applyDueDecay();
     this.tickAfflictions(tickMs);
     this.applyWornThrough(tickMs);
@@ -1671,6 +1679,7 @@ export class GameSession implements PlaySession {
       this.pendingHurt.clear();
       this.pendingSound = [];
       this.pendingStrikes = [];
+      this.pendingAlerts.clear();
       this.brainRound = null;
       return;
     }
@@ -2020,7 +2029,7 @@ export class GameSession implements PlaySession {
   ): Attention | null {
     const hitBy = this.pendingHurt.get(actor.id);
     if (players.talkedTo.has(actor.id) || this.fightingAPlayer(actor, hitBy)) return ENGAGED;
-    let attention: Attention | null = hitBy ? IN_REACH : null;
+    let attention: Attention | null = hitBy || this.pendingAlerts.has(actor.id) ? IN_REACH : null;
     const loc = this.tryLocate(actor);
     if (!loc) return attention;
     const reach = Math.max(BRAIN_ATTENTION_FLOOR_CELLS, this.reachOf(this.defFor(actor)));
@@ -2078,6 +2087,8 @@ export class GameSession implements PlaySession {
       return;
     }
     const hurt = this.takeHurt(actor);
+    const alerts = this.pendingAlerts.get(actor.id) ?? EMPTY_ATTACKERS;
+    this.pendingAlerts.delete(actor.id);
 
     const brain = resolveBrain(this.defFor(actor));
     if (!brain) return;
@@ -2119,6 +2130,13 @@ export class GameSession implements PlaySession {
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
       hurtBy: () => hurt,
       struck: () => round.strikes,
+      alerts: () => alerts,
+      tileOf: (id) => {
+        const body = this.actors.get(id);
+        return body ? this.defFor(body).id : null;
+      },
+      nearestWanted: () => this.nearestWanted(actor.id, loc, sight),
+      report: (culpritId, cells) => this.reportCrime(actor, loc, culpritId, cells),
       attack: (id) => this.orderAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
@@ -2142,6 +2160,59 @@ export class GameSession implements PlaySession {
       },
     });
     if (fading) this.fadeAway(actor);
+  }
+
+  private ageWanted(ms: number) {
+    for (const [id, leftMs] of this.wanted) {
+      if (leftMs > ms) this.wanted.set(id, leftMs - ms);
+      else this.wanted.delete(id);
+    }
+  }
+
+  /**
+   * Puts `culpritId` on the town's wanted list, or restarts its time there,
+   * and tells every resident within `cells` of the reporter on its next turn.
+   */
+  private reportCrime(
+    reporter: ActorRuntime,
+    from: Coord,
+    culpritId: string,
+    cells: number,
+  ): boolean {
+    if (culpritId === reporter.id || !this.actors.has(culpritId)) return false;
+    this.wanted.set(culpritId, WANTED_MS);
+    for (const listener of this.actors.values()) {
+      if (!listener.resident || listener === reporter || listener.id === culpritId) continue;
+      const at = this.actorCell(listener.id);
+      if (!at) continue;
+      const sight = this.battlerOf(listener)?.sight ?? DEFAULT_BATTLER.sight;
+      if (!within(at, from, cells, sight)) continue;
+      const told = this.pendingAlerts.get(listener.id);
+      if (told) told.push(culpritId);
+      else this.pendingAlerts.set(listener.id, [culpritId]);
+    }
+    return true;
+  }
+
+  /** A tie goes to whoever was reported first, so a seeded world picks the same way every run. */
+  private nearestWanted(selfId: string, from: Coord, sight: SightLevels): string | null {
+    let best: string | null = null;
+    let bestSteps = Number.POSITIVE_INFINITY;
+    for (const id of this.wanted.keys()) {
+      if (id === selfId || this.isConcealed(id)) continue;
+      const at = this.actorCell(id);
+      if (!at || !withinSightLevels(from, at, sight)) continue;
+      const steps = Math.abs(at.x - from.x) + Math.abs(at.y - from.y);
+      if (steps < bestSteps) {
+        best = id;
+        bestSteps = steps;
+      }
+    }
+    return best;
+  }
+
+  isWanted(id: string): boolean {
+    return this.wanted.has(id);
   }
 
   /**
@@ -3079,6 +3150,8 @@ export class GameSession implements PlaySession {
       ? removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex)
       : despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
+    this.pendingAlerts.delete(target.id);
+    this.wanted.delete(target.id);
     for (const actor of this.actors.values()) {
       if (actor.targetId === target.id) actor.targetId = null;
       actor.assailants?.delete(target.id);
@@ -6437,11 +6510,13 @@ export class GameSession implements PlaySession {
 
   passTimeAsleep(ms: number) {
     this.decay.advance(ms);
+    this.ageWanted(ms);
   }
 
   isAtRest(): boolean {
     if (this.pendingHeard.length > 0) return false;
     if (this.pendingHurt.size > 0) return false;
+    if (this.pendingAlerts.size > 0) return false;
     if (this.pendingSound.length > 0) return false;
     if (this.pendingStrikes.length > 0) return false;
     if (this.brainRound) return false;

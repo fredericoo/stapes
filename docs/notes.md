@@ -11297,6 +11297,41 @@ creature that defends another.
 - **It cannot be added as an optional `of` on `attacked`** because a catalogue
   selector parameter cannot be optional.
 
+## A town remembers who struck one of its own
+
+Four brain pieces, all general, that the town's traits are written with.
+Before them a creature could react to a blow on itself (`attacked`) or on one
+named body (`other_attacked`), and nothing reached further than that.
+
+- **`witnessed { of, cells }`** holds when a `Strike` from the round landed on a
+  body `of` names, within `cells` and in plain view (`canSee`). A selector that
+  names tiles counts every body on them, not only the nearest one, because a
+  witness cares that one of the town was hit, whichever it was. It binds the
+  attacker to `memory.hurtBy`, so `attacker` names them, as after `attacked`.
+  The victim's tile is read live through `BrainContext.tileOf` rather than
+  recorded on the strike.
+- **The `report { of, cells }` action** puts the body `of` names on the
+  session's wanted list for `WANTED_MS`, restarting its time if it is already
+  there, and queues an alert for every resident within `cells` of the reporter
+  (`reportCrime`). It succeeds every time it runs, so a state that reports
+  should leave after a round; the town's traits leave after 1.5 seconds.
+- **`alerted`** reads those alerts. They wait in `pendingAlerts` for the
+  listener's next turn, on the same terms as `pendingHurt`, so a guard that
+  dozed through the round still hears it, and a body with an alert waiting
+  counts as `IN_REACH` for attention, so it gets that turn soon. It binds the
+  reported body to `memory.hurtBy`.
+- **The `wanted` selector** is the nearest body on the list, on a level the
+  creature can see, at any distance; conditions add the distance and the line
+  of sight. A tie goes to whoever was reported first.
+
+The list (`GameSession.wanted`) is ms left per body. It counts down in `tick`
+and in `passTimeAsleep`, and a body's entry is removed when it dies, so dying
+clears a player's name. It is not saved: a restart or a deploy forgets every
+crime, as it forgets brain memory.
+
+A resident can be reported too. A wolf that bites a townsperson in front of a
+witness becomes wanted, and the guards hunt it, which is what a town would do.
+
 ## A respawn can keep to hours
 
 `RespawnInteraction.hours` is `{ fromHour, toHour }` on the same terms as the

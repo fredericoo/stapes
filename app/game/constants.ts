@@ -38,3 +38,5 @@ export const NOISE_LIFETIME_MS = 2_000;
 export const STRIKE_DURATION_MS = 150;
 
 export const LOOT_LIFETIME_MS = 10 * 60 * 1000;
+
+export const WANTED_MS = 5 * 60 * 1000;
