@@ -16574,11 +16574,13 @@ creatures itself: `fearedTiles` judges every tile that can hurt, townsfolk
 among them, so a bot that would lose to the pie maker keeps routes and
 explores clear of the pie maker's stall as it would of a wolf's den.
 
-In a bench of six bots for half a game-hour over four seeds
-(`bun run bench:bots --hours 0.5 --seeds 4`), deaths an hour went from 8.2
-to 7.3 and time recovering from 18.8% to 17.0%, with neither difference
-significant (deaths: −0.9, 95% interval −6.5 to 4.7). Four half-hour seeds
-are too few to show an effect of that size either way.
+It did not reduce deaths. In the default bench of six bots for a game-hour
+over eight seeds, against a `main` that already had the escape search
+(#602), deaths an hour went from 6.00 to 6.06 (difference 0.06, 95%
+interval −0.77 to 0.90), and time recovering from 15.2% to 16.7%, not
+significant. Many deaths come in the same decision the bot drops below
+`huntHpShare`, often from 1–3 health, and no walk helps those: they depend
+on when a bot stops fighting, not on where it recovers.
 
 **Bots hunt together.** Prey another player stands within `ALLY_CELLS` of
 goes first in `choosePrey`, ahead of prey that teaches more or is nearer:
