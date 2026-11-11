@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import {
   IconBucket,
   IconCircle,
+  IconCloudRain,
   IconEraser,
   IconHome,
   IconMountain,
@@ -35,6 +36,7 @@ const TOOLS: Array<{
   { id: "rect", label: "Rect", key: "R", Icon: IconSquare },
   { id: "circle", label: "Circle", key: "C", Icon: IconCircle },
   { id: "bucket", label: "Bucket", key: "G", Icon: IconBucket },
+  { id: "weather", label: "Weather areas", key: "A", Icon: IconCloudRain },
 ];
 
 export function MapToolbar() {

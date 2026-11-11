@@ -1,3 +1,4 @@
+import type { WeatherArea } from "../lib/weatherAreas";
 import {
   absoluteElevation,
   baseCellWorldOrigin,
@@ -266,6 +267,7 @@ export class GameRenderer {
   private readonly remaining = new SmoothedRemaining();
   private minutesOfDay: number = DEFAULT_PLAY_MINUTES;
   private weather: WeatherKind = "clear";
+  private weatherAreas: readonly WeatherArea[] = [];
   private clockAnchorMinutes: MinutesOfDay = DEFAULT_PLAY_MINUTES;
   private clockAnchorAtMs = 0;
   private clockPaused = false;
@@ -403,6 +405,10 @@ export class GameRenderer {
 
   setWeather(weather: WeatherKind) {
     this.weather = weather;
+  }
+
+  setWeatherAreas(areas: readonly WeatherArea[]) {
+    this.weatherAreas = areas;
   }
 
   setMinutesOfDay(m: MinutesOfDay) {
@@ -2037,6 +2043,8 @@ export class GameRenderer {
       zoom,
       minutesOfDay: this.minutesOfDay,
       weather: this.weather,
+      weatherAreas: this.weatherAreas,
+      viewerCell: { x: snap.self.x, y: snap.self.y },
       viewerPx: { x: camera.x + this.spanPx() / 2, y: camera.y + this.spanPx() / 2 },
       tileMotions: motions.length > 0 ? motions : undefined,
       projectiles:

@@ -1,6 +1,12 @@
 import { MAP_FILE_VERSION } from "../../lib/types";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { fetchMapText, fetchTiles, fetchTilesets, saveMapText } from "../../lib/api";
+import {
+  fetchMapText,
+  fetchTiles,
+  fetchTilesets,
+  fetchWeatherAreas,
+  saveMapText,
+} from "../../lib/api";
 import { parseMap, serializeMap } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
 import { useFetcher, useLoaderData } from "react-router";
@@ -25,12 +31,13 @@ import { Button, Input, Toggle, Tooltip, useToast } from "../../ui";
 
 export async function clientLoader() {
   await requireAdmin();
-  const [mapText, tiles, tilesets] = await Promise.all([
+  const [mapText, tiles, tilesets, weatherAreas] = await Promise.all([
     fetchMapText(),
     fetchTiles(),
     fetchTilesets(),
+    fetchWeatherAreas(),
   ]);
-  return { map: parseMap(mapText), tiles, tilesets };
+  return { map: parseMap(mapText), tiles, tilesets, weatherAreas };
 }
 
 export async function clientAction({ request }: Route.ClientActionArgs) {
@@ -112,6 +119,12 @@ export default function MapPage() {
     useEditorStore.getState().hydrate(data.map, data.tiles);
   }, [data.map, data.tiles]);
 
+  useLayoutEffect(() => {
+    if (!useEditorStore.getState().weatherAreasDirty) {
+      useEditorStore.getState().hydrateWeatherAreas(data.weatherAreas);
+    }
+  }, [data.weatherAreas]);
+
   useEffect(() => {
     setLevelDraft(String(currentLevel));
   }, [currentLevel]);
@@ -124,7 +137,7 @@ export default function MapPage() {
 
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (useEditorStore.getState().dirty) {
+      if (useEditorStore.getState().dirty || useEditorStore.getState().weatherAreasDirty) {
         e.preventDefault();
         e.returnValue = "";
       }

@@ -4,13 +4,20 @@ import { MapCanvas } from "../MapCanvas";
 import { useEditorStore } from "../store";
 import { useMapAssets } from "./MapAssetsContext";
 import { MapToolbar } from "./MapToolbar";
+import { WeatherAreasPanel } from "./WeatherAreasPanel";
 
 export function CanvasPanel() {
   const { tiles, tilesets } = useMapAssets();
+  const tool = useEditorStore((s) => s.tool);
 
   return (
     <div className="relative min-h-0 min-w-0 flex-1">
       <MapCanvas tilesets={tilesets} tiles={tiles} />
+      {tool === "weather" ? (
+        <div className="pointer-events-none absolute inset-y-2 left-2 z-50 flex items-start">
+          <WeatherAreasPanel />
+        </div>
+      ) : null}
       <aside
         aria-label="Map editor chrome"
         className={[
@@ -72,6 +79,7 @@ function CanvasStatus() {
       {tool !== "select" &&
       tool !== "erase" &&
       tool !== "procedural" &&
+      tool !== "weather" &&
       !selected &&
       !armedTileId ? (
         <span className="text-danger"> · no tile armed</span>

@@ -29,6 +29,7 @@ import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO } from "../lib/sunSpan";
 import { sampleIllumination } from "../lib/clock";
 import { ruleSelectsCell } from "../lib/particleRule";
 import { fogHidesAt, illuminationUnder, type WeatherKind } from "../lib/weather";
+import { fogReachAt, weatherAreasIn, weatherReaches, type WeatherArea } from "../lib/weatherAreas";
 import {
   changedCellsInChunk,
   changedCellsOnLevel,
@@ -150,6 +151,7 @@ import {
   weatherStepAt,
   setWeatherDefines,
   type WeatherDefines,
+  MAX_SHADER_WEATHER_AREAS,
   weatherUniforms,
   type LevelAnimUniforms,
   depthOriginUniforms,
@@ -448,6 +450,10 @@ export type WorldView = {
   minutesOfDay: number;
   /** Clear when absent. */
   weather?: WeatherKind;
+  /** Where rain and fog stop; see `WeatherArea`. Everywhere gets both when absent. */
+  weatherAreas?: readonly WeatherArea[];
+  /** The cell whose weather dims the sky. Without it the sky follows the world's weather. */
+  viewerCell?: { x: number; y: number };
   /** Where fog is measured from, in world pixels; the middle of the view when absent. */
   viewerPx?: { x: number; y: number };
   tileMotions?: TileMotion[];
@@ -616,6 +622,10 @@ const FOG_LIGHT_CELLS = [
   [0, 1],
   [0, -1],
 ] as const;
+/** Cells past the camera's window an area is still handed to the shader from, to cover the levels drawn shifted. */
+const WEATHER_AREA_MARGIN = 32;
+
+const NO_WEATHER_AREAS: readonly WeatherArea[] = [];
 
 /** Fog is this grey in the dark and takes the rest of its colour from the sky. */
 const FOG_BASE = 0.04;
@@ -729,6 +739,8 @@ export class WorldRenderer {
   private weatherSnapped = false;
   private sheltered: ReadonlySet<string> = new Set();
   private shelterTexture: THREE.DataTexture | null = null;
+  /** How much rain is over the viewer's own cell, which is what dims the sky; for fog that is `uFog`. */
+  private rainOverhead = 0;
   private lightingKey = "";
   private staticLightGrid: PackedLightGrid | null = null;
   private shownLightGrid: PackedLightGrid | null = null;
@@ -1320,8 +1332,21 @@ export class WorldRenderer {
     const weather = this.view?.weather ?? "clear";
     const ease = this.weatherSnapped ? dt / WEATHER_EASE_MS : 1;
     this.weatherSnapped = this.view !== null;
+    const areas = this.view?.weatherAreas ?? NO_WEATHER_AREAS;
+    const at = this.view?.viewerCell;
     const rain = easedToward(u.uRain.value, weather === "rain" ? 1 : 0, ease);
-    const fog = easedToward(u.uFog.value, weather === "fog" ? 1 : 0, ease);
+    /**
+     * Fog is as strong as it is deep round the viewer, so it comes on over the
+     * cells inside an area's edge and nobody outside one sees a wall of it.
+     */
+    const fogHere = at ? fogReachAt(areas, at.x, at.y) : 1;
+    const fog = easedToward(u.uFog.value, weather === "fog" ? fogHere : 0, ease);
+    const rainHere = !at || weatherReaches(areas, "rain", at.x, at.y);
+    this.rainOverhead = easedToward(
+      this.rainOverhead,
+      weather === "rain" && rainHere ? 1 : 0,
+      ease,
+    );
     const easing = rain !== u.uRain.value || fog !== u.uFog.value;
     u.uRain.value = rain;
     u.uFog.value = fog;
@@ -1336,17 +1361,43 @@ export class WorldRenderer {
     return true;
   }
 
+  private syncWeatherAreas(view: WorldView) {
+    const u = this.weatherUniforms;
+    const areas = view.weatherAreas;
+    if (!areas || areas.length === 0) {
+      u.uAreaCount.value = 0;
+      return;
+    }
+    const seen = this.cameraWindow(view);
+    const inView = weatherAreasIn(
+      areas,
+      {
+        x0: seen.x0 - WEATHER_AREA_MARGIN,
+        y0: seen.y0 - WEATHER_AREA_MARGIN,
+        x1: seen.x1 + WEATHER_AREA_MARGIN,
+        y1: seen.y1 + WEATHER_AREA_MARGIN,
+      },
+      MAX_SHADER_WEATHER_AREAS,
+    );
+    u.uAreaCount.value = inView.length;
+    inView.forEach((area, i) => {
+      u.uAreaRects.value[i]!.set(area.x0, area.y0, area.x1 + 1, area.y1 + 1);
+      u.uAreaReach.value[i]!.set(area.rain ? 1 : 0, area.fog ? 1 : 0);
+    });
+  }
+
   /** Shows the view's weather at full strength at once, as a still picture needs. */
   snapWeather() {
     this.weatherSnapped = false;
     this.updateWeather(0);
-    this.needsRender = true;
+    if (this.view) this.setView(this.view);
   }
 
   /** Whether fog covers a cell completely, which is when whatever is drawn over the world there should go too. */
   fogHides(x: number, y: number, z: number): boolean {
     if (this.weatherUniforms.uFog.value < 1) return false;
     if (this.sheltered.has(coordKey(x, y))) return false;
+    if (fogReachAt(this.view?.weatherAreas ?? NO_WEATHER_AREAS, x, y) < 1) return false;
     const sky = z >= 0 ? 1 : this.skyFactorAt(x, y, z);
     const origin = baseCellWorldOrigin(x, y, z, 0);
     const viewer = this.weatherUniforms.uViewerPx.value;
@@ -2009,9 +2060,11 @@ export class WorldRenderer {
 
     this.lightBaker?.syncMap(view.map);
 
+    this.syncWeatherAreas(view);
     const { ambient, sun, sunArc } = illuminationUnder(
-      view.weather ?? "clear",
       sampleIllumination(view.minutesOfDay),
+      this.rainOverhead,
+      this.weatherUniforms.uFog.value,
     );
     this.weatherUniforms.uFogColor.value.set(
       FOG_BASE + ambient[0] * FOG_FROM_SKY,

@@ -339,3 +339,27 @@ describe("the armed face is a brush setting", () => {
     });
   });
 });
+
+describe("weather areas", () => {
+  beforeEach(() => {
+    useEditorStore.getState().hydrateWeatherAreas([]);
+  });
+
+  it("adds a rectangle dragged backwards with its corners in order, reaching nothing, and selects it", () => {
+    useEditorStore.getState().addWeatherArea({ x0: 5, y0: 7, x1: 1, y1: 2 });
+    const state = useEditorStore.getState();
+    expect(state.weatherAreas).toEqual([{ x0: 1, y0: 2, x1: 5, y1: 7, rain: false, fog: false }]);
+    expect(state.selectedWeatherArea).toBe(0);
+    expect(state.weatherAreasDirty).toBe(true);
+  });
+
+  it("moves an area later in the order that decides, and keeps it selected", () => {
+    const store = useEditorStore.getState();
+    store.addWeatherArea({ x0: 0, y0: 0, x1: 1, y1: 1 });
+    store.addWeatherArea({ x0: 10, y0: 10, x1: 11, y1: 11 });
+    store.moveWeatherArea(0, 1);
+    const state = useEditorStore.getState();
+    expect(state.weatherAreas.map((area) => area.x0)).toEqual([10, 0]);
+    expect(state.selectedWeatherArea).toBe(1);
+  });
+});

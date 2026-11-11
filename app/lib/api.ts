@@ -1,3 +1,4 @@
+import type { WeatherArea } from "./weatherAreas";
 import { treaty } from "@elysiajs/eden";
 import type { Api } from "../../server/api";
 import type { DeathRecord } from "../../server/deaths";
@@ -48,6 +49,14 @@ export async function fetchStatuses(): Promise<unknown[]> {
 
 export async function fetchTraits(): Promise<unknown[]> {
   return unwrap(await client.api.traits.get()).traits;
+}
+
+export async function fetchWeatherAreas(): Promise<WeatherArea[]> {
+  return unwrap(await client.api["weather-areas"].get()).areas;
+}
+
+export async function saveWeatherAreas(areas: WeatherArea[]): Promise<void> {
+  unwrap(await client.api["weather-areas"].post({ areas }));
 }
 
 export async function fetchTilesets(): Promise<TilesetDef[]> {

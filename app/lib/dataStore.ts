@@ -1,3 +1,4 @@
+import { parseWeatherAreas, type WeatherArea } from "./weatherAreas";
 import type { MapFile, TileDef, TilesetDef } from "./types";
 import { normalizeTiles } from "./types";
 import { emptyMap, parseMap, serializeMap } from "./mapData";
@@ -7,6 +8,7 @@ const TILES_KEY = "tiles.json";
 const TILESETS_KEY = "tilesets.json";
 const STATUSES_KEY = "statuses.json";
 const TRAITS_KEY = "traits.json";
+const WEATHER_KEY = "weather.json";
 const TILESET_PREFIX = "tilesets/";
 
 const JSON_TYPE = "application/json";
@@ -53,6 +55,16 @@ export class DataStore {
 
   async writeTraits(traits: unknown[]) {
     await this.blobs.put(TRAITS_KEY, `${JSON.stringify(traits, null, 2)}\n`, JSON_TYPE);
+  }
+
+  async readWeatherAreas(): Promise<WeatherArea[]> {
+    const raw = await this.blobs.getText(WEATHER_KEY);
+    if (raw === null) return [];
+    return parseWeatherAreas(JSON.parse(raw) as unknown);
+  }
+
+  async writeWeatherAreas(areas: WeatherArea[]) {
+    await this.blobs.put(WEATHER_KEY, `${JSON.stringify(areas, null, 2)}\n`, JSON_TYPE);
   }
 
   async readTilesets(): Promise<TilesetDef[]> {

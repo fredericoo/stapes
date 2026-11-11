@@ -29,10 +29,10 @@ describe("illuminationUnder", () => {
 
   it("dims the sun under rain and leaves its place in the sky alone", () => {
     const light = { ambient: [...noon.ambient], sun: [...noon.sun], sunArc: noon.sunArc } as never;
-    const wet = illuminationUnder("rain", light);
+    const wet = illuminationUnder(light, 1, 0);
     expect(wet.sun[0]).toBeLessThan(noon.sun[0]);
     expect(wet.sunArc).toBe(noon.sunArc);
-    expect(illuminationUnder("clear", light)).toBe(light);
+    expect(illuminationUnder(light, 0, 0)).toBe(light);
   });
 });
 

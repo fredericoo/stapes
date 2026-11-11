@@ -22,6 +22,7 @@ import {
   FOG_SKY_FULL,
   OPEN_SKY_FACTOR,
 } from "../lib/weather";
+import { FOG_EDGE_STEP_CELLS } from "../lib/weatherAreas";
 import { ANIM_GLSL_FUNCTION, NO_ANIMATION } from "./animTable";
 import {
   NO_REFLECTION_UNIFORMS,
@@ -136,7 +137,14 @@ export type WeatherUniforms = {
   uShelterOrigin: { value: THREE.Vector2 };
   uShelterSize: { value: THREE.Vector2 };
   uShelterEnabled: { value: number };
+  /** The weather areas in view: each rectangle as (x0, y0, x1 + 1, y1 + 1), and whether (rain, fog) reaches it. */
+  uAreaCount: { value: number };
+  uAreaRects: { value: THREE.Vector4[] };
+  uAreaReach: { value: THREE.Vector2[] };
 };
+
+/** How many weather areas the shader is handed; `weatherAreasIn` keeps the last ones when more are in view. */
+export const MAX_SHADER_WEATHER_AREAS = 8;
 
 export function weatherUniforms(): WeatherUniforms {
   return {
@@ -149,6 +157,13 @@ export function weatherUniforms(): WeatherUniforms {
     uShelterOrigin: { value: new THREE.Vector2() },
     uShelterSize: { value: new THREE.Vector2(1, 1) },
     uShelterEnabled: { value: 0 },
+    uAreaCount: { value: 0 },
+    uAreaRects: {
+      value: Array.from({ length: MAX_SHADER_WEATHER_AREAS }, () => new THREE.Vector4()),
+    },
+    uAreaReach: {
+      value: Array.from({ length: MAX_SHADER_WEATHER_AREAS }, () => new THREE.Vector2(1, 1)),
+    },
   };
 }
 
@@ -216,7 +231,7 @@ const SPLASH_STEPS = 3;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v18-weather-6";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v18-weather-areas-6";
 
 /** The world shader with the reflection lookup, which only `WorldRenderer`'s tile materials carry. */
 export const REFLECTING_WORLD_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-reflect`;
@@ -546,6 +561,9 @@ uniform sampler2D uShelterMask;
 uniform vec2 uShelterOrigin;
 uniform vec2 uShelterSize;
 uniform float uShelterEnabled;
+uniform int uAreaCount;
+uniform vec4 uAreaRects[${MAX_SHADER_WEATHER_AREAS}];
+uniform vec2 uAreaReach[${MAX_SHADER_WEATHER_AREAS}];
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -561,6 +579,32 @@ float weatherHash(vec2 p) {
   vec3 q = fract(vec3(p.xyx) * 0.1031);
   q += dot(q, q.yzx + 33.33);
   return fract((q.x + q.y) * q.z);
+}
+// Whether (rain, fog) reaches a cell: the last area that covers it decides,
+// and a cell no area covers gets both.
+vec2 weatherReach(vec2 cell) {
+  vec2 reach = vec2(1.0);
+  for (int i = 0; i < ${MAX_SHADER_WEATHER_AREAS}; i++) {
+    if (i >= uAreaCount) break;
+    vec4 rect = uAreaRects[i];
+    if (cell.x >= rect.x && cell.y >= rect.y && cell.x < rect.z && cell.y < rect.w) {
+      reach = uAreaReach[i];
+    }
+  }
+  return reach;
+}
+// Fog thickens over a few cells inside an area's edge: the share of nine
+// cells, this one and two rings round it, that fog reaches.
+float fogReach(vec2 cell) {
+  if (uAreaCount == 0) return 1.0;
+  float sum = weatherReach(cell).y;
+  for (int ring = 1; ring <= 2; ring++) {
+    float d = float(ring) * ${glsl(FOG_EDGE_STEP_CELLS)};
+    sum +=
+      weatherReach(cell + vec2(d, 0.0)).y + weatherReach(cell - vec2(d, 0.0)).y +
+      weatherReach(cell + vec2(0.0, d)).y + weatherReach(cell - vec2(0.0, d)).y;
+  }
+  return sum / 9.0;
 }
 // A sun texel holds the arc span (start, end) from which the cell sees the
 // sun; filtering blends neighbouring spans, which is what slides a shadow
@@ -611,7 +655,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + sun * uSunColor + lightTexel.rgb);
   diffuseColor.rgb *= light;
 #ifdef WEATHER_RAIN
-  if (uRain > 0.0 && lightTexel.a >= ${glsl(OPEN_SKY_FACTOR)}) {
+  if (uRain > 0.0 && weatherReach(lightCell).x > 0.5 && lightTexel.a >= ${glsl(OPEN_SKY_FACTOR)}) {
     // Height is drawn up and to the left, so rain falls down and to the right:
     // a lane is one such diagonal of art pixels, and a streak moves along it.
     vec2 rainPx = floor(depthPx);
@@ -644,8 +688,8 @@ if (uFog > 0.0) {
     // for its sky left those showing through. Below ground the sky decides,
     // which is what fills an open pit and leaves a cave clear.
     float fogSky = 1.0;
+    vec2 fogLightCell = vLightUv + (depthPx - vWorldPx) * vLightScale;
     if (uLightingEnabled > 0.5) {
-      vec2 fogLightCell = vLightUv + (depthPx - vWorldPx) * vLightScale;
       vec2 fogLightUv = (fogLightCell - uLightOrigin) / uLightSize;
       vec4 fogTexel = texture2D(uLightMap, fogLightUv);
       if (vBox.z < 0.0) fogSky = smoothstep(0.0, ${glsl(FOG_SKY_FULL)}, fogTexel.a);
@@ -670,7 +714,7 @@ if (uFog > 0.0) {
       vec2 shelterUv = (vBox.xy / ${glsl(CELL_SIZE)} - 0.5 - uShelterOrigin) / uShelterSize;
       if (texture2D(uShelterMask, shelterUv).r > 0.5) fogSky = 0.0;
     }
-    diffuseColor.rgb = mix(diffuseColor.rgb, uFogColor, fogThick * fogSky * uFog);
+    diffuseColor.rgb = mix(diffuseColor.rgb, uFogColor, fogThick * fogSky * uFog * fogReach(fogLightCell));
   }
 }
 #endif

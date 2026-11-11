@@ -401,6 +401,7 @@ Authored content is `data/`:
 - `tilesets/*.png` + `tilesets.json`
 - `tiles.json` — tile definitions
 - `statuses.json` — status definitions
+- `weather.json` — the rectangles rain and fog are kept to
 - `map.json` — sparse stacked map (levels -64..+64, `MIN_LEVEL` and `MAX_LEVEL`)
 
 It has two homes behind one interface (`app/lib/dataStore.ts`):
