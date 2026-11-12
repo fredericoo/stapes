@@ -5172,6 +5172,16 @@ below you; there has been one since `isHiddenFromCamera` was written, and
 approximating a floor's worth of doubt on top of an exact answer only takes back
 the cases the exact answer got right.
 
+**The body you have targeted is the one exception.** Its outline was always
+drawn wherever it stood, but its name, health bar, the dotted line of a ranged
+attack and the numbers of hits on it asked `isCellVisible`. With ramps between
+levels, a creature a floor down walked behind a pillar on yours and lost all of
+them while it was still in reach, so the shot looked out of range and the fight
+looked over. `showsBody` and `showsLineEnd` in `GameRenderer` skip the camera
+rule, the pitch-black rule and the fog rule for `snap.targetId` and keep only
+`isWithinView`, which is also what `enforceTargetVisibility` drops a target on.
+Everybody else is still bound by the rule above.
+
 Speech and noises are *not* on this rule, and deliberately: the server sends
 them to the speaker's own level only (`sendToLevel`), which is a narrower bound
 than what is on screen. Widening them to match would mean broadcasting to
