@@ -11385,7 +11385,7 @@
       ]
     },
     "particleRule": {
-      "oneIn": 3,
+      "oneIn": 60,
       "hours": {
         "from": 6,
         "to": 20
