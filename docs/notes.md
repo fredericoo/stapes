@@ -7450,7 +7450,14 @@ far" below
   bolt `on: "target"`, or a conjure with somebody targeted — and is absent for
   a spell at the caster's own body. `app/render/castLines.ts` draws it from caster
   to target with the dots marching towards the target: red when the viewer is
-  the target, white otherwise, the damage numbers' rule. It is the one place a
+  the target, white otherwise, the damage numbers' rule. Each dot is one whole
+  world pixel: `castLineDots` walks the line's longer axis a pixel at a time and
+  lights every third one, and the layer's SVG group carries the camera and zoom
+  the canvas has, so a dot covers the same square a pixel of a sprite would. A
+  stroked, dashed SVG line drew dashes turned to the line's angle and
+  antialiased at screen resolution, which no other pixel in the world is. The
+  march is `castLinePhase` on the frame clock, a pixel every 100ms, and holds
+  still under `prefers-reduced-motion`. It is the one place a
   target leaves its owner, and only while a spell is being cast at it.
   `advanceCasting` keeps it in step with the caster's target, because a bolt
   lands on whoever is targeted when the bar fills. It replaces the progress
