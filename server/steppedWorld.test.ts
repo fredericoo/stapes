@@ -9,6 +9,7 @@ import { getStack } from "../app/lib/mapData";
 import { tile } from "../app/lib/testTile";
 import { MAP_FILE_VERSION, normalizeTileDef } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
+import type { WeatherKind } from "../app/lib/weather";
 import { Harness, Pair } from "./testHarness";
 
 const JSON_TYPE = "application/json";
@@ -159,5 +160,45 @@ describe("a world with a trait catalogue in its store", () => {
     const { session } = harness.server as unknown as Internals;
     const brain = (session.actors.get(YELPER_ID) as { brain: { state: string } | null }).brain;
     expect(brain?.state).toContain("yelping");
+  });
+});
+
+describe("a world under the server's weather", () => {
+  const TINDER_MS = 1000;
+
+  const tinder = tile({
+    id: "tinder",
+    height: 0,
+    interactions: {
+      weather: [{ in: "rain", tileId: "", fromMs: TINDER_MS, toMs: TINDER_MS }],
+    },
+  });
+
+  function yard(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (let x = 0; x <= 3; x++) cells[`${x},0`] = [{ tileId: "grass" }];
+    cells["0,0"] = [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID, direction: "s" }];
+    cells["2,0"] = [{ tileId: "grass" }, { tileId: "tinder" }];
+    return { version: MAP_FILE_VERSION, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  async function tinderLeftUnder(weather: WeatherKind): Promise<boolean> {
+    const harness = await Harness.create(
+      {},
+      { manualTicks: { startAtMs: NOON_MS }, seed: SEED, weather },
+    );
+    opened.push(harness);
+    await harness.blobs.put("tiles.json", JSON.stringify([...tilesJson, tinder]), JSON_TYPE);
+    await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
+    await harness.blobs.put("map.json", JSON.stringify(yard()), JSON_TYPE);
+    await harness.server.step(Math.ceil((TINDER_MS * 4) / TICK_MS));
+
+    const { session } = harness.server as unknown as Internals;
+    return getStack(session.getMap(), 2, 0, 0).some((placed) => placed.tileId === "tinder");
+  }
+
+  it("turns a tile that reacts to rain, and leaves it under a clear sky", async () => {
+    expect(await tinderLeftUnder("rain")).toBe(false);
+    expect(await tinderLeftUnder("clear")).toBe(true);
   });
 });

@@ -209,15 +209,14 @@ type DecayedStack = {
   swaps: Array<{ before: PlacedTile; after: PlacedTile | undefined }>;
 };
 
-function decayedStack(
+function turnedStack(
   map: MapFile,
   cell: Coord,
   tileId: string,
+  into: string,
   tilesById: Record<string, TileDef>,
 ): DecayedStack | null {
-  const decay = decayOf(tileId, tilesById);
-  if (!decay) return null;
-  if (decay.tileId && !tilesById[decay.tileId]) return null;
+  if (into && !tilesById[into]) return null;
 
   const stack = getStack(map, cell.x, cell.y, cell.z);
   const next: PlacedTile[] = [];
@@ -227,7 +226,7 @@ function decayedStack(
       next.push(placed);
       continue;
     }
-    const after = decay.tileId ? { ...placed, tileId: decay.tileId } : undefined;
+    const after = into ? { ...placed, tileId: into } : undefined;
     if (after) next.push(after);
     swaps.push({ before: placed, after });
   }
@@ -243,6 +242,22 @@ export function applyDecay(
   entries: Iterable<PlacementDecay>,
   tilesById: Record<string, TileDef>,
 ): PlacementDecayResult {
+  const turns: PlacementTurn[] = [];
+  for (const { cell, tileId } of entries) {
+    const decay = decayOf(tileId, tilesById);
+    if (decay) turns.push({ cell, tileId, into: decay.tileId });
+  }
+  return applyPlacementTurns(map, turns, tilesById);
+}
+
+/** `into` is the tile the placement becomes; empty removes it. */
+export type PlacementTurn = { cell: Coord; tileId: string; into: string };
+
+export function applyPlacementTurns(
+  map: MapFile,
+  entries: Iterable<PlacementTurn>,
+  tilesById: Record<string, TileDef>,
+): PlacementDecayResult {
   const changed: Coord[] = [];
   const startedAt = new Map<PlacedTile, number>();
   const madeThisPass = new Set<PlacedTile>();
@@ -255,7 +270,7 @@ export function applyDecay(
   }> = [];
 
   let next = map;
-  for (const { cell, tileId } of entries) {
+  for (const { cell, tileId, into } of entries) {
     const cellKey = `${cell.z}:${cell.x},${cell.y}`;
     if (!seenCells.has(cellKey)) {
       seenCells.add(cellKey);
@@ -264,7 +279,7 @@ export function applyDecay(
       });
     }
 
-    const decayed = decayedStack(next, cell, tileId, tilesById);
+    const decayed = turnedStack(next, cell, tileId, into, tilesById);
     if (!decayed) continue;
     for (const { before, after } of decayed.swaps) {
       const fromIndex = startedAt.get(before);

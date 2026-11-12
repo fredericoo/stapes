@@ -1,5 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import type { HumanAppearance } from "../app/lib/humanSprite";
+import type { WeatherKind } from "../app/lib/weather";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DataStore } from "../app/lib/dataStore";
@@ -225,6 +226,7 @@ export class Harness {
 type ServerOptions = {
   manualTicks?: { startAtMs: number };
   seed?: number;
+  weather?: WeatherKind;
   appearances?: Readonly<Record<string, HumanAppearance>>;
 };
 

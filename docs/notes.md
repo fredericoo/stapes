@@ -10004,6 +10004,52 @@ both off, and one over the swamp with both on, in that order.
 
 `bun run scene` takes `weatherAreas` in the same shape.
 
+### The simulation is told the weather, and asks what is on a cell
+
+`GameServer` owns the weather and hands it to the session with `setSky`, as it
+hands it the hour through `clock`: in `flushWeather`, so on every tick and after
+every message, and in `reloadWeatherAreas`. A `GameSession` nobody has told is
+under a clear sky, which is what every test that does not call `setSky` gets.
+
+`app/game/weatherOn.ts` answers one question: which weather is on this cell.
+
+- **Rain is on a cell with open sky above it, inside an area rain reaches.**
+  `underOpenSky` walks the column the way the light bake's sky shaft does
+  (`stackOcclusion(...).sealsLevel` on every level above), so the simulation
+  and the world shader agree on a roof, a bridge, a cave and a hole. They can
+  differ by a cell at a roof's edge, where the shader's sky factor is still
+  above `OPEN_SKY_FACTOR` one step under cover.
+- **Fog is on every cell its area reaches from level 0 up**, and below ground
+  only under open sky, as the shader draws it.
+- **Clear is everything else**, so a cell under a roof is in clear weather
+  while it rains. `weatherOver` is the other question, what the sky above is
+  doing whatever stands in between.
+
+**A tile reacts through `interactions.weather`**, a list of
+`{ in, tileId, fromMs, toMs }` with at most one entry for each weather
+(`resolveWeatherReactions` keeps the first). While `in` is the weather on the
+placement's cell it becomes `tileId` after a wait drawn from the range, or is
+removed when `tileId` is empty. Nothing in the code names a tile: a campfire
+going out in rain is `campfire` carrying a `rain` reaction to nothing.
+
+- **`Weathering` (`app/game/weathering.ts`) keeps the cells that hold a
+  reacting placement**, filled at load and kept by `reindexCells`, and asks
+  each of them once every `WEATHERING_STEP_MS`. With no such cell it does
+  nothing, and on a clear day it draws no dice unless a tile reacts to `clear`.
+- **The wait starts over when the weather on the cell changes.** A wait is not
+  stored with the placement, so a restart starts it over too.
+- **A change goes through `applyPlacementTurns`**, the function decay turns a
+  placement with, so it is refused on the same terms (the target must fit
+  under what is stacked on it; an owned placement is left alone) and plays the
+  tile's `disappear` and `appear` transitions.
+- **It does not keep the world awake.** `msUntilNextDecay` does not count a
+  reaction, so with nobody connected the wait stands still.
+- **A tile that should come back needs a second tile.** `flame` has no
+  reaction because four of them are authored under open sky and nothing would
+  relight them: give the tile it turns into a reaction to `clear` that names
+  the first one.
+
+
 ## A reward happens to the player, not to the board
 
 `interactions.reward` hands over a list of items once per player — a quest

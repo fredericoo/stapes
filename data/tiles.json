@@ -34473,7 +34473,15 @@
         "tileId": "",
         "fromMs": 30000,
         "toMs": 60000
-      }
+      },
+      "weather": [
+        {
+          "in": "rain",
+          "tileId": "",
+          "fromMs": 15000,
+          "toMs": 40000
+        }
+      ]
     },
     "sprite": {
       "frames": [
@@ -56735,7 +56743,15 @@
         "tileId": "",
         "fromMs": 420000,
         "toMs": 540000
-      }
+      },
+      "weather": [
+        {
+          "in": "rain",
+          "tileId": "",
+          "fromMs": 15000,
+          "toMs": 40000
+        }
+      ]
     },
     "sprite": {
       "frames": [

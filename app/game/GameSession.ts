@@ -456,7 +456,16 @@ import {
   type ExtraEmitter,
 } from "./signals";
 import type { ItemDecay, LootDecay, PlacementDecay } from "./decay";
-import { DecayIndex, applyDecay, applyItemDecay, applyLootDecay, findDecayCells } from "./decay";
+import {
+  DecayIndex,
+  applyDecay,
+  applyItemDecay,
+  applyLootDecay,
+  applyPlacementTurns,
+  findDecayCells,
+} from "./decay";
+import { Weathering, findWeatheringCells } from "./weathering";
+import { CLEAR_SKY, weatherOn, type Sky } from "./weatherOn";
 import {
   EndureIndex,
   type AfflictedPlacement,
@@ -950,6 +959,8 @@ export class GameSession implements PlaySession {
   private kingId: string | null = null;
   private readonly looseGravityCells = new Map<string, Coord>();
   private readonly decay: DecayIndex;
+  private readonly weathering: Weathering;
+  private sky: Sky = CLEAR_SKY;
   private readonly afflictCells = new Map<string, Coord>();
   private readonly endure: EndureIndex;
   private readonly statusDefs: Record<string, StatusDef>;
@@ -1026,6 +1037,7 @@ export class GameSession implements PlaySession {
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
+    this.weathering = new Weathering(this.rng);
     this.endure = new EndureIndex(this.rng);
 
     if (spawnAt) {
@@ -1066,6 +1078,9 @@ export class GameSession implements PlaySession {
     }
     for (const cell of findDecayCells(this.map, this.tilesById)) {
       this.decay.armCell(this.map, cell, this.tilesById);
+    }
+    for (const cell of findWeatheringCells(this.map, this.tilesById)) {
+      this.weathering.index(this.map, cell, this.tilesById);
     }
     this.settleBoardNow();
   }
@@ -1379,6 +1394,7 @@ export class GameSession implements PlaySession {
     for (const cell of cells) {
       const key = cellKey(cell);
       this.decay.armCell(this.map, cell, this.tilesById);
+      this.weathering.index(this.map, cell, this.tilesById);
       if (cellHasPlate(this.map, cell, this.tilesById)) {
         this.plateCells.set(key, cell);
       } else {
@@ -1565,6 +1581,7 @@ export class GameSession implements PlaySession {
     this.decay.advance(tickMs);
     this.ageWanted(tickMs);
     this.applyDueDecay();
+    this.applyWeathering(tickMs);
     this.tickAfflictions(tickMs);
     this.applyWornThrough(tickMs);
 
@@ -1572,6 +1589,28 @@ export class GameSession implements PlaySession {
     this.advanceCastings(tickMs);
 
     this.settleBoardNow();
+  }
+
+  /** The weather and where it reaches; the server says, as it does the hour through `clock`. */
+  setSky(sky: Sky) {
+    this.sky = sky;
+  }
+
+  private applyWeathering(tickMs: number) {
+    const due = this.weathering.advance(tickMs, this.map, this.tilesById, (cell) =>
+      weatherOn(this.map, this.sky, cell, this.tilesById),
+    );
+    if (due.length === 0) return;
+
+    const turned = applyPlacementTurns(this.map, due, this.tilesById);
+    this.map = turned.map;
+    for (const swap of turned.turned) {
+      this.noteTransition("disappear", swap.tileId, swap.cell, swap.fromIndex);
+      if (swap.into) {
+        this.noteTransition("appear", swap.into.tileId, swap.cell, swap.into.stackIndex);
+      }
+    }
+    this.reindexCells(turned.changed);
   }
 
   private applyDueDecay() {
