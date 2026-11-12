@@ -8,6 +8,7 @@ import {
   surfacesInClimbBand,
   wadesAt,
 } from "./movement";
+import { FAILED_ROUTE_MEMORY_MS } from "./constants";
 import { cellKey } from "./pressurePlates";
 import { getStack, removeTileAt } from "../lib/mapData";
 import { clampWalkSpeedPercent } from "../lib/walkSpeed";
@@ -25,6 +26,26 @@ export const PATH_DETOUR_SLACK = 16;
 export const HOME_PATH_MAX_NODES = 512;
 
 export const HOME_DETOUR_SLACK = 48;
+
+export const CHASE_MAX_NODES = 512;
+
+/**
+ * A brain that searches further is allowed a longer way round in the same
+ * proportion as the default search: 16 steps of detour for 128 nodes. A
+ * larger budget with the default slack would still turn back at a ramp.
+ */
+export function detourSlackFor(maxNodes: number): number {
+  return (maxNodes * PATH_DETOUR_SLACK) / PATH_MAX_NODES;
+}
+
+/**
+ * A failed search costs its whole budget, so a larger one is remembered for
+ * longer in the same proportion: the cost of asking again stays the same per
+ * second whatever the budget.
+ */
+export function failedRouteMemoryMs(maxNodes: number): number {
+  return (FAILED_ROUTE_MEMORY_MS * Math.max(maxNodes, PATH_MAX_NODES)) / PATH_MAX_NODES;
+}
 
 export type PathStep = { direction: Direction; to: Coord };
 

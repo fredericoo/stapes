@@ -33,12 +33,12 @@ import {
   BRAIN_ROUND_TICKS,
   BRAIN_TURNS_PER_TICK_MIN,
   BRAIN_TICK_MS,
-  FAILED_ROUTE_MEMORY_MS,
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
 import { Duel } from "./duel";
 import { GameSession } from "./GameSession";
+import { CHASE_MAX_NODES, failedRouteMemoryMs, PATH_MAX_NODES } from "./pathfinding";
 import { Rng } from "./rng";
 import { FRAME, tile } from "../lib/testTile";
 
@@ -614,20 +614,20 @@ describe("chasing round an obstacle", () => {
     };
   }
 
-  function stalkBrain(): BrainDef {
+  function stalkBrain(search?: number): BrainDef {
     const hunt = huntBrain();
     return {
       ...hunt,
       states: {
         ...hunt.states,
-        hunt: { do: [{ action: "step_toward", of: slot("prey") }, { action: "hold" }] },
+        hunt: { do: [{ action: "step_toward", of: slot("prey"), search }, { action: "hold" }] },
       },
       transitions: hunt.transitions.filter((transition) => transition.to !== "giving_up"),
     };
   }
 
-  function waryBrain(): BrainDef {
-    const stalk = stalkBrain();
+  function waryBrain(search?: number): BrainDef {
+    const stalk = stalkBrain(search);
     return {
       ...stalk,
       states: {
@@ -635,7 +635,7 @@ describe("chasing round an obstacle", () => {
         wary: { onEnter: [{ effect: "noise", text: "hm" }], do: [{ action: "hold" }] },
       },
       transitions: [
-        { from: "hunt", if: { cond: "unreachable", of: slot("prey") }, to: "wary" },
+        { from: "hunt", if: { cond: "unreachable", of: slot("prey"), search }, to: "wary" },
         ...stalk.transitions,
       ],
     };
@@ -650,6 +650,14 @@ describe("chasing round an obstacle", () => {
       affectedByGravity: true,
       walkable: false,
       interactions: { brain: waryBrain() },
+    }),
+    tile({
+      id: "short-sighted-hunter",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: waryBrain(PATH_MAX_NODES) },
     }),
     tile({
       id: "hunter",
@@ -852,13 +860,36 @@ describe("chasing round an obstacle", () => {
     expect(noisesOver(ford, BRAIN_TICK_MS * 6)).not.toContain("hm");
   });
 
+  function behindLongWall(hunterId: string): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    for (let y = -9; y <= 8; y++) {
+      map = replaceStack(map, 1, y, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    }
+    map = withDeer(map, 0, 0, hunterId);
+    map = withPlayerAt(map, 3, 0);
+    return new GameSession(map, hunters, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+  }
+
+  it("chases the long way round a wall that a search of the default size turns back at", () => {
+    expect(noisesOver(behindLongWall("short-sighted-hunter"), BRAIN_TICK_MS * 6)).toContain("hm");
+
+    const session = behindLongWall("wary-hunter");
+    expect(noisesOver(session, BRAIN_TICK_MS * 6)).not.toContain("hm");
+    advance(session, BRAIN_TICK_MS * 40);
+    expect(between(session)).toBe(1);
+  });
+
   it("crosses a way that opened after it found none", () => {
     const session = acrossRiver("stalker");
     advance(session, BRAIN_TICK_MS * 3);
     expect(between(session)).toBe(3);
 
     session.runCommand("/tile plank 1 0 0", "alice");
-    advance(session, FAILED_ROUTE_MEMORY_MS + BRAIN_TICK_MS * 6);
+    advance(session, failedRouteMemoryMs(CHASE_MAX_NODES) + BRAIN_TICK_MS * 6);
 
     expect(between(session)).toBe(1);
   });

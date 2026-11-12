@@ -9,6 +9,7 @@ import {
   type BrainTransitionDef,
   type Selector,
   type SpeakerFilter,
+  type Steering,
 } from "../lib/brain";
 import { withinHours, type MinutesOfDay } from "../lib/clock";
 import { evaluateCondition } from "../lib/conditions";
@@ -47,6 +48,8 @@ export type WalkGoal =
 
 export type WalkOrderState = "walking" | "arrived" | "blocked";
 
+export type RouteOptions = Pick<Steering, "allowDrops" | "search">;
+
 export type FoundThing = { readonly at: Coord; readonly tileId: string };
 
 export type StandOff = "too_close" | "in_position" | "too_far";
@@ -65,8 +68,8 @@ export type BrainContext = {
   wouldDrop(direction: Direction): boolean;
   wouldStepIntoHazard(direction: Direction): boolean;
   step(direction: Direction): boolean;
-  walkTo(goal: WalkGoal, allowDrops: boolean | undefined): WalkOrderState;
-  fleeFrom(threat: Coord, allowDrops: boolean | undefined): WalkOrderState;
+  walkTo(goal: WalkGoal, route: RouteOptions): WalkOrderState;
+  fleeFrom(threat: Coord, route: RouteOptions): WalkOrderState;
   say(text: string): void;
   noise(text: string): void;
   canSee(at: Coord): boolean;
@@ -93,7 +96,7 @@ export type BrainContext = {
   nameOf(actorId: string): string | null;
   ratingOf(actorId: string): number | null;
   ownRating(): number | null;
-  reaches(actorId: string, allowDrops: boolean | undefined): boolean;
+  reaches(actorId: string, route: RouteOptions): boolean;
   fade(): void;
 };
 
@@ -380,7 +383,7 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
     case "unreachable": {
       const id = boundBody(identify(condition.of, memory, ctx));
       if (id === null || ctx.positionOf(id) === null) return false;
-      return !ctx.reaches(id, condition.allowDrops);
+      return !ctx.reaches(id, condition);
     }
   }
 }
@@ -456,20 +459,12 @@ function alertedTo(memory: BrainMemory, ctx: BrainContext): boolean {
   return true;
 }
 
-function walkAlongRoute(
-  goal: WalkGoal,
-  allowDrops: boolean | undefined,
-  ctx: BrainContext,
-): ActionStatus {
-  return ctx.walkTo(goal, allowDrops) === "walking" ? "running" : "failure";
+function walkAlongRoute(goal: WalkGoal, route: RouteOptions, ctx: BrainContext): ActionStatus {
+  return ctx.walkTo(goal, route) === "walking" ? "running" : "failure";
 }
 
-function fleeAlongRoute(
-  target: Coord,
-  allowDrops: boolean | undefined,
-  ctx: BrainContext,
-): ActionStatus {
-  return ctx.fleeFrom(target, allowDrops) === "walking" ? "running" : "failure";
+function fleeAlongRoute(target: Coord, route: RouteOptions, ctx: BrainContext): ActionStatus {
+  return ctx.fleeFrom(target, route) === "walking" ? "running" : "failure";
 }
 
 function stepAnywhere(allowDrops: boolean | undefined, ctx: BrainContext): boolean {
@@ -542,7 +537,7 @@ function runAction(
     case "step_toward": {
       const goal = aim(action.of, memory, ctx);
       if (!goal) return "failure";
-      return walkAlongRoute(goal, action.allowDrops, ctx);
+      return walkAlongRoute(goal, action, ctx);
     }
     case "attack_range": {
       const id = boundBody(identify(action.of, memory, ctx));
@@ -552,14 +547,14 @@ function runAction(
       if (standing === null || standing === "in_position") return "failure";
       if (standing === "too_close") {
         const at = ctx.positionOf(id);
-        return at ? fleeAlongRoute(at, action.allowDrops, ctx) : "failure";
+        return at ? fleeAlongRoute(at, action, ctx) : "failure";
       }
-      return walkAlongRoute({ of: "body", id }, action.allowDrops, ctx);
+      return walkAlongRoute({ of: "body", id }, action, ctx);
     }
     case "step_away_from": {
       const at = locate(action.of, memory, ctx);
       if (!at) return "failure";
-      return fleeAlongRoute(at, action.allowDrops, ctx);
+      return fleeAlongRoute(at, action, ctx);
     }
     case "fade":
       ctx.fade();
