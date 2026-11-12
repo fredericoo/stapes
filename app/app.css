@@ -514,8 +514,8 @@ body {
   color: var(--color-mend);
 }
 
-/* `--cast-line-px` is one world pixel in CSS pixels, written by the layer
-   when the zoom changes, so a dot is a pixel of the world at every scale. */
+/* The layer's group is scaled so one unit is one world pixel; `crispEdges`
+   keeps each dot a hard-edged square at a zoom that is not a whole number. */
 .cast-line-layer {
   position: absolute;
   inset: 0;
@@ -523,37 +523,23 @@ body {
   height: 100%;
   overflow: visible;
   z-index: 0;
-  filter: drop-shadow(0 var(--cast-line-px, 2px) 0 #000);
+  shape-rendering: crispEdges;
 }
 
 .cast-line {
-  stroke: #fff;
-  stroke-width: var(--cast-line-px, 2px);
-  stroke-dasharray: var(--cast-line-px, 2px) calc(var(--cast-line-px, 2px) * 2);
-  animation: cast-line-march 300ms linear infinite;
+  fill: #fff;
 }
 
 .cast-line--at-you {
-  stroke: #ff4d4d;
+  fill: #ff4d4d;
 }
 
 .cast-line--attack {
-  stroke-opacity: 0.5;
+  opacity: 0.5;
 }
 
-@keyframes cast-line-march {
-  from {
-    stroke-dashoffset: 0;
-  }
-  to {
-    stroke-dashoffset: calc(var(--cast-line-px, 2px) * -3);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cast-line {
-    animation: none;
-  }
+.cast-line__shadow {
+  fill: #000;
 }
 
 .notice-stack {

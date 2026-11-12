@@ -2103,7 +2103,7 @@ export class GameRenderer {
     this.pushCrafting(snap);
     this.labelLayer?.set(this.labelsFor(snap, camera, cut), drawn, fit.cssScale);
     this.damageLayer?.set(this.damageFor(snap, cut), drawn, fit.cssScale);
-    this.castLineLayer?.set(this.castLinesFor(snap, cut), drawn, fit.cssScale);
+    this.castLineLayer?.set(this.castLinesFor(snap, cut), drawn, fit.cssScale, nowMs);
     this.applyCursor();
     this.debugPanel?.update(nowMs, this.debugZoomOut ?? 1, this.world.debugReading());
   }
