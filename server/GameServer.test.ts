@@ -886,6 +886,18 @@ describe("the checkpointed board", () => {
 });
 
 describe("replacing the world", () => {
+  it("hands everyone the weather areas the content holds now, as a deploy's reseed does", async () => {
+    const alice = await connect("alice");
+    const desert = { x0: 0, y0: 0, x1: 5, y1: 5, rain: false, fog: false };
+    await harness.blobs.put("weather.json", JSON.stringify([desert]), JSON_TYPE);
+
+    const fresh = nextMessage(alice.ws);
+    await stub().replaceWorld(authoredMap(), { keepPositions: true });
+    const hello = await fresh;
+
+    expect(hello.weatherAreas).toEqual([desert]);
+  });
+
   it("persists the authored map and restarts everyone on it", async () => {
     const alice = await connect("alice");
 

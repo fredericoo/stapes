@@ -1,3 +1,4 @@
+import { weatherAreasSchema, type WeatherArea } from "../lib/weatherAreas";
 import { WEATHER_KINDS, type WeatherKind } from "../lib/weather";
 import * as v from "valibot";
 import type { WornLayer } from "../lib/humanParts";
@@ -364,6 +365,10 @@ export type ServerMessage =
       weather: WeatherKind;
     }
   | {
+      type: "weatherAreas";
+      areas: WeatherArea[];
+    }
+  | {
       type: "king";
       actorId: string | null;
     }
@@ -380,6 +385,7 @@ export type ServerMessage =
       playerCount?: number;
       minutesOfDay: number;
       weather: WeatherKind;
+      weatherAreas: WeatherArea[];
       kingId: string | null;
       hps: HpPatch[];
       names: NamePatch[];
@@ -652,6 +658,7 @@ const serverMessageSchema = v.variant("type", [
     playerCount: v.optional(v.number()),
     minutesOfDay: v.number(),
     weather: v.optional(v.picklist(WEATHER_KINDS), "clear"),
+    weatherAreas: v.optional(weatherAreasSchema, () => []),
     kingId: v.optional(v.nullable(v.string()), () => null),
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
@@ -734,6 +741,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("weather"),
     weather: v.picklist(WEATHER_KINDS),
+  }),
+  v.object({
+    type: v.literal("weatherAreas"),
+    areas: weatherAreasSchema,
   }),
   v.object({
     type: v.literal("hidden"),
@@ -952,7 +963,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 38;
+export const PROTOCOL_VERSION = 39;
 
 export const MAX_STEPS_AHEAD = 5;
 

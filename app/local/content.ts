@@ -24,6 +24,11 @@ export class ApiBlobs implements Blobs {
     if (key === "traits.json") {
       return this.json<{ traits: unknown[] }>("/api/traits", (body) => JSON.stringify(body.traits));
     }
+    if (key === "weather.json") {
+      return this.json<{ areas: unknown[] }>("/api/weather-areas", (body) =>
+        JSON.stringify(body.areas),
+      );
+    }
     if (key === "tilesets.json") {
       return this.json<{ tilesets: unknown[] }>("/api/tilesets", (body) =>
         JSON.stringify(body.tilesets),

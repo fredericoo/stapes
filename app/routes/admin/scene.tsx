@@ -52,6 +52,8 @@ export default function ScenePage() {
           zoom: built.zoom,
           minutesOfDay: built.minutesOfDay,
           weather: built.weather,
+          weatherAreas: built.weatherAreas,
+          viewerCell: built.look,
         });
         world.snapWeather();
 

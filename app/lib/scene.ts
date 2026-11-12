@@ -1,5 +1,6 @@
 import { emptyMap, replaceStack } from "./mapData";
 import type { WeatherKind } from "./weather";
+import { parseWeatherAreas, type WeatherArea } from "./weatherAreas";
 import { DIRECTIONS, type Direction, type MapFile, type PlacedTile, type TileDef } from "./types";
 
 export type ScenePlacement = string | { tile: string; facing?: Direction; variant?: string };
@@ -24,6 +25,8 @@ export type Scene = {
   lighting?: boolean;
   /** Clear when absent. Fog is measured from the cell in `look`. */
   weather?: WeatherKind;
+  /** Where rain and fog stop; see `WeatherArea`. */
+  weatherAreas?: WeatherArea[];
 };
 
 export type BuiltScene = {
@@ -33,6 +36,7 @@ export type BuiltScene = {
   look: { x: number; y: number; z: number };
   lighting: boolean;
   weather: WeatherKind;
+  weatherAreas: WeatherArea[];
 };
 
 export const DEFAULT_SCENE_ZOOM = 6;
@@ -71,6 +75,7 @@ export function buildScene(scene: Scene, tilesById: Record<string, TileDef>): Bu
     look,
     lighting: scene.lighting ?? true,
     weather: scene.weather ?? "clear",
+    weatherAreas: parseWeatherAreas(scene.weatherAreas ?? []),
   };
 }
 

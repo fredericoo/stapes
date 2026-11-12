@@ -35,23 +35,27 @@ export function weatherAt(epochMs: number): WeatherKind {
 
 type Rgb = [number, number, number];
 
-/** What the sky and the sun are multiplied by under each weather. */
-const SKY_UNDER: Record<WeatherKind, { ambient: Rgb; sun: number }> = {
-  clear: { ambient: [1, 1, 1], sun: 1 },
-  rain: { ambient: [0.78, 0.82, 0.92], sun: 0.3 },
-  fog: { ambient: [0.85, 0.87, 0.9], sun: 0.3 },
+/** What the sky and the sun are multiplied by under each weather at full strength. */
+const SKY_UNDER = {
+  rain: { ambient: [0.78, 0.82, 0.92] as Rgb, sun: 0.3 },
+  fog: { ambient: [0.85, 0.87, 0.9] as Rgb, sun: 0.3 },
 };
 
-export function illuminationUnder(weather: WeatherKind, light: Illumination): Illumination {
-  if (weather === "clear") return light;
-  const sky = SKY_UNDER[weather];
+function toward(factor: number, amount: number): number {
+  return 1 + (factor - 1) * amount;
+}
+
+/** `rain` and `fog` are how much of each is overhead, 0 to 1, so the sky can dim as the weather comes on. */
+export function illuminationUnder(light: Illumination, rain: number, fog: number): Illumination {
+  if (rain <= 0 && fog <= 0) return light;
+  const ambient = (i: 0 | 1 | 2) =>
+    light.ambient[i] *
+    toward(SKY_UNDER.rain.ambient[i], rain) *
+    toward(SKY_UNDER.fog.ambient[i], fog);
+  const sun = toward(SKY_UNDER.rain.sun, rain) * toward(SKY_UNDER.fog.sun, fog);
   return {
-    ambient: [
-      light.ambient[0] * sky.ambient[0],
-      light.ambient[1] * sky.ambient[1],
-      light.ambient[2] * sky.ambient[2],
-    ],
-    sun: [light.sun[0] * sky.sun, light.sun[1] * sky.sun, light.sun[2] * sky.sun],
+    ambient: [ambient(0), ambient(1), ambient(2)],
+    sun: [light.sun[0] * sun, light.sun[1] * sun, light.sun[2] * sun],
     sunArc: light.sunArc,
   };
 }

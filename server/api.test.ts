@@ -664,3 +664,33 @@ describe("making a character", () => {
     expect((await me(from)).characters).toEqual(before);
   });
 });
+
+describe("weather areas", () => {
+  const area = { x0: 4, y0: 9, x1: 1, y1: 2, rain: false, fog: true };
+
+  function saveAreas(areas: unknown[], as: string | null = cookie): Promise<Response> {
+    return api.handle(
+      new Request("http://localhost/api/weather-areas", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(as ? { cookie: as } : {}) },
+        body: JSON.stringify({ areas }),
+      }),
+    );
+  }
+
+  async function servedAreas(): Promise<unknown> {
+    const response = await api.handle(new Request("http://localhost/api/weather-areas"));
+    return ((await response.json()) as { areas: unknown }).areas;
+  }
+
+  it("stores what an administrator saves, with each rectangle's corners in order", async () => {
+    expect((await saveAreas([area])).status).toBe(200);
+    expect(await servedAreas()).toEqual([{ x0: 1, y0: 2, x1: 4, y1: 9, rain: false, fog: true }]);
+  });
+
+  it("turns away a save from anybody else, and one that is not a list of areas", async () => {
+    expect((await saveAreas([area], null)).status).toBe(404);
+    expect((await saveAreas([{ x0: 1 }])).status).toBe(400);
+    expect(await servedAreas()).toEqual([]);
+  });
+});

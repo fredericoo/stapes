@@ -1,3 +1,4 @@
+import type { WeatherArea } from "../lib/weatherAreas";
 import * as THREE from "three";
 import { HumanTextures } from "../render/humanTextures";
 import { tilesetUrl } from "../lib/api";
@@ -96,6 +97,15 @@ type AnimatedInstance = {
 const BACKGROUND_COLOR = 0xb8b09e;
 
 const GHOST_OPACITY = 0.55;
+
+const WEATHER_AREA_SELECTED = 0xffcc00;
+const WEATHER_AREA_COLORS = { both: 0xaffcdb, rain: 0x4d9be6, fog: 0x9babb2, neither: 0xfb6b1d };
+
+function weatherAreaColor(area: WeatherArea): number {
+  if (area.rain && area.fog) return WEATHER_AREA_COLORS.both;
+  if (area.rain) return WEATHER_AREA_COLORS.rain;
+  return area.fog ? WEATHER_AREA_COLORS.fog : WEATHER_AREA_COLORS.neither;
+}
 const MAX_GHOST_CELLS = 256;
 const MAX_GENERATOR_GHOST_CELLS = 1200;
 
@@ -817,6 +827,8 @@ export class EditorRenderer {
       s.armedTileId ?? "",
       sp ? `${sp.kind}:${sp.x0},${sp.y0},${sp.x1},${sp.y1}` : "",
       s.proceduralSettingsVersion,
+      s.weatherAreasVersion,
+      s.selectedWeatherArea ?? "",
       frames,
     ].join("|");
   }
@@ -906,6 +918,35 @@ export class EditorRenderer {
 
         elev += terrainHeight(placed, s.tilesById);
       });
+    }
+
+    if (s.tool === "weather") {
+      const outlineCells = (
+        rect: { x0: number; y0: number; x1: number; y1: number },
+        color: number,
+        heavy: boolean,
+      ) => {
+        const origin = baseCellWorldOrigin(
+          Math.min(rect.x0, rect.x1),
+          Math.min(rect.y0, rect.y1),
+          z,
+          0,
+        );
+        addRectOutline(
+          origin.x,
+          origin.y,
+          (Math.abs(rect.x1 - rect.x0) + 1) * CELL_SIZE,
+          (Math.abs(rect.y1 - rect.y0) + 1) * CELL_SIZE,
+          color,
+          heavy,
+        );
+      };
+      s.weatherAreas.forEach((area, index) => {
+        const selected = index === s.selectedWeatherArea;
+        outlineCells(area, selected ? WEATHER_AREA_SELECTED : weatherAreaColor(area), selected);
+      });
+      if (s.shapePreview?.kind === "weather")
+        outlineCells(s.shapePreview, WEATHER_AREA_SELECTED, true);
     }
 
     if (s.shapePreview?.kind === "procedural") {
@@ -1029,7 +1070,7 @@ export class EditorRenderer {
   ): Array<{ x: number; y: number }> {
     if (s.shapePreview) {
       const { kind, x0, y0, x1, y1 } = s.shapePreview;
-      if (kind === "procedural") return [];
+      if (kind === "procedural" || kind === "weather") return [];
       return kind === "rect" ? this.rectList(x0, y0, x1, y1) : this.circleList(x0, y0, x1, y1);
     }
     const paints =
@@ -1658,6 +1699,7 @@ export class EditorRenderer {
       KeyR: "rect",
       KeyC: "circle",
       KeyG: "bucket",
+      KeyA: "weather",
     };
     if (toolMap[e.code]) {
       store.setTool(toolMap[e.code]!);
@@ -1828,10 +1870,10 @@ export class EditorRenderer {
       return;
     }
 
-    if (tool === "procedural") {
+    if (tool === "procedural" || tool === "weather") {
       this.shapeAnchor = coord;
       store.setShapePreview({
-        kind: "procedural",
+        kind: tool,
         x0: coord.x,
         y0: coord.y,
         x1: coord.x,
@@ -1961,7 +2003,12 @@ export class EditorRenderer {
 
     if (this.shapeAnchor && store.shapePreview) {
       const { kind, x0, y0, x1, y1 } = store.shapePreview;
-      if (kind === "procedural") {
+      if (kind === "weather") {
+        const result = store.addWeatherArea({ x0, y0, x1, y1 });
+        if (!result.ok && result.reason) {
+          useEditorStore.setState({ lastToast: result.reason });
+        }
+      } else if (kind === "procedural") {
         const result = store.placeProcedural({ x0, y0, x1, y1 });
         if (!result.ok && result.reason) {
           useEditorStore.setState({ lastToast: result.reason });

@@ -44,6 +44,7 @@ import { resolveRespawn } from "../app/lib/interactions";
 import { battlerIssues } from "../app/lib/battler";
 import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock";
 import { weatherAt, type WeatherKind } from "../app/lib/weather";
+import type { WeatherArea } from "../app/lib/weatherAreas";
 import { masteriesFromXp, masteryXpBlockSchema, rating, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
@@ -814,6 +815,7 @@ export class GameServer {
   private clockOffsetMinutes = 0;
   private weatherSetByHand: WeatherKind | null = null;
   private weatherSent: WeatherKind | null = null;
+  private weatherAreas: WeatherArea[] = [];
   private tiles: TileDef[] = [];
   private statusDefs: Record<string, StatusDef> = {};
   private traits: TraitCatalogue = {};
@@ -906,6 +908,7 @@ export class GameServer {
     this.statusDefs = statusesById(await store.readStatuses());
     this.traits = traitsById(await store.readTraits());
     GameServer.warnUnloadableBrains(this.tiles, this.traits);
+    this.weatherAreas = await store.readWeatherAreas();
 
     const checkpoint = await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY);
     const board = checkpoint ? await this.checkpointedBoard(checkpoint) : null;
@@ -1750,6 +1753,7 @@ export class GameServer {
       ...(attachment?.admin ? { playerCount: this.playerCount() } : {}),
       minutesOfDay: this.minutesOfDay(),
       weather: this.weather(),
+      weatherAreas: this.weatherAreas,
       kingId: this.kingId,
       ...(diedAway ? { diedAway } : {}),
     };
@@ -2011,6 +2015,12 @@ export class GameServer {
     this.clockOffsetMinutes = minutes - minutesOfDayAt(this.now());
     this.broadcast({ type: "clock", minutesOfDay: minutes });
     this.recheckRespawnHours();
+  }
+
+  /** Reads the areas again and tells everybody, without replacing the world as a tile or map save does. */
+  async reloadWeatherAreas() {
+    this.weatherAreas = await this.store().readWeatherAreas();
+    this.broadcast({ type: "weatherAreas", areas: this.weatherAreas });
   }
 
   private weather(): WeatherKind {
@@ -2431,6 +2441,11 @@ export class GameServer {
     const tilesById = tilesByIdFromList(tiles);
     const statusDefs = statusesById(await store.readStatuses());
     const traits = traitsById(await store.readTraits());
+    /**
+     * A deploy boots the server and then reseeds `data/` through here, so
+     * areas read only at boot would be the previous deploy's until a restart.
+     */
+    this.weatherAreas = await store.readWeatherAreas();
 
     const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
     const session = new GameSession(map, tiles, {

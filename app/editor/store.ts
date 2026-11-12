@@ -1,3 +1,4 @@
+import { MAX_WEATHER_AREAS, type WeatherArea } from "../lib/weatherAreas";
 import { MAP_FILE_VERSION } from "../lib/types";
 import { settleAllSpans, settleSpans } from "../lib/footprint";
 import { create } from "zustand";
@@ -44,7 +45,15 @@ import {
   saveProceduralSettings,
 } from "./proceduralSettings";
 
-export type ToolId = "select" | "erase" | "pencil" | "rect" | "circle" | "bucket" | "procedural";
+export type ToolId =
+  | "select"
+  | "erase"
+  | "pencil"
+  | "rect"
+  | "circle"
+  | "bucket"
+  | "procedural"
+  | "weather";
 
 export const ZOOM_LEVELS = [1, 2, 4, 8] as const;
 export type ZoomLevel = (typeof ZOOM_LEVELS)[number];
@@ -95,13 +104,19 @@ export type EditorStore = {
   zoom: ZoomLevel;
   camera: { x: number; y: number };
   shapePreview: {
-    kind: "rect" | "circle" | "procedural";
+    kind: "rect" | "circle" | "procedural" | "weather";
     x0: number;
     y0: number;
     x1: number;
     y1: number;
   } | null;
   lastToast: string | null;
+
+  /** Kept beside the map rather than in it, and saved to their own document. Not part of undo. */
+  weatherAreas: WeatherArea[];
+  weatherAreasVersion: number;
+  weatherAreasDirty: boolean;
+  selectedWeatherArea: number | null;
 
   past: HistoryEntry[];
   future: HistoryEntry[];
@@ -129,6 +144,15 @@ export type EditorStore = {
   setShapePreview: (p: EditorStore["shapePreview"]) => void;
   markSaved: () => void;
   clearToast: () => void;
+
+  hydrateWeatherAreas: (areas: WeatherArea[]) => void;
+  addWeatherArea: (rect: Rect) => { ok: boolean; reason?: string };
+  updateWeatherArea: (index: number, patch: Partial<WeatherArea>) => void;
+  removeWeatherArea: (index: number) => void;
+  /** Swaps an area with the one after it (`by` 1) or before it (`by` -1); a later area decides over an earlier one. */
+  moveWeatherArea: (index: number, by: 1 | -1) => void;
+  selectWeatherArea: (index: number | null) => void;
+  markWeatherAreasSaved: () => void;
 
   /**
    * All map data changes must go through this (or a store method that calls
@@ -206,6 +230,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   camera: { x: -32, y: -32 },
   shapePreview: null,
   lastToast: null,
+
+  weatherAreas: [],
+  weatherAreasVersion: 0,
+  weatherAreasDirty: false,
+  selectedWeatherArea: null,
 
   past: [],
   future: [],
@@ -304,6 +333,63 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
   markSaved: () => set({ dirty: false, savedMap: get().map }),
   clearToast: () => set({ lastToast: null }),
+
+  hydrateWeatherAreas: (areas) =>
+    set((s) => ({
+      weatherAreas: areas,
+      weatherAreasVersion: s.weatherAreasVersion + 1,
+      weatherAreasDirty: false,
+      selectedWeatherArea: null,
+    })),
+  addWeatherArea: (rect) => {
+    const areas = get().weatherAreas;
+    if (areas.length >= MAX_WEATHER_AREAS) {
+      return { ok: false, reason: `A map holds at most ${MAX_WEATHER_AREAS} weather areas` };
+    }
+    const area: WeatherArea = {
+      x0: Math.min(rect.x0, rect.x1),
+      y0: Math.min(rect.y0, rect.y1),
+      x1: Math.max(rect.x0, rect.x1),
+      y1: Math.max(rect.y0, rect.y1),
+      rain: false,
+      fog: false,
+    };
+    set((s) => ({
+      weatherAreas: [...areas, area],
+      weatherAreasVersion: s.weatherAreasVersion + 1,
+      weatherAreasDirty: true,
+      selectedWeatherArea: areas.length,
+    }));
+    return { ok: true };
+  },
+  updateWeatherArea: (index, patch) =>
+    set((s) => ({
+      weatherAreas: s.weatherAreas.map((area, i) => (i === index ? { ...area, ...patch } : area)),
+      weatherAreasVersion: s.weatherAreasVersion + 1,
+      weatherAreasDirty: true,
+    })),
+  removeWeatherArea: (index) =>
+    set((s) => ({
+      weatherAreas: s.weatherAreas.filter((_, i) => i !== index),
+      weatherAreasVersion: s.weatherAreasVersion + 1,
+      weatherAreasDirty: true,
+      selectedWeatherArea: null,
+    })),
+  moveWeatherArea: (index, by) =>
+    set((s) => {
+      const to = index + by;
+      if (to < 0 || to >= s.weatherAreas.length) return s;
+      const areas = [...s.weatherAreas];
+      [areas[index], areas[to]] = [areas[to]!, areas[index]!];
+      return {
+        weatherAreas: areas,
+        weatherAreasVersion: s.weatherAreasVersion + 1,
+        weatherAreasDirty: true,
+        selectedWeatherArea: to,
+      };
+    }),
+  selectWeatherArea: (index) => set({ selectedWeatherArea: index }),
+  markWeatherAreasSaved: () => set({ weatherAreasDirty: false }),
 
   commitMap: (proposed, opts) => {
     const next = settleSpans(get().map, proposed, get().tilesById);

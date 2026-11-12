@@ -9917,6 +9917,55 @@ one, in `hello` and in a `weather` message whenever it changes.
 `bun run scene` takes `"weather": "rain"`; fog is measured from the cell in
 `look`.
 
+### Weather areas say where rain and fog stop
+
+`data/weather.json` is a list of rectangles (`app/lib/weatherAreas.ts`), each
+with `rain` and `fog`: whether that weather reaches the cells inside it, on
+every level. **Where rectangles overlap the later one decides, and a cell in
+none of them gets both.** So "rain stops at the desert, fog only by the swamp"
+is one rectangle over the whole map with fog off, one over the desert with
+both off, and one over the swamp with both on, in that order.
+
+- **They are a document of their own, not part of the map.** `MapFile` is
+  levels of stacks and every reader of it would have had to learn a new field.
+  The areas are a blob beside it, seeded with the rest of `data/`, read by
+  `DataStore.readWeatherAreas` and served at `/api/weather-areas`.
+- **`replaceWorld` reads them again, as it does the tiles.** A deploy boots
+  the server and then reseeds `data/` through `/api/seed`, which ends in
+  `replaceWorld`. Read only at boot, the areas were the previous deploy's until
+  the next restart, so a preview carried the new file and kept raining on the
+  desert.
+- **The server hands them to clients, and a save does not replace the world.**
+  They ride in `hello`, and `POST /api/weather-areas` ends in
+  `GameServer.reloadWeatherAreas`, which reads them again and broadcasts a
+  `weatherAreas` message. A tile or map save goes through `reloadContent` or
+  `replaceWorld`; nothing in the simulation reads an area, so neither is
+  needed.
+- **The shader is handed the areas in view, at most
+  `MAX_SHADER_WEATHER_AREAS`.** `syncWeatherAreas` keeps the ones that touch
+  the camera's window, and the last ones when there are more, because a later
+  area decides. `weatherReach` in the world shader walks them for the
+  fragment's light cell. `fogHides` asks `weatherReaches` the same question.
+- **Rain stops on the cell line; fog thickens over a few cells.** The fog at
+  a cell is the share of nine cells — itself and two rings round it,
+  `FOG_EDGE_STEP_CELLS` apart — that fog reaches. `fogReach` in the shader and
+  `fogReachAt` are the same sum, and `fogHides` waits for all nine, so a body
+  loses its name only where the fog is whole.
+- **Fog is as strong as it is deep round the viewer.** `uFog` eases toward
+  `fogReachAt` of `view.viewerCell`, so somebody outside a fog area sees none
+  of it, and walking in brings it on over the cells inside the edge and over
+  `WEATHER_EASE_MS`. Without that the area showed from outside as a grey wall.
+- **The sky dims by the viewer's own cell.** `rainOverhead` eases toward
+  whether rain reaches `view.viewerCell`, and `illuminationUnder` takes it and
+  `uFog`, so walking into the desert in a rainstorm brightens the day over a
+  few seconds rather than at the line.
+- **The map editor draws them with the weather tool** (`A`). Dragging adds a
+  rectangle that reaches nothing; the panel over the canvas lists them in the
+  order they decide, with the two switches, and has its own Save. They are not
+  in the editor's undo history, and the map's Save does not save them.
+
+`bun run scene` takes `weatherAreas` in the same shape.
+
 ## A reward happens to the player, not to the board
 
 `interactions.reward` hands over a list of items once per player — a quest
