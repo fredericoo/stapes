@@ -1,5 +1,25 @@
 # the-last-stones
 
+## 0.16.0
+
+### Minor Changes
+
+- Creatures now find longer ways round to reach you, such as up a ramp to the ledge you are shooting from, so standing one level up no longer keeps you safe.
+- Wolves, cats, bats, skeletons, wisps, the bog imp, the cyclops, Lord Corvin, the guards and the townsfolk who fight back now back away out of your sight when you hit them from somewhere they cannot reach. Rats and snakes still stand there and take it.
+- Rain and fog can now be kept to parts of the map, so a storm can stop where the desert begins and fog can stay near the swamp.
+- The world now has weather. It rains on everything under open sky, and fog closes in so you can only see a few steps around you. Both stay out of caves and houses.
+- What a creature drops when it dies now disappears after 10 minutes if nobody picks it up. Anything you carry away is yours to keep.
+- Fireflies now come out over the swamp's reeds at night, leaves fall from trees during the day and pollen drifts over flowers.
+- The island is no longer flat. Hills and mountains now rise out of the forest and the desert, with ramps leading up them, and every place you could walk to before can still be reached. The town is as level as it was.
+- Attack someone in town and anyone who sees it runs to the guards shouting your name. The guards then hunt you down, the town's fighters turn on you, and everyone else keeps clear of you for five minutes, until you die, or until you get away, wait out the fighting and turn PvP off.
+- Shopkeepers, guards and the other people of the town now come back 30 to 60 minutes after they are killed, instead of being gone for good.
+
+### Patch Changes
+
+- Apples, bread, cheese, ale and cooked meat left out around the world now grow back a few minutes after you take them, as berries and apple pies already did.
+- Far fewer trees drop leaves now, so a forest by day is calmer, with only the odd tree shedding.
+- The creature you have targeted keeps its name, health bar and aiming line when it walks behind a pillar, a wall or into the dark, as long as it is on screen.
+
 ## 0.15.1
 
 ### Patch Changes
