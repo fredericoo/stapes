@@ -1392,6 +1392,33 @@ export class GameRenderer {
   }
 
   /**
+   * The body you have targeted keeps its outline wherever it walks, so its name,
+   * bar and lines are shown through a pillar, a roof or the dark as well:
+   * hiding them made a body in reach look out of reach.
+   */
+  private isTargeted(snap: GameSnapshot, id: string): boolean {
+    return snap.targetId !== null && id === snap.targetId;
+  }
+
+  private showsBody(
+    snap: GameSnapshot,
+    actor: ActorSnapshot,
+    camera: { x: number; y: number },
+    cut: RoofCut | undefined,
+  ): boolean {
+    if (this.isTargeted(snap, actor.id)) return this.isWithinView(snap.map, actor, camera);
+    return this.isVisibleBody(snap, actor, camera, cut) && !this.isOutOfSight(snap, actor);
+  }
+
+  private showsLineEnd(
+    snap: GameSnapshot,
+    actor: ActorSnapshot,
+    cut: RoofCut | undefined,
+  ): boolean {
+    return this.isTargeted(snap, actor.id) || this.isVisibleCell(snap, actor, cut);
+  }
+
+  /**
    * A hidden body is still in the session's map, where the rules need it, so it is
    * cut from a copy that only the world renderer sees. The copy is kept until the
    * map or the body moves, because a new map every frame re-diffs every level.
@@ -1821,8 +1848,7 @@ export class GameRenderer {
   ) {
     for (const actor of snap.actors) {
       if (actor.hidden || actor.hp === null || actor.maxHp === null) continue;
-      if (!this.isVisibleBody(snap, actor, camera, cut)) continue;
-      if (this.isOutOfSight(snap, actor)) continue;
+      if (!this.showsBody(snap, actor, camera, cut)) continue;
 
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);
@@ -2263,7 +2289,7 @@ export class GameRenderer {
 
     const out: DamageNumberView[] = [];
     for (const hit of snap.damage) {
-      if (!this.isVisibleCell(snap, hit, cut)) continue;
+      if (!this.isTargeted(snap, hit.targetId) && !this.isVisibleCell(snap, hit, cut)) continue;
 
       const at = this.damageAnchor(hit, snap.map);
       out.push({
@@ -2287,7 +2313,7 @@ export class GameRenderer {
       if (!targetId || targetId === caster.id) continue;
       const target = snap.actors.find((a) => a.id === targetId);
       if (!target) continue;
-      if (!this.isVisibleCell(snap, caster, cut) || !this.isVisibleCell(snap, target, cut)) {
+      if (!this.showsLineEnd(snap, caster, cut) || !this.showsLineEnd(snap, target, cut)) {
         continue;
       }
       out.push({
@@ -2314,7 +2340,7 @@ export class GameRenderer {
     if (!rangedWeaponReaches(snap.map, this.tilesById, snap.equipment, masteries, self, target)) {
       return null;
     }
-    if (!this.isVisibleCell(snap, self, cut) || !this.isVisibleCell(snap, target, cut)) {
+    if (!this.isVisibleCell(snap, self, cut) || !this.showsLineEnd(snap, target, cut)) {
       return null;
     }
     return {
