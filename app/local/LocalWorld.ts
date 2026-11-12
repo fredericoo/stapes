@@ -3,6 +3,7 @@ import { GameServer } from "../../server/GameServer";
 const LOCAL_PLAYER_NAME = "Tester";
 import { GameSocket, SocketHub, type WorldContext } from "../../server/sockets";
 import { DataStore } from "../lib/dataStore";
+import { isWeatherKind } from "../lib/weather";
 import { KEEPALIVE_INTERVAL_MS } from "../net/protocol";
 import { ApiBlobs } from "./content";
 import { idbCheckpoints, type Checkpoints } from "./checkpoints";
@@ -40,9 +41,11 @@ export class LocalWorld {
       acceptWebSocket: (socket) => hub.accept(socket),
     };
 
+    const pinned = import.meta.env.STAPES_WEATHER ?? "";
     const server = new GameServer(context, {
       dataStore,
       nameOf: async () => LOCAL_PLAYER_NAME,
+      weather: isWeatherKind(pinned) ? pinned : undefined,
     });
     const world = new LocalWorld(server, store, hub, checkpointIntervalMs);
 

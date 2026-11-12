@@ -42,6 +42,11 @@ function releaseDates(): Record<string, string> {
 export default defineConfig({
   define: {
     "import.meta.env.RELEASE_DATES": JSON.stringify(JSON.stringify(releaseDates())),
+    /**
+     * The world `/admin/play` runs in the tab is built by the client, so the
+     * server's `WEATHER` never reaches it unless the bundle carries it.
+     */
+    "import.meta.env.STAPES_WEATHER": JSON.stringify(process.env.WEATHER ?? ""),
   },
   server: {
     port: process.env.PORT ? Number(process.env.PORT) : undefined,
