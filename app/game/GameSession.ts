@@ -380,6 +380,7 @@ import {
   failedRouteMemoryMs,
   findPath,
   findRefuge,
+  reachableCells,
   HOME_DETOUR_SLACK,
   HOME_PATH_MAX_NODES,
   PATH_MAX_NODES,
@@ -465,7 +466,7 @@ import {
   findDecayCells,
 } from "./decay";
 import { Weathering, findWeatheringCells } from "./weathering";
-import { CLEAR_SKY, weatherOn, type Sky } from "./weatherOn";
+import { CLEAR_SKY, weatherOn, weatherOver, type Sky } from "./weatherOn";
 import {
   EndureIndex,
   type AfflictedPlacement,
@@ -664,6 +665,10 @@ function facingToward(from: Coord, to: Coord): Direction | null {
   return dy > 0 ? "s" : "n";
 }
 
+const SHELTER_MAX_NODES = 256;
+
+const SHELTER_MEMORY_MS = 4000;
+
 function walkKey(cell: Coord): string {
   return `${cell.x},${cell.y},${cell.z}`;
 }
@@ -832,6 +837,13 @@ type ActorRuntime = {
   failedRoute: (RouteAsked & { atMs: number }) | null;
   attackOrder: string | null;
   refuge: Coord | null;
+  shelter: {
+    at: Coord | null;
+    from: string;
+    weather: WeatherKind;
+    cells: number;
+    atMs: number;
+  } | null;
   brainAttentive: boolean;
   conversation: Conversation | null;
   home: Coord | null;
@@ -1165,6 +1177,7 @@ export class GameSession implements PlaySession {
       failedRoute: null,
       attackOrder: null,
       refuge: null,
+      shelter: null,
       brainAttentive: false,
       conversation: null,
       home: this.residentHomes.get(id) ?? null,
@@ -2183,6 +2196,9 @@ export class GameSession implements PlaySession {
       canSee: (at) => this.canSeeFrom(actor, loc, at),
       talking: () => this.anyoneTalkingTo(actor.id),
       inHarm: () => this.standsInHarm(actor, loc),
+      weather: (overhead) =>
+        overhead ? weatherOver(this.sky, loc) : weatherOn(this.map, this.sky, loc, this.tilesById),
+      nearestShelter: (weather, cells) => this.nearestShelter(actor, loc, weather, cells),
       sight,
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
@@ -4669,6 +4685,48 @@ export class GameSession implements PlaySession {
      */
     if (!found.ok || found.route.length === 0) return null;
     return found.route[found.route.length - 1]!.to;
+  }
+
+  /**
+   * The cheapest cell to walk to that `weather` is not on. A flood, so the
+   * answer is a cell the body can reach; it is kept for `SHELTER_MEMORY_MS`
+   * from the cell it was asked on because a brain asks every round.
+   */
+  private nearestShelter(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    weather: WeatherKind,
+    cells: number,
+  ): Coord | null {
+    const from = walkKey(loc);
+    const known = actor.shelter;
+    if (
+      known !== null &&
+      known.from === from &&
+      known.weather === weather &&
+      known.cells === cells &&
+      !reached(this.elapsedMs - known.atMs, SHELTER_MEMORY_MS)
+    ) {
+      return known.at;
+    }
+
+    const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
+    const flood = reachableCells(
+      this.map,
+      { at: self, self, who: actor.id },
+      this.defFor(actor),
+      this.tilesById,
+      this.statusDefs,
+      { maxCost: cells, maxNodes: SHELTER_MAX_NODES },
+    );
+    let best: { at: Coord; cost: number } | null = null;
+    for (const cell of flood.values()) {
+      if (best !== null && cell.cost >= best.cost) continue;
+      if (weatherOn(this.map, this.sky, cell.at, this.tilesById) === weather) continue;
+      best = cell;
+    }
+    actor.shelter = { at: best?.at ?? null, from, weather, cells, atMs: this.elapsedMs };
+    return actor.shelter.at;
   }
 
   private walkGoalCell(goal: WalkGoal): Coord | null {

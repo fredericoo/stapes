@@ -1319,6 +1319,20 @@ function ParamField({
       </label>
     );
   }
+  if (spec.kind === "choice") {
+    return (
+      <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+        {spec.label}
+        <Select
+          value={typeof value === "string" ? value : null}
+          onValueChange={(choice) => choice && onChange(choice)}
+          options={spec.options.map((option) => ({ value: option, label: option }))}
+          className="min-w-[5rem]"
+          placeholder="Pick one…"
+        />
+      </label>
+    );
+  }
   if (spec.kind === "ground") {
     return (
       <GroundField

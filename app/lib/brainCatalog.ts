@@ -9,6 +9,7 @@ import {
   type BrainConditionDef,
   type BrainEffectDef,
 } from "./brain";
+import { WEATHER_KINDS } from "./weather";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { CHASE_MAX_NODES, REFUGE_MAX_NODES } from "../game/pathfinding";
 
@@ -29,6 +30,7 @@ export type ParamSpec =
   | { key: string; kind: "ground"; label: string }
   | { key: string; kind: "aim"; label: string; spell: string }
   | { key: string; kind: "spell"; label: string }
+  | { key: string; kind: "choice"; label: string; options: readonly string[] }
   | {
       key: string;
       kind: "tile";
@@ -51,6 +53,8 @@ export const DEFAULT_SELECTOR = nearest(PLAYER_TILE_ID);
 export const DEFAULT_RATED_BELOW = 15;
 
 export const DEFAULT_THING = thing(PLAYER_TILE_ID);
+
+const DEFAULT_SHELTER_CELLS = 12;
 
 const SEARCH_PARAM: ParamSpec = {
   key: "search",
@@ -176,6 +180,24 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     hint: "The tile under this body would give it a bad status it is not immune to, such as a flame's burn. Pair it with a random step, which never lands on a flame or a portal.",
     params: [],
     make: () => ({ cond: "in_harm" }),
+  },
+  weather: {
+    label: "weather",
+    hint: "This weather is on the cell this body stands on. Rain is only on a cell with nothing overhead, inside an area rain reaches; fog is on every cell its area reaches from ground level up; clear is neither. With overhead, asks what the sky above is doing whatever stands in between, so rain overhead still holds under a roof: that is how a body knows to stay there.",
+    params: [
+      { key: "is", kind: "choice", label: "is", options: WEATHER_KINDS },
+      { key: "overhead", kind: "boolean", label: "overhead" },
+    ],
+    make: () => ({ cond: "weather", is: "rain" }),
+  },
+  shelter_near: {
+    label: "shelter near",
+    hint: "This weather is not on the cell this body stands on, or it can walk in at most this many steps to a cell the weather is not on: under a roof or a bridge, down a hole, into a cave, or past the edge of the area the weather reaches. Pair it with take shelter, given the same weather and cells.",
+    params: [
+      { key: "from", kind: "choice", label: "from", options: WEATHER_KINDS },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+    ],
+    make: () => ({ cond: "shelter_near", from: "rain", cells: DEFAULT_SHELTER_CELLS }),
   },
   status: {
     label: "status",
@@ -364,6 +386,15 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
       },
     ],
     make: () => ({ action: "consume" }),
+  },
+  take_shelter: {
+    label: "take shelter",
+    hint: "Walk to the nearest cell this weather is not on that is at most this many steps away. Succeeds once on such a cell, so nothing below it runs while the body stands there. Fails with no such cell in reach.",
+    params: [
+      { key: "from", kind: "choice", label: "from", options: WEATHER_KINDS },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+    ],
+    make: () => ({ action: "take_shelter", from: "rain", cells: DEFAULT_SHELTER_CELLS }),
   },
   fade: {
     label: "fade",

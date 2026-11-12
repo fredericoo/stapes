@@ -14,6 +14,7 @@ import {
 import { withinHours, type MinutesOfDay } from "../lib/clock";
 import { evaluateCondition } from "../lib/conditions";
 import type { BattlerDef } from "../lib/battler";
+import type { WeatherKind } from "../lib/weather";
 import { DIRECTIONS, type Coord, type Direction } from "../lib/types";
 import type { Rng } from "./rng";
 
@@ -65,6 +66,10 @@ export type BrainContext = {
   thingStillThere(at: Coord, tileId: string): boolean;
   talking(): boolean;
   inHarm(): boolean;
+  /** The weather on this body's cell, or with `overhead` what the sky above it is doing, roof or not. */
+  weather(overhead: boolean): WeatherKind;
+  /** The nearest cell this body can walk to in `cells` steps that `weather` is not on. */
+  nearestShelter(weather: WeatherKind, cells: number): Coord | null;
   wouldDrop(direction: Direction): boolean;
   wouldStepIntoHazard(direction: Direction): boolean;
   step(direction: Direction): boolean;
@@ -355,6 +360,13 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       return ctx.talking();
     case "in_harm":
       return ctx.inHarm();
+    case "weather":
+      return ctx.weather(condition.overhead === true) === condition.is;
+    case "shelter_near":
+      return (
+        ctx.weather(false) !== condition.from ||
+        ctx.nearestShelter(condition.from, condition.cells) !== null
+      );
     case "carrying":
       return ctx.carrying(condition.tileId);
     case "status":
@@ -555,6 +567,12 @@ function runAction(
       const at = locate(action.of, memory, ctx);
       if (!at) return "failure";
       return fleeAlongRoute(at, action, ctx);
+    }
+    case "take_shelter": {
+      if (ctx.weather(false) !== action.from) return "success";
+      const at = ctx.nearestShelter(action.from, action.cells);
+      if (!at) return "failure";
+      return walkAlongRoute({ of: "cell", at, arrive: "on" }, {}, ctx);
     }
     case "fade":
       ctx.fade();

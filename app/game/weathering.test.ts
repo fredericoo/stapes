@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { BrainDef } from "../lib/brain";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { FRAME, tile } from "../lib/testTile";
 import type { MapFile, TileDef } from "../lib/types";
@@ -11,6 +12,41 @@ import { weatherOn, type Sky } from "./weatherOn";
 const FIRE_MS = 3000;
 const PUDDLE_MS = 2000;
 const HALF = 5;
+const SHELTER_CELLS = 8;
+
+function shelteringBrain(): BrainDef {
+  return {
+    initial: "graze",
+    states: {
+      graze: { do: [{ action: "hold" }] },
+      sheltering: {
+        do: [{ action: "take_shelter", from: "rain", cells: SHELTER_CELLS }, { action: "hold" }],
+      },
+    },
+    transitions: [
+      {
+        from: "graze",
+        if: {
+          combinator: "and",
+          rules: [
+            { cond: "weather", is: "rain" },
+            { cond: "shelter_near", from: "rain", cells: SHELTER_CELLS },
+          ],
+        },
+        to: "sheltering",
+      },
+      {
+        from: "sheltering",
+        if: {
+          combinator: "and",
+          not: true,
+          rules: [{ cond: "weather", is: "rain", overhead: true }],
+        },
+        to: "graze",
+      },
+    ],
+  };
+}
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
@@ -41,6 +77,14 @@ const tiles: TileDef[] = [
     interactions: {
       weather: [{ in: "clear", tileId: "dust", fromMs: PUDDLE_MS, toMs: PUDDLE_MS }],
     },
+  }),
+  tile({
+    id: "hare",
+    height: 2,
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: { brain: shelteringBrain() },
   }),
 ];
 
@@ -83,6 +127,11 @@ function run(session: GameSession, ms: number) {
 
 function top(session: GameSession, x: number, y: number): string | undefined {
   return getStack(session.getMap(), x, y, 0).at(-1)?.tileId;
+}
+
+function hareCell(session: GameSession): string {
+  const hare = session.actorSnapshots().find((actor) => actor.tileId === "hare");
+  return hare ? `${hare.x},${hare.y}` : "gone";
 }
 
 describe("weatherOn", () => {
@@ -154,5 +203,38 @@ describe("a tile's weather reaction", () => {
     session.setSky(everywhere("clear"));
     run(session, PUDDLE_MS + 1000);
     expect(top(session, 0, 0)).toBe("dust");
+  });
+});
+
+describe("a brain sheltering from rain", () => {
+  it("walks under the nearest roof and stays there while it rains", () => {
+    const session = world(roofed(on(field(), 0, 0, "hare"), 3, 0), everywhere("rain"));
+    run(session, 8000);
+    expect(hareCell(session)).toBe("3,0");
+
+    run(session, 4000);
+    expect(hareCell(session)).toBe("3,0");
+  });
+
+  it("walks out of the area the rain reaches when nothing is overhead", () => {
+    const sky: Sky = {
+      weather: "rain",
+      areas: [{ x0: 3, y0: -HALF, x1: HALF, y1: HALF, rain: false, fog: false }],
+    };
+    const session = world(on(field(), 0, 0, "hare"), sky);
+    run(session, 8000);
+    expect(hareCell(session)).toBe("3,0");
+  });
+
+  it("stays where it grazes when no dry cell is within reach", () => {
+    const session = world(on(field(), 0, 0, "hare"), everywhere("rain"));
+    run(session, 8000);
+    expect(hareCell(session)).toBe("0,0");
+  });
+
+  it("does not move for rain that is not falling", () => {
+    const session = world(roofed(on(field(), 0, 0, "hare"), 3, 0), everywhere("clear"));
+    run(session, 8000);
+    expect(hareCell(session)).toBe("0,0");
   });
 });

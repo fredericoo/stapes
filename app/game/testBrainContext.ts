@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 import type { Coord, Direction } from "../lib/types";
 import type { BrainContext, WalkGoal, WalkOrderState } from "./brainRuntime";
+import type { WeatherKind } from "../lib/weather";
 import { Rng } from "./rng";
 
 function openRoute(self: Coord, at: Coord): Direction | "arrived" | null {
@@ -57,6 +58,8 @@ export function brainContext(overrides: Partial<BrainContext> = {}) {
     heardNoise: () => [],
     talking: () => false,
     inHarm: () => false,
+    weather: (): WeatherKind => "clear",
+    nearestShelter: () => null,
     hurtBy: () => [],
     struck: () => [],
     alerts: () => [],

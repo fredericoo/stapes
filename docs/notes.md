@@ -10011,7 +10011,8 @@ hands it the hour through `clock`: in `flushWeather`, so on every tick and after
 every message, and in `reloadWeatherAreas`. A `GameSession` nobody has told is
 under a clear sky, which is what every test that does not call `setSky` gets.
 
-`app/game/weatherOn.ts` answers one question: which weather is on this cell.
+`app/game/weatherOn.ts` answers one question for both users below: which
+weather is on this cell.
 
 - **Rain is on a cell with open sky above it, inside an area rain reaches.**
   `underOpenSky` walks the column the way the light bake's sky shaft does
@@ -10049,6 +10050,26 @@ going out in rain is `campfire` carrying a `rain` reaction to nothing.
   relight them: give the tile it turns into a reaction to `clear` that names
   the first one.
 
+**A brain asks through `weather`, `shelter_near` and `take_shelter`.**
+`weather` holds when the named weather is on the body's cell, or with
+`overhead` when the sky above is doing it. `take_shelter` walks to the nearest
+cell the named weather is not on, and `shelter_near` holds when there is one.
+
+- **Shelter is found by a flood, not by distance.** `nearestShelter` runs
+  `reachableCells` out to `cells` steps and takes the cheapest cell the weather
+  is not on, so the answer is somewhere the body can walk to, and the edge of a
+  weather area counts as much as a roof. It expands at most
+  `SHELTER_MAX_NODES` cells and the answer is kept for `SHELTER_MEMORY_MS`
+  from the cell it was asked on, because a brain asks every round.
+- **`shelters-from-rain` in `data/traits.json` is the authored use**: a trigger
+  into an `errand` state, so it interrupts only `idle` and `roam` states, and
+  it leaves once the rain overhead ends. A state with no band is `idle`, which
+  is why the deer's `flee` and `cornered` and the cat's `answering` and
+  `following` carry one now; without it rain would pull a fleeing deer out of
+  its flight.
+- **`choice` is a catalogue parameter kind** (`ParamSpec` in
+  `brainCatalog.ts`) for a fixed list such as the weathers. A trait cannot
+  take one as an argument: `scalarKind` in `traits.ts` has no trait kind for it.
 
 ## A reward happens to the player, not to the board
 
