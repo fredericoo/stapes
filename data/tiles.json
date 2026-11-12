@@ -13369,6 +13369,10 @@
         ],
         "traits": [
           {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -14954,6 +14958,10 @@
         ],
         "traits": [
           {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
             "trait": "townsfolk-fight",
             "with": {
               "leash": 8,
@@ -16466,6 +16474,10 @@
           }
         ],
         "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
           {
             "trait": "townsfolk-fight",
             "with": {
@@ -32040,6 +32052,12 @@
             },
             "to": "hunting"
           }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          }
         ]
       },
       "battler": {
@@ -32487,6 +32505,12 @@
           }
         ],
         "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {
+              "drops": true
+            }
+          },
           {
             "trait": "predator",
             "with": {
@@ -41093,6 +41117,10 @@
         ],
         "traits": [
           {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
             "trait": "townsfolk-fight",
             "with": {
               "leash": 8,
@@ -47139,6 +47167,10 @@
         ],
         "traits": [
           {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
             "trait": "keeps-the-peace",
             "with": {
               "hunt": "hunting",
@@ -48214,6 +48246,10 @@
           }
         ],
         "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
           {
             "trait": "keeps-the-peace",
             "with": {
@@ -49364,6 +49400,10 @@
           }
         ],
         "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
           {
             "trait": "keeps-the-peace",
             "with": {
@@ -52253,6 +52293,10 @@
           }
         ],
         "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
           {
             "trait": "keeps-the-peace",
             "with": {
@@ -55337,6 +55381,10 @@
         ],
         "traits": [
           {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "dueling",
@@ -57893,6 +57941,12 @@
             },
             "to": "roaming"
           }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          }
         ]
       },
       "battler": {
@@ -58904,6 +58958,12 @@
             },
             "to": "wandering"
           }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          }
         ]
       },
       "battler": {
@@ -59482,6 +59542,10 @@
         },
         "transitions": [],
         "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
           {
             "trait": "predator",
             "with": {
@@ -73934,6 +73998,12 @@
             },
             "to": "drifting"
           }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          }
         ]
       },
       "respawn": {
@@ -74536,6 +74606,12 @@
             },
             "to": "drifting"
           }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          }
         ]
       },
       "respawn": {
@@ -75137,6 +75213,12 @@
               "cells": 3
             },
             "to": "drifting"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
           }
         ]
       },

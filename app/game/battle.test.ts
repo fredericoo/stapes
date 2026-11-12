@@ -907,8 +907,9 @@ describe("the authored creatures", () => {
 
   it("sends the cat after whoever hit it", () => {
     const brain = resolveBrain(byId.cat!)!;
-    const retaliation = brain.transitions.find((t) =>
-      conditionLeaves(t.if).some((leaf) => leaf.cond === "attacked"),
+    const retaliation = brain.transitions.find(
+      (t) =>
+        conditionLeaves(t.if).some((leaf) => leaf.cond === "attacked") && t.bind?.foe !== undefined,
     );
     expect(retaliation?.bind).toEqual({ foe: ATTACKER_SELECTOR });
     expect(brain.states[retaliation!.to]?.do[0]).toEqual({

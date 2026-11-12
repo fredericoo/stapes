@@ -759,6 +759,28 @@ describe("the catalogue we ship", () => {
   it("expands every brain that calls it", () => {
     expect(brainExpansionIssues(normalizeTiles(tilesJson as unknown[]), shipped)).toEqual([]);
   });
+
+  it("backs every evader away from a shooter it cannot reach, whatever its own rows say", () => {
+    const evaders = normalizeTiles(tilesJson as unknown[]).filter((def) =>
+      JSON.stringify(def.interactions?.brain ?? null).includes('"evades-the-unreachable"'),
+    );
+    const shooter = { x: 3, y: 0, z: 1 };
+    const fled: string[] = [];
+    for (const def of evaders) {
+      const { brain } = expandBrain(def.interactions!.brain as AuthoredBrain, shipped, def.id);
+      const memory = initialMemory(brain!);
+      const c = brainContext({
+        hurtBy: () => ["alice"],
+        positionOf: () => shooter,
+        reaches: () => false,
+      });
+      stepBrain(brain!, memory, BRAIN_TICK_MS, c);
+      if (isIn(memory, "evading")) fled.push(def.id);
+    }
+
+    expect(evaders.length).toBeGreaterThan(0);
+    expect(fled).toEqual(evaders.map((def) => def.id));
+  });
 });
 
 describe("the rat we ship", () => {
