@@ -9930,6 +9930,11 @@ both off, and one over the swamp with both on, in that order.
   levels of stacks and every reader of it would have had to learn a new field.
   The areas are a blob beside it, seeded with the rest of `data/`, read by
   `DataStore.readWeatherAreas` and served at `/api/weather-areas`.
+- **`replaceWorld` reads them again, as it does the tiles.** A deploy boots
+  the server and then reseeds `data/` through `/api/seed`, which ends in
+  `replaceWorld`. Read only at boot, the areas were the previous deploy's until
+  the next restart, so a preview carried the new file and kept raining on the
+  desert.
 - **The server hands them to clients, and a save does not replace the world.**
   They ride in `hello`, and `POST /api/weather-areas` ends in
   `GameServer.reloadWeatherAreas`, which reads them again and broadcasts a

@@ -2441,6 +2441,11 @@ export class GameServer {
     const tilesById = tilesByIdFromList(tiles);
     const statusDefs = statusesById(await store.readStatuses());
     const traits = traitsById(await store.readTraits());
+    /**
+     * A deploy boots the server and then reseeds `data/` through here, so
+     * areas read only at boot would be the previous deploy's until a restart.
+     */
+    this.weatherAreas = await store.readWeatherAreas();
 
     const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
     const session = new GameSession(map, tiles, {
