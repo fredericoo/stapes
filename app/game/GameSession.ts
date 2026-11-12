@@ -206,7 +206,6 @@ import {
   BRAIN_TURNS_PER_TICK_MIN,
   BRAIN_TICK_MS,
   DAMAGE_NUMBER_LIFETIME_MS,
-  FAILED_ROUTE_MEMORY_MS,
   FALL_MS_PER_HEIGHT,
   LOOT_LIFETIME_MS,
   NOISE_LIFETIME_MS,
@@ -375,11 +374,16 @@ import {
   walkDurationMsFor,
 } from "./movement";
 import {
+  CHASE_MAX_NODES,
+  detourSlackFor,
   dropLanding,
+  failedRouteMemoryMs,
   findPath,
   findRefuge,
   HOME_DETOUR_SLACK,
   HOME_PATH_MAX_NODES,
+  PATH_MAX_NODES,
+  REFUGE_MAX_NODES,
   type Reaching,
   unsafeToStepOn,
   wadesIn,
@@ -406,6 +410,7 @@ import {
   withinSightLevels,
   type BrainMemory,
   type FoundThing,
+  type RouteOptions,
   type SightLevels,
   type StandOff,
   type Sound,
@@ -753,6 +758,14 @@ type RouteAsked = {
   to: string;
   allowDrops: boolean | undefined;
   arrive: "beside" | "on" | "corner";
+  maxNodes: number;
+};
+
+type RouteStepAsk = {
+  allowDrops: boolean | undefined;
+  arrive: "beside" | "on";
+  aroundBody: boolean;
+  maxNodes: number;
 };
 
 /** Arrives on any of the eight cells round `goal` on its level, a diagonal one being two steps out. */
@@ -805,6 +818,7 @@ type ActorRuntime = {
     goal: WalkGoal;
     allowDrops: boolean | undefined;
     arrive: "beside" | "on";
+    maxNodes: number;
   } | null;
   failedRoute: (RouteAsked & { atMs: number }) | null;
   attackOrder: string | null;
@@ -2123,8 +2137,8 @@ export class GameSession implements PlaySession {
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       wouldStepIntoHazard: (direction) => this.stepLandsInHazard(actor, loc, direction),
       step: (direction) => this.applyStepRequest(actor, { directions: [direction] }),
-      walkTo: (goal, allowDrops) => this.setWalkOrder(actor, goal, allowDrops),
-      fleeFrom: (threat, allowDrops) => this.setFleeOrder(actor, loc, threat, allowDrops),
+      walkTo: (goal, route) => this.setWalkOrder(actor, goal, route),
+      fleeFrom: (threat, route) => this.setFleeOrder(actor, loc, threat, route),
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
@@ -2159,7 +2173,7 @@ export class GameSession implements PlaySession {
         return body ? this.ratingOf(body) : null;
       },
       ownRating: () => this.ratingOf(actor),
-      reaches: (id, allowDrops) => this.reaches(actor, loc, id, allowDrops),
+      reaches: (id, route) => this.reaches(actor, loc, id, route),
       fade: () => {
         fading = true;
       },
@@ -4412,17 +4426,17 @@ export class GameSession implements PlaySession {
     actor: ActorRuntime,
     loc: ActorLocation,
     at: Coord,
-    allowDrops: boolean | undefined,
-    arrive: "beside" | "on" = "beside",
-    aroundBody = false,
+    ask: RouteStepAsk,
   ): Direction | "arrived" | null {
+    const { allowDrops, arrive, maxNodes } = ask;
     const def = this.defFor(actor);
-    const corner = aroundBody && arrive === "beside" && this.hemmedIn(loc, at, def);
+    const corner = ask.aroundBody && arrive === "beside" && this.hemmedIn(loc, at, def);
     const route: RouteAsked = {
       from: walkKey(loc),
       to: walkKey(at),
       allowDrops,
       arrive: corner ? "corner" : arrive,
+      maxNodes,
     };
     if (this.failedJustNow(actor, route)) return null;
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
@@ -4438,7 +4452,9 @@ export class GameSession implements PlaySession {
         drops: allowDrops ? "anywhere" : "never",
         arrive: corner ? cornerOf(at) : arrive,
         avoidWade: !def.swims,
-        ...(homeward && { maxNodes: HOME_PATH_MAX_NODES, detourSlack: HOME_DETOUR_SLACK }),
+        ...(homeward
+          ? { maxNodes: HOME_PATH_MAX_NODES, detourSlack: HOME_DETOUR_SLACK }
+          : { maxNodes, detourSlack: detourSlackFor(maxNodes) }),
       },
     );
     if (!found.ok) {
@@ -4475,18 +4491,19 @@ export class GameSession implements PlaySession {
   /**
    * A search that finds no way costs its whole node budget, and a brain asks
    * for the same walk every round. The same walk from the same cell is not
-   * searched again for `FAILED_ROUTE_MEMORY_MS`, so a way that opens in that
-   * time is found that much later.
+   * searched again for `failedRouteMemoryMs` of its budget, so a way that
+   * opens in that time is found that much later.
    */
   private failedJustNow(actor: ActorRuntime, route: RouteAsked): boolean {
     const failed = actor.failedRoute;
     return (
       failed !== null &&
-      !reached(this.elapsedMs - failed.atMs, FAILED_ROUTE_MEMORY_MS) &&
+      !reached(this.elapsedMs - failed.atMs, failedRouteMemoryMs(failed.maxNodes)) &&
       failed.from === route.from &&
       failed.to === route.to &&
       failed.allowDrops === route.allowDrops &&
-      failed.arrive === route.arrive
+      failed.arrive === route.arrive &&
+      failed.maxNodes === route.maxNodes
     );
   }
 
@@ -4494,19 +4511,27 @@ export class GameSession implements PlaySession {
     actor: ActorRuntime,
     loc: ActorLocation,
     targetId: string,
-    allowDrops: boolean | undefined,
+    route: RouteOptions,
   ): boolean {
     const at = this.walkGoalCell({ of: "body", id: targetId });
-    return at !== null && this.routeStep(actor, loc, at, allowDrops, "beside", true) !== null;
+    if (at === null) return false;
+    const ask: RouteStepAsk = {
+      allowDrops: route.allowDrops,
+      arrive: "beside",
+      aroundBody: true,
+      maxNodes: route.search ?? CHASE_MAX_NODES,
+    };
+    return this.routeStep(actor, loc, at, ask) !== null;
   }
 
-  private setWalkOrder(
-    actor: ActorRuntime,
-    goal: WalkGoal,
-    allowDrops: boolean | undefined,
-  ): WalkOrderState {
+  private setWalkOrder(actor: ActorRuntime, goal: WalkGoal, route: RouteOptions): WalkOrderState {
     const arrive = goal.of === "cell" && goal.arrive === "on" ? "on" : "beside";
-    actor.walkOrder = { goal, allowDrops, arrive };
+    actor.walkOrder = {
+      goal,
+      allowDrops: route.allowDrops,
+      arrive,
+      maxNodes: route.search ?? CHASE_MAX_NODES,
+    };
     if (!this.idle(actor)) return "walking";
     return this.driveWalkOrder(actor);
   }
@@ -4522,14 +4547,12 @@ export class GameSession implements PlaySession {
       return "blocked";
     }
 
-    const direction = this.routeStep(
-      actor,
-      loc,
-      at,
-      order.allowDrops,
-      order.arrive,
-      order.goal.of === "body",
-    );
+    const direction = this.routeStep(actor, loc, at, {
+      allowDrops: order.allowDrops,
+      arrive: order.arrive,
+      aroundBody: order.goal.of === "body",
+      maxNodes: order.maxNodes,
+    });
     if (direction === null || direction === "arrived") {
       actor.walkOrder = null;
       return direction === "arrived" ? "arrived" : "blocked";
@@ -4546,18 +4569,19 @@ export class GameSession implements PlaySession {
     actor: ActorRuntime,
     loc: ActorLocation,
     threat: Coord,
-    allowDrops: boolean | undefined,
+    route: RouteOptions,
   ): WalkOrderState {
     const here = { x: loc.x, y: loc.y, z: loc.z };
     if (!this.stillWorthRunningTo(actor.refuge, here, threat)) {
-      actor.refuge = this.findRefugeFor(actor, loc, threat, allowDrops);
+      actor.refuge = this.findRefugeFor(actor, loc, threat, route);
     }
     if (!actor.refuge) return "blocked";
 
     actor.walkOrder = {
       goal: { of: "cell", at: actor.refuge },
-      allowDrops,
+      allowDrops: route.allowDrops,
       arrive: "on",
+      maxNodes: PATH_MAX_NODES,
     };
     if (!this.idle(actor)) return "walking";
     const state = this.driveWalkOrder(actor);
@@ -4581,7 +4605,7 @@ export class GameSession implements PlaySession {
     actor: ActorRuntime,
     loc: ActorLocation,
     threat: Coord,
-    allowDrops: boolean | undefined,
+    route: RouteOptions,
   ): Coord | null {
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
     const def = this.defFor(actor);
@@ -4593,7 +4617,8 @@ export class GameSession implements PlaySession {
       this.tilesById,
       this.statusDefs,
       {
-        drops: allowDrops ? "anywhere" : "never",
+        drops: route.allowDrops ? "anywhere" : "never",
+        maxNodes: route.search ?? REFUGE_MAX_NODES,
         seenFrom: (cell) => hasLineOfSight(this.map, this.tilesById, threat, cell, def.height),
         avoidWade: !def.swims,
       },

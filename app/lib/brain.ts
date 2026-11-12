@@ -92,11 +92,14 @@ export type BrainConditionDef =
   | { cond: "below_level"; level: number }
   | { cond: "rated_below"; of: Selector; rating: number }
   | { cond: "rated_below_self"; of: Selector }
-  | { cond: "unreachable"; of: Selector; allowDrops?: boolean };
+  | ({ cond: "unreachable" } & Steering);
 
 export type BrainCondition = ConditionNode<BrainConditionDef>;
 
-type Steering = { of: Selector; allowDrops?: boolean };
+/** `search` caps the nodes a route search may expand; unset, the walk uses its own default. */
+export type Steering = { of: Selector; allowDrops?: boolean; search?: number };
+
+export const MAX_SEARCH_NODES = 4096;
 
 export type BrainActionDef =
   | { action: "step_random"; allowDrops?: boolean }
@@ -180,6 +183,10 @@ const cells = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 const durationMs = v.pipe(v.number(), v.integer(), v.minValue(0));
 
+const search = v.optional(
+  v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_SEARCH_NODES)),
+);
+
 export const MAX_HEALTH_PERCENT = 100;
 
 export { MAX_HOUR_OF_DAY };
@@ -244,6 +251,7 @@ const leafSchema = v.variant("cond", [
     cond: v.literal("unreachable"),
     of: selectorSchema,
     allowDrops: v.optional(v.boolean()),
+    search,
   }),
 ]);
 
@@ -266,16 +274,19 @@ const actionSchema = v.variant("action", [
     action: v.literal("step_toward"),
     of: selectorSchema,
     allowDrops,
+    search,
   }),
   v.object({
     action: v.literal("step_away_from"),
     of: selectorSchema,
     allowDrops,
+    search,
   }),
   v.object({
     action: v.literal("attack_range"),
     of: selectorSchema,
     allowDrops,
+    search,
   }),
   v.object({ action: v.literal("wait"), ms: durationMs }),
   v.object({

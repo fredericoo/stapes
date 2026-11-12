@@ -2,6 +2,7 @@ import {
   ATTACKER_SELECTOR,
   MAX_HEALTH_PERCENT,
   MAX_HOUR_OF_DAY,
+  MAX_SEARCH_NODES,
   nearest,
   thing,
   type BrainActionDef,
@@ -9,6 +10,7 @@ import {
   type BrainEffectDef,
 } from "./brain";
 import { PLAYER_TILE_ID } from "../game/constants";
+import { CHASE_MAX_NODES, REFUGE_MAX_NODES } from "../game/pathfinding";
 
 export type ParamSpec =
   | {
@@ -49,6 +51,17 @@ export const DEFAULT_SELECTOR = nearest(PLAYER_TILE_ID);
 export const DEFAULT_RATED_BELOW = 15;
 
 export const DEFAULT_THING = thing(PLAYER_TILE_ID);
+
+const SEARCH_PARAM: ParamSpec = {
+  key: "search",
+  kind: "number",
+  label: "search",
+  min: 1,
+  max: MAX_SEARCH_NODES,
+  optional: true,
+};
+
+const CHASE_SEARCH_HINT = `Search is how many cells it may look through for a way, ${CHASE_MAX_NODES} when left empty; more finds longer ways round, such as up a ramp, and costs the server more when there is none.`;
 
 export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainConditionDef>> = {
   after: {
@@ -219,10 +232,11 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
   },
   unreachable: {
     label: "unreachable",
-    hint: "The body this names is somewhere this body has no way to walk to and stand beside: across water it will not wade, up a ledge it cannot climb, or further round than a chase goes. Asks the route a step toward them would take. A body that is gone is never unreachable.",
+    hint: `The body this names is somewhere this body has no way to walk to and stand beside: across water it will not wade, up a ledge it cannot climb, or further round than a chase goes. Asks the route a step toward them would take, so give it the same search as that step. A body that is gone is never unreachable. ${CHASE_SEARCH_HINT}`,
     params: [
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },
+      SEARCH_PARAM,
     ],
     make: () => ({ cond: "unreachable", of: DEFAULT_SELECTOR }),
   },
@@ -257,28 +271,31 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   step_toward: {
     label: "step toward",
-    hint: "Walk a route to a target, round slow ground when that is quicker and round water unless the body swims. Fails once beside them, or with no way there.",
+    hint: `Walk a route to a target, round slow ground when that is quicker and round water unless the body swims. Fails once beside them, or with no way there. ${CHASE_SEARCH_HINT}`,
     params: [
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },
+      SEARCH_PARAM,
     ],
     make: () => ({ action: "step_toward", of: DEFAULT_SELECTOR }),
   },
   step_away_from: {
     label: "step away from",
-    hint: "Open the distance to a target, keeping out of water unless the body swims. Fails when cornered.",
+    hint: `Open the distance to a target, keeping out of water unless the body swims. Fails when cornered. Search is how many cells it may look through for somewhere to run, ${REFUGE_MAX_NODES} when left empty.`,
     params: [
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },
+      SEARCH_PARAM,
     ],
     make: () => ({ action: "step_away_from", of: DEFAULT_SELECTOR }),
   },
   attack_range: {
     label: "attack range",
-    hint: "Walk up until the body's weapon can reach the target, and no closer: beside it for a melee weapon, as far out as it shoots for a bow. Backs off inside a bow's minimum range, walks up when out of reach or behind a wall. Fails once in reach, so put the attack on the next line.",
+    hint: `Walk up until the body's weapon can reach the target, and no closer: beside it for a melee weapon, as far out as it shoots for a bow. Backs off inside a bow's minimum range, walks up when out of reach or behind a wall. Fails once in reach, so put the attack on the next line. ${CHASE_SEARCH_HINT}`,
     params: [
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },
+      SEARCH_PARAM,
     ],
     make: () => ({ action: "attack_range", of: DEFAULT_SELECTOR }),
   },

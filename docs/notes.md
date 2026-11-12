@@ -3188,6 +3188,34 @@ search costs about 55µs a node, so a failed walk home costs about 25ms against
 A successful one costs about one node per cell of route in the open, and up to
 a few hundred where a building is in the way.
 
+**A brain's chase searches 512 nodes, and each action can say otherwise.**
+`step_toward`, `attack_range`, `step_away_from` and the `unreachable` condition
+take an optional `search`, in nodes, up to `MAX_SEARCH_NODES`. Left empty, a
+walk toward something uses `CHASE_MAX_NODES` (512) and running away uses
+`REFUGE_MAX_NODES` (64), so a chase can look further than a flight without an
+author touching either. `PATH_MAX_NODES` (128) is now only the clicked walk's
+budget and the leg to a refuge already found. The detour slack scales with the
+budget (`detourSlackFor`, 16 steps per 128 nodes): with ramps between levels, a
+creature shot from a ledge three cells away has a way up that is twenty or
+thirty steps long, and a bigger budget with the old 16-step slack still turned
+back at it. Give `unreachable` the same `search` as the step it guards, or it
+evades somebody the step could have reached.
+
+A failed search is remembered for `failedRouteMemoryMs`, which is
+`FAILED_ROUTE_MEMORY_MS` scaled by the budget over 128, so a 512-node failure
+is not asked again for four seconds. A way that opens in that time is found
+that much later.
+
+What it cost, on `bun run bench:server --scenario spread`, tick p95 / worst
+tick, main against the 512 default with the longer memory: at the shipped
+population 1.75ms / 6.3ms against 1.74ms / 11.5ms; at four times the residents
+5.2ms / 9.4ms against 9.2ms / 20.3ms; at eight times 8.0ms / 15.3ms against
+15.2ms / 43.4ms, which is over a 33ms tick. The failed-routes column hardly
+moves, so most of the extra is successful long chases searched again on every
+step. Reusing a route while its goal stands still (see "Pathfinding runs once
+per step of every chasing creature" below) is what to do if the population
+grows.
+
 **A leg costs the time it takes, and fast ground costs the same as ordinary
 ground.** `legCost` prices a leg by the `walkSpeedPercent` of the cell it is
 taken *from* — the cell the walk loop reads the pace from — as the reciprocal of
