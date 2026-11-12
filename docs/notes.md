@@ -9904,6 +9904,15 @@ one, in `hello` and in a `weather` message whenever it changes.
   frames, and which weather the wall clock had rolled changed what they drew
   from run to run. A preview that should show rain to whoever opens it can
   set it too.
+- **The world in the tab reads the same setting from the bundle.**
+  `/admin/play` builds its own `GameServer` in a worker, so an environment
+  variable on the server process never reached it, and the specs that play
+  there (`phone`, `play`, `stapes`) still drew whatever the clock rolled. Fog
+  made the phone spec's five-second wait run out on CI. `vite.config.ts`
+  writes `WEATHER` into the client as `import.meta.env.STAPES_WEATHER`, and
+  `LocalWorld` hands it to its server. It is read when the client is built or
+  served, so a production build made with `WEATHER` set ships that weather to
+  every `/admin/play`; the deploy builds set none.
 
 `bun run scene` takes `"weather": "rain"`; fog is measured from the cell in
 `look`.
