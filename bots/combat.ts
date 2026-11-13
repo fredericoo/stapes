@@ -104,7 +104,7 @@ export function healingFood(
 }
 
 /**
- * Most food heals by a status rather than at once: a berry gives nothing but
+ * Most food heals by a status rather than at once: bread gives nothing but
  * `fed`, which mends a point every few seconds for as long as it lasts. A
  * good status that mends is counted as this much health.
  */

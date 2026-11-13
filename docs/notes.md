@@ -16989,7 +16989,7 @@ Every frame, before its goal, a bot checks three things in order:
 3. **It eats.** Below `eatHpShare` of its health, or while recovering with
    nothing mending it, it eats the bag's food that heals most (`healing`). Most food heals through `fed`, a good status that
    mends a point every few seconds, so a mending status counts as
-   `MENDING_STATUS_HP`. A berry gives nothing at once, and a rule that counted
+   `MENDING_STATUS_HP`. Bread gives nothing at once, and a rule that counted
    only immediate health did not see it as food. Food that can give a bad
    status, such as raw meat or anything stale, is never eaten to heal.
    While it fights or backs away, it eats only food that heals at once

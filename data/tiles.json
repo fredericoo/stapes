@@ -31257,7 +31257,7 @@
         "type": "consumable",
         "label": "Eat",
         "sound": "crunch",
-        "hp": 0,
+        "hp": 1,
         "statuses": [
           {
             "id": "fed",

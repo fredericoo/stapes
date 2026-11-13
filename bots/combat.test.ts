@@ -211,15 +211,15 @@ describe("healingFood", () => {
     expect(healingFood(bagOf("raw-meat"), tilesById, statusDefs)).toBeNull();
   });
 
-  it("counts a berry, which heals only through the status it gives", () => {
-    expect(healingFood(bagOf("raw-meat", "berry"), tilesById, statusDefs)).toBe(1);
+  it("counts bread, which heals only through the status it gives", () => {
+    expect(healingFood(bagOf("raw-meat", "bread"), tilesById, statusDefs)).toBe(1);
   });
 
   it("in a fight, eats only food that heals at once", () => {
     const fighting = (...tileIds: string[]) =>
       healingFood(bagOf(...tileIds), tilesById, statusDefs, healsAtOnce);
 
-    expect(fighting("berry", "bread")).toBeNull();
-    expect(fighting("berry", "cheese")).toBe(1);
+    expect(fighting("bread")).toBeNull();
+    expect(fighting("bread", "cheese")).toBe(1);
   });
 });
