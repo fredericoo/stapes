@@ -33738,7 +33738,7 @@
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 0,
+            "fromMs": 30000,
             "toMs": 60000
           }
         ],
@@ -35182,7 +35182,7 @@
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 0,
+            "fromMs": 30000,
             "toMs": 75000
           }
         ],
