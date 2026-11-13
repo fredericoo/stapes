@@ -2403,6 +2403,56 @@ a hole whose bottom is a `half-wall`, a tree or water is one nobody can step
 into, and content that wants a way down has to put walkable ground at the
 bottom.
 
+### A body gravity does not pull flies, a level a step
+
+`flies` in `app/game/movement.ts` is an actor whose tile does not set
+`affectedByGravity`: the bat and the three wisps. `canWalk` hands such a body to
+`canFly` and none of the walking rules apply to it: no climb band, no
+climb-from flags, no check on where a fall would end.
+
+A step is still one of the four directions. What flight adds is that the step
+may end in the next column on the body's own level, the level below or the
+level above, so it climbs and dives on a diagonal and never straight up. A
+column one cell wide is therefore one it cannot rise in.
+
+`flightInto` decides whether one of those three cells can be entered:
+
+- `fitsTile` has to take the body there, so a stack that fills its level is a
+  wall and the cell above it is its top.
+- A whole level crossed must be open. Rising, the plane is checked in the
+  column being left; diving, in the column being entered, the same choice
+  `surfacesInClimbBand` makes. Anything solid in the crossed cell closes it, as
+  well as anything that seals the level. `sealsLevel` alone is not enough here:
+  a floor tile that passes light does not seal, and a diving body would go
+  through it.
+- A cell with something under the feet has to be walkable there, so a flier
+  does not land on water, a fence or another creature. A cell with nothing
+  under the feet is open air and is always allowed, which is how it crosses a
+  pond a level up.
+
+Which level a step takes is the caller's choice. `findPath`, `findRefuge` and
+`reachableCells` offer all three per direction (`flights` in `pathfinding.ts`),
+and `GameSession.driveWalkOrder` passes the level the route chose as
+`StepRequest.flyToLevel`. A direction alone cannot say it, and without the level
+the session would take the default below and leave the route.
+
+With no level asked for — `step_random`, `walk_n_steps` — the body stays level
+when the cell ahead has something under it, otherwise sinks a level, and rises
+only when nothing level or lower is open. A flier nothing is steering comes
+back to the ground a level a step instead of staying wherever a chase left it,
+and it goes over a one-level wall instead of stopping at it.
+
+`allowDrops` means nothing to a flier: `stepLeavesGround` answers false for it,
+and the route search does not read `drops`.
+
+`findPath` adds the levels between a flier and its goal to the estimate,
+because each step crosses at most one. A walker is not asked this: a drop
+crosses any number of levels in one step.
+
+Before this a flier could enter open air on its own level and had no step that
+changed level, so a bat that followed somebody up a ramp and off the edge
+stayed at that height and could reach nobody below it.
+
 ### The topmost tile decides what a stack is
 
 `walkableElevInStack` reads the top of a stack and nothing under it. Whatever
@@ -3218,8 +3268,8 @@ carry it.
     asked of one leg. Without it the same animal was safe while it was hunting
     and burned while it was idling, because which cells it could end up in
     depended on which action moved it. The two refusals have different standing
-    and are written that way: `allowDrops` is the author's, because a bat is
-    meant to fly off a plinth, while a flame is nobody's. Asked of where the leg
+    and are written that way: `allowDrops` is the author's, because some
+    creatures are meant to jump off a plinth, while a flame is nobody's. Asked of where the leg
     *lands*, so a creature that may take drops does not fall into a fire at the
     bottom of one; the ledge check goes first because it is the cheaper half.
     It does not show up in a tick: `bun scripts/bench-server.ts --scenario

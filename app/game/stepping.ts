@@ -10,6 +10,7 @@ export type StepRequest = {
   directions: readonly Direction[];
   faceOnly?: boolean;
   preferDescend?: boolean;
+  flyToLevel?: number;
 };
 
 export function chooseStep(
@@ -33,6 +34,7 @@ export function chooseStep(
 
     const check = canWalk(map, from, direction, tileDef, tilesById, {
       preferDescend: request.preferDescend,
+      flyToLevel: request.flyToLevel,
     });
     if (!check.ok) continue;
     if (isReserved?.(check.to)) continue;

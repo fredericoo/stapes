@@ -32,6 +32,13 @@ const tiles: TileDef[] = [
     walkable: false,
   }),
   tile({
+    id: "bat",
+    height: 2,
+    actor: true,
+    affectedByGravity: false,
+    walkable: false,
+  }),
+  tile({
     id: "flame",
     height: 2,
     intangible: true,
@@ -696,6 +703,50 @@ describe("a route stays under a floor", () => {
   it("climbs out where the column over the step is open", () => {
     const map = replaceStack(underFloor(), 0, 0, 0, []);
     expect(walked(route(map, standing(0, 0, -1), { x: 2, y: 0, z: 0 }))).toEqual(["e"]);
+  });
+});
+
+describe("a body gravity does not pull", () => {
+  const bat = tilesById.bat!;
+
+  function flown(
+    map: MapFile,
+    from: Coord & { stackIndex: number },
+    to: Coord,
+    opts?: Parameters<typeof findPath>[6],
+  ): PathStep[] | null {
+    const found = findPath(map, { at: from, self: from }, to, bat, tilesById, statusDefs, opts);
+    return found.ok ? found.route : null;
+  }
+
+  it("comes down from mid-air to stand beside somebody on the ground", () => {
+    const map = replaceStack(field(6), 0, 0, 2, [{ tileId: "bat" }]);
+
+    const path = flown(map, standing(0, 0, 2, 0), { x: 3, y: 0, z: 0 });
+
+    expect(path?.map((step) => step.to)).toEqual([
+      { x: 1, y: 0, z: 1 },
+      { x: 2, y: 0, z: 0 },
+    ]);
+  });
+
+  it("rises onto a floor no walk reaches", () => {
+    const goal = { x: 1, y: 0, z: 1 };
+
+    expect(route(plateau(), standing(-3, 0), goal, { arrive: "on" })).toBeNull();
+    expect(flown(plateau(), standing(-3, 0), goal, { arrive: "on" })?.at(-1)?.to).toEqual(goal);
+  });
+
+  it("finds no way up through the floor of a walled room", () => {
+    let map = field(3);
+    for (let x = -3; x <= 3; x++) {
+      for (let y = -3; y <= 3; y++) {
+        if (Math.max(Math.abs(x), Math.abs(y)) === 3) map = put(map, x, y, "wall");
+        map = replaceStack(map, x, y, 1, [{ tileId: "grass" }]);
+      }
+    }
+
+    expect(flown(map, standing(0, 0), { x: 1, y: 0, z: 1 }, { arrive: "on" })).toBeNull();
   });
 });
 

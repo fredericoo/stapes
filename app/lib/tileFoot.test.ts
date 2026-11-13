@@ -49,7 +49,7 @@ const half = tile({ id: "half", height: 2 });
 const wall = tile({ id: "wall", height: 4 });
 const bush = tile({ id: "bush", height: 2, walkable: false });
 const window = tile({ id: "window", height: 4, lightPassing: true });
-const walker = tile({ id: "walker", height: 3, actor: true });
+const walker = tile({ id: "walker", height: 3, actor: true, affectedByGravity: true });
 
 const tilesById = tilesByIdFromList([floor, half, wall, bush, window, walker]);
 

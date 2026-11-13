@@ -2,6 +2,7 @@ import {
   canWalk,
   DIR_DELTA,
   findLandingAbs,
+  flies,
   groundWalkSpeedPercent,
   standingSurfacesBetween,
   standingAbs,
@@ -102,10 +103,16 @@ function arrived(at: Coord, goal: Coord, arrive: Arrival): boolean {
   return arrive === "on" ? steps === 0 : steps <= 1;
 }
 
-function remaining(at: Coord, goal: Coord, arrive: Arrival): number {
+/**
+ * A flier changes level by at most one a step and arrives on the goal's own
+ * level, so the levels between them bound its steps as well. A walker's drop
+ * crosses any number of levels in one step, so the bound is not asked of it.
+ */
+function remaining(at: Coord, goal: Coord, arrive: Arrival, flying: boolean): number {
   const steps = stepsApart(at, goal);
   if (typeof arrive === "object") return Math.max(0, steps - arrive.within);
-  return arrive === "on" ? steps : Math.max(0, steps - 1);
+  const across = arrive === "on" ? steps : Math.max(0, steps - 1);
+  return flying ? Math.max(across, Math.abs(at.z - goal.z)) : across;
 }
 
 export function dropLanding(
@@ -227,6 +234,8 @@ function neighbours(
   mayDropTo: ((landing: Coord) => boolean) | null,
   avoid: (cell: Coord) => boolean,
 ): PathStep[] {
+  if (flies(tileDef)) return flights(map, at, tileDef, tilesById, avoid);
+
   const fromAbs = standingAbs(map, at.x, at.y, at.z, NOBODY_IN_THIS_STACK, tilesById);
   const out: PathStep[] = [];
 
@@ -261,6 +270,32 @@ function neighbours(
     out.push({ direction, to: check.to });
   }
 
+  return out;
+}
+
+const FLIGHT_LEVELS = [0, -1, 1];
+
+function flights(
+  map: MapFile,
+  at: Coord,
+  tileDef: TileDef,
+  tilesById: Record<string, TileDef>,
+  avoid: (cell: Coord) => boolean,
+): PathStep[] {
+  const out: PathStep[] = [];
+  for (const direction of DIRECTIONS) {
+    for (const rise of FLIGHT_LEVELS) {
+      const check = canWalk(
+        map,
+        { ...at, stackIndex: NOBODY_IN_THIS_STACK },
+        direction,
+        tileDef,
+        tilesById,
+        { flyToLevel: at.z + rise },
+      );
+      if (check.ok && !avoid(check.to)) out.push({ direction, to: check.to });
+    }
+  }
   return out;
 }
 
@@ -483,7 +518,8 @@ export function findPath(
   );
 
   const budget = opts.maxNodes ?? PATH_MAX_NODES;
-  const longest = remaining(from, goal, arrive) + (opts.detourSlack ?? PATH_DETOUR_SLACK);
+  const flying = flies(tileDef);
+  const longest = remaining(from, goal, arrive, flying) + (opts.detourSlack ?? PATH_DETOUR_SLACK);
   const frontier = new Frontier();
   const best = new Map<string, number>();
   let pruned = false;
@@ -491,7 +527,7 @@ export function findPath(
   frontier.push({
     at: from,
     g: 0,
-    f: remaining(from, goal, arrive),
+    f: remaining(from, goal, arrive, flying),
     cameFrom: null,
     step: null,
   });
@@ -516,7 +552,7 @@ export function findPath(
       const key = cellKey(step.to);
       const g = node.g + cost;
       if (g >= (best.get(key) ?? Infinity)) continue;
-      const f = g + remaining(step.to, goal, arrive);
+      const f = g + remaining(step.to, goal, arrive, flying);
       if (f > longest) {
         pruned = true;
         continue;
