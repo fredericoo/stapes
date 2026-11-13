@@ -1,7 +1,7 @@
 export const PERF_BUDGETS = {
   maxDrawCalls: 120,
   maxTrianglesPerQuad: 4.5,
-  maxWorldMeshes: 96,
+  maxWorldMeshes: 97,
   maxMeshToQuadRatio: 0.05,
   frameMsP95: 1,
   frameMsP95Ci: 8,

@@ -254,5 +254,12 @@
     "file": "snow-beasts.png",
     "width": 144,
     "height": 232
+  },
+  {
+    "id": "shore-foam",
+    "name": "Shore Foam",
+    "file": "shore-foam.png",
+    "width": 64,
+    "height": 376
   }
 ]

@@ -179,6 +179,10 @@ an agent drives", lists every call.
   and `flagstone-floor` and `slate-floor`, each with an `-inner` variant cut by
   the wooden floor's masks for use under a half wall. New tiles are appended to
   `data/tiles.json`; a tile already there has only its sprite fields rewritten
+- `bun run generate:shore-foam` — redraw `data/tilesets/shore-foam.png` and
+  `shore-foam`, the surf laid over the `water` along a beach: a strip of wet
+  sand and a line of foam on every side that faces dry land, washing in and out
+  over eight frames, one frame apart per cell so the wave runs along the shore
 - `bun run generate:swamp` — redraw `data/tilesets/deep-water.png`,
   `swamp.png` and `swamp-plants.png`. `deep-water` and `swamp` are
   `water.png`'s open-water frames recoloured, faded out in opacity towards
