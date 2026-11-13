@@ -25309,6 +25309,14 @@
           {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "apple"
+              ]
+            }
           }
         ],
         "initial": "graze",
@@ -57224,7 +57232,9 @@
                     "data": {
                       "tileIds": [
                         "raw-meat",
-                        "berry"
+                        "berry",
+                        "apple",
+                        "rotten-apple"
                       ]
                     }
                   },
@@ -57238,7 +57248,9 @@
                 "data": {
                   "tileIds": [
                     "raw-meat",
-                    "berry"
+                    "berry",
+                    "apple",
+                    "rotten-apple"
                   ]
                 }
               }

@@ -15134,6 +15134,11 @@ it lie in the eight cells around:
   in ten to twenty, the same chain `berry` and `stale-berry` follow. Four
   simulated hours of the shipped map settle at about 70 apples, the 24 trees'
   limits plus the few placed by hand, and never more than 30 rotten ones.
+- **Who eats what fell is a list per creature, not a property of the food.**
+  A brain names the tiles it eats, so a new food is eaten by nobody until it is
+  added. Deer eat `apple` (`eats-when-hungry`), bog imps eat `apple` and
+  `rotten-apple` (they are immune to food poisoning), and rats take both through
+  `scavenges`' default list, poisoning or not. Wolves and the cyclops eat meat.
 - **It drops a plain `apple`, which has a `respawn`.** A content reload builds
   the respawn points from the board as it stands, so an apple lying under a
   tree at that moment grows back on its cell after it is eaten. The tree's
