@@ -138,12 +138,15 @@ const NORMAL_REACH = 2;
 /**
  * The rock in each pixel of height, floor first: the outline widened by `crown`
  * at the ceiling and by `spread` at the floor, in a straight line between, so
- * the sides slope out evenly.
+ * the sides slope out evenly. A ridge takes no part of `crown`: with a wider
+ * top, its side then stands where the face of thicker rock beside it stands,
+ * at every height, so rock one cell thick lines up with the cliff it joins.
  */
 function crossSections(mask: number, crown: number, spread: number): boolean[][][] {
-  return Array.from({ length: RISE }, (_, layer) =>
-    footprint(mask, crown + ((spread - crown) * (RISE - 1 - layer)) / (RISE - 1)),
-  );
+  return Array.from({ length: RISE }, (_, layer) => {
+    const down = (RISE - 1 - layer) / (RISE - 1);
+    return footprint(mask, crown + (spread - crown) * down, (spread * down) / 2);
+  });
 }
 
 /**
