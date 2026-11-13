@@ -2636,6 +2636,10 @@ export class GameRenderer {
         fx: a.fx + (b.fx - a.fx) * t,
         fy: a.fy + (b.fy - a.fy) * t,
         fz: a.fz + (b.fz - a.fz) * t,
+        castFrom: [
+          { ...from, ...a, weight: 1 - t },
+          { ...to, ...b, weight: t },
+        ],
       };
     }
 

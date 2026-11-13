@@ -153,6 +153,22 @@ export type EmitterOverride = {
   fy: number;
   fz: number;
   lights?: readonly LightDef[];
+  /**
+   * Where shadows are cast from, when that is not the override's own cell.
+   * A body between two cells lists both, weighted by how far it has gone, so
+   * its shadows cross-fade over the step instead of jumping at the cell edge.
+   */
+  castFrom?: readonly CastSource[];
+};
+
+export type CastSource = {
+  x: number;
+  y: number;
+  z: number;
+  fx: number;
+  fy: number;
+  fz: number;
+  weight: number;
 };
 
 type Emitter = {
@@ -162,6 +178,9 @@ type Emitter = {
   lx: number;
   ly: number;
   lz: number;
+  sx: number;
+  sy: number;
+  sz: number;
   radius: number;
   intensity: number;
   r: number;
@@ -358,9 +377,7 @@ function castEmitter(
   h: number,
 ) {
   const rCells = Math.ceil(e.radius);
-  const sx = Math.floor(e.x);
-  const sy = Math.floor(e.y);
-  const sz = Math.floor(e.z);
+  const { sx, sy, sz } = e;
   const zLo = Math.floor(e.z) - rCells;
   const zHi = Math.ceil(e.z) + rCells;
   const yLo = Math.floor(e.y) - rCells;
@@ -543,16 +560,39 @@ function collectOverrideEmitters(
 }
 
 function pushEmitter(emitters: Emitter[], ov: EmitterOverride, light: LightDef) {
+  if (!ov.castFrom) {
+    pushEmitterFrom(emitters, ov, ov, light, 1);
+    return;
+  }
+  for (const source of ov.castFrom) {
+    if (source.weight > 0) pushEmitterFrom(emitters, ov, source, light, source.weight);
+  }
+}
+
+/**
+ * Attenuation is linear in intensity, so a light split by weight across its
+ * sources sums to the same falloff with each source's shadows mixed in.
+ */
+function pushEmitterFrom(
+  emitters: Emitter[],
+  ov: EmitterOverride,
+  source: Omit<CastSource, "weight">,
+  light: LightDef,
+  weight: number,
+) {
   const [cr, cg, cb] = parseHexColor(light.color);
   emitters.push({
     x: ov.fx,
     y: ov.fy,
     z: ov.fz,
-    lx: ov.x,
-    ly: ov.y,
-    lz: ov.z,
+    lx: source.x,
+    ly: source.y,
+    lz: source.z,
+    sx: Math.floor(source.fx),
+    sy: Math.floor(source.fy),
+    sz: Math.floor(source.fz),
     radius: light.radius,
-    intensity: light.intensity,
+    intensity: light.intensity * weight,
     r: cr,
     g: cg,
     b: cb,
