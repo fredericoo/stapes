@@ -1,5 +1,4 @@
 import { DataStore, type Blobs } from "../app/lib/dataStore";
-import { flattenMap } from "../app/lib/mapData";
 import { GameServer, type CharacterSheet } from "./GameServer";
 import { SqliteBlobs, DiskBlobs } from "./blobs";
 import { WorldStore } from "./WorldStore";
@@ -277,8 +276,7 @@ export class World {
 
   async reseed(): Promise<void> {
     await seedFromDirectory(this.rawBlobs, this.config.SEED_DIR);
-    const map = await this.blobs.readMap();
-    await this.server.replaceWorld(flattenMap(map), { keepPositions: true });
+    await this.server.replaceWorld(await this.blobs.readFlatMap(), { keepPositions: true });
   }
 
   get accepting(): boolean {

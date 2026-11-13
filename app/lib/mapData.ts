@@ -1288,12 +1288,14 @@ function lifted<T extends { description?: string; inscription?: string }>(thing:
 }
 
 export function parseMap(json: string): MapFile {
+  return chunkifyMap(parseFlatMap(json));
+}
+
+export function parseFlatMap(json: string): FlatMapFile {
   const data = JSON.parse(json) as FlatMapFile;
-  if ((data.version as number) === INSCRIPTIONS_WERE_DESCRIPTIONS) {
-    return chunkifyMap(liftInscriptions(data));
-  }
+  if ((data.version as number) === INSCRIPTIONS_WERE_DESCRIPTIONS) return liftInscriptions(data);
   if (data.version !== MAP_FILE_VERSION) {
     throw new Error(`Unsupported map version: ${String(data.version)}`);
   }
-  return chunkifyMap(data);
+  return data;
 }
