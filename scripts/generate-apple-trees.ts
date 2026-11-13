@@ -516,11 +516,77 @@ async function writePreview(dir: string, sheet: PNG) {
   await fs.writeFile(path.join(dir, `${TILESET_ID}.png`), PNG.sync.write(big));
 }
 
+const RANCH_SHEET = path.resolve(
+  import.meta.dirname,
+  "..",
+  "data",
+  "tilesets",
+  "tiny-ranch-tiles.png",
+);
+/** The `apple` tile's cell on the ranch sheet. */
+const APPLE_CELL = { x: 1, y: 16 };
+
+/**
+ * `apple` recoloured as it rots: the reds go to rust and oxblood, the leaf
+ * withers to plum, the black outline becomes the palette's own, and the
+ * highlight dulls. Any colour not listed is a mistake in the source sprite.
+ */
+const ROT: Record<string, string> = {
+  "#e83b3b": C.barkMid,
+  "#981c00": C.barkDark,
+  "#fcd8c4": C.barkLight,
+  "#1ebc73": "#694f62",
+  "#165a4c": "#45293f",
+  "#000000": C.outline,
+};
+/** Bruises on the flesh, in the source sprite's own pixel coordinates. */
+const ROT_SPOTS: readonly [number, number][] = [
+  [4, 3],
+  [2, 4],
+];
+
+async function paintRottenApple(sheet: PNG, cellX: number) {
+  const ranch = PNG.sync.read(await fs.readFile(RANCH_SHEET));
+  for (let y = 0; y < CELL; y++) {
+    for (let x = 0; x < CELL; x++) {
+      const i = (ranch.width * (APPLE_CELL.y * CELL + y) + APPLE_CELL.x * CELL + x) << 2;
+      if (ranch.data[i + 3] === 0) continue;
+      const hex = `#${[0, 1, 2].map((c) => ranch.data[i + c]!.toString(16).padStart(2, "0")).join("")}`;
+      const spot = ROT_SPOTS.some(([sx, sy]) => sx === x && sy === y);
+      const colour = spot ? "#45293f" : ROT[hex];
+      if (!colour) throw new Error(`apple pixel ${x},${y} is ${hex}, which ROT does not map`);
+      paintRgba(sheet, cellX * CELL + x, y, rgba(colour));
+    }
+  }
+}
+
+function rottenAppleTile(cellX: number): TileDef {
+  return {
+    id: "rotten-apple",
+    name: "Rotten Apple",
+    height: 0,
+    type: "simple",
+    kind: "item",
+    attributes: {},
+    anchor: { tilesetId: TILESET_ID, x: cellX, y: 0 },
+    lightPassing: true,
+    affectedByGravity: true,
+    sprite: {
+      frames: [
+        {
+          sprite: { rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+          durationMs: FRAME_MS,
+        },
+      ],
+    },
+  };
+}
+
 async function main() {
   const palette = new Set(STAPES_PALETTE);
-  for (const hex of Object.values(C))
+  for (const hex of [...Object.values(C), ...Object.values(ROT)])
     if (!palette.has(hex)) throw new Error(`${hex} is not in STAPES_PALETTE`);
-  const width = DESIGNS.reduce((sum, d) => sum + d.cells, 0) * CELL;
+  const width = (DESIGNS.reduce((sum, d) => sum + d.cells, 0) + 1) * CELL;
   const height = Math.max(...DESIGNS.map((d) => d.cells)) * CELL;
   const sheet = new PNG({ width, height });
   sheet.data.fill(0);
@@ -538,6 +604,8 @@ async function main() {
     tiles.push(treeTile(design, cellX));
     cellX += design.cells;
   }
+  await paintRottenApple(sheet, cellX);
+  tiles.push(rottenAppleTile(cellX));
   if (process.env.PREVIEW) await writePreview(process.env.PREVIEW, sheet);
   if (process.env.DRY) return;
   await writeTileset(TILESET_ID, "Apple Trees", sheet, tiles);

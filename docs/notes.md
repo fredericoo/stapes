@@ -15127,6 +15127,13 @@ it lie in the eight cells around:
   in by its own fruit tries again minutes later rather than every second.
 - **The item is tossed from three quarters of the way up the tree,** through
   `dropOnFloor`, so it is seen to fall out of the crown.
+- **What it drops has to rot, or the world fills up.** The limit only counts
+  the eight cells round the tree, so every apple carried off makes room for
+  another, and the ones nobody eats would pile up in bags and corners for good.
+  `apple` decays to `rotten-apple` in sixty to ninety minutes, and that is gone
+  in ten to twenty, the same chain `berry` and `stale-berry` follow. Four
+  simulated hours of the shipped map settle at about 70 apples, the 24 trees'
+  limits plus the few placed by hand, and never more than 30 rotten ones.
 - **It drops a plain `apple`, which has a `respawn`.** A content reload builds
   the respawn points from the board as it stands, so an apple lying under a
   tree at that moment grows back on its cell after it is eaten. The tree's
