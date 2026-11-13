@@ -512,7 +512,8 @@ function emitterOverridesKey(overrides: EmitterOverride[] | undefined): string {
   if (!overrides?.length) return "";
   return overrides
     .map((o) => {
-      const at = `${o.x},${o.y},${o.z}:${o.fx.toFixed(2)},${o.fy.toFixed(2)},${o.fz.toFixed(2)}`;
+      const cast = o.castFrom?.map((c) => c.weight.toFixed(2)).join("/") ?? "";
+      const at = `${o.x},${o.y},${o.z}:${o.fx.toFixed(2)},${o.fy.toFixed(2)},${o.fz.toFixed(2)}~${cast}`;
       if (!o.lights) return at;
       const lit = o.lights.map((l) => `${l.radius},${l.intensity},${l.color}`).join(",");
       return `${at}*${lit}`;

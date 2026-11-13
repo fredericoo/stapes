@@ -502,6 +502,40 @@ describe("computeLighting flood fill", () => {
     );
   });
 
+  it("overlayEmitterOverrides cross-fades a walking light's shadows over the step", () => {
+    const cells: Array<{ x: number; y: number; tiles: string[] }> = [];
+    for (let y = 0; y <= 3; y++) {
+      for (let x = 0; x <= 2; x++) {
+        cells.push({ x, y, tiles: x === 0 && y === 1 ? ["floor", "wall"] : ["floor"] });
+      }
+    }
+    const map = mapAt(cells);
+    const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);
+    const lights = [{ radius: 5, intensity: 1, color: "#ffffff" }];
+    const from = { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 };
+    const to = { x: 1, y: 0, z: 0, fx: 1.5, fy: 0.5, fz: 0 };
+    const behindWallAt = (t: number) => {
+      const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
+        {
+          ...from,
+          fx: from.fx + (to.fx - from.fx) * t,
+          lights,
+          castFrom: [
+            { ...from, weight: 1 - t },
+            { ...to, weight: t },
+          ],
+        },
+      ]);
+      return sampleLevelLight(painted.levels.get(0)!, 1, 2)[0];
+    };
+
+    const samples = [0, 0.25, 0.5, 0.75, 1].map(behindWallAt);
+    expect(samples[0]).toBe(0);
+    for (let i = 1; i < samples.length; i++) {
+      expect(samples[i]).toBeGreaterThan(samples[i - 1]!);
+    }
+  });
+
   it("overlayEmitterOverrides leaves the map it lights alone", () => {
     const map = mapAt([{ x: 0, y: 0, tiles: ["floor"] }]);
     const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);

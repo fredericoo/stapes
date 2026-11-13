@@ -15735,6 +15735,17 @@ A carried light takes the same path from the other end: it is on no cell at all,
 so its override carries its `lights` explicitly rather than looking them up. See
 `EmitterOverride.lights`.
 
+**A walking light casts its shadows from both ends of the step.** Its falloff
+already used the in-between position, but its rays left from one whole cell, so
+every shadow it threw jumped when that position crossed a cell edge. An actor
+mid-walk now lists both cells in `EmitterOverride.castFrom`, weighted `1 - t`
+and `t`, and the overlay casts the light once from each at that share of its
+intensity. Attenuation is linear in intensity, so the sum is the same falloff
+with the two cells' shadows mixed, and a shadow fades across the step. The
+second cast is cheap: on the fixture town a radius-8 light took about the same
+1.2–1.8ms p50 with one source or two, because copying the grid and gathering
+occlusion cost more than the rays.
+
 #### Light-passing is not an authoring choice for anything that moves
 
 The two regressions the section above describes were both a missing flag, and
