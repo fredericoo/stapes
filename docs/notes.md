@@ -11471,8 +11471,8 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
 
 - **A `denned` state where it puts itself to sleep.** By day on the surface,
   each state the wolf roams in — `prowling`, `following`, `casting`, `homing`,
-  `investigating`, `feeding` — goes to it, and it goes back to `prowling` once
-  the wolf is awake. These rows sit after the `from: any` rows and before the
+  `investigating`, `feeding` — goes to `seeking_den` and from there to it, and
+  it goes back to `prowling` once the wolf is awake. These rows sit after the `from: any` rows and before the
   per-state ones. (`casting` is the wolf's name for the step it takes when
   stuck, not a spell.)
 - **`denned` casts the wolf's own spell, Curl up, then holds.** Curl up is a
@@ -11486,6 +11486,13 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
   section. The spell has no `castTimeMs`, because the minimum is 200ms and an
   instant cast is the absent field — and one invalid spell drops the wolf's
   whole battler block.
+- **It looks for cover first.** Each of those rows goes to `seeking_den`,
+  which runs `take_shelter` from `sky` within 12 steps and hands over to
+  `denned` once the wolf is under cover, or straight away when no covered cell
+  is in reach. On today's map that is every surface wolf, so each still curls
+  up where it stands; a den placed within reach is used without any change to
+  the brain. Night takes it out of `seeking_den` the way it takes it out of
+  `denned`.
 - **The sight rows are gated on awake**: hunting a player or a deer it can see,
   and going for meat it can see. A sleeping wolf with somebody standing in front
   of it does nothing.
