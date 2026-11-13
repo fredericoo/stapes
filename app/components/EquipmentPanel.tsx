@@ -16,7 +16,7 @@ import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { HudWindow } from "./HudWindow";
-import { ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
+import { type HeldStatus, ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
 
 const SQUARE_GAP_PX = 6;
@@ -104,6 +104,7 @@ export function EquipmentPanel({
   equipment,
   masteryXp = {},
   statusDefs,
+  statuses,
   bagOpen,
   handOpen = null,
   tiles,
@@ -115,6 +116,7 @@ export function EquipmentPanel({
   equipment: Equipment;
   masteryXp?: MasteryXp;
   statusDefs?: Record<string, StatusDef>;
+  statuses?: readonly HeldStatus[];
   bagOpen: boolean;
   handOpen?: "weapon" | "offhand" | null;
   tiles: TileDef[];
@@ -159,6 +161,7 @@ export function EquipmentPanel({
               drag={drag}
               masteryXp={masteryXp}
               statusDefs={statusDefs}
+              statuses={statuses}
             />
           </div>
         ))}

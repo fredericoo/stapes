@@ -36,6 +36,7 @@ export type StatusDef = {
   toMs: number;
   stacks: boolean;
   maxMs: number;
+  overLimit: string;
   everyMs: Formula;
   effects: { hp?: Formula };
   modifiers: StatusModifiers;
@@ -46,6 +47,8 @@ export type StatusDef = {
 };
 
 export const MAX_STATUS_DESCRIPTION_LENGTH = 80;
+
+export const MAX_STATUS_OVER_LIMIT_LENGTH = 40;
 
 export const MAX_STATUS_DURATION_MS = 60 * 60 * 1000;
 
@@ -59,6 +62,7 @@ export const DEFAULT_STATUS_SOURCE = {
   toMs: 30_000,
   stacks: false,
   maxMs: MAX_STATUS_DURATION_MS,
+  overLimit: "",
   everyMs: 1_000,
   effects: {},
   modifiers: {},
@@ -107,6 +111,10 @@ const statusSourceSchema = v.pipe(
     toMs: durationMs,
     stacks: v.optional(v.boolean(), false),
     maxMs: v.optional(durationMs, MAX_STATUS_DURATION_MS),
+    overLimit: v.optional(
+      v.pipe(v.string(), v.trim(), v.maxLength(MAX_STATUS_OVER_LIMIT_LENGTH)),
+      "",
+    ),
     everyMs: v.optional(v.union([durationMs, v.string()]), 0),
     effects: v.optional(v.object({ hp: v.optional(v.string()) }), () => ({})),
     modifiers: v.optional(
@@ -172,6 +180,7 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     toMs: raw.toMs,
     stacks: raw.stacks,
     maxMs: raw.maxMs,
+    overLimit: raw.overLimit,
     everyMs,
     effects,
     modifiers,
@@ -205,6 +214,7 @@ export const COMBAT_STATUS: StatusDef = {
   toMs: COMBAT_DURATION_MS,
   stacks: false,
   maxMs: COMBAT_DURATION_MS,
+  overLimit: "",
   everyMs: constantFormula(0),
   effects: {},
   modifiers: {},
@@ -213,6 +223,10 @@ export const COMBAT_STATUS: StatusDef = {
   endsOnDamage: false,
   vfx: NO_VFX,
 };
+
+export function overLimitWords(def: Pick<StatusDef, "name" | "overLimit">): string {
+  return def.overLimit || `too ${def.name.toLowerCase()}`;
+}
 
 export function statusesById(raw: unknown[]): Record<string, StatusDef> {
   const out: Record<string, StatusDef> = {};

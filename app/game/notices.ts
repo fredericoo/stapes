@@ -245,6 +245,10 @@ export function noRoomToLeaveNotice(name: string): string {
   return `There is nowhere to put ${name}`;
 }
 
+export function overLimitNotice(verb: string, item: string, overLimit: string): string {
+  return `You cannot ${verb.toLowerCase()} ${item} because you are ${overLimit}`;
+}
+
 export function noRouteNotice(why: PathRefusal): string {
   switch (why) {
     case "unreachable":

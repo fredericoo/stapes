@@ -3,6 +3,7 @@ import { stoneLocked, takesEffect, type Equipment } from "../game/equipment";
 import { itemCard } from "../game/itemCard";
 import { isBodySlot, slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
+import { overLimitFor } from "../game/statuses";
 import { consumeVerb, equipVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { engravedName } from "../lib/engraving";
@@ -32,12 +33,17 @@ const LOCKED_NOTE = "Still cooling; it cannot be moved yet";
 
 const IDLE_NOTE = "Doing nothing there";
 
+const NO_HELD_STATUSES: readonly HeldStatus[] = [];
+
+export type HeldStatus = { readonly defId: string; readonly remainingMs: number };
+
 function pressHintFor(
   instance: ItemInstance | null,
   slot: SlotRef,
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
   open: boolean | undefined,
+  overLimit: string | null,
 ): string | null {
   if (!instance) return null;
   const use = itemUseFor(instance, slot, tilesById, equipment);
@@ -47,7 +53,9 @@ function pressHintFor(
     const def = tilesById[instance.tileId];
     const consumable = def ? resolveConsumable(def) : null;
     const verb = consumable ? consumeVerb(consumable) : null;
-    return verb ? `Press to ${verb.toLocaleLowerCase()} it.` : null;
+    if (!verb) return null;
+    if (overLimit === null) return `Press to ${verb.toLocaleLowerCase()} it.`;
+    return `${overLimit[0]!.toLocaleUpperCase()}${overLimit.slice(1)} to ${verb.toLocaleLowerCase()} it.`;
   }
   if (use.to.kind === "contents") return "Press to put it away.";
   const def = tilesById[instance.tileId];
@@ -120,6 +128,7 @@ export function ItemSlot({
   drag,
   masteryXp = {},
   statusDefs = NO_STATUS_DEFS,
+  statuses = NO_HELD_STATUSES,
   sizePx = ITEM_SLOT_SIZE_PX,
   spilledInto = null,
 }: {
@@ -136,6 +145,7 @@ export function ItemSlot({
   drag: ItemDrag;
   masteryXp?: MasteryXp;
   statusDefs?: Record<string, StatusDef>;
+  statuses?: readonly HeldStatus[];
   sizePx?: number;
 }) {
   const tile = instance ? (tilesById[instance.tileId] ?? null) : null;
@@ -198,7 +208,9 @@ export function ItemSlot({
   const idle =
     instance != null && isBodySlot(slot) && !takesEffect(slot.kind, instance, tilesById, masteries);
   const isOpen = instance ? open : undefined;
-  const pressHint = pressHintFor(instance, slot, tilesById, equipment, isOpen);
+  const consumable = tile ? resolveConsumable(tile) : null;
+  const overLimit = consumable ? overLimitFor(statuses, consumable.statuses, statusDefs) : null;
+  const pressHint = pressHintFor(instance, slot, tilesById, equipment, isOpen, overLimit);
   const showTooltip = inspected != null && asking;
 
   const square = (
@@ -240,7 +252,7 @@ export function ItemSlot({
             wouldTake,
             isSource,
             isOpen: isOpen === true,
-            locked,
+            locked: locked || overLimit !== null,
             idle,
             filled: instance != null,
           })

@@ -1243,6 +1243,57 @@ describe("watching its footing", () => {
     ),
   ];
 
+  const fliers: TileDef[] = [
+    ...ledgeDwellers,
+    tile({
+      id: "swooper",
+      height: 2,
+      actor: true,
+      affectedByGravity: false,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "hunt",
+          states: {
+            hunt: { do: [{ action: "step_toward", of: nearest("player") }, { action: "hold" }] },
+          },
+          transitions: [],
+        },
+      },
+    }),
+    tile({
+      id: "drifter",
+      height: 2,
+      actor: true,
+      affectedByGravity: false,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "wander",
+          states: { wander: { do: [{ action: "step_random" }] } },
+          transitions: [],
+        },
+      },
+    }),
+  ];
+
+  function flying(creature: string, at: Coord, playerLevel = 0): GameSession {
+    let map = field(4);
+    map = replaceStack(map, -4, -4, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, at.x, at.y, at.z, [
+      ...(at.z === 0 ? [{ tileId: "grass" }] : []),
+      { tileId: creature },
+    ]);
+    map = replaceStack(map, 3, 0, playerLevel, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    return new GameSession(map, fliers, {
+      actorIds: ["alice"],
+      spawnAt: { x: -4, y: -4, z: 0, stackIndex: 1 },
+    });
+  }
+
   function plinth(creature: string): GameSession {
     let map = field(4);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }, { tileId: creature }]);
@@ -1296,6 +1347,30 @@ describe("watching its footing", () => {
     advance(session, BRAIN_TICK_MS * 8);
 
     expect(levelOf(session, "stalker")).toBe(1);
+  });
+
+  it("brings a flier down out of the air to whoever is below it", () => {
+    const session = flying("swooper", { x: 0, y: 0, z: 2 });
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    expect(levelOf(session, "swooper")).toBe(0);
+  });
+
+  it("takes a flier up to somebody on a floor above it", () => {
+    const session = flying("swooper", { x: 0, y: 0, z: 0 }, 2);
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    expect(levelOf(session, "swooper")).toBe(2);
+  });
+
+  it("sinks a flier nothing is steering back to the ground", () => {
+    const session = flying("drifter", { x: 0, y: 0, z: 2 });
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    expect(levelOf(session, "drifter")).toBe(0);
   });
 });
 

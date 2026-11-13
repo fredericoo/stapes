@@ -293,6 +293,13 @@ an agent drives", lists every call.
   clusters of tapered cones, in the colours of `cave-wall`, of
   `cave-wall-grey` and of `ice`, cast through
   the game's projection the way the swamp trees are
+- `bun run generate:bear` — draw `data/tilesets/bear.png` and write the `bear`
+  tile: a 3D model cast through the game's projection by
+  `scripts/model-caster.ts`, once for each facing and walking pose.
+  `PREVIEW=<dir>` writes the sheet enlarged and each facing cast six times
+  larger instead of touching `data/`. The brain and battler in the script are
+  only what a new tile starts with; a re-run leaves the ones in `tiles.json`
+  alone
 - `bun run generate:mushrooms` — draw `data/tilesets/mushrooms.png` and write
   the mushrooms: the `mushroom` item, a short meal, and `blue-mushroom`, a
   poisonous one that looks like it, both piling to 32; and for each, the patch

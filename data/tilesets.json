@@ -235,6 +235,13 @@
     "height": 376
   },
   {
+    "id": "bear",
+    "name": "Bear",
+    "file": "bear.png",
+    "width": 96,
+    "height": 128
+  },
+  {
     "id": "ice",
     "name": "Ice",
     "file": "ice.png",

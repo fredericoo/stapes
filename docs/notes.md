@@ -2403,6 +2403,56 @@ a hole whose bottom is a `half-wall`, a tree or water is one nobody can step
 into, and content that wants a way down has to put walkable ground at the
 bottom.
 
+### A body gravity does not pull flies, a level a step
+
+`flies` in `app/game/movement.ts` is an actor whose tile does not set
+`affectedByGravity`: the bat and the three wisps. `canWalk` hands such a body to
+`canFly` and none of the walking rules apply to it: no climb band, no
+climb-from flags, no check on where a fall would end.
+
+A step is still one of the four directions. What flight adds is that the step
+may end in the next column on the body's own level, the level below or the
+level above, so it climbs and dives on a diagonal and never straight up. A
+column one cell wide is therefore one it cannot rise in.
+
+`flightInto` decides whether one of those three cells can be entered:
+
+- `fitsTile` has to take the body there, so a stack that fills its level is a
+  wall and the cell above it is its top.
+- A whole level crossed must be open. Rising, the plane is checked in the
+  column being left; diving, in the column being entered, the same choice
+  `surfacesInClimbBand` makes. Anything solid in the crossed cell closes it, as
+  well as anything that seals the level. `sealsLevel` alone is not enough here:
+  a floor tile that passes light does not seal, and a diving body would go
+  through it.
+- A cell with something under the feet has to be walkable there, so a flier
+  does not land on water, a fence or another creature. A cell with nothing
+  under the feet is open air and is always allowed, which is how it crosses a
+  pond a level up.
+
+Which level a step takes is the caller's choice. `findPath`, `findRefuge` and
+`reachableCells` offer all three per direction (`flights` in `pathfinding.ts`),
+and `GameSession.driveWalkOrder` passes the level the route chose as
+`StepRequest.flyToLevel`. A direction alone cannot say it, and without the level
+the session would take the default below and leave the route.
+
+With no level asked for — `step_random`, `walk_n_steps` — the body stays level
+when the cell ahead has something under it, otherwise sinks a level, and rises
+only when nothing level or lower is open. A flier nothing is steering comes
+back to the ground a level a step instead of staying wherever a chase left it,
+and it goes over a one-level wall instead of stopping at it.
+
+`allowDrops` means nothing to a flier: `stepLeavesGround` answers false for it,
+and the route search does not read `drops`.
+
+`findPath` adds the levels between a flier and its goal to the estimate,
+because each step crosses at most one. A walker is not asked this: a drop
+crosses any number of levels in one step.
+
+Before this a flier could enter open air on its own level and had no step that
+changed level, so a bat that followed somebody up a ramp and off the edge
+stayed at that height and could reach nobody below it.
+
 ### The topmost tile decides what a stack is
 
 `walkableElevInStack` reads the top of a stack and nothing under it. Whatever
@@ -3218,8 +3268,8 @@ carry it.
     asked of one leg. Without it the same animal was safe while it was hunting
     and burned while it was idling, because which cells it could end up in
     depended on which action moved it. The two refusals have different standing
-    and are written that way: `allowDrops` is the author's, because a bat is
-    meant to fly off a plinth, while a flame is nobody's. Asked of where the leg
+    and are written that way: `allowDrops` is the author's, because some
+    creatures are meant to jump off a plinth, while a flame is nobody's. Asked of where the leg
     *lands*, so a creature that may take drops does not fall into a fire at the
     bottom of one; the ledge check goes first because it is the cheaper half.
     It does not show up in a tick: `bun scripts/bench-server.ts --scenario
@@ -11573,6 +11623,44 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
   fight on the next turn. A hunt that ends by day goes to `prowling`, and from
   there to the den, where it stays — it does not walk home first.
 
+### The bear sleeps in its den while it is fed
+
+The den is the cell the bear was placed on, its `home`. There is no den tile:
+place the bear where it should sleep, in a cave or under a roof.
+`data/map.json` has two, each on the bare cell furthest from the mouth of a
+ground-level hill cave: 41,45 in the cave that opens at 76,35 and -68,-144 in
+the one that opens at -49,-146. Bats live in both. A bear's prey list has no
+bat in it and a bat hunts only players, so neither starts on the other.
+
+- **Hungry is having no `fed` status at all.** Then it hunts a player, deer or
+  rabbit it can see within 8 cells (`hunts-on-sight`, `when` hungry), picks a
+  `bush` and eats the berries (`forages`), and wanders inside a leash of 24
+  cells (`returns-home`).
+- **Food it can see beats the hunt.** `eats-when-hungry` fires at `danger`, as
+  the wolf's feeding row does, so the bear eats the meat its kill dropped
+  before it turns on the next body. `feeding` holds at `need`, so a blow takes
+  it back into the fight through `fights-back`.
+- **Fed, it walks home and sleeps.** Its own `denning` state fires at `errand`
+  once it has `fed` and is more than 2 cells from home. Within 2 cells,
+  `sleeps` casts Curl up, the wolf's spell, for as long as `fed` lasts.
+  `sleeps` holds at `rest`, above `need`, so a fed bear in its den does not get
+  up for food, and a player can walk past it. Any damage wakes it into
+  `fights-back`.
+- **How long it sleeps is how much it ate.** One raw meat is 90 to 240 seconds
+  of `fed`, a berry 45 to 75. Measured in a `GameSession` with one deer and
+  one bush in reach: the deer bought 160 seconds in the den and each trip to
+  the bush about 120.
+- **It is nature, so fire does half again to it** (`elements`), and it is
+  immune to `food-poisoning`, which raw meat gives four times in five.
+- **It is a step under the cave troll.** Over 2,000 fights each against a
+  player with Sharp, Toughness and Agility 33 and a knight's sword
+  (`verify battle`), the bear won 84.7% and the troll 94.8%; both won every
+  fight against the same player at 15.
+- **Its feet stand in its own cell.** The sprite is four cells square because
+  the body overhangs, but all four legs of the model in
+  `scripts/generate-bear.ts` are inside the standing cell, so what the bear
+  blocks is what its feet are drawn on.
+
 ### A brain `cast` can name no target
 
 `of` is optional on the `cast` action. Absent, the line casts at nobody, and
@@ -12212,7 +12300,7 @@ is off while anything calls the trait. In development a save writes
 
 ### What the shipped creatures call
 
-Nineteen of the twenty-nine shipped brains call traits. The fourteen that
+Twenty of the thirty shipped brains call traits. The fourteen that
 were first written out by hand each expand to a table that runs exactly as the
 hand-written one it replaced: every state asks the same rows in the same order,
 apart from rows that could never be the first to hold.
@@ -12875,6 +12963,55 @@ outlives the fight.
 The editor previews every formula against a body that is under nothing, so
 `has_status('combat')` reads 0 there, and the snapped cadence it reports is the calm
 one.
+
+## A consumable is refused when a status it grants has no room
+
+A stacking status has a ceiling, `StatusDef.maxMs`, and a grant used to be
+clamped to it: a body with 120 seconds of a 130-second Fed could eat a
+180-second meal and keep ten seconds of it. `GameSession.consume` now refuses
+the item instead, before anything is spent, and says so ("You cannot eat
+Apple because you are too full").
+
+**The test is the shortest duration the grant can roll.** A grant fits when
+`remainingMs + fromMs <= maxMs` (`hasRoomFor` in `app/game/statuses.ts`). At
+120 of 130 seconds a food that fills 10 to 20 seconds is eaten and one that
+fills 11 or more is not. The roll happens after the check, so a fitting grant
+that rolls long is still clamped to `maxMs` by `applyStatus`. Testing the
+minimum rather than the roll keeps the refusal a fact a player can learn about
+a food; testing the maximum would make food with a wide range uneatable for
+most of the bar.
+
+- **Every grant on the item counts, whatever its `chance`.** One status
+  without room refuses the whole item, so the refusal does not depend on dice.
+- **Only stacking statuses can be full.** A status with `stacks: false` keeps
+  the longer of its remaining time and the roll, so there is nothing to
+  overfill.
+- **A body that does not hold the status always has room**, which covers
+  immune bodies: they never hold it.
+- **Only `consume` asks.** A bite, a bolt, a charm, a tile and `/status` still
+  go through `grantStatus` and clamp. Being at the ceiling of Poisoned stops a
+  body drinking more poison, not being bitten.
+- **A grant whose `fromMs` is 0 always fits**, so a food authored that way
+  can be eaten at any level of the status.
+
+**The words for being over the limit are the status's own.**
+`StatusDef.overLimit` is the phrase that finishes "because you are …": "too
+full" on Fed, "too poisoned" on Poisoned. A status that leaves it blank reads
+as "too " and its name in lower case (`overLimitWords`). The same phrase is
+the block reason on the Eat row and the press hint on a bag slot, so the
+notice and the interface cannot disagree.
+
+**The refusal is shown before the press.** `slotOptions` gives the consume
+row an `overLimit` block, which the interaction list and the pointer hint
+draw the way they draw `noRoom`, and `ItemSlot` dims a consumable the body
+has no room for. Both read the client's own statuses through `overLimitFor`,
+the function the server uses.
+
+A creature's `consume` action reports `failure` on a refusal, so a deer with a
+berry and no room falls through to the next action in its state and eats once
+Fed has run down. `RemoteSession.consume` does not predict the refusal, so
+pressing a dimmed bag slot still reaches the server and gets its notice. Bots
+check `firstWithoutRoom` themselves before choosing food.
 
 ## A dead creature's bag is destroyed and its contents spill
 
@@ -16939,8 +17076,10 @@ Every frame, before its goal, a bot checks three things in order:
 3. **It eats.** Below `eatHpShare` of its health, or while recovering with
    nothing mending it, it eats the bag's food that heals most (`healing`). Most food heals through `fed`, a good status that
    mends a point every few seconds, so a mending status counts as
-   `MENDING_STATUS_HP`. A berry gives nothing at once, and a rule that counted
-   only immediate health did not see it as food. Food that can give a bad
+   `MENDING_STATUS_HP`. Bread gives nothing at once, and a rule that counted
+   only immediate health did not see it as food. Food that grants more of a
+   status than the bot has room for (`firstWithoutRoom`) counts as nothing,
+   because the server refuses it. Food that can give a bad
    status, such as raw meat or anything stale, is never eaten to heal.
    While it fights or backs away, it eats only food that heals at once
    (`healsAtOnce`): in a fight `fed` mends a character's whole health over

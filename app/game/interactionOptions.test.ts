@@ -16,6 +16,7 @@ import type { ActorSnapshot, ObjectRef, PlaySession } from "./GameSession";
 import {
   actionRows,
   applyInteraction,
+  blockReason,
   groupInteractionOptions,
   interactionText,
   listedActionRows,
@@ -26,6 +27,7 @@ import {
   topInteractionAt,
   type InteractionOption,
 } from "./interactionOptions";
+import { statusesById } from "../lib/status";
 import { tile } from "../lib/testTile";
 
 const tiles: TileDef[] = [
@@ -87,6 +89,21 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: { item: { ...DEFAULT_CONSUMABLE } },
+  }),
+  tile({
+    id: "bun",
+    name: "Bun",
+    height: 0,
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: {
+        type: "consumable",
+        label: "Eat",
+        hp: 0,
+        statuses: [{ id: "fed", fromMs: 60_000, toMs: 90_000 }],
+      },
+    },
   }),
   tile({
     id: "mystery-snack",
@@ -1266,6 +1283,48 @@ describe("listInteractionOptions — consumables on the floor", () => {
     ]);
   });
 
+  it("blocks the meal, in the status's own words, while the status has no room for it", () => {
+    const statusDefs = statusesById([
+      {
+        id: "fed",
+        name: "Fed",
+        description: "Recovering health.",
+        tone: "good",
+        fromMs: 10_000,
+        toMs: 10_000,
+        stacks: true,
+        maxMs: 100_000,
+        overLimit: "too full",
+      },
+    ]);
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bun"]);
+    const eatWith = (remainingMs: number) => {
+      const fed = { defId: "fed", durationMs: remainingMs, remainingMs, sinceEffectMs: 0 };
+      const me = { ...playerAt(map), statuses: [fed] };
+      return refOptionsFrom(
+        map,
+        tilesById,
+        me,
+        [me],
+        { x: 1, y: 0, z: 0, stackIndex: 1 },
+        {
+          equipment: KIT,
+          openedRef: null,
+          tags: [],
+          extracting: null,
+          conversation: null,
+          craftingRef: null,
+          statusDefs,
+        },
+      ).find((option) => option.action === "consume");
+    };
+
+    expect(eatWith(40_000)?.blocked).toBeNull();
+    expect(eatWith(40_001)?.blocked).toEqual({ kind: "overLimit", words: "too full" });
+    expect(blockReason(eatWith(40_001)!.blocked!)).toBe("too full");
+  });
+
   it("does not reach two cells out", () => {
     let map = field();
     map = place(map, 2, 0, ["grass", "cherry"]);
@@ -1504,6 +1563,7 @@ describe("refOptionsFrom", () => {
     extracting: null,
     conversation: null,
     craftingRef: null,
+    statusDefs: {},
   };
 
   function both(map: MapFile, me: ActorSnapshot, others: ActorSnapshot[], ref: ObjectRef) {
