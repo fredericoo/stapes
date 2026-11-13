@@ -3098,6 +3098,41 @@ inside, the scene page needs `roofCut: roofCutFor(map, tilesById, look)` and
 `viewerZ` in its `setView`, which is how the screenshots of these caves were
 taken.
 
+## Mushrooms are picked from a patch, and the patch grows back where it is
+
+Mushrooms grow on the map as patches, the way berries grow on bushes. A
+`mushroom-patch` has an `extract` "Pick" that yields one to three `mushroom`
+items and swaps it for `picked-mushroom-patch`, which `decay`s back into the
+patch after four to eight minutes. `blue-mushroom-patch` does the same with
+`blue-mushroom`. Nothing moves a patch, so `scripts/grow-mushrooms.ts` is the
+whole of the rule that mushrooms grow only in caves and round the wisps'
+flower rings: a patch put anywhere else, by hand or by the editor, keeps
+growing there.
+
+- **A patch is flat and walkable, where a bush is not.** Patches grow in cave
+  passages, and one that blocked the way could close a passage. Both states
+  have `height: 0` and pass light, so a pick changes nothing the light or the
+  walk reads.
+- **The picked patch keeps the patch's face.** Both are `scatter` tiles with
+  three faces (one mushroom, two, or three), and the picked one's
+  `scatterSeed` is `scatterSeedMatching`, so the stubs stand where the
+  mushrooms were.
+- **A cave is bare `dirt` within two cells of a cave wall** and reachable from
+  where a player starts. The wall test is what keeps cellars and dirt paths
+  out. Caves are told apart by joining cave cells through anything standing
+  on the floor, so a ramp, a crystal or a bat between two cells does not split
+  one cave into two. A cave of 20 cells or more always gets at least one
+  cluster; below that it gets its share, which is usually none.
+- **The rings are found by their wisp.** Every `*-wisp` placement gets three to
+  five patches on plain grass within 3.5 cells, which is inside its ring and a
+  cell beyond it. A wisp added later needs the script run again, from a map
+  without mushrooms, or a few patches placed by hand.
+- **About a quarter of the patches are blue, and a blue mushroom poisons
+  whoever eats it** and feeds nobody. Only its colour says so. The kinds come
+  from a random stream of their own, so changing `poisonShare` moves no patch.
+- **`fed` from a mushroom lasts 20 to 40 seconds**, under an apple's 45 to 75.
+  It is a snack you carry many of: `pile` is 32, where food is otherwise 3 to 8.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take

@@ -34,6 +34,11 @@ an oblique cabinet projection with Three.js.
   `bun run verify` command shows that a change works, and how to hand that
   evidence over). Claude Code reads skills only from `.claude/skills/`, so each
   one here is symlinked there; a new one needs its link too.
+- **`.agents/skills/sprite-design/`** — the map is drawn in an oblique
+  projection, so a top-down drawing of anything with height looks wrong.
+  Read it before drawing or generating any sprite. Most things with height are
+  best built as a 3D model and cast to pixels with `scripts/limb-caster.ts` or
+  `scripts/model-caster.ts`.
 - **`.agents/skills/bot-bench/`** — when bot code changes, bench the branch
   against `origin/main` with `bun run bench:bots` and put the table in the PR.
 - **`.claude/skills/pull-request-standards/`** — how to write a PR description here.

@@ -244,6 +244,12 @@ an agent drives", lists every call.
   to, a cell that could be walked to before no longer can, or daylight reaches
   the back of a cave. What to dig is the `CAVES` block at the top of the
   script; `--dry-run` reports without writing
+- `bun run grow:mushrooms` — put mushroom patches, about a quarter of them
+  blue, on the bare floor of every cave, a few to a cluster, and inside the
+  flower ring round every wisp, on cells a player can walk to. A picked patch
+  grows back where it was, so these are the only places mushrooms grow. How
+  many is the `MUSHROOMS` block at the top of the script; `--dry-run` reports
+  without writing
 - `bun run verify stranded` — walk `data/map.json` from where a player starts,
   drops off ledges included, and list every place they could get to and not
   leave. `--image <file.png>` draws the map with those places in red. CI runs
@@ -256,6 +262,13 @@ an agent drives", lists every call.
   write the `stalagmite` and `stalagmite-grey` tiles: four clusters of tapered
   cones, in the colours of `cave-wall` and of `cave-wall-grey`, cast through
   the game's projection the way the swamp trees are
+- `bun run generate:mushrooms` — draw `data/tilesets/mushrooms.png` and write
+  the mushrooms: the `mushroom` item, a short meal, and `blue-mushroom`, a
+  poisonous one that looks like it, both piling to 32; and for each, the patch
+  it is picked from and the picked patch that grows back into it, in three
+  faces. The sprites are 3D models cast through the game's projection by
+  `scripts/model-caster.ts`; `PREVIEW=<dir>` also writes each face cast four
+  times larger
 - `bun run seed` — copy `data/` into the `blob` table of the database in
   `DATA_DIR`. The server has to be stopped, since it holds the file, and the
   world keeps its checkpoint. Rarely needed: every deploy already does this

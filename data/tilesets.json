@@ -219,5 +219,12 @@
     "file": "apple-trees.png",
     "width": 32,
     "height": 24
+  },
+  {
+    "id": "mushrooms",
+    "name": "Mushrooms",
+    "file": "mushrooms.png",
+    "width": 48,
+    "height": 48
   }
 ]
