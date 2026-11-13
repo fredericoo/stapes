@@ -29,8 +29,8 @@ import {
 } from "../lib/interactions";
 import { armorSlotOf, resolveItem } from "../lib/item";
 import { layerForSlot, wornPartOf } from "../lib/humanParts";
-import { maskBlobCorners, neighborMask } from "../lib/autotile";
-import { listCoords, presentLevels } from "../lib/mapData";
+import { E, maskBlobCorners, N, NE, neighborMask, NW, S, SE, SW, W } from "../lib/autotile";
+import { getStack, listCoords, presentLevels } from "../lib/mapData";
 import { resolveProjectile } from "../lib/projectile";
 import { anchorFits } from "../lib/spriteAnchor";
 import { tileHumanSchema, wearsHumanSheet } from "../lib/humanSprite";
@@ -688,6 +688,89 @@ function groundBacked(
   });
 }
 
+/**
+ * Autotiles whose edge slices fade out instead of stopping, so the tile
+ * directly below one is drawn through its rim.
+ */
+const FADED_COVER = new Set(["deep-water"]);
+
+/**
+ * `between` holds the two edges a diagonal lies between. A blob autotile draws
+ * a diagonal only as the inner corner of two connected edges, so a diagonal
+ * neighbour is a seam only when both are connected.
+ */
+const SEAMS: readonly { bit: number; dx: number; dy: number; between: number }[] = [
+  { bit: N, dx: 0, dy: -1, between: 0 },
+  { bit: E, dx: 1, dy: 0, between: 0 },
+  { bit: S, dx: 0, dy: 1, between: 0 },
+  { bit: W, dx: -1, dy: 0, between: 0 },
+  { bit: NE, dx: 1, dy: -1, between: N | E },
+  { bit: SE, dx: 1, dy: 1, between: S | E },
+  { bit: SW, dx: -1, dy: 1, between: S | W },
+  { bit: NW, dx: -1, dy: -1, between: N | W },
+];
+
+function isGroundAutotile(def: TileDef | undefined): def is TileDef {
+  return def?.type === "autotile" && def.height === 0;
+}
+
+function isFullGround(def: TileDef | undefined): boolean {
+  return (
+    def !== undefined &&
+    def.type !== "autotile" &&
+    def.kind === "prop" &&
+    def.height === 0 &&
+    !def.intangible
+  );
+}
+
+type Seams = { strangers: Set<string>; fadedCovers: Set<string> };
+
+/**
+ * What a ground autotile's edges show that belongs to neither side of them.
+ * `strangers` are the neighbouring grounds it draws an edge towards while
+ * standing on a different full ground, which is then drawn as a line between
+ * the two. `fadedCovers` are the covers directly above it that carry on over
+ * a neighbour it draws an edge towards, so its edge shows through their rim.
+ */
+function seamsOf(
+  map: MapFile,
+  at: { x: number; y: number; z: number },
+  stack: readonly PlacedTile[],
+  index: number,
+  def: TileDef,
+  tilesById: Record<string, TileDef>,
+): Seams {
+  const found: Seams = { strangers: new Set(), fadedCovers: new Set() };
+  const mask = neighborMask(map, at.x, at.y, at.z, def);
+  if (maskBlobCorners(mask) === 0xff) return found;
+  const below = stack.slice(0, index);
+  const under = below.at(-1);
+  const showsGround = under !== undefined && isFullGround(tilesById[under.tileId]);
+  const cover = stack[index + 1];
+  for (const { bit, dx, dy, between } of SEAMS) {
+    if (mask & bit || (mask & between) !== between) continue;
+    const beside = getStack(map, at.x + dx, at.y + dy, at.z);
+    const base = beside[0];
+    if (
+      showsGround &&
+      base &&
+      isFullGround(tilesById[base.tileId]) &&
+      !below.some((placed) => placed.tileId === base.tileId)
+    ) {
+      found.strangers.add(base.tileId);
+    }
+    if (
+      cover &&
+      FADED_COVER.has(cover.tileId) &&
+      beside.some((placed) => placed.tileId === cover.tileId)
+    ) {
+      found.fadedCovers.add(cover.tileId);
+    }
+  }
+  return found;
+}
+
 function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Findings): number {
   const players = findPlayers(map);
   if (players.length !== 1) {
@@ -705,6 +788,8 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
   const unknown = new Map<string, Tally>();
   const untagged = new Map<string, Tally>();
   const unbacked = new Map<string, Tally>();
+  const strangers = new Map<string, Tally>();
+  const underFade = new Map<string, Tally>();
   for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const where = `${x},${y} L${z}`;
@@ -718,6 +803,14 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
           !groundBacked(map, { x, y, z }, stack.slice(0, index), def, tilesById)
         ) {
           tally(unbacked, placed.tileId, "placed", where);
+        }
+        if (isGroundAutotile(def)) {
+          const seams = seamsOf(map, { x, y, z }, stack, index, def, tilesById);
+          const under = stack[index - 1]?.tileId;
+          for (const beside of seams.strangers) {
+            tally(strangers, placed.tileId, `${under} ${beside}`, where);
+          }
+          for (const cover of seams.fadedCovers) tally(underFade, placed.tileId, cover, where);
         }
         if (def && resolveDepotDef(def) && !resolveDepot(placed, def)) {
           tally(untagged, placed.tileId, "depotTag", where);
@@ -752,6 +845,23 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
       tileId,
       "",
       `The map has ${placements(times)} of "${tileId}" that draw an edge with nothing under them but autotiles they do not connect to, so the edge shows as a black gap (first at ${first}). Put a full tile such as grass-2 under them.`,
+    );
+  }
+
+  for (const { tileId, what, count: times, first } of strangers.values()) {
+    const [under, beside] = what.split(" ");
+    findings.warn(
+      tileId,
+      "",
+      `The map has ${placements(times)} of "${tileId}" on "${under}" that draw an edge towards "${beside}", so a line of "${under}" shows between the two (first at ${first}). Connect "${tileId}" to "${beside}" with connectsTo, or put "${beside}" under them.`,
+    );
+  }
+
+  for (const { tileId, what: cover, count: times, first } of underFade.values()) {
+    findings.warn(
+      tileId,
+      "",
+      `The map has ${placements(times)} of "${tileId}" under "${cover}" that draw an edge towards a neighbour holding "${cover}", so whatever is under them shows through the faded rim of the "${cover}" (first at ${first}). Add "${cover}" to the connectsTo of "${tileId}".`,
     );
   }
 
