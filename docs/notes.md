@@ -3062,6 +3062,42 @@ counted as cells nobody could walk to. A wall fills its cell up to the level
 above, and a barrel, crate or bottle under a floor leaves no room on top of it
 for a three-unit body, so nobody can stand in any of those cells.
 
+## `carve:hill-caves` digs only where a hill is rock above the cave as well
+
+`raise:hills` fills every level of a hill below its top with
+`[ground, half-stone, half-stone]`, and that fill is the only rock above ground
+there is to dig into. `scripts/carve-hill-caves.ts` digs a cave on a level only
+where the level above it is fill too, so the roof is a full block. Most hills
+are one level tall, and under those the roof would be the hilltop's own floor,
+which nearly always has grass, a bush or a tree on it. Daylight comes through
+such a floor at half strength (see "A roof over a cave is not what keeps the
+daylight out of it"), so those hills are left solid. That leaves room for six
+caves in the current map, all on level 0, from 35 to 370 cells.
+
+- **Every cave cell has rock on all eight sides before the walls are
+  roughened**, so the cave is closed except where its tunnel reaches a cliff
+  face. A mouth opens onto ground that a player could already walk to, and
+  south and east faces are preferred because those are the faces the
+  projection shows.
+- **Rock that is also the outside of the hill stays `half-stone`.** Only rock
+  with fill or cave on every side becomes `cave-wall-sloped`, so a cliff looks
+  the same from outside whether there is a cave behind it or not.
+- **A stalagmite needs open floor to its north, west and north-west.** The
+  projection draws it leaning over those cells, and placed against a north or
+  west wall it rendered as a black shape while the floor in front of it was
+  lit, because full rock cells take no light.
+- **Each cave mixes red and grey stalagmites in its own proportion**, drawn
+  from `greyShare`. The tones come from a random stream of their own, so
+  changing the mix moves no cave, stalagmite or bat.
+- **The script refuses a map that already has stalagmites**, as `raise:hills`
+  refuses one with ledges. Run it on a map without its hill caves.
+
+`bun run scene` does not apply the roof cut the game applies over a player, so
+a scene looking at a cell inside a hill draws the hilltop over it. To look
+inside, the scene page needs `roofCut: roofCutFor(map, tilesById, look)` and
+`viewerZ` in its `setView`, which is how the screenshots of these caves were
+taken.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take
