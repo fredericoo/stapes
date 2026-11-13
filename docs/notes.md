@@ -15083,6 +15083,67 @@ the heap churns without ever restarting all at once. The segments are phased
 three frames apart per cell along x, so a wide fall is not one column stamped
 side by side.
 
+## An apple tree is drawn in bundles, and drops what it bears
+
+`bun run generate:apple-trees` ray-traces `apple-tree` in the game's
+projection: a trunk and two limbs as tapered segments, under a crown that is a
+dark core beneath a shell of leaf bundles of one size, spread evenly over an
+ellipsoid. That is how pixel artists draw foliage, and two earlier attempts
+show why it matters:
+
+- **A bundle is shaded on its own.** Each one takes plain Lambert from its own
+  normal, so it has a lit cap and a shadowed crescent — the "bundle o' leaves"
+  every foliage tutorial builds a crown from. It is then darkened by how far it
+  faces down and away from the light, which puts the crown's underside in
+  shadow. One smooth lobe shaded as a whole reads as a balloon; faceted
+  capsules read as a lollipop.
+- **No random speckle, and no lone pixels.** A dapple drawn per pixel is the
+  noise the tutorials warn about. The last pass gives any leaf pixel that
+  matches none of its neighbours the colour most of them share.
+- **Creases are for leaves only.** On bark, the depth jump where a limb meets
+  the trunk drew a single outline pixel inside it.
+- **The sprite is 3×3, where `tree` is 2×2.** A crown as wide as an apple
+  tree's cannot clear its own trunk on 2×2.
+- **The crown's seed is the variant that was picked.** A design is rebuilt with
+  `variation` advanced until it passes the edge checks, and `variation` starts
+  from nought for each design; it used to carry over from the one before.
+
+### Shedding
+
+`interactions.shed` (`app/game/shedding.ts`) drops `tileId` on a free floor
+cell beside the placement every `fromMs` to `toMs`, while fewer than `max` of
+it lie in the eight cells around:
+
+- **It runs on the simulated clock, like weathering,** in an index re-armed
+  through `reindexCells`, and nothing of it is persisted: a resumed world draws
+  every wait afresh. It does not advance while the world sleeps, so nobody comes
+  back to a ring of apples that fell while nobody was there.
+- **The limit counts piles by their size,** across the eight cells, so three
+  apples poured into one pile are three.
+- **It lands on the same level only,** on a cell `landingFor` gives a floor to.
+  An apple carried up onto a roof or a stall is not one anybody looks for
+  under a tree.
+- **A wait is drawn again after every attempt,** room or not, so a tree hemmed
+  in by its own fruit tries again minutes later rather than every second.
+- **The item is tossed from three quarters of the way up the tree,** through
+  `dropOnFloor`, so it is seen to fall out of the crown.
+- **What it drops has to rot, or the world fills up.** The limit only counts
+  the eight cells round the tree, so every apple carried off makes room for
+  another, and the ones nobody eats would pile up in bags and corners for good.
+  `apple` decays to `rotten-apple` in sixty to ninety minutes, and that is gone
+  in ten to twenty, the same chain `berry` and `stale-berry` follow. Four
+  simulated hours of the shipped map settle at about 70 apples, the 24 trees'
+  limits plus the few placed by hand, and never more than 30 rotten ones.
+- **Who eats what fell is a list per creature, not a property of the food.**
+  A brain names the tiles it eats, so a new food is eaten by nobody until it is
+  added. Deer eat `apple` (`eats-when-hungry`), bog imps eat `apple` and
+  `rotten-apple` (they are immune to food poisoning), and rats take both through
+  `scavenges`' default list, poisoning or not. Wolves and the cyclops eat meat.
+- **It drops a plain `apple`, which has a `respawn`.** A content reload builds
+  the respawn points from the board as it stands, so an apple lying under a
+  tree at that moment grows back on its cell after it is eaten. The tree's
+  limit counts those too, so a tree still never has more than `max` around it.
+
 ## A forest is a path and what grows either side of it
 
 The forest generator (`app/editor/forest.ts`) lays a ground tile over the whole

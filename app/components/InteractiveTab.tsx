@@ -13,6 +13,7 @@ import type {
   ReceiveInteraction,
   RemoveStatusInteraction,
   RewardInteraction,
+  ShedInteraction,
   SignalMode,
   SignalValue,
   SwitchInteraction,
@@ -25,6 +26,8 @@ import type {
 import {
   DEFAULT_ADD_STATUS,
   DEFAULT_DECAY,
+  DEFAULT_SHED,
+  MAX_SHED,
   DEFAULT_DEPOT,
   DEFAULT_EMIT,
   DEFAULT_EXTRACT,
@@ -193,6 +196,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const addStatus = draft.interactions?.addStatus;
   const removeStatus = draft.interactions?.removeStatus;
   const decay = draft.interactions?.decay;
+  const shed = draft.interactions?.shed;
   const weather = draft.interactions?.weather;
   const plate = draft.interactions?.pressurePlate;
   const emit = draft.interactions?.emit;
@@ -348,6 +352,20 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const patchDecay = (patch: Partial<DecayInteraction>) => {
     if (!decay) return;
     setDecay({ ...decay, ...patch });
+  };
+
+  const setShed = (next: ShedInteraction | undefined) => {
+    patchKind("shed", next ?? null);
+  };
+
+  const patchShedBound = (end: "fromMs" | "toMs", seconds: number) => {
+    if (!shed) return;
+    const ms = Math.round(Math.min(MAX_DECAY_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND);
+    setShed(
+      end === "fromMs"
+        ? { ...shed, fromMs: ms, toMs: Math.max(ms, shed.toMs) }
+        : { ...shed, toMs: ms, fromMs: Math.min(ms, shed.fromMs) },
+    );
   };
 
   const patchDecayBound = (end: "fromMs" | "toMs", seconds: number) => {
@@ -963,6 +981,71 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
               emptyHint="None — the placement is removed."
               single
             />
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <SectionSwitch
+          on={Boolean(shed)}
+          onToggle={(on) => setShed(on ? { ...DEFAULT_SHED } : undefined)}
+          label="Drops"
+          info="Every so often, puts the item on a free floor cell beside the placement, falling from it — an apple tree dropping apples. Stops while the limit already lies in the eight cells around, and tries again after the next wait. Runs in simulated time, and only while the world is awake."
+        />
+
+        {shed ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <TileIdMultiSelect
+              tiles={others}
+              tilesets={tilesets}
+              selectedIds={shed.tileId ? [shed.tileId] : []}
+              onChange={(ids) => setShed({ ...shed, tileId: ids[0] ?? "" })}
+              label="Item"
+              emptyHint="Choose the item it drops."
+              single
+            />
+            <div className="flex flex-col gap-1 text-xs">
+              <FieldLabel info="Drawn again after every drop. Equal ends for an exact wait.">
+                Every (s)
+              </FieldLabel>
+              <span className="flex items-center gap-2">
+                <NumberInput
+                  min={1}
+                  max={MAX_DECAY_SECONDS}
+                  step={1}
+                  value={shed.fromMs / MS_PER_SECOND}
+                  onChange={(seconds) => patchShedBound("fromMs", seconds)}
+                  className="w-20"
+                  aria-label="Shortest wait between drops in seconds"
+                />
+                <span className="text-muted">to</span>
+                <NumberInput
+                  min={1}
+                  max={MAX_DECAY_SECONDS}
+                  step={1}
+                  value={shed.toMs / MS_PER_SECOND}
+                  onChange={(seconds) => patchShedBound("toMs", seconds)}
+                  className="w-20"
+                  aria-label="Longest wait between drops in seconds"
+                />
+              </span>
+            </div>
+            <div className="flex flex-col gap-1 text-xs">
+              <FieldLabel info="Counted across the eight cells around, piles by their size.">
+                Limit
+              </FieldLabel>
+              <NumberInput
+                min={1}
+                max={MAX_SHED}
+                step={1}
+                value={shed.max}
+                onChange={(max) =>
+                  setShed({ ...shed, max: Math.min(MAX_SHED, Math.max(1, Math.round(max))) })
+                }
+                className="w-20"
+                aria-label="Most items lying around at once"
+              />
+            </div>
           </div>
         ) : null}
       </section>

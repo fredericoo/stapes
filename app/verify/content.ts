@@ -10,6 +10,7 @@ import {
   resolveAddStatus,
   resolveCraft,
   resolveDecay,
+  resolveShed,
   resolveWeatherReactions,
   resolveEmit,
   resolveEndure,
@@ -28,6 +29,7 @@ import {
 } from "../lib/interactions";
 import { armorSlotOf, resolveItem } from "../lib/item";
 import { layerForSlot, wornPartOf } from "../lib/humanParts";
+import { maskBlobCorners, neighborMask } from "../lib/autotile";
 import { listCoords, presentLevels } from "../lib/mapData";
 import { resolveProjectile } from "../lib/projectile";
 import { anchorFits } from "../lib/spriteAnchor";
@@ -54,6 +56,7 @@ import {
   normalizeTileDef,
   TILE_KINDS,
   TILE_TYPES,
+  type PlacedTile,
   type TileDef,
   type TilesetDef,
 } from "../lib/types";
@@ -136,6 +139,7 @@ const RESOLVERS: { [K in keyof TileInteractions]-?: (def: TileDef) => unknown } 
   removeStatus: resolveRemoveStatus,
   endure: resolveEndure,
   decay: resolveDecay,
+  shed: resolveShed,
   weather: resolveWeatherReactions,
   respawn: resolveRespawn,
   pressurePlate: resolvePressurePlate,
@@ -658,6 +662,32 @@ const UNKNOWN_TILE: Record<string, (tally: Tally) => string> = {
   rewardTileIds: ({ tileId, count }) => `${placements(count)} on the map reward "${tileId}"`,
 };
 
+/**
+ * Ground autotiles whose edge slices are transparent. Where one meets a
+ * neighbour it does not connect to, whatever is below it in the stack shows
+ * through the edge, and with nothing there the edge is a black gap.
+ */
+const BACKED_GROUND = new Set(["mud", "dirt", "sand-ledge"]);
+
+/**
+ * True when a placement's edges have something to show through them: a tile
+ * below it that is not an autotile, or an autotile it connects to. A placement
+ * with every neighbour connected draws no edge and needs nothing.
+ */
+function groundBacked(
+  map: MapFile,
+  at: { x: number; y: number; z: number },
+  below: readonly PlacedTile[],
+  def: TileDef,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  if (maskBlobCorners(neighborMask(map, at.x, at.y, at.z, def)) === 0xff) return true;
+  return below.some((placed) => {
+    const under = tilesById[placed.tileId];
+    return under?.type !== "autotile" || def.connectsTo?.includes(placed.tileId) === true;
+  });
+}
+
 function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Findings): number {
   const players = findPlayers(map);
   if (players.length !== 1) {
@@ -674,13 +704,21 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
   let count = 0;
   const unknown = new Map<string, Tally>();
   const untagged = new Map<string, Tally>();
+  const unbacked = new Map<string, Tally>();
   for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const where = `${x},${y} L${z}`;
-      for (const placed of stack) {
+      for (const [index, placed] of stack.entries()) {
         count++;
         const def = tilesById[placed.tileId];
         if (!def) tally(unknown, placed.tileId, "placed", where);
+        if (
+          def &&
+          BACKED_GROUND.has(def.id) &&
+          !groundBacked(map, { x, y, z }, stack.slice(0, index), def, tilesById)
+        ) {
+          tally(unbacked, placed.tileId, "placed", where);
+        }
         if (def && resolveDepotDef(def) && !resolveDepot(placed, def)) {
           tally(untagged, placed.tileId, "depotTag", where);
         }
@@ -706,6 +744,14 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
       tileId,
       "depotTag",
       `The map has ${placements(times)} of the depot "${tileId}" with no depotTag, which never ${times === 1 ? "opens" : "open"} (first at ${first}).`,
+    );
+  }
+
+  for (const { tileId, count: times, first } of unbacked.values()) {
+    findings.warn(
+      tileId,
+      "",
+      `The map has ${placements(times)} of "${tileId}" that draw an edge with nothing under them but autotiles they do not connect to, so the edge shows as a black gap (first at ${first}). Put a full tile such as grass-2 under them.`,
     );
   }
 

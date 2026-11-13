@@ -48,6 +48,18 @@ export type WeatherReaction = {
   toMs: number;
 };
 
+/**
+ * Drops `tileId` on a free floor cell beside the placement every `fromMs` to
+ * `toMs` of simulated time, while fewer than `max` of it lie in the eight cells
+ * around: an apple tree dropping apples.
+ */
+export type ShedInteraction = {
+  tileId: string;
+  fromMs: number;
+  toMs: number;
+  max: number;
+};
+
 export type RespawnHours = {
   fromHour: number;
   toHour: number;
@@ -261,6 +273,7 @@ export type TileInteractions = {
   removeStatus?: RemoveStatusInteraction;
   endure?: EndureInteraction;
   decay?: DecayInteraction;
+  shed?: ShedInteraction;
   weather?: WeatherReaction[];
   respawn?: RespawnInteraction;
   pressurePlate?: PressurePlateInteraction;
@@ -348,6 +361,15 @@ export const DEFAULT_WEATHER_REACTION: WeatherReaction = {
   tileId: "",
   fromMs: DEFAULT_DECAY_FROM_MS,
   toMs: DEFAULT_DECAY_TO_MS,
+};
+
+export const MAX_SHED = 8;
+
+export const DEFAULT_SHED: ShedInteraction = {
+  tileId: "",
+  fromMs: 120_000,
+  toMs: 300_000,
+  max: 2,
 };
 
 const DEFAULT_RESPAWN_FROM_MS = 30_000;
@@ -851,6 +873,29 @@ export function resolveDecay(def: TileDef): DecayInteraction | null {
   return decay;
 }
 
+const shedSchema = v.pipe(
+  v.object({
+    tileId: v.pipe(v.string(), v.minLength(1)),
+    fromMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    toMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    max: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_SHED)),
+  }),
+  v.check((s) => s.toMs >= s.fromMs, "shed toMs must be at least fromMs"),
+);
+
+const shedCache = new WeakMap<TileDef, ShedInteraction | null>();
+
+export function resolveShed(def: TileDef): ShedInteraction | null {
+  const cached = shedCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.shed;
+  const parsed = raw == null ? null : v.safeParse(shedSchema, raw);
+  const shed = parsed?.success ? parsed.output : null;
+  shedCache.set(def, shed);
+  return shed;
+}
+
 const weatherReactionSchema = v.pipe(
   v.object({
     in: v.picklist(WEATHER_KINDS),
@@ -1043,6 +1088,7 @@ export function hasAnyInteraction(interactions: TileInteractions | undefined): b
     interactions?.removeStatus ||
     interactions?.endure ||
     interactions?.decay ||
+    interactions?.shed ||
     interactions?.weather ||
     interactions?.respawn ||
     interactions?.pressurePlate ||
@@ -1163,6 +1209,14 @@ export function interactionsForSave(
           toMs: decayToMs,
         }
       : undefined;
+  const shed = interactions?.shed;
+  const shedFromMs = shed ? Math.round(shed.fromMs) : 0;
+  const shedToMs = shed ? Math.round(shed.toMs) : 0;
+  const shedMax = shed ? Math.min(MAX_SHED, Math.round(shed.max)) : 0;
+  const savedShed =
+    shed?.tileId.trim() && shedFromMs > 0 && shedToMs >= shedFromMs && shedMax > 0
+      ? { tileId: shed.tileId.trim(), fromMs: shedFromMs, toMs: shedToMs, max: shedMax }
+      : undefined;
   const savedWeather = onePerWeather(
     (interactions?.weather ?? []).flatMap((reaction) => {
       const fromMs = Math.round(reaction.fromMs);
@@ -1267,6 +1321,7 @@ export function interactionsForSave(
     !savedRemoveStatus &&
     !savedEndure &&
     !savedDecay &&
+    !savedShed &&
     savedWeather.length === 0 &&
     !savedRespawn &&
     !savedPlate &&
@@ -1292,6 +1347,7 @@ export function interactionsForSave(
     ...(savedRemoveStatus ? { removeStatus: savedRemoveStatus } : {}),
     ...(savedEndure ? { endure: savedEndure } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
+    ...(savedShed ? { shed: savedShed } : {}),
     ...(savedWeather.length > 0 ? { weather: [...savedWeather] } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),

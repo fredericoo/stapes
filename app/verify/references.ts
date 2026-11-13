@@ -14,6 +14,7 @@ import {
   resolveAddStatus,
   resolveCraft,
   resolveDecay,
+  resolveShed,
   resolveWeatherReactions,
   resolveEndure,
   resolveExtract,
@@ -218,6 +219,9 @@ export function checkReferences(def: TileDef, catalogue: Catalogue, findings: Fi
 
   const decay = resolveDecay(def);
   if (decay?.tileId) refs.tile("interactions.decay.tileId", "The decay", decay.tileId);
+
+  const shed = resolveShed(def);
+  if (shed) refs.tile("interactions.shed.tileId", "The shed block", shed.tileId);
 
   resolveWeatherReactions(def).forEach((reaction, i) => {
     if (!reaction.tileId) return;

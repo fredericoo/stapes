@@ -1,6 +1,12 @@
 import { resolveBattler } from "./battler";
 import { resolveDialog, walkCommands } from "./dialog";
-import { resolveCraft, resolveDecay, resolveExtract, type CraftOutput } from "./interactions";
+import {
+  resolveCraft,
+  resolveDecay,
+  resolveExtract,
+  resolveShed,
+  type CraftOutput,
+} from "./interactions";
 import { isItem } from "./item";
 import type { TileDef } from "./types";
 
@@ -15,7 +21,7 @@ export type Exchange = {
   give: ExchangeSide[];
 };
 
-export type FindKind = "start" | "gather" | "drop" | "decay";
+export type FindKind = "start" | "gather" | "fall" | "drop" | "decay";
 
 export type Find = { kind: FindKind; from: string; chance: number };
 
@@ -59,6 +65,8 @@ export function itemSources(
     if (decay && isItem(tile)) {
       sources.get(decay.tileId)?.finds.push({ kind: "decay", from: tile.id, chance: 100 });
     }
+    const shed = resolveShed(tile);
+    if (shed) sources.get(shed.tileId)?.finds.push({ kind: "fall", from: tile.id, chance: 100 });
   }
   for (const entry of sources.values()) {
     entry.finds.sort((a, b) => FIND_ORDER[a.kind] - FIND_ORDER[b.kind] || b.chance - a.chance);
@@ -66,7 +74,7 @@ export function itemSources(
   return sources;
 }
 
-const FIND_ORDER: Record<FindKind, number> = { start: 0, gather: 1, drop: 2, decay: 3 };
+const FIND_ORDER: Record<FindKind, number> = { start: 0, gather: 1, fall: 2, drop: 3, decay: 4 };
 
 function exchangesAt(tile: TileDef): Exchange[] {
   const out: Exchange[] = [];

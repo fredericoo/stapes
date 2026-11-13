@@ -466,6 +466,7 @@ import {
   findDecayCells,
 } from "./decay";
 import { Weathering, findWeatheringCells } from "./weathering";
+import { Shedding, findSheddingCells, shedLanding, type DueShed } from "./shedding";
 import { CLEAR_SKY, underOpenSky, weatherOn, weatherOver, type Sky } from "./weatherOn";
 import {
   EndureIndex,
@@ -972,6 +973,7 @@ export class GameSession implements PlaySession {
   private readonly looseGravityCells = new Map<string, Coord>();
   private readonly decay: DecayIndex;
   private readonly weathering: Weathering;
+  private readonly shedding: Shedding;
   private sky: Sky = CLEAR_SKY;
   private readonly afflictCells = new Map<string, Coord>();
   private readonly endure: EndureIndex;
@@ -1050,6 +1052,7 @@ export class GameSession implements PlaySession {
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
     this.weathering = new Weathering(this.rng);
+    this.shedding = new Shedding(this.rng);
     this.endure = new EndureIndex(this.rng);
 
     if (spawnAt) {
@@ -1093,6 +1096,9 @@ export class GameSession implements PlaySession {
     }
     for (const cell of findWeatheringCells(this.map, this.tilesById)) {
       this.weathering.index(this.map, cell, this.tilesById);
+    }
+    for (const cell of findSheddingCells(this.map, this.tilesById)) {
+      this.shedding.index(this.map, cell, this.tilesById);
     }
     this.settleBoardNow();
   }
@@ -1408,6 +1414,7 @@ export class GameSession implements PlaySession {
       const key = cellKey(cell);
       this.decay.armCell(this.map, cell, this.tilesById);
       this.weathering.index(this.map, cell, this.tilesById);
+      this.shedding.index(this.map, cell, this.tilesById);
       if (cellHasPlate(this.map, cell, this.tilesById)) {
         this.plateCells.set(key, cell);
       } else {
@@ -1595,6 +1602,7 @@ export class GameSession implements PlaySession {
     this.ageWanted(tickMs);
     this.applyDueDecay();
     this.applyWeathering(tickMs);
+    this.applyShedding(tickMs);
     this.tickAfflictions(tickMs);
     this.applyWornThrough(tickMs);
 
@@ -1624,6 +1632,29 @@ export class GameSession implements PlaySession {
       }
     }
     this.reindexCells(turned.changed);
+  }
+
+  private applyShedding(tickMs: number) {
+    const due = this.shedding.advance(tickMs, this.map, this.tilesById);
+    if (due.length === 0) return;
+    const changed: Coord[] = [];
+    for (const one of due) {
+      const at = shedLanding(this.map, one.from, one.shed, this.tilesById, this.rng);
+      if (!at || !this.tilesById[one.shed.tileId]) continue;
+      const placed: PlacedTile = { tileId: one.shed.tileId, itemId: mintItemId() };
+      const dropped = this.dropOnFloor(at, [placed], this.crownOf(one));
+      if (dropped) changed.push(dropped);
+    }
+    this.reindexCells(changed);
+  }
+
+  /** Three quarters of the way up the shedding tile, so the fruit falls out of the crown rather than the trunk. */
+  private crownOf({ from, tileId }: DueShed): MidBody {
+    const stack = getStack(this.map, from.x, from.y, from.z);
+    const index = stack.findIndex((placed) => placed.tileId === tileId);
+    const foot = elevationAt(stack, Math.max(0, index), this.tilesById);
+    const height = this.tilesById[tileId]?.height ?? 0;
+    return { x: from.x, y: from.y, elevAbs: absoluteElevation(from.z, foot + (height * 3) / 4) };
   }
 
   private applyDueDecay() {

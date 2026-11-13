@@ -25309,6 +25309,14 @@
           {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "apple"
+              ]
+            }
           }
         ],
         "initial": "graze",
@@ -35331,6 +35339,11 @@
       "respawn": {
         "fromMs": 300000,
         "toMs": 600000
+      },
+      "decay": {
+        "tileId": "rotten-apple",
+        "fromMs": 3600000,
+        "toMs": 5400000
       }
     },
     "sprite": {
@@ -57219,7 +57232,9 @@
                     "data": {
                       "tileIds": [
                         "raw-meat",
-                        "berry"
+                        "berry",
+                        "apple",
+                        "rotten-apple"
                       ]
                     }
                   },
@@ -57233,7 +57248,9 @@
                 "data": {
                   "tileIds": [
                     "raw-meat",
-                    "berry"
+                    "berry",
+                    "apple",
+                    "rotten-apple"
                   ]
                 }
               }
@@ -99793,5 +99810,199 @@
         ]
       }
     ]
+  },
+  {
+    "id": "apple-tree",
+    "name": "Apple tree",
+    "height": 4,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "apple-trees",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "interactions": {
+      "endure": {
+        "durability": 28,
+        "suffers": [
+          {
+            "statusId": "burned",
+            "tileId": ""
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
+      },
+      "shed": {
+        "tileId": "apple",
+        "fromMs": 240000,
+        "toMs": 480000,
+        "max": 3
+      }
+    },
+    "particles": {
+      "ratePerSecond": 0.4,
+      "ttlFromMs": 3000,
+      "ttlToMs": 4500,
+      "spawnRadiusCells": 0.6,
+      "spawnElevFrom": 4,
+      "spawnElevTo": 6,
+      "riseFrom": -1.3,
+      "riseTo": -0.8,
+      "driftCellsPerSecond": 0.1,
+      "gravity": 0,
+      "offsetX": "0.4 * AGE_SEC + 0.25 * sin(AGE_SEC * 4 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "lit": true,
+      "ownDepth": false,
+      "shape": [
+        ".....",
+        ".....",
+        ".##..",
+        ".....",
+        "....."
+      ],
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 0.5,
+      "radiusToPx": 0.5,
+      "alphaFrom": 1,
+      "alphaTo": 1,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#91db69"
+        },
+        {
+          "at": 1,
+          "color": "#1ebc73"
+        }
+      ]
+    },
+    "particleRule": {
+      "oneIn": 60,
+      "hours": {
+        "from": 6,
+        "to": 20
+      }
+    }
+  },
+  {
+    "id": "rotten-apple",
+    "name": "Rotten Apple",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "apple-trees",
+      "x": 3,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "squish",
+        "hp": 0,
+        "statuses": [
+          {
+            "id": "fed",
+            "fromMs": 5000,
+            "toMs": 20000
+          },
+          {
+            "id": "food-poisoning",
+            "chance": 65
+          }
+        ],
+        "pile": 8
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 600000,
+        "toMs": 1200000
+      }
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 1500,
+      "ttlToMs": 2800,
+      "spawnRadiusCells": 0.25,
+      "spawnElevFrom": 0.5,
+      "spawnElevTo": 1.5,
+      "riseFrom": 1.5,
+      "riseTo": 3,
+      "driftCellsPerSecond": 0.05,
+      "lit": true,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "0.12 * sin(AGE_SEC * 3 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.85,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#3d6b24"
+        },
+        {
+          "at": 1,
+          "color": "#1b3311"
+        }
+      ]
+    }
   }
 ]

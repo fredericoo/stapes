@@ -25,6 +25,13 @@ function tile(id: string, fields: Json = {}): Json {
   };
 }
 
+function autotile(id: string): Json {
+  const frames = [
+    { sprite: { rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 },
+  ];
+  return tile(id, { type: "autotile", sprite: undefined, slices: { 0: { frames } } });
+}
+
 function content(): Content {
   const rat = tile("rat", {
     kind: "battler",
@@ -209,6 +216,14 @@ const FAULTS: {
     found: { severity: "error", file: "tiles.json", id: "bread", path: "anchor" },
   },
   {
+    fault: "mud on dirt with nothing under either but each other",
+    seed: (c) => {
+      c.tiles.push(autotile("dirt"), autotile("mud"));
+      c.map = replaceStack(c.map, 3, 0, 0, [{ tileId: "dirt" }, { tileId: "mud" }]);
+    },
+    found: { severity: "warn", file: "map.json", id: "mud", path: "" },
+  },
+  {
     fault: "a map with a second player tile",
     seed: (c) => {
       c.map = replaceStack(c.map, 5, 0, 0, [{ tileId: "player" }]);
@@ -232,6 +247,18 @@ describe("checkContent", () => {
     };
 
     expect(check(c).findings).toEqual([]);
+  });
+
+  it("accepts mud on dirt with a full tile under them", () => {
+    const c = content();
+    c.tiles.push(tile("grass-2"), autotile("dirt"), autotile("mud"));
+    c.map = replaceStack(c.map, 3, 0, 0, [
+      { tileId: "grass-2" },
+      { tileId: "dirt" },
+      { tileId: "mud" },
+    ]);
+
+    expect(check(c).findings.filter((f) => f.file === "map.json")).toEqual([]);
   });
 
   it.each(FAULTS)("reports $fault", ({ seed, found }) => {

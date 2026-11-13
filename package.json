@@ -22,6 +22,7 @@
     "generate:masonry": "bun scripts/generate-masonry-tileset.ts",
     "generate:swamp": "bun scripts/generate-swamp.ts",
     "generate:swamp-trees": "bun scripts/generate-swamp-trees.ts",
+    "generate:apple-trees": "bun scripts/generate-apple-trees.ts",
     "generate:waterfall": "bun scripts/generate-waterfall-tileset.ts",
     "generate:wisps": "bun scripts/generate-wisps.ts",
     "generate:desert": "bun scripts/generate-desert.ts",
