@@ -11623,6 +11623,44 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
   fight on the next turn. A hunt that ends by day goes to `prowling`, and from
   there to the den, where it stays — it does not walk home first.
 
+### The bear sleeps in its den while it is fed
+
+The den is the cell the bear was placed on, its `home`. There is no den tile:
+place the bear where it should sleep, in a cave or under a roof.
+`data/map.json` has two, each on the bare cell furthest from the mouth of a
+ground-level hill cave: 41,45 in the cave that opens at 76,35 and -68,-144 in
+the one that opens at -49,-146. Bats live in both. A bear's prey list has no
+bat in it and a bat hunts only players, so neither starts on the other.
+
+- **Hungry is having no `fed` status at all.** Then it hunts a player, deer or
+  rabbit it can see within 8 cells (`hunts-on-sight`, `when` hungry), picks a
+  `bush` and eats the berries (`forages`), and wanders inside a leash of 24
+  cells (`returns-home`).
+- **Food it can see beats the hunt.** `eats-when-hungry` fires at `danger`, as
+  the wolf's feeding row does, so the bear eats the meat its kill dropped
+  before it turns on the next body. `feeding` holds at `need`, so a blow takes
+  it back into the fight through `fights-back`.
+- **Fed, it walks home and sleeps.** Its own `denning` state fires at `errand`
+  once it has `fed` and is more than 2 cells from home. Within 2 cells,
+  `sleeps` casts Curl up, the wolf's spell, for as long as `fed` lasts.
+  `sleeps` holds at `rest`, above `need`, so a fed bear in its den does not get
+  up for food, and a player can walk past it. Any damage wakes it into
+  `fights-back`.
+- **How long it sleeps is how much it ate.** One raw meat is 90 to 240 seconds
+  of `fed`, a berry 45 to 75. Measured in a `GameSession` with one deer and
+  one bush in reach: the deer bought 160 seconds in the den and each trip to
+  the bush about 120.
+- **It is nature, so fire does half again to it** (`elements`), and it is
+  immune to `food-poisoning`, which raw meat gives four times in five.
+- **It is a step under the cave troll.** Over 2,000 fights each against a
+  player with Sharp, Toughness and Agility 33 and a knight's sword
+  (`verify battle`), the bear won 84.7% and the troll 94.8%; both won every
+  fight against the same player at 15.
+- **Its feet stand in its own cell.** The sprite is four cells square because
+  the body overhangs, but all four legs of the model in
+  `scripts/generate-bear.ts` are inside the standing cell, so what the bear
+  blocks is what its feet are drawn on.
+
 ### A brain `cast` can name no target
 
 `of` is optional on the `cast` action. Absent, the line casts at nobody, and
@@ -12262,7 +12300,7 @@ is off while anything calls the trait. In development a save writes
 
 ### What the shipped creatures call
 
-Nineteen of the twenty-nine shipped brains call traits. The fourteen that
+Twenty of the thirty shipped brains call traits. The fourteen that
 were first written out by hand each expand to a table that runs exactly as the
 hand-written one it replaced: every state asks the same rows in the same order,
 apart from rows that could never be the first to hold.

@@ -103307,5 +103307,655 @@
         ]
       }
     }
+  },
+  {
+    "id": "bear",
+    "name": "Bear",
+    "height": 3,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "bear",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 280,
+    "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 260
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 260
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 8,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 260
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 12,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 260
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              }
+            ]
+          },
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 260
+              }
+            ]
+          }
+        }
+      }
+    },
+    "interactions": {
+      "brain": {
+        "initial": "lumbering",
+        "states": {
+          "lumbering": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              }
+            ]
+          },
+          "mauling": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*ROAR*"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "denning": {
+            "band": "errand",
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "triggers": [
+          {
+            "band": "errand",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "status",
+                  "id": "fed"
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 2
+                }
+              ]
+            },
+            "to": "denning"
+          }
+        ],
+        "transitions": [
+          {
+            "from": "denning",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "lumbering"
+          },
+          {
+            "from": "denning",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "status",
+                  "id": "fed"
+                }
+              ]
+            },
+            "to": "lumbering"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
+            "trait": "fights-back",
+            "with": {
+              "fight": "mauling",
+              "target": "prey",
+              "calm": 14
+            }
+          },
+          {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "player",
+                "deer",
+                "rabbit"
+              ],
+              "within": 8,
+              "fight": "mauling",
+              "target": "prey",
+              "calm": 14,
+              "when": {
+                "combinator": "and",
+                "not": true,
+                "rules": [
+                  {
+                    "cond": "status",
+                    "id": "fed"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "apple",
+                "berry",
+                "apple-pie",
+                "bread",
+                "cheese"
+              ],
+              "full": 240000,
+              "urge": "danger",
+              "cry": "snf"
+            }
+          },
+          {
+            "trait": "forages",
+            "with": {
+              "bush": [
+                "bush"
+              ],
+              "berry": "berry",
+              "when": {
+                "combinator": "and",
+                "not": true,
+                "rules": [
+                  {
+                    "cond": "status",
+                    "id": "fed"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "trait": "sleeps",
+            "with": {
+              "while": {
+                "combinator": "and",
+                "rules": [
+                  {
+                    "cond": "status",
+                    "id": "fed"
+                  },
+                  {
+                    "cond": "in_range",
+                    "of": {
+                      "type": "home"
+                    },
+                    "cells": 2
+                  }
+                ]
+              },
+              "spell": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 24
+            }
+          },
+          {
+            "trait": "unsticks",
+            "with": {}
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 90,
+        "masteries": {
+          "sharp": 54,
+          "arcane": 6,
+          "toughness": 58,
+          "agility": 10
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Claws",
+          "damage": 8,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 30,
+          "spd": 34,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "sharp"
+        },
+        "sight": {
+          "up": 1,
+          "down": 1
+        },
+        "elements": [
+          "nature"
+        ],
+        "immuneTo": [
+          "food-poisoning"
+        ],
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "raw-meat",
+                "chance": 100
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 50
+              },
+              {
+                "tileId": "skin",
+                "chance": 80
+              }
+            ]
+          }
+        ],
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Curl up",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 240000,
+        "toMs": 420000
+      }
+    }
   }
 ]
