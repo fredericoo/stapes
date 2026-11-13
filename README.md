@@ -244,6 +244,11 @@ an agent drives", lists every call.
   to, a cell that could be walked to before no longer can, or daylight reaches
   the back of a cave. What to dig is the `CAVES` block at the top of the
   script; `--dry-run` reports without writing
+- `bun run slope:hills` — turn the vertical cliffs `raise:hills` built into
+  slopes: the `half-stone` fill becomes `hill-wall` and the ground at every
+  drop becomes a brink. It walks the map before and after and refuses to write
+  it if the cells a player can walk to are not the same. Run it after
+  `raise:hills` and `carve:hill-caves`; `--dry-run` reports without writing
 - `bun run grow:mushrooms` — put mushroom patches, about a quarter of them
   blue, on the bare floor of every cave, a few to a cluster, and inside the
   flower ring round every wisp, on cells a player can walk to. A picked patch

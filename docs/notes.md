@@ -14991,7 +14991,7 @@ light one, so the sides lean violet. Lit rock is quantised to the palette again,
 so the top's grey shows mostly in daylight: in a cave lit by a lantern, a violet
 top instead of the neutral one changes 0.4% of the pixels.
 
-All four variants are drawn on one sheet, so a cave that mixes them costs no
+All the variants are drawn on one sheet, so a cave that mixes them costs no
 more draw calls than a cave of one, and each connects to the others so the rock
 stays whole where they meet. Another variant is one more line in `VARIANTS`, and
 another colour scheme one more `Rock` for it to name.
@@ -17518,6 +17518,74 @@ ramp climbing east or west the outline fell across the slope, as a bar at the
 join of the two cells, and the south face did not match the `half-stone` under
 the upper cell. The outline now runs along the side of the ramp, and the south
 and east faces take the colours `half-stone` has on those faces.
+
+## A hill's cliffs are `hill-wall`, and a brink is the ground cut to the wall's top
+
+`bun run slope:hills` (`../scripts/slope-hills.ts`) rewrites the hills
+`raise:hills` built. Each `[ground, half-stone, half-stone]` fill becomes
+`[ground, hill-wall]`, so every cliff is a slope with rounded corners instead
+of a vertical face.
+
+**`hill-wall` is a sloped cave wall with a wider top.** It is one more line in
+`VARIANTS` in `generate-cave-wall-tileset.ts`, on the same sheet, in the red
+rock. A cave wall's outline at the ceiling runs through the middle of every
+cell at the edge of the rock (see "`cave-wall` puts the face of the rock on the
+half line of its cell"). A hill wall's is `HILL_CROWN` pixels wider, two, so it
+stops two pixels short of the cell's edge and reaches the edge at the floor.
+With the cave's outline a body on the edge of a hill stood on the rim itself,
+with half its cell slope, and did not read as standing on anything. The walls
+inside a cave are `cave-wall-sloped` and are not changed.
+
+**A ground tile over such a wall still overhangs it**, by those two pixels on
+every open side, since ground fills its whole cell.
+
+**A brink is the ground tile cut to that outline.** `bun run generate:brinks`
+(`../scripts/generate-brinks.ts`) draws `grass-brink` and `sand-brink` from
+`footprint` in `../scripts/cave-wall-outline.ts` at `HILL_CROWN`, the call the
+wall's top layer is drawn from, one slice per neighbourhood. A brink reads its
+neighbours on its own level and the wall reads its own on the level below, so
+the two outlines agree only while the two levels hold the same cells: ground or
+a brink above exactly where rock is below. A hill is built that way. The rim
+and tufts are the ledge's, drawn along the outline.
+
+**Where a brink goes.** On every cell above a `hill-wall` that has a cell
+without rock among the eight around it on the wall's level. That is every cell
+`raise:hills` gave a ledge, and the cells where a bridge lands, which it gave
+none. The brink replaces the ground tile and the ledge, and whatever stood on
+the cell stays: a brink covers the middle of its cell, where a trunk stands.
+
+**A ramp lands on a full block.** A ramp ends at the edge of its cell and a
+brink stops short of that edge, so a ramp against a brink leaves a strip of
+slope between the two. The cell at the head of each ramp keeps its `half-stone`
+pair and plain ground without a ledge. The walls and the brinks beside it
+connect to those, so the slope opens round the block.
+
+**A brink is `lightPassing`.** A floor seals the cell under it from the sky,
+and the light bake leaves a sealed rock cell dark. The shader filters the light
+texture, and that dark reaches most of a cell north and west. A full block's
+top is drawn over those cells; a brink is not, and the ground beside every hill
+showed a dark band until the brinks let light through.
+
+**What it does not handle.**
+
+- A cliff two levels tall is two slopes, each running from the edge of its
+  cell to two pixels in, so the upper one overhangs the lower by two pixels.
+  `raise:hills` cuts terraces and never builds one.
+- Raised ground one cell wide gets a brink six pixels wide, which is rim and
+  tufts with no plain grass between them.
+- `grass-2` burns to `dirt`; a brink has no `interactions` and does not burn.
+- The ground over a cave mouth keeps its ledge and its full tile: there is no
+  wall under it to match.
+
+**The check is the game's.** The cells a player can walk to have to be the
+same before and after, and `findStranded` may find no more cells than it did.
+`findStranded` starts from the authored player, so it is given the map with its
+bodies; given the board the walk uses, which has none, it finds no start and
+reports nothing.
+
+**The order of the scripts.** `raise:hills` and `carve:hill-caves` both look
+for the `half-stone` fill, so they run before this one, and `slope:hills`
+refuses a map that already holds a brink.
 
 ## Nowhere on the map may strand a player
 
