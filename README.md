@@ -244,6 +244,12 @@ an agent drives", lists every call.
   to, a cell that could be walked to before no longer can, or daylight reaches
   the back of a cave. What to dig is the `CAVES` block at the top of the
   script; `--dry-run` reports without writing
+- `bun run grow:mushrooms` — put mushroom patches, about a quarter of them
+  blue, on the bare floor of every cave, a few to a cluster, and inside the
+  flower ring round every wisp, on cells a player can walk to. A picked patch
+  grows back where it was, so these are the only places mushrooms grow. How
+  many is the `MUSHROOMS` block at the top of the script; `--dry-run` reports
+  without writing
 - `bun run verify stranded` — walk `data/map.json` from where a player starts,
   drops off ledges included, and list every place they could get to and not
   leave. `--image <file.png>` draws the map with those places in red. CI runs
