@@ -12931,8 +12931,8 @@ one.
 A stacking status has a ceiling, `StatusDef.maxMs`, and a grant used to be
 clamped to it: a body with 120 seconds of a 130-second Fed could eat a
 180-second meal and keep ten seconds of it. `GameSession.consume` now refuses
-the item instead, before anything is spent, and says so ("You are too fed to
-eat Apple").
+the item instead, before anything is spent, and says so ("You cannot eat
+Apple because you are too full").
 
 **The test is the shortest duration the grant can roll.** A grant fits when
 `remainingMs + fromMs <= maxMs` (`hasRoomFor` in `app/game/statuses.ts`). At
@@ -12953,15 +12953,27 @@ most of the bar.
 - **Only `consume` asks.** A bite, a bolt, a charm, a tile and `/status` still
   go through `grantStatus` and clamp. Being at the ceiling of Poisoned stops a
   body drinking more poison, not being bitten.
-- **A grant whose `fromMs` is 0 always fits**, so bread and cheese can be
-  eaten at any level of Fed.
+- **A grant whose `fromMs` is 0 always fits**, so a food authored that way
+  can be eaten at any level of the status.
+
+**The words for being over the limit are the status's own.**
+`StatusDef.overLimit` is the phrase that finishes "because you are …": "too
+full" on Fed, "too poisoned" on Poisoned. A status that leaves it blank reads
+as "too " and its name in lower case (`overLimitWords`). The same phrase is
+the block reason on the Eat row and the press hint on a bag slot, so the
+notice and the interface cannot disagree.
+
+**The refusal is shown before the press.** `slotOptions` gives the consume
+row an `overLimit` block, which the interaction list and the pointer hint
+draw the way they draw `noRoom`, and `ItemSlot` dims a consumable the body
+has no room for. Both read the client's own statuses through `overLimitFor`,
+the function the server uses.
 
 A creature's `consume` action reports `failure` on a refusal, so a deer with a
 berry and no room falls through to the next action in its state and eats once
-Fed has run down. `RemoteSession.consume` does not predict the refusal: the
-server's notice is the only feedback, and a client that declined to send the
-message would show none. Bots check `firstWithoutRoom` themselves before
-choosing food.
+Fed has run down. `RemoteSession.consume` does not predict the refusal, so
+pressing a dimmed bag slot still reaches the server and gets its notice. Bots
+check `firstWithoutRoom` themselves before choosing food.
 
 ## A dead creature's bag is destroyed and its contents spill
 

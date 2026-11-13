@@ -427,6 +427,7 @@ const BURN: StatusDef = {
   toMs: 10_000,
   stacks: false,
   maxMs: 10_000,
+  overLimit: "",
   everyMs: constantFormula(0),
   effects: {},
   modifiers: {},

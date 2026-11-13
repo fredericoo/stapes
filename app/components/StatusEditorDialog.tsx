@@ -3,6 +3,7 @@ import { parseFormula, type FormulaScope } from "../lib/formula";
 import {
   completeSprite,
   MAX_STATUS_DESCRIPTION_LENGTH,
+  MAX_STATUS_OVER_LIMIT_LENGTH,
   MAX_STATUS_DURATION_MS,
   MODIFIER_KEYS,
   resolveStatus,
@@ -190,6 +191,20 @@ export function StatusEditorDialog({
           />
           <span className="text-[11px] text-muted">
             Tooltip on the status, and its accessible name. One line.
+          </span>
+        </label>
+
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-bold uppercase text-muted">Over the limit</span>
+          <Input
+            value={status.overLimit}
+            maxLength={MAX_STATUS_OVER_LIMIT_LENGTH}
+            placeholder={`too ${status.name.toLowerCase()}`}
+            onChange={(e) => patch({ overLimit: e.target.value })}
+          />
+          <span className="text-[11px] text-muted">
+            Why food or drink is refused when this status has no room for it, as in “You cannot eat
+            Cheese because you are too full”.
           </span>
         </label>
 

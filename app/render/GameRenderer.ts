@@ -1606,6 +1606,7 @@ export class GameRenderer {
       extracting: snap.extracting,
       conversation: snap.conversation,
       craftingRef: this.craftingRef,
+      statusDefs: this.statusDefs,
     };
   }
 
@@ -2259,6 +2260,7 @@ export class GameRenderer {
       this.interactionsSent,
       snap.nextBlow,
       this.craftingRef,
+      this.statusDefs,
     );
   }
 

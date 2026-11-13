@@ -8,6 +8,7 @@
     "toMs": 30000,
     "stacks": true,
     "maxMs": 600000,
+    "overLimit": "too full",
     "everyMs": "ceil(MAX_HP / 100) * 300000 / MAX_HP / (2 - has_status('combat'))",
     "effects": {
       "hp": "ceil(MAX_HP / 100)"
@@ -48,6 +49,7 @@
     "toMs": 30000,
     "stacks": true,
     "maxMs": 600000,
+    "overLimit": "too poisoned",
     "everyMs": 5000,
     "effects": {
       "hp": "0 - min(5, max(1, ceil(REMAINING_SEC * 5 / 600)))"

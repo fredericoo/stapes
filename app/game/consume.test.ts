@@ -8,7 +8,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
 import { BRAIN_TICK_MS, NOISE_LIFETIME_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import { COMBAT_STATUS_ID, type StatusDef, statusesById } from "../lib/status";
+import { COMBAT_STATUS_ID, overLimitWords, type StatusDef, statusesById } from "../lib/status";
 import { snapToTick } from "./statuses";
 import { FRAME, tile } from "../lib/testTile";
 
@@ -605,6 +605,7 @@ describe("eating more of a status than there is room for", () => {
       toMs: 10_000,
       stacks: true,
       maxMs: MAX_MS,
+      overLimit: "too full",
       everyMs: 0,
       effects: {},
     },
@@ -661,7 +662,11 @@ describe("eating more of a status than there is room for", () => {
 
     expect(tilesAt(session, 0, 1)).toEqual(["grass", "bite"]);
     expect(fedMs(session)).toBe(120_000);
-    expect(session.drainNotices()).toEqual(["You are too fed to eat bite"]);
+    expect(session.drainNotices()).toEqual(["You cannot eat bite because you are too full"]);
+  });
+
+  it("names the status when it has no words of its own for being over the limit", () => {
+    expect(overLimitWords({ name: "Fed", overLimit: "" })).toBe("too fed");
   });
 
   it("eats it once enough of the status has run down", () => {

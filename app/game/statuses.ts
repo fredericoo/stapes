@@ -2,7 +2,13 @@ import type { FightingStats } from "../lib/battler";
 import type { Element } from "../lib/element";
 import type { FormulaScope } from "../lib/formula";
 import { MAX_PERCENT_STAT, type StatusGrant } from "../lib/item";
-import { COMBAT_DURATION_MS, COMBAT_STATUS_ID, MODIFIER_KEYS, type StatusDef } from "../lib/status";
+import {
+  COMBAT_DURATION_MS,
+  COMBAT_STATUS_ID,
+  MODIFIER_KEYS,
+  overLimitWords,
+  type StatusDef,
+} from "../lib/status";
 import type { Blame } from "./blame";
 import { TICK_MS } from "./constants";
 import type { Rng } from "./rng";
@@ -125,6 +131,15 @@ export function firstWithoutRoom(
     if (def && !hasRoomFor(current, def, grantRange(grant, def))) return def;
   }
   return null;
+}
+
+export function overLimitFor(
+  current: readonly { readonly defId: string; readonly remainingMs: number }[],
+  grants: readonly StatusGrant[] | undefined,
+  catalogue: Record<string, StatusDef>,
+): string | null {
+  const full = firstWithoutRoom(current, grants ?? [], catalogue);
+  return full ? overLimitWords(full) : null;
 }
 
 export function enterCombat(current: readonly StatusInstance[]): readonly StatusInstance[] {

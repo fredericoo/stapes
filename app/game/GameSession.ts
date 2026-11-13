@@ -143,7 +143,7 @@ import {
   otherArrivalNotice,
   healthNotice,
   noRoomToLeaveNotice,
-  tooFullNotice,
+  overLimitNotice,
   rewardNotice,
   spawnNotice,
   despawnNotice,
@@ -490,7 +490,7 @@ import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/pro
 import {
   advanceStatuses,
   applyStatus,
-  firstWithoutRoom,
+  overLimitFor,
   grantRange,
   endOnDamage,
   enterCombat,
@@ -5202,9 +5202,9 @@ export class GameSession implements PlaySession {
   }
 
   private tooFullFor(actor: ActorRuntime, consumable: ConsumableItem, name: string): boolean {
-    const full = firstWithoutRoom(actor.statuses, consumable.statuses ?? [], this.statusDefs);
-    if (!full) return false;
-    this.say(actor.id, tooFullNotice(full.name, consumeVerb(consumable), name));
+    const overLimit = overLimitFor(actor.statuses, consumable.statuses, this.statusDefs);
+    if (overLimit === null) return false;
+    this.say(actor.id, overLimitNotice(consumeVerb(consumable), name, overLimit));
     return true;
   }
 
