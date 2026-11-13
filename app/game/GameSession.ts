@@ -365,6 +365,7 @@ import {
 import {
   canWalk,
   DIR_DELTA,
+  flies,
   groundWalkSpeedPercent,
   standingSurfacesBetween,
   standingAbs,
@@ -385,6 +386,7 @@ import {
   HOME_PATH_MAX_NODES,
   PATH_MAX_NODES,
   REFUGE_MAX_NODES,
+  type PathStep,
   type Reaching,
   unsafeToStepOn,
   wadesIn,
@@ -2217,7 +2219,7 @@ export class GameSession implements PlaySession {
       },
       thingStillThere: (at, tileId) => this.thingStillThere(at, tileId),
       positionOf: (id) => (this.isConcealed(id) ? null : this.actorCell(id)),
-      wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
+      wouldDrop: (direction) => this.stepLeavesGround(loc, direction, this.defFor(actor)),
       wouldStepIntoHazard: (direction) => this.stepLandsInHazard(actor, loc, direction),
       step: (direction) => this.applyStepRequest(actor, { directions: [direction] }),
       walkTo: (goal, route) => this.setWalkOrder(actor, goal, route),
@@ -4453,7 +4455,8 @@ export class GameSession implements PlaySession {
     return emitters.map((e) => `${e.channel}=${e.value}`).join(",");
   }
 
-  private stepLeavesGround(loc: ActorLocation, direction: Direction): boolean {
+  private stepLeavesGround(loc: ActorLocation, direction: Direction, def: TileDef): boolean {
+    if (flies(def)) return false;
     const { dx, dy } = DIR_DELTA[direction];
     const fromAbs = standingAbs(this.map, loc.x, loc.y, loc.z, loc.stackIndex, this.tilesById);
     return (
@@ -4497,7 +4500,7 @@ export class GameSession implements PlaySession {
     def: TileDef,
     walkedInto: Coord,
   ): Coord | null {
-    if (!this.stepLeavesGround(loc, direction)) return walkedInto;
+    if (!this.stepLeavesGround(loc, direction, def)) return walkedInto;
     const { dx, dy } = DIR_DELTA[direction];
     return dropLanding(
       this.map,
@@ -4514,7 +4517,7 @@ export class GameSession implements PlaySession {
     loc: ActorLocation,
     at: Coord,
     ask: RouteStepAsk,
-  ): Direction | "arrived" | null {
+  ): PathStep | "arrived" | null {
     const { allowDrops, arrive, maxNodes } = ask;
     const def = this.defFor(actor);
     const corner = ask.aroundBody && arrive === "beside" && this.hemmedIn(loc, at, def);
@@ -4549,7 +4552,7 @@ export class GameSession implements PlaySession {
       return null;
     }
     actor.failedRoute = null;
-    return found.route[0]?.direction ?? "arrived";
+    return found.route[0] ?? "arrived";
   }
 
   /**
@@ -4634,18 +4637,18 @@ export class GameSession implements PlaySession {
       return "blocked";
     }
 
-    const direction = this.routeStep(actor, loc, at, {
+    const step = this.routeStep(actor, loc, at, {
       allowDrops: order.allowDrops,
       arrive: order.arrive,
       aroundBody: order.goal.of === "body",
       maxNodes: order.maxNodes,
     });
-    if (direction === null || direction === "arrived") {
+    if (step === null || step === "arrived") {
       actor.walkOrder = null;
-      return direction === "arrived" ? "arrived" : "blocked";
+      return step === "arrived" ? "arrived" : "blocked";
     }
 
-    if (!this.applyStepRequest(actor, { directions: [direction] })) {
+    if (!this.applyStepRequest(actor, { directions: [step.direction], flyToLevel: step.to.z })) {
       actor.walkOrder = null;
       return "blocked";
     }

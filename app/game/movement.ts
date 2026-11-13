@@ -23,6 +23,7 @@ import {
   MAX_STACK_HEIGHT,
   MIN_LEVEL,
   coordKey,
+  resolveActor,
   resolveClimbFrom,
 } from "../lib/types";
 import { walkDurationFrom } from "../lib/walkSpeed";
@@ -204,15 +205,14 @@ function crossesSealedPlane(
   fromAbs: number,
   toAbs: number,
   tilesById: Record<string, TileDef>,
+  closes: (stack: PlacedTile[]) => boolean = (stack) => stackOcclusion(stack, tilesById).sealsLevel,
 ): boolean {
   const lowAbs = Math.min(fromAbs, toAbs);
   const highAbs = Math.max(fromAbs, toAbs);
   const firstZ = Math.max(MIN_LEVEL, Math.floor(lowAbs / HEIGHT_PER_LEVEL) + 1);
   const lastZ = Math.min(MAX_LEVEL, Math.floor(highAbs / HEIGHT_PER_LEVEL));
   for (let z = firstZ; z <= lastZ; z++) {
-    if (stackOcclusion(getStack(map, x, y, z), tilesById).sealsLevel) {
-      return true;
-    }
+    if (closes(getStack(map, x, y, z))) return true;
   }
   return false;
 }
@@ -318,7 +318,90 @@ export type WalkCheck = { ok: true; to: Coord } | { ok: false; reason: string };
 
 export type CanWalkOpts = {
   preferDescend?: boolean;
+  flyToLevel?: number;
 };
+
+export function flies(def: TileDef): boolean {
+  return resolveActor(def) && !def.affectedByGravity;
+}
+
+type Flight = { to: Coord; supported: boolean };
+
+function flightInto(
+  map: MapFile,
+  from: StepOrigin,
+  to: Coord,
+  tileDef: TileDef,
+  tilesById: Record<string, TileDef>,
+  fit: FitOpts,
+): Flight | null {
+  if (!fitsTile(map, to.x, to.y, to.z, tileDef, tilesById, fit).ok) return null;
+
+  const stack = getStack(map, to.x, to.y, to.z);
+  const abs = absoluteStandingElevation(to.z, stack, tilesById);
+  const solid = (placed: PlacedTile) => isSolidPlacement(placed, tilesById);
+
+  /**
+   * The same column rule as `surfacesInClimbBand`, but anything solid closes
+   * the plane: a floor that passes light does not seal a level, and a body
+   * crossing a whole level would dive through it.
+   */
+  const travelColumn = abs > from.abs ? from : to;
+  const closed = crossesSealedPlane(
+    map,
+    travelColumn.x,
+    travelColumn.y,
+    from.abs,
+    abs,
+    tilesById,
+    (crossed) => crossed.some(solid) || stackOcclusion(crossed, tilesById).sealsLevel,
+  );
+  if (closed) return null;
+
+  const supported =
+    stack.some(solid) ||
+    (to.z > MIN_LEVEL &&
+      stackHeight(getStack(map, to.x, to.y, to.z - 1), tilesById) >= HEIGHT_PER_LEVEL);
+  if (supported && !isWalkableSurfaceAt(map, to.x, to.y, abs, tilesById)) return null;
+
+  return { to, supported };
+}
+
+/**
+ * With no level asked for, a flier keeps to the ground it is over and
+ * otherwise sinks a level a step, so one that is not being steered comes back
+ * down. It rises only when nothing level or lower is open.
+ */
+function canFly(
+  map: MapFile,
+  from: Coord & { stackIndex: number },
+  direction: Direction,
+  tileDef: TileDef,
+  tilesById: Record<string, TileDef>,
+  toLevel: number | undefined,
+): WalkCheck {
+  const { dx, dy } = DIR_DELTA[direction];
+  const origin = {
+    x: from.x,
+    y: from.y,
+    abs: standingAbs(map, from.x, from.y, from.z, from.stackIndex, tilesById),
+  };
+  const fit: FitOpts = { throughPlayers: tileDef.id === PLAYER_TILE_ID };
+  const into = (z: number) =>
+    flightInto(map, origin, { x: from.x + dx, y: from.y + dy, z }, tileDef, tilesById, fit);
+  const refused: WalkCheck = { ok: false, reason: "No room to fly that way" };
+
+  if (toLevel !== undefined) {
+    if (Math.abs(toLevel - from.z) > 1) return refused;
+    const asked = into(toLevel);
+    return asked ? { ok: true, to: asked.to } : refused;
+  }
+
+  const level = into(from.z);
+  if (level?.supported) return { ok: true, to: level.to };
+  const flight = into(from.z - 1) ?? level ?? into(from.z + 1);
+  return flight ? { ok: true, to: flight.to } : refused;
+}
 
 function climbUpAllowed(
   map: MapFile,
@@ -346,6 +429,8 @@ export function canWalk(
   tilesById: Record<string, TileDef>,
   opts?: CanWalkOpts,
 ): WalkCheck {
+  if (flies(tileDef)) return canFly(map, from, direction, tileDef, tilesById, opts?.flyToLevel);
+
   const { dx, dy } = DIR_DELTA[direction];
   const destX = from.x + dx;
   const destY = from.y + dy;

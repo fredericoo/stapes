@@ -33,6 +33,7 @@ const tiles: TileDef[] = [
     name: "Player",
     height: 4,
     actor: true,
+    affectedByGravity: true,
     interactions: { battler: BATTLER },
   }),
 ];
