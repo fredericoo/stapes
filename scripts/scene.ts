@@ -15,6 +15,7 @@ Without --url it starts \`bun dev\` on free ports for the one shot and stops it.
 const ADMIN = { username: ADMIN_USERNAME, password: ADMIN_PASSWORD };
 const BOOT_TIMEOUT_MS = 120_000;
 const POLL_MS = 250;
+const HTTP_OK = 200;
 /** Software GL, so the picture is the same with or without a GPU. */
 const HEADLESS_GL_ARGS = [
   "--use-gl=angle",
@@ -68,8 +69,21 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
 
-  const signedIn = await page.request.post("/api/auth/sign-in/username", { data: ADMIN });
-  if (!signedIn.ok()) throw new Error(`signing in as ${ADMIN.username}: ${signedIn.status()}`);
+  /**
+   * Signed in from inside the page: under Bun, `page.request.post` throws while
+   * parsing the response's set-cookie header even though the sign-in succeeded.
+   */
+  await page.goto("/");
+  const signInStatus = await page.evaluate(
+    (credentials) =>
+      fetch("/api/auth/sign-in/username", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(credentials),
+      }).then((response) => response.status),
+    ADMIN,
+  );
+  if (signInStatus !== HTTP_OK) throw new Error(`signing in as ${ADMIN.username}: ${signInStatus}`);
 
   await page.goto("/admin/scene", { waitUntil: "networkidle" });
   await page.waitForFunction(() => (window as SceneWindow).__scene != null, null, {
