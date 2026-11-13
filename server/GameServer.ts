@@ -36,7 +36,7 @@ import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../app/game/death
 import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
 import { DepotLedger, restoredDepots, type Depots } from "../app/game/depot";
-import { listActorOwners } from "../app/game/actors";
+import { listActorOwners, spawnPoint } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import type { CommandReply } from "../app/game/commands";
@@ -2450,19 +2450,11 @@ export class GameServer {
     this.weatherAreas = await store.readWeatherAreas();
 
     const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
-    const session = new GameSession(map, tiles, {
-      actorIds: [],
-      seed: this.env.seed,
-      statuses: statusDefs,
-      traits,
-      clock: () => this.minutesOfDay(),
-      depots: this.depots,
-    });
-
-    await store.writeMap(map);
-    await this.ctx.storage.delete(CHECKPOINT_KEY);
-    await this.deleteCheckpointedBoard();
-    this.checkpointedMap = null;
+    /**
+     * The check `GameSession` would fail on, run while the running world is
+     * still standing, so refusing a map without its `player` marker costs nothing.
+     */
+    spawnPoint(map);
 
     const carried = new Map<string, Equipment>();
     const taken = new Map<string, string[]>();
@@ -2490,10 +2482,40 @@ export class GameServer {
       if (this.session?.pvpOf(actorId)) fighting.add(actorId);
     }
 
+    /**
+     * The running world is let go before the new one is built, so a save never
+     * holds two sessions at once; with the whole map in each, that is what
+     * took a 512 MB container over its limit. Nothing has been written yet, so
+     * a session that fails to build is replaced by the stored world again.
+     */
+    this.stopTicking();
+    this.session = null;
+    this.broadcastMap = null;
+    this.checkpointedMap = null;
+    let session: GameSession;
+    try {
+      session = new GameSession(map, tiles, {
+        actorIds: [],
+        seed: this.env.seed,
+        statuses: statusDefs,
+        traits,
+        clock: () => this.minutesOfDay(),
+        depots: this.depots,
+      });
+    } catch (error) {
+      await this.reloadStoredWorld();
+      throw error;
+    }
+
     this.tiles = tiles;
     this.traits = traits;
     this.session = session;
     this.broadcastMap = this.session.getMap();
+
+    await store.writeMap(map);
+    await this.ctx.storage.delete(CHECKPOINT_KEY);
+    await this.deleteCheckpointedBoard();
+
     this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesById));
     this.respawnPending.clear();
     this.waitingForHours.clear();
@@ -2535,6 +2557,12 @@ export class GameServer {
     return { removed };
   }
 
+  private async reloadStoredWorld(): Promise<void> {
+    await this.ensureLoaded();
+    for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
+    this.wake();
+  }
+
   async reloadContent(): Promise<void> {
     if (this.loading) await this.ensureLoaded();
 
@@ -2546,10 +2574,7 @@ export class GameServer {
 
     this.session = null;
     this.loading = null;
-    await this.ensureLoaded();
-
-    for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
-    this.wake();
+    await this.reloadStoredWorld();
   }
 
   async resetWorld(): Promise<void> {
