@@ -165,7 +165,9 @@ an agent drives", lists every call.
   slices of the cave walls on it: `cave-wall`, rock whose face stands on the half
   line of its cell wherever it meets open ground, so a passage one cell wide
   shows a cell of floor, and `cave-wall-sloped`, the same outline at the ceiling
-  widening to the cell's edge at the floor, each in red rock and in grey
+  widening to the cell's edge at the floor, each in red rock and in grey. Also
+  `hill-wall`, the sloped wall with a wider top that hills are built of, and
+  `hill-cave-mouth`, the cell a cave leaves a hill through
   (`cave-wall-grey`, `cave-wall-sloped-grey`). Every corner is rounded. Geometry
   too, drawn through the game's own projection; the variants, the shape rules
   and the palette entries are constants in the script
@@ -245,8 +247,9 @@ an agent drives", lists every call.
   the back of a cave. What to dig is the `CAVES` block at the top of the
   script; `--dry-run` reports without writing
 - `bun run slope:hills` — turn the vertical cliffs `raise:hills` built into
-  slopes: the `half-stone` fill becomes `hill-wall` and the ground at every
-  drop becomes a brink. It walks the map before and after and refuses to write
+  slopes: the `half-stone` fill becomes `hill-wall`, the ground at every
+  drop becomes a brink, and each tunnel `carve:hill-caves` dug comes out
+  through a `hill-cave-mouth`. It walks the map before and after and refuses to write
   it if the cells a player can walk to are not the same. Run it after
   `raise:hills` and `carve:hill-caves`; `--dry-run` reports without writing
 - `bun run grow:mushrooms` — put mushroom patches, about a quarter of them

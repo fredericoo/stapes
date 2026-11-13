@@ -17536,6 +17536,15 @@ With the cave's outline a body on the edge of a hill stood on the rim itself,
 with half its cell slope, and did not read as standing on anything. The walls
 inside a cave are `cave-wall-sloped` and are not changed.
 
+**A ridge takes no part of the wider top.** Rock one cell thick is drawn as a
+ridge, which in a cave wall widens at half the rate a face does. If a hill
+wall's ridge started `HILL_CROWN / 2` wider at the ceiling as well, its side
+would stand a pixel outside the face of thicker rock beside it. That happens
+either side of a cave mouth, where the tunnel behind leaves the cliff one cell
+thick: the wall's top showed as a dark line under the brink. A hill wall's
+ridge is the cave wall's width at the ceiling and reaches the cell's edge at
+the floor, so its side is on the line of a face at every height.
+
 **A ground tile over such a wall still overhangs it**, by those two pixels on
 every open side, since ground fills its whole cell.
 
@@ -17566,16 +17575,44 @@ texture, and that dark reaches most of a cell north and west. A full block's
 top is drawn over those cells; a brink is not, and the ground beside every hill
 showed a dark band until the brinks let light through.
 
+**A cave comes out through `hill-cave-mouth`.** `carve:hill-caves` leaves the
+last cell of a tunnel as bare `dirt` in the cliff, with the hilltop's ground and
+ledge over it. The walls either side see open ground there and turn in, and the
+ground over it is a square slab across the gap. `slope:hills` puts a
+`hill-cave-mouth` on that cell, facing the way out. It is drawn on the cave wall
+sheet as the slice `hill-wall` has in a straight cliff, and the walls and every
+cave wall connect to it, so the cliff runs past the mouth unbroken and the cell
+above takes a brink like its neighbours. It is `intangible` and `lightPassing`
+with `walkable: false`, as `door-open` is: a body, an arrow and daylight go
+through it, and nothing stands on it.
+
+- **Two sprites, one for each way the passage runs.** `n` and `s` share one
+  and `e` and `w` the other, so the rock slopes at both ends of the passage.
+  The end inside the hill is under the hilltop, where the slope is not seen.
+- **The passage is cut out of the rock and cast with it.** The opening is
+  sheared a pixel sideways for each pixel of height, as every wall face and
+  every door is. A ray that reaches the floor through the opening is left
+  clear, so the floor under the tile shows, and rock seen through it is dark.
+- **A north or a west mouth cannot be seen from outside**, because those
+  faces are never drawn, and the brink over it runs on as over any other cell.
+  It shows when a player is close enough for the roof cut to take the hilltop
+  off it. No cave on the map opens north or west.
+- **One cell.** A second mouth on the next cell of the tunnel reads as two
+  entrances in a row once the roof is cut.
+- **A mouth is found by the shape of the tunnel.** The script takes a cell of
+  bare `dirt` on or above the surface with a floor over it, rock on both sides,
+  more `dirt` behind it and open ground with nothing over it in front. The
+  cell over it becomes a brink where it was ground with a ledge and is left
+  alone otherwise: the hill at (-49, -146) is topped with `dirt`.
+
 **What it does not handle.**
 
 - A cliff two levels tall is two slopes, each running from the edge of its
   cell to two pixels in, so the upper one overhangs the lower by two pixels.
   `raise:hills` cuts terraces and never builds one.
-- Raised ground one cell wide gets a brink six pixels wide, which is rim and
+- Raised ground one cell wide gets a brink four pixels wide, which is rim and
   tufts with no plain grass between them.
 - `grass-2` burns to `dirt`; a brink has no `interactions` and does not burn.
-- The ground over a cave mouth keeps its ledge and its full tile: there is no
-  wall under it to match.
 
 **The check is the game's.** The cells a player can walk to have to be the
 same before and after, and `findStranded` may find no more cells than it did.

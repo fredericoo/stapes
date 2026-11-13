@@ -170,18 +170,17 @@ function ridgeRect(ridge: (typeof RIDGES)[number], mask: number, filled: boolean
   return rect;
 }
 
-function outline(mask: number, grow = 0): (x: number, y: number) => boolean {
+function outline(mask: number, grow: number, thicken: number): (x: number, y: number) => boolean {
   const filled = QUADRANTS.map(({ needs }) => (mask & needs) === needs);
   const ridges = RIDGES.filter(
     ({ side, beside }) => (mask & side) !== 0 && !filled[beside[0]] && !filled[beside[1]],
   );
   /**
-   * A ridge, and the disc at the centre where ridges meet, stand half as far
-   * from the cell's edge as a face does, so they widen at half the rate and every
-   * slope reaches the edge at the floor. The disc is all there is of a cell with
-   * no rock beside it.
+   * A ridge, and the disc at the centre where ridges meet, are widened by
+   * `thicken`, not by `grow`. They stand half as far from the cell's edge as a
+   * face does, so they widen at half the rate and every slope reaches the edge
+   * at the floor. The disc is all there is of a cell with no rock beside it.
    */
-  const thicken = grow / 2;
   const rects = ridges.map((ridge) => ridgeRect(ridge, mask, filled, thicken));
   const ridgeSides = ridges.reduce((sides, { side }) => sides | side, 0);
   const hub = ridges.length > 0 || !filled.some(Boolean);
@@ -205,8 +204,8 @@ function outline(mask: number, grow = 0): (x: number, y: number) => boolean {
  * corner from a different ridge or face. Keeping the pixel at that corner empty
  * until the floor, where every slope reaches it, is the one answer both give.
  */
-export function footprint(mask: number, grow = 0): boolean[][] {
-  const rock = outline(mask, grow);
+export function footprint(mask: number, grow = 0, thicken = grow / 2): boolean[][] {
+  const rock = outline(mask, grow, thicken);
   const grid = Array.from({ length: CELL }, (_, row) =>
     Array.from({ length: CELL }, (_, col) => rock(col + 0.5, row + 0.5)),
   );

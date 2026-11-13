@@ -93,7 +93,7 @@ async function groundPixels(ground: string): Promise<Rgba[][]> {
  */
 function paintBrink(sheet: PNG, brink: Brink, ground: Rgba[][], column: number) {
   AUTOTILE_SLICE_MASKS.forEach((mask, slice) => {
-    const covered = footprint(mask, HILL_CROWN);
+    const covered = footprint(mask, HILL_CROWN, 0);
     for (let y = 0; y < CELL_SIZE; y++) {
       for (let x = 0; x < CELL_SIZE; x++) {
         if (!covered[y]![x]) continue;
