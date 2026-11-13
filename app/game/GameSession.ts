@@ -380,6 +380,7 @@ import {
   failedRouteMemoryMs,
   findPath,
   findRefuge,
+  reachableCells,
   HOME_DETOUR_SLACK,
   HOME_PATH_MAX_NODES,
   PATH_MAX_NODES,
@@ -456,7 +457,16 @@ import {
   type ExtraEmitter,
 } from "./signals";
 import type { ItemDecay, LootDecay, PlacementDecay } from "./decay";
-import { DecayIndex, applyDecay, applyItemDecay, applyLootDecay, findDecayCells } from "./decay";
+import {
+  DecayIndex,
+  applyDecay,
+  applyItemDecay,
+  applyLootDecay,
+  applyPlacementTurns,
+  findDecayCells,
+} from "./decay";
+import { Weathering, findWeatheringCells } from "./weathering";
+import { CLEAR_SKY, weatherOn, weatherOver, type Sky } from "./weatherOn";
 import {
   EndureIndex,
   type AfflictedPlacement,
@@ -655,6 +665,10 @@ function facingToward(from: Coord, to: Coord): Direction | null {
   return dy > 0 ? "s" : "n";
 }
 
+const SHELTER_MAX_NODES = 256;
+
+const SHELTER_MEMORY_MS = 4000;
+
 function walkKey(cell: Coord): string {
   return `${cell.x},${cell.y},${cell.z}`;
 }
@@ -823,6 +837,13 @@ type ActorRuntime = {
   failedRoute: (RouteAsked & { atMs: number }) | null;
   attackOrder: string | null;
   refuge: Coord | null;
+  shelter: {
+    at: Coord | null;
+    from: string;
+    weather: WeatherKind;
+    cells: number;
+    atMs: number;
+  } | null;
   brainAttentive: boolean;
   conversation: Conversation | null;
   home: Coord | null;
@@ -950,6 +971,8 @@ export class GameSession implements PlaySession {
   private kingId: string | null = null;
   private readonly looseGravityCells = new Map<string, Coord>();
   private readonly decay: DecayIndex;
+  private readonly weathering: Weathering;
+  private sky: Sky = CLEAR_SKY;
   private readonly afflictCells = new Map<string, Coord>();
   private readonly endure: EndureIndex;
   private readonly statusDefs: Record<string, StatusDef>;
@@ -1026,6 +1049,7 @@ export class GameSession implements PlaySession {
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
+    this.weathering = new Weathering(this.rng);
     this.endure = new EndureIndex(this.rng);
 
     if (spawnAt) {
@@ -1066,6 +1090,9 @@ export class GameSession implements PlaySession {
     }
     for (const cell of findDecayCells(this.map, this.tilesById)) {
       this.decay.armCell(this.map, cell, this.tilesById);
+    }
+    for (const cell of findWeatheringCells(this.map, this.tilesById)) {
+      this.weathering.index(this.map, cell, this.tilesById);
     }
     this.settleBoardNow();
   }
@@ -1150,6 +1177,7 @@ export class GameSession implements PlaySession {
       failedRoute: null,
       attackOrder: null,
       refuge: null,
+      shelter: null,
       brainAttentive: false,
       conversation: null,
       home: this.residentHomes.get(id) ?? null,
@@ -1379,6 +1407,7 @@ export class GameSession implements PlaySession {
     for (const cell of cells) {
       const key = cellKey(cell);
       this.decay.armCell(this.map, cell, this.tilesById);
+      this.weathering.index(this.map, cell, this.tilesById);
       if (cellHasPlate(this.map, cell, this.tilesById)) {
         this.plateCells.set(key, cell);
       } else {
@@ -1565,6 +1594,7 @@ export class GameSession implements PlaySession {
     this.decay.advance(tickMs);
     this.ageWanted(tickMs);
     this.applyDueDecay();
+    this.applyWeathering(tickMs);
     this.tickAfflictions(tickMs);
     this.applyWornThrough(tickMs);
 
@@ -1572,6 +1602,28 @@ export class GameSession implements PlaySession {
     this.advanceCastings(tickMs);
 
     this.settleBoardNow();
+  }
+
+  /** The weather and where it reaches; the server says, as it does the hour through `clock`. */
+  setSky(sky: Sky) {
+    this.sky = sky;
+  }
+
+  private applyWeathering(tickMs: number) {
+    const due = this.weathering.advance(tickMs, this.map, this.tilesById, (cell) =>
+      weatherOn(this.map, this.sky, cell, this.tilesById),
+    );
+    if (due.length === 0) return;
+
+    const turned = applyPlacementTurns(this.map, due, this.tilesById);
+    this.map = turned.map;
+    for (const swap of turned.turned) {
+      this.noteTransition("disappear", swap.tileId, swap.cell, swap.fromIndex);
+      if (swap.into) {
+        this.noteTransition("appear", swap.into.tileId, swap.cell, swap.into.stackIndex);
+      }
+    }
+    this.reindexCells(turned.changed);
   }
 
   private applyDueDecay() {
@@ -2144,6 +2196,9 @@ export class GameSession implements PlaySession {
       canSee: (at) => this.canSeeFrom(actor, loc, at),
       talking: () => this.anyoneTalkingTo(actor.id),
       inHarm: () => this.standsInHarm(actor, loc),
+      weather: (overhead) =>
+        overhead ? weatherOver(this.sky, loc) : weatherOn(this.map, this.sky, loc, this.tilesById),
+      nearestShelter: (weather, cells) => this.nearestShelter(actor, loc, weather, cells),
       sight,
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
@@ -4630,6 +4685,48 @@ export class GameSession implements PlaySession {
      */
     if (!found.ok || found.route.length === 0) return null;
     return found.route[found.route.length - 1]!.to;
+  }
+
+  /**
+   * The cheapest cell to walk to that `weather` is not on. A flood, so the
+   * answer is a cell the body can reach; it is kept for `SHELTER_MEMORY_MS`
+   * from the cell it was asked on because a brain asks every round.
+   */
+  private nearestShelter(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    weather: WeatherKind,
+    cells: number,
+  ): Coord | null {
+    const from = walkKey(loc);
+    const known = actor.shelter;
+    if (
+      known !== null &&
+      known.from === from &&
+      known.weather === weather &&
+      known.cells === cells &&
+      !reached(this.elapsedMs - known.atMs, SHELTER_MEMORY_MS)
+    ) {
+      return known.at;
+    }
+
+    const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
+    const flood = reachableCells(
+      this.map,
+      { at: self, self, who: actor.id },
+      this.defFor(actor),
+      this.tilesById,
+      this.statusDefs,
+      { maxCost: cells, maxNodes: SHELTER_MAX_NODES },
+    );
+    let best: { at: Coord; cost: number } | null = null;
+    for (const cell of flood.values()) {
+      if (best !== null && cell.cost >= best.cost) continue;
+      if (weatherOn(this.map, this.sky, cell.at, this.tilesById) === weather) continue;
+      best = cell;
+    }
+    actor.shelter = { at: best?.at ?? null, from, weather, cells, atMs: this.elapsedMs };
+    return actor.shelter.at;
   }
 
   private walkGoalCell(goal: WalkGoal): Coord | null {

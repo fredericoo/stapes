@@ -2991,5 +2991,89 @@
         "to": "back"
       }
     ]
+  },
+  {
+    "id": "shelters-from-rain",
+    "name": "Shelters from rain",
+    "hint": "Walks out of the rain when somewhere dry is within reach: under a roof or a bridge, down a hole, into a cave, or past where the rain stops. Stays there until the rain overhead ends. Only leaves what it does when idle or roaming.",
+    "params": {
+      "within": {
+        "kind": "cells",
+        "default": 12,
+        "label": "looks within"
+      }
+    },
+    "states": {
+      "sheltering": {
+        "band": "errand",
+        "do": [
+          {
+            "action": "take_shelter",
+            "from": "rain",
+            "cells": {
+              "arg": "within"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "weather",
+              "is": "rain"
+            },
+            {
+              "cond": "shelter_near",
+              "from": "rain",
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "to": "sheltering"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "sheltering",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "weather",
+              "is": "rain",
+              "overhead": true
+            }
+          ]
+        },
+        "to": "rest"
+      },
+      {
+        "from": "sheltering",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "shelter_near",
+              "from": "rain",
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "to": "rest"
+      }
+    ]
   }
 ]

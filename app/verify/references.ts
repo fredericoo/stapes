@@ -14,6 +14,7 @@ import {
   resolveAddStatus,
   resolveCraft,
   resolveDecay,
+  resolveWeatherReactions,
   resolveEndure,
   resolveExtract,
   resolvePressurePlate,
@@ -217,6 +218,11 @@ export function checkReferences(def: TileDef, catalogue: Catalogue, findings: Fi
 
   const decay = resolveDecay(def);
   if (decay?.tileId) refs.tile("interactions.decay.tileId", "The decay", decay.tileId);
+
+  resolveWeatherReactions(def).forEach((reaction, i) => {
+    if (!reaction.tileId) return;
+    refs.tile(`interactions.weather[${i}].tileId`, "The weather block", reaction.tileId);
+  });
 
   const plate = resolvePressurePlate(def);
   if (plate) refs.tile("interactions.pressurePlate.tileId", "The pressure plate", plate.tileId);

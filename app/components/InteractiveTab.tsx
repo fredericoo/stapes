@@ -20,6 +20,7 @@ import type {
   TeleportInteraction,
   TileInteractions,
   CraftInteraction,
+  WeatherReaction,
 } from "../lib/interactions";
 import {
   DEFAULT_ADD_STATUS,
@@ -35,6 +36,7 @@ import {
   DEFAULT_REWARD,
   DEFAULT_SWITCH,
   DEFAULT_TELEPORT,
+  DEFAULT_WEATHER_REACTION,
   DEFAULT_CRAFT,
   DEFAULT_CRAFT_VERB,
   MAX_EXTRACT_CHANCE,
@@ -49,6 +51,7 @@ import { CraftFields } from "./CraftFields";
 import { DEFAULT_WEAPON, MAX_CONTAINER_SIZE, resolveContainer, resolveItem } from "../lib/item";
 import { DEFAULT_PROJECTILE_SPEED } from "../lib/projectile";
 import type { StatusDef } from "../lib/status";
+import { WEATHER_KINDS, type WeatherKind } from "../lib/weather";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import {
@@ -98,6 +101,8 @@ const MAX_PLATE_HEIGHT = HEIGHT_PER_LEVEL * 2;
 const MS_PER_SECOND = 1000;
 
 const MAX_DECAY_SECONDS = 3600;
+
+const WEATHER_LABELS: Record<WeatherKind, string> = { clear: "Clear", rain: "Rain", fog: "Fog" };
 
 const MAX_DURABILITY = 99;
 
@@ -188,6 +193,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const addStatus = draft.interactions?.addStatus;
   const removeStatus = draft.interactions?.removeStatus;
   const decay = draft.interactions?.decay;
+  const weather = draft.interactions?.weather;
   const plate = draft.interactions?.pressurePlate;
   const emit = draft.interactions?.emit;
   const receive = draft.interactions?.receive;
@@ -351,6 +357,32 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
       end === "fromMs"
         ? { ...decay, fromMs: ms, toMs: Math.max(ms, decay.toMs) }
         : { ...decay, toMs: ms, fromMs: Math.min(ms, decay.fromMs) },
+    );
+  };
+
+  const setWeather = (next: WeatherReaction[]) => {
+    patchKind("weather", next.length > 0 ? next : null);
+  };
+
+  const unusedWeather = WEATHER_KINDS.filter(
+    (kind) => !(weather ?? []).some((reaction) => reaction.in === kind),
+  );
+
+  const patchWeather = (index: number, patch: Partial<WeatherReaction>) => {
+    setWeather(
+      (weather ?? []).map((reaction, i) => (i === index ? { ...reaction, ...patch } : reaction)),
+    );
+  };
+
+  const patchWeatherBound = (index: number, end: "fromMs" | "toMs", seconds: number) => {
+    const reaction = weather?.[index];
+    if (!reaction) return;
+    const ms = Math.round(Math.min(MAX_DECAY_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND);
+    patchWeather(
+      index,
+      end === "fromMs"
+        ? { fromMs: ms, toMs: Math.max(ms, reaction.toMs) }
+        : { toMs: ms, fromMs: Math.min(ms, reaction.fromMs) },
     );
   };
 
@@ -931,6 +963,97 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
               emptyHint="None — the placement is removed."
               single
             />
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <SectionSwitch
+          on={Boolean(weather)}
+          onToggle={(on) => setWeather(on ? [{ ...DEFAULT_WEATHER_REACTION }] : [])}
+          label="Weather"
+          info="While this weather is on the placement's cell, it becomes the target tile after the wait, or is removed. Rain is on a cell with nothing overhead, inside an area rain reaches; fog is on every cell its area reaches from ground level up; clear is neither, so a tile under a roof is in clear weather while it rains. The wait starts over when the weather on the cell changes. To bring a tile back, give the target a reaction to clear weather."
+        />
+
+        {weather ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            {weather.map((reaction, index) => (
+              <div
+                key={reaction.in}
+                className="flex flex-col gap-3 border-2 border-border bg-paper p-2"
+              >
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div className="flex flex-col gap-1 text-xs">
+                    <FieldLabel>In</FieldLabel>
+                    <Segmented<WeatherKind>
+                      value={reaction.in}
+                      onChange={(kind) => patchWeather(index, { in: kind })}
+                      options={WEATHER_KINDS.filter(
+                        (kind) => kind === reaction.in || unusedWeather.includes(kind),
+                      ).map((kind) => ({ value: kind, label: WEATHER_LABELS[kind] }))}
+                      size="sm"
+                      ariaLabel="Weather"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setWeather(weather.filter((_, i) => i !== index))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+
+                <div className="flex flex-col gap-1 text-xs">
+                  <FieldLabel info="Drawn each time this weather comes onto the cell. Equal ends for an exact wait.">
+                    After (s)
+                  </FieldLabel>
+                  <span className="flex items-center gap-2">
+                    <NumberInput
+                      min={1}
+                      max={MAX_DECAY_SECONDS}
+                      step={1}
+                      value={reaction.fromMs / MS_PER_SECOND}
+                      onChange={(seconds) => patchWeatherBound(index, "fromMs", seconds)}
+                      className="w-20"
+                      aria-label="Shortest wait in seconds"
+                    />
+                    <span className="text-muted">to</span>
+                    <NumberInput
+                      min={1}
+                      max={MAX_DECAY_SECONDS}
+                      step={1}
+                      value={reaction.toMs / MS_PER_SECOND}
+                      onChange={(seconds) => patchWeatherBound(index, "toMs", seconds)}
+                      className="w-20"
+                      aria-label="Longest wait in seconds"
+                    />
+                  </span>
+                </div>
+
+                <TileIdMultiSelect
+                  tiles={others}
+                  tilesets={tilesets}
+                  selectedIds={reaction.tileId ? [reaction.tileId] : []}
+                  onChange={(ids) => patchWeather(index, { tileId: ids[0] ?? "" })}
+                  label="Becomes"
+                  emptyHint="None — the placement is removed."
+                  single
+                />
+              </div>
+            ))}
+
+            {unusedWeather.length > 0 ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setWeather([...weather, { ...DEFAULT_WEATHER_REACTION, in: unusedWeather[0]! }])
+                }
+              >
+                Add reaction
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </section>

@@ -2021,6 +2021,7 @@ export class GameServer {
   async reloadWeatherAreas() {
     this.weatherAreas = await this.store().readWeatherAreas();
     this.broadcast({ type: "weatherAreas", areas: this.weatherAreas });
+    this.session?.setSky({ weather: this.weather(), areas: this.weatherAreas });
   }
 
   private weather(): WeatherKind {
@@ -2034,6 +2035,7 @@ export class GameServer {
     if (set) this.weatherSetByHand = set.weather;
     const weather = this.weather();
     this.weatherSent = weather;
+    this.session?.setSky({ weather, areas: this.weatherAreas });
     if (weather !== before) this.broadcast({ type: "weather", weather });
   }
 

@@ -3,6 +3,7 @@ import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
 import type { AuthoredBrain } from "./traits";
 import type { DialogDef } from "./dialog";
 import { MAX_HOUR_OF_DAY } from "./clock";
+import { WEATHER_KINDS, type WeatherKind } from "./weather";
 import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
@@ -34,6 +35,14 @@ export type SwitchInteraction = {
 };
 
 export type DecayInteraction = {
+  tileId: string;
+  fromMs: number;
+  toMs: number;
+};
+
+/** While `in` is the weather on the placement's cell, it turns into `tileId` after the wait, or is removed when that is empty. */
+export type WeatherReaction = {
+  in: WeatherKind;
   tileId: string;
   fromMs: number;
   toMs: number;
@@ -252,6 +261,7 @@ export type TileInteractions = {
   removeStatus?: RemoveStatusInteraction;
   endure?: EndureInteraction;
   decay?: DecayInteraction;
+  weather?: WeatherReaction[];
   respawn?: RespawnInteraction;
   pressurePlate?: PressurePlateInteraction;
   emit?: EmitInteraction;
@@ -328,6 +338,13 @@ const DEFAULT_DECAY_FROM_MS = 20_000;
 const DEFAULT_DECAY_TO_MS = 40_000;
 
 export const DEFAULT_DECAY: DecayInteraction = {
+  tileId: "",
+  fromMs: DEFAULT_DECAY_FROM_MS,
+  toMs: DEFAULT_DECAY_TO_MS,
+};
+
+export const DEFAULT_WEATHER_REACTION: WeatherReaction = {
+  in: "rain",
   tileId: "",
   fromMs: DEFAULT_DECAY_FROM_MS,
   toMs: DEFAULT_DECAY_TO_MS,
@@ -834,6 +851,43 @@ export function resolveDecay(def: TileDef): DecayInteraction | null {
   return decay;
 }
 
+const weatherReactionSchema = v.pipe(
+  v.object({
+    in: v.picklist(WEATHER_KINDS),
+    tileId: v.string(),
+    fromMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    toMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  v.check((r) => r.toMs >= r.fromMs, "weather toMs must be at least fromMs"),
+);
+
+const NO_WEATHER_REACTIONS: readonly WeatherReaction[] = [];
+
+const weatherCache = new WeakMap<TileDef, readonly WeatherReaction[]>();
+
+/** At most one reaction for each weather: the first authored for it. */
+export function resolveWeatherReactions(def: TileDef): readonly WeatherReaction[] {
+  const cached = weatherCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.weather;
+  const parsed = raw == null ? null : v.safeParse(v.array(weatherReactionSchema), raw);
+  const reactions = parsed?.success ? onePerWeather(parsed.output) : NO_WEATHER_REACTIONS;
+  weatherCache.set(def, reactions);
+  return reactions;
+}
+
+function onePerWeather(reactions: readonly WeatherReaction[]): readonly WeatherReaction[] {
+  const kept = reactions.filter(
+    (reaction, i) => reactions.findIndex((other) => other.in === reaction.in) === i,
+  );
+  return kept.length === 0 ? NO_WEATHER_REACTIONS : kept;
+}
+
+export function weatherReactionIn(def: TileDef, weather: WeatherKind): WeatherReaction | null {
+  return resolveWeatherReactions(def).find((reaction) => reaction.in === weather) ?? null;
+}
+
 const hourOfDay = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_HOUR_OF_DAY));
 
 const respawnSchema = v.pipe(
@@ -989,6 +1043,7 @@ export function hasAnyInteraction(interactions: TileInteractions | undefined): b
     interactions?.removeStatus ||
     interactions?.endure ||
     interactions?.decay ||
+    interactions?.weather ||
     interactions?.respawn ||
     interactions?.pressurePlate ||
     interactions?.emit ||
@@ -1108,6 +1163,14 @@ export function interactionsForSave(
           toMs: decayToMs,
         }
       : undefined;
+  const savedWeather = onePerWeather(
+    (interactions?.weather ?? []).flatMap((reaction) => {
+      const fromMs = Math.round(reaction.fromMs);
+      const toMs = Math.round(reaction.toMs);
+      if (fromMs <= 0 || toMs < fromMs) return [];
+      return [{ in: reaction.in, tileId: reaction.tileId.trim(), fromMs, toMs }];
+    }),
+  );
   const respawn = interactions?.respawn;
   const respawnFromMs = respawn ? Math.round(respawn.fromMs) : 0;
   const respawnToMs = respawn ? Math.round(respawn.toMs) : 0;
@@ -1204,6 +1267,7 @@ export function interactionsForSave(
     !savedRemoveStatus &&
     !savedEndure &&
     !savedDecay &&
+    savedWeather.length === 0 &&
     !savedRespawn &&
     !savedPlate &&
     !savedEmit &&
@@ -1228,6 +1292,7 @@ export function interactionsForSave(
     ...(savedRemoveStatus ? { removeStatus: savedRemoveStatus } : {}),
     ...(savedEndure ? { endure: savedEndure } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
+    ...(savedWeather.length > 0 ? { weather: [...savedWeather] } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),
     ...(savedEmit ? { emit: savedEmit } : {}),

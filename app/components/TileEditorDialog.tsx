@@ -519,7 +519,7 @@ export function TileEditorDialog({
 
   const i = draft.interactions;
   const hasNonBrainInteraction = Boolean(
-    i?.push || i?.switch || i?.decay || i?.pressurePlate || i?.emit || i?.receive,
+    i?.push || i?.switch || i?.decay || i?.weather || i?.pressurePlate || i?.emit || i?.receive,
   );
 
   const climbFacing: FacingKey = isDirectional(draft) ? nearestCardinal(dir) : "default";

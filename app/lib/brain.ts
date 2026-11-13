@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { MAX_HOUR_OF_DAY } from "./clock";
+import { WEATHER_KINDS, type WeatherKind } from "./weather";
 import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import type { TileDef } from "./types";
 
@@ -85,6 +86,8 @@ export type BrainConditionDef =
   | { cond: "stuck" }
   | { cond: "talking" }
   | { cond: "in_harm" }
+  | { cond: "weather"; is: WeatherKind; overhead?: boolean }
+  | { cond: "shelter_near"; from: WeatherKind; cells: number }
   | { cond: "carrying"; tileId?: string }
   | { cond: "status"; id: string; atLeastMs?: number }
   | { cond: "health"; atMostPercent: number }
@@ -115,6 +118,7 @@ export type BrainActionDef =
   | { action: "extract"; of: Selector }
   | { action: "switch"; of: Selector }
   | { action: "consume"; of?: Selector; tileId?: string }
+  | { action: "take_shelter"; from: WeatherKind; cells: number }
   | { action: "fade" };
 
 export type BrainEffectDef = { effect: "say"; text: string } | { effect: "noise"; text: string };
@@ -227,6 +231,12 @@ const leafSchema = v.variant("cond", [
   v.object({ cond: v.literal("talking") }),
   v.object({ cond: v.literal("in_harm") }),
   v.object({
+    cond: v.literal("weather"),
+    is: v.picklist(WEATHER_KINDS),
+    overhead: v.optional(v.boolean()),
+  }),
+  v.object({ cond: v.literal("shelter_near"), from: v.picklist(WEATHER_KINDS), cells }),
+  v.object({
     cond: v.literal("carrying"),
     tileId: v.optional(v.pipe(v.string(), v.minLength(1))),
   }),
@@ -308,6 +318,7 @@ const actionSchema = v.variant("action", [
     of: v.optional(selectorSchema),
     tileId: v.optional(v.pipe(v.string(), v.minLength(1))),
   }),
+  v.object({ action: v.literal("take_shelter"), from: v.picklist(WEATHER_KINDS), cells }),
   v.object({ action: v.literal("fade") }),
 ]);
 

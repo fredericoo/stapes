@@ -13247,6 +13247,7 @@
             ]
           },
           "answering": {
+            "band": "need",
             "onEnter": [
               {
                 "effect": "noise",
@@ -13269,6 +13270,7 @@
             ]
           },
           "following": {
+            "band": "need",
             "do": [
               {
                 "action": "step_toward",
@@ -13379,6 +13381,10 @@
               "target": "foe",
               "calm": 10
             }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -25299,6 +25305,12 @@
     "walkDurationMs": 170,
     "interactions": {
       "brain": {
+        "traits": [
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
+          }
+        ],
         "initial": "graze",
         "states": {
           "graze": {
@@ -25357,6 +25369,7 @@
             ]
           },
           "flee": {
+            "band": "danger",
             "onEnter": [
               {
                 "effect": "noise",
@@ -25381,6 +25394,7 @@
             ]
           },
           "cornered": {
+            "band": "danger",
             "do": [
               {
                 "action": "hold"
@@ -34473,7 +34487,15 @@
         "tileId": "",
         "fromMs": 30000,
         "toMs": 60000
-      }
+      },
+      "weather": [
+        {
+          "in": "rain",
+          "tileId": "",
+          "fromMs": 15000,
+          "toMs": 40000
+        }
+      ]
     },
     "sprite": {
       "frames": [
@@ -43635,6 +43657,10 @@
                 }
               ]
             }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -56735,7 +56761,15 @@
         "tileId": "",
         "fromMs": 420000,
         "toMs": 540000
-      }
+      },
+      "weather": [
+        {
+          "in": "rain",
+          "tileId": "",
+          "fromMs": 15000,
+          "toMs": 40000
+        }
+      ]
     },
     "sprite": {
       "frames": [
