@@ -14,7 +14,7 @@ import {
 import { withinHours, type MinutesOfDay } from "../lib/clock";
 import { evaluateCondition } from "../lib/conditions";
 import type { BattlerDef } from "../lib/battler";
-import type { WeatherKind } from "../lib/weather";
+import type { ShelterFrom, WeatherKind } from "../lib/weather";
 import { DIRECTIONS, type Coord, type Direction } from "../lib/types";
 import type { Rng } from "./rng";
 
@@ -68,8 +68,10 @@ export type BrainContext = {
   inHarm(): boolean;
   /** The weather on this body's cell, or with `overhead` what the sky above it is doing, roof or not. */
   weather(overhead: boolean): WeatherKind;
-  /** The nearest cell this body can walk to in `cells` steps that `weather` is not on. */
-  nearestShelter(weather: WeatherKind, cells: number): Coord | null;
+  /** Whether nothing on a level above this body's cell seals it off from the sky. */
+  underSky(): boolean;
+  /** The nearest cell this body can walk to in `cells` steps that is out of `from`. */
+  nearestShelter(from: ShelterFrom, cells: number): Coord | null;
   wouldDrop(direction: Direction): boolean;
   wouldStepIntoHazard(direction: Direction): boolean;
   step(direction: Direction): boolean;
@@ -362,9 +364,11 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       return ctx.inHarm();
     case "weather":
       return ctx.weather(condition.overhead === true) === condition.is;
+    case "under_sky":
+      return ctx.underSky();
     case "shelter_near":
       return (
-        ctx.weather(false) !== condition.from ||
+        !exposedTo(condition.from, ctx) ||
         ctx.nearestShelter(condition.from, condition.cells) !== null
       );
     case "carrying":
@@ -398,6 +402,10 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       return !ctx.reaches(id, condition);
     }
   }
+}
+
+function exposedTo(from: ShelterFrom, ctx: BrainContext): boolean {
+  return from === "sky" ? ctx.underSky() : ctx.weather(false) === from;
 }
 
 function struckWithin(memory: BrainMemory, withinMs: number): boolean {
@@ -569,7 +577,7 @@ function runAction(
       return fleeAlongRoute(at, action, ctx);
     }
     case "take_shelter": {
-      if (ctx.weather(false) !== action.from) return "success";
+      if (!exposedTo(action.from, ctx)) return "success";
       const at = ctx.nearestShelter(action.from, action.cells);
       if (!at) return "failure";
       return walkAlongRoute({ of: "cell", at, arrive: "on" }, {}, ctx);

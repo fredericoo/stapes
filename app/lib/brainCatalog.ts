@@ -9,7 +9,7 @@ import {
   type BrainConditionDef,
   type BrainEffectDef,
 } from "./brain";
-import { WEATHER_KINDS } from "./weather";
+import { SHELTER_FROM, WEATHER_KINDS } from "./weather";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { CHASE_MAX_NODES, REFUGE_MAX_NODES } from "../game/pathfinding";
 
@@ -190,11 +190,17 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     ],
     make: () => ({ cond: "weather", is: "rain" }),
   },
+  under_sky: {
+    label: "under the sky",
+    hint: "Nothing on any level above this body's cell closes it off from the sky, whatever the weather. Its not is under a roof, a bridge or the ground. A tree covers only its own cell, so the ground beside it is under the sky. Pair it with time of day to keep a body out of the daylight, and with take shelter from sky to walk it under cover.",
+    params: [],
+    make: () => ({ cond: "under_sky" }),
+  },
   shelter_near: {
     label: "shelter near",
-    hint: "This weather is not on the cell this body stands on, or it can walk in at most this many steps to a cell the weather is not on: under a roof or a bridge, down a hole, into a cave, or past the edge of the area the weather reaches. Pair it with take shelter, given the same weather and cells.",
+    hint: "This body is out of what it shelters from, or it can walk in at most this many steps to a cell that is: under a roof or a bridge, down a hole, into a cave, or for a weather past the edge of the area it reaches. Sky is on every cell under the sky, so shelter from sky is anywhere covered. Pair it with take shelter, given the same from and cells.",
     params: [
-      { key: "from", kind: "choice", label: "from", options: WEATHER_KINDS },
+      { key: "from", kind: "choice", label: "from", options: SHELTER_FROM },
       { key: "cells", kind: "number", label: "cells", min: 0 },
     ],
     make: () => ({ cond: "shelter_near", from: "rain", cells: DEFAULT_SHELTER_CELLS }),
@@ -389,9 +395,9 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   take_shelter: {
     label: "take shelter",
-    hint: "Walk to the nearest cell this weather is not on that is at most this many steps away. Succeeds once on such a cell, so nothing below it runs while the body stands there. Fails with no such cell in reach.",
+    hint: "Walk to the nearest cell out of this weather, or for sky the nearest covered cell, that is at most this many steps away. Succeeds once on such a cell, so nothing below it runs while the body stands there. Fails with no such cell in reach.",
     params: [
-      { key: "from", kind: "choice", label: "from", options: WEATHER_KINDS },
+      { key: "from", kind: "choice", label: "from", options: SHELTER_FROM },
       { key: "cells", kind: "number", label: "cells", min: 0 },
     ],
     make: () => ({ action: "take_shelter", from: "rain", cells: DEFAULT_SHELTER_CELLS }),

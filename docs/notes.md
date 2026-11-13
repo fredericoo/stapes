@@ -10074,6 +10074,19 @@ cell the named weather is not on, and `shelter_near` holds when there is one.
   is why the deer's `flee` and `cornered` and the cat's `answering` and
   `following` carry one now; without it rain would pull a fleeing deer out of
   its flight.
+- **`sky` is something to shelter from, beside the weathers.** It is on every
+  cell `underOpenSky` holds for, whatever the weather, so `take_shelter` and
+  `shelter_near` with `from: "sky"` walk to and ask about the nearest covered
+  cell, and the `under_sky` condition asks it of the body's own cell. It is
+  the column walk and not the light bake: a cell lit sideways from a cave
+  mouth counts as covered. That is the price of keeping the light off the
+  server. The bake runs only in the tab, and a creature that asked it would need the
+  server to bake the chunks around every brain that cares.
+- **A tree covers only its own cell.** Its crown is drawn on the cell it
+  stands on rather than placed on the level above, so the ground around it is
+  under the sky. In the forests where the surface wolves live, nothing within
+  `SHELTER_MAX_NODES` of any of them is covered: shelter from the sky there
+  needs a den authored on the map, an overhang or a roofed hollow.
 - **`choice` is a catalogue parameter kind** (`ParamSpec` in
   `brainCatalog.ts`) for a fixed list such as the weathers. A trait cannot
   take one as an argument: `scalarKind` in `traits.ts` has no trait kind for it.

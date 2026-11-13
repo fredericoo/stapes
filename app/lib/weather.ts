@@ -9,6 +9,11 @@ export function isWeatherKind(value: string): value is WeatherKind {
   return (WEATHER_KINDS as readonly string[]).includes(value);
 }
 
+/** What a brain can walk out from under: a weather, or `sky`, which is on every cell under open sky whatever the weather. */
+export const SHELTER_FROM = [...WEATHER_KINDS, "sky"] as const;
+
+export type ShelterFrom = (typeof SHELTER_FROM)[number];
+
 const SPELL_HOURS = 3;
 const MINUTES_PER_HOUR = 60;
 

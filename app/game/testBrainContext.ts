@@ -59,6 +59,7 @@ export function brainContext(overrides: Partial<BrainContext> = {}) {
     talking: () => false,
     inHarm: () => false,
     weather: (): WeatherKind => "clear",
+    underSky: () => true,
     nearestShelter: () => null,
     hurtBy: () => [],
     struck: () => [],
