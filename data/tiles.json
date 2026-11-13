@@ -33842,7 +33842,6 @@
       "x": 2,
       "y": 8
     },
-    "lightPassing": true,
     "walkable": false,
     "interactions": {
       "decay": {
