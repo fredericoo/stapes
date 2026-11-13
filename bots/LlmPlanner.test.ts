@@ -59,6 +59,7 @@ function observation(reason: Observation["reason"], lines: string[]): Observatio
       line,
       heard: line.includes(" said: "),
     })),
+    objective: null,
   };
 }
 

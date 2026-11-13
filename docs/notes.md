@@ -16576,6 +16576,120 @@ apples. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
 does not spend its life looking for a seller nobody has found. It does not
 interrupt a `shop`, `sell` or `gather` on the timer.
 
+**An objective decides between hunting and gathering.** `objectivesFor`
+(`bots/objective.ts`) lists every upgrade the bot could work towards: an
+offer from `Economy.upgrades` whose seller the bot or the fleet has found,
+and whose every missing input it has a source for. Each input's progress is
+what the bot carries plus what its depots hold. What a source gives is read
+from the catalogue: a creature's authored `kit` gives what a kill is expected
+to drop (`kitYield`, each entry's chance counted only while no earlier entry
+filled its square, and a bag's contents only with the bag), and a resource's
+`extract` slots give what a pull is expected to yield (`pullYield`). When the
+input is the currency, anything an NPC pays for counts at its sale price, so
+a bush's berries count towards a weapon.
+
+**Objectives are ranked by gain for the seconds they take, not for their
+price.** For each missing input the source is the creature or resource with
+the fewest seconds for each one expected: a kill's or a pull's seconds over
+what it gives. A kill takes `Odds.killSeconds` at full health, from the same
+`fightOdds` as `fearedTiles`; a pull takes its `extract.durationMs`. Both add
+the walk from home to the nearest place the fleet saw one, in legs of a
+route, at the player's walking pace. A source the bot cannot use is none: a
+creature it fears, one no route from home reaches, one within
+`SAME_PLACE_CELLS` of a place any bot of the fleet died, and one that runs
+(its brain has a `step_away_from` state) and walks faster than a player,
+unless the bot holds a ranged weapon or a casting focus.
+
+**The walk is judged by its route, not as the crow flies.**
+`Bot.walksHome` searches outward from home (`walksFrom` in
+`bots/routes.ts`), out to `WALK_SEARCH_CELLS`, through cells outside the
+berth of every place the fleet saw a creature this bot fears and cannot
+outwalk, and of the bot's own scares; a source inside the range is reached
+when that search reaches its cell or one beside it. The route may leave the
+range on the way. Keeping it inside was tried first: the range on level 0
+is 24 cells, every way down to a crystal passes further than that from the
+spawn, and the nearest crystal by route is 99 legs away, so no crystal was
+ever reached; deaths came back to main's, but the gear gain went with the
+crystals. A gather or hunt for the objective heads only for such places
+(`Recall.reaches`). The crystals on level -3 under the spawn are inside the
+range as the crow flies, but the only way down passes the wolves of the
+deep mine, and in one 12-minute run before this check 35 of 86 deaths were
+on level -3. Three things keep the search from refusing everything:
+
+- Only creatures the bot cannot outwalk count, as for the range. An NPC
+  with a battler that the bot would lose to is feared too, and the tanner
+  beside the spawn blocked every first step; a starting bot also fears
+  cats, snakes and slimes, which it backs away from without harm.
+- A danger whose berth covers home blocks nothing, since every walk starts
+  in it.
+- A cell in a chunk the bot has never been sent has no route to search, so
+  it is judged as before: inside the range and outside every berth. A bot
+  would otherwise ignore every source another bot saw further off than it
+  has walked.
+
+One search reaches about 14,000 cells and takes about 0.3 s on the shipped
+map, so it is cached, and searched again when home, the bot's strength or
+the dangers change, at most every `WALKS_REFRESH_MS`.
+
+Death sites stay as the fallback for what sightings miss: a wolf is often
+seen only once it has noticed somebody. A gather for the objective keeps
+away from them, and a bot that dies before its next errand records the
+resource it set off for as a death site too. Deaths count whatever the
+rating of the bot that died, because bots gain rating within minutes and a
+rating filter forgot every death. On the shipped content
+that last rule removes every skin source from a bot with a sword, because
+deer and rabbits both flee and both walk faster than a player. A bot with a
+bow can hunt them. The first version ranked by gain over price, which sent
+nearly every bot after the Tanner's 5- and 15-skin offers: gold fell from
+7.3 to 3.5 against main, and no objective was reached in 30 minutes.
+Against main (615dbdf), on the default `bench:bots`, each version gave:
+
+| version | deaths/h | gold | gear worth |
+|---|---|---|---|
+| main | 2.10 to 2.23 | 7.8 to 9.0 | 8.1 to 8.2 |
+| ranked by time, crow-flies walk | 3.08 (significantly more) | 9.2 | 9.1 (significantly more) |
+| route kept inside the range | 2.15 | 6.9 | 7.9 |
+| route may leave the range (shipped) | 2.81 (not significant) | 10.8 | 8.8 (significantly more) |
+
+In two 18-bot 30-minute runs of the shipped version, one objective was
+reached and bought (an Iron Sword), against none on main, with 106 deaths
+against 105. Most objectives are shard offers of 20 or 50, and most are
+still unfinished when a 30-minute run ends.
+
+`ProgressPlanner` holds one objective and, below every reflex and errand it
+already had (the bag, the opening, depots, buying, selling, refuge, resting,
+forging), works on the input furthest from done: `hunt` for one creatures
+drop and `gather` for one resources yield, in place of the `HUNT_SPELL_MS`
+timer, which now applies only to a bot with no objective. It keeps the
+objective until it drops off the list (bought, or its seller or its source
+lost), until its progress has not grown for `OBJECTIVE_STALL_MS`, or until
+another is worth `OBJECTIVE_SWITCH_RATIO` times as much. A stall sets aside,
+for as long again, the objective and every other whose next input is the
+same tile from the same source, so a bot does not swap one skin offer for
+the next and stall again. Time on the opening goals or on a walk back to the
+bag is not counted as a stall: the first measurement dropped most
+objectives at ten minutes because bots were still in the tutorial. The
+objective goes back to the bot in `Decision.objective` and comes to the
+planner in `Observation.objective`, and `LlmPlanner` shows it to the model.
+
+The bot acts on it in three places. `Economy.aimAt` makes the objective's
+offer what `savingFor` returns, so its inputs are picked up, kept and
+stashed. `choosePrey` puts prey that drops a missing input, and that the bot
+can hunt, after shared prey and before prey that teaches more. A `gather`
+for the objective (`Market.gatherFor`, not set while recovering, when the
+bot gathers for food) takes only resources that give towards it, ranked by
+steps walked for each expected unit rather than by distance alone. A `hunt`
+for the objective with no prey in sight walks to where the fleet last saw,
+inside the range, the creature that gives the input quickest
+(`Market.quarry`) rather than to its leader or an unexplored edge. The fleet
+remembers every creature that drops anything and every resource it sees.
+Prey the bot left to back away from something else is skipped for
+`PREY_FORGET_MS`; before that, a bot backing away from a snake started the
+same deer hunt again as soon as it stopped, 852 times in one 30-minute run.
+The bot logs `working towards <item> from the <NPC>: 3 of 5 Skin` when it
+takes an objective and with every summary, and `reached objective` or
+`dropped objective` when it lets one go.
+
 Without `OPENAI_API_KEY` that is all; with one, `LlmPlanner` sits over
 `ProgressPlanner` (below).
 

@@ -191,6 +191,61 @@ function longFieldWorld(): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
+/**
+ * A field with the bot, a bush three cells south, a rich crystal four cells
+ * east, and the blacksmith at the far end.
+ */
+function miningWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 8; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells["1,3"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
+  cells["1,6"]!.push({ tileId: "bush" });
+  cells["5,3"]!.push({ tileId: "arcane-crystal-3" });
+  cells["14,3"]!.push({ tileId: "blacksmith", direction: "w" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+/**
+ * A long road with the bot and the tanner halfway along it and a creature to
+ * the west, further than the bot can see but inside its range.
+ */
+function quarryRoadWorld(creature: string): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 2 * ROAD_MID_X; x++) {
+    for (let y = 0; y < 5; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  cells[`${ROAD_MID_X},2`]!.push({ tileId: PLAYER_TILE_ID, direction: "n" });
+  cells[`${ROAD_MID_X},4`]!.push({ tileId: "tanner", direction: "n" });
+  cells[`${QUARRY_AT_X},2`]!.push({ tileId: creature, direction: "w" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+const ROAD_MID_X = 40;
+const QUARRY_AT_X = ROAD_MID_X - 21;
+
+/**
+ * A field split by a wall south of the bot, with one gap at the wall's east
+ * end. The blacksmith is in view, and the crystal is just behind the wall,
+ * a few steps away as the crow flies and a long walk round through the gap.
+ */
+function walledCrystalWorld(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 20; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
+  }
+  for (let x = 0; x < WALL_GAP_X; x++) cells[`${x},${WALL_Y}`]!.push({ tileId: "stone-wall" });
+  cells["2,10"]!.push({ tileId: PLAYER_TILE_ID, direction: "s" });
+  cells["2,6"]!.push({ tileId: "blacksmith", direction: "s" });
+  cells[`${CRYSTAL_AT.x},${CRYSTAL_AT.y}`]!.push({ tileId: "arcane-crystal-3" });
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } };
+}
+
+const WALL_Y = 12;
+const WALL_GAP_X = 13;
+const CRYSTAL_AT = { x: 2, y: 14, z: 0 };
+
 let harness: Harness;
 
 beforeEach(async () => {
@@ -519,7 +574,18 @@ it("hears another player, answers them once, and never runs a command it is talk
   expect(new Set(said)).toEqual(new Set(["tile 0 0 0 lava"]));
 });
 
-async function joinBot(admin = false, { emptyHanded = false } = {}) {
+async function joinBot(admin = false, { emptyHanded = false, weapon = "" } = {}) {
+  if (weapon) {
+    await harness.store.put("equip:bot", {
+      equipment: {
+        ...emptyEquipment(),
+        weapon: { tileId: weapon },
+        armor: { tileId: "cloth-tunic" },
+        bag: { tileId: "basic-bag", contents: [] },
+      },
+      savedAt: 0,
+    });
+  }
   if (emptyHanded) {
     await harness.store.put("equip:bot", {
       equipment: {
@@ -600,6 +666,62 @@ it("takes its savings out of the depot once they complete a price, and spends th
   expect(remote.getSnapshot().equipment.weapon?.tileId).toBe("simple-hammer");
   expect(stashed(remote)).toEqual([]);
   expect(carried(remote)).not.toContain("apple-pie");
+});
+
+it("works towards a weapon by mining the crystal rather than picking the nearer bush", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(miningWorld()), JSON_TYPE);
+  const { remote, clock } = await joinBot();
+  const lines: string[] = [];
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, style: "blunt", wanderChance: 0 },
+    log: (line) => lines.push(line),
+  });
+  const holds = (tileId: string) => carried(remote).includes(tileId);
+
+  await play(bot, remote, () => holds("arcane-shard") || holds("berry"), clock);
+
+  expect(holds("arcane-shard")).toBe(true);
+  expect(holds("berry")).toBe(false);
+  expect(lines.some((line) => /^working towards .*Arcane Shard/.test(line))).toBe(true);
+});
+
+it("hunting for skins with a bow, walks to where the fleet saw a rabbit it cannot see", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(quarryRoadWorld("rabbit")), JSON_TYPE);
+  const { remote, clock } = await joinBot(false, { weapon: "simple-bow" });
+  const landmarks = new Landmarks(":memory:");
+  landmarks.saw("rabbit", { x: QUARRY_AT_X, y: 2, z: 0 });
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 },
+    landmarks,
+  });
+  const nearRabbit = () => remote.getSnapshot().self.x <= QUARRY_AT_X + 8;
+
+  await play(bot, remote, nearRabbit, clock);
+
+  expect(nearRabbit()).toBe(true);
+  landmarks.close();
+});
+
+it("does not work towards skins with a sword when the only creature known to drop them runs faster than it walks", async () => {
+  await harness.blobs.put("map.json", JSON.stringify(quarryRoadWorld("deer")), JSON_TYPE);
+  const { remote, clock } = await joinBot();
+  const landmarks = new Landmarks(":memory:");
+  landmarks.saw("deer", { x: QUARRY_AT_X, y: 2, z: 0 });
+  const lines: string[] = [];
+  const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+    random: () => 0.5,
+    temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 },
+    landmarks,
+    log: (line) => lines.push(line),
+  });
+  const skinObjective = () => lines.some((line) => /^working towards .*Skin/.test(line));
+
+  await play(bot, remote, () => skinObjective() || clock.ms > 60_000, clock);
+
+  expect(skinObjective()).toBe(false);
+  landmarks.close();
 });
 
 it("forges the blank stone from the chest at the stone forge", async () => {
@@ -746,6 +868,34 @@ it.each([
 
   expect(mended(remote)).toBe(true);
 });
+
+it.each([
+  { case: "open", wolfAt: null, diedAt: null, works: true },
+  { case: "wolf past the gap", wolfAt: { x: 14, y: 16, z: 0 }, diedAt: null, works: false },
+  { case: "death at the crystal", wolfAt: null, diedAt: { x: 2, y: 15, z: 0 }, works: false },
+])(
+  "works towards shards from a crystal only by a walk clear of danger ($case)",
+  async ({ wolfAt, diedAt, works }) => {
+    await harness.blobs.put("map.json", JSON.stringify(walledCrystalWorld()), JSON_TYPE);
+    const { remote, clock } = await joinBot();
+    const landmarks = new Landmarks(":memory:");
+    if (wolfAt) landmarks.saw("wolf", wolfAt);
+    if (diedAt) landmarks.died(diedAt, 0);
+    const lines: string[] = [];
+    const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
+      random: () => 0.5,
+      temperament: { ...DEFAULT_TEMPERAMENT, style: "blunt", wanderChance: 0 },
+      landmarks,
+      log: (line) => lines.push(line),
+    });
+    const shardObjective = () => lines.some((line) => /^working towards .*Arcane Shard/.test(line));
+
+    await play(bot, remote, () => shardObjective() || clock.ms > 30_000, clock);
+
+    expect(shardObjective()).toBe(works);
+    landmarks.close();
+  },
+);
 
 it("walks a hurt bot away from where the fleet saw a wolf to the pie maker", async () => {
   await harness.blobs.put("map.json", JSON.stringify(longFieldWorld()), JSON_TYPE);

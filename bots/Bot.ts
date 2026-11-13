@@ -2,7 +2,7 @@ import { coveredBySomething, type ObjectRef } from "../app/game/affordances";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import type { CastSlot, SpellButton } from "../app/game/casting";
 import { carriedInstances, type Equipment } from "../app/game/equipment";
-import { walkDurationMsFor } from "../app/game/movement";
+import { resolveWalkDurationMs, walkDurationMsFor } from "../app/game/movement";
 import { carriedCount } from "../app/game/trade";
 import { walkSpeedPercentFrom } from "../app/game/statuses";
 import { hasLineOfSight } from "../app/game/sight";
@@ -39,6 +39,7 @@ import {
   canHurt,
   choosePrey,
   creaturesAround,
+  isCreature,
   healing,
   healingFood,
   healsAtOnce,
@@ -80,11 +81,22 @@ import {
   type Market,
   whereIs,
 } from "./goals";
-import { Homestead, outwalks, type HomeRange } from "./homeRange";
+import { fromHome, Homestead, inRange, outwalks, type HomeRange } from "./homeRange";
 import { exploredKey, Knowledge } from "./knowledge";
 import { Landmarks, SAME_PLACE_CELLS } from "./memory";
 import { Pilot } from "./Pilot";
 import { nextTalk } from "./shops";
+import {
+  describeObjective,
+  dropWorth,
+  flees,
+  kitYield,
+  nextNeed,
+  objectivesFor,
+  progressOf,
+  type Objective,
+  type Sources,
+} from "./objective";
 import {
   NOTHING_TO_DO,
   type AskReason,
@@ -94,6 +106,7 @@ import {
 } from "./planner";
 import { Recollection } from "./recollection";
 import { REBIRTH_MARK, refugeFor, type Ground } from "./refuge";
+import { legsTo, walksFrom } from "./routes";
 
 export const THINK_EVERY_MS = 30_000;
 
@@ -185,6 +198,20 @@ export const HOLD_GROUND_MS = 4_000;
 
 /** Remembered dangers further than this from the bot do not shape its routes. */
 export const DANGER_RECALL_CELLS = 60;
+
+/**
+ * How far from home, counted as `fromHome` does, the walks from home are
+ * searched. A route may leave the range on its way to a source inside it:
+ * on the shipped map the way down to every crystal passes further than 24
+ * cells from the spawn, the range on level 0.
+ */
+export const WALK_SEARCH_CELLS = 80;
+
+/**
+ * The walks from home are searched again at most this often, since one
+ * search out to `WALK_SEARCH_CELLS` takes about 0.3 s on the shipped map.
+ */
+export const WALKS_REFRESH_MS = 60_000;
 
 /** Retreats from one errand after which the bot gives the errand up. */
 export const TURN_BACK_LIMIT = 3;
@@ -446,9 +473,21 @@ export class Bot {
     margins: Map<string, number>;
     zones?: Zone[];
   } | null = null;
-  private feared: { key: string; tiles: ReadonlySet<string> } | null = null;
+  private feared: {
+    key: string;
+    tiles: ReadonlySet<string>;
+    kills: ReadonlyMap<string, number>;
+  } | null = null;
   /** Where the bot died, until it has been reborn and has told the fleet where that put it. */
   private diedAt: Coord | null = null;
+  /**
+   * The resource a gather for the objective last set off for. A bot that
+   * dies before its next errand counts the death against that place too,
+   * since the range measures it as the crow flies and the walk can pass
+   * through what killed the bot.
+   */
+  private sourcing: Coord | null = null;
+  private walks: { key: string; atMs: number; legs: (cell: Coord) => number | null } | null = null;
   /** Where the bot stood last decision, which is where its bag lies if it has just died. */
   private lastAt: Coord | null = null;
   /** What the bot wore last decision, which is the bag it left if it has just died. */
@@ -471,6 +510,8 @@ export class Bot {
   private deaths = 0;
   private kills = 0;
   private summarizedAtMs: number | null = null;
+  /** What the planner last set the bot to work towards, with its progress as last measured. */
+  private objective: Objective | null = null;
   private readonly log: (line: string) => void;
   private readonly random: () => number;
   private readonly temperament: Temperament;
@@ -577,7 +618,9 @@ export class Bot {
         this.fearDeathPlace(this.lastAt, nowMs);
         const body = this.lastKit && bodyOf(this.tilesById, this.lastKit.masteryXp);
         this.homestead.died(this.lastAt, body ? rating(body.masteries) : null);
+        if (this.sourcing && body) this.landmarks.died(this.sourcing, rating(body.masteries));
       }
+      this.sourcing = null;
       this.deaths++;
       this.happen("you died, dropped your bag and lost a tenth of every mastery's experience");
       this.ask("died", null);
@@ -767,9 +810,17 @@ export class Bot {
     };
     const world = knowledge.world(self.id, this.threatPenalty(snapshot));
     const at = { x: self.x, y: self.y, z: self.z };
-    if (goal.goal === "hunt" && this.keepCompany(snapshot, world, at, nowMs)) return;
+    /** A bot hunting for an input goes where its quarry was seen rather than to its leader. */
+    const quarrying = this.objective && nextNeed(this.objective)?.via === "hunt";
+    if (goal.goal === "hunt" && !quarrying && this.keepCompany(snapshot, world, at, nowMs)) return;
 
-    const zones = this.avoided(snapshot);
+    const market = this.market(snapshot);
+    const forObjective = market.gatherFor !== undefined || market.quarry !== undefined;
+    const walks = forObjective ? this.walksHome(snapshot) : null;
+    const zones = [
+      ...this.avoided(snapshot),
+      ...(market.gatherFor === undefined ? [] : this.deathZones()),
+    ];
     const recall = {
       skipped: this.skipped,
       explored: this.explored,
@@ -777,8 +828,8 @@ export class Bot {
       pulls: this.pulls,
       avoid: (cell: Coord) => inZone(zones, cell),
       range: this.homeRange(snapshot),
+      ...(forObjective && { reaches: (cell: Coord) => !walks || walks(cell) !== null }),
     };
-    const market = this.market(snapshot);
     for (let attempts = 0; attempts < EXPLORE_ATTEMPTS;) {
       const next = nextErrand(goal, knowledge, at, holdings, recall, market);
       if (next === "done") {
@@ -796,6 +847,7 @@ export class Bot {
       }
       if (errand && route?.ok) {
         if (this.wander(knowledge, world, at, nowMs)) return;
+        this.sourcing = market.gatherFor === undefined ? null : errandTarget(errand);
         this.travel(errand, at, route.legs, nowMs, false);
         return;
       }
@@ -943,6 +995,10 @@ export class Bot {
         this.scare(danger, this.berthOf(danger.tileId), nowMs + SCARE_MS);
       }
       this.abandonKitWalk(snapshot);
+      /** Prey left to back away is not taken up again the moment the flight ends, which only leads the bot back to what it fled. */
+      if (this.foe && !dangers.some((danger) => danger.id === this.foe!.id)) {
+        this.preySkipped.set(this.foe.id, nowMs + PREY_FORGET_MS);
+      }
       if (this.foe) this.disengage();
       const from = dangers.sort((a, b) => reach(self, a) - reach(self, b))[0]!.id;
       this.flight = {
@@ -1279,6 +1335,7 @@ export class Bot {
       random: this.random,
       skipped: (id) => (this.preySkipped.get(id) ?? 0) > nowMs,
       shared: (prey) => others.some((p) => steps(p, prey) <= ALLY_CELLS),
+      yields: (prey) => this.huntsFor(snapshot, prey.tileId),
     });
   }
 
@@ -1503,9 +1560,18 @@ export class Bot {
    * worked out again only when its gear or experience changes.
    */
   private fearedTiles(snapshot: GameSnapshot): ReadonlySet<string> {
+    return this.sized(snapshot).tiles;
+  }
+
+  /**
+   * The creatures the bot fears, and the seconds a kill of each creature
+   * takes at full health, from the same odds.
+   */
+  private sized(snapshot: GameSnapshot) {
     const key = JSON.stringify([snapshot.equipment, snapshot.masteryXp]);
-    if (this.feared?.key === key) return this.feared.tiles;
+    if (this.feared?.key === key) return this.feared;
     const tiles = new Set<string>();
+    const kills = new Map<string, number>();
     const fresh = { ...snapshot.self, hp: null, statuses: [] };
     const body = bodyOf(this.tilesById, snapshot.masteryXp);
     if (body) {
@@ -1513,17 +1579,144 @@ export class Bot {
       const bolts = (target: BoltTarget) =>
         boltsPerSecond(snapshot.equipment, this.tilesById, body.masteries, target);
       for (const def of Object.values(this.tilesById)) {
-        if (def.id === PLAYER_TILE_ID || !canHurt(def)) continue;
+        if (def.id === PLAYER_TILE_ID || !(canHurt(def) || isCreature(def))) continue;
         const foe = { tileId: def.id, hp: null, maxHp: null, statuses: [] };
         const odds = fightOdds(mine, fresh, [foe], this.tilesById, this.statusDefs, {
           bolts,
           masteries: body.masteries,
         });
-        if (odds && odds.margin < this.temperament.dread) tiles.add(def.id);
+        if (!odds) continue;
+        if (canHurt(def) && odds.margin < this.temperament.dread) tiles.add(def.id);
+        if (isCreature(def) && Number.isFinite(odds.killSeconds)) {
+          kills.set(def.id, odds.killSeconds);
+        }
       }
     }
-    this.feared = { key, tiles };
-    return tiles;
+    this.feared = { key, tiles, kills };
+    return this.feared;
+  }
+
+  /**
+   * How long the bot expects a kill or a pull of each source to take: the
+   * work itself, plus the walk from home to the nearest place the fleet saw
+   * one that a route reaches without leaving the range or crossing a danger
+   * (`walksHome`), and that is clear of where the fleet died. A source seen
+   * nowhere else is none, and so is a creature the bot fears, or one that
+   * runs from it and walks faster than it does unless the bot can strike
+   * from afar.
+   */
+  private sources(snapshot: GameSnapshot, sold: Sources["sold"]): Sources {
+    const range = this.homeRange(snapshot);
+    const home = range?.home ?? snapshot.self;
+    const player = this.tilesById[PLAYER_TILE_ID]!;
+    const stepSeconds = resolveWalkDurationMs(player) / 1000;
+    const { tiles: feared, kills } = this.sized(snapshot);
+    const afar = this.strikesFromAfar(snapshot);
+    const walks = this.walksHome(snapshot);
+    const deaths = this.deathZones();
+    const legs = (spot: Coord) =>
+      inZone(deaths, spot) ? null : walks ? walks(spot) : fromHome(home, spot);
+    const seconds = new Map<string, number | null>();
+    const walk = (tileId: string) => {
+      if (seconds.has(tileId)) return seconds.get(tileId)!;
+      let fewest: number | null = null;
+      for (const spot of this.landmarks.where(tileId, home)) {
+        const taken = legs(spot);
+        if (taken !== null && (fewest === null || taken < fewest)) fewest = taken;
+      }
+      const walked = fewest === null ? null : fewest * stepSeconds;
+      seconds.set(tileId, walked);
+      return walked;
+    };
+    return {
+      sold,
+      killSeconds: (def) => {
+        const kill = kills.get(def.id);
+        if (kill === undefined || !this.canHunt(def, feared, afar)) return null;
+        const seconds = walk(def.id);
+        return seconds === null ? null : kill + seconds;
+      },
+      pullSeconds: (def) => {
+        const extract = resolveExtract(def);
+        const seconds = extract ? walk(def.id) : null;
+        return extract && seconds !== null ? extract.durationMs / 1000 + seconds : null;
+      },
+    };
+  }
+
+  /**
+   * Where any bot of the fleet died, as wide as the fleet counts one place.
+   * Bots gain rating within minutes of dying, so counting only stronger bots
+   * forgets every death; and the home range keeps death sites out only
+   * beyond `HOME_RANGE_MIN_CELLS`, where no resource near home is.
+   */
+  private deathZones(): Zone[] {
+    return this.landmarks.deaths().map((death) => ({ at: death.at, cells: SAME_PLACE_CELLS }));
+  }
+
+  /**
+   * The legs from home to a cell by a route that stays inside the bot's
+   * range and out of the berth of anything the fleet saw that it fears or
+   * the bot backed away from, or null when no such route reaches it; the
+   * whole function is null while the bot does not know where home is. It
+   * replaces the range's crow-flies distance, which counts the crystals
+   * under the spawn as near when the only way down passes the wolves of the
+   * deep mine. Ground the bot has never been sent has no routes to search,
+   * so a cell there is judged as the crow flies, as before.
+   */
+  private walksHome(snapshot: GameSnapshot): ((cell: Coord) => number | null) | null {
+    const range = this.homeRange(snapshot);
+    if (!range) return null;
+    const { home } = range;
+    const player = this.tilesById[PLAYER_TILE_ID]!;
+    const dangers: Zone[] = [...this.scares.values()];
+    for (const tileId of this.fearedTiles(snapshot)) {
+      const def = this.tilesById[tileId]!;
+      if (!isCreature(def) || outwalks(player, def)) continue;
+      const cells = this.berthOf(tileId);
+      for (const at of this.landmarks.where(tileId, home)) dangers.push({ at, cells });
+    }
+    /** A danger around home itself is one every walk starts in, so it blocks none. */
+    const zones = dangers.filter((zone) => !inZone([zone], home));
+    const key = JSON.stringify([
+      home,
+      this.sized(snapshot).key,
+      zones.map(({ at, cells }) => [at.x, at.y, at.z, cells]),
+    ]);
+    const known = this.walks;
+    if (known && (known.key === key || this.nowMs - known.atMs < WALKS_REFRESH_MS)) {
+      return known.legs;
+    }
+    const knowledge = new Knowledge(snapshot.map, snapshot.actors, this.tilesById, this.statusDefs);
+    const clear = (cell: Coord) => !inZone(zones, cell);
+    const walks = walksFrom(
+      knowledge.world(snapshot.self.id),
+      home,
+      (cell) => fromHome(home, cell) <= WALK_SEARCH_CELLS && clear(cell),
+    );
+    const legs = (cell: Coord) => {
+      if (!inRange(range, cell)) return null;
+      const routed = legsTo(walks, cell);
+      if (routed !== null || knowledge.seen(cell.x, cell.y)) return routed;
+      return clear(cell) ? fromHome(home, cell) : null;
+    };
+    this.walks = { key, atMs: this.nowMs, legs };
+    return legs;
+  }
+
+  private canHunt(def: TileDef, feared: ReadonlySet<string>, afar: boolean): boolean {
+    const player = this.tilesById[PLAYER_TILE_ID]!;
+    return !feared.has(def.id) && (afar || !flees(def) || outwalks(player, def));
+  }
+
+  private strikesFromAfar(snapshot: GameSnapshot): boolean {
+    const body = bodyOf(this.tilesById, snapshot.masteryXp);
+    if (!body) return false;
+    const { equipment } = snapshot;
+    return (
+      (rangedReach(equipment, this.tilesById, body.masteries) ??
+        castingReach(equipment, this.tilesById, body.masteries)) !== null
+    );
   }
 
   /**
@@ -1601,25 +1794,60 @@ export class Bot {
   }
 
   /**
-   * Every NPC in view, and every creature that can hurt, is remembered where
-   * it stands, for the whole fleet: the NPCs to trade with, the creatures so
-   * that a bot that fears them keeps away from where they were seen.
+   * Every NPC in view, every creature that can hurt, and every creature
+   * that drops what the objective needs is remembered where it stands, for
+   * the whole fleet: the NPCs to trade with, the creatures that hurt so that
+   * a bot that fears them keeps away, and the quarry so a hunt can find it.
    */
   private remember(snapshot: GameSnapshot) {
     for (const actor of snapshot.actors) {
       const def = this.tilesById[actor.tileId];
       if (!def || actor.tileId === PLAYER_TILE_ID) continue;
-      if (resolveDialog(def) || canHurt(def)) this.landmarks.saw(actor.tileId, actor);
+      if (resolveDialog(def) || canHurt(def) || (isCreature(def) && kitYield(def).size > 0)) {
+        this.landmarks.saw(actor.tileId, actor);
+      }
     }
   }
 
+  /**
+   * A recovering bot gathers for food, not for its objective, so only a bot
+   * that is not recovering gathers for what its objective needs.
+   */
   private market(snapshot: GameSnapshot): Market {
+    const need = this.objective && nextNeed(this.objective);
+    const aimed = need?.via === "gather" && !this.recovering;
     return {
       economy: this.economy,
       landmarks: this.landmarks,
       bodies: snapshot.actors,
       depots: snapshot.depots,
+      ...(aimed && { gatherFor: need.tileId }),
+      ...(need?.via === "hunt" && { quarry: this.quarry(snapshot, need.tileId) }),
     };
+  }
+
+  /** Creatures the bot can hunt that drop `tileId`, fewest seconds for each one first. */
+  private quarry(snapshot: GameSnapshot, tileId: string): string[] {
+    const { killSeconds } = this.sources(snapshot, () => true);
+    const quarry: { id: string; seconds: number }[] = [];
+    for (const def of Object.values(this.tilesById)) {
+      const drops = isCreature(def) ? dropWorth(this.economy, def, tileId) : 0;
+      const kill = drops > 0 ? killSeconds(def) : null;
+      if (kill !== null) quarry.push({ id: def.id, seconds: kill / drops });
+    }
+    return quarry.sort((a, b) => a.seconds - b.seconds).map(({ id }) => id);
+  }
+
+  /** Whether a kill of this creature, one the bot can hunt, is expected to give some of what the objective lacks. */
+  private huntsFor(snapshot: GameSnapshot, tileId: string): boolean {
+    const need = this.objective && nextNeed(this.objective);
+    const def = this.tilesById[tileId];
+    return (
+      need?.via === "hunt" &&
+      def !== undefined &&
+      this.canHunt(def, this.fearedTiles(snapshot), this.strikesFromAfar(snapshot)) &&
+      dropWorth(this.economy, def, need.tileId) > 0
+    );
   }
 
   /** What the bot does at the end of a walk, by what the walk was for. */
@@ -1668,10 +1896,13 @@ export class Bot {
         const sameOne = ({ ref, tileId }: { ref: ObjectRef; tileId: string }) =>
           tileId === act.tileId && steps(ref, act.at) <= SAME_PLACE_CELLS;
         const def = this.tilesById[act.tileId];
+        /** A creature walks off where it was seen, so one of its kind anywhere in view still counts. */
         const there =
-          def && resolveExtract(def)
-            ? knowledge.resources((tileId) => tileId !== "").some(sameOne)
-            : knowledge.placements(new Set([act.tileId])).some(sameOne);
+          def && isCreature(def)
+            ? snapshot.actors.some((actor) => actor.tileId === act.tileId)
+            : def && resolveExtract(def)
+              ? knowledge.resources((tileId) => tileId !== "").some(sameOne)
+              : knowledge.placements(new Set([act.tileId])).some(sameOne);
         if (!there) this.landmarks.missing(act.tileId, act.at);
         this.course = { kind: "idle" };
         return;
@@ -2180,7 +2411,7 @@ export class Bot {
     const wanted = this.economy.wanted(equipment, body);
     const knowledge = new Knowledge(snapshot.map, snapshot.actors, this.tilesById, this.statusDefs);
     const seen = knowledge.resources(wanted);
-    for (const { ref, tileId } of seen) this.landmarks.saw(tileId, ref);
+    for (const { ref, tileId } of knowledge.resources(() => true)) this.landmarks.saw(tileId, ref);
     const self = snapshot.self;
     const remembered = knowledge
       .resourceTileIds(wanted)
@@ -2188,6 +2419,13 @@ export class Bot {
     const market = this.market(snapshot);
     const known = (deal: Deal) => whereIs(deal.offer.npc, self, market, this.skipped) !== null;
     const banking = this.banking(snapshot, knowledge);
+    const objectives = objectivesFor(
+      this.economy,
+      equipment,
+      body,
+      snapshot.depots,
+      this.sources(snapshot, (offer) => whereIs(offer.npc, self, market, this.skipped) !== null),
+    );
     return {
       canBuy: this.economy.purchases(equipment, body).some(known),
       canSell: this.economy.sales(equipment, body).some(known),
@@ -2199,6 +2437,7 @@ export class Bot {
       canForge: this.knowsAForge(knowledge, equipment, body, self),
       canWithdraw: banking === "withdraw",
       canStash: banking === "deposit",
+      objectives,
     };
   }
 
@@ -2274,21 +2513,26 @@ export class Bot {
     const players = actors
       .filter((a) => a.tileId === PLAYER_TILE_ID && a.id !== self.id)
       .map((a) => ({ name: nameOf(a), x: a.x, y: a.y, z: a.z }));
+    const situation = this.situation(snapshot);
+    const held = this.objective;
+    if (held) this.objective = situation.objectives.find((o) => o.key === held.key) ?? held;
     return {
       reason,
       goal: this.goal,
       outcome,
       nowMs: this.nowMs,
-      situation: this.situation(snapshot),
+      situation,
       self: { name: nameOf(self), x: self.x, y: self.y, z: self.z, hp: self.hp, maxHp: self.maxHp },
       players,
       peaceful: this.peaceful,
       recent: this.memory.recent(),
+      objective: this.objective,
     };
   }
 
   private follow(decision: Decision) {
     if (decision.say) this.say(decision.say);
+    if (decision.objective !== undefined) this.aimAt(decision.objective);
     if (decision.peaceful !== undefined && decision.peaceful !== this.peaceful) {
       this.peaceful = decision.peaceful;
       this.happen(decision.peaceful ? "you stopped hunting" : "you started hunting again");
@@ -2302,6 +2546,22 @@ export class Bot {
     this.turnedBack.clear();
     this.course = { kind: "idle" };
     this.body.setInput({ directions: [] });
+  }
+
+  /**
+   * The objective is reached when the last measure of it had every input,
+   * since what follows is the purchase that takes it off the list.
+   */
+  private aimAt(objective: Objective | null) {
+    const before = this.objective;
+    this.objective = objective;
+    this.economy.aimAt(objective?.offer ?? null);
+    if (before?.key === objective?.key) return;
+    if (before) {
+      const reached = progressOf(before) >= 1;
+      this.happen(`${reached ? "reached" : "dropped"} objective: ${before.name}`);
+    }
+    if (objective) this.happen(`working towards ${describeObjective(objective)}`);
   }
 
   /**
@@ -2332,6 +2592,7 @@ export class Bot {
     this.log(
       `summary deaths=${this.deaths} kills=${this.kills} gold=${gold} stash=${stash} gear=${gear.toFixed(1)}`,
     );
+    if (this.objective) this.log(`working towards ${describeObjective(this.objective)}`);
   }
 
   private happen(line: string, heard = false) {
@@ -2540,4 +2801,15 @@ function shootingGoal(
 
 function nameOf(actor: ActorSnapshot): string {
   return actor.name ?? actor.tileId;
+}
+
+function errandTarget(errand: Errand): Coord | null {
+  switch (errand.act?.kind) {
+    case "gather":
+      return errand.act.ref;
+    case "visit":
+      return errand.act.at;
+    default:
+      return null;
+  }
 }

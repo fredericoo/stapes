@@ -192,6 +192,15 @@ describe("choosePrey", () => {
     });
     expect(prey?.x).toBe(8);
   });
+
+  it("takes prey that drops what the objective needs before nearer prey that teaches more", () => {
+    const deer = { ...body("deer", 6), rating: newcomer.rating! / 4 };
+    const prey = choosePrey(newcomer, [body("rabbit", 1), deer], tilesById, {
+      ...firstChoice,
+      yields: (p) => p.tileId === "deer",
+    });
+    expect(prey?.tileId).toBe("deer");
+  });
 });
 
 describe("healingFood", () => {
