@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { constantFormula } from "../lib/formula";
+import { DEFAULT_BATTLER } from "../lib/battler";
 import { DEFAULT_STATUS_SOURCE } from "../lib/status";
 import type { StatusDef, StatusTone } from "../lib/status";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
@@ -441,6 +442,36 @@ describe("a cell that fires when you land on it", () => {
 
     it("is gone round by a search told nobody, as it always was", () => {
       expect(legs(litBy("rat"))?.[0]).toMatch(/^[ns]$/);
+    });
+  });
+
+  describe("a body immune to what the cell gives", () => {
+    function legsOf(walker: TileDef, tileId: string): Direction[] | null {
+      const from = standing(0, 0);
+      const found = findPath(
+        inTheWay(tileId),
+        { at: from, self: from },
+        { x: 3, y: 0, z: 0 },
+        walker,
+        tilesById,
+        statusDefs,
+      );
+      return found.ok ? walked(found.route) : null;
+    }
+
+    const salamander: TileDef = {
+      ...rat,
+      id: "salamander",
+      kind: "battler",
+      interactions: { battler: { ...DEFAULT_BATTLER, immuneTo: ["burned"] } },
+    };
+
+    it("walks straight through a flame", () => {
+      expect(legsOf(salamander, "flame")?.[0]).toBe("e");
+    });
+
+    it("still goes round a portal", () => {
+      expect(legsOf(salamander, "portal")?.[0]).toMatch(/^[ns]$/);
     });
   });
 
