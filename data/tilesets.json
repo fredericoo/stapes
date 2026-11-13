@@ -240,5 +240,12 @@
     "file": "ice.png",
     "width": 80,
     "height": 376
+  },
+  {
+    "id": "snow-beasts",
+    "name": "Snow Beasts",
+    "file": "snow-beasts.png",
+    "width": 144,
+    "height": 232
   }
 ]

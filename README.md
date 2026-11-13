@@ -230,6 +230,17 @@ an agent drives", lists every call.
   a frozen lake or over `deep-water` as a crossing, and walks 30% fast.
   `snowy-pine` and `snowy-rock` are models cast with `scripts/model-caster.ts`;
   `PREVIEW=<dir>` also writes each face cast four times larger
+- `bun run generate:snow-beasts` — redraw `data/tilesets/snow-beasts.png` and
+  the sprites of `snow-wolf` and `yeti`. The snow wolf is the wolf's own
+  frames read out of `animals.png` with its coat recoloured, so it follows any
+  change to the wolf's frames. The yeti is a 3D figure of bones (chest,
+  shoulders, head, horns, arms, fists, legs, feet) rendered through the game's
+  projection in four facings and three poses of a stride: fur roughened by
+  noise, bare skin on the hands, feet and face, and a toon render's lines:
+  one where a part passes in front of another with air between them, none
+  where two parts join. `PREVIEW=<dir>` also writes the standing
+  pose of each facing six times larger, which takes about a minute. It leaves
+  the battler, brain and respawn authored on each tile alone
 - `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
   spinner: a crystal modelled in Three.js, rendered in headless Chromium and
   snapped to the logo's sixteen colours. Shape, light and timing are constants

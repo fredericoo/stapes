@@ -34,10 +34,15 @@ async function writeJson(file: string, value: unknown) {
 
 const GENERATED_KEYS = ["type", "anchor", "sprite", "sprites", "slices", "scatter"] as const;
 
-/** Reports whether the tile's generated fields moved; anything authored on it is left alone. */
+/**
+ * Reports whether the tile's generated fields moved; anything authored on it
+ * is left alone. `states` is authored on most tiles, so it is only taken from
+ * a generator that draws the states itself.
+ */
 function updateTile(existing: TileDef, tile: TileDef): boolean {
   let changed = false;
-  for (const key of GENERATED_KEYS) {
+  const keys = tile.states ? [...GENERATED_KEYS, "states" as const] : GENERATED_KEYS;
+  for (const key of keys) {
     if (JSON.stringify(existing[key]) === JSON.stringify(tile[key])) continue;
     Object.assign(existing, { [key]: tile[key] });
     changed = true;

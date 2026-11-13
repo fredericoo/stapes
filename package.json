@@ -27,6 +27,7 @@
     "generate:wisps": "bun scripts/generate-wisps.ts",
     "generate:desert": "bun scripts/generate-desert.ts",
     "generate:ice": "bun scripts/generate-ice.ts",
+    "generate:snow-beasts": "bun scripts/generate-snow-beasts.ts",
     "generate:ledges": "bun scripts/generate-ledges.ts",
     "generate:brinks": "bun scripts/generate-brinks.ts",
     "generate:stalagmites": "bun scripts/generate-stalagmites.ts",
