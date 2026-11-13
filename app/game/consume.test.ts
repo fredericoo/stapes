@@ -591,6 +591,107 @@ describe("eating something that grants a status", () => {
   });
 });
 
+describe("eating more of a status than there is room for", () => {
+  const MAX_MS = 130_000;
+
+  const catalogue = statusesById([
+    {
+      id: "fed",
+      name: "Fed",
+      description: "Slowly recovering health.",
+      tone: "good",
+      icon: { tilesetId: "ultima-vi", rect: { x: 48, y: 20, w: 1, h: 1 } },
+      fromMs: 10_000,
+      toMs: 10_000,
+      stacks: true,
+      maxMs: MAX_MS,
+      everyMs: 0,
+      effects: {},
+    },
+    {
+      id: "glow",
+      name: "Glowing",
+      description: "Lit up.",
+      tone: "good",
+      icon: { tilesetId: "ultima-vi", rect: { x: 48, y: 20, w: 1, h: 1 } },
+      fromMs: 60_000,
+      toMs: 60_000,
+      stacks: false,
+      maxMs: 60_000,
+      everyMs: 0,
+      effects: {},
+    },
+  ]);
+
+  const larder: TileDef[] = [
+    ...tiles,
+    granter("feast", [{ id: "fed", fromMs: 120_000, toMs: 120_000 }]),
+    granter("snack", [{ id: "fed", fromMs: 10_000, toMs: 20_000 }]),
+    granter("bite", [{ id: "fed", fromMs: 11_000, toMs: 11_000 }]),
+    granter("lantern-fruit", [{ id: "glow" }]),
+  ];
+
+  function fedTo120(second: string, seed = 1): GameSession {
+    let map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "feast" }]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: second }]);
+    const session = new GameSession(map, larder, { statuses: catalogue, seed });
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    session.drainNotices();
+    return session;
+  }
+
+  function fedMs(session: GameSession, id = "local"): number | undefined {
+    return session.statusesOf(id)?.find((one) => one.defId === "fed")?.remainingMs;
+  }
+
+  it("eats food whose shortest fill fits, and stops at the maximum", () => {
+    for (const seed of [...Array(10).keys()]) {
+      const session = fedTo120("snack", seed);
+
+      expect(session.consume({ kind: "floor", ref: refAt(session, 0, 1) })).toBe(true);
+
+      expect(fedMs(session)).toBe(MAX_MS);
+    }
+  });
+
+  it("refuses food whose shortest fill does not fit, and says why", () => {
+    const session = fedTo120("bite");
+
+    expect(session.consume({ kind: "floor", ref: refAt(session, 0, 1) })).toBe(false);
+
+    expect(tilesAt(session, 0, 1)).toEqual(["grass", "bite"]);
+    expect(fedMs(session)).toBe(120_000);
+    expect(session.drainNotices()).toEqual(["You are too fed to eat bite"]);
+  });
+
+  it("eats it once enough of the status has run down", () => {
+    const session = fedTo120("bite");
+    for (let i = 0; i < Math.round(1000 / TICK_MS); i++) session.tick(TICK_MS);
+
+    expect(session.consume({ kind: "floor", ref: refAt(session, 0, 1) })).toBe(true);
+  });
+
+  it("refuses out of the bag too, and the food stays in it", () => {
+    const session = fedTo120("bite");
+    session.pickUp(refAt(session, 0, 1));
+    session.drainEquipmentChanges();
+
+    expect(session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } })).toBe(false);
+
+    expect(session.getSnapshot().equipment.bag?.contents).toMatchObject([{ tileId: "bite" }]);
+    expect(session.drainEquipmentChanges()).toEqual([]);
+  });
+
+  it("never refuses a status that does not stack", () => {
+    let map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "lantern-fruit" }]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "lantern-fruit" }]);
+    const session = new GameSession(map, larder, { statuses: catalogue });
+
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 0, 1) })).toBe(true);
+  });
+});
+
 describe("drinking the green potion, as authored", () => {
   const catalogue = statusesById(statusesJson);
 

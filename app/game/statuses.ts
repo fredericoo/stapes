@@ -1,7 +1,7 @@
 import type { FightingStats } from "../lib/battler";
 import type { Element } from "../lib/element";
 import type { FormulaScope } from "../lib/formula";
-import { MAX_PERCENT_STAT } from "../lib/item";
+import { MAX_PERCENT_STAT, type StatusGrant } from "../lib/item";
 import { COMBAT_DURATION_MS, COMBAT_STATUS_ID, MODIFIER_KEYS, type StatusDef } from "../lib/status";
 import type { Blame } from "./blame";
 import { TICK_MS } from "./constants";
@@ -96,6 +96,35 @@ export function applyStatus(
       ...(blame ? { blame } : {}),
     };
   });
+}
+
+export function hasRoomFor(
+  current: readonly { readonly defId: string; readonly remainingMs: number }[],
+  def: StatusDef,
+  range: DurationRange = def,
+): boolean {
+  if (!def.stacks) return true;
+  const existing = current.find((instance) => instance.defId === def.id);
+  if (!existing) return true;
+  return existing.remainingMs + range.fromMs <= def.maxMs + TICK_SLACK_MS;
+}
+
+export function grantRange(grant: StatusGrant, def: StatusDef): DurationRange {
+  return grant.fromMs === undefined || grant.toMs === undefined
+    ? def
+    : { fromMs: grant.fromMs, toMs: grant.toMs };
+}
+
+export function firstWithoutRoom(
+  current: readonly { readonly defId: string; readonly remainingMs: number }[],
+  grants: readonly StatusGrant[],
+  catalogue: Record<string, StatusDef>,
+): StatusDef | null {
+  for (const grant of grants) {
+    const def = catalogue[grant.id];
+    if (def && !hasRoomFor(current, def, grantRange(grant, def))) return def;
+  }
+  return null;
 }
 
 export function enterCombat(current: readonly StatusInstance[]): readonly StatusInstance[] {

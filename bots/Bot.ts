@@ -4,7 +4,7 @@ import type { CastSlot, SpellButton } from "../app/game/casting";
 import { carriedInstances, type Equipment } from "../app/game/equipment";
 import { walkDurationMsFor } from "../app/game/movement";
 import { carriedCount } from "../app/game/trade";
-import { walkSpeedPercentFrom } from "../app/game/statuses";
+import { firstWithoutRoom, walkSpeedPercentFrom } from "../app/game/statuses";
 import { hasLineOfSight } from "../app/game/sight";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
 import { capacityOf } from "../app/game/itemMoves";
@@ -22,6 +22,7 @@ import { resolveDialog } from "../app/lib/dialog";
 import { resolveExtract } from "../app/lib/interactions";
 import {
   isRanged,
+  resolveConsumable,
   resolveItem,
   resolveWeapon,
   type ArcaneStoneItem,
@@ -1531,6 +1532,8 @@ export class Bot {
    * mending it, because without a mending status it gets no health back at
    * all, however long it rests. While it fights or backs away it eats only
    * food that heals at once (`healsAtOnce`), and keeps the rest for after.
+   * Food granting more of a status than it has room for counts as nothing,
+   * because the server refuses it.
    */
   private eat(snapshot: GameSnapshot, nowMs: number) {
     const self = snapshot.self;
@@ -1541,11 +1544,11 @@ export class Bot {
     if (nowMs - this.lastEatMs < EAT_RETRY_MS) return;
     if (this.mendReady(snapshot)) return;
     const fighting = this.foe !== null || this.flight !== null;
-    const index = healingFood(
-      snapshot.equipment,
-      this.tilesById,
-      this.statusDefs,
-      fighting ? healsAtOnce : healing,
+    const worth = fighting ? healsAtOnce : healing;
+    const index = healingFood(snapshot.equipment, this.tilesById, this.statusDefs, (def, defs) =>
+      firstWithoutRoom(self.statuses, resolveConsumable(def)?.statuses ?? [], defs)
+        ? 0
+        : worth(def, defs),
     );
     if (index === null) return;
     const tileId = snapshot.equipment.bag?.contents?.[index]?.tileId ?? "";

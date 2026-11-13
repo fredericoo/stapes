@@ -12926,6 +12926,43 @@ The editor previews every formula against a body that is under nothing, so
 `has_status('combat')` reads 0 there, and the snapped cadence it reports is the calm
 one.
 
+## A consumable is refused when a status it grants has no room
+
+A stacking status has a ceiling, `StatusDef.maxMs`, and a grant used to be
+clamped to it: a body with 120 seconds of a 130-second Fed could eat a
+180-second meal and keep ten seconds of it. `GameSession.consume` now refuses
+the item instead, before anything is spent, and says so ("You are too fed to
+eat Apple").
+
+**The test is the shortest duration the grant can roll.** A grant fits when
+`remainingMs + fromMs <= maxMs` (`hasRoomFor` in `app/game/statuses.ts`). At
+120 of 130 seconds a food that fills 10 to 20 seconds is eaten and one that
+fills 11 or more is not. The roll happens after the check, so a fitting grant
+that rolls long is still clamped to `maxMs` by `applyStatus`. Testing the
+minimum rather than the roll keeps the refusal a fact a player can learn about
+a food; testing the maximum would make food with a wide range uneatable for
+most of the bar.
+
+- **Every grant on the item counts, whatever its `chance`.** One status
+  without room refuses the whole item, so the refusal does not depend on dice.
+- **Only stacking statuses can be full.** A status with `stacks: false` keeps
+  the longer of its remaining time and the roll, so there is nothing to
+  overfill.
+- **A body that does not hold the status always has room**, which covers
+  immune bodies: they never hold it.
+- **Only `consume` asks.** A bite, a bolt, a charm, a tile and `/status` still
+  go through `grantStatus` and clamp. Being at the ceiling of Poisoned stops a
+  body drinking more poison, not being bitten.
+- **A grant whose `fromMs` is 0 always fits**, so bread and cheese can be
+  eaten at any level of Fed.
+
+A creature's `consume` action reports `failure` on a refusal, so a deer with a
+berry and no room falls through to the next action in its state and eats once
+Fed has run down. `RemoteSession.consume` does not predict the refusal: the
+server's notice is the only feedback, and a client that declined to send the
+message would show none. Bots check `firstWithoutRoom` themselves before
+choosing food.
+
 ## A dead creature's bag is destroyed and its contents spill
 
 Dropping the pack whole was the simpler rule and it made a killing a single
@@ -16990,7 +17027,9 @@ Every frame, before its goal, a bot checks three things in order:
    nothing mending it, it eats the bag's food that heals most (`healing`). Most food heals through `fed`, a good status that
    mends a point every few seconds, so a mending status counts as
    `MENDING_STATUS_HP`. Bread gives nothing at once, and a rule that counted
-   only immediate health did not see it as food. Food that can give a bad
+   only immediate health did not see it as food. Food that grants more of a
+   status than the bot has room for (`firstWithoutRoom`) counts as nothing,
+   because the server refuses it. Food that can give a bad
    status, such as raw meat or anything stale, is never eaten to heal.
    While it fights or backs away, it eats only food that heals at once
    (`healsAtOnce`): in a fight `fed` mends a character's whole health over

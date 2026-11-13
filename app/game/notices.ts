@@ -245,6 +245,10 @@ export function noRoomToLeaveNotice(name: string): string {
   return `There is nowhere to put ${name}`;
 }
 
+export function tooFullNotice(status: string, verb: string, item: string): string {
+  return `You are too ${statusInSentence(status)} to ${verb.toLowerCase()} ${item}`;
+}
+
 export function noRouteNotice(why: PathRefusal): string {
   switch (why) {
     case "unreachable":
