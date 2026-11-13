@@ -1,5 +1,19 @@
 # the-last-stones
 
+## 0.17.0
+
+### Minor Changes
+
+- Cats, deer and rabbits now get out of the rain when they have nothing better to do: under a roof or a bridge, into a cave, or past where the rain stops. They stay dry until it passes.
+- Rain now puts out campfires and arcane flames left under open sky. A fire under a roof, in a cave or outside the rain keeps burning.
+
+### Patch Changes
+
+- Wolves, skeletons, rats and bog imps now jump down a ledge to keep after you, so dropping off a step no longer shakes them off.
+- A creature immune to burning, like the cyclops, now walks straight through flames instead of stopping in front of them or going the long way round.
+- The dotted line of a spell being cast or a ranged attack is now made of whole pixels that sit on the same grid as the rest of the world, with a crisp shadow under each dot.
+- Shadows from a torch you carry now move smoothly while you walk, instead of jumping when you finish a step.
+
 ## 0.16.0
 
 ### Minor Changes
