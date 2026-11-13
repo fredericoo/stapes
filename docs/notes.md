@@ -11577,6 +11577,10 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
 
 The den is the cell the bear was placed on, its `home`. There is no den tile:
 place the bear where it should sleep, in a cave or under a roof.
+`data/map.json` has two, each on the bare cell furthest from the mouth of a
+ground-level hill cave: 41,45 in the cave that opens at 76,35 and -68,-144 in
+the one that opens at -49,-146. Bats live in both. A bear's prey list has no
+bat in it and a bat hunts only players, so neither starts on the other.
 
 - **Hungry is having no `fed` status at all.** Then it hunts a player, deer or
   rabbit it can see within 8 cells (`hunts-on-sight`, `when` hungry), picks a
