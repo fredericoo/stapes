@@ -64454,7 +64454,8 @@
       "cave-wall-sloped",
       "cave-wall-grey",
       "cave-wall-sloped-grey",
-      "hill-wall"
+      "hill-wall",
+      "hill-cave-mouth"
     ],
     "slices": {
       "0": {
@@ -65371,7 +65372,8 @@
       "cave-wall",
       "cave-wall-grey",
       "cave-wall-sloped-grey",
-      "hill-wall"
+      "hill-wall",
+      "hill-cave-mouth"
     ],
     "slices": {
       "0": {
@@ -66288,7 +66290,8 @@
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-sloped-grey",
-      "hill-wall"
+      "hill-wall",
+      "hill-cave-mouth"
     ],
     "slices": {
       "0": {
@@ -67205,7 +67208,8 @@
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-grey",
-      "hill-wall"
+      "hill-wall",
+      "hill-cave-mouth"
     ],
     "slices": {
       "0": {
@@ -102311,7 +102315,8 @@
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-grey",
-      "cave-wall-sloped-grey"
+      "cave-wall-sloped-grey",
+      "hill-cave-mouth"
     ],
     "slices": {
       "0": {
@@ -103195,6 +103200,100 @@
               "rect": {
                 "x": 12,
                 "y": 10,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "hill-cave-mouth",
+    "name": "Hill Cave Mouth",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "cave-wall",
+      "x": 0,
+      "y": 60
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
                 "w": 2,
                 "h": 2
               },

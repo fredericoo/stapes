@@ -1,13 +1,14 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
-import { AUTOTILE_SLICE_MASKS } from "../app/lib/autotile";
+import { AUTOTILE_SLICE_MASKS, E, N, NE, NW, S, SE, SW, W } from "../app/lib/autotile";
 import { PX_PER_HEIGHT } from "../app/lib/geometry";
 import { STAPES_PALETTE } from "../app/lib/palette";
 import {
   AUTOTILE_SLICE_COUNT,
   CELL_SIZE,
   HEIGHT_PER_LEVEL,
+  type Direction,
   type TileDef,
   type TileSprite,
   type TilesetDef,
@@ -108,6 +109,30 @@ const VARIANTS: Variant[] = [
   { tileId: "hill-wall", name: "Hill Wall", crown: HILL_CROWN, spread: HALF, rock: RED },
 ];
 
+const HILL = VARIANTS.find((variant) => variant.tileId === "hill-wall")!;
+
+const MOUTH_ID = "hill-cave-mouth";
+const MOUTH_WIDTH = CELL - 2;
+const MOUTH_DARK = 0;
+
+/**
+ * A mouth is a cell of `hill-wall` in a straight cliff with a passage through
+ * it. One sprite serves both ways a passage can face, so the rock slopes on
+ * both of its ends: `ends` are the neighbours at each. The end inside the hill
+ * is under the hilltop, where the slope is not seen.
+ */
+const MOUTHS: { facings: readonly Direction[]; ends: readonly [number, number] }[] = [
+  { facings: ["n", "s"], ends: [N | NE | NW, S | SE | SW] },
+  { facings: ["e", "w"], ends: [E | NE | SE, W | NW | SW] },
+];
+
+/** How high the passage is over each pixel of its width: an arch, two pixels under the wall's top at its crown. */
+function mouthRoof(across: number): number {
+  const fromMiddle = Math.abs(across + 0.5 - HALF);
+  if (fromMiddle >= MOUTH_WIDTH / 2) return 0;
+  return fromMiddle < MOUTH_WIDTH / 2 - 1 ? RISE - 2 : RISE - 3;
+}
+
 const NORMAL_REACH = 2;
 
 /**
@@ -132,15 +157,25 @@ function hitAt(
   layers: boolean[][][],
   sx: number,
   sy: number,
-): (Point & { layer: number; face: Face }) | null {
+  hollow?: (layer: number, x: number, y: number) => boolean,
+): (Point & { layer: number; face: Face | "hollow" }) | null {
   const rock = (layer: number, x: number, y: number) =>
     x >= 0 && y >= 0 && x < CELL && y < CELL && layers[layer]![y]![x]!;
+  const inside = (layer: number, x: number, y: number) =>
+    x >= 0 && y >= 0 && x < CELL && y < CELL && hollow?.(layer, x, y) === true;
+  let through = false;
   for (let layer = RISE - 1; layer >= 0; layer--) {
     const x = sx - (RISE - 1 - layer);
     const y = sy - (RISE - 1 - layer);
-    if (rock(layer, x, y)) return { x, y, layer, face: layer === RISE - 1 ? "top" : "south" };
-    if (rock(layer, x, y - 1)) return { x, y: y - 1, layer, face: "south" };
-    if (rock(layer, x - 1, y - 1)) return { x: x - 1, y: y - 1, layer, face: "east" };
+    if (through && (x < 0 || y < 0)) return { x, y, layer, face: "hollow" };
+    for (const [px, py, face] of [
+      [x, y, layer === RISE - 1 ? "top" : "south"],
+      [x, y - 1, "south"],
+      [x - 1, y - 1, "east"],
+    ] as const) {
+      if (inside(layer, px, py)) through = true;
+      else if (rock(layer, px, py)) return { x: px, y: py, layer, face: through ? "hollow" : face };
+    }
   }
   return null;
 }
@@ -196,6 +231,43 @@ function rgba(index: number): [number, number, number, number] {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, 255];
 }
 
+/**
+ * Casts `layers` into the sprite at the origin. Rock seen through a `hollow`
+ * pixel is dark, and so is a ray that leaves the cell inside the passage; one
+ * that reaches the floor first is left clear, so the floor under the tile shows.
+ */
+function cast(
+  sheet: PNG,
+  originX: number,
+  originY: number,
+  layers: boolean[][][],
+  heights: number[][],
+  rock: Rock,
+  hollow?: (layer: number, x: number, y: number) => boolean,
+) {
+  const size = SPRITE_CELLS * CELL;
+  for (let sy = 0; sy < size; sy++) {
+    for (let sx = 0; sx < size; sx++) {
+      const hit = hitAt(layers, sx, sy, hollow);
+      if (!hit) continue;
+      const index =
+        hit.face === "hollow"
+          ? MOUTH_DARK
+          : inkAt(
+              sx,
+              sy,
+              rock[hit.face === "top" ? "top" : sideFace(heights, hit.x, hit.y, hit.face)],
+            );
+      const colour = rgba(index);
+      const i = (sheet.width * (originY + sy) + originX + sx) << 2;
+      for (let c = 0; c < 4; c++) sheet.data[i + c] = colour[c]!;
+    }
+  }
+}
+
+const heightsOf = (layers: boolean[][][]) =>
+  layers[0]!.map((row, y) => row.map((_, x) => layers.filter((layer) => layer[y]![x]).length));
+
 function drawSlice(
   sheet: PNG,
   originX: number,
@@ -204,20 +276,36 @@ function drawSlice(
   { crown, spread, rock }: Variant,
 ) {
   const layers = crossSections(mask, crown, spread);
-  const heights = layers[0]!.map((row, y) =>
-    row.map((_, x) => layers.filter((layer) => layer[y]![x]).length),
+  cast(sheet, originX, originY, layers, heightsOf(layers), rock);
+}
+
+/**
+ * The passage is taken out of the rock and cast with it, so the opening is
+ * sheared with the face it is in, as a door is. The sides are shaded from the
+ * wall before it was cut, so the face round the opening is the face of the
+ * cells beside it.
+ */
+function drawMouth(sheet: PNG, originX: number, originY: number, mouth: (typeof MOUTHS)[number]) {
+  const [near, far] = mouth.ends.map((open) =>
+    crossSections(~open & 0xff, HILL.crown, HILL.spread),
+  ) as [boolean[][][], boolean[][][]];
+  const whole = near.map((rows, layer) =>
+    rows.map((row, y) => row.map((rock, x) => rock && far[layer]![y]![x]!)),
   );
-  const size = SPRITE_CELLS * CELL;
-  for (let sy = 0; sy < size; sy++) {
-    for (let sx = 0; sx < size; sx++) {
-      const hit = hitAt(layers, sx, sy);
-      if (!hit) continue;
-      const face = hit.face === "top" ? "top" : sideFace(heights, hit.x, hit.y, hit.face);
-      const colour = rgba(inkAt(sx, sy, rock[face]));
-      const i = (sheet.width * (originY + sy) + originX + sx) << 2;
-      for (let c = 0; c < 4; c++) sheet.data[i + c] = colour[c]!;
-    }
-  }
+  const alongY = mouth.facings.includes("s");
+  const hollow = (layer: number, x: number, y: number) =>
+    whole[layer]![y]![x]! && layer < mouthRoof(alongY ? x : y);
+  const layers = whole.map((rows, layer) =>
+    rows.map((row, y) => row.map((rock, x) => rock && !hollow(layer, x, y))),
+  );
+  /**
+   * A ray counts as inside the passage only once it has met the near half of
+   * it. One that comes over the hilltop and drops into the far end would
+   * otherwise draw a dark sliver above the brink there.
+   */
+  const seen = (layer: number, x: number, y: number) =>
+    hollow(layer, x, y) && (alongY ? y : x) >= HALF;
+  cast(sheet, originX, originY, layers, heightsOf(whole), HILL.rock, seen);
 }
 
 function sliceRect(slice: number) {
@@ -240,7 +328,7 @@ async function writeJson(file: string, value: unknown) {
 async function main() {
   const sheet = new PNG({
     width: SLICES_PER_ROW * SPRITE_CELLS * CELL,
-    height: VARIANTS.length * VARIANT_ROWS * CELL,
+    height: (VARIANTS.length * VARIANT_ROWS + SPRITE_CELLS) * CELL,
   });
   sheet.data.fill(0);
 
@@ -258,7 +346,10 @@ async function main() {
         frames: [{ sprite: { rect, base: { x: 1, y: 1 } }, durationMs: FRAME_MS }],
       };
     }
-    const others = VARIANTS.filter((other) => other.tileId !== tileId).map((o) => o.tileId);
+    const others = [
+      ...VARIANTS.filter((other) => other.tileId !== tileId).map((o) => o.tileId),
+      MOUTH_ID,
+    ];
     const existing = tiles.find((t) => t.id === tileId);
     if (existing) {
       delete existing.sprite;
@@ -284,6 +375,35 @@ async function main() {
       });
     }
   });
+  const mouthAnchor = { tilesetId: TILESET_ID, x: 0, y: VARIANTS.length * VARIANT_ROWS };
+  const sprites: Partial<Record<Direction, TileSprite>> = {};
+  MOUTHS.forEach((mouth, i) => {
+    const rect = { x: i * SPRITE_CELLS, y: 0, w: SPRITE_CELLS, h: SPRITE_CELLS };
+    drawMouth(sheet, rect.x * CELL, mouthAnchor.y * CELL, mouth);
+    for (const facing of mouth.facings) {
+      sprites[facing] = {
+        frames: [{ sprite: { rect, base: { x: 1, y: 1 } }, durationMs: FRAME_MS }],
+      };
+    }
+  });
+  const mouthTile = tiles.find((t) => t.id === MOUTH_ID);
+  if (mouthTile) {
+    Object.assign(mouthTile, { type: "directional", anchor: mouthAnchor, sprites });
+  } else {
+    tiles.push({
+      id: MOUTH_ID,
+      name: "Hill Cave Mouth",
+      height: 4,
+      type: "directional",
+      kind: "prop",
+      attributes: {},
+      anchor: mouthAnchor,
+      lightPassing: true,
+      intangible: true,
+      walkable: false,
+      sprites,
+    } as TileDef);
+  }
   await fs.writeFile(path.join(DATA, "tilesets", `${TILESET_ID}.png`), PNG.sync.write(sheet));
   await writeJson(tilesPath, tiles);
 
