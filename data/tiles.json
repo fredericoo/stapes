@@ -56,7 +56,8 @@
     },
     "connectsTo": [
       "half-stone",
-      "hole"
+      "hole",
+      "sand-dunes"
     ],
     "slices": {
       "0": {
@@ -984,6 +985,9 @@
         "statusId": "burned"
       }
     },
+    "connectsTo": [
+      "deep-water"
+    ],
     "slices": {
       "0": {
         "frames": [
