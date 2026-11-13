@@ -244,6 +244,11 @@ an agent drives", lists every call.
   to, a cell that could be walked to before no longer can, or daylight reaches
   the back of a cave. What to dig is the `CAVES` block at the top of the
   script; `--dry-run` reports without writing
+- `bun run slope:hills` — turn the vertical cliffs `raise:hills` built into
+  slopes: the `half-stone` fill becomes `hill-wall` and the ground at every
+  drop becomes a brink. It walks the map before and after and refuses to write
+  it if the cells a player can walk to are not the same. Run it after
+  `raise:hills` and `carve:hill-caves`; `--dry-run` reports without writing
 - `bun run grow:mushrooms` — put mushroom patches, about a quarter of them
   blue, on the bare floor of every cave, a few to a cluster, and inside the
   flower ring round every wisp, on cells a player can walk to. A picked patch
@@ -258,6 +263,10 @@ an agent drives", lists every call.
   `grass-ledge` and `sand-ledge` tiles: the tufted rim `raise:hills` lays on
   the ground wherever it stops at a drop, so two levels of the same grass do
   not read as one
+- `bun run generate:brinks` — draw `data/tilesets/brinks.png` and write the
+  `grass-brink` and `sand-brink` tiles: the ground cut to the outline
+  `hill-wall` has at its ceiling, which `slope:hills` lays over the edge of
+  every hill
 - `bun run generate:stalagmites` — draw `data/tilesets/stalagmites.png` and
   write the `stalagmite` and `stalagmite-grey` tiles: four clusters of tapered
   cones, in the colours of `cave-wall` and of `cave-wall-grey`, cast through

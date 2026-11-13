@@ -95,7 +95,7 @@
     "name": "Cave Wall",
     "file": "cave-wall.png",
     "width": 128,
-    "height": 384
+    "height": 480
   },
   {
     "id": "counter",
@@ -226,5 +226,12 @@
     "file": "mushrooms.png",
     "width": 48,
     "height": 48
+  },
+  {
+    "id": "brinks",
+    "name": "Brinks",
+    "file": "brinks.png",
+    "width": 16,
+    "height": 376
   }
 ]
